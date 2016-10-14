@@ -6,8 +6,10 @@
 {
 	"debug": "Отладка",
 	"debugCategory": "Отладка",
+	"debugErrorEditor": "Ошибка при отладке",
 	"debugPanel": "Консоль отладки",
 	"launchConfigDoesNotExist": "Конфигурация запуска \"{0}\" не существует.",
+	"toggleDebugPanel": "Консоль отладки",
 	"toggleDebugViewlet": "Показать отладочные сведения",
 	"view": "Просмотреть"
 }

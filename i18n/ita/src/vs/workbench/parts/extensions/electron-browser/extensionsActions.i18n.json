@@ -6,6 +6,7 @@
 {
 	"ConfigureWorkspaceRecommendations.noWorkspace": "Gli elementi consigliati sono disponibili solo per una cartella dell'area di lavoro.",
 	"OpenExtensionsFile.failed": "Non è possibile creare il file 'extensions.json' all'interno della cartella '.vscode' ({0}).",
+	"builtin": "Predefinito",
 	"clearExtensionsInput": "Cancella input estensioni",
 	"configureWorkspaceRecommendedExtensions": "Configura estensioni consigliate per l'area di lavoro",
 	"deleteSure": "Disinstallare '{0}'?",

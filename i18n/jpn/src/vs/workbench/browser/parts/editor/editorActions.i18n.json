@@ -13,6 +13,7 @@
 	"closeEditorsToTheRight": "右側のエディターを閉じる",
 	"closeOtherEditorsInGroup": "その他のエディターを閉じる",
 	"evenEditorGroups": "エディター グループの幅を等間隔に設定する",
+	"focusActiveEditorGroup": "アクティブなエディター グループにフォーカス",
 	"focusFirstEditorGroup": "左側のエディター グループにフォーカス",
 	"focusLastEditorInStack": "グループ内の最後のエディターを開く",
 	"focusNextGroup": "次のグループにフォーカス",

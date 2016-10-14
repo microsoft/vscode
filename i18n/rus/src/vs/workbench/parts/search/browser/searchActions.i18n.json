@@ -10,7 +10,11 @@
 	"RemoveAction.label": "Удалить",
 	"file.replaceAll.label": "Заменить все",
 	"findInFolder": "Найти в папке",
+	"focusNextInputbox": "Фокус на следующем поле ввода",
+	"focusPreviousInputbox": "Фокус на предыдущем поле ввода",
 	"match.replace.label": "Заменить",
+	"nextSearchTerm": "Показать следующее условие поиска",
+	"previousSearchTerm": "Показать предыдущее условие поиска",
 	"replaceInFiles": "Заменить в файлах",
 	"showSearchViewlet": "Показать средство поиска"
 }

@@ -278,14 +278,40 @@ export class ExtensionScanner {
 
 		return obsolete.then(obsolete => {
 			return pfs.readDirsInDir(absoluteFolderPath)
+				.then(folders => {
+					if (isBuiltin) {
+						return folders;
+					}
+
+					// TODO: align with extensionsService
+					const nonGallery: string[] = [];
+					const gallery: { folder: string; id: string; version: string; }[] = [];
+
+					folders.forEach(folder => {
+						if (obsolete[folder]) {
+							return;
+						}
+
+						const match = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/.exec(folder);
+
+						if (!match) {
+							nonGallery.push(folder);
+							return;
+						}
+
+						const id = match[1];
+						const version = match[2];
+						gallery.push({ folder, id, version });
+					});
+
+					const byId = values(groupBy(gallery, p => p.id));
+					const latest = byId.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0])
+						.map(a => a.folder);
+
+					return [...nonGallery, ...latest];
+				})
 				.then(folders => TPromise.join(folders.map(f => this.scanExtension(version, collector, paths.join(absoluteFolderPath, f), isBuiltin))))
 				.then(extensionDescriptions => extensionDescriptions.filter(item => item !== null))
-				// TODO: align with extensionsService
-				.then(extensionDescriptions => extensionDescriptions.filter(p => !obsolete[`${p.publisher}.${p.name}-${p.version}`]))
-				.then(extensionDescriptions => {
-					const extensionDescriptionsById = values(groupBy(extensionDescriptions, p => p.id));
-					return extensionDescriptionsById.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
-				})
 				.then(null, err => {
 					collector.error(absoluteFolderPath, err);
 					return [];

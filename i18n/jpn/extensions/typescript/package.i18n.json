@@ -16,6 +16,8 @@
 	"format.placeOpenBraceOnNewLineForFunctions": "新しい行に関数の始め中かっこを配置するかどうかを定義します",
 	"javascript.reloadProjects.title": "JavaScript プロジェクトを再度読み込みます",
 	"javascript.validate.enable": "JavaScript の検証を有効/無効にします",
+	"typescript.check.tscVersion": "グローバル インストール TypeScript コンパイラ (tsc など) が、使用された TypeScript 言語サービスと異なっているかどうかを確認します。",
+	"typescript.check.workspaceVersion": "TypeScript バージョンをワークスペースで使用できるかどうかを確認する",
 	"typescript.reloadProjects.title": "TypeScript プロジェクトを再度読み込みます",
 	"typescript.tsdk.desc": "使用する tsserver と lib*.d.ts ファイルが含まれているフォルダーのパスを指定します。",
 	"typescript.tsdk_version.desc": "TS サーバーのバージョンを指定します。TS サーバーが NPM でインストールされていない場合のみ必要です。",

@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "dependencies": {
     "vscode-html-languageservice": {
-      "version": "1.0.0-next.4",
+      "version": "1.0.0-next.5",
       "from": "vscode-html-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-html-languageservice/-/vscode-html-languageservice-1.0.0-next.4.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-html-languageservice/-/vscode-html-languageservice-1.0.0-next.5.tgz"
     },
     "vscode-jsonrpc": {
       "version": "2.4.0",

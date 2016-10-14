@@ -10,7 +10,11 @@
 	"RemoveAction.label": "删除",
 	"file.replaceAll.label": "全部替换",
 	"findInFolder": "在文件夹中查找",
+	"focusNextInputbox": "聚焦下一个输入框",
+	"focusPreviousInputbox": "聚焦上一个输入框",
 	"match.replace.label": "替换",
+	"nextSearchTerm": "显示下一个搜索词",
+	"previousSearchTerm": "显示上一个搜索词",
 	"replaceInFiles": "在文件中替换",
 	"showSearchViewlet": "显示搜索"
 }

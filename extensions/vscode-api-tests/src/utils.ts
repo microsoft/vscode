@@ -50,28 +50,20 @@ export function deleteFile(file: vscode.Uri): Thenable<boolean> {
 }
 
 export function cleanUp(): Thenable<any> {
-	return new Promise((c, e) => {
+	return new Promise((resolve, reject) => {
 		if (vscode.window.visibleTextEditors.length === 0) {
-			return c();
+			return resolve();
 		}
 
-		// TODO: the visibleTextEditors variable doesn't seem to be
-		// up to date after a onDidChangeActiveTextEditor event, not
-		// even using a setTimeout 0... so we MUST poll :(
-		const interval = setInterval(() => {
-			if (vscode.window.visibleTextEditors.length > 0) {
-				return;
+		const reg = vscode.window.onDidChangeVisibleTextEditors(editors => {
+			if (editors.length === 0) {
+				resolve();
+				reg.dispose();
 			}
+		});
 
-			clearInterval(interval);
-			c();
-		}, 10);
+		vscode.commands.executeCommand('workbench.action.closeAllEditors').then(null, reject);
 
-		vscode.commands.executeCommand('workbench.action.closeAllEditors')
-			.then(null, err => {
-				clearInterval(interval);
-				e(err);
-			});
 	}).then(() => {
 		assert.equal(vscode.window.visibleTextEditors.length, 0);
 		assert(!vscode.window.activeTextEditor);

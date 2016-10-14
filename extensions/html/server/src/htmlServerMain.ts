@@ -6,8 +6,9 @@
 
 import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult } from 'vscode-languageserver';
 
-import { HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration } from 'vscode-html-languageservice';
+import { HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration, DocumentContext } from 'vscode-html-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
+import * as url from 'url';
 
 
 import * as nls from 'vscode-nls';
@@ -116,7 +117,8 @@ connection.onDocumentRangeFormatting(formatParams => {
 
 connection.onDocumentLinks(documentLinkParam => {
 	let document = documents.get(documentLinkParam.textDocument.uri);
-	return languageService.findDocumentLinks(document, workspacePath);
+	let documentContext: DocumentContext = { resolveReference: ref => url.resolve(document.uri, ref) };
+	return languageService.findDocumentLinks(document, documentContext);
 });
 
 

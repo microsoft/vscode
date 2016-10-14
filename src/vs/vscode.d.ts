@@ -3377,6 +3377,12 @@ declare namespace vscode {
 		export const onDidChangeActiveTextEditor: Event<TextEditor>;
 
 		/**
+		 * An [event](#Event) which fires when the array of [visible editors](#window.visibleTextEditors)
+		 * has changed.
+		 */
+		export const onDidChangeVisibleTextEditors: Event<TextEditor[]>;
+
+		/**
 		 * An [event](#Event) which fires when the selection in an editor has changed.
 		 */
 		export const onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
@@ -3837,8 +3843,7 @@ declare namespace vscode {
 		 *
 		 * When a section-identifier is provided only that part of the configuration
 		 * is returned. Dots in the section-identifier are interpreted as child-access,
-		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting.doIt') === true`.
-		 *
+		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
 		 *
 		 * @param section A dot-separated identifier.
 		 * @return The full workspace configuration or a subset.

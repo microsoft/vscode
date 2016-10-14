@@ -6,8 +6,10 @@
 {
 	"debug": "Depurar",
 	"debugCategory": "Depurar",
+	"debugErrorEditor": "Depurar error",
 	"debugPanel": "Consola de depuración",
 	"launchConfigDoesNotExist": "La configuración de inicio '{0}' no existe.",
+	"toggleDebugPanel": "Consola de depuración",
 	"toggleDebugViewlet": "Mostrar depuración",
 	"view": "Ver"
 }

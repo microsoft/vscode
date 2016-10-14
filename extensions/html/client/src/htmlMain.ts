@@ -49,7 +49,7 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 	languages.setLanguageConfiguration('html', {
-		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|('(?:[^\\\']*(?:\\.)?)*'?)|[^\s<>={}\[\],]+/,
+		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
 		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
@@ -64,7 +64,7 @@ export function activate(context: ExtensionContext) {
 	});
 
 	languages.setLanguageConfiguration('handlebars', {
-		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|('(?:[^\\\']*(?:\\.)?)*'?)|[^\s<>={}\[\],]+/,
+		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
 		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
@@ -79,7 +79,7 @@ export function activate(context: ExtensionContext) {
 	});
 
 	languages.setLanguageConfiguration('razor', {
-		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|('(?:[^\\\']*(?:\\.)?)*'?)|[^\s<>={}\[\],]+/,
+		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
 		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),

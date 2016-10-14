@@ -32,7 +32,7 @@
 	"fileNameExistsError": "這個位置已存在檔案或資料夾 **{0}**。請選擇不同的名稱。",
 	"filePathTooLongError": "名稱 **{0}** 導致路徑太長。請選擇較短的名稱。",
 	"focusFilesExplorer": "將焦點設在檔案總管上",
-	"focusOpenEditors": "聚焦在 [開啟編輯器] 檢視",
+	"focusOpenEditors": "聚焦在 [開放式編輯器] 檢視",
 	"globalCompareFile": "使用中檔案的比較對象...",
 	"importFiles": "匯入檔案",
 	"invalidFileNameError": "名稱 **{0}** 不能作為檔案或資料夾名稱。請選擇不同的名稱。",

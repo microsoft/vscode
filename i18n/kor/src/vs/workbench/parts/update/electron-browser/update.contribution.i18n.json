@@ -9,6 +9,7 @@
 	"license": "라이선스 읽기",
 	"licenseChanged": "사용 조건이 변경되었습니다. 자세히 읽어보세요.",
 	"neverShowAgain": "다시 표시 안 함",
+	"read the release notes": "{0} v{1}을(를) 시작합니다. 릴리스 정보를 확인하시겠습니까?",
 	"readmore": "자세히 알아보기",
-	"releaseNotes": "{0} v{1}을(를) 시작합니다. 릴리스 정보를 확인하시겠습니까?"
+	"release notes": "릴리스 정보"
 }

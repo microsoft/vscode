@@ -232,6 +232,9 @@ export class ExtHostAPIImplementation {
 				return extHostEditors.createTextEditorDecorationType(options);
 			},
 			onDidChangeActiveTextEditor: extHostEditors.onDidChangeActiveTextEditor.bind(extHostEditors),
+			onDidChangeVisibleTextEditors(listener, thisArg, disposables) {
+				return extHostEditors.onDidChangeVisibleTextEditors(listener, thisArg, disposables);
+			},
 			onDidChangeTextEditorSelection: (listener: (e: vscode.TextEditorSelectionChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostEditors.onDidChangeTextEditorSelection(listener, thisArgs, disposables);
 			},

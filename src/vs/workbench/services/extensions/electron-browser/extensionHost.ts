@@ -24,17 +24,18 @@ import { ipcRenderer as ipc } from 'electron';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, IMessage, IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
 export const EXTENSION_TERMINATE_BROADCAST_CHANNEL = 'vscode:extensionTerminate';
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
-const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../..'));
+const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../../../..'));
 const BUILTIN_EXTENSIONS_PATH = paths.join(BASE_PATH, 'extensions');
 
 export interface ILogEntry {
@@ -68,7 +69,9 @@ export class ExtensionHostProcessWorker {
 		@IWindowService private windowService: IWindowService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IStorageService private storageService: IStorageService,
+		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
@@ -215,6 +218,7 @@ export class ExtensionHostProcessWorker {
 				contextService: {
 					workspace: this.contextService.getWorkspace()
 				},
+				workspaceStoragePath: this.storageService.getStoragePath(StorageScope.WORKSPACE),
 				extensions: extensionDescriptors
 			});
 			this.extensionHostProcessHandle.send(initPayload);
@@ -225,7 +229,7 @@ export class ExtensionHostProcessWorker {
 		const collector = new MessagesCollector();
 		const version = pkg.version;
 		const builtinExtensions = ExtensionScanner.scanExtensions(version, collector, BUILTIN_EXTENSIONS_PATH, true);
-		const userExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionsPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, this.environmentService.extensionsPath, false);
+		const userExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionsPath ? TPromise.as([]) : this.getUserExtensions(version, collector);
 		const developedExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionDevelopmentPath ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, this.environmentService.extensionDevelopmentPath, false);
 		const isDev = !this.environmentService.isBuilt || !!this.environmentService.extensionDevelopmentPath;
 
@@ -260,6 +264,14 @@ export class ExtensionHostProcessWorker {
 			collector.getMessages().forEach(entry => this._handleMessage(entry, isDev));
 			return extensions;
 		});
+	}
+
+	private getUserExtensions(version: string, collector: MessagesCollector): TPromise<IExtensionDescription[]> {
+		return ExtensionScanner.scanExtensions(version, collector, this.environmentService.extensionsPath, false)
+			.then(extensionDescriptions => {
+				const disabledExtensions = this.extensionsRuntimeService.getDisabledExtensions();
+				return disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.indexOf(`${e.publisher}.${e.name}`) === -1) : extensionDescriptions;
+			});
 	}
 
 	private logExtensionHostMessage(logEntry: ILogEntry) {

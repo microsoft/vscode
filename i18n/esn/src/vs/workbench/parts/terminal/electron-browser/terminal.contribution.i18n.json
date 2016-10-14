@@ -17,6 +17,7 @@
 	"terminal.integrated.shell.windows": "Ruta de acceso del shell que el terminal utiliza en Windows. Cuando se usan shells incluidos en Windows (cmd, PowerShell o Bash en Ubuntu), se recomienda C:Windowssysnative en lugar de C:WindowsSystem32 para usar las versiones de 64 bits.",
 	"terminal.integrated.shellArgs.linux": "Los argumentos de la línea de comandos que se usarán en el terminal de Linux.",
 	"terminal.integrated.shellArgs.osx": "Los argumentos de la línea de comandos que se usarán en el terminal de OS X.",
+	"terminalCategory": "Terminal",
 	"terminalIntegratedConfigurationTitle": "Terminal integrado",
 	"viewCategory": "Ver"
 }
