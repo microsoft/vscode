@@ -10,11 +10,12 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
-const VIEWLET_ID = 'test';
+const treeExplorerNodeProviderId = 'pineTree';
+const VIEWLET_ID = 'workbench.view.customTreeExplorerViewlet.' + treeExplorerNodeProviderId;
 
 export class ToggleExternalViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
-	public static LABEL = nls.localize('toggleExternalViewlet', "Toggle External Viewlet");
+	public static LABEL = nls.localize('toggleExternalViewlet', "Toggle External Viewlet pineTree");
 
 	constructor(
 		id: string,
@@ -28,6 +29,6 @@ export class ToggleExternalViewletAction extends ToggleViewletAction {
 
 registry.registerWorkbenchAction(
 	new SyncActionDescriptor(ToggleExternalViewletAction, ToggleExternalViewletAction.ID, ToggleExternalViewletAction.LABEL),
-	"View: Toggle External Viewlet",
+	"View: Toggle External Viewlet pineTree",
 	nls.localize('view', "View")
 );
