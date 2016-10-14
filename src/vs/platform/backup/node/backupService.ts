@@ -37,7 +37,7 @@ export class BackupService implements IBackupService {
 
 	public getWorkspaceBackupPaths(): string[] {
 		this.load();
-		return Object.keys(this.fileContent.folderWorkspaces || Object.create(null));
+		return Object.keys(this.fileContent.folderWorkspaces);
 	}
 
 	public clearWorkspaceBackupPaths(): void {
@@ -84,11 +84,8 @@ export class BackupService implements IBackupService {
 		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
 		const untitledDir = path.join(this.environmentService.backupHome, workspaceHash, 'untitled');
 		try {
-			const untitledFiles = fs.readdirSync(untitledDir).map(file => path.join(untitledDir, file));
-			console.log('untitledFiles', untitledFiles);
-			return untitledFiles;
+			return fs.readdirSync(untitledDir).map(file => path.join(untitledDir, file));
 		} catch (ex) {
-			console.log('untitled backups do not exist');
 			return [];
 		}
 	}
@@ -102,7 +99,6 @@ export class BackupService implements IBackupService {
 		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
 		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
 		const backupPath = path.join(this.environmentService.backupHome, workspaceHash, resource.scheme, backupName);
-		console.log('getBackupResource ' + Uri.file(backupPath));
 		return Uri.file(backupPath);
 	}
 

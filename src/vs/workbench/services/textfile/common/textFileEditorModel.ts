@@ -189,7 +189,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	public load(force?: boolean /* bypass any caches and really go to disk */): TPromise<EditorModel> {
 		diag('load() - enter', this.resource, new Date());
-		console.log(`load model ${this.resource.fsPath}`);
 
 		// It is very important to not reload the model when the model is dirty. We only want to reload the model from the disk
 		// if no save is pending to avoid data loss. This might cause a save conflict in case the file has been modified on the disk
@@ -267,7 +266,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 				if (this.restoreResource) {
 					// TODO: De-duplicate code
-					console.log(`Attempting to restore resource ${this.restoreResource.fsPath}`);
 					this.createTextEditorModelPromise = this.textFileService.resolveTextContent(this.restoreResource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then((restoreContent) => {
 						return this.createTextEditorModel(restoreContent.value, content.resource).then(() => {
 							this.createTextEditorModelPromise = null;
@@ -347,7 +345,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			if (this.fileService.isHotExitEnabled()) {
-				console.log('discard');
 				this.fileService.discardBackup(this.resource);
 			}
 
@@ -369,7 +366,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		if (this.fileService.isHotExitEnabled()) {
-			console.log('backup');
 			this.doBackup();
 		}
 	}
@@ -794,7 +790,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.cancelAutoSavePromises();
 		this.cancelBackupPromises();
 
-		console.log('discard');
 		this.fileService.discardBackup(this.resource);
 
 		super.dispose();

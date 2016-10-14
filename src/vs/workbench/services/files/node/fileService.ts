@@ -469,7 +469,6 @@ export class FileService implements IFileService {
 			return TPromise.as(null);
 		}
 
-		console.log(`Backing up to ${backupResource.fsPath}`);
 		return this.updateContent(backupResource, content);
 	}
 

@@ -607,7 +607,6 @@ export class WindowsManager implements IWindowsService {
 
 		// Add any existing backup workspaces
 		if (openConfig.restoreBackups) {
-			// TODO: Ensure the workspaces being added actually have backups
 			this.backupService.getWorkspaceBackupPaths().forEach(ws => {
 				iPathsToOpen.push(this.toIPath(ws));
 			});
@@ -746,7 +745,6 @@ export class WindowsManager implements IWindowsService {
 		iPathsToOpen.forEach(iPath => this.eventEmitter.emit(EventTypes.OPEN, iPath));
 
 		// Add to backups
-		console.log('iPathsToOpen', iPathsToOpen);
 		this.backupService.pushWorkspaceBackupPaths(iPathsToOpen.map((path) => {
 			return path.workspacePath;
 		}));

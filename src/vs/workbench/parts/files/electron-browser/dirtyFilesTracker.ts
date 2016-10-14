@@ -78,7 +78,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	}
 
 	private onTextFileDirty(e: TextFileModelChangeEvent): void {
-
 		if ((this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) && !this.isDocumentedEdited) {
 			this.updateDocumentEdited(); // no indication needed when auto save is enabled for short delay
 		}
