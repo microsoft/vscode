@@ -1010,7 +1010,7 @@ export class PushAction extends GitAction {
 export class PushToRemoteAction extends GitAction {
 
 	static ID = 'workbench.action.git.pushToRemote';
-	static LABEL = nls.localize('pushToRemote', "Push To Remote");
+	static LABEL = nls.localize('pushToRemote', "Push to...");
 
 	constructor(
 		id: string = PushToRemoteAction.ID,
@@ -1021,7 +1021,7 @@ export class PushToRemoteAction extends GitAction {
 		super(id, label, 'git-action publish', gitService);
 	}
 
-	protected isEnabled():boolean {
+	protected isEnabled(): boolean {
 		if (!super.isEnabled()) {
 			return false;
 		}
@@ -1045,25 +1045,15 @@ export class PushToRemoteAction extends GitAction {
 		return true;
 	}
 
-	public run(context?: any):Promise {
+	public run(context?: any): Promise {
 		const model = this.gitService.getModel();
 		const remotes = model.getRemotes();
 		const branchName = model.getHEAD().name;
-		let promise: TPromise<string>;
-
-
-		const picks = remotes.map(({ name, url }) => ({
-			label: name,
-			description: url
-		}));
-
+		const picks = remotes.map(({ name, url }) => ({ label: name, description: url }));
 		const placeHolder = nls.localize('pushToRemotePickMessage', "Pick a remote to push the branch '{0}' to:", branchName);
 
-		promise = this.quickOpenService.pick(picks, { placeHolder })
-			.then(pick => pick && pick.label);
-
-
-		return promise
+		return this.quickOpenService.pick(picks, { placeHolder })
+			.then(pick => pick && pick.label)
 			.then(remote => remote && this.gitService.push(remote, branchName))
 			.then(null, err => {
 				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
