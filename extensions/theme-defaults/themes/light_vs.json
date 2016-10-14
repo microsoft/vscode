@@ -289,6 +289,13 @@
 			"settings": {
 				"foreground": "#000000"
 			}
+		},
+		{
+			"name": "coloring of the TS this",
+			"scope": "variable.this",
+			"settings": {
+				"foreground": "#0000ff"
+			}
 		}
 	]
 }
