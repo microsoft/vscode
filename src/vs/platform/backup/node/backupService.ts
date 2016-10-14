@@ -32,9 +32,17 @@ export class BackupService implements IBackupService {
 		@IWorkspaceContextService contextService?: IWorkspaceContextService
 	) {
 		// IWorkspaceContextService will not exist on the main process
-		if (contextService) {
-			this.workspaceResource = contextService.getWorkspace().resource;
+		if (!contextService) {
+			return;
 		}
+
+		// Hot exit is disabled for empty workspaces
+		const workspace = contextService.getWorkspace();
+		if (!workspace) {
+			return;
+		}
+
+		this.workspaceResource = workspace.resource;
 	}
 
 	public getWorkspaceBackupPaths(): string[] {
@@ -52,6 +60,10 @@ export class BackupService implements IBackupService {
 	public pushWorkspaceBackupPaths(workspaces: string[]): void {
 		this.load();
 		workspaces.forEach(workspace => {
+			// Hot exit is disabled for empty workspaces
+			if (!workspace) {
+				return;
+			}
 			if (!this.fileContent.folderWorkspaces[workspace]) {
 				this.fileContent.folderWorkspaces[workspace] = [];
 			}
@@ -74,6 +86,11 @@ export class BackupService implements IBackupService {
 	}
 
 	public getWorkspaceUntitledFileBackups(workspace: string): string[] {
+		// Hot exit is disabled for empty workspaces
+		if (!this.workspaceResource) {
+			return;
+		}
+
 		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
 		const untitledDir = path.join(this.environmentService.backupHome, workspaceHash, 'untitled');
 		try {
@@ -87,6 +104,10 @@ export class BackupService implements IBackupService {
 	}
 
 	public getBackupResource(resource: Uri): Uri {
+		// Hot exit is disabled for empty workspaces
+		if (!this.workspaceResource) {
+			return;
+		}
 
 		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
 		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
@@ -96,6 +117,11 @@ export class BackupService implements IBackupService {
 	}
 
 	public registerResourceForBackup(resource: Uri): void {
+		// Hot exit is disabled for empty workspaces
+		if (!this.workspaceResource) {
+			return;
+		}
+
 		this.load();
 		if (arrays.contains(this.fileContent.folderWorkspaces[this.workspaceResource.fsPath], resource.fsPath)) {
 			return;
@@ -105,6 +131,11 @@ export class BackupService implements IBackupService {
 	}
 
 	public deregisterResourceForBackup(resource: Uri): void {
+		// Hot exit is disabled for empty workspaces
+		if (!this.workspaceResource) {
+			return;
+		}
+
 		this.load();
 		this.fileContent.folderWorkspaces[this.workspaceResource.fsPath] = this.fileContent.folderWorkspaces[this.workspaceResource.fsPath].filter(value => value !== resource.fsPath);
 		this.save();
