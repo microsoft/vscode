@@ -178,6 +178,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('allowBreakpointsEverywhere', "Allows setting breakpoints for all files, no matter the extension."),
 			default: false
+		},
+		'debug.openExplorerOnEnd': {
+			type: 'boolean',
+			description: nls.localize('openExplorerOnEnd', "Automatically open explorer viewlet on the end of a debug session."),
+			default: false
 		}
 	}
 });
