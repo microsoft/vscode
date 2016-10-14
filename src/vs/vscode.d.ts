@@ -1350,7 +1350,7 @@ declare module 'vscode' {
 
 	export interface TreeExplorerNodeProvider<T> {
 		provideRootNode(): T | Thenable<T>;
-		resolveChildren(node: T): T | Thenable<T[]>;
+		resolveChildren(node: T): T[] | Thenable<T[]>;
 
 		getLabel?(node: T): string;
 		getShouldInitiallyExpand?(node: T): boolean;
