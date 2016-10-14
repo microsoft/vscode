@@ -285,6 +285,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 				this.instantiationService.createInstance(GitActions.PullAction, GitActions.PullAction.ID, GitActions.PullAction.LABEL),
 				this.instantiationService.createInstance(GitActions.PullWithRebaseAction),
 				this.instantiationService.createInstance(GitActions.PushAction, GitActions.PushAction.ID, GitActions.PushAction.LABEL),
+				this.instantiationService.createInstance(GitActions.PushToRemoteAction, GitActions.PushToRemoteAction.ID, GitActions.PushToRemoteAction.LABEL),
 				new ActionBar.Separator(),
 				this.instantiationService.createInstance(GitActions.PublishAction, GitActions.PublishAction.ID, GitActions.PublishAction.LABEL),
 				new ActionBar.Separator(),
