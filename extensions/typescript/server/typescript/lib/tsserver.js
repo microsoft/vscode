@@ -1174,8 +1174,8 @@ var ts;
     ts.getScriptKindFromFileName = getScriptKindFromFileName;
     ts.supportedTypeScriptExtensions = [".ts", ".tsx", ".d.ts"];
     ts.supportedTypescriptExtensionsForExtractExtension = [".d.ts", ".ts", ".tsx"];
-    ts.supportedJavascriptExtensions = [".js", ".jsx"];
-    var allSupportedExtensions = ts.supportedTypeScriptExtensions.concat(ts.supportedJavascriptExtensions);
+    ts.supportedJavaScriptExtensions = [".js", ".jsx"];
+    var allSupportedExtensions = ts.supportedTypeScriptExtensions.concat(ts.supportedJavaScriptExtensions);
     function getSupportedExtensions(options) {
         return options && options.allowJs ? allSupportedExtensions : ts.supportedTypeScriptExtensions;
     }
@@ -7243,7 +7243,7 @@ var ts;
     }
     ts.getLocalSymbolForExportDefault = getLocalSymbolForExportDefault;
     function hasJavaScriptFileExtension(fileName) {
-        return ts.forEach(ts.supportedJavascriptExtensions, function (extension) { return ts.fileExtensionIs(fileName, extension); });
+        return ts.forEach(ts.supportedJavaScriptExtensions, function (extension) { return ts.fileExtensionIs(fileName, extension); });
     }
     ts.hasJavaScriptFileExtension = hasJavaScriptFileExtension;
     function hasTypeScriptFileExtension(fileName) {

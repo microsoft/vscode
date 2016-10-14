@@ -38,7 +38,7 @@
 	<key>keyEquivalent</key>
 	<string>^~J</string>
 	<key>name</key>
-	<string>JSON (Javascript Next)</string>
+	<string>JSON (JavaScript Next)</string>
 	<key>patterns</key>
 	<array>
 		<dict>

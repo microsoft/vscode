@@ -247,7 +247,7 @@ var nls;
         return TextModel;
     }());
     nls_1.TextModel = TextModel;
-    function patchJavascript(patches, contents, moduleId) {
+    function patchJavaScript(patches, contents, moduleId) {
         var model = new nls.TextModel(contents);
         // patch the localize calls
         lazy(patches).reverse().each(function (p) { return model.apply(p); });
@@ -257,7 +257,7 @@ var nls;
         model.set(0, patchedFirstLine);
         return model.toString();
     }
-    nls_1.patchJavascript = patchJavascript;
+    nls_1.patchJavaScript = patchJavaScript;
     function patchSourcemap(patches, rsm, smc) {
         var smg = new sm.SourceMapGenerator({
             file: rsm.file,
@@ -317,7 +317,7 @@ var nls;
             return { span: { start: start, end: end }, content: c.content };
         })
             .toArray();
-        javascript = patchJavascript(patches, javascript, moduleId);
+        javascript = patchJavaScript(patches, javascript, moduleId);
         // since imports are not within the sourcemap information,
         // we must do this MacGyver style
         if (nlsExpressions.length) {
