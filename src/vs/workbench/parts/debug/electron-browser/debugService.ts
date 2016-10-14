@@ -159,7 +159,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		// from this point on we require an active session
-		let session = this.getActiveSession();
+		let session = this.activeSession;
 		if (!session || session.configuration.type !== 'extensionHost') {
 			return; // we are only intersted if we have an active debug session for extensionHost
 		}
@@ -236,16 +236,16 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	private registerSessionListeners(): void {
-		this.toDisposeOnSessionEnd.push(this.session);
-		this.toDisposeOnSessionEnd.push(this.session.onDidInitialize(event => {
+	private registerSessionListeners(session: RawDebugSession): void {
+		this.toDisposeOnSessionEnd.push(session);
+		this.toDisposeOnSessionEnd.push(session.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
-				if (this.session && this.session.configuration.capabilities.supportsConfigurationDoneRequest) {
-					this.session.configurationDone().done(null, e => {
+				if (session && session.configuration.capabilities.supportsConfigurationDoneRequest) {
+					session.configurationDone().done(null, e => {
 						// Disconnect the debug session on configuration done error #10596
-						if (this.session) {
-							this.session.disconnect().done(null, errors.onUnexpectedError);
+						if (session) {
+							session.disconnect().done(null, errors.onUnexpectedError);
 						}
 						this.messageService.show(severity.Error, e.message);
 					});
@@ -255,7 +255,7 @@ export class DebugService implements debug.IDebugService {
 			this.sendAllBreakpoints().done(sendConfigurationDone, sendConfigurationDone);
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidStop(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidStop(event => {
 			this.setStateAndEmit(debug.State.Stopped);
 			const threadId = event.body.threadId;
 
@@ -283,7 +283,7 @@ export class DebugService implements debug.IDebugService {
 			}, errors.onUnexpectedError);
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidThread(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidThread(event => {
 			if (event.body.reason === 'started') {
 				this.getThreadData().done(null, errors.onUnexpectedError);
 			} else if (event.body.reason === 'exited') {
@@ -291,22 +291,22 @@ export class DebugService implements debug.IDebugService {
 			}
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidTerminateDebugee(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
-			if (this.session && this.session.getId() === event.body.sessionId) {
+			if (session && session.getId() === event.body.sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
 					this.restartSession().done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
-					this.session.disconnect().done(null, errors.onUnexpectedError);
+					session.disconnect().done(null, errors.onUnexpectedError);
 				}
 			}
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidContinued(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidContinued(event => {
 			this.lazyTransitionToRunningState(event.body.allThreadsContinued ? undefined : event.body.threadId);
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidOutput(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidOutput(event => {
 			if (event.body && event.body.category === 'telemetry') {
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
 				// and the user opted in telemetry
@@ -318,7 +318,7 @@ export class DebugService implements debug.IDebugService {
 			}
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidBreakpoint(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidBreakpoint(event => {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
 			const breakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
 			if (breakpoint) {
@@ -331,12 +331,12 @@ export class DebugService implements debug.IDebugService {
 			}
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidExitAdapter(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (this.session && this.session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
+			if (session && session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
 				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
 			}
-			if (this.session && this.session.getId() === event.body.sessionId) {
+			if (session && session.getId() === event.body.sessionId) {
 				this.onSessionEnd();
 			}
 		}));
@@ -629,7 +629,7 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			this.session = this.instantiationService.createInstance(RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
-			this.registerSessionListeners();
+			this.registerSessionListeners(this.session);
 
 			return this.session.initialize({
 				adapterID: configuration.type,
@@ -771,7 +771,7 @@ export class DebugService implements debug.IDebugService {
 		) : this.createSession(false, null);
 	}
 
-	public getActiveSession(): debug.IRawDebugSession {
+	public get activeSession(): debug.IRawDebugSession {
 		return this.session;
 	}
 
