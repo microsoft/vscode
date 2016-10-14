@@ -76,7 +76,11 @@ export class BreakpointWidget extends ZoneWidget {
 			this.hitCountContext = e === 'Hit Count';
 			this.inputBox.setAriaLabel(this.hitCountContext ? HIT_COUNT_ARIA_LABEL : EXPRESSION_ARIA_LABEL);
 			this.inputBox.setPlaceHolder(this.hitCountContext ? HIT_COUNT_PLACEHOLDER : EXPRESSION_PLACEHOLDER);
-			this.inputBox.value = (this.hitCountContext && breakpoint && breakpoint.hitCondition) ? breakpoint.hitCondition : breakpoint && breakpoint.condition ? breakpoint.condition : '';
+			if (this.hitCountContext) {
+				this.inputBox.value = breakpoint && breakpoint.hitCondition ? breakpoint.hitCondition : '';
+			} else {
+				this.inputBox.value = breakpoint && breakpoint.condition ? breakpoint.condition : '';
+			}
 		});
 
 		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
