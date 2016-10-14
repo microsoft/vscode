@@ -100,10 +100,16 @@ export class BreakpointWidget extends ZoneWidget {
 			if (!disposed) {
 				disposed = true;
 				if (success) {
+					// if there is already a breakpoint on this location - remove it.
+					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
+						.filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+
 					const raw: debug.IRawBreakpoint = {
 						uri,
 						lineNumber: this.lineNumber,
-						enabled: true
+						enabled: true,
+						condition: oldBreakpoint && oldBreakpoint.condition,
+						hitCondition: oldBreakpoint && oldBreakpoint.hitCondition
 					};
 					if (this.hitCountContext) {
 						raw.hitCondition = this.inputBox.value;
@@ -111,9 +117,6 @@ export class BreakpointWidget extends ZoneWidget {
 						raw.condition = this.inputBox.value;
 					}
 
-					// if there is already a breakpoint on this location - remove it.
-					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
-						.filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
 					if (oldBreakpoint) {
 						this.debugService.removeBreakpoints(oldBreakpoint.getId()).done(null, errors.onUnexpectedError);
 					}
