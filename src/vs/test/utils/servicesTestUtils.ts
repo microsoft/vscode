@@ -250,6 +250,8 @@ export class TestPartService implements IPartService {
 
 	public setPanelHidden(hidden: boolean): void { }
 
+	public toggleMaximizedPanel(): void { }
+
 	public getSideBarPosition() {
 		return 0;
 	}
