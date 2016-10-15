@@ -43,7 +43,7 @@ class ConfigClass implements IConfiguration {
 			lineNumbers: 'on',
 			selectOnLineNumbers: true,
 			lineNumbersMinChars: 5,
-			glyphMargin: false,
+			glyphMargin: true,
 			lineDecorationsWidth: 10,
 			revealHorizontalRightPadding: 30,
 			roundedSelection: true,

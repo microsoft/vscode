@@ -8,7 +8,7 @@
 import { ReferenceProvider, Location, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient, APIVersion } from '../typescriptService';
+import { ITypescriptServiceClient } from '../typescriptService';
 
 export default class TypeScriptReferenceSupport implements ReferenceProvider {
 
@@ -35,7 +35,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 			let refs = msg.body.refs;
 			for (let i = 0; i < refs.length; i++) {
 				let ref = refs[i];
-				if (!options.includeDeclaration && apiVersion >= APIVersion.v2_0_0 && ref.isDefinition) {
+				if (!options.includeDeclaration && apiVersion.has203Features() && ref.isDefinition) {
 					continue;
 				}
 				let url = this.client.asUrl(ref.file);

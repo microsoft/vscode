@@ -9,6 +9,7 @@
 	"license": "ライセンスの閲覧",
 	"licenseChanged": "ライセンス条項が変更されました。内容をご確認ください。",
 	"neverShowAgain": "次回から表示しない",
+	"read the release notes": "{0} v{1} へようこそ! リリース ノートを確認しますか?",
 	"readmore": "詳細を参照",
-	"releaseNotes": "{0} v{1} へようこそ! リリース ノートを確認しますか?"
+	"release notes": "リリース ノート"
 }

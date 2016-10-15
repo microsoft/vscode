@@ -137,9 +137,9 @@ export class TerminalConfigHelper {
 		if (fontSize <= 0) {
 			fontSize = DefaultConfig.editor.fontSize;
 		}
-		let lineHeight = this.toInteger(terminalConfig.lineHeight, DEFAULT_LINE_HEIGHT);
+		let lineHeight = terminalConfig.lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : terminalConfig.lineHeight;
 
-		return this._measureFont(fontFamily, fontSize, lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : lineHeight);
+		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
 	public getFontLigaturesEnabled(): boolean {
@@ -158,14 +158,18 @@ export class TerminalConfigHelper {
 			executable: '',
 			args: []
 		};
-		if (this._platform === Platform.Windows) {
-			shell.executable = config.terminal.integrated.shell.windows;
-		} else if (this._platform === Platform.Mac) {
-			shell.executable = config.terminal.integrated.shell.osx;
-			shell.args = config.terminal.integrated.shellArgs.osx;
-		} else if (this._platform === Platform.Linux) {
-			shell.executable = config.terminal.integrated.shell.linux;
-			shell.args = config.terminal.integrated.shellArgs.linux;
+		const integrated = config && config.terminal && config.terminal.integrated;
+		if (integrated && integrated.shell && integrated.shellArgs) {
+			if (this._platform === Platform.Windows) {
+				shell.executable = integrated.shell.windows;
+				shell.args = integrated.shellArgs.windows;
+			} else if (this._platform === Platform.Mac) {
+				shell.executable = integrated.shell.osx;
+				shell.args = integrated.shellArgs.osx;
+			} else if (this._platform === Platform.Linux) {
+				shell.executable = integrated.shell.linux;
+				shell.args = integrated.shellArgs.linux;
+			}
 		}
 		return shell;
 	}

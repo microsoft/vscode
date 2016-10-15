@@ -22,7 +22,7 @@
 	"markers.panel.single.info.label": "1 messaggio informativo",
 	"markers.panel.single.unknown.label": "1 sconosciuto",
 	"markers.panel.single.warning.label": "1 avviso",
-	"markers.panel.title.no.problems": "Nessun problema",
+	"markers.panel.title.problems": "Problemi",
 	"problems.panel.configuration.autoreveal": "Controlla se la visualizzazione Problemi deve visualizzare automaticamente i file durante l'apertura",
 	"problems.panel.configuration.title": "Visualizzazione Problemi",
 	"problems.tree.aria.label.error.marker": "Errore generato da {0}: {1} a riga {2} e colonna {3}",

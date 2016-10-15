@@ -316,7 +316,7 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 				actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
 			}
 		} else if (element instanceof model.StackFrame) {
-			const capabilities = this.debugService.getActiveSession().configuration.capabilities;
+			const capabilities = this.debugService.activeSession.configuration.capabilities;
 			if (typeof capabilities.supportsRestartFrame === 'boolean' && capabilities.supportsRestartFrame) {
 				actions.push(this.instantiationService.createInstance(debugactions.RestartFrameAction, debugactions.RestartFrameAction.ID, debugactions.RestartFrameAction.LABEL));
 			}
@@ -1162,7 +1162,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 			data.breakpoint.title = functionBreakpoint.name;
 
 			// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
-			const session = this.debugService.getActiveSession();
+			const session = this.debugService.activeSession;
 			if ((session && !session.configuration.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
 				tree.addTraits('disabled', [functionBreakpoint]);
 				if (session && !session.configuration.capabilities.supportsFunctionBreakpoints) {

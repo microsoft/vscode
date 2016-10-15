@@ -15,6 +15,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import * as confregistry from 'vs/platform/configuration/common/configurationRegistry';
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import viewlet = require('vs/workbench/browser/viewlet');
 import panel = require('vs/workbench/browser/panel');
@@ -164,3 +165,24 @@ registerSingleton(IDebugService, service.DebugService);
 	'DebugErrorEditor'),
 	[new SyncDescriptor(DebugErrorEditorInput)]
 );
+
+// Register configuration
+const configurationRegistry = <confregistry.IConfigurationRegistry>platform.Registry.as(confregistry.Extensions.Configuration);
+configurationRegistry.registerConfiguration({
+	id: 'debug',
+	order: 20,
+	title: nls.localize('debugConfigurationTitle', "Debug"),
+	type: 'object',
+	properties: {
+		'debug.allowBreakpointsEverywhere': {
+			type: 'boolean',
+			description: nls.localize('allowBreakpointsEverywhere', "Allows setting breakpoints for all files, no matter the extension."),
+			default: false
+		},
+		'debug.openExplorerOnEnd': {
+			type: 'boolean',
+			description: nls.localize('openExplorerOnEnd', "Automatically open explorer viewlet on the end of a debug session."),
+			default: false
+		}
+	}
+});

@@ -6,8 +6,10 @@
 {
 	"debug": "调试",
 	"debugCategory": "调试",
+	"debugErrorEditor": "调试错误",
 	"debugPanel": "调试控制台",
 	"launchConfigDoesNotExist": "启动配置“{0}”不存在。",
+	"toggleDebugPanel": "调试控制台",
 	"toggleDebugViewlet": "显示调试",
 	"view": "查看"
 }

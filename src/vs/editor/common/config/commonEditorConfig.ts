@@ -852,6 +852,11 @@ let editorConfiguration: IConfigurationNode = {
 			'default': DefaultConfig.editor.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
 		},
+		'editor.glyphMargin': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.glyphMargin,
+			'description': nls.localize('glyphMargin', "Controls whether the editor should render the vertical glyph margin. Glyph margin is mostly used for debugging.")
+		},
 		'editor.useTabStops': {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.useTabStops,

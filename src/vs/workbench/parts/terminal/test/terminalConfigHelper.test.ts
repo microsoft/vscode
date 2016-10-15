@@ -210,6 +210,9 @@ suite('Workbench - TerminalConfigHelper', () => {
 				integrated: {
 					shell: {
 						windows: 'foo'
+					},
+					shellArgs: {
+						windows: []
 					}
 				}
 			}

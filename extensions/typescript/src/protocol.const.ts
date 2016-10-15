@@ -34,6 +34,8 @@ export class Kind {
 	public static const: string = 'const';
 	public static let: string = 'let';
 	public static warning: string = 'warning';
+	public static directory: string = 'directory';
+	public static file: string = 'file';
 }
 
 export class KindModifier {

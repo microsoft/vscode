@@ -61,6 +61,14 @@
 			{
 				"fileMatch": "/.vscode/extensions.json",
 				"url": "vscode://schemas/extensions"
+			},
+			{
+				"fileMatch": "%APP_SETTINGS_HOME%/extensions.json",
+				"url": "vscode://schemas/extensionsstorage"
+			},
+			{
+				"fileMatch": "%APP_SETTINGS_HOME%/**/extensions.json",
+				"url": "vscode://schemas/extensionsstorage"
 			}
 		]
 	}

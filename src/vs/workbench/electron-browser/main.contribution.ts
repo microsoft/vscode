@@ -116,6 +116,11 @@ configurationRegistry.registerConfiguration({
 			'default': 'left',
 			'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
 		},
+		'workbench.statusBar.visible': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
+		}
 	}
 });
 

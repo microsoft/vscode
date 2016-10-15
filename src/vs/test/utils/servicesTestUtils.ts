@@ -13,8 +13,8 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
-import { EditorInputEvent, IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
+import { Storage, InMemoryLocalStorage } from 'vs/workbench/node/storage';
+import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IConfigurationService, getConfigurationValue, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
@@ -238,8 +238,6 @@ export class TestPartService implements IPartService {
 		return false;
 	}
 
-	public setStatusBarHidden(hidden: boolean): void { }
-
 	public isSideBarHidden(): boolean {
 		return false;
 	}
@@ -251,6 +249,8 @@ export class TestPartService implements IPartService {
 	}
 
 	public setPanelHidden(hidden: boolean): void { }
+
+	public toggleMaximizedPanel(): void { }
 
 	public getSideBarPosition() {
 		return 0;
@@ -278,7 +278,7 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		super();
 
 		let context = new TestContextService();
-		this.storage = new Storage(new InMemoryLocalStorage(), null, context);
+		this.storage = new Storage(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -304,6 +304,11 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 	getBoolean(key: string, scope: StorageScope = StorageScope.GLOBAL, defaultValue?: boolean): boolean {
 		return this.storage.getBoolean(key, scope, defaultValue);
 	}
+
+	getStoragePath(scope: StorageScope = StorageScope.GLOBAL): string {
+		return this.storage.getStoragePath(scope);
+	}
+
 }
 
 export class TestEditorGroupService implements IEditorGroupService {
@@ -312,14 +317,12 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private stacksModel: EditorStacksModel;
 
 	private _onEditorsChanged: Emitter<void>;
-	private _onEditorOpening: Emitter<EditorInputEvent>;
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
-		this._onEditorOpening = new Emitter<EditorInputEvent>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
 
 		let services = new ServiceCollection();
@@ -341,10 +344,6 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public get onEditorsChanged(): Event<void> {
 		return this._onEditorsChanged.event;
-	}
-
-	public get onEditorOpening(): Event<EditorInputEvent> {
-		return this._onEditorOpening.event;
 	}
 
 	public get onEditorOpenFail(): Event<IEditorInput> {

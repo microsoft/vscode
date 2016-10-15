@@ -5,7 +5,10 @@
 
 'use strict';
 
-import * as vscode from 'vscode';
+import { ExtensionContext } from 'vscode';
 
-export function activate(context: vscode.ExtensionContext) { }
-export function deactivate() { }
+export function activate(context: ExtensionContext) {
+}
+
+export function deactivate() {
+}

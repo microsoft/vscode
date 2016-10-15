@@ -406,13 +406,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	public remove(input: IEditorInput): void {
+	public remove(input: IEditorInput | IResourceInput): void {
 		this.removeFromHistory(input);
 		this.removeFromStack(input);
 		this.removeFromRecentlyClosedFiles(input);
 	}
 
-	private removeFromHistory(input: IEditorInput, index?: number): void {
+	private removeFromHistory(input: IEditorInput | IResourceInput, index?: number): void {
 		this.ensureLoaded();
 
 		if (typeof index !== 'number') {
@@ -424,7 +424,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private indexOf(input: IEditorInput): number {
+	private indexOf(input: IEditorInput | IResourceInput): number {
 		for (let i = 0; i < this.history.length; i++) {
 			const entry = this.history[i];
 			if (this.matches(input, entry)) {
@@ -567,7 +567,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		return s1.startLineNumber === s2.startLineNumber; // we consider the history entry same if we are on the same line
 	}
 
-	private removeFromStack(input: IEditorInput): void {
+	private removeFromStack(input: IEditorInput | IResourceInput): void {
 		this.stack.forEach((e, i) => {
 			if (this.matches(input, e.input)) {
 				this.stack.splice(i, 1);
@@ -578,7 +578,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		});
 	}
 
-	private removeFromRecentlyClosedFiles(input: IEditorInput): void {
+	private removeFromRecentlyClosedFiles(input: IEditorInput | IResourceInput): void {
 		this.recentlyClosedFiles.forEach((e, i) => {
 			if (this.matchesFile(e.resource, input)) {
 				this.recentlyClosedFiles.splice(i, 1);
@@ -598,18 +598,35 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		return group.getEditors().some(e => this.matchesFile(resource, e));
 	}
 
-	private matches(typedInput: IEditorInput, input: IEditorInput | IResourceInput): boolean {
-		if (input instanceof EditorInput) {
-			return input.matches(typedInput);
+	private matches(inputA: IEditorInput | IResourceInput, inputB: IEditorInput | IResourceInput): boolean {
+		if (inputA instanceof EditorInput && inputB instanceof EditorInput) {
+			return inputA.matches(inputB);
 		}
 
-		return this.matchesFile((input as IResourceInput).resource, typedInput);
+		if (inputA instanceof EditorInput) {
+			return this.matchesFile((inputB as IResourceInput).resource, inputA);
+		}
+
+		if (inputB instanceof EditorInput) {
+			return this.matchesFile((inputA as IResourceInput).resource, inputB);
+		}
+
+		const resourceInputA = inputA as IResourceInput;
+		const resourceInputB = inputB as IResourceInput;
+
+		return resourceInputA && resourceInputB && resourceInputA.resource.toString() === resourceInputB.resource.toString();
 	}
 
-	private matchesFile(resource: URI, input: IEditorInput): boolean {
-		const fileInput = asFileEditorInput(input);
+	private matchesFile(resource: URI, input: IEditorInput | IResourceInput): boolean {
+		if (input instanceof EditorInput) {
+			const fileInput = asFileEditorInput(input);
 
-		return fileInput && fileInput.getResource().toString() === resource.toString();
+			return fileInput && fileInput.getResource().toString() === resource.toString();
+		}
+
+		const resourceInput = input as IResourceInput;
+
+		return resourceInput && resourceInput.resource.toString() === resource.toString();
 	}
 
 	public getHistory(): (IEditorInput | IResourceInput)[] {

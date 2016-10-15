@@ -103,6 +103,12 @@
 	display: none;
 }
 
+.extensions-viewlet > .extensions .extension > .details > .header .extension-status {
+	width: 7px;
+	height: 7px;
+	margin-left: 5px;
+}
+
 .extensions-viewlet > .extensions .extension > .details > .footer {
 	display: flex;
 	justify-content: flex-end;

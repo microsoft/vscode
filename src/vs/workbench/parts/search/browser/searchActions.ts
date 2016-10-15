@@ -37,7 +37,7 @@ export function appendKeyBindingLabel(label: string, keyBinding: Keybinding, key
 export function appendKeyBindingLabel(label: string, keyBinding: number, keyBindingService2: IKeybindingService): string
 export function appendKeyBindingLabel(label: string, keyBinding: any, keyBindingService2: IKeybindingService): string {
 	keyBinding = typeof keyBinding === 'number' ? new Keybinding(keyBinding) : keyBinding;
-	return label + ' (' + keyBindingService2.getLabelFor(keyBinding) + ')';
+	return keyBinding ? label + ' (' + keyBindingService2.getLabelFor(keyBinding) + ')' : label;
 }
 
 export class ToggleCaseSensitiveAction extends Action {

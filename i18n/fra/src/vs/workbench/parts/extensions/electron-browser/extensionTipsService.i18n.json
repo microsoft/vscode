@@ -7,5 +7,6 @@
 	"close": "Fermer",
 	"neverShowAgain": "Ne plus afficher",
 	"reallyRecommended": "Il est recommandé d'installer l'extension '{0}'.",
-	"showRecommendations": "Afficher les recommandations"
+	"showRecommendations": "Afficher les recommandations",
+	"workspaceRecommended": "Cet espace de travail a des recommandations d'extension."
 }

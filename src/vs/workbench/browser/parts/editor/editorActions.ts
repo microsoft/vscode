@@ -1147,40 +1147,6 @@ export class ClearEditorHistoryAction extends Action {
 	}
 }
 
-export class RemoveFromEditorHistoryAction extends Action {
-
-	public static ID = 'workbench.action.removeFromEditorHistory';
-	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From Editor History");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IHistoryService private historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-
-		// Listen for next editor to open
-		const unbind = this.editorGroupService.onEditorOpening(e => {
-			unbind.dispose(); // listen once
-
-			e.prevent();
-			this.historyService.remove(e.editorInput);
-		});
-
-		// Bring up quick open
-		this.quickOpenService.show().then(() => {
-			unbind.dispose(); // make sure to unbind if quick open is closing
-		});
-
-		return TPromise.as(true);
-	}
-}
-
 export class FocusLastEditorInStackAction extends Action {
 
 	public static ID = 'workbench.action.openLastEditorInGroup';

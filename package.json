@@ -27,7 +27,7 @@
     "iconv-lite": "0.4.13",
     "minimist": "1.2.0",
     "native-keymap": "0.3.0",
-    "pty.js": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
+    "pty.js": "https://github.com/Tyriar/pty.js/tarball/e42781661143541fa08309adc9b0091e7b8674d3",
     "semver": "4.3.6",
     "vscode-debugprotocol": "1.13.0",
     "vscode-textmate": "2.2.0",

@@ -17,6 +17,7 @@
 	"terminal.integrated.shell.windows": "端末が Windows で使用するシェルのパス。Windows に付属のシェル (cmd、PowerShell、または Bash on Ubuntu) を使用する場合、64 ビット バージョンを使用するには、C:WindowsSystem32 ではなく、C:Windowssysnative を選びます。",
 	"terminal.integrated.shellArgs.linux": "Linux 端末で使用するコマンド ライン引数。",
 	"terminal.integrated.shellArgs.osx": "OS X 端末で使用するコマンド ライン引数。",
+	"terminalCategory": "端末",
 	"terminalIntegratedConfigurationTitle": "統合端末",
 	"viewCategory": "表示"
 }

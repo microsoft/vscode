@@ -2,6 +2,11 @@
   "name": "typescript",
   "version": "0.10.1",
   "dependencies": {
+    "semver": {
+      "version": "4.3.6",
+      "from": "semver@4.3.6",
+      "resolved": "https://registry.npmjs.org/semver/-/semver-4.3.6.tgz"
+    },
     "applicationinsights": {
       "version": "0.15.6",
       "from": "applicationinsights@0.15.6",

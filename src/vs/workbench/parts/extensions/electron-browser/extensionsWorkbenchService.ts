@@ -38,6 +38,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from './extensionsInput';
+import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -68,6 +69,10 @@ class Extension implements IExtension {
 		}
 
 		return this.gallery.displayName || this.gallery.name;
+	}
+
+	get identifier(): string {
+		return `${this.publisher}.${this.name}`;
 	}
 
 	get publisher(): string {
@@ -300,7 +305,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
-		@IURLService urlService: IURLService
+		@IURLService urlService: IURLService,
+		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -579,10 +585,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return ExtensionState.Installing;
 		}
 
+		const disabledExtensions = this.extensionsRuntimeService.getDisabledExtensions();
 		const local = this.installed.filter(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))[0];
 
 		if (local) {
-			return local.needsRestart ? ExtensionState.NeedsRestart : ExtensionState.Installed;
+			if (local.needsRestart) {
+				return ExtensionState.NeedsRestart;
+			} else {
+				return disabledExtensions.indexOf(`${local.publisher}.${local.name}`) === -1 ? ExtensionState.Installed : ExtensionState.Disabled;
+			}
 		}
 
 		return ExtensionState.Uninstalled;
