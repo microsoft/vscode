@@ -190,7 +190,7 @@ class CheckoutCommand implements ICommand {
 		if (currentHeadMatches.length > 0) {
 			entries.unshift(new CurrentHeadEntry(this.gitService, this.messageService, currentHeadMatches[0].head, currentHeadMatches[0].highlights));
 
-		} else if (exactMatches.length === 0 && input.trim()) {
+		} else if (exactMatches.length === 0 && input) {
 			if (!isValidBranchName(input)) {
 			input = correctBranchName(input);
 			}
@@ -218,8 +218,12 @@ class BranchCommand implements ICommand {
 	getResults(input: string): TPromise<QuickOpenEntry[]> {
 		input = input.trim();
 
-		if (!isValidBranchName(input)) {
+		if (!input) {
 			return TPromise.as([]);
+		}
+
+		if (!isValidBranchName(input)) {
+			input = correctBranchName(input);
 		}
 
 		const gitModel = this.gitService.getModel();
