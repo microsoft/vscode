@@ -29,6 +29,7 @@ import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extension
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { createQueuedSender, IQueuedSender } from 'vs/base/node/processes';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -47,6 +48,7 @@ export interface ILogEntry {
 export class ExtensionHostProcessWorker {
 	private initializeExtensionHostProcess: TPromise<ChildProcess>;
 	private extensionHostProcessHandle: ChildProcess;
+	private extensionHostProcessQueuedSender: IQueuedSender;
 	private extensionHostProcessReady: boolean;
 	private initializeTimer: number;
 
@@ -126,6 +128,7 @@ export class ExtensionHostProcessWorker {
 
 				// Run Extension Host as fork of current process
 				this.extensionHostProcessHandle = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);
+				this.extensionHostProcessQueuedSender = createQueuedSender(this.extensionHostProcessHandle);
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
 				if (this.isExtensionDevelopmentHost && port) {
@@ -221,7 +224,7 @@ export class ExtensionHostProcessWorker {
 				workspaceStoragePath: this.storageService.getStoragePath(StorageScope.WORKSPACE),
 				extensions: extensionDescriptors
 			});
-			this.extensionHostProcessHandle.send(initPayload);
+			this.extensionHostProcessQueuedSender.send(initPayload);
 		});
 	}
 
@@ -351,9 +354,9 @@ export class ExtensionHostProcessWorker {
 
 	public send(msg: any): void {
 		if (this.extensionHostProcessReady) {
-			this.extensionHostProcessHandle.send(msg);
+			this.extensionHostProcessQueuedSender.send(msg);
 		} else if (this.initializeExtensionHostProcess) {
-			this.initializeExtensionHostProcess.done(p => p.send(msg));
+			this.initializeExtensionHostProcess.done(() => this.extensionHostProcessQueuedSender.send(msg));
 		} else {
 			this.unsentMessages.push(msg);
 		}
@@ -363,7 +366,7 @@ export class ExtensionHostProcessWorker {
 		this.terminating = true;
 
 		if (this.extensionHostProcessHandle) {
-			this.extensionHostProcessHandle.send({
+			this.extensionHostProcessQueuedSender.send({
 				type: '__$terminate'
 			});
 		}
