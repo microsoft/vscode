@@ -26,7 +26,7 @@ function fork(id: string): cp.ChildProcess {
 suite('Processes', () => {
 	test('buffered sending - simple data', function (done: () => void) {
 		const child = fork('vs/base/test/node/processes/fixtures/fork');
-		const sender = processes.createBufferedSender(child);
+		const sender = processes.createQueuedSender(child);
 
 		const msg = 'Hello Child';
 		child.on('message', msgFromChild => {
@@ -43,14 +43,12 @@ suite('Processes', () => {
 
 	test('buffered sending - lots of data (potential deadlock on windows)', function (done: () => void) {
 		const child = fork('vs/base/test/node/processes/fixtures/fork_large');
-		const sender = processes.createBufferedSender(child);
+		const sender = processes.createQueuedSender(child);
 
 		const largeObj = Object.create(null);
 		for (let i = 0; i < 10000; i++) {
 			largeObj[i] = 'some data';
 		}
-
-		let counter = 0;
 
 		const msg = JSON.stringify(largeObj);
 		child.on('message', msgFromChild => {
