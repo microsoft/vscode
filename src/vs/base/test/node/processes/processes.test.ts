@@ -41,7 +41,7 @@ suite('Processes', () => {
 		});
 	});
 
-	test('buffered sending - lots of data (potential deadlock on windows)', function (done: () => void) {
+	test('buffered sending - lots of data (potential deadlock on win32)', function (done: () => void) {
 		const child = fork('vs/base/test/node/processes/fixtures/fork_large');
 		const sender = processes.createQueuedSender(child);
 
