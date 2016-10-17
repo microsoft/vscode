@@ -87,8 +87,6 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		};
 		update();
 		watermark.build(container, 0);
-		$(container)
-			.addClass('has-watermark');
 		this.toDispose.push(this.keybindingService.onDidUpdateKeybindings(update));
 	}
 
