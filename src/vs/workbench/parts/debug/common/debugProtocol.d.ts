@@ -654,8 +654,10 @@ declare module DebugProtocol {
 	/** Response to 'setVariable' request. */
 	export interface SetVariableResponse extends Response {
 		body: {
-			/** the new value of the variable. */
+			/** The new value of the variable. */
 			value: string;
+			/** The type of the new value. Typically shown in the UI when hovering over the value. */
+			type?: string;
 		};
 	}
 
@@ -1025,19 +1027,19 @@ declare module DebugProtocol {
 	export interface Variable {
 		/** The variable's name. */
 		name: string;
-		/** The variable's type. */
-		type?: string;
 		/** The variable's value. For structured objects this can be a multi line text, e.g. for a function the body of a function. */
 		value: string;
+		/** The type of the variable's value. Typically shown in the UI when hovering over the value. */
+		type?: string;
 		/** Properties of a variable that can be used to determine how to render the variable in the UI. Format of the string value: TBD. */
 		kind?: string;
 		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
 		variablesReference: number;
-		/** The number of named child variables in this scope.
+		/** The number of named child variables.
 			The client can use this optional information to present the children in a paged UI and fetch them in chunks.
 		*/
 		namedVariables?: number;
-		/** The number of indexed child variables in this scope.
+		/** The number of indexed child variables.
 			The client can use this optional information to present the children in a paged UI and fetch them in chunks.
 		*/
 		indexedVariables?: number;
