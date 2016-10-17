@@ -19,6 +19,9 @@ import 'vs/editor/browser/editor.all';
 // Menus/Actions
 import 'vs/platform/actions/browser/menusExtensionPoint';
 
+// External Explorers
+import "vs/platform/explorers/browser/explorerExtensionPoint";
+
 // Workbench
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarVisibility';

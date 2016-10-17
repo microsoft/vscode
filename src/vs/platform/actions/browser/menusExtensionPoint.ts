@@ -15,7 +15,6 @@ import { IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry } f
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/platform';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 
 namespace schema {
 
@@ -208,34 +207,6 @@ namespace schema {
 			}
 		]
 	};
-
-	// --- treeExplorers contribution point
-
-	export interface IExplorer {
-		treeExplorerNodeProviderId: string;
-		treeLabel: string;
-		icon: IUserFriendlyIcon;
-	}
-
-	export const explorerContribtion: IJSONSchema = {
-		description: localize('vscode.extension.contributes.explorer', "Contributes explorer viewlet to the sidebar"),
-		type: 'object',
-		properties: {
-			treeContentProviderId: {
-				description: localize('vscode.extension.contributes.explorer.treeExplorerNodeProviderId', 'Unique id used to identify provider registered through vscode.workspace.registerTreeExplorerNodeProvider'),
-				type: 'string'
-			},
-			treeLabel: {
-				description: localize('vscode.extension.contributes.explorer.treeLabel', 'Human readable string used to render the custom tree Viewlet'),
-				type: 'string'
-			},
-			icon: {
-				description: localize('vscode.extension.contributes.explorer.icon', 'Icon to put on activity bar'),
-				type: 'string'
-			}
-		}
-	};
-
 }
 
 ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>('commands', schema.commandsContribution).setHandler(extensions => {
@@ -335,36 +306,5 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 				});
 			}
 		});
-	}
-});
-
-ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.explorerContribtion).setHandler(extensions => {
-	let baseOrder = 200;
-
-	for (let extension of extensions) {
-		const { treeExplorerNodeProviderId, treeLabel, icon } = extension.value;
-
-		const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };
-		if (icon) {
-			if (typeof icon === 'string') {
-				const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
-				const iconPath = join(extension.description.extensionFolderPath, icon);
-				createCSSRule(iconClass, getIconRule(iconPath));
-			} else {
-				const lightIconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
-				const darkIconClass = `.vs-dark .monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
-				createCSSRule(lightIconClass, getIconRule(icon.light));
-				createCSSRule(darkIconClass, getIconRule(icon.dark));
-			}
-		}
-
-		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
-			'TreeExplorerViewlet',
-			'workbench.view.customTreeExplorerViewlet.' + treeExplorerNodeProviderId,
-			treeLabel,
-			treeExplorerNodeProviderId,
-			baseOrder++
-		));
 	}
 });
