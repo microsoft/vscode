@@ -60,6 +60,13 @@
 			}
 		},
 		{
+			"name": "Object keys, TS gammar specific",
+			"scope": "object-literal.member.key",
+			"settings": {
+				"foreground": "#9CDCFE"
+			}
+		},
+		{
 			"name": "CSS property value",
 			"scope": [
 				"support.property-value",
