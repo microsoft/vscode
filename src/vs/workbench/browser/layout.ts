@@ -20,7 +20,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 
 const DEFAULT_MIN_PART_WIDTH = 170;
 const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;
-const DEFAULT_MIN_EDITOR_PART_HEIGHT = 170;
+const DEFAULT_MIN_EDITOR_PART_HEIGHT = 210; /* 3 x 70px min height of editors when stacked vertically */
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
 
