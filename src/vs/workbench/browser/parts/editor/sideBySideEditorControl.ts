@@ -1004,22 +1004,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Update overlay styles
 			if (canSplit && isOverSplitRightOrBottom) {
-				if ($this.layoutVertically) {
-					overlay.style({ left: '50%', width: '50%' });
-				} else {
-					overlay.style({ top: '50%', height: '50%' });
-				}
+				overlay.style($this.layoutVertically ? { left: '50%', width: '50%' } : { top: '50%', height: '50%' });
 			} else if (canSplit && isOverSplitLeftOrUp) {
-				if ($this.layoutVertically) {
-					overlay.style({ width: '50%' });
-				} else {
-					overlay.style({ height: '50%' });
-				}
+				overlay.style($this.layoutVertically ? { width: '50%' } : { height: '50%' });
 			} else {
-				overlay.style({
-					left: '0',
-					width: '100%'
-				});
+				overlay.style({ left: '0', width: '100%' });
 			}
 
 			// Make sure the overlay is visible
@@ -1188,8 +1177,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			const visibleEditorCount = this.getVisibleEditorCount();
 			const mouseDownEvent = new StandardMouseEvent(e);
-			const startX = mouseDownEvent.posx;
-			let oldNewLeft: number = null;
+			const startPos = this.layoutVertically ? mouseDownEvent.posx : mouseDownEvent.posy;
+			let oldNewPos: number = null;
 
 			this.silos[position].addClass('drag');
 			this.parent.addClass('drag');
@@ -1199,63 +1188,63 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				DOM.EventHelper.stop(e, false);
 
 				const mouseMoveEvent = new StandardMouseEvent(e);
-				const diffX = mouseMoveEvent.posx - startX;
-				let newLeft: number = null;
+				const diffPos = (this.layoutVertically ? mouseMoveEvent.posx : mouseMoveEvent.posy) - startPos;
+				let newPos: number = null;
 
-				if (Math.abs(diffX) > 5) {
+				if (Math.abs(diffPos) > 5) {
 					wasDragged = true;
 				}
 
 				switch (position) {
 
-					// [ ! ]|[ ]: Moves only to the right but not outside of dimension width to the right
+					// [ ! ]|[ ]: Moves only to the right/bottom but not outside of dimension to the right/bottom
 					case Position.LEFT: {
-						newLeft = Math.max(-1 /* 1px border accomodation */, Math.min(diffX, this.dimension.width - this.silosSize[Position.LEFT]));
+						newPos = Math.max(-1 /* 1px border accomodation */, Math.min(diffPos, this.totalSize - this.silosSize[Position.LEFT]));
 						break;
 					}
 
 					case Position.CENTER: {
 
-						// [ ]|[ ! ]: Moves only to the left but not outside of dimension width to the left
+						// [ ]|[ ! ]: Moves only to the left/top but not outside of dimension to the left/top
 						if (visibleEditorCount === 2) {
-							newLeft = Math.min(this.silosSize[Position.LEFT], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.LEFT] + diffX));
+							newPos = Math.min(this.silosSize[Position.LEFT], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.LEFT] + diffPos));
 						}
 
-						// [ ]|[ ! ]|[ ]: Moves to left and right but not outside of dimensions width on both sides
+						// [ ]|[ ! ]|[ ]: Moves to left/top and right/bottom but not outside of dimensions on both sides
 						else {
-							newLeft = Math.min(this.dimension.width - this.silosSize[Position.CENTER], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.LEFT] + diffX));
+							newPos = Math.min(this.totalSize - this.silosSize[Position.CENTER], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.LEFT] + diffPos));
 						}
 						break;
 					}
 
-					// [ ]|[ ]|[ ! ]: Moves to the right but not outside of dimension width on the left side
+					// [ ]|[ ]|[ ! ]: Moves to the right/bottom but not outside of dimension on the left/top side
 					case Position.RIGHT: {
-						newLeft = Math.min(this.silosSize[Position.LEFT] + this.silosSize[Position.CENTER], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.LEFT] + this.silosSize[Position.CENTER] + diffX));
+						newPos = Math.min(this.silosSize[Position.LEFT] + this.silosSize[Position.CENTER], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.LEFT] + this.silosSize[Position.CENTER] + diffPos));
 						break;
 					}
 				}
 
 				// Return early if position did not change
-				if (oldNewLeft === newLeft) {
+				if (oldNewPos === newPos) {
 					return;
 				}
 
-				oldNewLeft = newLeft;
+				oldNewPos = newPos;
 
 				// Live drag Feedback
-				const moveTo: Position = this.findMoveTarget(position, diffX);
+				const moveTo: Position = this.findMoveTarget(position, diffPos);
 				switch (position) {
 					case Position.LEFT: {
 						if (moveTo === Position.LEFT || moveTo === null) {
-							this.silos[Position.CENTER].style({ left: this.silosSize[Position.LEFT] + 'px', right: 'auto', borderLeftWidth: '1px' });
-							this.silos[Position.RIGHT].style({ left: 'auto', right: 0 });
+							this.posSilo(Position.CENTER, `${this.silosSize[Position.LEFT]}px`, 'auto');
+							this.posSilo(Position.RIGHT, 'auto', 0);
 						} else if (moveTo === Position.CENTER) {
-							this.silos[Position.CENTER].style({ left: 0, right: 'auto', borderLeftWidth: 0 });
+							this.posSilo(Position.CENTER, 0, 'auto');
 							this.silos[Position.CENTER].addClass('draggedunder');
-							this.silos[Position.RIGHT].style({ left: 'auto', right: 0 });
+							this.posSilo(Position.RIGHT, 'auto', 0);
 						} else if (moveTo === Position.RIGHT) {
-							this.silos[Position.CENTER].style({ left: 0, right: 'auto' });
-							this.silos[Position.RIGHT].style({ left: 'auto', right: this.silosSize[Position.LEFT] + 'px' });
+							this.posSilo(Position.CENTER, 0, 'auto');
+							this.posSilo(Position.RIGHT, 'auto', `${this.silosSize[Position.LEFT]}px`);
 							this.silos[Position.RIGHT].addClass('draggedunder');
 						}
 						break;
@@ -1263,38 +1252,38 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 					case Position.CENTER: {
 						if (moveTo === Position.LEFT) {
-							this.silos[Position.LEFT].style({ left: this.silosSize[Position.CENTER] + 'px', right: 'auto' });
+							this.posSilo(Position.LEFT, `${this.silosSize[Position.CENTER]}px`, 'auto');
 							this.silos[Position.LEFT].addClass('draggedunder');
 						} else if (moveTo === Position.CENTER || moveTo === null) {
-							this.silos[Position.LEFT].style({ left: 0, right: 'auto' });
-							this.silos[Position.RIGHT].style({ left: 'auto', right: 0 });
+							this.posSilo(Position.LEFT, 0, 'auto');
+							this.posSilo(Position.RIGHT, 'auto', 0);
 						} else if (moveTo === Position.RIGHT) {
-							this.silos[Position.RIGHT].style({ left: 'auto', right: this.silosSize[Position.CENTER] + 'px' });
+							this.posSilo(Position.RIGHT, 'auto', `${this.silosSize[Position.CENTER]}px`);
 							this.silos[Position.RIGHT].addClass('draggedunder');
-							this.silos[Position.LEFT].style({ left: 0, right: 'auto' });
+							this.posSilo(Position.LEFT, 0, 'auto');
 						}
 						break;
 					}
 
 					case Position.RIGHT: {
 						if (moveTo === Position.LEFT) {
-							this.silos[Position.LEFT].style({ left: this.silosSize[Position.RIGHT] + 'px', right: 'auto' });
+							this.posSilo(Position.LEFT, `${this.silosSize[Position.RIGHT]}px`, 'auto');
 							this.silos[Position.LEFT].addClass('draggedunder');
 						} else if (moveTo === Position.CENTER) {
-							this.silos[Position.LEFT].style({ left: 0, right: 'auto' });
-							this.silos[Position.CENTER].style({ left: (this.silosSize[Position.LEFT] + this.silosSize[Position.RIGHT]) + 'px', right: 'auto' });
+							this.posSilo(Position.LEFT, 0, 'auto');
+							this.posSilo(Position.CENTER, `${this.silosSize[Position.LEFT] + this.silosSize[Position.RIGHT]}px`, 'auto');
 							this.silos[Position.CENTER].addClass('draggedunder');
 						} else if (moveTo === Position.RIGHT || moveTo === null) {
-							this.silos[Position.LEFT].style({ left: 0, right: 'auto' });
-							this.silos[Position.CENTER].style({ left: this.silosSize[Position.LEFT] + 'px', right: 'auto' });
+							this.posSilo(Position.LEFT, 0, 'auto');
+							this.posSilo(Position.CENTER, `${this.silosSize[Position.LEFT]}px`, 'auto');
 						}
 						break;
 					}
 				}
 
 				// Move the editor to provide feedback to the user and add class
-				if (newLeft !== null) {
-					this.silos[position].style({ left: newLeft + 'px' });
+				if (newPos !== null) {
+					this.silos[position].style(this.layoutVertically ? { left: `${newPos}px` } : { top: `${newPos}px` });
 					this.silos[position].addClass('dragging');
 					this.parent.addClass('dragging');
 				}
@@ -1316,14 +1305,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				this.parent.removeClass('dragging');
 				this.silos[position].removeClass('dragging');
 				POSITIONS.forEach(p => this.silos[p].removeClass('draggedunder'));
-				this.silos[Position.LEFT].style({ left: 0, right: 'auto' });
-				this.silos[Position.CENTER].style({ left: 'auto', right: 'auto', borderLeftWidth: '1px' });
-				this.silos[Position.RIGHT].style({ left: 'auto', right: 0, borderLeftWidth: '1px' });
+
+				this.posSilo(Position.LEFT, 0, 'auto');
+				this.posSilo(Position.CENTER, 'auto', 'auto');
+				this.posSilo(Position.RIGHT, 'auto', 0);
 
 				// Find move target
 				const mouseUpEvent = new StandardMouseEvent(e);
-				const diffX = mouseUpEvent.posx - startX;
-				const moveTo: Position = this.findMoveTarget(position, diffX);
+				const diffPos = (this.layoutVertically ? mouseUpEvent.posx : mouseUpEvent.posy) - startPos;
+				const moveTo: Position = this.findMoveTarget(position, diffPos);
 
 				// Move to valid position if any
 				if (moveTo !== null) {
@@ -1345,63 +1335,71 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		});
 	}
 
-	private findMoveTarget(position: Position, diffX: number): Position {
+	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number): void {
+		if (this.layoutVertically) {
+			this.silos[pos].style({ left: leftTop, right: rightBottom });
+		} else {
+			this.silos[pos].style({ top: leftTop, bottom: rightBottom });
+		}
+	}
+
+	private findMoveTarget(position: Position, diffPos: number): Position {
 		const visibleEditorCount = this.getVisibleEditorCount();
 
 		switch (position) {
 			case Position.LEFT: {
 
 				// [ ! ]|[] -> []|[ ! ]
-				if (visibleEditorCount === 2 && (diffX >= this.silosSize[Position.LEFT] / 2 || diffX >= this.silosSize[Position.CENTER] / 2)) {
+				if (visibleEditorCount === 2 && (diffPos >= this.silosSize[Position.LEFT] / 2 || diffPos >= this.silosSize[Position.CENTER] / 2)) {
 					return Position.CENTER;
 				}
 
 				// [ ! ]|[]|[] -> []|[]|[ ! ]
-				if (visibleEditorCount === 3 && (diffX >= this.silosSize[Position.LEFT] / 2 + this.silosSize[Position.CENTER] || diffX >= this.silosSize[Position.RIGHT] / 2 + this.silosSize[Position.CENTER])) {
+				if (visibleEditorCount === 3 && (diffPos >= this.silosSize[Position.LEFT] / 2 + this.silosSize[Position.CENTER] || diffPos >= this.silosSize[Position.RIGHT] / 2 + this.silosSize[Position.CENTER])) {
 					return Position.RIGHT;
 				}
 
 				// [ ! ]|[]|[] -> []|[ ! ]|[]
-				if (visibleEditorCount === 3 && (diffX >= this.silosSize[Position.LEFT] / 2 || diffX >= this.silosSize[Position.CENTER] / 2)) {
+				if (visibleEditorCount === 3 && (diffPos >= this.silosSize[Position.LEFT] / 2 || diffPos >= this.silosSize[Position.CENTER] / 2)) {
 					return Position.CENTER;
 				}
 				break;
 			}
 
 			case Position.CENTER: {
-				if (visibleEditorCount === 2 && diffX > 0) {
+				if (visibleEditorCount === 2 && diffPos > 0) {
 					return null; // Return early since CENTER cannot be moved to the RIGHT unless there is a RIGHT position
 				}
 
 				// []|[ ! ] -> [ ! ]|[]
-				if (visibleEditorCount === 2 && (Math.abs(diffX) >= this.silosSize[Position.CENTER] / 2 || Math.abs(diffX) >= this.silosSize[Position.LEFT] / 2)) {
+				if (visibleEditorCount === 2 && (Math.abs(diffPos) >= this.silosSize[Position.CENTER] / 2 || Math.abs(diffPos) >= this.silosSize[Position.LEFT] / 2)) {
 					return Position.LEFT;
 				}
 
 				// []|[ ! ]|[] -> [ ! ]|[]|[]
-				if (visibleEditorCount === 3 && ((diffX < 0 && Math.abs(diffX) >= this.silosSize[Position.CENTER] / 2) || (diffX < 0 && Math.abs(diffX) >= this.silosSize[Position.LEFT] / 2))) {
+				if (visibleEditorCount === 3 && ((diffPos < 0 && Math.abs(diffPos) >= this.silosSize[Position.CENTER] / 2) || (diffPos < 0 && Math.abs(diffPos) >= this.silosSize[Position.LEFT] / 2))) {
 					return Position.LEFT;
 				}
 
 				// []|[ ! ]|[] -> []|[]|[ ! ]
-				if (visibleEditorCount === 3 && ((diffX > 0 && Math.abs(diffX) >= this.silosSize[Position.CENTER] / 2) || (diffX > 0 && Math.abs(diffX) >= this.silosSize[Position.RIGHT] / 2))) {
+				if (visibleEditorCount === 3 && ((diffPos > 0 && Math.abs(diffPos) >= this.silosSize[Position.CENTER] / 2) || (diffPos > 0 && Math.abs(diffPos) >= this.silosSize[Position.RIGHT] / 2))) {
 					return Position.RIGHT;
 				}
 				break;
 			}
 
 			case Position.RIGHT: {
-				if (diffX > 0) {
+				if (diffPos > 0) {
 					return null; // Return early since RIGHT cannot be moved more to the RIGHT
 				}
 
 				// []|[]|[ ! ] -> [ ! ]|[]|[]
-				if (Math.abs(diffX) >= this.silosSize[Position.RIGHT] / 2 + this.silosSize[Position.CENTER] || Math.abs(diffX) >= this.silosSize[Position.LEFT] / 2 + this.silosSize[Position.CENTER]) {
+				if (Math.abs(diffPos) >= this.silosSize[Position.RIGHT] / 2 + this.silosSize[Position.CENTER] || Math.abs(diffPos) >= this.silosSize[Position.LEFT] / 2 + this.silosSize[Position.CENTER]) {
 					return Position.LEFT;
 				}
 
 				// []|[]|[ ! ] -> []|[ ! ]|[]
-				if (Math.abs(diffX) >= this.silosSize[Position.RIGHT] / 2 || Math.abs(diffX) >= this.silosSize[Position.CENTER] / 2) {
+				if (Math.abs(diffPos) >= this.silosSize[Position.RIGHT] / 2 || Math.abs(diffPos) >= this.silosSize[Position.CENTER] / 2) {
 					return Position.CENTER;
 				}
 				break;

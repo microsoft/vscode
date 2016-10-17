@@ -40,12 +40,12 @@
 	outline-offset: -2px;
 }
 
-.vs .monaco-workbench > .editor > .content.dragging {
+.vs .monaco-workbench > .editor > .content.vertical-layout.dragging {
 	border-left: 1px solid #E7E7E7;
 	border-right: 1px solid #E7E7E7;
 }
 
-.vs-dark .monaco-workbench > .editor > .content.dragging {
+.vs-dark .monaco-workbench > .editor > .content.vertical-layout.dragging {
 	border-left: 1px solid #444;
 	border-right: 1px solid #444;
 }
@@ -73,9 +73,14 @@
 	box-sizing: content-box;
 }
 
-.vs .monaco-workbench > .editor > .content > .one-editor-silo.dragging {
+.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
 	border-left: 1px solid #E7E7E7;
 	border-right: 1px solid #E7E7E7;
+}
+
+.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
+	border-top: 1px solid #E7E7E7;
+	border-bottom: 1px solid #E7E7E7;
 }
 
 .vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-center,
@@ -88,9 +93,14 @@
 	border-top: 1px solid #E7E7E7;
 }
 
-.vs-dark .monaco-workbench > .editor > .content > .one-editor-silo.dragging {
+.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
 	border-left: 1px solid #444;
 	border-right: 1px solid #444;
+}
+
+.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
+	border-top: 1px solid #444;
+	border-bottom: 1px solid #444;
 }
 
 .vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-center,
@@ -103,9 +113,14 @@
 	border-top: 1px solid #444;
 }
 
-.hc-black .monaco-workbench > .editor > .content > .one-editor-silo.dragging {
+.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
 	border-left: 1px solid #6FC3DF;
 	border-right: 1px solid #6FC3DF;
+}
+
+.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
+	border-top: 1px solid #6FC3DF;
+	border-bottom: 1px solid #6FC3DF;
 }
 
 .hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-center,
@@ -118,12 +133,20 @@
 	border-top: 1px solid #6FC3DF;
 }
 
-.monaco-workbench > .editor > .content > .one-editor-silo.draggedunder {
+.monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.draggedunder {
 	transition: left 200ms ease-out;
 }
 
-.monaco-workbench > .editor > .content > .editor-right.draggedunder {
+.monaco-workbench > .editor > .content.vertical-layout > .editor-right.draggedunder {
 	transition-property: right;
+}
+
+.monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.draggedunder {
+	transition: top 200ms ease-out;
+}
+
+.monaco-workbench > .editor > .content.horizontal-layout > .editor-right.draggedunder {
+	transition-property: bottom;
 }
 
 .monaco-workbench > .editor > .content > .one-editor-silo > .container {
