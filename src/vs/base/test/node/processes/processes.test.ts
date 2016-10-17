@@ -28,15 +28,30 @@ suite('Processes', () => {
 		const child = fork('vs/base/test/node/processes/fixtures/fork');
 		const sender = processes.createQueuedSender(child);
 
-		const msg = 'Hello Child';
+		let counter = 0;
+
+		const msg1 = 'Hello One';
+		const msg2 = 'Hello Two';
+		const msg3 = 'Hello Three';
+
 		child.on('message', msgFromChild => {
 			if (msgFromChild === 'ready') {
-				sender.send(msg);
+				sender.send(msg1);
+				sender.send(msg2);
+				sender.send(msg3);
 			} else {
-				assert.equal(msgFromChild, msg);
+				counter++;
 
-				child.kill();
-				done();
+				if (counter === 1) {
+					assert.equal(msgFromChild, msg1);
+				} else if (counter === 2) {
+					assert.equal(msgFromChild, msg2);
+				} else if (counter === 3) {
+					assert.equal(msgFromChild, msg3);
+
+					child.kill();
+					done();
+				}
 			}
 		});
 	});
