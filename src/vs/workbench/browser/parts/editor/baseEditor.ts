@@ -334,7 +334,7 @@ export interface IEditorInputActionContext {
  */
 export class EditorInputActionContributor extends ActionBarContributor {
 
-	// The following data structures are partitioned into arrays of Position (left, center, right)
+	// The following data structures are partitioned into arrays of Position (one, two, three)
 	private mapEditorInputActionContextToPrimaryActions: { [id: string]: IEditorInputAction[] }[];
 	private mapEditorInputActionContextToSecondaryActions: { [id: string]: IEditorInputAction[] }[];
 
