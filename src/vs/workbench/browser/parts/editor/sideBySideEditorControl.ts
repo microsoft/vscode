@@ -100,6 +100,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private dimension: Dimension;
 	private dragging: boolean;
 
+	private layoutVertically: boolean;
+	private showTabs: boolean;
+	private showIcons: boolean;
+
 	private silos: Builder[];
 	private siloWidths: number[];
 	private siloInitialRatios: number[];
@@ -152,32 +156,57 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.toDispose.push(this.onStacksChangeScheduler);
 		this.stacksChangedBuffer = [];
 
-		this.create(this.parent);
+		this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+
+		this.create();
+
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true)));
 		this.extensionService.onReady().then(() => this.onExtensionsReady());
 	}
 
-	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
-		const {showTabs, showIcons} = this.getConfig();
+	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration, refresh?: boolean): void {
+		if (config.workbench && config.workbench.editor) {
+			this.showTabs = config.workbench.editor.showTabs;
+			this.showIcons = config.workbench.editor.showIcons;
+			this.layoutVertically = (config.workbench.editor.sideBySideLayout !== 'horizontal');
+		} else {
+			this.showTabs = true;
+			this.showIcons = false;
+			this.layoutVertically = true;
+		}
 
+		if (!refresh) {
+			return; // return early if no refresh is needed
+		}
+
+		// Editor Layout
+		const verticalLayouting = this.parent.hasClass('vertical-layout');
+		if (verticalLayouting !== this.layoutVertically) {
+			this.parent.removeClass('vertical-layout', 'horizontal-layout');
+			this.parent.addClass(this.layoutVertically ? 'vertical-layout' : 'horizontal-layout');
+
+			this.layout(this.dimension);
+		}
+
+		// Editor Containers
 		POSITIONS.forEach(position => {
 			const titleControl = this.getTitleAreaControl(position);
 
 			// TItle Container
 			const titleContainer = $(titleControl.getContainer());
-			if (showTabs) {
+			if (this.showTabs) {
 				titleContainer.addClass('tabs');
 			} else {
 				titleContainer.removeClass('tabs');
 			}
 
 			const showingIcons = titleContainer.hasClass('show-file-icons');
-			if (showIcons) {
+			if (this.showIcons) {
 				titleContainer.addClass('show-file-icons');
 			} else {
 				titleContainer.removeClass('show-file-icons');
@@ -188,14 +217,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				const usingTabs = (titleControl instanceof TabsTitleControl);
 
 				// Recreate title when tabs change
-				if (usingTabs !== showTabs) {
+				if (usingTabs !== this.showTabs) {
 					titleControl.dispose();
 					titleContainer.empty();
 					this.createTitleControl(this.stacks.groupAt(position), this.silos[position], titleContainer, this.getInstantiationService(position));
 				}
 
 				// Refresh title when icons change
-				else if (showingIcons !== showIcons) {
+				else if (showingIcons !== this.showIcons) {
 					titleControl.refresh(true);
 				}
 			}
@@ -739,16 +768,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		return this.lastActivePosition;
 	}
 
-	private create(parent: Builder): void {
+	private create(): void {
+
+		// Store layout as class property
+		this.parent.addClass(this.layoutVertically ? 'vertical-layout' : 'horizontal-layout');
 
 		// Allow to drop into container to open
-		this.enableDropTarget(parent.getHTMLElement());
+		this.enableDropTarget(this.parent.getHTMLElement());
 
 		// Left Silo
-		this.silos[Position.LEFT] = $(parent).div({ class: 'one-editor-silo editor-left monaco-editor-background' });
+		this.silos[Position.LEFT] = $(this.parent).div({ class: 'one-editor-silo editor-left monaco-editor-background' });
 
 		// Left Sash
-		this.leftSash = new Sash(parent.getHTMLElement(), this, { baseSize: 5 });
+		this.leftSash = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5 });
 		this.toDispose.push(this.leftSash.addListener2('start', () => this.onLeftSashDragStart()));
 		this.toDispose.push(this.leftSash.addListener2('change', (e: ISashEvent) => this.onLeftSashDrag(e)));
 		this.toDispose.push(this.leftSash.addListener2('end', () => this.onLeftSashDragEnd()));
@@ -756,10 +788,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.leftSash.hide();
 
 		// Center Silo
-		this.silos[Position.CENTER] = $(parent).div({ class: 'one-editor-silo editor-center monaco-editor-background' });
+		this.silos[Position.CENTER] = $(this.parent).div({ class: 'one-editor-silo editor-center monaco-editor-background' });
 
 		// Right Sash
-		this.rightSash = new Sash(parent.getHTMLElement(), this, { baseSize: 5 });
+		this.rightSash = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5 });
 		this.toDispose.push(this.rightSash.addListener2('start', () => this.onRightSashDragStart()));
 		this.toDispose.push(this.rightSash.addListener2('change', (e: ISashEvent) => this.onRightSashDrag(e)));
 		this.toDispose.push(this.rightSash.addListener2('end', () => this.onRightSashDragEnd()));
@@ -767,10 +799,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.rightSash.hide();
 
 		// Right Silo
-		this.silos[Position.RIGHT] = $(parent).div({ class: 'one-editor-silo editor-right monaco-editor-background' });
+		this.silos[Position.RIGHT] = $(this.parent).div({ class: 'one-editor-silo editor-right monaco-editor-background' });
 
 		// For each position
-		const {showTabs, showIcons} = this.getConfig();
 		POSITIONS.forEach(position => {
 			const silo = this.silos[position];
 
@@ -785,10 +816,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Title containers
 			const titleContainer = $(container).div({ 'class': 'title' });
-			if (showTabs) {
+			if (this.showTabs) {
 				titleContainer.addClass('tabs');
 			}
-			if (showIcons) {
+			if (this.showIcons) {
 				titleContainer.addClass('show-file-icons');
 			}
 			this.hookTitleDragListener(titleContainer);
@@ -987,13 +1018,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		function createOverlay(target: HTMLElement): void {
 			if (!overlay) {
-				const {showTabs} = $this.getConfig();
 				const containers = $this.visibleEditors.filter(e => !!e).map(e => e.getContainer());
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
 						overlay = $('div').style({
-							top: showTabs ? SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px' : 0,
-							height: showTabs ? `calc(100% - ${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : '100%'
+							top: $this.showTabs ? SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px' : 0,
+							height: $this.showTabs ? `calc(100% - ${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : '100%'
 						}).id(overlayId);
 
 						overlay.appendTo(container);
@@ -1082,22 +1112,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private createTitleControl(context: IEditorGroup, silo: Builder, container: Builder, instantiationService: IInstantiationService): void {
-		const {showTabs} = this.getConfig();
-
-		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(showTabs ? TabsTitleControl : NoTabsTitleControl);
+		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(this.showTabs ? TabsTitleControl : NoTabsTitleControl);
 		titleAreaControl.create(container.getHTMLElement());
 		titleAreaControl.setContext(context);
 		titleAreaControl.refresh(true /* instant */);
 
 		silo.child().setProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container
-	}
-
-	private getConfig(config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>()): { showTabs?: boolean; showIcons?: boolean } {
-		if (config.workbench && config.workbench.editor) {
-			return { showTabs: config.workbench.editor.showTabs, showIcons: config.workbench.editor.showIcons };
-		}
-
-		return Object.create(null);
 	}
 
 	private findPosition(element: HTMLElement): Position {
