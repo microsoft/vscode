@@ -28,8 +28,13 @@
 }
 
 .explorer-viewlet .explorer-item,
+.explorer-viewlet .explorer-item .label-name,
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	flex: 1;
+}
+
+.explorer-viewlet .explorer-item.explorer-item-edited .label-name {
+	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content {
@@ -63,7 +68,6 @@
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .open-editor {
 	flex: 1;
-	margin-left: 1px;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .editor-group {
@@ -122,7 +126,6 @@
 .explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:before {
 	border: none;
 }
-
 
 /* High Contrast Theming */
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item,
