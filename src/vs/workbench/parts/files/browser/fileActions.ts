@@ -1175,7 +1175,7 @@ export class OpenToSideAction extends Action {
 
 	private updateEnablement(): void {
 		const activeEditor = this.editorService.getActiveEditor();
-		this.enabled = (!activeEditor || activeEditor.position !== Position.RIGHT);
+		this.enabled = (!activeEditor || activeEditor.position !== Position.THREE);
 	}
 
 	public run(): TPromise<any> {
