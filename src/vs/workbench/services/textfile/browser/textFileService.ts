@@ -116,16 +116,22 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private beforeShutdown(): boolean | TPromise<boolean> {
-
 		// If hot exit is enabled then save the dirty files in the workspace and then exit
 		if (this.configuredHotExit) {
-			// Only remove the workspace from the backup service if it's not the last one or it's not dirty
-			if (this.backupService.getWorkspaceBackupPaths().length > 1 || this.getDirty().length === 0) {
-				this.backupService.removeWorkspaceBackupPath(this.contextService.getWorkspace().resource.fsPath);
-			} else {
+			// If there are no dirty files, clean up and exit
+			if (this.getDirty().length === 0) {
+				return this.cleanupBackupsBeforeShutdown();
+			}
+
+			return this.backupService.getWorkspaceBackupPaths().then(workspaceBackupPaths => {
+				// Only remove the workspace from the backup service if it's not the last one or it's not dirty
+				if (workspaceBackupPaths.length > 1) {
+					return this.confirmBeforeShutdown();
+				}
+
 				// TODO: Better error handling here? Perhaps present confirm if there was an error?
 				return this.backupAll().then(() => false); // the backup will be restored, no veto
-			}
+			});
 		}
 
 		// Dirty files need treatment on shutdown
@@ -162,23 +168,27 @@ export abstract class TextFileService implements ITextFileService {
 					return true; // veto if some saves failed
 				}
 
-				return this.fileService.discardBackups().then(() => {
-					return false; // no veto
-				});
+				return this.cleanupBackupsBeforeShutdown();
 			});
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-			return this.fileService.discardBackups().then(() => {
-				return false; // no veto
-			});
+			return this.cleanupBackupsBeforeShutdown();
 		}
 
 		// Cancel
 		else if (confirm === ConfirmResult.CANCEL) {
 			return true; // veto
 		}
+	}
+
+	private cleanupBackupsBeforeShutdown(): boolean | TPromise<boolean> {
+		return this.backupService.removeWorkspaceBackupPath(this.contextService.getWorkspace().resource.fsPath).then(() => {
+			return this.fileService.discardBackups().then(() => {
+				return false; // no veto
+			});
+		});
 	}
 
 	private onWindowFocusLost(): void {

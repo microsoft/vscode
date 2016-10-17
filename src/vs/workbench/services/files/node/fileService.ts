@@ -459,29 +459,35 @@ export class FileService implements IFileService {
 
 	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
 		// TODO: This should not backup unless necessary. Currently this is called for each file on close to ensure the files are backed up.
+		let registerResourcePromise: TPromise<void>;
 		if (resource.scheme === 'file') {
-			this.backupService.registerResourceForBackup(resource);
+			registerResourcePromise = this.backupService.registerResourceForBackup(resource);
+		} else {
+			registerResourcePromise = TPromise.as(void 0);
 		}
-		const backupResource = this.getBackupPath(resource);
+		return registerResourcePromise.then(() => {
+			const backupResource = this.getBackupPath(resource);
 
-		// Hot exit is disabled for empty workspaces
-		if (!backupResource) {
-			return TPromise.as(null);
-		}
+			// Hot exit is disabled for empty workspaces
+			if (!backupResource) {
+				return TPromise.as(null);
+			}
 
-		return this.updateContent(backupResource, content);
+			return this.updateContent(backupResource, content);
+		});
 	}
 
 	public discardBackup(resource: uri): TPromise<void> {
-		this.backupService.deregisterResourceForBackup(resource);
-		const backupResource = this.getBackupPath(resource);
+		return this.backupService.deregisterResourceForBackup(resource).then(() => {
+			const backupResource = this.getBackupPath(resource);
 
-		// Hot exit is disabled for empty workspaces
-		if (!backupResource) {
-			return TPromise.as(null);
-		}
+			// Hot exit is disabled for empty workspaces
+			if (!backupResource) {
+				return TPromise.as(null);
+			}
 
-		return this.del(backupResource);
+			return this.del(backupResource);
+		});
 	}
 
 	public discardBackups(): TPromise<void> {
