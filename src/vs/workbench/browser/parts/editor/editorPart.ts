@@ -54,7 +54,7 @@ class ProgressMonitor {
 }
 
 interface IEditorPartUIState {
-	widthRatio: number[];
+	ratio: number[];
 }
 
 interface IEditorReplacement extends EditorIdentifier {
@@ -178,14 +178,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
-	public openEditor(input: EditorInput, options?: EditorOptions, position?: Position, widthRatios?: number[]): TPromise<BaseEditor>;
-	public openEditor(input: EditorInput, options?: EditorOptions, arg3?: any, widthRatios?: number[]): TPromise<BaseEditor> {
+	public openEditor(input: EditorInput, options?: EditorOptions, position?: Position, ratio?: number[]): TPromise<BaseEditor>;
+	public openEditor(input: EditorInput, options?: EditorOptions, arg3?: any, ratio?: number[]): TPromise<BaseEditor> {
 
 		// Normalize some values
 		if (!options) { options = null; }
 
 		// Determine position to open editor in (left, center, right)
-		const position = this.findPosition(input, options, arg3, widthRatios);
+		const position = this.findPosition(input, options, arg3, ratio);
 
 		// Some conditions under which we prevent the request
 		if (
@@ -209,10 +209,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Open through UI
-		return this.doOpenEditor(position, descriptor, input, options, widthRatios);
+		return this.doOpenEditor(position, descriptor, input, options, ratio);
 	}
 
-	private doOpenEditor(position: Position, descriptor: IEditorDescriptor, input: EditorInput, options: EditorOptions, widthRatios: number[]): TPromise<BaseEditor> {
+	private doOpenEditor(position: Position, descriptor: IEditorDescriptor, input: EditorInput, options: EditorOptions, ratio: number[]): TPromise<BaseEditor> {
 
 		// Update stacks: We do this early on before the UI is there because we want our stacks model to have
 		// a consistent view of the editor world and updating it later async after the UI is there will cause
@@ -243,7 +243,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}));
 
 		// Show editor
-		return this.doShowEditor(group, descriptor, input, options, widthRatios, monitor).then(editor => {
+		return this.doShowEditor(group, descriptor, input, options, ratio, monitor).then(editor => {
 			if (!editor) {
 				return TPromise.as<BaseEditor>(null); // canceled or other error
 			}
@@ -253,7 +253,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	private doShowEditor(group: EditorGroup, descriptor: IEditorDescriptor, input: EditorInput, options: EditorOptions, widthRatios: number[], monitor: ProgressMonitor): TPromise<BaseEditor> {
+	private doShowEditor(group: EditorGroup, descriptor: IEditorDescriptor, input: EditorInput, options: EditorOptions, ratio: number[], monitor: ProgressMonitor): TPromise<BaseEditor> {
 		const position = this.stacks.positionOfGroup(group);
 		const editorAtPosition = this.visibleEditors[position];
 
@@ -281,7 +281,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 
 			// Show in side by side control
-			this.sideBySideControl.show(editor, position, options && options.preserveFocus, widthRatios);
+			this.sideBySideControl.show(editor, position, options && options.preserveFocus, ratio);
 
 			// Indicate to editor that it is now visible
 			editor.setVisible(true, position);
@@ -886,9 +886,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			activePosition = this.stacks.positionOfGroup(this.stacks.activeGroup);
 		}
 
-		const widthRatios = this.sideBySideControl.getWidthRatios();
+		const ratio = this.sideBySideControl.getRatio();
 
-		return this.doOpenEditors(editors, activePosition, widthRatios);
+		return this.doOpenEditors(editors, activePosition, ratio);
 	}
 
 	public restoreEditors(): TPromise<BaseEditor[]> {
@@ -911,10 +911,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		const editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 
-		return this.doOpenEditors(editors, activePosition, editorState && editorState.widthRatio);
+		return this.doOpenEditors(editors, activePosition, editorState && editorState.ratio);
 	}
 
-	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activePosition?: number, widthRatios?: number[]): TPromise<BaseEditor[]> {
+	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[]): TPromise<BaseEditor[]> {
 		const leftEditors = editors.filter(e => e.position === Position.LEFT);
 		const centerEditors = editors.filter(e => e.position === Position.CENTER);
 		const rightEditors = editors.filter(e => e.position === Position.RIGHT);
@@ -943,11 +943,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Validate width ratios
 		const positions = rightEditors.length ? 3 : centerEditors.length ? 2 : 1;
-		if (!widthRatios || widthRatios.length !== positions) {
+		if (!ratio || ratio.length !== positions) {
 			if (!this.getVisibleEditors().length) {
-				widthRatios = (positions === 3) ? [0.33, 0.33, 0.34] : (positions === 2) ? [0.5, 0.5] : [1];
+				ratio = (positions === 3) ? [0.33, 0.33, 0.34] : (positions === 2) ? [0.5, 0.5] : [1];
 			} else {
-				widthRatios = void 0;
+				ratio = void 0;
 			}
 		}
 
@@ -981,7 +981,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				options = EditorOptions.create({ preserveFocus });
 			}
 
-			promises.push(this.openEditor(input, options, position, widthRatios));
+			promises.push(this.openEditor(input, options, position, ratio));
 		});
 
 		return TPromise.join(promises).then(editors => {
@@ -1106,7 +1106,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	public shutdown(): void {
 
 		// Persist UI State
-		const editorState: IEditorPartUIState = { widthRatio: this.sideBySideControl.getWidthRatios() };
+		const editorState: IEditorPartUIState = { ratio: this.sideBySideControl.getRatio() };
 		this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = editorState;
 
 		// Unload all Instantiated Editors
@@ -1160,12 +1160,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		super.dispose();
 	}
 
-	private findPosition(input: EditorInput, options?: EditorOptions, sideBySide?: boolean, widthRatios?: number[]): Position;
-	private findPosition(input: EditorInput, options?: EditorOptions, desiredPosition?: Position, widthRatios?: number[]): Position;
-	private findPosition(input: EditorInput, options?: EditorOptions, arg1?: any, widthRatios?: number[]): Position {
+	private findPosition(input: EditorInput, options?: EditorOptions, sideBySide?: boolean, ratio?: number[]): Position;
+	private findPosition(input: EditorInput, options?: EditorOptions, desiredPosition?: Position, ratio?: number[]): Position;
+	private findPosition(input: EditorInput, options?: EditorOptions, arg1?: any, ratio?: number[]): Position {
 
 		// With defined width ratios, always trust the provided position
-		if (widthRatios && types.isNumber(arg1)) {
+		if (ratio && types.isNumber(arg1)) {
 			return arg1;
 		}
 

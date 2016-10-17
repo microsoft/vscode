@@ -54,7 +54,7 @@ export interface ISideBySideEditorControl {
 
 	onGroupFocusChanged: Event<void>;
 
-	show(editor: BaseEditor, position: Position, preserveActive: boolean, widthRatios?: number[]): void;
+	show(editor: BaseEditor, position: Position, preserveActive: boolean, ratio?: number[]): void;
 	hide(editor: BaseEditor, position: Position, layoutAndRochade: boolean): Rochade;
 
 	setActive(editor: BaseEditor): void;
@@ -77,7 +77,7 @@ export interface ISideBySideEditorControl {
 
 	arrangeGroups(arrangement: GroupArrangement): void;
 
-	getWidthRatios(): number[];
+	getRatio(): number[];
 	dispose(): void;
 }
 
@@ -247,7 +247,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		return this._onGroupFocusChanged.event;
 	}
 
-	public show(editor: BaseEditor, position: Position, preserveActive: boolean, widthRatios?: number[]): void {
+	public show(editor: BaseEditor, position: Position, preserveActive: boolean, ratio?: number[]): void {
 		const visibleEditorCount = this.getVisibleEditorCount();
 
 		// Store into editor bucket
@@ -266,25 +266,25 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		editor.getContainer().build(target);
 
 		// Adjust layout according to provided ratios (used when restoring multiple editors at once)
-		if (widthRatios && (widthRatios.length === 2 || widthRatios.length === 3)) {
+		if (ratio && (ratio.length === 2 || ratio.length === 3)) {
 			const hasLayoutInfo = this.dimension && this.dimension.width;
 
 			// We received width ratios but were not layouted yet. So we keep these ratios for when we layout()
 			if (!hasLayoutInfo) {
-				this.siloInitialRatios = widthRatios;
+				this.siloInitialRatios = ratio;
 			}
 
 			// Adjust layout: -> [!][!]
-			if (widthRatios.length === 2) {
+			if (ratio.length === 2) {
 				if (hasLayoutInfo) {
-					this.siloWidths[position] = this.dimension.width * widthRatios[position];
+					this.siloWidths[position] = this.dimension.width * ratio[position];
 				}
 			}
 
 			// Adjust layout: -> [!][!][!]
-			else if (widthRatios.length === 3) {
+			else if (ratio.length === 3) {
 				if (hasLayoutInfo) {
-					this.siloWidths[position] = this.dimension.width * widthRatios[position];
+					this.siloWidths[position] = this.dimension.width * ratio[position];
 				}
 
 				if (this.rightSash.isHidden()) {
@@ -715,7 +715,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.layoutControl(this.dimension);
 	}
 
-	public getWidthRatios(): number[] {
+	public getRatio(): number[] {
 		const ratio: number[] = [];
 
 		if (this.dimension) {
