@@ -54,12 +54,15 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Update activity bar on registering an external viewlet
 		this.toUnbind.push(
-			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).onDidViewletRegister(viewletDescriptor => this.onViewletRegistryUpdated(viewletDescriptor))
+			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets))
+				.onDidRegisterExternalViewlets(descriptors => this.onDidRegisterExternalViewlets(descriptors))
 		);
 	}
 
-	private onViewletRegistryUpdated(viewletDescriptor: ViewletDescriptor) {
-		this.viewletSwitcherBar.push(this.toAction(viewletDescriptor), { label: true, icon: true });
+	private onDidRegisterExternalViewlets(descriptors: ViewletDescriptor[]) {
+		descriptors.forEach(descriptor => {
+			this.viewletSwitcherBar.push(this.toAction(descriptor), { label: true, icon: true });
+		})
 	}
 
 	private onActiveCompositeChanged(composite: IComposite): void {

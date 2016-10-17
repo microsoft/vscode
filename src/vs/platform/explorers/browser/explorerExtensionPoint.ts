@@ -44,6 +44,7 @@ namespace schema {
 
 ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.explorerContribtion).setHandler(extensions => {
 	let baseOrder = 200;
+	let descriptors = [];
 
 	for (let extension of extensions) {
 		const { treeExplorerNodeProviderId, treeLabel, icon } = extension.value;
@@ -62,7 +63,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.e
 			}
 		}
 
-		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+		descriptors.push(new ViewletDescriptor(
 			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
 			'TreeExplorerViewlet',
 			'workbench.view.customTreeExplorerViewlet.' + treeExplorerNodeProviderId,
@@ -71,4 +72,5 @@ ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.e
 			baseOrder++
 		));
 	}
+	Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerExternalViewlets(descriptors);
 })

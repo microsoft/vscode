@@ -165,16 +165,25 @@ export const Extensions = {
 
 export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	private defaultViewletId: string;
-	private _onDidViewletRegister = new Emitter<ViewletDescriptor>();
+	private _onDidRegisterExternalViewlets = new Emitter<ViewletDescriptor[]>();
 
-	public get onDidViewletRegister() { return this._onDidViewletRegister.event; }
+	public get onDidRegisterExternalViewlets() { return this._onDidRegisterExternalViewlets.event; }
 
 	/**
 	 * Registers a viewlet to the platform.
 	 */
 	public registerViewlet(descriptor: ViewletDescriptor): void {
 		super.registerComposite(descriptor);
-		this._onDidViewletRegister.fire(descriptor);
+	}
+
+	/**
+	 * Registers multiple external viewlets.
+	 */
+	public registerExternalViewlets(descriptors: ViewletDescriptor[]): void {
+		descriptors.forEach(d => {
+			super.registerComposite(d);
+		});
+		this._onDidRegisterExternalViewlets.fire(descriptors);
 	}
 
 	/**
