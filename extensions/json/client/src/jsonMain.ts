@@ -61,7 +61,8 @@ export function activate(context: ExtensionContext) {
 				fileEvents: workspace.createFileSystemWatcher('**/*.json')
 			},
 			initializationOptions: {
-				languageIds
+				languageIds,
+				['format.enable']: workspace.getConfiguration('json').get('format.enable')
 			}
 		};
 

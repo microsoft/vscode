@@ -4074,6 +4074,10 @@ declare namespace vscode {
 		/**
 		 * Register a formatting provider for a document range.
 		 *
+		 * *Note:* A document range provider is also a [document formatter](#DocumentFormattingEditProvider)
+		 * which means there is no need to [register](registerDocumentFormattingEditProvider) a document
+		 * formatter when also registering a range provider.
+		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
