@@ -22,7 +22,7 @@
 	"markers.panel.single.info.label": "정보 1개",
 	"markers.panel.single.unknown.label": "알 수 없음 1개",
 	"markers.panel.single.warning.label": "경고 1개",
-	"markers.panel.title.no.problems": "문제없음",
+	"markers.panel.title.problems": "문제",
 	"problems.panel.configuration.autoreveal": "문제 보기를 열 때 문제 보기에 자동으로 파일이 표시되어야 하는지를 제어합니다.",
 	"problems.panel.configuration.title": "문제 보기",
 	"problems.tree.aria.label.error.marker": "{0}에 의해 오류가 발생함: 줄 {2} 및 열 {3}의 {1}",

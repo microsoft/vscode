@@ -13,6 +13,7 @@
 	"closeEditorsToTheRight": "关闭右侧编辑器",
 	"closeOtherEditorsInGroup": "关闭其他编辑器",
 	"evenEditorGroups": "编辑器组平均宽度",
+	"focusActiveEditorGroup": "聚焦活动编辑器组",
 	"focusFirstEditorGroup": "聚焦于左侧编辑器组",
 	"focusLastEditorInStack": "打开组中上一个编辑器",
 	"focusNextGroup": "聚焦于下一个组",

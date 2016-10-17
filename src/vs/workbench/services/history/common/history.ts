@@ -36,7 +36,7 @@ export interface IHistoryService {
 	/**
 	 * Removes an entry from history.
 	 */
-	remove(input: IEditorInput): void;
+	remove(input: IEditorInput | IResourceInput): void;
 
 	/**
 	 * Clears all history.

@@ -14,7 +14,7 @@ import { Reader } from './utils/wireProtocol';
 
 import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem } from 'vscode';
 import * as Proto from './protocol';
-import { ITypescriptServiceClient, ITypescriptServiceClientHost, APIVersion } from './typescriptService';
+import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
 import * as VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
@@ -120,7 +120,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private callbacks: CallbackMap;
 
 	private _packageInfo: IPackageInfo;
-	private _apiVersion: APIVersion;
+	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 
 	constructor(host: ITypescriptServiceClientHost, storagePath: string, globalState: Memento) {
@@ -147,7 +147,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		const configuration = workspace.getConfiguration();
 		this.tsdk = configuration.get<string>('typescript.tsdk', null);
 		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
-		this._apiVersion = APIVersion.v1_x;
+		this._apiVersion = new API('1.0.0');
 		this.trace = this.readTrace();
 		workspace.onDidChangeConfiguration(() => {
 			this.trace = this.readTrace();
@@ -182,7 +182,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._experimentalAutoBuild;
 	}
 
-	public get apiVersion(): APIVersion {
+	public get apiVersion(): API {
 		return this._apiVersion;
 	}
 
@@ -279,7 +279,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private startService(resendModels: boolean = false): void {
-		let modulePath = path.join(__dirname, '..', 'server', 'typescript', 'lib', 'tsserver.js');
+		let modulePath = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'tsserver.js');
 		let checkGlobalVersion = true;
 		let showVersionStatusItem = false;
 
@@ -377,9 +377,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					version = workspace.getConfiguration().get<string>('typescript.tsdk_version', undefined);
 				}
 				if (version) {
-					this._apiVersion = APIVersion.fromString(version);
+					this._apiVersion = new API(version);
 				}
-
 
 				const label = version || localize('versionNumber.custom', 'custom');
 				const tooltip = modulePath;
@@ -454,7 +453,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							options.execArgv = [`--debug=${port}`];
 						}
 					}
-					electron.fork(modulePath, [], options, (err: any, childProcess: cp.ChildProcess) => {
+					let args: string[] = [];
+					if (this.apiVersion.has206Features()) {
+						args.push('--useSingleInferredProject');
+						if (!workspace.getConfiguration().get<boolean>('typescript.experimentalAutomaticTypeAcquisition', false)) {
+							args.push('--disableAutomaticTypingAcquisition');
+						}
+					}
+					electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
 						if (err) {
 							this.lastError = err;
 							this.error('Starting TSServer failed with error.', err);
@@ -491,16 +497,33 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private serviceStarted(resendModels: boolean): void {
+		let configureOptions: Proto.ConfigureRequestArguments = {
+			hostInfo: 'vscode'
+		};
 		if (this._experimentalAutoBuild && this.storagePath) {
 			try {
 				fs.mkdirSync(this.storagePath);
 			} catch (error) {
 			}
-			this.execute('configure', {
-				autoBuild: true,
-				metaDataDirectory: this.storagePath
+			// configureOptions.autoDiagnostics = true;
+			// configureOptions.metaDataDirectory = this.storagePath;
+		}
+		this.execute('configure', configureOptions);
+		if (this.apiVersion.has206Features()) {
+			let compilerOptions: Proto.ExternalProjectCompilerOptions = {
+				module: Proto.ModuleKind.CommonJS,
+				target: Proto.ScriptTarget.ES6,
+				allowSyntheticDefaultImports: true,
+				allowJs: true,
+			};
+			let args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
+				options: compilerOptions
+			};
+			this.execute('compilerOptionsForInferredProjects', args).then(null, (err) => {
+				this.error(`'compilerOptionsForInferredProjects' request failed with error.`, err);
 			});
 		}
+
 		if (resendModels) {
 			this.host.populateService();
 		}

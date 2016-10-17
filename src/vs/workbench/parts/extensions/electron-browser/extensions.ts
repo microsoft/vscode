@@ -20,7 +20,8 @@ export enum ExtensionState {
 	Installing,
 	Installed,
 	NeedsRestart,
-	Uninstalled
+	Uninstalled,
+	Disabled
 }
 
 export interface IExtension {
@@ -28,6 +29,7 @@ export interface IExtension {
 	state: ExtensionState;
 	name: string;
 	displayName: string;
+	identifier: string;
 	publisher: string;
 	publisherDisplayName: string;
 	version: string;
@@ -40,7 +42,6 @@ export interface IExtension {
 	rating: number;
 	ratingCount: number;
 	outdated: boolean;
-	disabled: boolean;
 	hasDependencies: boolean;
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;

@@ -14,7 +14,6 @@
 	"serverCouldNotBeStarted": "Der TypeScript-Sprachserver konnte nicht gestartet werden. Fehlermeldung: {0}",
 	"serverDied": "Der TypeScript-Sprachdienst wurde während der letzten 5 Minuten 5 Mal unerwartet beendet. Öffnen Sie ggf. einen Fehlerbericht.",
 	"serverDiedAfterStart": "Der TypeScript-Sprachdienst wurde 5 Mal direkt nach seinem Start beendet. Der Dienst wird nicht neu gestartet. Bitte öffnen Sie einen Fehlerbericht.",
-	"tsversion20": "VS Code 1.6 ist im Lieferumfang von TypeScript Version 2.0.3 enthalten. Wenn Sie eine frühere Version von TypeScript verwenden möchten, legen Sie die Option \"typescript.tsdk\" fest.",
 	"updateGlobalWorkspaceCheck": "Die Benutzereinstellung \"typescript.check.workspaceVersion\" wurde in FALSE aktualisiert.",
 	"updateLocalWorkspaceCheck": "Die Arbeitsbereicheinstellung \"typescript.check.workspaceVersion\" wurde in FALSE aktualisiert.",
 	"updateTscCheck": "Die Benutzereinstellung \"typescript.check.tscVersion\" wurde in FALSE aktualisiert.",

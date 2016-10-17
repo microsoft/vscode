@@ -194,7 +194,7 @@
 {
 	"isLicense": true, // We override the license since we need a coorect Copyright
 	"name": "typescript",
-	"version": "2.0.3",
+	"version": "2.0.6",
 	"license": "Apache2",
 	"repositoryURL": "https://github.com/Microsoft/TypeScript",
 	"description": "The contents of the folder lib is from the TypeScript project https://github.com/Microsoft/TypeScript.",

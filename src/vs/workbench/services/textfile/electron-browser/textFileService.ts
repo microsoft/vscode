@@ -168,12 +168,7 @@ export class TextFileService extends AbstractTextFileService {
 				return null;
 			}
 
-			let extensionEntries = extensions.slice(0, 20).map(e => strings.trim(e, '.'));
-			if (languageName.toLowerCase() === 'xml') {
-				extensionEntries.unshift('xml'); // https://github.com/Microsoft/vscode/issues/13577
-			}
-
-			const filter: IFilter = { name: languageName, extensions: extensionEntries };
+			const filter: IFilter = { name: languageName, extensions: extensions.slice(0, 10).map(e => strings.trim(e, '.')) };
 
 			if (ext && extensions.indexOf(ext) >= 0) {
 				matchingFilter = filter;

@@ -224,7 +224,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				});
 			}
 		}
-		modelData.dirty = !!this.debugService.getActiveSession();
+		modelData.dirty = !!this.debugService.activeSession;
 
 		const toRemove = this.debugService.getModel().getBreakpoints()
 			.filter(bp => bp.source.uri.toString() === modelUrl.toString());
@@ -277,7 +277,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const state = this.debugService.state;
 		const debugActive = state === State.Running || state === State.Stopped || state === State.Initializing;
 		const modelData = this.modelData[breakpoint.source.uri.toString()];
-		const session = this.debugService.getActiveSession();
+		const session = this.debugService.activeSession;
 
 		let result = (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
 			debugActive && modelData && modelData.dirty && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_DIRTY_DECORATION :

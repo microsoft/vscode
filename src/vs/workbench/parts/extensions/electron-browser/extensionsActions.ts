@@ -111,7 +111,7 @@ export class UninstallAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.Installed || this.extension.state === ExtensionState.NeedsRestart;
+		this.enabled = this.extension.state === ExtensionState.Installed || this.extension.state === ExtensionState.NeedsRestart || this.extension.state === ExtensionState.Disabled;
 	}
 
 	run(): TPromise<any> {
