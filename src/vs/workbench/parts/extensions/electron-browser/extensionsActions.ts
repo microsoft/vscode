@@ -14,7 +14,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey } from './extensions';
 import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -23,11 +22,10 @@ import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletSer
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from '../common/extensionQuery';
 import { shell, remote } from 'electron';
-import { ExtensionsConfigurationInitialContent, ExtensionStorageInitialContent } from 'vs/workbench/parts/extensions/electron-browser/extensionsFileTemplate';
+import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/electron-browser/extensionsFileTemplate';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
-import { StorageScope } from 'vs/platform/storage/common/storage';
 
 const dialog = remote.dialog;
 
@@ -659,80 +657,6 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 				return { created: true, extensionsFileResource };
 			});
 		});
-	}
-}
-
-export abstract class OpenExtensionsStorageFile extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		enabled: boolean,
-		private scope: StorageScope,
-		@IFileService private fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
-	) {
-		super(id, label, null, enabled);
-	}
-
-	public run(event: any): TPromise<any> {
-		return this.openExtensionsStorageFile();
-	}
-
-	private openExtensionsStorageFile(): TPromise<any> {
-		return this.getOrCreateExtensionsFile().then(value => {
-			return this.editorService.openEditor({
-				resource: value.extensionsFileResource,
-				options: {
-					forceOpen: true,
-					pinned: value.created
-				},
-			});
-		}, (error) => TPromise.wrapError(new Error(localize('OpenGlobalExtensionsStorageFile.failed', "Unable to create 'extensions.json' file inside the '{0}' folder ({1}).", this.extensionsRuntimeService.getStoragePath(this.scope), error))));
-	}
-
-	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
-		const extensionsFileResource = URI.file(this.extensionsRuntimeService.getStoragePath(this.scope));
-
-		return this.fileService.resolveContent(extensionsFileResource).then(content => {
-			return { created: false, extensionsFileResource };
-		}, err => {
-			return this.fileService.updateContent(extensionsFileResource, ExtensionStorageInitialContent).then(() => {
-				return { created: true, extensionsFileResource };
-			});
-		});
-	}
-}
-
-export class OpenWorkspaceExtensionsStorageFile extends OpenExtensionsStorageFile {
-
-	static ID = 'workbench.extensions.action.openWorkspaceExtensionsStorageFile';
-
-	constructor(
-		id: string,
-		label: string,
-		@IFileService fileService: IFileService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IExtensionsRuntimeService extensionsRuntimeService: IExtensionsRuntimeService
-	) {
-		super(id, label, !!contextService.getWorkspace(), StorageScope.WORKSPACE, fileService, editorService, extensionsRuntimeService);
-	}
-}
-
-export class OpenGlobalExtensionsStorageFile extends OpenExtensionsStorageFile {
-
-	static ID = 'workbench.extensions.action.openGlobalExtensionsStorageFile';
-
-	constructor(
-		id: string,
-		label: string,
-		@IFileService fileService: IFileService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IExtensionsRuntimeService extensionsRuntimeService: IExtensionsRuntimeService
-	) {
-		super(id, label, true, StorageScope.GLOBAL, fileService, editorService, extensionsRuntimeService);
 	}
 }
 

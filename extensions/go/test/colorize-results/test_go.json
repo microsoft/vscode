@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "encoding/base64",
-		"t": "double.go.quoted.string",
+		"t": "double.entity.go.import.name.quoted.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
@@ -133,7 +133,7 @@
 	},
 	{
 		"c": "fmt",
-		"t": "double.go.quoted.string",
+		"t": "double.entity.go.import.name.quoted.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
