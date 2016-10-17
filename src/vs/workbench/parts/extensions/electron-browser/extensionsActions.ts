@@ -109,7 +109,7 @@ export class UninstallAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.Installed || this.extension.state === ExtensionState.NeedsRestart || this.extension.state === ExtensionState.Disabled;
+		this.enabled = this.extension.state === ExtensionState.Installed || this.extension.state === ExtensionState.Disabled;
 	}
 
 	run(): TPromise<any> {
@@ -232,7 +232,7 @@ export class UpdateAction extends Action {
 
 		const canInstall = this.extensionsWorkbenchService.canInstall(this.extension);
 		const isInstalled = this.extension.state === ExtensionState.Installed
-			|| this.extension.state === ExtensionState.NeedsRestart;
+			|| this.extension.state === ExtensionState.Disabled;
 
 		this.enabled = canInstall && isInstalled && this.extension.outdated;
 		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
@@ -259,8 +259,7 @@ export class EnableAction extends Action {
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super('extensions.enable', localize('enableAction', "Enable"), EnableAction.DisabledClass, false);
 
@@ -275,22 +274,47 @@ export class EnableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.NeedsRestart;
+		this.enabled = this.extension.state === ExtensionState.Disabled;
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
 	run(): TPromise<any> {
-		if (!window.confirm(localize('restart', "In order to enable this extension, this window of VS Code needs to be restarted.\n\nDo you want to continue?"))) {
-			return TPromise.as(null);
-		}
+		return this.extensionsWorkbenchService.setEnablement(this.extension, true);
+	}
+}
 
-		const action = this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now"));
-		return action.run();
+export class DisableAction extends Action {
+
+	private static EnabledClass = 'extension-action disable';
+	private static DisabledClass = `${DisableAction.EnabledClass} disabled`;
+
+	private disposables: IDisposable[] = [];
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	constructor(
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+	) {
+		super('extensions.disable', localize('disableAction', "Disable"), DisableAction.DisabledClass, false);
+
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
 	}
 
-	dispose(): void {
-		super.dispose();
-		this.disposables = dispose(this.disposables);
+	private update(): void {
+		if (!this.extension) {
+			this.enabled = false;
+			this.class = DisableAction.DisabledClass;
+			return;
+		}
+
+		this.enabled = this.extension.state === ExtensionState.Installed;
+		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
+	}
+
+	run(): TPromise<any> {
+		return this.extensionsWorkbenchService.setEnablement(this.extension, false);
 	}
 }
 
@@ -316,7 +340,7 @@ export class UpdateAllAction extends Action {
 		return this.extensionsWorkbenchService.local.filter(
 			e => this.extensionsWorkbenchService.canInstall(e)
 				&& e.type === LocalExtensionType.User
-				&& (e.state === ExtensionState.Installed || e.state === ExtensionState.NeedsRestart)
+				&& (e.state === ExtensionState.Installed || e.state === ExtensionState.Disabled)
 				&& e.outdated
 		);
 	}
