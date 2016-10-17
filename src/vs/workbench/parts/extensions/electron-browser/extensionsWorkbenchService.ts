@@ -479,10 +479,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			if (restart) {
 				const message = enable ? localize('postEnableMessage', "In order to enable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName)
 					: localize('postDisableMessage', "In order to disable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName);
-				return this.messageService.show(Severity.Info, {
+				this.messageService.show(Severity.Info, {
 					message,
 					actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now")), LaterAction]
 				});
+				this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
 			}
 		});
 	}
