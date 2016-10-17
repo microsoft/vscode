@@ -129,8 +129,14 @@ export abstract class TextFileService implements ITextFileService {
 					return this.confirmBeforeShutdown();
 				}
 
-				// TODO: Better error handling here? Perhaps present confirm if there was an error?
-				return this.backupAll().then(() => false); // the backup will be restored, no veto
+				// Backup and hot exit
+				return this.backupAll().then(result => {
+					if (result.results.some(r => !r.success)) {
+						return true; // veto if some backups failed
+					}
+
+					return false; // the backup went smoothly, no veto
+				});
 			});
 		}
 
@@ -396,7 +402,7 @@ export abstract class TextFileService implements ITextFileService {
 	/**
 	 * Performs an immedate backup of all dirty file and untitled models.
 	 */
-	private backupAll(): TPromise<void> {
+	private backupAll(): TPromise<ITextFileOperationResult> {
 		const toBackup = this.getDirty();
 
 		// split up between files and untitled
@@ -413,7 +419,7 @@ export abstract class TextFileService implements ITextFileService {
 		return this.doBackupAll(filesToBackup, untitledToBackup);
 	}
 
-	private doBackupAll(fileResources: URI[], untitledResources: URI[]): TPromise<void> {
+	private doBackupAll(fileResources: URI[], untitledResources: URI[]): TPromise<ITextFileOperationResult> {
 		// Handle file resources first
 		const dirtyFileModels = this.getDirtyFileModels(fileResources);
 
@@ -428,15 +434,27 @@ export abstract class TextFileService implements ITextFileService {
 			return model.backup().then(() => {
 				mapResourceToResult[model.getResource().toString()].success = true;
 			});
-		})).then(result => {
+		})).then(results => {
 			// Handle untitled resources
 			const untitledModelPromises = untitledResources.map(untitledResource => this.untitledEditorService.get(untitledResource))
 				.filter(untitled => !!untitled)
 				.map(untitled => untitled.resolve());
 
 			return TPromise.join(untitledModelPromises).then(untitledModels => {
-				const untitledBackupPromises = untitledModels.map(model => model.backup());
-				return TPromise.join(untitledBackupPromises).then(() => void 0);
+				const untitledBackupPromises = untitledModels.map(model => {
+					mapResourceToResult[model.getResource().toString()] = {
+						source: model.getResource(),
+						target: model.getResource()
+					};
+					return model.backup().then(() => {
+						mapResourceToResult[model.getResource().toString()].success = true;
+					});
+				});
+				return TPromise.join(untitledBackupPromises).then(() => {
+					return {
+						results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
+					};
+				});
 			});
 		});
 	}
