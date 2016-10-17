@@ -64,8 +64,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			completionProvider: { resolveProvider: true, triggerCharacters: ['"', ':'] },
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			documentRangeFormattingProvider: true,
-			documentFormattingProvider: true
+			documentRangeFormattingProvider: params.initializationOptions['format.enable']
 		}
 	};
 });
@@ -276,11 +275,6 @@ connection.onDocumentSymbol(documentSymbolParams => {
 	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let jsonDocument = getJSONDocument(document);
 	return languageService.findDocumentSymbols(document, jsonDocument);
-});
-
-connection.onDocumentFormatting(formatParams => {
-	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, null, formatParams.options);
 });
 
 connection.onDocumentRangeFormatting(formatParams => {
