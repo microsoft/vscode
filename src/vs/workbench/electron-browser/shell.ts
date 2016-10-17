@@ -21,7 +21,7 @@ import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
-import { Storage, inMemoryLocalStorageInstance } from 'vs/workbench/node/storage';
+import { Storage, inMemoryLocalStorageInstance } from 'vs/workbench/common/storage';
 import { ITelemetryService, NullTelemetryService, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
