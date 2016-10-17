@@ -30,6 +30,8 @@ export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Ra
 
 export function getDocumentFormattingEdits(model: IReadOnlyModel, options: FormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = DocumentFormattingEditProviderRegistry.ordered(model);
+
+	// try range formatters when no document formatter is registered
 	if (!support) {
 		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), options);
 	}
