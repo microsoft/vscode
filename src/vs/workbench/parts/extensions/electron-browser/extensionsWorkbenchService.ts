@@ -25,7 +25,7 @@ import {
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import * as semver from 'semver';
 import * as path from 'path';
@@ -474,6 +474,19 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies);
 	}
 
+	setEnablement(extension: IExtension, enable: boolean): TPromise<any> {
+		return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, extension.displayName).then(restart => {
+			if (restart) {
+				const message = enable ? localize('postEnableMessage', "In order to enable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName)
+					: localize('postDisableMessage', "In order to disable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName);
+				return this.messageService.show(Severity.Info, {
+					message,
+					actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now")), LaterAction]
+				});
+			}
+		});
+	}
+
 	uninstall(extension: IExtension): TPromise<void> {
 		if (!(extension instanceof Extension)) {
 			return;
@@ -590,7 +603,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		if (local) {
 			if (local.needsRestart) {
-				return ExtensionState.NeedsRestart;
+				return ExtensionState.Disabled;
 			} else {
 				return disabledExtensions.indexOf(`${local.publisher}.${local.name}`) === -1 ? ExtensionState.Installed : ExtensionState.Disabled;
 			}
