@@ -319,7 +319,10 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 	 */
 	setResource(resource: URI): void;
 
-	setRestoreResource(resource: URI): void;
+	/**
+	 * Sets whether to restore the resource from backup.
+	 */
+	setRestoreFromBackup(restore: boolean): void;
 
 	/**
 	 * Sets the preferred encodingt to use for this input.

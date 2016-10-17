@@ -144,7 +144,7 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 	public setResource(r: URI): void {
 	}
 
-	public setRestoreResource(r: URI): void {
+	public setRestoreFromBackup(restore: boolean): void {
 	}
 
 	public setEncoding(encoding: string) {
