@@ -92,6 +92,9 @@ export function readAndRegisterSnippets(modeId: string, filePath: string, ownerN
 
 function parseSnippetFile(snippetFileContent: string, owner: string): ISnippet[] {
 	let snippetsObj = parse(snippetFileContent);
+	if (!snippetsObj || typeof snippetsObj !== 'object') {
+		return [];
+	}
 
 	let topLevelProperties = Object.keys(snippetsObj);
 	let result: ISnippet[] = [];

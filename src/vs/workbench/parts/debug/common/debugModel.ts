@@ -130,7 +130,7 @@ export class Thread implements debug.IThread {
 	}
 
 	private getCallStackImpl(debugService: debug.IDebugService, startFrame: number): TPromise<debug.IStackFrame[]> {
-		let session = debugService.getActiveSession();
+		let session = debugService.activeSession;
 		return session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
 			if (!response || !response.body) {
 				return [];
@@ -248,7 +248,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 
 	public getChildren(debugService: debug.IDebugService): TPromise<debug.IExpression[]> {
 		if (!this.cacheChildren || !this.children) {
-			const session = debugService.getActiveSession();
+			const session = debugService.activeSession;
 			// only variables with reference > 0 have children.
 			if (!session || this.reference <= 0) {
 				this.children = TPromise.as([]);
@@ -387,8 +387,8 @@ export class StackFrame implements debug.IStackFrame {
 	}
 
 	public getScopes(debugService: debug.IDebugService): TPromise<debug.IScope[]> {
-		if (!this.scopes) {
-			this.scopes = debugService.getActiveSession().scopes({ frameId: this.frameId }).then(response => {
+		if (!this.scopes && debugService.activeSession) {
+			this.scopes = debugService.activeSession.scopes({ frameId: this.frameId }).then(response => {
 				return response && response.body && response.body.scopes ?
 					response.body.scopes.map(rs => new Scope(this.threadId, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables)) : [];
 			}, err => []);

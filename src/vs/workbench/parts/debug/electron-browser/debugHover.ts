@@ -153,7 +153,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			return;
 		}
 
-		const session = this.debugService.getActiveSession();
+		const session = this.debugService.activeSession;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
 		const expressionRange = this.getExactExpressionRange(lineContent, range);
 		// use regex to extract the sub-expression #9821

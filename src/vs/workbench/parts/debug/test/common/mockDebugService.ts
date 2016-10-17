@@ -35,7 +35,7 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void[]> {
+	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -89,7 +89,7 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public getActiveSession(): debug.IRawDebugSession {
+	public get activeSession(): debug.IRawDebugSession {
 		return this.session;
 	}
 

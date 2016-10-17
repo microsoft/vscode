@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 
@@ -22,6 +22,10 @@ class MyCompletionItem extends CompletionItem {
 		super(entry.name);
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
+		if (entry.replacementSpan) {
+			let span = entry.replacementSpan;
+			this.textEdit = TextEdit.replace(new Range(span.start.line, span.start.offset, span.end.line, span.end.offset), entry.name);
+		}
 	}
 
 	private static convertKind(kind: string): CompletionItemKind {
