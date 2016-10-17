@@ -5,6 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import { hash } from 'vs/base/common/hash';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -790,10 +791,24 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	// --- formatting
 
-	registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
+	private static _evilDefaultProviderName(selector: vscode.DocumentSelector): string {
+		const {stack} = new Error();
+		const id = Math.abs(hash(JSON.stringify(selector), hash(stack))).toString(32);
+
+		const match = /\/extensions\/(.*?)\//m.exec(stack);
+		if (match) {
+			return `${match[1]}-${id}`;
+		}
+		return `unnamed-(${id})`;
+	}
+
+	registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider, name?: string): vscode.Disposable {
+		if (!name) {
+			name = ExtHostLanguageFeatures._evilDefaultProviderName(selector);
+		}
 		const handle = this._nextHandle();
 		this._adapter[handle] = new DocumentFormattingAdapter(this._documents, provider);
-		this._proxy.$registerDocumentFormattingSupport(handle, selector);
+		this._proxy.$registerDocumentFormattingSupport(handle, selector, name);
 		return this._createDisposable(handle);
 	}
 
@@ -801,10 +816,13 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.provideDocumentFormattingEdits(resource, options));
 	}
 
-	registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
+	registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider, name?: string): vscode.Disposable {
+		if (!name) {
+			name = ExtHostLanguageFeatures._evilDefaultProviderName(selector);
+		}
 		const handle = this._nextHandle();
 		this._adapter[handle] = new RangeFormattingAdapter(this._documents, provider);
-		this._proxy.$registerRangeFormattingSupport(handle, selector);
+		this._proxy.$registerRangeFormattingSupport(handle, selector, name);
 		return this._createDisposable(handle);
 	}
 

@@ -128,8 +128,8 @@ export abstract class MainThreadLanguageFeaturesShape {
 	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
-	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
-	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
+	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector, name: string): TPromise<any> { throw ni(); }
+	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector, name: string): TPromise<any> { throw ni(); }
 	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): TPromise<any> { throw ni(); }
 	$registerNavigateTypeSupport(handle: number): TPromise<any> { throw ni(); }
 	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }

@@ -4486,6 +4486,10 @@ declare module monaco.languages {
      */
     export interface DocumentFormattingEditProvider {
         /**
+         * Human readable name of this provider. Used for disambiguation.
+         */
+        name?: string;
+        /**
          * Provide formatting edits for a whole document.
          */
         provideDocumentFormattingEdits(model: editor.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): editor.ISingleEditOperation[] | Thenable<editor.ISingleEditOperation[]>;
@@ -4496,6 +4500,10 @@ declare module monaco.languages {
      * the formatting-feature.
      */
     export interface DocumentRangeFormattingEditProvider {
+        /**
+         * Human readable name of this provider. Used for disambiguation.
+         */
+        name?: string;
         /**
          * Provide formatting edits for a range in a document.
          *

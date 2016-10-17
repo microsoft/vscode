@@ -616,6 +616,11 @@ export interface FormattingOptions {
  */
 export interface DocumentFormattingEditProvider {
 	/**
+	 * Human readable name of this provider. Used for disambiguation.
+	 */
+	name?: string;
+
+	/**
 	 * Provide formatting edits for a whole document.
 	 */
 	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
@@ -625,6 +630,11 @@ export interface DocumentFormattingEditProvider {
  * the formatting-feature.
  */
 export interface DocumentRangeFormattingEditProvider {
+	/**
+	 * Human readable name of this provider. Used for disambiguation.
+	 */
+	name?: string;
+
 	/**
 	 * Provide formatting edits for a range in a document.
 	 *
