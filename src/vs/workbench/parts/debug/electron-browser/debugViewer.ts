@@ -362,7 +362,7 @@ export class CallStackDataSource implements tree.IDataSource {
 
 	private getThreadChildren(thread: debug.IThread): TPromise<any> {
 		return thread.getCallStack(this.debugService).then((callStack: any[]) => {
-			if (thread.stoppedDetails.framesErrorMessage) {
+			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
 				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 			}
 			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
