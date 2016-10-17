@@ -74,12 +74,12 @@ export class BaseTwoEditorsAction extends Action {
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
 			return this.editorService.createInput({ resource: editableResource }).then(typedRightHandEditableInput => {
 				const editors = [
-					{ input: leftHandDefaultInput, position: Position.LEFT, options: { pinned: true } },
-					{ input: typedRightHandEditableInput, position: Position.CENTER, options: { pinned: true } }
+					{ input: leftHandDefaultInput, position: Position.ONE, options: { pinned: true } },
+					{ input: typedRightHandEditableInput, position: Position.TWO, options: { pinned: true } }
 				];
 
 				return this.editorService.openEditors(editors).then(() => {
-					this.editorGroupService.focusGroup(Position.CENTER);
+					this.editorGroupService.focusGroup(Position.TWO);
 				});
 			});
 		});
@@ -153,7 +153,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 						const editorCount = this.editorService.getVisibleEditors().length;
 
 						return this.editorService.createInput({ resource: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) }).then(typedInput => {
-							return this.editorService.openEditor(typedInput, { pinned: true }, editorCount === 2 ? Position.RIGHT : editorCount === 1 ? Position.CENTER : void 0);
+							return this.editorService.openEditor(typedInput, { pinned: true }, editorCount === 2 ? Position.THREE : editorCount === 1 ? Position.TWO : void 0);
 						});
 					}),
 					new Action('neverShowAgain', nls.localize('neverShowAgain', "Don't show again"), null, true, () => {

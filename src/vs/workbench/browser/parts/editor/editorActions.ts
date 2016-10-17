@@ -72,24 +72,24 @@ export class SplitEditorAction extends Action {
 
 			// Open split editor to the right of left one
 			case 1:
-				targetPosition = Position.CENTER;
+				targetPosition = Position.TWO;
 				break;
 
 			// Special case two editors opened
 			case 2:
 
 				// Continue splitting to the right
-				if (editorToSplit.position === Position.CENTER) {
-					targetPosition = Position.RIGHT;
+				if (editorToSplit.position === Position.TWO) {
+					targetPosition = Position.THREE;
 				}
 
 				// Push the center group to the right to make room for the splitted input
-				else if (editorToSplit.position === Position.LEFT) {
+				else if (editorToSplit.position === Position.ONE) {
 					options.preserveFocus = true;
 
-					return this.editorService.openEditor(editorToSplit.input, options, Position.RIGHT).then(() => {
-						this.editorGroupService.moveGroup(Position.RIGHT, Position.CENTER);
-						this.editorGroupService.focusGroup(Position.CENTER);
+					return this.editorService.openEditor(editorToSplit.input, options, Position.THREE).then(() => {
+						this.editorGroupService.moveGroup(Position.THREE, Position.TWO);
+						this.editorGroupService.focusGroup(Position.TWO);
 					});
 				}
 		}
@@ -179,8 +179,8 @@ export class FocusFirstGroupAction extends Action {
 		// Find left editor and focus it
 		const editors = this.editorService.getVisibleEditors();
 		for (let editor of editors) {
-			if (editor.position === Position.LEFT) {
-				this.editorGroupService.focusGroup(Position.LEFT);
+			if (editor.position === Position.ONE) {
+				this.editorGroupService.focusGroup(Position.ONE);
 
 				return TPromise.as(true);
 			}
@@ -193,10 +193,10 @@ export class FocusFirstGroupAction extends Action {
 			// For now only support to open files from history to the side
 			if (input instanceof EditorInput) {
 				if (!!getUntitledOrFileResource(input)) {
-					return this.editorService.openEditor(input, null, Position.LEFT);
+					return this.editorService.openEditor(input, null, Position.ONE);
 				}
 			} else {
-				return this.editorService.openEditor(input as IResourceInput, Position.LEFT);
+				return this.editorService.openEditor(input as IResourceInput, Position.ONE);
 			}
 		}
 
@@ -293,11 +293,11 @@ export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
 	}
 
 	protected getReferenceEditorSide(): Position {
-		return Position.LEFT;
+		return Position.ONE;
 	}
 
 	protected getTargetEditorSide(): Position {
-		return Position.CENTER;
+		return Position.TWO;
 	}
 }
 
@@ -317,11 +317,11 @@ export class FocusThirdGroupAction extends BaseFocusSideGroupAction {
 	}
 
 	protected getReferenceEditorSide(): Position {
-		return Position.CENTER;
+		return Position.TWO;
 	}
 
 	protected getTargetEditorSide(): Position {
-		return Position.RIGHT;
+		return Position.THREE;
 	}
 }
 
@@ -349,9 +349,9 @@ export class FocusPreviousGroup extends Action {
 
 
 		// Find the next position to the left
-		let nextPosition: Position = Position.LEFT;
-		if (activeEditor.position === Position.RIGHT) {
-			nextPosition = Position.CENTER;
+		let nextPosition: Position = Position.ONE;
+		if (activeEditor.position === Position.THREE) {
+			nextPosition = Position.TWO;
 		}
 
 		// Focus next position if provided
@@ -377,9 +377,9 @@ export class FocusNextGroup extends Action {
 		super(id, label);
 
 		this.navigateActions = [];
-		this.navigateActions[Position.LEFT] = instantiationService.createInstance(FocusFirstGroupAction, FocusFirstGroupAction.ID, FocusFirstGroupAction.LABEL);
-		this.navigateActions[Position.CENTER] = instantiationService.createInstance(FocusSecondGroupAction, FocusSecondGroupAction.ID, FocusSecondGroupAction.LABEL);
-		this.navigateActions[Position.RIGHT] = instantiationService.createInstance(FocusThirdGroupAction, FocusThirdGroupAction.ID, FocusThirdGroupAction.LABEL);
+		this.navigateActions[Position.ONE] = instantiationService.createInstance(FocusFirstGroupAction, FocusFirstGroupAction.ID, FocusFirstGroupAction.LABEL);
+		this.navigateActions[Position.TWO] = instantiationService.createInstance(FocusSecondGroupAction, FocusSecondGroupAction.ID, FocusSecondGroupAction.LABEL);
+		this.navigateActions[Position.THREE] = instantiationService.createInstance(FocusThirdGroupAction, FocusThirdGroupAction.ID, FocusThirdGroupAction.LABEL);
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -388,11 +388,11 @@ export class FocusNextGroup extends Action {
 		let nextPosition: Position;
 		const activeEditor = this.editorService.getActiveEditor();
 		if (!activeEditor) {
-			nextPosition = Position.LEFT;
-		} else if (activeEditor.position === Position.LEFT) {
-			nextPosition = Position.CENTER;
-		} else if (activeEditor.position === Position.CENTER) {
-			nextPosition = Position.RIGHT;
+			nextPosition = Position.ONE;
+		} else if (activeEditor.position === Position.ONE) {
+			nextPosition = Position.TWO;
+		} else if (activeEditor.position === Position.TWO) {
+			nextPosition = Position.THREE;
 		}
 
 		// Run the action for the target next position
@@ -419,7 +419,7 @@ export class OpenToSideAction extends Action {
 
 	private updateEnablement(): void {
 		const activeEditor = this.editorService.getActiveEditor();
-		this.enabled = (!activeEditor || activeEditor.position !== Position.RIGHT);
+		this.enabled = (!activeEditor || activeEditor.position !== Position.THREE);
 	}
 
 	public run(context: any): TPromise<any> {
@@ -676,13 +676,13 @@ export class MoveGroupLeftAction extends Action {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor && (activeEditor.position === Position.CENTER || activeEditor.position === Position.RIGHT)) {
+			if (activeEditor && (activeEditor.position === Position.TWO || activeEditor.position === Position.THREE)) {
 				position = activeEditor.position;
 			}
 		}
 
 		if (typeof position === 'number') {
-			const newPosition = (position === Position.CENTER) ? Position.LEFT : Position.CENTER;
+			const newPosition = (position === Position.TWO) ? Position.ONE : Position.TWO;
 
 			// Move group
 			this.editorGroupService.moveGroup(position, newPosition);
@@ -712,13 +712,13 @@ export class MoveGroupRightAction extends Action {
 			const activeEditor = this.editorService.getActiveEditor();
 			const editors = this.editorService.getVisibleEditors();
 
-			if ((editors.length === 2 && activeEditor.position === Position.LEFT) || (editors.length === 3 && activeEditor.position !== Position.RIGHT)) {
+			if ((editors.length === 2 && activeEditor.position === Position.ONE) || (editors.length === 3 && activeEditor.position !== Position.THREE)) {
 				position = activeEditor.position;
 			}
 		}
 
 		if (typeof position === 'number') {
-			const newPosition = (position === Position.LEFT) ? Position.CENTER : Position.RIGHT;
+			const newPosition = (position === Position.ONE) ? Position.TWO : Position.THREE;
 
 			// Move group
 			this.editorGroupService.moveGroup(position, newPosition);
@@ -1014,9 +1014,9 @@ export class ShowEditorsInGroupAction extends Action {
 		}
 
 		switch (stacks.positionOfGroup(context.group)) {
-			case Position.CENTER:
+			case Position.TWO:
 				return this.quickOpenService.show((groupCount === 2) ? NAVIGATE_IN_RIGHT_GROUP_PREFIX : NAVIGATE_IN_CENTER_GROUP_PREFIX);
-			case Position.RIGHT:
+			case Position.THREE:
 				return this.quickOpenService.show(NAVIGATE_IN_RIGHT_GROUP_PREFIX);
 		}
 
@@ -1057,9 +1057,9 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 			const count = stacks.groups.length;
 			let prefix = NAVIGATE_IN_LEFT_GROUP_PREFIX;
 
-			if (activePosition === Position.CENTER && count === 3) {
+			if (activePosition === Position.TWO && count === 3) {
 				prefix = NAVIGATE_IN_CENTER_GROUP_PREFIX;
-			} else if (activePosition === Position.RIGHT || (activePosition === Position.CENTER && count === 2)) {
+			} else if (activePosition === Position.THREE || (activePosition === Position.TWO && count === 2)) {
 				prefix = NAVIGATE_IN_RIGHT_GROUP_PREFIX;
 			}
 
@@ -1238,7 +1238,7 @@ export class MoveEditorToLeftGroupAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.position !== Position.LEFT) {
+		if (activeEditor && activeEditor.position !== Position.ONE) {
 			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, activeEditor.position - 1);
 		}
 
@@ -1262,7 +1262,7 @@ export class MoveEditorToRightGroupAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.position !== Position.RIGHT) {
+		if (activeEditor && activeEditor.position !== Position.THREE) {
 			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, activeEditor.position + 1);
 		}
 

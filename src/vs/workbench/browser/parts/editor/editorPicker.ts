@@ -217,7 +217,7 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 export class LeftEditorGroupPicker extends EditorGroupPicker {
 
 	protected getPosition(): Position {
-		return Position.LEFT;
+		return Position.ONE;
 	}
 }
 
@@ -226,7 +226,7 @@ export class CenterEditorGroupPicker extends EditorGroupPicker {
 	protected getPosition(): Position {
 		const stacks = this.editorGroupService.getStacksModel();
 
-		return stacks.groups.length > 2 ? Position.CENTER : -1; // with 2 groups open, the center one is not available
+		return stacks.groups.length > 2 ? Position.TWO : -1; // with 2 groups open, the center one is not available
 	}
 }
 
@@ -235,7 +235,7 @@ export class RightEditorGroupPicker extends EditorGroupPicker {
 	protected getPosition(): Position {
 		const stacks = this.editorGroupService.getStacksModel();
 
-		return stacks.groups.length > 2 ? Position.RIGHT : Position.CENTER;
+		return stacks.groups.length > 2 ? Position.THREE : Position.TWO;
 	}
 }
 

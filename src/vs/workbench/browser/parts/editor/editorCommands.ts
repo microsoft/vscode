@@ -127,13 +127,13 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: 
 			newPosition = newPosition + 1;
 			break;
 		case ActiveEditorMovePositioning.FIRST:
-			newPosition = Position.LEFT;
+			newPosition = Position.ONE;
 			break;
 		case ActiveEditorMovePositioning.LAST:
-			newPosition = Position.RIGHT;
+			newPosition = Position.THREE;
 			break;
 		case ActiveEditorMovePositioning.CENTER:
-			newPosition = Position.CENTER;
+			newPosition = Position.TWO;
 			break;
 		case ActiveEditorMovePositioning.POSITION:
 			newPosition = args.value - 1;

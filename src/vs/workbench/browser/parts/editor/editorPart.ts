@@ -204,7 +204,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Opened to the side
-		if (position !== Position.LEFT) {
+		if (position !== Position.ONE) {
 			this.telemetryService.publicLog('workbenchSideEditorOpened', { position: position });
 		}
 
@@ -915,13 +915,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[]): TPromise<BaseEditor[]> {
-		const leftEditors = editors.filter(e => e.position === Position.LEFT);
-		const centerEditors = editors.filter(e => e.position === Position.CENTER);
-		const rightEditors = editors.filter(e => e.position === Position.RIGHT);
+		const leftEditors = editors.filter(e => e.position === Position.ONE);
+		const centerEditors = editors.filter(e => e.position === Position.TWO);
+		const rightEditors = editors.filter(e => e.position === Position.THREE);
 
-		const leftGroup = this.stacks.groupAt(Position.LEFT);
-		const centerGroup = this.stacks.groupAt(Position.CENTER);
-		const rightGroup = this.stacks.groupAt(Position.RIGHT);
+		const leftGroup = this.stacks.groupAt(Position.ONE);
+		const centerGroup = this.stacks.groupAt(Position.TWO);
+		const rightGroup = this.stacks.groupAt(Position.THREE);
 
 		// Compute the imaginary count if we const all editors open as the way requested
 		const leftCount = leftEditors.length + (leftGroup ? leftGroup.count : 0);
@@ -938,7 +938,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Validate active input
 		if (typeof activePosition !== 'number') {
-			activePosition = Position.LEFT;
+			activePosition = Position.ONE;
 		}
 
 		// Validate ratios
@@ -1173,7 +1173,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const visibleEditors = this.getVisibleEditors();
 		const activeEditor = this.getActiveEditor();
 		if (visibleEditors.length === 0 || !activeEditor) {
-			return Position.LEFT; // can only be LEFT
+			return Position.ONE; // can only be LEFT
 		}
 
 		// Respect option to reveal an editor if it is already visible
@@ -1193,17 +1193,17 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		if (types.isUndefinedOrNull(arg1) || arg1 === false) {
 			const lastActivePosition = this.sideBySideControl.getActivePosition();
 
-			return lastActivePosition || Position.LEFT;
+			return lastActivePosition || Position.ONE;
 		}
 
 		// Position is sideBySide: Find position relative to active editor
 		if (arg1 === true) {
 			switch (activeEditor.position) {
-				case Position.LEFT:
-					return Position.CENTER;
-				case Position.CENTER:
-					return Position.RIGHT;
-				case Position.RIGHT:
+				case Position.ONE:
+					return Position.TWO;
+				case Position.TWO:
+					return Position.THREE;
+				case Position.THREE:
 					return null; // Cannot open to the side of the right most editor
 			}
 
@@ -1211,8 +1211,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Position is provided, validate it
-		if (arg1 === Position.RIGHT && visibleEditors.length === 1) {
-			return Position.CENTER;
+		if (arg1 === Position.THREE && visibleEditors.length === 1) {
+			return Position.TWO;
 		}
 
 		return arg1;
@@ -1260,15 +1260,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		if (types.isUndefinedOrNull(arg2)) {
 			const rochade = <Rochade>arg1;
 			switch (rochade) {
-				case Rochade.CENTER_TO_LEFT:
-					this.rochade(Position.CENTER, Position.LEFT);
+				case Rochade.TWO_TO_ONE:
+					this.rochade(Position.TWO, Position.ONE);
 					break;
-				case Rochade.RIGHT_TO_CENTER:
-					this.rochade(Position.RIGHT, Position.CENTER);
+				case Rochade.THREE_TO_TWO:
+					this.rochade(Position.THREE, Position.TWO);
 					break;
-				case Rochade.CENTER_AND_RIGHT_TO_LEFT:
-					this.rochade(Position.CENTER, Position.LEFT);
-					this.rochade(Position.RIGHT, Position.CENTER);
+				case Rochade.TWO_AND_THREE_TO_ONE:
+					this.rochade(Position.TWO, Position.ONE);
+					this.rochade(Position.THREE, Position.TWO);
 			}
 		} else {
 			const from = <Position>arg1;
@@ -1329,20 +1329,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			// LEFT | CENTER | RIGHT
 			if (groups.length > 2) {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.CENTER), EditorPart.GROUP_CENTER_LABEL);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.RIGHT), EditorPart.GROUP_RIGHT_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_LEFT_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), EditorPart.GROUP_CENTER_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.THREE), EditorPart.GROUP_RIGHT_LABEL);
 			}
 
 			// LEFT | RIGHT
 			else if (groups.length > 1) {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.CENTER), EditorPart.GROUP_RIGHT_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_LEFT_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), EditorPart.GROUP_RIGHT_LABEL);
 			}
 
 			// LEFT
 			else {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_LEFT_LABEL);
 			}
 		}
 	}
