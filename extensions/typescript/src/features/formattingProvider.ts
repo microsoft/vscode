@@ -11,6 +11,7 @@ import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 
 interface Configuration {
+	enable: boolean;
 	insertSpaceAfterCommaDelimiter: boolean;
 	insertSpaceAfterSemicolonInForStatements: boolean;
 	insertSpaceBeforeAndAfterBinaryOperators: boolean;
@@ -50,6 +51,7 @@ namespace Configuration {
 
 	export function def(): Configuration {
 		let result: Configuration = Object.create(null);
+		result.enable = true;
 		result.insertSpaceAfterCommaDelimiter = true;
 		result.insertSpaceAfterSemicolonInForStatements = true;
 		result.insertSpaceBeforeAndAfterBinaryOperators = true;
@@ -84,6 +86,10 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			this.config = newConfig;
 			this.formatOptions = Object.create(null);
 		}
+	}
+
+	public isEnabled(): boolean {
+		return this.config.enable;
 	}
 
 	private ensureFormatOptions(document: TextDocument, options: FormattingOptions, token: CancellationToken): Promise<Proto.FormatCodeSettings> {
