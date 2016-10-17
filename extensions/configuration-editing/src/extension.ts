@@ -53,7 +53,7 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor) {
 	let addPropertyAndValue = false;
 	visit(editor.document.getText(), {
 		onObjectProperty: (property, offset, length) => {
-			addPropertyAndValue = property === 'version' || property === 'type' || property === 'request';
+			addPropertyAndValue = property === 'version' || property === 'type' || property === 'request' || property === 'configurations';
 			if (addPropertyAndValue) {
 				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
 			}
