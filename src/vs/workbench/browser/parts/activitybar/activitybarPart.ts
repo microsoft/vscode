@@ -22,6 +22,7 @@ import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class ActivitybarPart extends Part implements IActivityService {
 	public _serviceBrand: any;
@@ -34,7 +35,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		@IViewletService private viewletService: IViewletService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(id);
 
@@ -60,9 +62,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private onDidRegisterExternalViewlets(descriptors: ViewletDescriptor[]) {
+		const enabledViewlets = JSON.parse(this.storageService.get("enabledExternalViewlets"));
 		descriptors.forEach(descriptor => {
 			this.viewletSwitcherBar.push(this.toAction(descriptor), { label: true, icon: true });
-		})
+		});
 	}
 
 	private onActiveCompositeChanged(composite: IComposite): void {
