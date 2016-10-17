@@ -11,7 +11,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export interface IExtensionDescription {
 	id: string;
 	name: string;
-	displayName: string;
 	version: string;
 	publisher: string;
 	isBuiltin: boolean;
