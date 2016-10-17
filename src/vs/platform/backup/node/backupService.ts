@@ -7,11 +7,13 @@
 
 import * as path from 'path';
 import * as crypto from 'crypto';
-import * as fs from 'original-fs';
 import * as arrays from 'vs/base/common/arrays';
+import fs = require('fs');
 import Uri from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IBackupService } from 'vs/platform/backup/common/backup';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { nfcall } from 'vs/base/common/async';
 
 interface IBackupFormat {
 	folderWorkspaces?: {
@@ -35,20 +37,25 @@ export class BackupService implements IBackupService {
 		this.workspaceResource = resource;
 	}
 
-	public getWorkspaceBackupPaths(): string[] {
-		this.load();
+	public getWorkspaceBackupPaths(): TPromise<string[]> {
+		return this.load().then(() => {
+			return Object.keys(this.fileContent.folderWorkspaces);
+		});
+	}
+
+	public getWorkspaceBackupPathsSync(): string[] {
+		this.loadSync();
 		return Object.keys(this.fileContent.folderWorkspaces);
 	}
 
-	public clearWorkspaceBackupPaths(): void {
-		this.fileContent = {
-			folderWorkspaces: Object.create(null)
-		};
-		this.save();
-	}
-
 	public pushWorkspaceBackupPaths(workspaces: string[]): void {
-		this.load();
+		// Only allow this on the main thread in the window initialization's critical path due to
+		// the usage of synchronous IO.
+		if (this.workspaceResource) {
+			throw new Error('pushWorkspaceBackupPaths should only be called on the main process');
+		}
+
+		this.loadSync();
 		workspaces.forEach(workspace => {
 			// Hot exit is disabled for empty workspaces
 			if (!workspace) {
@@ -58,20 +65,22 @@ export class BackupService implements IBackupService {
 				this.fileContent.folderWorkspaces[workspace] = [];
 			}
 		});
-		this.save();
+		this.saveSync();
 	}
 
-	public removeWorkspaceBackupPath(workspace: string): void {
-		this.load();
-		if (!this.fileContent.folderWorkspaces) {
-			return;
-		}
-		delete this.fileContent.folderWorkspaces[workspace];
-		this.save();
+	public removeWorkspaceBackupPath(workspace: string): TPromise<void> {
+		return this.load().then(() => {
+			if (!this.fileContent.folderWorkspaces) {
+				return;
+			}
+			delete this.fileContent.folderWorkspaces[workspace];
+			return this.save();
+		});
 	}
 
 	public getWorkspaceTextFilesWithBackups(workspace: string): string[] {
-		this.load();
+		// Allow sync here as it's only used in workbench initialization's critical path
+		this.loadSync();
 		return this.fileContent.folderWorkspaces[workspace] || [];
 	}
 
@@ -83,6 +92,8 @@ export class BackupService implements IBackupService {
 
 		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
 		const untitledDir = path.join(this.environmentService.backupHome, workspaceHash, 'untitled');
+
+		// Allow sync here as it's only used in workbench initialization's critical path
 		try {
 			return fs.readdirSync(untitledDir).map(file => path.join(untitledDir, file));
 		} catch (ex) {
@@ -102,34 +113,48 @@ export class BackupService implements IBackupService {
 		return Uri.file(backupPath);
 	}
 
-	public registerResourceForBackup(resource: Uri): void {
+	public registerResourceForBackup(resource: Uri): TPromise<void> {
+		// Hot exit is disabled for empty workspaces
+		if (!this.workspaceResource) {
+			return TPromise.as(void 0);
+		}
+
+		return this.load().then(() => {
+			if (arrays.contains(this.fileContent.folderWorkspaces[this.workspaceResource.fsPath], resource.fsPath)) {
+				return TPromise.as(void 0);
+			}
+			this.fileContent.folderWorkspaces[this.workspaceResource.fsPath].push(resource.fsPath);
+			return this.save();
+		});
+	}
+
+	public deregisterResourceForBackup(resource: Uri): TPromise<void> {
 		// Hot exit is disabled for empty workspaces
 		if (!this.workspaceResource) {
 			return;
 		}
 
-		this.load();
-		if (arrays.contains(this.fileContent.folderWorkspaces[this.workspaceResource.fsPath], resource.fsPath)) {
-			return;
-		}
-		this.fileContent.folderWorkspaces[this.workspaceResource.fsPath].push(resource.fsPath);
-		this.save();
+		return this.load().then(() => {
+			this.fileContent.folderWorkspaces[this.workspaceResource.fsPath] = this.fileContent.folderWorkspaces[this.workspaceResource.fsPath].filter(value => value !== resource.fsPath);
+			return this.save();
+		});
 	}
 
-	public deregisterResourceForBackup(resource: Uri): void {
-		// Hot exit is disabled for empty workspaces
-		if (!this.workspaceResource) {
-			return;
-		}
-
-		this.load();
-		this.fileContent.folderWorkspaces[this.workspaceResource.fsPath] = this.fileContent.folderWorkspaces[this.workspaceResource.fsPath].filter(value => value !== resource.fsPath);
-		this.save();
+	private load(): TPromise<void> {
+		return nfcall(fs.readFile, this.environmentService.backupWorkspacesPath, 'utf8').then(content => {
+			return JSON.parse(content.toString());
+		}).then(null, () => Object.create(null)).then(content => {
+			this.fileContent = content;
+			if (!this.fileContent.folderWorkspaces) {
+				this.fileContent.folderWorkspaces = Object.create(null);
+			}
+			return void 0;
+		});
 	}
 
-	private load(): void {
+	private loadSync(): void {
 		try {
-			this.fileContent = JSON.parse(fs.readFileSync(this.environmentService.backupWorkspacesPath).toString()); // invalid JSON or permission issue can happen here
+			this.fileContent = JSON.parse(fs.readFileSync(this.environmentService.backupWorkspacesPath, 'utf8').toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
 			this.fileContent = Object.create(null);
 		}
@@ -138,10 +163,14 @@ export class BackupService implements IBackupService {
 		}
 	}
 
-	private save(): void {
+	private save(): TPromise<void> {
+		return nfcall(fs.writeFile, this.environmentService.backupWorkspacesPath, JSON.stringify(this.fileContent), { encoding: 'utf8' });
+	}
+
+	private saveSync(): void {
 		try {
-			fs.writeFileSync(this.environmentService.backupWorkspacesPath, JSON.stringify(this.fileContent));
-		} catch (error) {
+			fs.writeFileSync(this.environmentService.backupWorkspacesPath, JSON.stringify(this.fileContent), { encoding: 'utf8' });
+		} catch (ex) {
 		}
 	}
 }

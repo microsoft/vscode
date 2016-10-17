@@ -607,7 +607,7 @@ export class WindowsManager implements IWindowsService {
 
 		// Add any existing backup workspaces
 		if (openConfig.restoreBackups) {
-			this.backupService.getWorkspaceBackupPaths().forEach(ws => {
+			this.backupService.getWorkspaceBackupPathsSync().forEach(ws => {
 				iPathsToOpen.push(this.toIPath(ws));
 			});
 			// Get rid of duplicates

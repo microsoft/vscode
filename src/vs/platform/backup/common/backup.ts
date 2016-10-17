@@ -5,8 +5,9 @@
 
 'use strict';
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Uri from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export const IBackupService = createDecorator<IBackupService>('backupService');
 
@@ -18,12 +19,14 @@ export interface IBackupService {
 	 *
 	 * @return The set of active workspace backup paths being tracked for restoration.
 	 */
-	getWorkspaceBackupPaths(): string[];
+	getWorkspaceBackupPaths(): TPromise<string[]>;
 
 	/**
-	 * Clears all active workspace backup paths being tracked for restoration.
+	 * Gets the set of active workspace backup paths being tracked for restoration.
+	 *
+	 * @return The set of active workspace backup paths being tracked for restoration.
 	 */
-	clearWorkspaceBackupPaths(): void;
+	getWorkspaceBackupPathsSync(): string[];
 
 	/**
 	 * Pushes workspace backup paths to be tracked for restoration.
@@ -38,7 +41,7 @@ export interface IBackupService {
 	 *
 	 * @param workspace The absolute workspace path being removed.
 	 */
-	removeWorkspaceBackupPath(workspace: string): void;
+	removeWorkspaceBackupPath(workspace: string): TPromise<void>;
 
 	/**
 	 * Gets the set of text files that are backed up for a particular workspace.
@@ -61,14 +64,14 @@ export interface IBackupService {
 	 *
 	 * @param resource The resource that is being backed up.
 	 */
-	registerResourceForBackup(resource: Uri): void;
+	registerResourceForBackup(resource: Uri): TPromise<void>;
 
 	/**
 	 * Deregisters a resource for backup, unflagging it for restoration.
 	 *
 	 * @param resource The resource that is no longer being backed up.
 	 */
-	deregisterResourceForBackup(resource: Uri): void;
+	deregisterResourceForBackup(resource: Uri): TPromise<void>;
 
 	/**
 	 * Gets the backup resource for a particular resource within the current workspace.
