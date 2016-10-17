@@ -1,7 +1,7 @@
 [
 	{
 		"c": "class",
-		"t": "declaration.meta.object.storage.ts.type",
+		"t": "class.meta.storage.ts.type",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type rgb(0, 0, 255)",
@@ -12,7 +12,7 @@
 	},
 	{
 		"c": " ",
-		"t": "declaration.meta.object.ts",
+		"t": "class.meta.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -23,18 +23,18 @@
 	},
 	{
 		"c": "A2",
-		"t": "class.declaration.entity.meta.name.object.ts",
+		"t": "class.entity.meta.name.ts.type",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.class rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.class rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.class rgb(212, 212, 212)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": " ",
-		"t": "declaration.meta.object.ts",
+		"t": "class.meta.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "{",
-		"t": "body.brace.curly.declaration.meta.object.ts",
+		"t": "block.class.definition.meta.punctuation.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -56,7 +56,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "body.declaration.meta.object.ts",
+		"t": "class.meta.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -67,7 +67,7 @@
 	},
 	{
 		"c": "public",
-		"t": "body.declaration.meta.modifier.object.storage.ts",
+		"t": "class.meta.modifier.storage.ts",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": " ",
-		"t": "body.declaration.field.meta.object.ts",
+		"t": "class.meta.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "count",
-		"t": "body.declaration.field.meta.object.ts.variable",
+		"t": "class.declaration.field.meta.object.property.ts.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -99,41 +99,8 @@
 		}
 	},
 	{
-		"c": ": ",
-		"t": "body.declaration.field.meta.object.ts",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "number",
-		"t": "body.declaration.field.meta.object.primitive.support.ts.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.type rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.declaration.field.meta.object.ts",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "=",
-		"t": "body.comparison.declaration.field.keyword.meta.object.operator.ts",
+		"c": ":",
+		"t": "annotation.class.declaration.field.keyword.meta.operator.ts.type",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
@@ -144,7 +111,51 @@
 	},
 	{
 		"c": " ",
-		"t": "body.declaration.field.meta.object.ts",
+		"t": "annotation.class.declaration.field.meta.ts.type",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "number",
+		"t": "annotation.class.declaration.field.meta.primitive.support.ts.type",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.type rgb(78, 201, 176)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.type rgb(38, 127, 153)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": " ",
+		"t": "annotation.class.declaration.field.meta.ts.type",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "=",
+		"t": "assignment.class.declaration.field.keyword.meta.operator.ts",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+		}
+	},
+	{
+		"c": " ",
+		"t": "class.declaration.field.meta.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -155,7 +166,7 @@
 	},
 	{
 		"c": "9",
-		"t": "body.constant.declaration.field.meta.numeric.object.ts",
+		"t": "class.constant.decimal.declaration.field.meta.numeric.ts",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
@@ -166,7 +177,7 @@
 	},
 	{
 		"c": ";",
-		"t": "body.declaration.meta.object.ts",
+		"t": "class.meta.punctuation.statement.terminator.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -177,7 +188,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "body.declaration.meta.object.ts",
+		"t": "class.meta.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -188,7 +199,7 @@
 	},
 	{
 		"c": "public",
-		"t": "body.declaration.meta.method.modifier.object.storage.ts",
+		"t": "class.declaration.meta.method.modifier.storage.ts",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
@@ -199,7 +210,7 @@
 	},
 	{
 		"c": " ",
-		"t": "body.declaration.meta.method.object.ts",
+		"t": "class.declaration.meta.method.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -210,18 +221,18 @@
 	},
 	{
 		"c": "resolveNextGeneration",
-		"t": "body.declaration.entity.function.meta.method.name.object.ts",
+		"t": "class.declaration.entity.function.meta.method.name.ts",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.method rgb(220, 220, 170)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.method rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "(",
-		"t": "body.brace.declaration.function.meta.method.object.parameter.round.ts.type",
+		"t": "begin.class.declaration.definition.meta.method.parameters.punctuation.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -232,10 +243,10 @@
 	},
 	{
 		"c": "cell",
-		"t": "body.declaration.function.meta.method.name.object.parameter.ts.type.variable",
+		"t": "class.declaration.meta.method.parameter.parameters.ts.variable",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.parameter.type.variable rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.parameter.type.variable rgb(0, 16, 128)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter rgb(0, 16, 128)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -243,21 +254,32 @@
 	},
 	{
 		"c": " ",
-		"t": "body.declaration.function.meta.method.name.object.parameter.ts.type",
+		"t": "class.declaration.meta.method.parameters.ts",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.type.name rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.type.name rgb(38, 127, 153)",
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
-		"c": ": ",
-		"t": "annotation.body.declaration.function.meta.method.object.parameter.ts.type",
+		"c": ":",
+		"t": "annotation.class.declaration.keyword.meta.method.operator.parameters.ts.type",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.type.annotation rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.type.annotation rgb(38, 127, 153)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+		}
+	},
+	{
+		"c": " ",
+		"t": "annotation.class.declaration.meta.method.parameters.ts.type",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -265,10 +287,10 @@
 	},
 	{
 		"c": "A2",
-		"t": "annotation.body.declaration.function.meta.method.name.object.parameter.ts.type",
+		"t": "annotation.class.declaration.entity.meta.method.name.parameters.ts.type",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.type.annotation rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.type.annotation rgb(38, 127, 153)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -276,7 +298,7 @@
 	},
 	{
 		"c": ")",
-		"t": "body.brace.declaration.function.meta.method.object.parameter.round.ts.type",
+		"t": "class.declaration.definition.end.meta.method.parameters.punctuation.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -287,7 +309,7 @@
 	},
 	{
 		"c": " ",
-		"t": "body.declaration.meta.method.object.ts",
+		"t": "class.declaration.meta.method.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -298,7 +320,7 @@
 	},
 	{
 		"c": "{",
-		"t": "block.body.brace.curly.decl.declaration.meta.method.object.ts",
+		"t": "block.class.declaration.definition.meta.method.punctuation.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -309,7 +331,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "block.body.decl.declaration.meta.method.object.ts",
+		"t": "block.class.declaration.meta.method.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -320,7 +342,7 @@
 	},
 	{
 		"c": "}",
-		"t": "block.body.brace.curly.decl.declaration.meta.method.object.ts",
+		"t": "block.class.declaration.definition.meta.method.punctuation.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -331,7 +353,7 @@
 	},
 	{
 		"c": "}",
-		"t": "body.brace.curly.declaration.meta.object.ts",
+		"t": "block.class.definition.meta.punctuation.ts",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",

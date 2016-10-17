@@ -289,6 +289,13 @@
 			"settings": {
 				"foreground": "#000000"
 			}
+		},
+		{
+			"name": "this.self",
+			"scope": "variable.language",
+			"settings": {
+				"foreground": "#0000ff"
+			}
 		}
 	]
 }
