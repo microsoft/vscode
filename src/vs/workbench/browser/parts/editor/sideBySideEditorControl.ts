@@ -948,15 +948,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		function positionOverlay(e: DragEvent, groups: number, position: Position): void {
 			const target = <HTMLElement>e.target;
-			const posXOnOverlay = e.offsetX;
 			const overlayIsSplit = typeof overlay.getProperty(splitToPropertyKey) === 'number';
-			const overlayWidth = target.clientWidth;
-			const splitThreshold = overlayIsSplit ? overlayWidth / 5 : overlayWidth / 10;
 			const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 			const draggedEditor = TitleControl.getDraggedEditor();
 
-			const isOverSplitLeft = posXOnOverlay < splitThreshold;
-			const isOverSplitRight = posXOnOverlay + splitThreshold > overlayWidth;
+			const overlaySize = $this.layoutVertically ? target.clientWidth : target.clientHeight;
+			const splitThreshold = overlayIsSplit ? overlaySize / 5 : overlaySize / 10;
+
+			const posOnOverlay = $this.layoutVertically ? e.offsetX : e.offsetY;
+			const isOverSplitLeftOrUp = posOnOverlay < splitThreshold;
+			const isOverSplitRightOrBottom = posOnOverlay + splitThreshold > overlaySize;
 
 			let splitTarget: Position;
 
@@ -970,12 +971,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				const positionOfDraggedEditor = stacks.positionOfGroup(draggedEditor.group);
 				switch (positionOfDraggedEditor) {
 					case Position.LEFT:
-						if (position === Position.CENTER && isOverSplitRight) {
+						if (position === Position.CENTER && isOverSplitRightOrBottom) {
 							splitTarget = Position.CENTER; // allow to move single editor from LEFT to CENTER
 						}
 						break;
 					case Position.CENTER:
-						if (position === Position.LEFT && isOverSplitLeft) {
+						if (position === Position.LEFT && isOverSplitLeftOrUp) {
 							splitTarget = Position.LEFT; // allow to move single editor from CENTER to LEFT
 						}
 						break;
@@ -986,9 +987,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Any other case, check for mouse position
 			else {
-				if (isOverSplitRight) {
+				if (isOverSplitRightOrBottom) {
 					splitTarget = (position === Position.LEFT) ? Position.CENTER : Position.RIGHT;
-				} else if (isOverSplitLeft) {
+				} else if (isOverSplitLeftOrUp) {
 					splitTarget = (position === Position.LEFT) ? Position.LEFT : Position.CENTER;
 				}
 			}
@@ -1002,15 +1003,18 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 
 			// Update overlay styles
-			if (canSplit && isOverSplitRight) {
-				overlay.style({
-					left: '50%',
-					width: '50%',
-				});
-			} else if (canSplit && isOverSplitLeft) {
-				overlay.style({
-					width: '50%'
-				});
+			if (canSplit && isOverSplitRightOrBottom) {
+				if ($this.layoutVertically) {
+					overlay.style({ left: '50%', width: '50%' });
+				} else {
+					overlay.style({ top: '50%', height: '50%' });
+				}
+			} else if (canSplit && isOverSplitLeftOrUp) {
+				if ($this.layoutVertically) {
+					overlay.style({ width: '50%' });
+				} else {
+					overlay.style({ height: '50%' });
+				}
 			} else {
 				overlay.style({
 					left: '0',
@@ -1067,7 +1071,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 		}
 
-		// const a dropped file open inside Code (only if dropped over editor area)
+		// let a dropped file open inside Code (only if dropped over editor area)
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
 			if (e.target === node) {
 				DOM.EventHelper.stop(e, true);
