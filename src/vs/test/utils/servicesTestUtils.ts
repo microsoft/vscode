@@ -175,6 +175,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHistoryService, 'getHistory', []);
 	instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	instantiationService.stub(IFileService, TestFileService);
+	instantiationService.stub(IBackupService, TestBackupService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
@@ -583,6 +584,12 @@ export const TestFileService = {
 
 	isHotExitEnabled: function () {
 		return false;
+	}
+};
+
+export const TestBackupService = {
+	removeWorkspaceBackupPath: function () {
+		return TPromise.as(void 0);
 	}
 };
 
