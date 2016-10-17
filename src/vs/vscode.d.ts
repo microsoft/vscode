@@ -48,28 +48,28 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		lineNumber: number;
+		readonly lineNumber: number;
 
 		/**
 		 * The text of this line without the line separator characters.
 		 *
 		 * @readonly
 		 */
-		text: string;
+		readonly text: string;
 
 		/**
 		 * The range this line covers without the line separator characters.
 		 *
 		 * @readonly
 		 */
-		range: Range;
+		readonly range: Range;
 
 		/**
 		 * The range this line covers with the line separator characters.
 		 *
 		 * @readonly
 		 */
-		rangeIncludingLineBreak: Range;
+		readonly rangeIncludingLineBreak: Range;
 
 		/**
 		 * The offset of the first character which is not a whitespace character as defined
@@ -77,7 +77,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		firstNonWhitespaceCharacterIndex: number;
+		readonly firstNonWhitespaceCharacterIndex: number;
 
 		/**
 		 * Whether this line is whitespace only, shorthand
@@ -85,7 +85,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		isEmptyOrWhitespace: boolean;
+		readonly isEmptyOrWhitespace: boolean;
 	}
 
 	/**
@@ -101,7 +101,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		uri: Uri;
+		readonly uri: Uri;
 
 		/**
 		 * The file system path of the associated resource. Shorthand
@@ -109,21 +109,21 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		fileName: string;
+		readonly fileName: string;
 
 		/**
 		 * Is this document representing an untitled file.
 		 *
 		 * @readonly
 		 */
-		isUntitled: boolean;
+		readonly isUntitled: boolean;
 
 		/**
 		 * The identifier of the language associated with this document.
 		 *
 		 * @readonly
 		 */
-		languageId: string;
+		readonly languageId: string;
 
 		/**
 		 * The version number of this document (it will strictly increase after each
@@ -131,14 +131,14 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		version: number;
+		readonly version: number;
 
 		/**
 		 * true if there are unpersisted changes.
 		 *
 		 * @readonly
 		 */
-		isDirty: boolean;
+		readonly isDirty: boolean;
 
 		/**
 		 * Save the underlying file.
@@ -154,7 +154,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		lineCount: number;
+		readonly lineCount: number;
 
 		/**
 		 * Returns a text line denoted by the line number. Note
@@ -251,13 +251,13 @@ declare module 'vscode' {
 		 * The zero-based line value.
 		 * @readonly
 		 */
-		line: number;
+		readonly line: number;
 
 		/**
 		 * The zero-based character value.
 		 * @readonly
 		 */
-		character: number;
+		readonly character: number;
 
 		/**
 		 * @param line A zero-based line value.
@@ -372,13 +372,13 @@ declare module 'vscode' {
 		 * The start position. It is before or equal to [end](#Range.end).
 		 * @readonly
 		 */
-		start: Position;
+		readonly start: Position;
 
 		/**
 		 * The end position. It is after or equal to [start](#Range.start).
 		 * @readonly
 		 */
-		end: Position;
+		readonly end: Position;
 
 		/**
 		 * Create a new range from two positions. If `start` is not
@@ -658,7 +658,7 @@ declare module 'vscode' {
 		 * Internal representation of the handle.
 		 * @readonly
 		 */
-		key: string;
+		readonly key: string;
 
 		/**
 		 * Remove this decoration type and all decorations on all text editors using it.
@@ -1545,7 +1545,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		diagnostics: Diagnostic[];
+		readonly diagnostics: Diagnostic[];
 	}
 
 	/**
@@ -2007,7 +2007,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		size: number;
+		readonly size: number;
 
 		/**
 		 * Replace the given range with given text for the given resource.
@@ -2852,7 +2852,7 @@ declare module 'vscode' {
 		 * Readable dictionary that backs this configuration.
 		 * @readonly
 		 */
-		[key: string]: any;
+		readonly [key: string]: any;
 	}
 
 	/**
@@ -2967,7 +2967,7 @@ declare module 'vscode' {
 		 * name when defining [problem matchers](https://code.visualstudio.com/docs/editor/tasks#_defining-a-problem-matcher).
 		 * @readonly
 		 */
-		name: string;
+		readonly name: string;
 
 		/**
 		 * Assign diagnostics for given resource. Will replace
@@ -3059,7 +3059,7 @@ declare module 'vscode' {
 		 * The human-readable name of this output channel.
 		 * @readonly
 		 */
-		name: string;
+		readonly name: string;
 
 		/**
 		 * Append the given value to the channel.
@@ -3137,7 +3137,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		alignment: StatusBarAlignment;
+		readonly alignment: StatusBarAlignment;
 
 		/**
 		 * The priority of this item. Higher value means the item should
@@ -3145,7 +3145,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		priority: number;
+		readonly priority: number;
 
 		/**
 		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
@@ -3200,14 +3200,14 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		name: string;
+		readonly name: string;
 
 		/**
 		 * The process ID of the shell process.
 		 *
 		 * @readonly
 		 */
-		processId: Thenable<number>;
+		readonly processId: Thenable<number>;
 
 		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
@@ -3250,28 +3250,28 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		id: string;
+		readonly id: string;
 
 		/**
 		 * The absolute file path of the directory containing this extension.
 		 *
 		 * @readonly
 		 */
-		extensionPath: string;
+		readonly extensionPath: string;
 
 		/**
 		 * `true` if the extension has been activated.
 		 *
 		 * @readonly
 		 */
-		isActive: boolean;
+		readonly isActive: boolean;
 
 		/**
 		 * The parsed contents of the extension's package.json.
 		 *
 		 * @readonly
 		 */
-		packageJSON: any;
+		readonly packageJSON: any;
 
 		/**
 		 * The public API exported by this extension. It is an invalid action
@@ -3279,7 +3279,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		exports: T;
+		readonly exports: T;
 
 		/**
 		 * Activates this extension and returns its public API.
