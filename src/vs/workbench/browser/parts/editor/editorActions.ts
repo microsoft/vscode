@@ -70,7 +70,7 @@ export class SplitEditorAction extends Action {
 
 		switch (editorCount) {
 
-			// Open split editor to the right of left one
+			// Open split editor to the right/bottom of left/top one
 			case 1:
 				targetPosition = Position.TWO;
 				break;
@@ -78,12 +78,12 @@ export class SplitEditorAction extends Action {
 			// Special case two editors opened
 			case 2:
 
-				// Continue splitting to the right
+				// Continue splitting to the right/bottom
 				if (editorToSplit.position === Position.TWO) {
 					targetPosition = Position.THREE;
 				}
 
-				// Push the center group to the right to make room for the splitted input
+				// Push the center group to the right/bottom to make room for the splitted input
 				else if (editorToSplit.position === Position.ONE) {
 					options.preserveFocus = true;
 
@@ -125,7 +125,7 @@ export class NavigateBetweenGroupsAction extends Action {
 			return TPromise.as(false);
 		}
 
-		// Cycle to the left and use module to start at 0 again
+		// Cycle to the left/top and use module to start at 0 again
 		const visibleEditors = this.editorService.getVisibleEditors();
 		const editorCount = visibleEditors.length;
 		const newIndex = (activeEditor.position + 1) % editorCount;
@@ -176,7 +176,7 @@ export class FocusFirstGroupAction extends Action {
 
 	public run(): TPromise<any> {
 
-		// Find left editor and focus it
+		// Find left/top editor and focus it
 		const editors = this.editorService.getVisibleEditors();
 		for (let editor of editors) {
 			if (editor.position === Position.ONE) {
@@ -348,7 +348,7 @@ export class FocusPreviousGroup extends Action {
 		}
 
 
-		// Find the next position to the left
+		// Find the next position to the left/top
 		let nextPosition: Position = Position.ONE;
 		if (activeEditor.position === Position.THREE) {
 			nextPosition = Position.TWO;
@@ -384,7 +384,7 @@ export class FocusNextGroup extends Action {
 
 	public run(event?: any): TPromise<any> {
 
-		// Find the next position to the right to use
+		// Find the next position to the right/bottom to use
 		let nextPosition: Position;
 		const activeEditor = this.editorService.getActiveEditor();
 		if (!activeEditor) {

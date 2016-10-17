@@ -801,7 +801,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.enableDropTarget(this.parent.getHTMLElement());
 
 		// Silo One
-		this.silos[Position.ONE] = $(this.parent).div({ class: 'one-editor-silo editor-left monaco-editor-background' });
+		this.silos[Position.ONE] = $(this.parent).div({ class: 'one-editor-silo editor-one monaco-editor-background' });
 
 		// Sash One
 		this.sashOne = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
@@ -812,7 +812,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.sashOne.hide();
 
 		// Silo Two
-		this.silos[Position.TWO] = $(this.parent).div({ class: 'one-editor-silo editor-center monaco-editor-background' });
+		this.silos[Position.TWO] = $(this.parent).div({ class: 'one-editor-silo editor-two monaco-editor-background' });
 
 		// Sash Two
 		this.sashTwo = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
@@ -823,7 +823,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.sashTwo.hide();
 
 		// Silo Three
-		this.silos[Position.THREE] = $(this.parent).div({ class: 'one-editor-silo editor-right monaco-editor-background' });
+		this.silos[Position.THREE] = $(this.parent).div({ class: 'one-editor-silo editor-three monaco-editor-background' });
 
 		// For each position
 		POSITIONS.forEach(position => {
@@ -1519,7 +1519,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private onSashOneDragEnd(): void {
 		this.sashOne.layout();
-		this.sashTwo.layout(); // Moving left sash might have also moved right sash, so layout() both
+		this.sashTwo.layout(); // Moving sash one might have also moved sash two, so layout() both
 		this.focusNextNonMinimized();
 	}
 
@@ -1581,7 +1581,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private onSashTwoDragEnd(): void {
-		this.sashOne.layout(); // Moving right sash might have also moved left sash, so layout() both
+		this.sashOne.layout(); // Moving sash one might have also moved sash two, so layout() both
 		this.sashTwo.layout();
 
 		this.focusNextNonMinimized();
