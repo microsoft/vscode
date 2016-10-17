@@ -1007,6 +1007,64 @@ export class PushAction extends GitAction {
 	}
 }
 
+export class PushToRemoteAction extends GitAction {
+
+	static ID = 'workbench.action.git.pushToRemote';
+	static LABEL = nls.localize('pushToRemote', "Push to...");
+
+	constructor(
+		id: string = PushToRemoteAction.ID,
+		label: string = PushToRemoteAction.LABEL,
+		@IGitService gitService: IGitService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label, 'git-action publish', gitService);
+	}
+
+	protected isEnabled(): boolean {
+		if (!super.isEnabled()) {
+			return false;
+		}
+
+		if (!this.gitService.isIdle()) {
+			return false;
+		}
+
+		const model = this.gitService.getModel();
+
+		if (model.getRemotes().length === 0) {
+			return false;
+		}
+
+		const HEAD = model.getHEAD();
+
+		if (!HEAD || !HEAD.name) {
+			return false;
+		}
+
+		return true;
+	}
+
+	public run(context?: any): Promise {
+		const model = this.gitService.getModel();
+		const remotes = model.getRemotes();
+		const branchName = model.getHEAD().name;
+		const picks = remotes.map(({ name, url }) => ({ label: name, description: url }));
+		const placeHolder = nls.localize('pushToRemotePickMessage', "Pick a remote to push the branch '{0}' to:", branchName);
+
+		return this.quickOpenService.pick(picks, { placeHolder })
+			.then(pick => pick && pick.label)
+			.then(remote => remote && this.gitService.push(remote, branchName))
+			.then(null, err => {
+				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
+					return Promise.wrapError(errors.create(nls.localize('authFailed', "Authentication failed on the git remote.")));
+				}
+
+				return Promise.wrapError(err);
+			});
+	}
+}
+
 export class PublishAction extends GitAction {
 
 	static ID = 'workbench.action.git.publish';
@@ -1180,7 +1238,7 @@ export class UndoLastCommitAction extends GitAction {
 	}
 
 	protected isEnabled(): boolean {
-		if (!this.gitService) {
+		if (!super.isEnabled()) {
 			return false;
 		}
 
@@ -1188,7 +1246,14 @@ export class UndoLastCommitAction extends GitAction {
 			return false;
 		}
 
-		var status = this.gitService.getModel().getStatus();
+		const model = this.gitService.getModel();
+		const HEAD = model.getHEAD();
+
+		if (!HEAD || !HEAD.commit) {
+			return false;
+		}
+
+		const status = model.getStatus();
 
 		return status.getIndexStatus().all().length === 0
 			&& status.getWorkingTreeStatus().all().length === 0;

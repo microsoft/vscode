@@ -11,7 +11,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService, ExtensionState } from './extensions';
 import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
 import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
-import { StorageScope } from 'vs/platform/storage/common/storage';
 
 export interface IOptions {
 	extension?: IExtension;
@@ -69,7 +68,7 @@ export class StatusWidget implements IDisposable {
 		const state = this.extension.state;
 		const installed = state === ExtensionState.Installed;
 		const disabled = state === ExtensionState.Disabled;
-		const disabledInWorkspace = this.extensionsRuntimeService.getDisabledExtensions(StorageScope.WORKSPACE).indexOf(this.extension.identifier) !== -1;
+		const disabledInWorkspace = this.extensionsRuntimeService.getDisabledExtensions(true).indexOf(this.extension.identifier) !== -1;
 		toggleClass(status, 'disabled', disabled);
 		toggleClass(status, 'active', installed);
 

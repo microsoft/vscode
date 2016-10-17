@@ -3,96 +3,156 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
-import * as paths from 'vs/base/common/paths';
-import { ConfigWatcher } from 'vs/base/node/config';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionsRuntimeService, IExtensionsStorageData } from 'vs/platform/extensions/common/extensions';
+import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IChoiceService, Severity } from 'vs/platform/message/common/message';
+
+const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensions/disabled';
 
 export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 
 	_serviceBrand: any;
 
-	private workspaceStorage: ExtensionsStorage;
-	private globalStorage: ExtensionsStorage;
+	private workspace: IWorkspace;
+	private allDisabledExtensions: string[];
+	private globalDisabledExtensions: string[];
+	private workspaceDisabledExtensions: string[];
 
 	constructor(
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IChoiceService private choiceService: IChoiceService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
+		this.workspace = contextService.getWorkspace();
 	}
 
-	public getStoragePath(scope: StorageScope): string {
-		return this.getPath(scope);
-	}
+	public setEnablement(identifier: string, enable: boolean, displayName: string): TPromise<boolean> {
+		const disabled = this.getDisabledExtensionsFromStorage().indexOf(identifier) !== -1;
 
-	public getDisabledExtensions(scope?: StorageScope): string[] {
-		if (scope) {
-			return this.getData(scope).disabled || [];
+		if (!enable === disabled) {
+			return TPromise.wrap(true);
 		}
 
-		const globalData = this.getData(StorageScope.GLOBAL).disabled || [];
-		const workspaceData = this.getData(StorageScope.WORKSPACE).disabled || [];
-		return distinct([...globalData, ...workspaceData]);
-	}
+		if (!this.workspace) {
+			return this.setGlobalEnablement(identifier, enable, displayName);
+		}
 
-	private getData(scope: StorageScope): IExtensionsStorageData {
-		const extensionsStorage = this.getStorage(scope);
-		return extensionsStorage ? extensionsStorage.data : {};
-	}
-
-	private getStorage(scope: StorageScope): ExtensionsStorage {
-		const path = this.getPath(scope);
-		if (path) {
-			if (StorageScope.WORKSPACE === scope) {
-				return this.getWorkspaceStorage(path);
+		if (enable) {
+			if (this.getDisabledExtensionsFromStorage(StorageScope.GLOBAL).indexOf(identifier) !== -1) {
+				return this.choiceService.choose(Severity.Info, localize('enableExtensionGlobally', "Would you like to enable '{0}' extension globally?", displayName),
+					[localize('yes', "Yes"), localize('no', "No")])
+					.then((option) => {
+						if (option === 0) {
+							return TPromise.join([this.enableExtension(identifier, StorageScope.GLOBAL), this.enableExtension(identifier, StorageScope.WORKSPACE)]).then(() => true);
+						}
+						return TPromise.wrap(false);
+					});
 			}
-			return this.getGlobalStorage(path);
-		}
-		return null;
-	}
-
-	private getGlobalStorage(path: string): ExtensionsStorage {
-		if (!this.globalStorage) {
-			this.globalStorage = new ExtensionsStorage(path);
-		}
-		return this.globalStorage;
-	}
-
-	private getWorkspaceStorage(path: string): ExtensionsStorage {
-		if (!this.workspaceStorage) {
-			this.workspaceStorage = new ExtensionsStorage(path);
-		}
-		return this.workspaceStorage;
-	}
-
-	private getPath(scope: StorageScope): string {
-		const path = this.storageService.getStoragePath(scope);
-		return path ? paths.join(path, 'extensions.json') : void 0;
-	}
-
-	public dispose() {
-		if (this.workspaceStorage) {
-			this.workspaceStorage.dispose();
-			this.workspaceStorage = null;
-		}
-		if (this.globalStorage) {
-			this.globalStorage.dispose();
-			this.globalStorage = null;
+			return this.choiceService.choose(Severity.Info, localize('enableExtensionForWorkspace', "Would you like to enable '{0}' extension for this workspace?", displayName),
+				[localize('yes', "Yes"), localize('no', "No")])
+				.then((option) => {
+					if (option === 0) {
+						return this.enableExtension(identifier, StorageScope.WORKSPACE).then(() => true);
+					}
+					return TPromise.wrap(false);
+				});
+		} else {
+			return this.choiceService.choose(Severity.Info, localize('disableExtension', "Would you like to disable '{0}' extension for this workspace or globally?", displayName),
+				[localize('workspace', "Workspace"), localize('globally', "Globally"), localize('cancel', "Cancel")])
+				.then((option) => {
+					switch (option) {
+						case 0:
+							return this.disableExtension(identifier, StorageScope.WORKSPACE);
+						case 1:
+							return this.disableExtension(identifier, StorageScope.GLOBAL);
+						default: return TPromise.wrap(false);
+					}
+				});
 		}
 	}
-}
 
-export class ExtensionsStorage extends Disposable {
+	public getDisabledExtensions(workspace?: boolean): string[] {
+		if (!this.allDisabledExtensions) {
+			this.globalDisabledExtensions = this.getDisabledExtensionsFromStorage(StorageScope.GLOBAL);
+			this.workspaceDisabledExtensions = this.getDisabledExtensionsFromStorage(StorageScope.WORKSPACE);
+			this.allDisabledExtensions = distinct([...this.globalDisabledExtensions, ...this.workspaceDisabledExtensions]);
+		}
 
-	private _watcher: ConfigWatcher<IExtensionsStorageData>;
+		if (workspace === void 0) {
+			return this.allDisabledExtensions;
+		}
 
-	constructor(path: string) {
-		super();
-		this._watcher = this._register(new ConfigWatcher(path, { changeBufferDelay: 300, defaultConfig: Object.create(null) }));
+		if (workspace) {
+			return this.workspaceDisabledExtensions;
+		}
+
+		return this.globalDisabledExtensions;
 	}
 
-	public get data(): IExtensionsStorageData {
-		return this._watcher.getConfig();
+	private getDisabledExtensionsFromStorage(scope?: StorageScope): string[] {
+		if (scope !== void 0) {
+			return this._getDisabledExtensions(scope);
+		}
+
+		const globallyDisabled = this._getDisabledExtensions(StorageScope.GLOBAL);
+		const workspaceDisabled = this._getDisabledExtensions(StorageScope.WORKSPACE);
+		return [...globallyDisabled, ...workspaceDisabled];
+	}
+
+	private setGlobalEnablement(identifier: string, enable: boolean, displayName: string): TPromise<boolean> {
+		if (enable) {
+			return this.choiceService.choose(Severity.Info, localize('enableExtensionGloballyNoWorkspace', "Would you like to enable '{0}' extension globally?", displayName),
+				[localize('yes', "Yes"), localize('no', "No")])
+				.then((option) => {
+					if (option === 0) {
+						return this.enableExtension(identifier, StorageScope.GLOBAL).then(() => true);
+					}
+					return TPromise.wrap(false);
+				});
+		} else {
+			return this.choiceService.choose(Severity.Info, localize('disableExtensionGlobally', "Would you like to disable '{0}' extension globally?", displayName),
+				[localize('yes', "Yes"), localize('no', "No")])
+				.then((option) => {
+					if (option === 0) {
+						return this.disableExtension(identifier, StorageScope.GLOBAL).then(() => true);
+					}
+					return TPromise.wrap(false);
+				});
+		}
+	}
+
+	private disableExtension(identifier: string, scope: StorageScope): TPromise<boolean> {
+		let disabledExtensions = this._getDisabledExtensions(scope);
+		disabledExtensions.push(identifier);
+		this._setDisabledExtensions(disabledExtensions, scope);
+		return TPromise.wrap(true);
+	}
+
+	private enableExtension(identifier: string, scope: StorageScope): TPromise<boolean> {
+		let disabledExtensions = this._getDisabledExtensions(scope);
+		const index = disabledExtensions.indexOf(identifier);
+		if (index !== -1) {
+			disabledExtensions.splice(index, 1);
+			this._setDisabledExtensions(disabledExtensions, scope);
+			return TPromise.wrap(true);
+		}
+		return TPromise.wrap(false);
+	}
+
+	private _getDisabledExtensions(scope: StorageScope): string[] {
+		const value = this.storageService.get(DISABLED_EXTENSIONS_STORAGE_PATH, scope, '');
+		return value ? distinct(value.split(',')) : [];
+	}
+
+	private _setDisabledExtensions(disabledExtensions: string[], scope: StorageScope): void {
+		if (disabledExtensions.length) {
+			this.storageService.store(DISABLED_EXTENSIONS_STORAGE_PATH, disabledExtensions.join(','), scope);
+		} else {
+			this.storageService.remove(DISABLED_EXTENSIONS_STORAGE_PATH, scope);
+		}
 	}
 }

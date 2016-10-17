@@ -7,7 +7,6 @@
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { StorageScope } from 'vs/platform/storage/common/storage';
 
 export interface IExtensionDescription {
 	id: string;
@@ -64,14 +63,21 @@ export interface IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 }
 
-export interface IExtensionsStorageData {
-	disabled?: string[];
-}
-
 export const IExtensionsRuntimeService = createDecorator<IExtensionsRuntimeService>('extensionsRuntimeService');
 
 export interface IExtensionsRuntimeService {
 	_serviceBrand: any;
-	getStoragePath(scope: StorageScope): string;
-	getDisabledExtensions(scope?: StorageScope): string[];
+
+	/**
+	 * Enable or disable the given extension.
+	 * Returns a promise that resolves to boolean value.
+	 * if resolves to `true` then requires restart for the change to take effect.
+	 */
+	setEnablement(identifier: string, enable: boolean, displayName: string): TPromise<boolean>;
+	/**
+	 * if `true` returns extensions disabled for workspace
+	 * if `false` returns extensions disabled globally
+	 * if `undefined` returns all disabled extensions
+	 */
+	getDisabledExtensions(workspace?: boolean): string[];
 }

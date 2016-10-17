@@ -43,16 +43,9 @@
       "resolved": "https://registry.npmjs.org/request-light/-/request-light-0.1.0.tgz"
     },
     "vscode-json-languageservice": {
-      "version": "1.1.8-next.1",
+      "version": "1.1.8-next.2",
       "from": "vscode-json-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-json-languageservice/-/vscode-json-languageservice-1.1.8-next.1.tgz",
-      "dependencies": {
-        "vscode-languageserver-types": {
-          "version": "1.0.3",
-          "from": "vscode-languageserver-types@>=1.0.3 <2.0.0",
-          "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-1.0.3.tgz"
-        }
-      }
+      "resolved": "https://registry.npmjs.org/vscode-json-languageservice/-/vscode-json-languageservice-1.1.8-next.2.tgz"
     },
     "vscode-jsonrpc": {
       "version": "2.3.2-next.5",
@@ -75,9 +68,9 @@
       "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
     },
     "vscode-uri": {
-      "version": "0.0.6",
-      "from": "vscode-uri@>=0.0.6 <0.0.7",
-      "resolved": "https://registry.npmjs.org/vscode-uri/-/vscode-uri-0.0.6.tgz"
+      "version": "1.0.0",
+      "from": "vscode-uri@>=1.0.0 <2.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-uri/-/vscode-uri-1.0.0.tgz"
     }
   }
 }

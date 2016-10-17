@@ -3,12 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.editor.empty.has-watermark {
+.monaco-workbench .part.editor.empty {
 	background-position-y: calc(50% - 100px);
 	transition: background-position-y 1s;
 }
 
 .monaco-workbench > .part.editor > .watermark {
+	display: none; /* only visible when no editors are opened */
+}
+
+.monaco-workbench > .part.editor.empty > .watermark {
+	display: block;
 	position: absolute;
 	width: 100%;
 	top: calc(50% + 55px);
@@ -17,7 +22,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench > .part.editor > .watermark > .watermark-box {
+.monaco-workbench > .part.editor.empty > .watermark > .watermark-box {
 	display: inline-table;
 	border-collapse: separate;
 	border-spacing: 13px 17px;
@@ -36,7 +41,7 @@
 }
 
 @media (min-height: 501px) {
-	.monaco-workbench > .part.editor > .watermark {
+	.monaco-workbench > .part.editor.empty > .watermark {
 		animation: watermarkfadein 2s;
 		opacity: 1;
 		transition: opacity 1s;
@@ -44,57 +49,57 @@
 }
 
 @media (max-height: 500px) {
-	.monaco-workbench > .part.editor > .watermark {
+	.monaco-workbench > .part.editor.empty > .watermark {
 		opacity: 0;
 	}
-	.monaco-workbench .part.editor.empty.has-watermark {
+	.monaco-workbench .part.editor.empty {
 		background-position-y: 50%;
 	}
 }
 
-.monaco-workbench > .part.editor > .watermark dl {
+.monaco-workbench > .part.editor.empty > .watermark dl {
 	display: table-row;
 	opacity: .8;
 	cursor: default;
 }
 
-.monaco-workbench > .part.editor > .watermark dt {
+.monaco-workbench > .part.editor.empty > .watermark dt {
 	text-align: right;
 	letter-spacing: 0.04em
 }
 
-.monaco-workbench > .part.editor > .watermark dd {
+.monaco-workbench > .part.editor.empty > .watermark dd {
 	text-align: left;
 }
 
-.monaco-workbench > .part.editor > .watermark dd > .shortcuts {
+.monaco-workbench > .part.editor.empty > .watermark dd > .shortcuts {
 	padding-left: 0.5em;
 	padding-right: 0.5em;
 }
 
-.monaco-workbench.mac > .part.editor > .watermark dd > .shortcuts {
+.monaco-workbench.mac > .part.editor.empty > .watermark dd > .shortcuts {
 	letter-spacing: 0.15em;
 }
 
-.monaco-workbench > .part.editor > .watermark dt,
-.monaco-workbench > .part.editor > .watermark dd {
+.monaco-workbench > .part.editor.empty > .watermark dt,
+.monaco-workbench > .part.editor.empty > .watermark dd {
 	display: table-cell;
 }
 
-.monaco-workbench > .part.editor > .watermark dt,
-.monaco-workbench > .part.editor > .watermark dl {
+.monaco-workbench > .part.editor.empty > .watermark dt,
+.monaco-workbench > .part.editor.empty > .watermark dl {
 	color: rgba(0,0,0,.68);
 }
 
-.vs-dark .monaco-workbench > .part.editor > .watermark dt,
-.vs-dark .monaco-workbench > .part.editor > .watermark dl {
+.vs-dark .monaco-workbench > .part.editor.empty > .watermark dt,
+.vs-dark .monaco-workbench > .part.editor.empty > .watermark dl {
 	color: rgba(255,255,255,.6);
 }
 
-.hc-black .monaco-workbench > .part.editor > .watermark dt {
+.hc-black .monaco-workbench > .part.editor.empty > .watermark dt {
 	color: #FFF;
 }
-.hc-black .monaco-workbench > .part.editor > .watermark dl {
+.hc-black .monaco-workbench > .part.editor.empty > .watermark dl {
 	color: #FFF;
 	opacity: 1;
 }

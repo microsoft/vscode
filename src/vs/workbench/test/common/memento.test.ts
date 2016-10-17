@@ -10,7 +10,7 @@ import { WorkspaceContextService } from 'vs/platform/workspace/common/workspace'
 import { StorageScope } from 'vs/platform/storage/common/storage';
 import * as TestUtils from 'vs/test/utils/servicesTestUtils';
 import { Memento, Scope } from 'vs/workbench/common/memento';
-import { Storage, InMemoryLocalStorage } from 'vs/workbench/node/storage';
+import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
 
 suite('Workbench Memento', () => {
 	let context;

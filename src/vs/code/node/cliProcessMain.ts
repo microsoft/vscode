@@ -36,8 +36,12 @@ const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
 const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, eg: {0}", 'ms-vscode.csharp');
 
-function getId(manifest: IExtensionManifest): string {
-	return `${manifest.publisher}.${manifest.name}`;
+function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
+	if (withVersion) {
+		return `${manifest.publisher}.${manifest.name}@${manifest.version}`;
+	} else {
+		return `${manifest.publisher}.${manifest.name}`;
+	}
 }
 
 type Task = { (): TPromise<void> };
@@ -53,7 +57,7 @@ class Main {
 		// TODO@joao - make this contributable
 
 		if (argv['list-extensions']) {
-			return this.listExtensions();
+			return this.listExtensions(argv['show-versions']);
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
 			const args: string[] = typeof arg === 'string' ? [arg] : arg;
@@ -65,9 +69,9 @@ class Main {
 		}
 	}
 
-	private listExtensions(): TPromise<any> {
+	private listExtensions(showVersions: boolean): TPromise<any> {
 		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-			extensions.forEach(e => console.log(getId(e.manifest)));
+			extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 		});
 	}
 

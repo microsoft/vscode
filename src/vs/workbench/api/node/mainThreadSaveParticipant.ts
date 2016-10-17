@@ -15,7 +15,7 @@ import { IPosition, IModel, ICommonCodeEditor, ISingleEditOperation, IIdentified
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { getDocumentRangeFormattingEdits } from 'vs/editor/contrib/format/common/format';
+import { getDocumentFormattingEdits } from 'vs/editor/contrib/format/common/format';
 import { EditOperationsCommand } from 'vs/editor/contrib/format/common/formatCommand';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -97,7 +97,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 
 		return new TPromise<ISingleEditOperation[]>((resolve, reject) => {
 			setTimeout(resolve, 750);
-			getDocumentRangeFormattingEdits(model, model.getFullModelRange(), { tabSize, insertSpaces }).then(resolve, reject);
+			getDocumentFormattingEdits(model, { tabSize, insertSpaces }).then(resolve, reject);
 
 		}).then(edits => {
 			if (edits) {

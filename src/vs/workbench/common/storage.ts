@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as fs from 'fs';
-import * as crypto from 'crypto';
-import * as paths from 'vs/base/common/paths';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
@@ -38,7 +35,6 @@ export class Storage implements IStorageService {
 	private globalStorage: IStorage;
 
 	private workspaceKey: string;
-	private workspaceStoragePath: string;
 
 	constructor(
 		globalStorage: IStorage,
@@ -194,63 +190,6 @@ export class Storage implements IStorageService {
 		}
 
 		return value ? true : false;
-	}
-
-	public getStoragePath(scope: StorageScope): string {
-		if (StorageScope.GLOBAL === scope) {
-			return this.environmentService.appSettingsHome;
-		}
-
-		const workspace = this.contextService.getWorkspace();
-
-		if (!workspace) {
-			return void 0;
-		}
-
-		if (this.workspaceStoragePath) {
-			return this.workspaceStoragePath;
-		}
-
-		function rmkDir(directory: string): boolean {
-			try {
-				fs.mkdirSync(directory);
-				return true;
-			} catch (err) {
-				if (err.code === 'ENOENT') {
-					if (rmkDir(paths.dirname(directory))) {
-						fs.mkdirSync(directory);
-						return true;
-					}
-				} else {
-					return fs.statSync(directory).isDirectory();
-				}
-			}
-		}
-
-		if (workspace) {
-			const hash = crypto.createHash('md5');
-			hash.update(workspace.resource.fsPath);
-			if (workspace.uid) {
-				hash.update(workspace.uid.toString());
-			}
-			this.workspaceStoragePath = paths.join(this.environmentService.appSettingsHome, 'workspaceStorage', hash.digest('hex'));
-			if (!fs.existsSync(this.workspaceStoragePath)) {
-				try {
-					if (rmkDir(this.workspaceStoragePath)) {
-						fs.writeFileSync(paths.join(this.workspaceStoragePath, 'meta.json'), JSON.stringify({
-							workspacePath: workspace.resource.fsPath,
-							uid: workspace.uid ? workspace.uid : null
-						}, null, 4));
-					} else {
-						this.workspaceStoragePath = void 0;
-					}
-				} catch (err) {
-					this.workspaceStoragePath = void 0;
-				}
-			}
-		}
-
-		return this.workspaceStoragePath;
 	}
 
 	private toStorageKey(key: string, scope: StorageScope): string {

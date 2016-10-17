@@ -23,7 +23,7 @@ import timer = require('vs/base/common/timer');
 import { BackupService } from 'vs/platform/backup/node/backupService';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
-import { Storage, inMemoryLocalStorageInstance } from 'vs/workbench/node/storage';
+import { Storage, inMemoryLocalStorageInstance } from 'vs/workbench/common/storage';
 import { ITelemetryService, NullTelemetryService, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -301,7 +301,6 @@ export class WorkbenchShell {
 
 		const extensionsRuntimeService = instantiationService.createInstance(ExtensionsRuntimeService);
 		serviceCollection.set(IExtensionsRuntimeService, extensionsRuntimeService);
-		disposables.add(extensionsRuntimeService);
 
 		const extensionHostProcessWorker = this.startExtensionHost(instantiationService);
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
