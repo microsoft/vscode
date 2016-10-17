@@ -135,8 +135,12 @@ export class BackupService implements IBackupService {
 		}
 
 		return this.load().then(() => {
-			this.fileContent.folderWorkspaces[this.workspaceResource.fsPath] = this.fileContent.folderWorkspaces[this.workspaceResource.fsPath].filter(value => value !== resource.fsPath);
-			return this.save();
+			const workspace = this.fileContent.folderWorkspaces[this.workspaceResource.fsPath];
+			if (workspace) {
+				this.fileContent.folderWorkspaces[this.workspaceResource.fsPath] = workspace.filter(value => value !== resource.fsPath);
+				return this.save();
+			}
+			return TPromise.as(void 0);
 		});
 	}
 
