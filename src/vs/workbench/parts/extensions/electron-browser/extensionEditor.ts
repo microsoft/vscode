@@ -264,8 +264,8 @@ export class ExtensionEditor extends BaseEditor {
 		disableAction.extension = extension;
 
 		this.extensionActionBar.clear();
-		this.extensionActionBar.push([enableAction, disableAction, updateAction, installAction, builtinStatusAction], { icon: true, label: true });
-		this.transientDisposables.push(enableAction, disableAction, updateAction, installAction, builtinStatusAction);
+		this.extensionActionBar.push([enableAction, updateAction, disableAction, installAction, builtinStatusAction], { icon: true, label: true });
+		this.transientDisposables.push(enableAction, updateAction, disableAction, installAction, builtinStatusAction);
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
