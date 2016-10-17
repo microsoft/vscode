@@ -387,7 +387,7 @@ export class StackFrame implements debug.IStackFrame {
 	}
 
 	public getScopes(debugService: debug.IDebugService): TPromise<debug.IScope[]> {
-		if (!this.scopes) {
+		if (!this.scopes && debugService.activeSession) {
 			this.scopes = debugService.activeSession.scopes({ frameId: this.frameId }).then(response => {
 				return response && response.body && response.body.scopes ?
 					response.body.scopes.map(rs => new Scope(this.threadId, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables)) : [];
