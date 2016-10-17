@@ -13,7 +13,7 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Storage, InMemoryLocalStorage } from 'vs/workbench/node/storage';
+import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
@@ -304,11 +304,6 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 	getBoolean(key: string, scope: StorageScope = StorageScope.GLOBAL, defaultValue?: boolean): boolean {
 		return this.storage.getBoolean(key, scope, defaultValue);
 	}
-
-	getStoragePath(scope: StorageScope = StorageScope.GLOBAL): string {
-		return this.storage.getStoragePath(scope);
-	}
-
 }
 
 export class TestEditorGroupService implements IEditorGroupService {

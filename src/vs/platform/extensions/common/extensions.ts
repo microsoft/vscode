@@ -64,14 +64,10 @@ export interface IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 }
 
-export interface IExtensionsStorageData {
-	disabled?: string[];
-}
-
 export const IExtensionsRuntimeService = createDecorator<IExtensionsRuntimeService>('extensionsRuntimeService');
 
 export interface IExtensionsRuntimeService {
 	_serviceBrand: any;
-	getStoragePath(scope: StorageScope): string;
+	// setEnablement(id: string, enable: boolean, displayName: string): TPromise<boolean>;
 	getDisabledExtensions(scope?: StorageScope): string[];
 }
