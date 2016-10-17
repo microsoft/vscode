@@ -754,7 +754,7 @@ export class EvenGroupWidthsAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.editorGroupService.arrangeGroups(GroupArrangement.EVEN_WIDTH);
+		this.editorGroupService.arrangeGroups(GroupArrangement.EVEN);
 
 		return TPromise.as(false);
 	}

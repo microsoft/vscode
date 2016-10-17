@@ -11,7 +11,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import types = require('vs/base/common/types');
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import { Sash, ISashEvent, IVerticalSashLayoutProvider } from 'vs/base/browser/ui/sash/sash';
+import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
@@ -84,7 +84,7 @@ export interface ISideBySideEditorControl {
 /**
  * Helper class to manage multiple side by side editors for the editor part.
  */
-export class SideBySideEditorControl implements ISideBySideEditorControl, IVerticalSashLayoutProvider {
+export class SideBySideEditorControl implements ISideBySideEditorControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
 	private static TITLE_AREA_CONTROL_KEY = '__titleAreaControl';
 	private static PROGRESS_BAR_CONTROL_KEY = '__progressBar';
@@ -108,11 +108,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private silosSize: number[];
 	private silosInitialRatio: number[];
 
-	private leftSash: Sash;
-	private startLeftContainerWidth: number;
+	private sashOne: Sash;
+	private startSiloOneSize: number;
 
-	private rightSash: Sash;
-	private startRightContainerWidth: number;
+	private sashTwo: Sash;
+	private startSiloThreeSize: number;
 
 	private visibleEditors: BaseEditor[];
 
@@ -198,8 +198,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.parent.removeClass('vertical-layout', 'horizontal-layout');
 			this.parent.addClass(this.layoutVertically ? 'vertical-layout' : 'horizontal-layout');
 
+			this.sashOne.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
+			this.sashTwo.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
+
 			// Trigger layout
-			this.arrangeGroups(GroupArrangement.EVEN_WIDTH);
+			this.arrangeGroups(GroupArrangement.EVEN);
 		}
 
 		// Editor Containers
@@ -325,15 +328,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 					this.silosSize[position] = this.totalSize * ratio[position];
 				}
 
-				if (this.rightSash.isHidden()) {
-					this.rightSash.show();
-					this.rightSash.layout();
+				if (this.sashTwo.isHidden()) {
+					this.sashTwo.show();
+					this.sashTwo.layout();
 				}
 			}
 
-			if (this.leftSash.isHidden()) {
-				this.leftSash.show();
-				this.leftSash.layout();
+			if (this.sashOne.isHidden()) {
+				this.sashOne.show();
+				this.sashOne.layout();
 			}
 
 			if (hasLayoutInfo) {
@@ -349,25 +352,25 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Adjust layout: [] -> []|[!]
-		else if (position === Position.CENTER && this.leftSash.isHidden() && this.rightSash.isHidden() && this.dimension) {
+		else if (position === Position.CENTER && this.sashOne.isHidden() && this.sashTwo.isHidden() && this.dimension) {
 			this.silosSize[Position.LEFT] = this.totalSize / 2;
 			this.silosSize[Position.CENTER] = this.totalSize - this.silosSize[Position.LEFT];
 
-			this.leftSash.show();
-			this.leftSash.layout();
+			this.sashOne.show();
+			this.sashOne.layout();
 
 			this.layoutContainers();
 		}
 
 		// Adjust layout: []|[] -> []|[]|[!]
-		else if (position === Position.RIGHT && this.rightSash.isHidden() && this.dimension) {
+		else if (position === Position.RIGHT && this.sashTwo.isHidden() && this.dimension) {
 			this.silosSize[Position.LEFT] = this.totalSize / 3;
 			this.silosSize[Position.CENTER] = this.totalSize / 3;
 			this.silosSize[Position.RIGHT] = this.totalSize - this.silosSize[Position.LEFT] - this.silosSize[Position.CENTER];
 
-			this.leftSash.layout();
-			this.rightSash.show();
-			this.rightSash.layout();
+			this.sashOne.layout();
+			this.sashTwo.show();
+			this.sashTwo.layout();
 
 			this.layoutContainers();
 		}
@@ -429,12 +432,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				if (remainingSize > SideBySideEditorControl.MIN_EDITOR_SIZE) {
 					this.silosSize[this.lastActivePosition] = remainingSize;
 
-					if (!this.leftSash.isHidden()) {
-						this.leftSash.layout();
+					if (!this.sashOne.isHidden()) {
+						this.sashOne.layout();
 					}
 
-					if (!this.rightSash.isHidden()) {
-						this.rightSash.layout();
+					if (!this.sashTwo.isHidden()) {
+						this.sashTwo.layout();
 					}
 
 					this.layoutContainers();
@@ -496,8 +499,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			if (visibleEditorCount === 1) {
 				this.silosSize[position] = 0;
 
-				this.leftSash.hide();
-				this.rightSash.hide();
+				this.sashOne.hide();
+				this.sashTwo.hide();
 
 				this.layoutContainers();
 			}
@@ -507,8 +510,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				this.silosSize[Position.LEFT] = this.totalSize;
 				this.silosSize[Position.CENTER] = 0;
 
-				this.leftSash.hide();
-				this.rightSash.hide();
+				this.sashOne.hide();
+				this.sashTwo.hide();
 
 				// Move CENTER to LEFT ([x]|[] -> [])
 				if (position === Position.LEFT) {
@@ -525,8 +528,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				this.silosSize[Position.CENTER] = this.totalSize - this.silosSize[Position.LEFT];
 				this.silosSize[Position.RIGHT] = 0;
 
-				this.leftSash.layout();
-				this.rightSash.hide();
+				this.sashOne.layout();
+				this.sashTwo.hide();
 
 				// Move RIGHT to CENTER ([]|[x]|[] -> [ ]|[ ])
 				if (position === Position.CENTER) {
@@ -704,12 +707,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		arrays.move(this.silosSize, from, to);
 
 		// Layout
-		if (!this.leftSash.isHidden()) {
-			this.leftSash.layout();
+		if (!this.sashOne.isHidden()) {
+			this.sashOne.layout();
 		}
 
-		if (!this.rightSash.isHidden()) {
-			this.rightSash.layout();
+		if (!this.sashTwo.isHidden()) {
+			this.sashTwo.layout();
 		}
 
 		this.layoutContainers();
@@ -742,7 +745,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Even Sizes
-		else if (arrangement === GroupArrangement.EVEN_WIDTH) {
+		else if (arrangement === GroupArrangement.EVEN) {
 			POSITIONS.forEach(position => {
 				if (this.visibleEditors[position]) {
 					this.silosSize[position] = availableSize / visibleEditors;
@@ -785,29 +788,29 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Allow to drop into container to open
 		this.enableDropTarget(this.parent.getHTMLElement());
 
-		// Left Silo
+		// Silo One
 		this.silos[Position.LEFT] = $(this.parent).div({ class: 'one-editor-silo editor-left monaco-editor-background' });
 
-		// Left Sash
-		this.leftSash = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5 });
-		this.toDispose.push(this.leftSash.addListener2('start', () => this.onLeftSashDragStart()));
-		this.toDispose.push(this.leftSash.addListener2('change', (e: ISashEvent) => this.onLeftSashDrag(e)));
-		this.toDispose.push(this.leftSash.addListener2('end', () => this.onLeftSashDragEnd()));
-		this.toDispose.push(this.leftSash.addListener2('reset', () => this.onLeftSashReset()));
-		this.leftSash.hide();
+		// Sash One
+		this.sashOne = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
+		this.toDispose.push(this.sashOne.addListener2('start', () => this.onSashOneDragStart()));
+		this.toDispose.push(this.sashOne.addListener2('change', (e: ISashEvent) => this.onSashOneDrag(e)));
+		this.toDispose.push(this.sashOne.addListener2('end', () => this.onSashOneDragEnd()));
+		this.toDispose.push(this.sashOne.addListener2('reset', () => this.onSashOneReset()));
+		this.sashOne.hide();
 
-		// Center Silo
+		// Silo Two
 		this.silos[Position.CENTER] = $(this.parent).div({ class: 'one-editor-silo editor-center monaco-editor-background' });
 
-		// Right Sash
-		this.rightSash = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5 });
-		this.toDispose.push(this.rightSash.addListener2('start', () => this.onRightSashDragStart()));
-		this.toDispose.push(this.rightSash.addListener2('change', (e: ISashEvent) => this.onRightSashDrag(e)));
-		this.toDispose.push(this.rightSash.addListener2('end', () => this.onRightSashDragEnd()));
-		this.toDispose.push(this.rightSash.addListener2('reset', () => this.onRightSashReset()));
-		this.rightSash.hide();
+		// Sash Two
+		this.sashTwo = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
+		this.toDispose.push(this.sashTwo.addListener2('start', () => this.onSashTwoDragStart()));
+		this.toDispose.push(this.sashTwo.addListener2('change', (e: ISashEvent) => this.onSashTwoDrag(e)));
+		this.toDispose.push(this.sashTwo.addListener2('end', () => this.onSashTwoDragEnd()));
+		this.toDispose.push(this.sashTwo.addListener2('reset', () => this.onSashTwoReset()));
+		this.sashTwo.hide();
 
-		// Right Silo
+		// Silo Three
 		this.silos[Position.RIGHT] = $(this.parent).div({ class: 'one-editor-silo editor-right monaco-editor-background' });
 
 		// For each position
@@ -1418,160 +1421,164 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.layoutContainers();
 	}
 
-	private onLeftSashDragStart(): void {
-		this.startLeftContainerWidth = this.silosSize[Position.LEFT];
+	private onSashOneDragStart(): void {
+		this.startSiloOneSize = this.silosSize[Position.LEFT];
 	}
 
-	private onLeftSashDrag(e: ISashEvent): void {
-		let oldLeftContainerWidth = this.silosSize[Position.LEFT];
-		let newLeftContainerWidth = this.startLeftContainerWidth + e.currentX - e.startX;
+	private onSashOneDrag(e: ISashEvent): void {
+		let oldSiloOneSize = this.silosSize[Position.LEFT];
+		let diffSize = this.layoutVertically ? (e.currentX - e.startX) : (e.currentY - e.startY);
+		let newSiloOneSize = this.startSiloOneSize + diffSize;
 
 		// Side-by-Side
-		if (this.rightSash.isHidden()) {
+		if (this.sashTwo.isHidden()) {
 
-			// []|[      ] : left side can not get smaller than MIN_EDITOR_WIDTH
-			if (newLeftContainerWidth < SideBySideEditorControl.MIN_EDITOR_SIZE) {
-				newLeftContainerWidth = SideBySideEditorControl.MIN_EDITOR_SIZE;
+			// []|[      ] : left/top side can not get smaller than MIN_EDITOR_SIZE
+			if (newSiloOneSize < SideBySideEditorControl.MIN_EDITOR_SIZE) {
+				newSiloOneSize = SideBySideEditorControl.MIN_EDITOR_SIZE;
 			}
 
-			// [      ]|[] : right side can not get smaller than MIN_EDITOR_WIDTH
-			else if (this.dimension.width - newLeftContainerWidth < SideBySideEditorControl.MIN_EDITOR_SIZE) {
-				newLeftContainerWidth = this.dimension.width - SideBySideEditorControl.MIN_EDITOR_SIZE;
+			// [      ]|[] : right/bottom side can not get smaller than MIN_EDITOR_SIZE
+			else if (this.totalSize - newSiloOneSize < SideBySideEditorControl.MIN_EDITOR_SIZE) {
+				newSiloOneSize = this.totalSize - SideBySideEditorControl.MIN_EDITOR_SIZE;
 			}
 
-			// [ <-]|[      ] : left side can snap into minimized
-			else if (newLeftContainerWidth - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
-				newLeftContainerWidth = SideBySideEditorControl.MIN_EDITOR_SIZE;
+			// [ <-]|[      ] : left/top side can snap into minimized
+			else if (newSiloOneSize - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
+				newSiloOneSize = SideBySideEditorControl.MIN_EDITOR_SIZE;
 			}
 
-			// [      ]|[-> ] : right side can snap into minimized
-			else if (this.dimension.width - newLeftContainerWidth - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
-				newLeftContainerWidth = this.dimension.width - SideBySideEditorControl.MIN_EDITOR_SIZE;
+			// [      ]|[-> ] : right/bottom side can snap into minimized
+			else if (this.totalSize - newSiloOneSize - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
+				newSiloOneSize = this.totalSize - SideBySideEditorControl.MIN_EDITOR_SIZE;
 			}
 
-			this.silosSize[Position.LEFT] = newLeftContainerWidth;
-			this.silosSize[Position.CENTER] = this.dimension.width - newLeftContainerWidth;
+			this.silosSize[Position.LEFT] = newSiloOneSize;
+			this.silosSize[Position.CENTER] = this.totalSize - newSiloOneSize;
 		}
 
 		// Side-by-Side-by-Side
 		else {
 
-			// [!]|[      ]|[  ] : left side can not get smaller than MIN_EDITOR_WIDTH
-			if (newLeftContainerWidth < SideBySideEditorControl.MIN_EDITOR_SIZE) {
-				newLeftContainerWidth = SideBySideEditorControl.MIN_EDITOR_SIZE;
+			// [!]|[      ]|[  ] : left/top side can not get smaller than MIN_EDITOR_SIZE
+			if (newSiloOneSize < SideBySideEditorControl.MIN_EDITOR_SIZE) {
+				newSiloOneSize = SideBySideEditorControl.MIN_EDITOR_SIZE;
 			}
 
-			// [      ]|[!]|[  ] : center side can not get smaller than MIN_EDITOR_WIDTH
-			else if (this.dimension.width - newLeftContainerWidth - this.silosSize[Position.RIGHT] < SideBySideEditorControl.MIN_EDITOR_SIZE) {
+			// [      ]|[!]|[  ] : center side can not get smaller than MIN_EDITOR_SIZE
+			else if (this.totalSize - newSiloOneSize - this.silosSize[Position.RIGHT] < SideBySideEditorControl.MIN_EDITOR_SIZE) {
 
-				// [      ]|[ ]|[!] : right side can not get smaller than MIN_EDITOR_WIDTH
-				if (this.dimension.width - newLeftContainerWidth - this.silosSize[Position.CENTER] < SideBySideEditorControl.MIN_EDITOR_SIZE) {
-					newLeftContainerWidth = this.dimension.width - (2 * SideBySideEditorControl.MIN_EDITOR_SIZE);
+				// [      ]|[ ]|[!] : right/bottom side can not get smaller than MIN_EDITOR_SIZE
+				if (this.totalSize - newSiloOneSize - this.silosSize[Position.CENTER] < SideBySideEditorControl.MIN_EDITOR_SIZE) {
+					newSiloOneSize = this.totalSize - (2 * SideBySideEditorControl.MIN_EDITOR_SIZE);
 					this.silosSize[Position.CENTER] = this.silosSize[Position.RIGHT] = SideBySideEditorControl.MIN_EDITOR_SIZE;
 				}
 
-				// [      ]|[ ]|[-> ] : right side can snap into minimized
-				else if (this.dimension.width - newLeftContainerWidth - this.silosSize[Position.CENTER] - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
+				// [      ]|[ ]|[-> ] : right/bottom side can snap into minimized
+				else if (this.totalSize - newSiloOneSize - this.silosSize[Position.CENTER] - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
 					this.silosSize[Position.RIGHT] = SideBySideEditorControl.MIN_EDITOR_SIZE;
 				}
 
-				// [      ]|[ ]|[ ] : right side shrinks
+				// [      ]|[ ]|[ ] : right/bottom side shrinks
 				else {
-					this.silosSize[Position.RIGHT] = this.silosSize[Position.RIGHT] - (newLeftContainerWidth - oldLeftContainerWidth);
+					this.silosSize[Position.RIGHT] = this.silosSize[Position.RIGHT] - (newSiloOneSize - oldSiloOneSize);
 				}
 
-				this.rightSash.layout();
+				this.sashTwo.layout();
 			}
 
-			// [ <-]|[      ]|[  ] : left side can snap into minimized
-			else if (newLeftContainerWidth - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
-				newLeftContainerWidth = SideBySideEditorControl.MIN_EDITOR_SIZE;
+			// [ <-]|[      ]|[  ] : left/top side can snap into minimized
+			else if (newSiloOneSize - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
+				newSiloOneSize = SideBySideEditorControl.MIN_EDITOR_SIZE;
 			}
 
 			// [      ]|[-> ]|[  ] : center side can snap into minimized
-			else if (this.dimension.width - this.silosSize[Position.RIGHT] - newLeftContainerWidth - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
-				newLeftContainerWidth = this.dimension.width - this.silosSize[Position.RIGHT] - SideBySideEditorControl.MIN_EDITOR_SIZE;
+			else if (this.totalSize - this.silosSize[Position.RIGHT] - newSiloOneSize - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
+				newSiloOneSize = this.totalSize - this.silosSize[Position.RIGHT] - SideBySideEditorControl.MIN_EDITOR_SIZE;
 			}
 
-			this.silosSize[Position.LEFT] = newLeftContainerWidth;
-			this.silosSize[Position.CENTER] = this.dimension.width - this.silosSize[Position.LEFT] - this.silosSize[Position.RIGHT];
+			this.silosSize[Position.LEFT] = newSiloOneSize;
+			this.silosSize[Position.CENTER] = this.totalSize - this.silosSize[Position.LEFT] - this.silosSize[Position.RIGHT];
 		}
 
 		// Pass on to containers
 		this.layoutContainers();
 	}
 
-	private onLeftSashDragEnd(): void {
-		this.leftSash.layout();
-		this.rightSash.layout(); // Moving left sash might have also moved right sash, so layout() both
+	private onSashOneDragEnd(): void {
+		this.sashOne.layout();
+		this.sashTwo.layout(); // Moving left sash might have also moved right sash, so layout() both
 		this.focusNextNonMinimized();
 	}
 
-	private onLeftSashReset(): void {
+	private onSashOneReset(): void {
 		this.centerSash(Position.LEFT, Position.CENTER);
-		this.leftSash.layout();
+		this.sashOne.layout();
 	}
 
-	private onRightSashDragStart(): void {
-		this.startRightContainerWidth = this.silosSize[Position.RIGHT];
+	private onSashTwoDragStart(): void {
+		this.startSiloThreeSize = this.silosSize[Position.RIGHT];
 	}
 
-	private onRightSashDrag(e: ISashEvent): void {
-		let oldRightContainerWidth = this.silosSize[Position.RIGHT];
-		let newRightContainerWidth = this.startRightContainerWidth - e.currentX + e.startX;
+	private onSashTwoDrag(e: ISashEvent): void {
+		let oldSiloThreeSize = this.silosSize[Position.RIGHT];
+		let diffSize = this.layoutVertically ? (-e.currentX + e.startX) : (-e.currentY + e.startY);
+		let newSiloThreeSize = this.startSiloThreeSize + diffSize;
 
-		// [  ]|[      ]|[!] : right side can not get smaller than MIN_EDITOR_WIDTH
-		if (newRightContainerWidth < SideBySideEditorControl.MIN_EDITOR_SIZE) {
-			newRightContainerWidth = SideBySideEditorControl.MIN_EDITOR_SIZE;
+		// [  ]|[      ]|[!] : right/bottom side can not get smaller than MIN_EDITOR_SIZE
+		if (newSiloThreeSize < SideBySideEditorControl.MIN_EDITOR_SIZE) {
+			newSiloThreeSize = SideBySideEditorControl.MIN_EDITOR_SIZE;
 		}
 
-		// [      ]|[!]|[  ] : center side can not get smaller than MIN_EDITOR_WIDTH
-		else if (this.dimension.width - newRightContainerWidth - this.silosSize[Position.LEFT] < SideBySideEditorControl.MIN_EDITOR_SIZE) {
+		// [      ]|[!]|[  ] : center side can not get smaller than MIN_EDITOR_SIZE
+		else if (this.totalSize - newSiloThreeSize - this.silosSize[Position.LEFT] < SideBySideEditorControl.MIN_EDITOR_SIZE) {
 
-			// [!]|[ ]|[    ] : left side can not get smaller than MIN_EDITOR_WIDTH
-			if (this.dimension.width - newRightContainerWidth - this.silosSize[Position.CENTER] < SideBySideEditorControl.MIN_EDITOR_SIZE) {
-				newRightContainerWidth = this.dimension.width - (2 * SideBySideEditorControl.MIN_EDITOR_SIZE);
+			// [!]|[ ]|[    ] : left/top side can not get smaller than MIN_EDITOR_SIZE
+			if (this.totalSize - newSiloThreeSize - this.silosSize[Position.CENTER] < SideBySideEditorControl.MIN_EDITOR_SIZE) {
+				newSiloThreeSize = this.totalSize - (2 * SideBySideEditorControl.MIN_EDITOR_SIZE);
 				this.silosSize[Position.LEFT] = this.silosSize[Position.CENTER] = SideBySideEditorControl.MIN_EDITOR_SIZE;
 			}
 
-			// [ <-]|[ ]|[    ] : left side can snap into minimized
-			else if (this.dimension.width - newRightContainerWidth - this.silosSize[Position.CENTER] - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
+			// [ <-]|[ ]|[    ] : left/top side can snap into minimized
+			else if (this.totalSize - newSiloThreeSize - this.silosSize[Position.CENTER] - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
 				this.silosSize[Position.LEFT] = SideBySideEditorControl.MIN_EDITOR_SIZE;
 			}
 
-			// [  ]|[ ]|[   ] : left side shrinks
+			// [  ]|[ ]|[   ] : left/top side shrinks
 			else {
-				this.silosSize[Position.LEFT] = this.silosSize[Position.LEFT] - (newRightContainerWidth - oldRightContainerWidth);
+				this.silosSize[Position.LEFT] = this.silosSize[Position.LEFT] - (newSiloThreeSize - oldSiloThreeSize);
 			}
 
-			this.leftSash.layout();
+			this.sashOne.layout();
 		}
 
-		// [ ]|[      ]|[-> ] : right side can snap into minimized
-		else if (newRightContainerWidth - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
-			newRightContainerWidth = SideBySideEditorControl.MIN_EDITOR_SIZE;
+		// [ ]|[      ]|[-> ] : right/bottom side can snap into minimized
+		else if (newSiloThreeSize - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
+			newSiloThreeSize = SideBySideEditorControl.MIN_EDITOR_SIZE;
 		}
 
 		// [ ]|[ <-]|[      ] : center side can snap into minimized
-		else if (this.dimension.width - this.silosSize[Position.LEFT] - newRightContainerWidth - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
-			newRightContainerWidth = this.dimension.width - this.silosSize[Position.LEFT] - SideBySideEditorControl.MIN_EDITOR_SIZE;
+		else if (this.totalSize - this.silosSize[Position.LEFT] - newSiloThreeSize - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_SIZE) {
+			newSiloThreeSize = this.totalSize - this.silosSize[Position.LEFT] - SideBySideEditorControl.MIN_EDITOR_SIZE;
 		}
 
-		this.silosSize[Position.RIGHT] = newRightContainerWidth;
-		this.silosSize[Position.CENTER] = this.dimension.width - this.silosSize[Position.LEFT] - this.silosSize[Position.RIGHT];
+		this.silosSize[Position.RIGHT] = newSiloThreeSize;
+		this.silosSize[Position.CENTER] = this.totalSize - this.silosSize[Position.LEFT] - this.silosSize[Position.RIGHT];
 
 		this.layoutContainers();
 	}
 
-	private onRightSashDragEnd(): void {
-		this.leftSash.layout(); // Moving right sash might have also moved left sash, so layout() both
-		this.rightSash.layout();
+	private onSashTwoDragEnd(): void {
+		this.sashOne.layout(); // Moving right sash might have also moved left sash, so layout() both
+		this.sashTwo.layout();
+
 		this.focusNextNonMinimized();
 	}
 
-	private onRightSashReset(): void {
+	private onSashTwoReset(): void {
 		this.centerSash(Position.CENTER, Position.RIGHT);
-		this.rightSash.layout();
+
+		this.sashTwo.layout();
 	}
 
 	public getVerticalSashTop(sash: Sash): number {
@@ -1579,11 +1586,23 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public getVerticalSashLeft(sash: Sash): number {
-		return sash === this.leftSash ? this.silosSize[Position.LEFT] : this.silosSize[Position.CENTER] + this.silosSize[Position.LEFT];
+		return sash === this.sashOne ? this.silosSize[Position.LEFT] : this.silosSize[Position.CENTER] + this.silosSize[Position.LEFT];
 	}
 
 	public getVerticalSashHeight(sash: Sash): number {
 		return this.dimension.height;
+	}
+
+	public getHorizontalSashTop(sash: Sash): number {
+		return sash === this.sashOne ? this.silosSize[Position.LEFT] : this.silosSize[Position.CENTER] + this.silosSize[Position.LEFT];
+	}
+
+	public getHorizontalSashLeft(sash: Sash): number {
+		return 0;
+	}
+
+	public getHorizontalSashWidth(sash: Sash): number {
+		return this.dimension.width;
 	}
 
 	public isDragging(): boolean {
@@ -1678,8 +1697,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Sash positioning
-		this.leftSash.layout();
-		this.rightSash.layout();
+		this.sashOne.layout();
+		this.sashTwo.layout();
 
 		// Pass on to Editor Containers
 		this.layoutContainers();
@@ -1787,8 +1806,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		});
 
 		// Sash
-		this.leftSash.dispose();
-		this.rightSash.dispose();
+		this.sashOne.dispose();
+		this.sashTwo.dispose();
 
 		// Destroy Container
 		this.silos.forEach(silo => {
