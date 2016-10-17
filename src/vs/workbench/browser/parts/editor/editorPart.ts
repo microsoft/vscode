@@ -941,7 +941,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			activePosition = Position.LEFT;
 		}
 
-		// Validate width ratios
+		// Validate ratios
 		const positions = rightEditors.length ? 3 : centerEditors.length ? 2 : 1;
 		if (!ratio || ratio.length !== positions) {
 			if (!this.getVisibleEditors().length) {
@@ -1164,7 +1164,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private findPosition(input: EditorInput, options?: EditorOptions, desiredPosition?: Position, ratio?: number[]): Position;
 	private findPosition(input: EditorInput, options?: EditorOptions, arg1?: any, ratio?: number[]): Position {
 
-		// With defined width ratios, always trust the provided position
+		// With defined ratios, always trust the provided position
 		if (ratio && types.isNumber(arg1)) {
 			return arg1;
 		}
