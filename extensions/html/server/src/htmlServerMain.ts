@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult } from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, FormattingOptions } from 'vscode-languageserver';
 
 import { HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration, DocumentContext } from 'vscode-html-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import * as url from 'url';
-
+import * as path from 'path';
+import uri from 'vscode-uri';
 
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
@@ -97,7 +98,7 @@ function merge(src: any, dst: any): any {
 	return dst;
 }
 
-function getFormattingOptions(formatParams: any) {
+function getFormattingOptions(formatParams: FormattingOptions) {
 	let formatSettings = languageSettings && languageSettings.format;
 	if (!formatSettings) {
 		return formatParams;
@@ -107,17 +108,24 @@ function getFormattingOptions(formatParams: any) {
 
 connection.onDocumentFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, null, getFormattingOptions(formatParams));
+	return languageService.format(document, null, getFormattingOptions(formatParams.options));
 });
 
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, formatParams.range, getFormattingOptions(formatParams));
+	return languageService.format(document, formatParams.range, getFormattingOptions(formatParams.options));
 });
 
 connection.onDocumentLinks(documentLinkParam => {
 	let document = documents.get(documentLinkParam.textDocument.uri);
-	let documentContext: DocumentContext = { resolveReference: ref => url.resolve(document.uri, ref) };
+	let documentContext: DocumentContext = {
+		resolveReference: ref => {
+			if (ref[0] === '/') {
+				return uri.file(path.join(workspacePath, ref)).toString();
+			}
+			return url.resolve(document.uri, ref);
+		}
+	};
 	return languageService.findDocumentLinks(document, documentContext);
 });
 

@@ -224,6 +224,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		if (!value) {
 			// Show installed extensions
 			return this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(result => result.filter(e => e.type === LocalExtensionType.User))
 				.then(result => new PagedModel(result));
 		}
@@ -236,7 +237,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		if (/@disabled/i.test(value)) {
 			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.filter(e => e.disabled))
+				.then(result => result.filter(e => e.state === ExtensionState.Disabled))
 				.then(result => new PagedModel(result));
 		}
 

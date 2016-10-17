@@ -66,7 +66,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService, IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRuntimeService } from 'vs/platform/extensions/node/extensions';
 import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -83,7 +82,8 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
-import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
+import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
+import { ExtensionsRuntimeService } from 'vs/workbench/services/extensions/electron-browser/extensions';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';

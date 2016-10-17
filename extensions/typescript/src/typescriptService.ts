@@ -7,6 +7,7 @@
 
 import { CancellationToken, Uri } from 'vscode';
 import * as Proto from './protocol';
+import * as semver from 'semver';
 
 export interface ITypescriptServiceClientHost {
 	syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
@@ -15,30 +16,34 @@ export interface ITypescriptServiceClientHost {
 	populateService(): void;
 }
 
-export enum APIVersion {
-	v1_x = 1,
-	v2_0_0 = 2
-};
+export class API {
 
-export namespace APIVersion {
-	export function fromString(value: string): APIVersion {
-		if (!value) {
-			return APIVersion.v1_x;
-		}
-		const index = value.indexOf('.');
-		var major: number;
-		if (index > 0) {
-			major = parseInt(value.substr(0, index));
+	private version: string;
+
+	constructor(version: string) {
+		this.version = semver.valid(version);
+		if (!this.version) {
+			this.version = '1.0.0';
 		} else {
-			major = parseInt(value);
+			// Cut of any prerelease tag since we sometimes consume those
+			// on purpose.
+			let index = version.indexOf('-');
+			if (index >= 0) {
+				this.version = this.version.substr(0, index);
+			}
 		}
-		if (isNaN(major)) {
-			return APIVersion.v1_x;
-		}
-		if (major >= 2) {
-			return APIVersion.v2_0_0;
-		}
-		return APIVersion.v1_x;
+	}
+
+	public has1xFeatures(): boolean {
+		return semver.gte(this.version, '1.0.0');
+	}
+
+	public has203Features(): boolean {
+		return semver.gte(this.version, '2.0.3');
+	}
+
+	public has206Features(): boolean {
+		return semver.gte(this.version, '2.0.6');
 	}
 }
 
@@ -53,7 +58,7 @@ export interface ITypescriptServiceClient {
 	logTelemetry(eventName: string, properties?: { [prop: string]: string });
 
 	experimentalAutoBuild: boolean;
-	apiVersion: APIVersion;
+	apiVersion: API;
 
 	execute(command: 'configure', args: Proto.ConfigureRequestArguments, token?: CancellationToken): Promise<Proto.ConfigureResponse>;
 	execute(command: 'open', args: Proto.OpenRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
@@ -75,5 +80,9 @@ export interface ITypescriptServiceClient {
 	execute(command: 'projectInfo', args: Proto.ProjectInfoRequestArgs, token?: CancellationToken): Promise<Proto.ProjectInfoResponse>;
 	execute(command: 'reloadProjects', args: any, expectedResult: boolean, token?: CancellationToken): Promise<any>;
 	execute(command: 'reload', args: Proto.ReloadRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
+	execute(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs, token?: CancellationToken): Promise<any>;
+	execute(command: 'navtree', args: Proto.FileRequestArgs, token?: CancellationToken): Promise<Proto.NavTreeResponse>;
+	// execute(command: 'compileOnSaveAffectedFileList', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<Proto.CompileOnSaveAffectedFileListResponse>;
+	// execute(command: 'compileOnSaveEmitFile', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<any>;
 	execute(command: string, args: any, expectedResult: boolean | CancellationToken, token?: CancellationToken): Promise<any>;
 }

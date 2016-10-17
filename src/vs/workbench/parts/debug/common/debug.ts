@@ -197,6 +197,13 @@ export enum State {
 	RunningNoDebug
 }
 
+// Service config
+
+export interface IDebugConfiguration {
+	allowBreakpointsEverywhere: boolean;
+	openExplorerOnEnd: boolean;
+}
+
 // service interfaces
 
 export interface IGlobalConfig {
@@ -310,7 +317,7 @@ export interface IDebugService {
 	/**
 	 * Adds new breakpoints to the model. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(rawBreakpoints: IRawBreakpoint[]): TPromise<void[]>;
+	addBreakpoints(rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
@@ -400,7 +407,7 @@ export interface IDebugService {
 	/**
 	 * Returns the active debug session or null if debug is inactive.
 	 */
-	getActiveSession(): IRawDebugSession;
+	activeSession: IRawDebugSession;
 
 	/**
 	 * Gets the current debug model.

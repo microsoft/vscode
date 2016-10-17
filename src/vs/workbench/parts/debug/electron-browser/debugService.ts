@@ -43,6 +43,7 @@ import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigu
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -51,7 +52,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
-import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/electron-browser/extensionHost';
+import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { ipcRenderer as ipc } from 'electron';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 
@@ -158,7 +159,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		// from this point on we require an active session
-		let session = this.getActiveSession();
+		let session = this.activeSession;
 		if (!session || session.configuration.type !== 'extensionHost') {
 			return; // we are only intersted if we have an active debug session for extensionHost
 		}
@@ -235,16 +236,16 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	private registerSessionListeners(): void {
-		this.toDisposeOnSessionEnd.push(this.session);
-		this.toDisposeOnSessionEnd.push(this.session.onDidInitialize(event => {
+	private registerSessionListeners(session: RawDebugSession): void {
+		this.toDisposeOnSessionEnd.push(session);
+		this.toDisposeOnSessionEnd.push(session.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
-				if (this.session && this.session.configuration.capabilities.supportsConfigurationDoneRequest) {
-					this.session.configurationDone().done(null, e => {
+				if (session && session.configuration.capabilities.supportsConfigurationDoneRequest) {
+					session.configurationDone().done(null, e => {
 						// Disconnect the debug session on configuration done error #10596
-						if (this.session) {
-							this.session.disconnect().done(null, errors.onUnexpectedError);
+						if (session) {
+							session.disconnect().done(null, errors.onUnexpectedError);
 						}
 						this.messageService.show(severity.Error, e.message);
 					});
@@ -254,7 +255,7 @@ export class DebugService implements debug.IDebugService {
 			this.sendAllBreakpoints().done(sendConfigurationDone, sendConfigurationDone);
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidStop(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidStop(event => {
 			this.setStateAndEmit(debug.State.Stopped);
 			const threadId = event.body.threadId;
 
@@ -282,7 +283,7 @@ export class DebugService implements debug.IDebugService {
 			}, errors.onUnexpectedError);
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidThread(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidThread(event => {
 			if (event.body.reason === 'started') {
 				this.getThreadData().done(null, errors.onUnexpectedError);
 			} else if (event.body.reason === 'exited') {
@@ -290,22 +291,22 @@ export class DebugService implements debug.IDebugService {
 			}
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidTerminateDebugee(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
-			if (this.session && this.session.getId() === event.body.sessionId) {
+			if (session && session.getId() === event.body.sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
 					this.restartSession().done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
-					this.session.disconnect().done(null, errors.onUnexpectedError);
+					session.disconnect().done(null, errors.onUnexpectedError);
 				}
 			}
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidContinued(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidContinued(event => {
 			this.lazyTransitionToRunningState(event.body.allThreadsContinued ? undefined : event.body.threadId);
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidOutput(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidOutput(event => {
 			if (event.body && event.body.category === 'telemetry') {
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
 				// and the user opted in telemetry
@@ -317,7 +318,7 @@ export class DebugService implements debug.IDebugService {
 			}
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidBreakpoint(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidBreakpoint(event => {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
 			const breakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
 			if (breakpoint) {
@@ -330,12 +331,12 @@ export class DebugService implements debug.IDebugService {
 			}
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidExitAdapter(event => {
+		this.toDisposeOnSessionEnd.push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (this.session && this.session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
+			if (session && session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
 				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
 			}
-			if (this.session && this.session.getId() === event.body.sessionId) {
+			if (session && session.getId() === event.body.sessionId) {
 				this.onSessionEnd();
 			}
 		}));
@@ -446,12 +447,12 @@ export class DebugService implements debug.IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void[]> {
+	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
 		this.model.addBreakpoints(rawBreakpoints);
 		const uris = arrays.distinct(rawBreakpoints, raw => raw.uri.toString()).map(raw => raw.uri);
 		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, rbp.uri.fsPath)));
 
-		return TPromise.join(uris.map(uri => this.sendBreakpoints(uri)));
+		return TPromise.join(uris.map(uri => this.sendBreakpoints(uri))).then(() => void 0);
 	}
 
 	public removeBreakpoints(id?: string): TPromise<any> {
@@ -628,7 +629,7 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			this.session = this.instantiationService.createInstance(RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
-			this.registerSessionListeners();
+			this.registerSessionListeners(this.session);
 
 			return this.session.initialize({
 				adapterID: configuration.type,
@@ -770,7 +771,7 @@ export class DebugService implements debug.IDebugService {
 		) : this.createSession(false, null);
 	}
 
-	public getActiveSession(): debug.IRawDebugSession {
+	public get activeSession(): debug.IRawDebugSession {
 		return this.session;
 	}
 
@@ -809,6 +810,10 @@ export class DebugService implements debug.IDebugService {
 		this.model.updateBreakpoints(data);
 
 		this.inDebugMode.reset();
+
+		if (!this.partService.isSideBarHidden() && this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {
+			this.viewletService.openViewlet(EXPLORER_VIEWLET_ID).done(null, errors.onUnexpectedError);
+		}
 	}
 
 	public getModel(): debug.IModel {

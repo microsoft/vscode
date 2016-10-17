@@ -95,6 +95,7 @@
 	"miToggleOutput": "&&Ausgabe",
 	"miTogglePanel": "&&Bereich umschalten",
 	"miToggleRenderControlCharacters": "&&Steuerzeichen umschalten",
+	"miToggleRenderWhitespace": "&&Rendern von Leerzeichen umschalten",
 	"miToggleSidebar": "&&Randleiste umschalten",
 	"miToggleStatusbar": "&&Statusleiste umschalten",
 	"miToggleWordWrap": "&&Zeilenumbruch umschalten",

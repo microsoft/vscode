@@ -303,7 +303,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	private renderInputBox(container: Builder, tree: ITree, stat: FileStat, editableData: IEditableData): IElementCallback {
 		const label = this.instantiationService.createInstance(FileLabel, container.getHTMLElement(), void 0);
 
-		const extraClasses = ['explorer-item'];
+		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const isFolder = stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder());
 		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, isFolder, extraClasses };
 		label.setFile(stat.resource, labelOptions);

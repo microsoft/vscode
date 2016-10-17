@@ -20,8 +20,6 @@ import * as path from 'path';
 
 import * as Proto from './protocol';
 
-import * as Is from './utils/is';
-
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypescriptServiceClientHost } from './typescriptService';
 
@@ -46,6 +44,7 @@ interface LanguageDescription {
 	diagnosticSource: string;
 	modeIds: string[];
 	extensions: string[];
+	configFile: string;
 }
 
 export function activate(context: ExtensionContext): void {
@@ -59,13 +58,15 @@ export function activate(context: ExtensionContext): void {
 			id: 'typescript',
 			diagnosticSource: 'ts',
 			modeIds: [MODE_ID_TS, MODE_ID_TSX],
-			extensions: ['.ts', '.tsx']
+			extensions: ['.ts', '.tsx'],
+			configFile: 'tsconfig.json'
 		},
 		{
 			id: 'javascript',
 			diagnosticSource: 'js',
 			modeIds: [MODE_ID_JS, MODE_ID_JSX],
-			extensions: ['.js', '.jsx']
+			extensions: ['.js', '.jsx'],
+			configFile: 'jsconfig.json'
 		}
 	], context.storagePath, context.globalState);
 
@@ -213,7 +214,11 @@ class LanguageProvider {
 
 	public handles(file: string): boolean {
 		let extension = path.extname(file);
-		return (extension && this.extensions[extension]) || this.bufferSyncSupport.handles(file);
+		if ((extension && this.extensions[extension]) || this.bufferSyncSupport.handles(file)) {
+			return true;
+		}
+		let basename = path.basename(file);
+		return basename && basename === this.description.configFile;
 	}
 
 	public get id(): string {
@@ -349,9 +354,11 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
 			}
 		}
+		/*
 		if (Is.defined(body.queueLength)) {
 			BuildStatus.update({ queueLength: body.queueLength });
 		}
+		*/
 	}
 
 	/* internal */ configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
@@ -359,7 +366,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		/* https://github.com/Microsoft/TypeScript/issues/10473
 		const body = event.body;
 		if (body.diagnostics) {
-			const language = this.findLanguage(body.triggerFile);
+			const language = body.triggerFile ? this.findLanguage(body.triggerFile) : this.findLanguage(body.configFile);
 			if (language) {
 				if (body.diagnostics.length === 0) {
 					language.configFileDiagnosticsReceived(body.configFile, []);

@@ -14,7 +14,7 @@
 	"enum": "Enumerationen ({0})",
 	"file": "Dateien ({0})",
 	"function": "Funktionen ({0})",
-	"gotoSymbol": "Gehe zu Symbol...",
+	"gotoSymbol": "Zu Symbol in Datei wechseln...",
 	"gotoSymbolHandlerAriaLabel": "Nehmen Sie eine Eingabe vor, um Symbole des aktuell aktiven Editors einzuschränken.",
 	"interface": "Schnittstellen ({0})",
 	"key": "Schlüssel ({0})",

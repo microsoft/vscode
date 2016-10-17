@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "dependencies": {
     "vscode-html-languageservice": {
-      "version": "1.0.0-next.5",
+      "version": "1.0.0-next.6",
       "from": "vscode-html-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-html-languageservice/-/vscode-html-languageservice-1.0.0-next.5.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-html-languageservice/-/vscode-html-languageservice-1.0.0-next.6.tgz"
     },
     "vscode-jsonrpc": {
       "version": "2.4.0",
@@ -26,9 +26,9 @@
       "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
     },
     "vscode-uri": {
-      "version": "0.0.7",
-      "from": "vscode-uri@>=0.0.7 <0.0.8",
-      "resolved": "https://registry.npmjs.org/vscode-uri/-/vscode-uri-0.0.7.tgz"
+      "version": "1.0.0",
+      "from": "vscode-uri@>=1.0.0 <2.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-uri/-/vscode-uri-1.0.0.tgz"
     }
   }
 }

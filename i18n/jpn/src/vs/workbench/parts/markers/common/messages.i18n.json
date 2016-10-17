@@ -22,7 +22,7 @@
 	"markers.panel.single.info.label": "情報 1",
 	"markers.panel.single.unknown.label": "不明 1",
 	"markers.panel.single.warning.label": "警告 1",
-	"markers.panel.title.no.problems": "問題はありません",
+	"markers.panel.title.problems": "問題",
 	"problems.panel.configuration.autoreveal": "ファイルを開くときに問題ビューに自動的にそのファイルを表示するかどうかを制御します",
 	"problems.panel.configuration.title": "問題ビュー",
 	"problems.tree.aria.label.error.marker": "{0}: {1} によって生成されたエラー (行 {2}、列 {3})",

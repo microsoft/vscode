@@ -22,7 +22,7 @@
 	"markers.panel.single.info.label": "1 条信息",
 	"markers.panel.single.unknown.label": "1 个未知",
 	"markers.panel.single.warning.label": "1 条警告",
-	"markers.panel.title.no.problems": "没有问题",
+	"markers.panel.title.problems": "问题",
 	"problems.panel.configuration.autoreveal": "控制问题预览是否应在打开文件时自动显示它们。",
 	"problems.panel.configuration.title": "问题预览",
 	"problems.tree.aria.label.error.marker": "由第 {2} 行、第 {3} 列的 {0}: {1} 生成的错误",

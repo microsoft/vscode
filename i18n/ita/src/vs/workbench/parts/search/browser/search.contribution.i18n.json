@@ -9,10 +9,10 @@
 	"exclude.when": "Controllo aggiuntivo sugli elementi di pari livello di un file corrispondente. Usare $(basename) come variabile del nome file corrispondente.",
 	"findInFolder": "Trova nella cartella",
 	"name": "Cerca",
-	"openAnythingHandlerDescription": "Apri file per nome",
-	"openSymbolDescriptionNormal": "Apri qualsiasi simbolo per nome",
-	"search.quickOpen.includeSymbols": "Configurare questa opzione per includere i risultati di una ricerca di simboli globale nei risultati dei file per Apertura rapida.",
+	"openAnythingHandlerDescription": "Vai al file",
+	"openSymbolDescriptionNormal": "Vai al simbolo nell'area di lavoro",
+	"search.quickOpen.includeSymbols": "Configurare questa opzione per includere i risultati di una ricerca di simboli globale nei risultati dei file per Quick Open.",
 	"searchConfigurationTitle": "Cerca",
-	"showTriggerActions": "Mostra tutti i simboli",
+	"showTriggerActions": "Vai al simbolo nell'area di lavoro...",
 	"view": "Visualizza"
 }

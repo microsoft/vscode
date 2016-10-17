@@ -14,7 +14,7 @@
 	"enum": "列挙型 ({0})",
 	"file": "ファイル ({0})",
 	"function": "関数 ({0})",
-	"gotoSymbol": "シンボルへ移動...",
+	"gotoSymbol": "ファイル内のシンボルへ移動...",
 	"gotoSymbolHandlerAriaLabel": "入力すると現在アクティブなエディターのシンボルが絞り込まれます。",
 	"interface": "インターフェイス ({0})",
 	"key": "キー ({0})",
