@@ -92,6 +92,11 @@
               }
             }
           }
+        },
+        "json.format.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable default JSON formatter"
         }
       }
     }
