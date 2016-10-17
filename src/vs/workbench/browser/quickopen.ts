@@ -250,33 +250,38 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		const hideWidget = (mode === Mode.OPEN);
 
+		let sideBySide;
 		if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
-			let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+			sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+		}
 
-			let openInBackgroundOptions: IEditorOptions;
-			if (mode === Mode.OPEN_IN_BACKGROUND) {
-				openInBackgroundOptions = { pinned: true, preserveFocus: true };
+		let modeOverrideOptions: IEditorOptions;
+		if (mode === Mode.PREVIEW) {
+			modeOverrideOptions = { forcePreview: true };
+		}
+		else if (mode === Mode.OPEN_IN_BACKGROUND) {
+			modeOverrideOptions = { forcePreview: false, pinned: true, preserveFocus: true };
+		}
+
+		let input = this.getInput();
+		if (input instanceof EditorInput) {
+			let opts = this.getOptions();
+			if (opts) {
+				opts.mixin(modeOverrideOptions);
+			} else if (modeOverrideOptions) {
+				opts = EditorOptions.create(modeOverrideOptions);
 			}
 
-			let input = this.getInput();
-			if (input instanceof EditorInput) {
-				let opts = this.getOptions();
-				if (opts) {
-					opts.mixin(openInBackgroundOptions);
-				} else if (openInBackgroundOptions) {
-					opts = EditorOptions.create(openInBackgroundOptions);
-				}
+			this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
+		}
+		else {
+			const resourceInput = <IResourceInput>input;
 
-				this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
-			} else {
-				const resourceInput = <IResourceInput>input;
-
-				if (openInBackgroundOptions) {
-					resourceInput.options = objects.assign(resourceInput.options || Object.create(null), openInBackgroundOptions);
-				}
-
-				this.editorService.openEditor(resourceInput, sideBySide).done(null, errors.onUnexpectedError);
+			if (modeOverrideOptions) {
+				resourceInput.options = objects.assign(resourceInput.options || Object.create(null), modeOverrideOptions);
 			}
+
+			this.editorService.openEditor(resourceInput, sideBySide).done(null, errors.onUnexpectedError);
 		}
 
 		return hideWidget;

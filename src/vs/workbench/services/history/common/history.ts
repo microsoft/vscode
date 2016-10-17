@@ -47,4 +47,9 @@ export interface IHistoryService {
 	 * Get the entire history of opened editors.
 	 */
 	getHistory(): (IEditorInput | IResourceInput)[];
+
+	/**
+	 * Blocks writing to stack and editor history.
+	 */
+	block(block: boolean): void;
 }

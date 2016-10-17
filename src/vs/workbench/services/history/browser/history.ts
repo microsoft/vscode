@@ -119,7 +119,6 @@ export abstract class BaseHistoryService {
 		const activeEditor = this.editorService.getActiveEditor();
 		const activeInput = activeEditor ? activeEditor.input : void 0;
 
-		// Propagate to history
 		this.onEditorEvent(activeEditor);
 
 		// Apply listener for dirty and label changes
@@ -248,6 +247,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private stack: IStackEntry[];
 	private index: number;
 	private blockStackChanges: boolean;
+	private blockEditorHistoryChanges: boolean;
 	private currentFileEditorState: EditorState;
 
 	private history: (IEditorInput | IResourceInput)[];
@@ -339,6 +339,17 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.recentlyClosedFiles = [];
 	}
 
+	public block(block: boolean) {
+		if (block) {
+			this.blockStackChanges = true;
+			this.blockEditorHistoryChanges = true;
+		}
+		else {
+			this.blockStackChanges = false;
+			this.blockEditorHistoryChanges = false;
+		}
+	}
+
 	private navigate(): void {
 		const entry = this.stack[this.index];
 
@@ -379,7 +390,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		const input = editor ? editor.input : void 0;
 
 		// Ensure we have at least a name to show
-		if (!input || !input.getName()) {
+		if (this.blockEditorHistoryChanges || this.isEditorEagerlyPreviewing(editor) || !input || !input.getName()) {
 			return;
 		}
 
@@ -424,6 +435,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
+	private isEditorEagerlyPreviewing(editor: IBaseEditor): boolean {
+		return !!(editor && editor.options && editor.options.forcePreview);
+	}
+
 	private indexOf(input: IEditorInput | IResourceInput): number {
 		for (let i = 0; i < this.history.length; i++) {
 			const entry = this.history[i];
@@ -436,7 +451,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private handleEditorEventInStack(editor: IBaseEditor, storeSelection: boolean): void {
-		if (this.blockStackChanges) {
+		if (this.blockStackChanges || this.isEditorEagerlyPreviewing(editor)) {
 			return; // while we open an editor due to a navigation, we do not want to update our stack
 		}
 
