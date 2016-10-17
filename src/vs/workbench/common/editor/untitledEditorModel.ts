@@ -116,6 +116,10 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		return this.dirty;
 	}
 
+	public getResource(): URI {
+		return this.resource;
+	}
+
 	public revert(): void {
 		this.dirty = false;
 
