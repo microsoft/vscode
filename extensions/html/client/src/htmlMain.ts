@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { languages, ExtensionContext, IndentAction } from 'vscode';
+import { languages, workspace, ExtensionContext, IndentAction } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 
@@ -36,6 +36,7 @@ export function activate(context: ExtensionContext) {
 			configurationSection: ['html'],
 		},
 		initializationOptions: {
+			['format.enable']: workspace.getConfiguration('html').get('format.enable')
 		}
 	};
 
