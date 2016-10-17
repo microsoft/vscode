@@ -184,7 +184,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Normalize some values
 		if (!options) { options = null; }
 
-		// Determine position to open editor in (left, center, right)
+		// Determine position to open editor in (one, two, three)
 		const position = this.findPosition(input, options, arg3, ratio);
 
 		// Some conditions under which we prevent the request
@@ -518,7 +518,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 
 			// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
-			// the user is actively changing focus with the mouse from left to right.
+			// the user is actively changing focus with the mouse from left/top to right/bottom.
 			this.onGroupFocusChanged();
 		}
 	}
@@ -915,25 +915,25 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[]): TPromise<BaseEditor[]> {
-		const leftEditors = editors.filter(e => e.position === Position.ONE);
-		const centerEditors = editors.filter(e => e.position === Position.TWO);
-		const rightEditors = editors.filter(e => e.position === Position.THREE);
+		const positionOneEditors = editors.filter(e => e.position === Position.ONE);
+		const positionTwoEditors = editors.filter(e => e.position === Position.TWO);
+		const positionThreeEditors = editors.filter(e => e.position === Position.THREE);
 
-		const leftGroup = this.stacks.groupAt(Position.ONE);
-		const centerGroup = this.stacks.groupAt(Position.TWO);
-		const rightGroup = this.stacks.groupAt(Position.THREE);
+		const groupOne = this.stacks.groupAt(Position.ONE);
+		const groupTwo = this.stacks.groupAt(Position.TWO);
+		const groupThree = this.stacks.groupAt(Position.THREE);
 
 		// Compute the imaginary count if we const all editors open as the way requested
-		const leftCount = leftEditors.length + (leftGroup ? leftGroup.count : 0);
-		const centerCount = centerEditors.length + (centerGroup ? centerGroup.count : 0);
-		const rightCount = rightEditors.length + (rightGroup ? rightGroup.count : 0);
+		const oneCount = positionOneEditors.length + (groupOne ? groupOne.count : 0);
+		const twoCount = positionTwoEditors.length + (groupTwo ? groupTwo.count : 0);
+		const threeCount = positionThreeEditors.length + (groupThree ? groupThree.count : 0);
 
 		// Validate we do not produce empty groups given our imaginary count model
-		if ((!leftCount && (centerCount || rightCount) || (!centerCount && rightCount))) {
-			leftEditors.push(...centerEditors);
-			leftEditors.push(...rightEditors);
-			centerEditors.splice(0, centerEditors.length);
-			rightEditors.splice(0, rightEditors.length);
+		if ((!oneCount && (twoCount || threeCount) || (!twoCount && threeCount))) {
+			positionOneEditors.push(...positionTwoEditors);
+			positionOneEditors.push(...positionThreeEditors);
+			positionTwoEditors.splice(0, positionTwoEditors.length);
+			positionThreeEditors.splice(0, positionThreeEditors.length);
 		}
 
 		// Validate active input
@@ -942,7 +942,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Validate ratios
-		const positions = rightEditors.length ? 3 : centerEditors.length ? 2 : 1;
+		const positions = positionThreeEditors.length ? 3 : positionTwoEditors.length ? 2 : 1;
 		if (!ratio || ratio.length !== positions) {
 			if (!this.getVisibleEditors().length) {
 				ratio = (positions === 3) ? [0.33, 0.33, 0.34] : (positions === 2) ? [0.5, 0.5] : [1];
@@ -962,7 +962,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Open each input respecting the options. Since there can only be one active editor in each
 		// position, we have to pick the first input from each position and add the others as inactive
 		const promises: TPromise<BaseEditor>[] = [];
-		[leftEditors.shift(), centerEditors.shift(), rightEditors.shift()].forEach((editor, position) => {
+		[positionOneEditors.shift(), positionTwoEditors.shift(), positionThreeEditors.shift()].forEach((editor, position) => {
 			if (!editor) {
 				return; // unused position
 			}
@@ -992,7 +992,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 
 			// Update stacks model for remaining inactive editors
-			[leftEditors, centerEditors, rightEditors].forEach((editors, index) => {
+			[positionOneEditors, positionTwoEditors, positionThreeEditors].forEach((editors, index) => {
 				const group = this.stacks.groupAt(index);
 				if (group) {
 					editors.forEach(editor => group.openEditor(editor.input, { pinned: true })); // group could be null if one openeditor call failed!
@@ -1173,7 +1173,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const visibleEditors = this.getVisibleEditors();
 		const activeEditor = this.getActiveEditor();
 		if (visibleEditors.length === 0 || !activeEditor) {
-			return Position.ONE; // can only be LEFT
+			return Position.ONE; // can only be ONE
 		}
 
 		// Respect option to reveal an editor if it is already visible
@@ -1189,7 +1189,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 		}
 
-		// Position is unknown: pick last active or LEFT
+		// Position is unknown: pick last active or ONE
 		if (types.isUndefinedOrNull(arg1) || arg1 === false) {
 			const lastActivePosition = this.sideBySideControl.getActivePosition();
 
@@ -1204,7 +1204,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				case Position.TWO:
 					return Position.THREE;
 				case Position.THREE:
-					return null; // Cannot open to the side of the right most editor
+					return null; // Cannot open to the side of the right/bottom most editor
 			}
 
 			return null; // Prevent opening to the side
@@ -1244,7 +1244,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 				// Close visible ones second
 				visibleEditors
-					.sort((a1, a2) => this.stacks.positionOfGroup(a2.group) - this.stacks.positionOfGroup(a1.group))	// reduce layout work by starting right first
+					.sort((a1, a2) => this.stacks.positionOfGroup(a2.group) - this.stacks.positionOfGroup(a1.group))	// reduce layout work by starting right/bottom first
 					.forEach(visible => this.doCloseEditor(<EditorGroup>visible.group, visible.editor, false));
 
 				// Reset

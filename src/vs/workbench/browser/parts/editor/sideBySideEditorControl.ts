@@ -490,8 +490,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		const visibleEditorCount = this.getVisibleEditorCount();
 
-		const hasCenter = !!this.visibleEditors[Position.TWO];
-		const hasRight = !!this.visibleEditors[Position.THREE];
+		const hasEditorInPositionTwo = !!this.visibleEditors[Position.TWO];
+		const hasEditorInPositionThree = !!this.visibleEditors[Position.THREE];
 
 		// If editor is not showing for position, return
 		if (editor !== this.visibleEditors[position]) {
@@ -518,14 +518,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 
 			// Adjust layout: []|[x] -> [] or [x]|[] -> []
-			else if (hasCenter && !hasRight) {
+			else if (hasEditorInPositionTwo && !hasEditorInPositionThree) {
 				this.silosSize[Position.ONE] = this.totalSize;
 				this.silosSize[Position.TWO] = 0;
 
 				this.sashOne.hide();
 				this.sashTwo.hide();
 
-				// Move CENTER to LEFT ([x]|[] -> [])
+				// Move TWO to ONE ([x]|[] -> [])
 				if (position === Position.ONE) {
 					this.rochade(Position.TWO, Position.ONE);
 					result = Rochade.TWO_TO_ONE;
@@ -535,7 +535,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 
 			// Adjust layout: []|[]|[x] -> [ ]|[ ] or []|[x]|[] -> [ ]|[ ] or [x]|[]|[] -> [ ]|[ ]
-			else if (hasCenter && hasRight) {
+			else if (hasEditorInPositionTwo && hasEditorInPositionThree) {
 				this.silosSize[Position.ONE] = this.totalSize / 2;
 				this.silosSize[Position.TWO] = this.totalSize - this.silosSize[Position.ONE];
 				this.silosSize[Position.THREE] = 0;
@@ -543,13 +543,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				this.sashOne.layout();
 				this.sashTwo.hide();
 
-				// Move RIGHT to CENTER ([]|[x]|[] -> [ ]|[ ])
+				// Move THREE to TWO ([]|[x]|[] -> [ ]|[ ])
 				if (position === Position.TWO) {
 					this.rochade(Position.THREE, Position.TWO);
 					result = Rochade.THREE_TO_TWO;
 				}
 
-				// Move RIGHT to CENTER and CENTER to LEFT ([x]|[]|[] -> [ ]|[ ])
+				// Move THREE to TWO and TWO to ONE ([x]|[]|[] -> [ ]|[ ])
 				else if (position === Position.ONE) {
 					this.rochade(Position.TWO, Position.ONE);
 					this.rochade(Position.THREE, Position.TWO);
@@ -566,12 +566,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			// Clear old
 			this.doSetActive(null, null);
 
-			// Find new active position by taking the next one close to the closed one to the left
+			// Find new active position by taking the next one close to the closed one to the left/top
 			if (layoutAndRochade) {
 				let newActivePosition: Position;
 				switch (position) {
 					case Position.ONE:
-						newActivePosition = hasCenter ? Position.ONE : null;
+						newActivePosition = hasEditorInPositionTwo ? Position.ONE : null;
 						break;
 					case Position.TWO:
 						newActivePosition = Position.ONE;
@@ -674,42 +674,42 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		else {
 
 			// Find new positions
-			let newLeftPosition: Position;
-			let newCenterPosition: Position;
-			let newRightPosition: Position;
+			let newPositionOne: Position;
+			let newPositionTwo: Position;
+			let newPositionThree: Position;
 
 			if (from === Position.ONE) {
-				newLeftPosition = Position.THREE;
-				newCenterPosition = Position.ONE;
-				newRightPosition = Position.TWO;
+				newPositionOne = Position.THREE;
+				newPositionTwo = Position.ONE;
+				newPositionThree = Position.TWO;
 			} else {
-				newLeftPosition = Position.TWO;
-				newCenterPosition = Position.THREE;
-				newRightPosition = Position.ONE;
+				newPositionOne = Position.TWO;
+				newPositionTwo = Position.THREE;
+				newPositionThree = Position.ONE;
 			}
 
 			// Move containers to new position
 			const containerPos1 = this.silos[Position.ONE].child();
-			containerPos1.appendTo(this.silos[newLeftPosition]);
+			containerPos1.appendTo(this.silos[newPositionOne]);
 
 			const containerPos2 = this.silos[Position.TWO].child();
-			containerPos2.appendTo(this.silos[newCenterPosition]);
+			containerPos2.appendTo(this.silos[newPositionTwo]);
 
 			const containerPos3 = this.silos[Position.THREE].child();
-			containerPos3.appendTo(this.silos[newRightPosition]);
+			containerPos3.appendTo(this.silos[newPositionThree]);
 
 			// Inform Editors
-			this.visibleEditors[Position.ONE].changePosition(newLeftPosition);
-			this.visibleEditors[Position.TWO].changePosition(newCenterPosition);
-			this.visibleEditors[Position.THREE].changePosition(newRightPosition);
+			this.visibleEditors[Position.ONE].changePosition(newPositionOne);
+			this.visibleEditors[Position.TWO].changePosition(newPositionTwo);
+			this.visibleEditors[Position.THREE].changePosition(newPositionThree);
 
 			// Update last active position accordingly
 			if (this.lastActivePosition === Position.ONE) {
-				this.doSetActive(this.lastActiveEditor, newLeftPosition);
+				this.doSetActive(this.lastActiveEditor, newPositionOne);
 			} else if (this.lastActivePosition === Position.TWO) {
-				this.doSetActive(this.lastActiveEditor, newCenterPosition);
+				this.doSetActive(this.lastActiveEditor, newPositionTwo);
 			} else if (this.lastActivePosition === Position.THREE) {
-				this.doSetActive(this.lastActiveEditor, newRightPosition);
+				this.doSetActive(this.lastActiveEditor, newPositionThree);
 			}
 		}
 
@@ -987,12 +987,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				switch (positionOfDraggedEditor) {
 					case Position.ONE:
 						if (position === Position.TWO && isOverSplitRightOrBottom) {
-							splitTarget = Position.TWO; // allow to move single editor from LEFT to CENTER
+							splitTarget = Position.TWO; // allow to move single editor from ONE to TWO
 						}
 						break;
 					case Position.TWO:
 						if (position === Position.ONE && isOverSplitLeftOrUp) {
-							splitTarget = Position.ONE; // allow to move single editor from CENTER to LEFT
+							splitTarget = Position.ONE; // allow to move single editor from TWO to ONE
 						}
 						break;
 					default:
@@ -1383,7 +1383,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			case Position.TWO: {
 				if (visibleEditorCount === 2 && diffPos > 0) {
-					return null; // Return early since CENTER cannot be moved to the RIGHT unless there is a RIGHT position
+					return null; // Return early since TWO cannot be moved to the THREE unless there is a THREE position
 				}
 
 				// []|[ ! ] -> [ ! ]|[]
@@ -1405,7 +1405,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			case Position.THREE: {
 				if (diffPos > 0) {
-					return null; // Return early since RIGHT cannot be moved more to the RIGHT
+					return null; // Return early since THREE cannot be moved more to the THREE
 				}
 
 				// []|[]|[ ! ] -> [ ! ]|[]|[]
@@ -1675,7 +1675,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			// We have size to give
 			if (overflow < 0) {
 
-				// Find the first position from left to right that is not minimized
+				// Find the first position from left/top to right/bottom that is not minimized
 				// to give size. This ensures that minimized editors are left like
 				// that if the user chose this layout.
 				let positionToGive: Position = null;
@@ -1686,7 +1686,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				});
 
 				if (positionToGive === null) {
-					positionToGive = Position.ONE; // maybe all are minimized, so give LEFT the extra size
+					positionToGive = Position.ONE; // maybe all are minimized, so give ONE the extra size
 				}
 
 				this.silosSize[positionToGive] -= overflow;
