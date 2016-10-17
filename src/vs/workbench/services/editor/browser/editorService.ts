@@ -10,7 +10,6 @@ import network = require('vs/base/common/network');
 import { Registry } from 'vs/platform/platform';
 import { basename, dirname } from 'vs/base/common/paths';
 import types = require('vs/base/common/types');
-import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor } from 'vs/editor/common/editorCommon';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -47,7 +46,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	constructor(
 		editorPart: IEditorPart | IWorkbenchEditorService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IBackupService private backupService: IBackupService,
 		@IInstantiationService private instantiationService?: IInstantiationService
 	) {
 		this.editorPart = editorPart;
@@ -283,10 +281,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.instantiationService.createInstance(this.fileInputDescriptor).then((typedFileInput) => {
 			typedFileInput.setResource(resource);
 			typedFileInput.setPreferredEncoding(encoding);
-
-			if (restoreFromBackup) {
-				typedFileInput.setRestoreResource(this.backupService.getBackupResource(resource));
-			}
+			typedFileInput.setRestoreFromBackup(restoreFromBackup);
 
 			return typedFileInput;
 		});
@@ -321,13 +316,11 @@ export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
 		handler: IDelegatingWorkbenchEditorServiceHandler,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IBackupService backupService: IBackupService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
 		super(
 			editorService,
 			untitledEditorService,
-			backupService,
 			instantiationService
 		);
 

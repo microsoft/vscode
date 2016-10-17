@@ -6,7 +6,6 @@
 
 import URI from 'vs/base/common/uri';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupService } from 'vs/platform/backup/common/backup';
 import arrays = require('vs/base/common/arrays');
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import Event, { Emitter, once } from 'vs/base/common/event';
@@ -78,7 +77,6 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private _onDidChangeEncoding: Emitter<URI>;
 
 	constructor(
-		@IBackupService private backupService: IBackupService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this._onDidChangeDirty = new Emitter<URI>();
