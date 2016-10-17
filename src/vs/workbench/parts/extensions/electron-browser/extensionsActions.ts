@@ -94,8 +94,13 @@ export class UninstallAction extends Action {
 	) {
 		super('extensions.uninstall', localize('uninstall', "Uninstall"), 'extension-action uninstall', false);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.onChange()));
 		this.update();
+	}
+
+	private onChange() {
+		const local = this.extensionsWorkbenchService.local.filter(e => e.identifier === this.extension.identifier);
+		this.extension = local.length ? local[0] : this.extension;
 	}
 
 	private update(): void {
