@@ -12,6 +12,7 @@ export class ViewModel implements debug.IViewModel {
 	private focusedThread: debug.IThread;
 	private selectedExpression: debug.IExpression;
 	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
+	private _activeSession: debug.IRawDebugSession;
 	private _onDidFocusStackFrame: Emitter<debug.IStackFrame>;
 	private _onDidSelectExpression: Emitter<debug.IExpression>;
 	private _onDidSelectFunctionBreakpoint: Emitter<debug.IFunctionBreakpoint>;
@@ -28,13 +29,18 @@ export class ViewModel implements debug.IViewModel {
 		return 'root';
 	}
 
+	public get activeSession(): debug.IRawDebugSession {
+		return this._activeSession;
+	}
+
 	public getFocusedStackFrame(): debug.IStackFrame {
 		return this.focusedStackFrame;
 	}
 
-	public setFocusedStackFrame(focusedStackFrame: debug.IStackFrame, focusedThread: debug.IThread): void {
+	public setFocusedStackFrame(focusedStackFrame: debug.IStackFrame, focusedThread: debug.IThread, activeSession: debug.IRawDebugSession): void {
 		this.focusedStackFrame = focusedStackFrame;
 		this.focusedThread = focusedThread;
+		this._activeSession = activeSession;
 		this._onDidFocusStackFrame.fire(focusedStackFrame);
 	}
 
