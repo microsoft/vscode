@@ -15,7 +15,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension } from './extensions';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction } from './extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from './extensionsActions';
 import { Label, RatingsWidget, InstallWidget, StatusWidget } from './extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
 
@@ -77,9 +77,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
 		const enableAction = this.instantiationService.createInstance(EnableAction);
 		const disableAction = this.instantiationService.createInstance(DisableAction);
+		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 
-		actionbar.push([enableAction, updateAction, disableAction, combinedInstallAction, builtinStatusAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, combinedInstallAction, builtinStatusAction, updateAction, enableAction, disableAction, actionbar];
+		actionbar.push([enableAction, updateAction, disableAction, reloadAction, combinedInstallAction, builtinStatusAction], actionOptions);
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, combinedInstallAction, builtinStatusAction, updateAction, enableAction, disableAction, reloadAction, actionbar];
 
 		return {
 			element, icon, name, installCount, ratings, status, author, description, disposables,
@@ -94,6 +95,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				enableAction.extension = extension;
 				disableAction.extension = extension;
 				statusWidget.extension = extension;
+				reloadAction.extension = extension;
 			}
 		};
 	}
