@@ -26,6 +26,7 @@ import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extens
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
+import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 
 const dialog = remote.dialog;
 
@@ -109,7 +110,7 @@ export class UninstallAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.Installed || this.extension.state === ExtensionState.Disabled;
+		this.enabled = this.extension.state === ExtensionState.Installed || this.extension.state === ExtensionState.Disabled || this.extension.state === ExtensionState.NeedsReload;
 	}
 
 	run(): TPromise<any> {
@@ -315,6 +316,61 @@ export class DisableAction extends Action {
 
 	run(): TPromise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extension, false);
+	}
+}
+
+export class ReloadAction extends Action {
+
+	private static EnabledClass = 'extension-action reload';
+	private static DisabledClass = `${ReloadAction.EnabledClass} disabled`;
+
+	private disposables: IDisposable[] = [];
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	constructor(
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IMessageService private messageService: IMessageService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
+	) {
+		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
+
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		if (!this.extension) {
+			this.enabled = false;
+			this.class = ReloadAction.DisabledClass;
+			return;
+		}
+
+		this.enabled = this.extension.state === ExtensionState.NeedsReload;
+		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
+	}
+
+	run(): TPromise<any> {
+		return this.getReloadMessage().then(message => {
+			if (window.confirm(message)) {
+				this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Reload Now")).run();
+			}
+			return null;
+		});
+	}
+
+	private getReloadMessage(): TPromise<string> {
+		return this.extensionsRuntimeService.getExtensions(true).then(extensionDescriptions => {
+			const disabled = this.extensionsRuntimeService.getDisabledExtensions().indexOf(this.extension.identifier) !== -1;
+			const installed = !extensionDescriptions.every(e => e.id !== this.extension.identifier);
+			if (disabled || !installed) {
+				return localize('postEnableMessage', "In order to enable '{0}' extension, this window of VS Code needs to be restarted.", this.extension.displayName);
+
+			}
+			return localize('postDisableMessage', "In order to disable '{0}' extension, this window of VS Code needs to be restarted.", this.extension.displayName);
+		});
 	}
 }
 

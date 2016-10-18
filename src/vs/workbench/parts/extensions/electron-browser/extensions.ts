@@ -20,7 +20,8 @@ export enum ExtensionState {
 	Installing,
 	Installed,
 	Uninstalled,
-	Disabled
+	Disabled,
+	NeedsReload
 }
 
 export interface IExtension {

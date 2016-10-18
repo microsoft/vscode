@@ -25,7 +25,7 @@ import {
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import * as semver from 'semver';
 import * as path from 'path';
@@ -166,6 +166,10 @@ class Extension implements IExtension {
 
 	get outdated(): boolean {
 		return this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
+	}
+
+	get reload(): boolean {
+		return this.needsRestart;
 	}
 
 	get telemetryData(): any {
@@ -471,27 +475,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrapError<void>(new Error('Missing gallery'));
 		}
 
-		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies)
-			.then(() => {
-				this.promptToRestart(ext, true);
-			});
+		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies);
 	}
 
 	setEnablement(extension: IExtension, enable: boolean): TPromise<any> {
 		return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, extension.displayName).then(restart => {
-			if (restart) {
-				this.promptToRestart(extension, enable);
-				this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
-			}
-		});
-	}
-
-	private promptToRestart(extension: IExtension, enable: boolean): void {
-		const message = enable ? localize('postEnableMessage', "In order to enable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName)
-			: localize('postDisableMessage', "In order to disable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName);
-		this.messageService.show(Severity.Info, {
-			message,
-			actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now")), LaterAction]
+			// this.promptToRestart(extension, enable);
+			(<Extension>extension).needsRestart = restart;
+			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
+			this._onChange.fire();
 		});
 	}
 
@@ -597,7 +589,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		if (!uninstalling) {
 			return;
 		}
-
+		uninstalling.extension.needsRestart = true;
 		this.reportTelemetry(uninstalling, true);
 	}
 
@@ -611,10 +603,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		if (local) {
 			if (local.needsRestart) {
-				return ExtensionState.Disabled;
-			} else {
-				return disabledExtensions.indexOf(`${local.publisher}.${local.name}`) === -1 ? ExtensionState.Installed : ExtensionState.Disabled;
+				return ExtensionState.NeedsReload;
 			}
+			return disabledExtensions.indexOf(`${local.publisher}.${local.name}`) === -1 ? ExtensionState.Installed : ExtensionState.Disabled;
 		}
 
 		return ExtensionState.Uninstalled;

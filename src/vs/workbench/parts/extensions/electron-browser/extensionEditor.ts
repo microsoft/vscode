@@ -36,7 +36,7 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { shell } from 'electron';
 import product from 'vs/platform/product';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction } from './extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, BuiltinStatusLabelAction } from './extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -256,16 +256,18 @@ export class ExtensionEditor extends BaseEditor {
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
 		const enableAction = this.instantiationService.createInstance(EnableAction);
 		const disableAction = this.instantiationService.createInstance(DisableAction);
+		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 
 		installAction.extension = extension;
 		builtinStatusAction.extension = extension;
 		updateAction.extension = extension;
 		enableAction.extension = extension;
 		disableAction.extension = extension;
+		reloadAction.extension = extension;
 
 		this.extensionActionBar.clear();
-		this.extensionActionBar.push([enableAction, updateAction, disableAction, installAction, builtinStatusAction], { icon: true, label: true });
-		this.transientDisposables.push(enableAction, updateAction, disableAction, installAction, builtinStatusAction);
+		this.extensionActionBar.push([enableAction, updateAction, reloadAction, disableAction, installAction, builtinStatusAction], { icon: true, label: true });
+		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, builtinStatusAction);
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
