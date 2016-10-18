@@ -154,7 +154,7 @@ export abstract class ViewerViewlet extends Viewlet {
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number) {
+	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number, public isExternal: boolean = false) {
 		super(moduleId, ctorName, id, name, cssClass, order);
 	}
 }

@@ -33,7 +33,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private viewletsToggleStatus: { [viewletId: string]: boolean; };
 	private registeredViewlets: string[];
 
-	private VIEWLETS_TOGGLE_STATUS = "workbench.activityBar.enabledExternalViewlets";
+	private VIEWLETS_TOGGLE_STATUS = "workbench.activityBar.viewletsToggleStatus";
 
 	constructor(
 		id: string,
@@ -103,6 +103,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	public toggleViewlet(viewletId: string): void {
 		this.viewletsToggleStatus[viewletId] = !this.viewletsToggleStatus[viewletId];
 		this.setViewletsToggleStatus();
+		this.refreshViewletSwitcher();
 	}
 
 	private setViewletsToggleStatus(): void {
@@ -128,25 +129,40 @@ export class ActivitybarPart extends Part implements IActivityService {
 		const $result = $('.content').appendTo($el);
 
 		// Top Actionbar with action items for each viewlet action
-		this.createViewletSwitcher($result.clone());
+		this.createViewletSwitcher($result.clone().addClass('position-top'));
 
 		return $result;
 	}
 
 	private createViewletSwitcher(div: Builder): void {
-
-		// Composite switcher is on top
 		this.viewletSwitcherBar = new ActionBar(div, {
 			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
 		});
-		this.viewletSwitcherBar.getContainer().addClass('position-top');
 
+		// Load stock viewlets
+		const allViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().filter(v => !v.isExternal);
+		this.fillViewletSwitcher(allViewlets);
+	}
+
+	private refreshViewletSwitcher(): void {
+		this.viewletSwitcherBar.clear();
+
+		// Load stock viewlets + enabled external viewlets
+		const allEnabledViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().filter(descriptor => {
+			if (!descriptor.isExternal) {
+				return true;
+			} else {
+				return this.viewletsToggleStatus[descriptor.id];
+			}
+		});
+		this.fillViewletSwitcher(allEnabledViewlets);
+	}
+
+	private fillViewletSwitcher(viewlets: ViewletDescriptor[]) {
 		// Build Viewlet Actions in correct order
-		const allViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
-		const viewletActions = allViewlets.sort((v1, v2) => v1.order - v2.order).map(viewlet => this.toAction(viewlet));
-
+		const viewletActions = viewlets.sort((v1, v2) => v1.order - v2.order).map(v => this.toAction(v));
 		this.viewletSwitcherBar.push(viewletActions, { label: true, icon: true });
 	}
 
@@ -156,11 +172,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		this.activityActionItems[action.id] = new ActivityActionItem(action, composite.name, this.getKeybindingLabel(composite.id));
 		this.compositeIdToActions[composite.id] = action;
-
-		// Mark active viewlet as active
-		if (activeViewlet && activeViewlet.getId() === composite.id) {
-			action.activate();
-		}
 
 		return action;
 	};
