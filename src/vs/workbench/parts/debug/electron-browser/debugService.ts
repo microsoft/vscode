@@ -154,7 +154,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
-			this.onSessionEnd();
+			this.onSessionEnd(this.session);
 			return;
 		}
 
@@ -259,8 +259,9 @@ export class DebugService implements debug.IDebugService {
 			this.setStateAndEmit(debug.State.Stopped);
 			const threadId = event.body.threadId;
 
-			this.getThreadData().done(() => {
+			this.getThreadData(session).done(() => {
 				this.model.rawUpdate({
+					sessionId: session.getId(),
 					threadId,
 					stoppedDetails: event.body,
 					allThreadsStopped: event.body.allThreadsStopped
@@ -285,7 +286,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.push(session.onDidThread(event => {
 			if (event.body.reason === 'started') {
-				this.getThreadData().done(null, errors.onUnexpectedError);
+				this.getThreadData(session).done(null, errors.onUnexpectedError);
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(true, event.body.threadId);
 			}
@@ -337,7 +338,7 @@ export class DebugService implements debug.IDebugService {
 				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (session && session.getId() === event.body.sessionId) {
-				this.onSessionEnd();
+				this.onSessionEnd(session);
 			}
 		}));
 	}
@@ -347,10 +348,10 @@ export class DebugService implements debug.IDebugService {
 		this.appendReplOutput(event.body.output, outputSeverity);
 	}
 
-	private getThreadData(): TPromise<void> {
-		return this.session.threads().then(response => {
+	private getThreadData(session: RawDebugSession): TPromise<void> {
+		return session.threads().then(response => {
 			if (response && response.body && response.body.threads) {
-				response.body.threads.forEach(thread => this.model.rawUpdate({ threadId: thread.id, thread }));
+				response.body.threads.forEach(thread => this.model.rawUpdate({ sessionId: session.getId(), threadId: thread.id, thread }));
 			}
 		});
 	}
@@ -421,8 +422,9 @@ export class DebugService implements debug.IDebugService {
 		if (!thread && focusedStackFrame) {
 			thread = this.model.getThreads()[focusedStackFrame.threadId];
 		}
+		const session = this.model.getSession(thread.sessionId);
 
-		this.viewModel.setFocusedStackFrame(focusedStackFrame, thread);
+		this.viewModel.setFocusedStackFrame(focusedStackFrame, thread, session);
 		if (focusedStackFrame) {
 			return this.model.evaluateWatchExpressions(this.session, focusedStackFrame);
 		} else {
@@ -628,10 +630,11 @@ export class DebugService implements debug.IDebugService {
 				this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			this.session = this.instantiationService.createInstance(RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
-			this.registerSessionListeners(this.session);
+			const session = this.instantiationService.createInstance(RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
+			this.session = session;
+			this.registerSessionListeners(session);
 
-			return this.session.initialize({
+			return session.initialize({
 				adapterID: configuration.type,
 				pathFormat: 'path',
 				linesStartAt1: true,
@@ -644,8 +647,8 @@ export class DebugService implements debug.IDebugService {
 					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
 				}
 
-				this.model.setExceptionBreakpoints(this.session.configuration.capabilities.exceptionBreakpointFilters);
-				return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
+				this.model.setExceptionBreakpoints(session.configuration.capabilities.exceptionBreakpointFilters);
+				return configuration.request === 'attach' ? session.attach(configuration) : session.launch(configuration);
 			}).then((result: DebugProtocol.Response) => {
 				if (!this.session) {
 					return TPromise.as(null);
@@ -775,13 +778,13 @@ export class DebugService implements debug.IDebugService {
 		return this.session;
 	}
 
-	private onSessionEnd(): void {
-		if (this.session) {
+	private onSessionEnd(session: RawDebugSession): void {
+		if (session) {
 			const bpsExist = this.model.getBreakpoints().length > 0;
 			this.telemetryService.publicLog('debugSessionStop', {
-				type: this.session.configuration.type,
-				success: this.session.emittedStopped || !bpsExist,
-				sessionLengthInSeconds: this.session.getLengthInSeconds(),
+				type: session.configuration.type,
+				success: session.emittedStopped || !bpsExist,
+				sessionLengthInSeconds: session.getLengthInSeconds(),
 				breakpointCount: this.model.getBreakpoints().length,
 				watchExpressionsCount: this.model.getWatchExpressions().length
 			});

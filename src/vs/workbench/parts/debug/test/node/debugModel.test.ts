@@ -79,6 +79,7 @@ suite('Debug - Model', () => {
 		var threadId = 1;
 		var threadName = 'firstThread';
 		model.rawUpdate({
+			sessionId: 'sessionid',
 			threadId: threadId,
 			thread: {
 				id: threadId,
@@ -105,6 +106,7 @@ suite('Debug - Model', () => {
 
 		// Add the threads
 		model.rawUpdate({
+			sessionId: 'sessionid',
 			threadId: threadId1,
 			thread: {
 				id: threadId1,
@@ -113,6 +115,7 @@ suite('Debug - Model', () => {
 		});
 
 		model.rawUpdate({
+			sessionId: 'sessionid',
 			threadId: threadId2,
 			thread: {
 				id: threadId2,
@@ -122,6 +125,7 @@ suite('Debug - Model', () => {
 
 		// Stopped event with all threads stopped
 		model.rawUpdate({
+			sessionId: 'sessionid',
 			threadId: threadId1,
 			stoppedDetails: {
 				reason: stoppedReason,
@@ -191,6 +195,7 @@ suite('Debug - Model', () => {
 
 		// Add the threads
 		model.rawUpdate({
+			sessionId: 'sessionid',
 			threadId: stoppedThreadId,
 			thread: {
 				id: stoppedThreadId,
@@ -199,6 +204,7 @@ suite('Debug - Model', () => {
 		});
 
 		model.rawUpdate({
+			sessionId: 'sessionid',
 			threadId: runningThreadId,
 			thread: {
 				id: runningThreadId,
@@ -208,6 +214,7 @@ suite('Debug - Model', () => {
 
 		// Stopped event with only one thread stopped
 		model.rawUpdate({
+			sessionId: 'sessionid',
 			threadId: stoppedThreadId,
 			stoppedDetails: {
 				reason: stoppedReason,

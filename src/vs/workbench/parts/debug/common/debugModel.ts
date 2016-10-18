@@ -89,7 +89,7 @@ export class Thread implements debug.IThread {
 	public stoppedDetails: debug.IRawStoppedDetails;
 	public stopped: boolean;
 
-	constructor(public name: string, public threadId: number) {
+	constructor(public sessionId: string, public name: string, public threadId: number) {
 		this.promisedCallStack = undefined;
 		this.stoppedDetails = undefined;
 		this.cachedCallStack = undefined;
@@ -97,7 +97,7 @@ export class Thread implements debug.IThread {
 	}
 
 	public getId(): string {
-		return `thread:${this.name}:${this.threadId}`;
+		return `thread:${this.sessionId}:${this.name}:${this.threadId}`;
 	}
 
 	public clearCallStack(): void {
@@ -255,30 +255,31 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 			} else {
 
 				// Check if object has named variables, fetch them independent from indexed variables #9670
-				this.children = (!!this.namedVariables ? this.fetchVariables(session, undefined, undefined, 'named') : TPromise.as([])).then(childrenArray => {
-					// Use a dynamic chunk size based on the number of elements #9774
-					let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
-					while (this.indexedVariables > chunkSize * ExpressionContainer.BASE_CHUNK_SIZE) {
-						chunkSize *= ExpressionContainer.BASE_CHUNK_SIZE;
-					}
-
-					if (this.indexedVariables > chunkSize) {
-						// There are a lot of children, create fake intermediate values that represent chunks #9537
-						const numberOfChunks = Math.ceil(this.indexedVariables / chunkSize);
-						for (let i = 0; i < numberOfChunks; i++) {
-							const start = this.startOfVariables + i * chunkSize;
-							const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
-							childrenArray.push(new Variable(this, this.reference, `[${start}..${start + count - 1}]`, '', null, count, null, true, start));
+				this.children = (!!this.namedVariables ? this.fetchVariables(session, undefined, undefined, 'named')
+					: TPromise.as([])).then(childrenArray => {
+						// Use a dynamic chunk size based on the number of elements #9774
+						let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
+						while (this.indexedVariables > chunkSize * ExpressionContainer.BASE_CHUNK_SIZE) {
+							chunkSize *= ExpressionContainer.BASE_CHUNK_SIZE;
 						}
 
-						return childrenArray;
-					}
+						if (this.indexedVariables > chunkSize) {
+							// There are a lot of children, create fake intermediate values that represent chunks #9537
+							const numberOfChunks = Math.ceil(this.indexedVariables / chunkSize);
+							for (let i = 0; i < numberOfChunks; i++) {
+								const start = this.startOfVariables + i * chunkSize;
+								const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
+								childrenArray.push(new Variable(this, this.reference, `[${start}..${start + count - 1}]`, '', null, count, null, true, start));
+							}
 
-					const start = this.getChildrenInChunks ? this.startOfVariables : undefined;
-					const count = this.getChildrenInChunks ? this.indexedVariables : undefined;
-					return this.fetchVariables(session, start, count, 'indexed')
-						.then(variables => arrays.distinct(childrenArray.concat(variables), child => child.name));
-				});
+							return childrenArray;
+						}
+
+						const start = this.getChildrenInChunks ? this.startOfVariables : undefined;
+						const count = this.getChildrenInChunks ? this.indexedVariables : undefined;
+						return this.fetchVariables(session, start, count, 'indexed')
+							.then(variables => arrays.distinct(childrenArray.concat(variables), child => child.name));
+					});
 			}
 		}
 
@@ -455,8 +456,13 @@ export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
 	}
 }
 
+class DebugSession {
+	constructor(public id: string, public raw: debug.IRawDebugSession, public threads: { [reference: number]: debug.IThread; }) { }
+}
+
 export class Model implements debug.IModel {
 
+	private sessions: DebugSession[];
 	private threads: { [reference: number]: debug.IThread; };
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: debug.ITreeElement[];
@@ -472,9 +478,10 @@ export class Model implements debug.IModel {
 		private exceptionBreakpoints: debug.IExceptionBreakpoint[],
 		private watchExpressions: Expression[]
 	) {
-		this.threads = {};
+		this.sessions = [];
 		this.replElements = [];
 		this.toDispose = [];
+		this.threads = {};
 		this._onDidChangeBreakpoints = new Emitter<void>();
 		this._onDidChangeCallStack = new Emitter<void>();
 		this._onDidChangeWatchExpressions = new Emitter<debug.IExpression>();
@@ -483,6 +490,15 @@ export class Model implements debug.IModel {
 
 	public getId(): string {
 		return 'root';
+	}
+
+	public getSession(id: string): debug.IRawDebugSession {
+		return this.sessions.filter(s => s.id === id).map(s => s.raw).pop();
+	}
+
+	public removeSession(id: string): void {
+		this.sessions = this.sessions.filter(s => s.id !== id);
+		this._onDidChangeCallStack.fire();
 	}
 
 	public get onDidChangeBreakpoints(): Event<void> {
@@ -787,7 +803,7 @@ export class Model implements debug.IModel {
 	public rawUpdate(data: debug.IRawModelUpdate): void {
 		if (data.thread && !this.threads[data.threadId]) {
 			// A new thread came in, initialize it.
-			this.threads[data.threadId] = new Thread(data.thread.name, data.thread.id);
+			this.threads[data.threadId] = new Thread(data.sessionId, data.thread.name, data.thread.id);
 		}
 
 		if (data.stoppedDetails) {

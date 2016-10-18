@@ -22,7 +22,7 @@ suite('Debug - View Model', () => {
 		assert.equal(model.getFocusedStackFrame(), null);
 		assert.equal(model.getFocusedThreadId(), 0);
 		const frame = new StackFrame(1, 1, null, 'app.js', 1, 1);
-		model.setFocusedStackFrame(frame, new Thread('myThread', 1));
+		model.setFocusedStackFrame(frame, new Thread('sessionid', 'myThread', 1), null);
 
 		assert.equal(model.getFocusedStackFrame(), frame);
 		assert.equal(model.getFocusedThreadId(), 1);
