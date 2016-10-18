@@ -1252,10 +1252,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				switch (position) {
 					case Position.ONE: {
 						if (moveTo === Position.ONE || moveTo === null) {
-							this.posSilo(Position.TWO, `${this.silosSize[Position.ONE]}px`, 'auto');
+							this.posSilo(Position.TWO, `${this.silosSize[Position.ONE]}px`, 'auto', '1px');
 							this.posSilo(Position.THREE, 'auto', 0);
 						} else if (moveTo === Position.TWO) {
-							this.posSilo(Position.TWO, 0, 'auto');
+							this.posSilo(Position.TWO, 0, 'auto', 0);
 							this.silos[Position.TWO].addClass('draggedunder');
 							this.posSilo(Position.THREE, 'auto', 0);
 						} else if (moveTo === Position.THREE) {
@@ -1323,7 +1323,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				POSITIONS.forEach(p => this.silos[p].removeClass('draggedunder'));
 
 				this.posSilo(Position.ONE, 0, 'auto');
-				this.posSilo(Position.TWO, 'auto', 'auto');
+				this.posSilo(Position.TWO, 'auto', 'auto', '1px');
 				this.posSilo(Position.THREE, 'auto', 0);
 
 				// Find move target
@@ -1351,12 +1351,21 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		});
 	}
 
-	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number): void {
+	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number, borderLeftTopWidth?: string | number): void {
+		let style: any;
 		if (this.layoutVertically) {
-			this.silos[pos].style({ left: leftTop, right: rightBottom });
+			style = { left: leftTop, right: rightBottom };
+			if (typeof borderLeftTopWidth === 'number' || typeof borderLeftTopWidth === 'string') {
+				style['borderLeftWidth'] = borderLeftTopWidth;
+			}
 		} else {
-			this.silos[pos].style({ top: leftTop, bottom: rightBottom });
+			style = { top: leftTop, bottom: rightBottom };
+			if (typeof borderLeftTopWidth === 'number' || typeof borderLeftTopWidth === 'string') {
+				style['borderTopWidth'] = borderLeftTopWidth;
+			}
 		}
+
+		this.silos[pos].style(style);
 	}
 
 	private findMoveTarget(position: Position, diffPos: number): Position {
