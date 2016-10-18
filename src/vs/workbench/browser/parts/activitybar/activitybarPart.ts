@@ -30,6 +30,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
 
+	private ENABLED_VIEWLETS_KEY = "workbench.activityBar.enabledExternalViewlets";
+
 	constructor(
 		id: string,
 		@IViewletService private viewletService: IViewletService,
@@ -62,9 +64,12 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private onDidRegisterExternalViewlets(descriptors: ViewletDescriptor[]) {
-		const enabledViewlets = JSON.parse(this.storageService.get("enabledExternalViewlets"));
+		const enabledViewletsJson = this.storageService.get(this.ENABLED_VIEWLETS_KEY);
+		const enabledViewlets: string[] = enabledViewletsJson ? JSON.parse(enabledViewletsJson) : [];
 		descriptors.forEach(descriptor => {
-			this.viewletSwitcherBar.push(this.toAction(descriptor), { label: true, icon: true });
+			if (enabledViewlets.indexOf(descriptor.id) !== -1) {
+				this.viewletSwitcherBar.push(this.toAction(descriptor), { label: true, icon: true });
+			}
 		});
 	}
 
