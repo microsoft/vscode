@@ -102,13 +102,13 @@ export function toDiagnosticSeverty(value: Severity): types.DiagnosticSeverity {
 }
 
 export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
-	let editorColumn = EditorPosition.LEFT;
+	let editorColumn = EditorPosition.ONE;
 	if (typeof column !== 'number') {
-		// stick with LEFT
+		// stick with ONE
 	} else if (column === <number>types.ViewColumn.Two) {
-		editorColumn = EditorPosition.CENTER;
+		editorColumn = EditorPosition.TWO;
 	} else if (column === <number>types.ViewColumn.Three) {
-		editorColumn = EditorPosition.RIGHT;
+		editorColumn = EditorPosition.THREE;
 	}
 	return editorColumn;
 }
@@ -117,11 +117,11 @@ export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
 	if (typeof position !== 'number') {
 		return;
 	}
-	if (position === EditorPosition.LEFT) {
+	if (position === EditorPosition.ONE) {
 		return <number>types.ViewColumn.One;
-	} else if (position === EditorPosition.CENTER) {
+	} else if (position === EditorPosition.TWO) {
 		return <number>types.ViewColumn.Two;
-	} else if (position === EditorPosition.RIGHT) {
+	} else if (position === EditorPosition.THREE) {
 		return <number>types.ViewColumn.Three;
 	}
 }
