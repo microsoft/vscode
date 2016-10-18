@@ -48,8 +48,8 @@ export class ViewModel implements debug.IViewModel {
 		return this._onDidFocusStackFrame.event;
 	}
 
-	public getFocusedThreadId(): number {
-		return this.focusedThread ? this.focusedThread.threadId : 0;
+	public getFocusedThread(): debug.IThread {
+		return this.focusedThread;
 	}
 
 	public getSelectedExpression(): debug.IExpression {

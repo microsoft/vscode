@@ -143,13 +143,17 @@ export class MockDebugService implements debug.IDebugService {
 }
 
 
-class MockRawSession implements debug.IRawDebugSession {
+export class MockRawSession implements debug.IRawDebugSession {
 
 	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
 		return {
 			type: 'mock',
 			capabilities: {}
 		};
+	}
+
+	public getId() {
+		return 'mockrawsession';
 	}
 
 	public get onDidEvent(): Event<DebugProtocol.Event> {

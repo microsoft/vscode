@@ -68,7 +68,6 @@ export class DebugService implements debug.IDebugService {
 
 	private _state: debug.State;
 	private _onDidChangeState: Emitter<debug.State>;
-	private session: RawDebugSession;
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
@@ -103,7 +102,6 @@ export class DebugService implements debug.IDebugService {
 	) {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = [];
-		this.session = null;
 		this.breakpointsToSendOnResourceSaved = {};
 		this._state = debug.State.Inactive;
 		this._onDidChangeState = new Emitter<debug.State>();
@@ -143,6 +141,10 @@ export class DebugService implements debug.IDebugService {
 		lifecycleService.onShutdown(this.dispose, this);
 
 		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
+	}
+
+	private get session(): RawDebugSession {
+		return <RawDebugSession>this.viewModel.activeSession;
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
@@ -261,24 +263,24 @@ export class DebugService implements debug.IDebugService {
 
 			this.getThreadData(session).done(() => {
 				this.model.rawUpdate({
-					sessionId: session.getId(),
+					rawSession: session,
 					threadId,
 					stoppedDetails: event.body,
 					allThreadsStopped: event.body.allThreadsStopped
 				});
 
-				const thread = this.model.getThreads()[threadId];
-				thread.getCallStack(this).then(callStack => {
+				const thread = this.model.getThreads(session.getId())[threadId];
+				thread.getCallStack().then(callStack => {
 					if (callStack.length > 0) {
 						// focus first stack frame from top that has source location
 						const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
-						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus, thread).done(null, errors.onUnexpectedError);
+						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 						this.windowService.getWindow().focus();
 						aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
 						return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
 					} else {
-						this.setFocusedStackFrameAndEvaluate(null, thread).done(null, errors.onUnexpectedError);
+						this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 					}
 				});
 			}, errors.onUnexpectedError);
@@ -288,7 +290,7 @@ export class DebugService implements debug.IDebugService {
 			if (event.body.reason === 'started') {
 				this.getThreadData(session).done(null, errors.onUnexpectedError);
 			} else if (event.body.reason === 'exited') {
-				this.model.clearThreads(true, event.body.threadId);
+				this.model.clearThreads(session.getId(), true, event.body.threadId);
 			}
 		}));
 
@@ -304,7 +306,7 @@ export class DebugService implements debug.IDebugService {
 		}));
 
 		this.toDisposeOnSessionEnd.push(session.onDidContinued(event => {
-			this.lazyTransitionToRunningState(event.body.allThreadsContinued ? undefined : event.body.threadId);
+			this.lazyTransitionToRunningState(session, event.body.allThreadsContinued ? undefined : event.body.threadId);
 		}));
 
 		this.toDisposeOnSessionEnd.push(session.onDidOutput(event => {
@@ -351,7 +353,7 @@ export class DebugService implements debug.IDebugService {
 	private getThreadData(session: RawDebugSession): TPromise<void> {
 		return session.threads().then(response => {
 			if (response && response.body && response.body.threads) {
-				response.body.threads.forEach(thread => this.model.rawUpdate({ sessionId: session.getId(), threadId: thread.id, thread }));
+				response.body.threads.forEach(thread => this.model.rawUpdate({ rawSession: session, threadId: thread.id, thread }));
 			}
 		});
 	}
@@ -418,11 +420,13 @@ export class DebugService implements debug.IDebugService {
 		return !!this.contextService.getWorkspace();
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, thread?: debug.IThread): TPromise<void> {
-		if (!thread && focusedStackFrame) {
-			thread = this.model.getThreads()[focusedStackFrame.threadId];
+	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
+		let thread: debug.IThread = null;
+		let session: debug.IRawDebugSession = null;
+		if (focusedStackFrame) {
+			session = this.model.getSessions().filter(s => s.getId() === focusedStackFrame.sessionId).pop();
+			thread = this.model.getThreads(focusedStackFrame.sessionId)[focusedStackFrame.threadId];
 		}
-		const session = this.model.getSession(thread.sessionId);
 
 		this.viewModel.setFocusedStackFrame(focusedStackFrame, thread, session);
 		if (focusedStackFrame) {
@@ -631,7 +635,6 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			const session = this.instantiationService.createInstance(RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
-			this.session = session;
 			this.registerSessionListeners(session);
 
 			return session.initialize({
@@ -643,14 +646,14 @@ export class DebugService implements debug.IDebugService {
 				supportsVariablePaging: true, // #9537
 				supportsRunInTerminalRequest: true // #10574
 			}).then((result: DebugProtocol.InitializeResponse) => {
-				if (!this.session) {
+				if (session.disconnected) {
 					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
 				}
 
 				this.model.setExceptionBreakpoints(session.configuration.capabilities.exceptionBreakpointFilters);
 				return configuration.request === 'attach' ? session.attach(configuration) : session.launch(configuration);
 			}).then((result: DebugProtocol.Response) => {
-				if (!this.session) {
+				if (session.disconnected) {
 					return TPromise.as(null);
 				}
 
@@ -670,7 +673,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
-				this.lazyTransitionToRunningState();
+				this.lazyTransitionToRunningState(session);
 
 				this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
@@ -688,8 +691,8 @@ export class DebugService implements debug.IDebugService {
 
 				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
 				this.setStateAndEmit(debug.State.Inactive);
-				if (this.session) {
-					this.session.disconnect().done(null, errors.onUnexpectedError);
+				if (!session.disconnected) {
+					session.disconnect().done(null, errors.onUnexpectedError);
 				}
 				// Show the repl if some error got logged there #5870
 				if (this.model.getReplElements().length > 0) {
@@ -790,7 +793,6 @@ export class DebugService implements debug.IDebugService {
 			});
 		}
 
-		this.session = null;
 		try {
 			this.toDisposeOnSessionEnd = lifecycle.dispose(this.toDisposeOnSessionEnd);
 		} catch (e) {
@@ -799,7 +801,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.partService.removeClass('debugging');
 
-		this.model.clearThreads(true);
+		this.model.removeSession(session.getId());
 		this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 		this.setStateAndEmit(debug.State.Inactive);
 
@@ -899,7 +901,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		return this.session.next({ threadId }).then(() => {
-			this.lazyTransitionToRunningState(threadId);
+			this.lazyTransitionToRunningState(this.session, threadId);
 		});
 	}
 
@@ -909,7 +911,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		return this.session.stepIn({ threadId }).then(() => {
-			this.lazyTransitionToRunningState(threadId);
+			this.lazyTransitionToRunningState(this.session, threadId);
 		});
 	}
 
@@ -919,7 +921,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		return this.session.stepOut({ threadId }).then(() => {
-			this.lazyTransitionToRunningState(threadId);
+			this.lazyTransitionToRunningState(this.session, threadId);
 		});
 	}
 
@@ -929,7 +931,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		return this.session.stepBack({ threadId }).then(() => {
-			this.lazyTransitionToRunningState(threadId);
+			this.lazyTransitionToRunningState(this.session, threadId);
 		});
 	}
 
@@ -940,7 +942,7 @@ export class DebugService implements debug.IDebugService {
 
 		return this.session.continue({ threadId }).then(response => {
 			const allThreadsContinued = response && response.body ? response.body.allThreadsContinued !== false : true;
-			this.lazyTransitionToRunningState(allThreadsContinued ? undefined : threadId);
+			this.lazyTransitionToRunningState(this.session, allThreadsContinued ? undefined : threadId);
 		});
 	}
 
@@ -980,19 +982,19 @@ export class DebugService implements debug.IDebugService {
 		}, err => []);
 	}
 
-	private lazyTransitionToRunningState(threadId?: number): void {
+	private lazyTransitionToRunningState(session: RawDebugSession, threadId?: number): void {
 		let setNewFocusedStackFrameScheduler: RunOnceScheduler;
 
-		const toDispose = this.session.onDidStop(e => {
+		const toDispose = session.onDidStop(e => {
 			if (e.body.threadId === threadId || e.body.allThreadsStopped || !threadId) {
 				setNewFocusedStackFrameScheduler.cancel();
 			}
 		});
 
-		this.model.clearThreads(false, threadId);
+		this.model.clearThreads(session.getId(), false, threadId);
 
 		// Get a top stack frame of a stopped thread if there is any.
-		const threads = this.model.getThreads();
+		const threads = this.model.getThreads(session.getId());
 		const stoppedReference = Object.keys(threads).filter(ref => threads[ref].stopped).pop();
 		const stoppedThread = stoppedReference ? threads[parseInt(stoppedReference)] : null;
 		const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;

@@ -212,10 +212,14 @@ export class BaseDebugController extends treedefaults.DefaultController {
 
 // call stack
 
+class ThreadAndSessionId {
+	constructor(public sessionId: string, public threadId: number) { }
+}
+
 export class CallStackController extends BaseDebugController {
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
-		if (typeof element === 'number') {
+		if (element instanceof ThreadAndSessionId) {
 			return this.showMoreStackFrames(tree, element);
 		}
 		if (element instanceof model.StackFrame) {
@@ -227,7 +231,7 @@ export class CallStackController extends BaseDebugController {
 
 	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
-		if (typeof element === 'number') {
+		if (element instanceof ThreadAndSessionId) {
 			return this.showMoreStackFrames(tree, element);
 		}
 		if (element instanceof model.StackFrame) {
@@ -266,10 +270,10 @@ export class CallStackController extends BaseDebugController {
 	}
 
 	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
-	private showMoreStackFrames(tree: tree.ITree, threadId: number): boolean {
-		const thread = this.debugService.getModel().getThreads()[threadId];
+	private showMoreStackFrames(tree: tree.ITree, threadAndSessionId: ThreadAndSessionId): boolean {
+		const thread = this.debugService.getModel().getThreads(threadAndSessionId.sessionId)[threadAndSessionId.threadId];
 		if (thread) {
-			thread.getCallStack(this.debugService, true)
+			thread.getCallStack(true)
 				.done(() => tree.refresh(), errors.onUnexpectedError);
 		}
 
@@ -358,17 +362,23 @@ export class CallStackDataSource implements tree.IDataSource {
 			return this.getThreadChildren(element);
 		}
 
-		const threads = (<model.Model>element).getThreads();
+		// TODO@Isidor FIX THIS
+		const session = this.debugService.getViewModel().activeSession;
+		if (!session) {
+			return TPromise.as([]);
+		}
+
+		const threads = (<model.Model>element).getThreads(session.getId());
 		return TPromise.as(Object.keys(threads).map(ref => threads[ref]));
 	}
 
 	private getThreadChildren(thread: debug.IThread): TPromise<any> {
-		return thread.getCallStack(this.debugService).then((callStack: any[]) => {
+		return thread.getCallStack().then((callStack: any[]) => {
 			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
 				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 			}
 			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
-				return callStack.concat([thread.threadId]);
+				return callStack.concat([new ThreadAndSessionId(thread.sessionId, thread.threadId)]);
 			}
 
 			return callStack;

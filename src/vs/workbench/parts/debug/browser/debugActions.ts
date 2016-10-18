@@ -169,10 +169,11 @@ export class StepOverAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		const threadId = thread && thread instanceof model.Thread ? thread.threadId
-			: this.debugService.getViewModel().getFocusedThreadId();
+		if (!thread) {
+			thread = this.debugService.getViewModel().getFocusedThread();
+		}
 
-		return this.debugService.next(threadId);
+		return this.debugService.next(thread.threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -189,10 +190,11 @@ export class StepIntoAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		const threadId = thread && thread instanceof model.Thread ? thread.threadId
-			: this.debugService.getViewModel().getFocusedThreadId();
+		if (!thread) {
+			thread = this.debugService.getViewModel().getFocusedThread();
+		}
 
-		return this.debugService.stepIn(threadId);
+		return this.debugService.stepIn(thread.threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -209,10 +211,11 @@ export class StepOutAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		const threadId = thread && thread instanceof model.Thread ? thread.threadId
-			: this.debugService.getViewModel().getFocusedThreadId();
+		if (!thread) {
+			thread = this.debugService.getViewModel().getFocusedThread();
+		}
 
-		return this.debugService.stepOut(threadId);
+		return this.debugService.stepOut(thread.threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -229,10 +232,11 @@ export class StepBackAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		const threadId = thread && thread instanceof model.Thread ? thread.threadId
-			: this.debugService.getViewModel().getFocusedThreadId();
+		if (!thread) {
+			thread = this.debugService.getViewModel().getFocusedThread();
+		}
 
-		return this.debugService.stepBack(threadId);
+		return this.debugService.stepBack(thread.threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -287,10 +291,11 @@ export class ContinueAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		const threadId = thread && thread instanceof model.Thread ? thread.threadId
-			: this.debugService.getViewModel().getFocusedThreadId();
+		if (!thread) {
+			thread = this.debugService.getViewModel().getFocusedThread();
+		}
 
-		return this.debugService.continue(threadId);
+		return this.debugService.continue(thread.threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -307,10 +312,11 @@ export class PauseAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		const threadId = thread && thread instanceof model.Thread ? thread.threadId
-			: this.debugService.getViewModel().getFocusedThreadId();
+		if (!thread) {
+			thread = this.debugService.getViewModel().getFocusedThread();
+		}
 
-		return this.debugService.pause(threadId);
+		return this.debugService.pause(thread.threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -645,7 +651,7 @@ class RunToCursorAction extends EditorAction {
 
 		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop());
 		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints([{ uri, lineNumber }])).then(() => {
-			debugService.continue(debugService.getViewModel().getFocusedThreadId());
+			debugService.continue(debugService.getViewModel().getFocusedThread().threadId);
 		});
 	}
 }

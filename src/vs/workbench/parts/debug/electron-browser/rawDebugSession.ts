@@ -54,7 +54,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private socket: net.Socket = null;
 	private cachedInitServer: TPromise<void>;
 	private startTime: number;
-	private stopServerPending: boolean;
+	public disconnected: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
 	private capabilities: DebugProtocol.Capabilities;
 
@@ -284,7 +284,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	public disconnect(restart = false, force = false): TPromise<DebugProtocol.DisconnectResponse> {
-		if (this.stopServerPending && force) {
+		if (this.disconnected && force) {
 			return this.stopServer();
 		}
 
@@ -295,9 +295,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			this.sentPromises = [];
 		}, 1000);
 
-		if ((this.serverProcess || this.socket) && !this.stopServerPending) {
+		if ((this.serverProcess || this.socket) && !this.disconnected) {
 			// point of no return: from now on don't report any errors
-			this.stopServerPending = true;
+			this.disconnected = true;
 			this.restarted = restart;
 			return this.send('disconnect', { restart: restart }, false).then(() => this.stopServer(), () => this.stopServer());
 		}
@@ -436,7 +436,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			return TPromise.as(null);
 		}
 
-		this.stopServerPending = true;
+		this.disconnected = true;
 
 		let ret: TPromise<void>;
 		// when killing a process in windows its child
@@ -492,7 +492,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private onServerExit(): void {
 		this.serverProcess = null;
 		this.cachedInitServer = null;
-		if (!this.stopServerPending) {
+		if (!this.disconnected) {
 			this.messageService.show(severity.Error, nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
 		this.onEvent({ event: 'exit', type: 'event', seq: 0 });

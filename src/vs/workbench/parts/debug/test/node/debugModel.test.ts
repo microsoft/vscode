@@ -8,13 +8,15 @@ import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
 import * as sinon from 'sinon';
-import { MockDebugService } from 'vs/workbench/parts/debug/test/common/mockDebugService';
+import { MockRawSession } from 'vs/workbench/parts/debug/test/common/mockDebugService';
 
 suite('Debug - Model', () => {
-	var model: debugmodel.Model;
+	let model: debugmodel.Model;
+	let rawSession: MockRawSession;
 
 	setup(() => {
 		model = new debugmodel.Model([], true, [], [], []);
+		rawSession = new MockRawSession();
 	});
 
 	teardown(() => {
@@ -78,8 +80,9 @@ suite('Debug - Model', () => {
 	test('threads simple', () => {
 		var threadId = 1;
 		var threadName = 'firstThread';
+
 		model.rawUpdate({
-			sessionId: 'sessionid',
+			rawSession,
 			threadId: threadId,
 			thread: {
 				id: threadId,
@@ -87,16 +90,15 @@ suite('Debug - Model', () => {
 			}
 		});
 
-		var threads = model.getThreads();
+		var threads = model.getThreads(rawSession.getId());
 		assert.equal(threads[threadId].name, threadName);
 
-		model.clearThreads(true);
+		model.clearThreads(rawSession.getId(),true);
 		assert.equal(model.getThreads[threadId], null);
 	});
 
 	test('threads multiple wtih allThreadsStopped', () => {
-		const mockDebugService = new MockDebugService();
-		const sessionStub = sinon.spy(mockDebugService.activeSession, 'stackTrace');
+		const sessionStub = sinon.spy(rawSession, 'stackTrace');
 
 		const threadId1 = 1;
 		const threadName1 = 'firstThread';
@@ -106,7 +108,7 @@ suite('Debug - Model', () => {
 
 		// Add the threads
 		model.rawUpdate({
-			sessionId: 'sessionid',
+			rawSession,
 			threadId: threadId1,
 			thread: {
 				id: threadId1,
@@ -115,7 +117,7 @@ suite('Debug - Model', () => {
 		});
 
 		model.rawUpdate({
-			sessionId: 'sessionid',
+			rawSession,
 			threadId: threadId2,
 			thread: {
 				id: threadId2,
@@ -125,7 +127,7 @@ suite('Debug - Model', () => {
 
 		// Stopped event with all threads stopped
 		model.rawUpdate({
-			sessionId: 'sessionid',
+			rawSession,
 			threadId: threadId1,
 			stoppedDetails: {
 				reason: stoppedReason,
@@ -134,8 +136,8 @@ suite('Debug - Model', () => {
 			allThreadsStopped: true
 		});
 
-		const thread1 = model.getThreads()[threadId1];
-		const thread2 = model.getThreads()[threadId2];
+		const thread1 = model.getThreads(rawSession.getId())[threadId1];
+		const thread2 = model.getThreads(rawSession.getId())[threadId2];
 
 		// at the beginning, callstacks are obtainable but not available
 		assert.equal(thread1.name, threadName1);
@@ -149,13 +151,13 @@ suite('Debug - Model', () => {
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
-		thread1.getCallStack(mockDebugService).then(() => {
+		thread1.getCallStack().then(() => {
 			assert.notEqual(thread1.getCachedCallStack(), undefined);
 			assert.equal(thread2.getCachedCallStack(), undefined);
 			assert.equal(sessionStub.callCount, 1);
 		});
 
-		thread2.getCallStack(mockDebugService).then(() => {
+		thread2.getCallStack().then(() => {
 			assert.notEqual(thread1.getCachedCallStack(), undefined);
 			assert.notEqual(thread2.getCachedCallStack(), undefined);
 			assert.equal(sessionStub.callCount, 2);
@@ -163,8 +165,8 @@ suite('Debug - Model', () => {
 
 		// calling multiple times getCallStack doesn't result in multiple calls
 		// to the debug adapter
-		thread1.getCallStack(mockDebugService).then(() => {
-			return thread2.getCallStack(mockDebugService);
+		thread1.getCallStack().then(() => {
+			return thread2.getCallStack();
 		}).then(() => {
 			assert.equal(sessionStub.callCount, 2);
 		});
@@ -178,14 +180,13 @@ suite('Debug - Model', () => {
 		assert.equal(thread2.stopped, true);
 		assert.equal(thread2.getCachedCallStack(), undefined);
 
-		model.clearThreads(true);
+		model.clearThreads(rawSession.getId(), true);
 		assert.equal(model.getThreads[threadId1], null);
 		assert.equal(model.getThreads[threadId2], null);
 	});
 
 	test('threads mutltiple without allThreadsStopped', () => {
-		const mockDebugService = new MockDebugService();
-		const sessionStub = sinon.spy(mockDebugService.activeSession, 'stackTrace');
+		const sessionStub = sinon.spy(rawSession, 'stackTrace');
 
 		const stoppedThreadId = 1;
 		const stoppedThreadName = 'stoppedThread';
@@ -195,7 +196,7 @@ suite('Debug - Model', () => {
 
 		// Add the threads
 		model.rawUpdate({
-			sessionId: 'sessionid',
+			rawSession,
 			threadId: stoppedThreadId,
 			thread: {
 				id: stoppedThreadId,
@@ -204,7 +205,7 @@ suite('Debug - Model', () => {
 		});
 
 		model.rawUpdate({
-			sessionId: 'sessionid',
+			rawSession,
 			threadId: runningThreadId,
 			thread: {
 				id: runningThreadId,
@@ -214,7 +215,7 @@ suite('Debug - Model', () => {
 
 		// Stopped event with only one thread stopped
 		model.rawUpdate({
-			sessionId: 'sessionid',
+			rawSession,
 			threadId: stoppedThreadId,
 			stoppedDetails: {
 				reason: stoppedReason,
@@ -223,8 +224,8 @@ suite('Debug - Model', () => {
 			allThreadsStopped: false
 		});
 
-		const stoppedThread = model.getThreads()[stoppedThreadId];
-		const runningThread = model.getThreads()[runningThreadId];
+		const stoppedThread = model.getThreads(rawSession.getId())[stoppedThreadId];
+		const runningThread = model.getThreads(rawSession.getId())[runningThreadId];
 
 		// the callstack for the stopped thread is obtainable but not available
 		// the callstack for the running thread is not obtainable nor available
@@ -239,7 +240,7 @@ suite('Debug - Model', () => {
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
-		stoppedThread.getCallStack(mockDebugService).then(() => {
+		stoppedThread.getCallStack().then(() => {
 			assert.notEqual(stoppedThread.getCachedCallStack(), undefined);
 			assert.equal(runningThread.getCachedCallStack(), undefined);
 			assert.equal(sessionStub.callCount, 1);
@@ -248,14 +249,14 @@ suite('Debug - Model', () => {
 		// calling getCallStack on the running thread returns empty array
 		// and does not return in a request for the callstack in the debug
 		// adapter
-		runningThread.getCallStack(mockDebugService).then(callStack => {
+		runningThread.getCallStack().then(callStack => {
 			assert.deepEqual(callStack, []);
 			assert.equal(sessionStub.callCount, 1);
 		});
 
 		// calling multiple times getCallStack doesn't result in multiple calls
 		// to the debug adapter
-		stoppedThread.getCallStack(mockDebugService).then(() => {
+		stoppedThread.getCallStack().then(() => {
 			assert.equal(sessionStub.callCount, 1);
 		});
 
@@ -264,7 +265,7 @@ suite('Debug - Model', () => {
 		assert.equal(stoppedThread.stopped, true);
 		assert.equal(stoppedThread.getCachedCallStack(), undefined);
 
-		model.clearThreads(true);
+		model.clearThreads(rawSession.getId(), true);
 		assert.equal(model.getThreads[stoppedThreadId], null);
 		assert.equal(model.getThreads[runningThreadId], null);
 	});
@@ -282,7 +283,7 @@ suite('Debug - Model', () => {
 
 	test('watch expressions', () => {
 		assert.equal(model.getWatchExpressions().length, 0);
-		const stackFrame = new debugmodel.StackFrame(1, 1, null, 'app.js', 1, 1);
+		const stackFrame = new debugmodel.StackFrame(rawSession.getId(), 1, 1, null, 'app.js', 1, 1);
 		model.addWatchExpression(null, stackFrame, 'console').done();
 		model.addWatchExpression(null, stackFrame, 'console').done();
 		const watchExpressions = model.getWatchExpressions();
@@ -301,7 +302,7 @@ suite('Debug - Model', () => {
 
 	test('repl expressions', () => {
 		assert.equal(model.getReplElements().length, 0);
-		const stackFrame = new debugmodel.StackFrame(1, 1, null, 'app.js', 1, 1);
+		const stackFrame = new debugmodel.StackFrame(rawSession.getId(), 1, 1, null, 'app.js', 1, 1);
 		model.addReplExpression(null, stackFrame, 'myVariable').done();
 		model.addReplExpression(null, stackFrame, 'myVariable').done();
 		model.addReplExpression(null, stackFrame, 'myVariable').done();
