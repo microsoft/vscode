@@ -18,9 +18,7 @@ export interface ITelemetryInfo {
 }
 
 export interface ITelemetryExperiments {
-	showDefaultViewlet: boolean;
 	showCommandsWatermark: boolean;
-	openUntitledFile: boolean;
 }
 
 export interface ITelemetryService {
@@ -41,9 +39,7 @@ export interface ITelemetryService {
 }
 
 export const defaultExperiments: ITelemetryExperiments = {
-	showDefaultViewlet: false,
 	showCommandsWatermark: false,
-	openUntitledFile: true
 };
 
 export const NullTelemetryService = {
@@ -72,14 +68,9 @@ export function loadExperiments(storageService: IStorageService, configurationSe
 		valueString = Math.random().toString();
 		storageService.store(key, valueString);
 	}
-	const random0 = parseFloat(valueString);
-	const [random1, showDefaultViewlet] = splitRandom(random0);
-	const [random2, showCommandsWatermark] = splitRandom(random1);
-	const [, openUntitledFile] = splitRandom(random2);
+	const value = parseFloat(valueString);
 	return applyOverrides(configurationService, {
-		showDefaultViewlet,
-		showCommandsWatermark,
-		openUntitledFile
+		showCommandsWatermark: value < 0.5
 	});
 }
 
@@ -92,12 +83,6 @@ export function applyOverrides(configurationService: IConfigurationService, expe
 		}
 	});
 	return experiments;
-}
-
-function splitRandom(random: number): [number, boolean] {
-	const scaled = random * 2;
-	const i = Math.floor(scaled);
-	return [scaled - i, i === 1];
 }
 
 export interface ITelemetryAppender {
