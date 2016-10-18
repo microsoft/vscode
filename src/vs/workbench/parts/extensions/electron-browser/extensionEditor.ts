@@ -373,7 +373,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private static renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies, instantiationService: IInstantiationService): Tree {
-		const renderer = new Renderer();
+		const renderer = instantiationService.createInstance(Renderer);
 		const controller = instantiationService.createInstance(Controller);
 		const tree = new Tree(container, {
 			dataSource: new DataSource(),
