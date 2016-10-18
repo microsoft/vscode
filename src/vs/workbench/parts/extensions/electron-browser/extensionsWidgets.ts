@@ -74,7 +74,7 @@ export class StatusWidget implements IDisposable {
 
 		status.title = disabledInWorkspace ? localize('disabledWorkspace', "Disabled (Workspace)")
 			: disabled ? localize('disabled', "Disabled")
-				: installed ? localize('active', "Active") : '';
+				: installed ? localize('enabled', "Enabled") : '';
 	}
 
 	dispose(): void {

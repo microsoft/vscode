@@ -15,7 +15,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension } from './extensions';
-import { CombinedInstallAction, UpdateAction, EnableAction, BuiltinStatusLabelAction } from './extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction } from './extensionsActions';
 import { Label, RatingsWidget, InstallWidget, StatusWidget } from './extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
 
@@ -73,12 +73,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const statusWidget = this.instantiationService.createInstance(StatusWidget, status, null);
 
 		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
-		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
+		const combinedInstallAction = this.instantiationService.createInstance(CombinedInstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
-		const restartAction = this.instantiationService.createInstance(EnableAction);
+		const enableAction = this.instantiationService.createInstance(EnableAction);
+		const disableAction = this.instantiationService.createInstance(DisableAction);
 
-		actionbar.push([restartAction, updateAction, installAction, builtinStatusAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, installAction, builtinStatusAction, updateAction, restartAction, actionbar];
+		actionbar.push([enableAction, updateAction, disableAction, combinedInstallAction, builtinStatusAction], actionOptions);
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, combinedInstallAction, builtinStatusAction, updateAction, enableAction, disableAction, actionbar];
 
 		return {
 			element, icon, name, installCount, ratings, status, author, description, disposables,
@@ -88,9 +89,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				installCountWidget.extension = extension;
 				ratingsWidget.extension = extension;
 				builtinStatusAction.extension = extension;
-				installAction.extension = extension;
+				combinedInstallAction.extension = extension;
 				updateAction.extension = extension;
-				restartAction.extension = extension;
+				enableAction.extension = extension;
+				disableAction.extension = extension;
 				statusWidget.extension = extension;
 			}
 		};
