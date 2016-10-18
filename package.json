@@ -104,6 +104,9 @@
     "url": "https://github.com/Microsoft/vscode/issues"
   },
   "config": {
+    "ghooks": {
+      "pre-commit": "node build/gulpfile.hygiene.js"
+    }
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.1.0",
