@@ -16,6 +16,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { Position, IEditor, Direction, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -409,12 +410,21 @@ export class OpenToSideAction extends Action {
 	public static OPEN_TO_SIDE_ID = 'workbench.action.openToSide';
 	public static OPEN_TO_SIDE_LABEL = nls.localize('openToSide', "Open to the Side");
 
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
 		super(OpenToSideAction.OPEN_TO_SIDE_ID, OpenToSideAction.OPEN_TO_SIDE_LABEL);
 
-		this.class = 'quick-open-sidebyside';
 
 		this.updateEnablement();
+		this.updateClass();
+	}
+
+	public updateClass(): void {
+		const editorLayoutVertical = this.configurationService.lookup('workbench.editor.sideBySideLayout').value !== 'horizontal';
+
+		this.class = editorLayoutVertical ? 'quick-open-sidebyside-vertical' : 'quick-open-sidebyside-horizontal';
 	}
 
 	private updateEnablement(): void {
