@@ -1024,7 +1024,7 @@ export class ShowEditorsInGroupAction extends Action {
 
 		switch (stacks.positionOfGroup(context.group)) {
 			case Position.TWO:
-				return this.quickOpenService.show((groupCount === 2) ? NAVIGATE_IN_GROUP_THREE_PREFIX : NAVIGATE_IN_GROUP_TWO_PREFIX);
+				return this.quickOpenService.show(NAVIGATE_IN_GROUP_TWO_PREFIX);
 			case Position.THREE:
 				return this.quickOpenService.show(NAVIGATE_IN_GROUP_THREE_PREFIX);
 		}
