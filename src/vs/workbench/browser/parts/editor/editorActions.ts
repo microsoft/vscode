@@ -416,7 +416,6 @@ export class OpenToSideAction extends Action {
 	) {
 		super(OpenToSideAction.OPEN_TO_SIDE_ID, OpenToSideAction.OPEN_TO_SIDE_LABEL);
 
-
 		this.updateEnablement();
 		this.updateClass();
 	}
