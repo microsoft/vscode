@@ -31,7 +31,7 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 				return this._proxy.$provideRootNode(providerId).then(treeContent => {
 					this._treeContents[providerId] = treeContent;
 					return treeContent;
-				})
+				});
 			},
 			resolveChildren: (node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> => {
 				return this._proxy.$resolveChildren(providerId, node);

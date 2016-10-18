@@ -14,7 +14,6 @@ import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/platform';
 
 namespace schema {
 

@@ -7,10 +7,9 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IAction, IActionRunner, Action } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
 
@@ -19,8 +18,6 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 export class ToggleExternalViewletAction extends Action {
 	public static ID = 'workbench.view.customTreeExplorerViewlet';
 	public static LABEL = nls.localize('toggleCustomExplorer', 'Toggle Custom Explorer');
-
-	private viewletId: string;
 
 	constructor(
 		id: string,
@@ -38,13 +35,12 @@ export class ToggleExternalViewletAction extends Action {
 		for (let viewletId in viewletsToggleStataus) {
 			picks.push({
 				id: viewletId,
-				label: (viewletsToggleStataus[viewletId] ? "Disable " : "Enable ") + this.getShortViewletId(viewletId),
-				description: ""
+				label: (viewletsToggleStataus[viewletId] ? "Disable " : "Enable ") + this.getShortViewletId(viewletId)
 			});
 		}
 
 		return TPromise.timeout(50).then(() => {
-			this.quickOpenService.pick(picks, { placeHolder: 'select viewlet to enable', autoFocus: 2 }).then(pick => {
+			this.quickOpenService.pick(picks, { placeHolder: 'Select Viewlet to toggle', autoFocus: 2 }).then(pick => {
 				if (pick) {
 					this.activityService.toggleViewlet(pick.id);
 				}
