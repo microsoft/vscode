@@ -17,7 +17,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 	private _proxy: MainThreadTreeExplorersShape;
 
 	private _treeExplorerNodeProviders: { [providerId: string]: TreeExplorerNodeProvider<any> };
-	private _externalNodeMaps: { [providerId: string]: { [id: number]: any }};
+	private _externalNodeMaps: { [providerId: string]: { [id: number]: any } };
 
 	constructor(
 		threadService: IThreadService,

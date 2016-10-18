@@ -23,19 +23,19 @@ namespace schema {
 	}
 
 	export const explorerContribtion: IJSONSchema = {
-		description: localize('vscode.extension.contributes.explorer', "Contributes explorer viewlet to the sidebar"),
+		description: localize('vscode.extension.contributes.explorer', "Contributes custom tree explorer viewlet to the sidebar"),
 		type: 'object',
 		properties: {
-			treeContentProviderId: {
+			treeExplorerNodeProviderId: {
 				description: localize('vscode.extension.contributes.explorer.treeExplorerNodeProviderId', 'Unique id used to identify provider registered through vscode.workspace.registerTreeExplorerNodeProvider'),
 				type: 'string'
 			},
 			treeLabel: {
-				description: localize('vscode.extension.contributes.explorer.treeLabel', 'Human readable string used to render the custom tree Viewlet'),
+				description: localize('vscode.extension.contributes.explorer.treeLabel', 'Human readable string used to render the custom tree viewlet'),
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.explorer.icon', 'Icon to put on activity bar'),
+				description: localize('vscode.extension.contributes.explorer.icon', 'Path to the viewlet icon on the activity bar'),
 				type: 'string'
 			}
 		}
