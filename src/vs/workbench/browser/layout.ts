@@ -46,6 +46,11 @@ interface ComputedStyles {
 	statusbar: { height: number; };
 }
 
+export interface ILayoutOptions {
+	forceStyleReCompute?: boolean;
+	toggleMaximizedPanel?: boolean;
+}
+
 /**
  * The workbench layout is responsible to lay out all parts that make the Workbench.
  */
@@ -297,8 +302,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		};
 	}
 
-	public layout(forceStyleReCompute?: boolean, toggleMaximizedPanel?: boolean): void {
-		if (forceStyleReCompute) {
+	public layout(options?: ILayoutOptions): void {
+		if (options && options.forceStyleReCompute) {
 			this.computeStyle();
 			this.editor.getLayout().computeStyle();
 			this.sidebar.getLayout().computeStyle();
@@ -346,7 +351,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		} else {
 			panelHeight = sidebarSize.height * 0.4;
 		}
-		if (toggleMaximizedPanel) {
+		if (options && options.toggleMaximizedPanel) {
 			panelHeight = panelHeight === maxPanelHeight ? sidebarSize.height * 0.4 : maxPanelHeight;
 		}
 		const panelDimension = new Dimension(this.workbenchSize.width - sidebarSize.width - activityBarSize.width, panelHeight);
