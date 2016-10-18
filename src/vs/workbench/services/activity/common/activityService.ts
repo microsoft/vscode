@@ -70,4 +70,9 @@ export interface IActivityService {
 	 * Clears activity shown in the activitybar for the given viewlet or panel.
 	 */
 	clearActivity(compositeId: string): void;
+
+	/**
+	 * Get all registered viewlets and whether they are enabled/disabled
+	 */
+	getViewletsToggleStatus(): { [viewletId: string]: boolean };
 }
