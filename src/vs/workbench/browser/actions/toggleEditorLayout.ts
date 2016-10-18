@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/css!./media/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { Registry } from 'vs/platform/platform';
@@ -29,6 +30,8 @@ export class ToggleEditorLayoutAction extends Action {
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
 	) {
 		super(id, label);
+
+		this.class = 'toggle-editor-layout';
 	}
 
 	public run(): TPromise<any> {
