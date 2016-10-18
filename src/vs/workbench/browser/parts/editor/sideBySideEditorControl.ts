@@ -1756,7 +1756,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const editorSize = this.silosSize[position];
 		if (editorSize && this.visibleEditors[position]) {
 			const editorWidth = this.layoutVertically ? editorSize : this.dimension.width;
-			const editorHeight = (this.layoutVertically ? this.dimension.height : this.silosSize[position]) - SideBySideEditorControl.EDITOR_TITLE_HEIGHT;
+			let editorHeight = (this.layoutVertically ? this.dimension.height : this.silosSize[position]) - SideBySideEditorControl.EDITOR_TITLE_HEIGHT;
+
+			if (!this.layoutVertically && position !== Position.ONE) {
+				editorHeight--; // accomodate for 1px border in containers TWO, THREE when laying out horizontally
+			}
 
 			this.visibleEditors[position].layout(new Dimension(editorWidth, editorHeight));
 		}
