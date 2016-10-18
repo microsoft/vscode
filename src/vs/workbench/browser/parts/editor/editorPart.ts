@@ -72,9 +72,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public _serviceBrand: any;
 
-	private static GROUP_LEFT_LABEL = nls.localize('leftGroup', "Left");
-	private static GROUP_CENTER_LABEL = nls.localize('centerGroup', "Center");
-	private static GROUP_RIGHT_LABEL = nls.localize('rightGroup', "Right");
+	private static GROUP_ONE_LABEL = nls.localize('groupOne', "One");
+	private static GROUP_TWO_LABEL = nls.localize('groupTwo', "Two");
+	private static GROUP_THREE_LABEL = nls.localize('groupThree', "Three");
 
 	private static EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
 
@@ -1327,22 +1327,22 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const groups = this.stacks.groups;
 		if (groups.length > 0) {
 
-			// LEFT | CENTER | RIGHT
+			// ONE | TWO | THREE
 			if (groups.length > 2) {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_LEFT_LABEL);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), EditorPart.GROUP_CENTER_LABEL);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.THREE), EditorPart.GROUP_RIGHT_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_ONE_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), EditorPart.GROUP_TWO_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.THREE), EditorPart.GROUP_THREE_LABEL);
 			}
 
-			// LEFT | RIGHT
+			// ONE | TWO
 			else if (groups.length > 1) {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_LEFT_LABEL);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), EditorPart.GROUP_RIGHT_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_ONE_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), EditorPart.GROUP_TWO_LABEL);
 			}
 
-			// LEFT
+			// ONE
 			else {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_LEFT_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_ONE_LABEL);
 			}
 		}
 	}
