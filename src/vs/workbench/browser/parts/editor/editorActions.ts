@@ -1063,12 +1063,11 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 		const stacks = this.editorGroupService.getStacksModel();
 		if (stacks.activeGroup) {
 			const activePosition = stacks.positionOfGroup(stacks.activeGroup);
-			const count = stacks.groups.length;
 			let prefix = NAVIGATE_IN_GROUP_ONE_PREFIX;
 
-			if (activePosition === Position.TWO && count === 3) {
+			if (activePosition === Position.TWO) {
 				prefix = NAVIGATE_IN_GROUP_TWO_PREFIX;
-			} else if (activePosition === Position.THREE || (activePosition === Position.TWO && count === 2)) {
+			} else if (activePosition === Position.THREE) {
 				prefix = NAVIGATE_IN_GROUP_THREE_PREFIX;
 			}
 
