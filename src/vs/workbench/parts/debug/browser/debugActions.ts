@@ -240,7 +240,7 @@ export class StepBackAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: debug.State): boolean {
-		const activeSession = this.debugService.activeSession;
+		const activeSession = this.debugService.getViewModel().activeSession;
 		return super.isEnabled(state) && state === debug.State.Stopped &&
 			activeSession && activeSession.configuration.capabilities.supportsStepBack;
 	}
@@ -255,7 +255,7 @@ export class StopAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		var session = this.debugService.activeSession;
+		var session = this.debugService.getViewModel().activeSession;
 		return session ? session.disconnect(false, true) : TPromise.as(null);
 	}
 
@@ -273,7 +273,7 @@ export class DisconnectAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const session = this.debugService.activeSession;
+		const session = this.debugService.getViewModel().activeSession;
 		return session ? session.disconnect(false, true) : TPromise.as(null);
 	}
 
@@ -608,7 +608,7 @@ export class SetValueAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: debug.State): boolean {
-		const session = this.debugService.activeSession;
+		const session = this.debugService.getViewModel().activeSession;
 		return super.isEnabled(state) && state === debug.State.Stopped && session && session.configuration.capabilities.supportsSetVariable;
 	}
 }
@@ -638,7 +638,7 @@ class RunToCursorAction extends EditorAction {
 		const lineNumber = editor.getPosition().lineNumber;
 		const uri = editor.getModel().uri;
 
-		const oneTimeListener = debugService.activeSession.onDidEvent(event => {
+		const oneTimeListener = debugService.getViewModel().activeSession.onDidEvent(event => {
 			if (event.event === 'stopped' || event.event === 'exit') {
 				const toRemove = debugService.getModel().getBreakpoints()
 					.filter(bp => bp.desiredLineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
@@ -763,7 +763,9 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, this.debugService.activeSession.configuration.type));
+		const session = this.debugService.getViewModel().activeSession;
+		const type = session ? session.configuration.type : null;
+		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, type));
 	}
 }
 

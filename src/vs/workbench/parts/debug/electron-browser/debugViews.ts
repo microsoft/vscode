@@ -73,7 +73,7 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		this.treeContainer = renderViewTree(container);
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
-			dataSource: new viewer.VariablesDataSource(this.debugService),
+			dataSource: new viewer.VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
 			accessibilityProvider: new viewer.VariablesAccessibilityProvider(),
 			controller: new viewer.VariablesController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
@@ -121,7 +121,7 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		this.tree.clearHighlight();
 		this.tree.refresh().then(() => {
 			if (stackFrame) {
-				return stackFrame.getScopes(this.debugService).then(scopes => {
+				return stackFrame.getScopes().then(scopes => {
 					if (scopes.length > 0 && !scopes[0].expensive) {
 						return this.tree.expand(scopes[0]);
 					}
@@ -171,7 +171,7 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 		const actionProvider = new viewer.WatchExpressionsActionProvider(this.instantiationService);
 		this.tree = new treeimpl.Tree(this.treeContainer, {
-			dataSource: new viewer.WatchExpressionsDataSource(this.debugService),
+			dataSource: new viewer.WatchExpressionsDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
 			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider)

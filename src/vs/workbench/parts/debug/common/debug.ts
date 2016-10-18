@@ -126,7 +126,7 @@ export interface IStackFrame extends ITreeElement {
 	column: number;
 	frameId: number;
 	source: Source;
-	getScopes(debugService: IDebugService): TPromise<IScope[]>;
+	getScopes(): TPromise<IScope[]>;
 }
 
 export interface IEnablement extends ITreeElement {
@@ -417,11 +417,6 @@ export interface IDebugService {
 	 * Restarts an active debug session or creates a new one if there is no active session.
 	 */
 	restartSession(): TPromise<any>;
-
-	/**
-	 * Returns the active debug session or null if debug is inactive.
-	 */
-	activeSession: IRawDebugSession;
 
 	/**
 	 * Gets the current debug model.

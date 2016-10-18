@@ -161,8 +161,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		// from this point on we require an active session
-		let session = this.activeSession;
-		if (!session || session.configuration.type !== 'extensionHost') {
+		if (!this.session || this.session.configuration.type !== 'extensionHost') {
 			return; // we are only intersted if we have an active debug session for extensionHost
 		}
 
@@ -775,10 +774,6 @@ export class DebugService implements debug.IDebugService {
 				}, 300);
 			})
 		) : this.createSession(false, null);
-	}
-
-	public get activeSession(): debug.IRawDebugSession {
-		return this.session;
 	}
 
 	private onSessionEnd(session: RawDebugSession): void {

@@ -322,7 +322,7 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 				actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
 			}
 		} else if (element instanceof model.StackFrame) {
-			const capabilities = this.debugService.activeSession.configuration.capabilities;
+			const capabilities = this.debugService.getViewModel().activeSession.configuration.capabilities;
 			if (typeof capabilities.supportsRestartFrame === 'boolean' && capabilities.supportsRestartFrame) {
 				actions.push(this.instantiationService.createInstance(debugactions.RestartFrameAction, debugactions.RestartFrameAction.ID, debugactions.RestartFrameAction.LABEL));
 			}
@@ -580,10 +580,6 @@ export class VariablesActionProvider implements renderer.IActionProvider {
 
 export class VariablesDataSource implements tree.IDataSource {
 
-	constructor(private debugService: debug.IDebugService) {
-		// noop
-	}
-
 	public getId(tree: tree.ITree, element: any): string {
 		return element.getId();
 	}
@@ -600,11 +596,11 @@ export class VariablesDataSource implements tree.IDataSource {
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof viewmodel.ViewModel) {
 			let focusedStackFrame = (<viewmodel.ViewModel>element).getFocusedStackFrame();
-			return focusedStackFrame ? focusedStackFrame.getScopes(this.debugService) : TPromise.as([]);
+			return focusedStackFrame ? focusedStackFrame.getScopes() : TPromise.as([]);
 		}
 
 		let scope = <model.Scope>element;
-		return scope.getChildren(this.debugService);
+		return scope.getChildren();
 	}
 
 	public getParent(tree: tree.ITree, element: any): TPromise<any> {
@@ -799,10 +795,6 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 
 export class WatchExpressionsDataSource implements tree.IDataSource {
 
-	constructor(private debugService: debug.IDebugService) {
-		// noop
-	}
-
 	public getId(tree: tree.ITree, element: any): string {
 		return element.getId();
 	}
@@ -822,7 +814,7 @@ export class WatchExpressionsDataSource implements tree.IDataSource {
 		}
 
 		let expression = <model.Expression>element;
-		return expression.getChildren(this.debugService);
+		return expression.getChildren();
 	}
 
 	public getParent(tree: tree.ITree, element: any): TPromise<any> {
@@ -1174,7 +1166,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 			data.breakpoint.title = functionBreakpoint.name;
 
 			// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
-			const session = this.debugService.activeSession;
+			const session = this.debugService.getViewModel().activeSession;
 			if ((session && !session.configuration.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
 				tree.addTraits('disabled', [functionBreakpoint]);
 				if (session && !session.configuration.capabilities.supportsFunctionBreakpoints) {

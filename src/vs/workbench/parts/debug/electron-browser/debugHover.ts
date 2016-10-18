@@ -55,7 +55,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
 		this.tree = new Tree(this.treeContainer, {
-			dataSource: new viewer.VariablesDataSource(this.debugService),
+			dataSource: new viewer.VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: new DebugHoverController(editor)
 		}, debugTreeOptions);
@@ -153,7 +153,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			return;
 		}
 
-		const session = this.debugService.activeSession;
+		const session = this.debugService.getViewModel().activeSession;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
 		const expressionRange = this.getExactExpressionRange(lineContent, range);
 		// use regex to extract the sub-expression #9821
@@ -198,7 +198,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	}
 
 	private findExpressionInStackFrame(namesToFind: string[]): TPromise<debug.IExpression> {
-		return this.debugService.getViewModel().getFocusedStackFrame().getScopes(this.debugService)
+		return this.debugService.getViewModel().getFocusedStackFrame().getScopes()
 			// no expensive scopes
 			.then(scopes => scopes.filter(scope => !scope.expensive))
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
