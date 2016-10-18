@@ -108,6 +108,8 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 		if (entry) {
 			if (!this.openToSideActionInstance) {
 				this.openToSideActionInstance = this.instantiationService.createInstance(OpenToSideAction);
+			} else {
+				this.openToSideActionInstance.updateClass();
 			}
 
 			actions.push(this.openToSideActionInstance);
