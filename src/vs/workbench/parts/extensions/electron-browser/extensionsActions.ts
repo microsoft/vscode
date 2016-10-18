@@ -15,7 +15,7 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey } from './extensions';
 import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
@@ -105,12 +105,19 @@ export class UninstallAction extends Action {
 			return;
 		}
 
+		const state = this.extension.state;
+
+		if (ExtensionState.Installed === state) {
+			this.enabled = true;
+			return;
+		}
+
 		if (this.extension.type !== LocalExtensionType.User) {
 			this.enabled = false;
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.Installed || this.extension.state === ExtensionState.Disabled || this.extension.state === ExtensionState.NeedsReload;
+		this.enabled = state === ExtensionState.Enabled || state === ExtensionState.Disabled;
 	}
 
 	run(): TPromise<any> {
@@ -118,12 +125,7 @@ export class UninstallAction extends Action {
 			return TPromise.as(null);
 		}
 
-		return this.extensionsWorkbenchService.uninstall(this.extension).then(() => {
-			this.messageService.show(severity.Info, {
-				message: localize('postUninstallMessage', "{0} was successfully uninstalled. Restart to deactivate it.", this.extension.displayName),
-				actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now")), LaterAction]
-			});
-		});
+		return this.extensionsWorkbenchService.uninstall(this.extension);
 	}
 
 	dispose(): void {
@@ -232,8 +234,9 @@ export class UpdateAction extends Action {
 		}
 
 		const canInstall = this.extensionsWorkbenchService.canInstall(this.extension);
-		const isInstalled = this.extension.state === ExtensionState.Installed
-			|| this.extension.state === ExtensionState.Disabled;
+		const isInstalled = this.extension.state === ExtensionState.Enabled
+			|| this.extension.state === ExtensionState.Disabled
+			|| this.extension.state === ExtensionState.Installed;
 
 		this.enabled = canInstall && isInstalled && this.extension.outdated;
 		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
@@ -275,7 +278,7 @@ export class EnableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.Disabled;
+		this.enabled = !this.extension.reload && this.extension.state === ExtensionState.Disabled;
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
@@ -310,7 +313,7 @@ export class DisableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.Installed;
+		this.enabled = !this.extension.reload && this.extension.state === ExtensionState.Enabled;
 		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
 	}
 
@@ -348,7 +351,7 @@ export class ReloadAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.NeedsReload;
+		this.enabled = this.extension.reload || /* Following is needed due to extension is stale */this.extension.state === ExtensionState.Installed;
 		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
 	}
 
@@ -363,13 +366,17 @@ export class ReloadAction extends Action {
 
 	private getReloadMessage(): TPromise<string> {
 		return this.extensionsRuntimeService.getExtensions(true).then(extensionDescriptions => {
-			const disabled = this.extensionsRuntimeService.getDisabledExtensions().indexOf(this.extension.identifier) !== -1;
-			const installed = !extensionDescriptions.every(e => e.id !== this.extension.identifier);
-			if (disabled || !installed) {
-				return localize('postEnableMessage', "In order to enable '{0}' extension, this window of VS Code needs to be restarted.", this.extension.displayName);
-
+			const state = this.extension.state;
+			if (state === ExtensionState.Installed) {
+				return localize('postInstallMessage', "Reload this window to activate '{0}' extension?", this.extension.displayName);
 			}
-			return localize('postDisableMessage', "In order to disable '{0}' extension, this window of VS Code needs to be restarted.", this.extension.displayName);
+			if (state === ExtensionState.Disabled) {
+				return localize('postEnableMessage', "Reload this window to enable '{0}' extension?", this.extension.displayName);
+			}
+			if (state === ExtensionState.Enabled) {
+				return localize('postDisableMessage', "Reload this window to disable '{0}' extension?", this.extension.displayName);
+			}
+			return localize('postUninstallMessage', "Reload this window to deactivate '{0}' extension?", this.extension.displayName);
 		});
 	}
 }
@@ -396,7 +403,7 @@ export class UpdateAllAction extends Action {
 		return this.extensionsWorkbenchService.local.filter(
 			e => this.extensionsWorkbenchService.canInstall(e)
 				&& e.type === LocalExtensionType.User
-				&& (e.state === ExtensionState.Installed || e.state === ExtensionState.Disabled)
+				&& (e.state === ExtensionState.Enabled || e.state === ExtensionState.Disabled || e.state === ExtensionState.Installed)
 				&& e.outdated
 		);
 	}
