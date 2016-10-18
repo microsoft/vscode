@@ -9,11 +9,11 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as arrays from 'vs/base/common/arrays';
 import fs = require('fs');
+import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { nfcall } from 'vs/base/common/async';
 
 interface IBackupFormat {
 	folderWorkspaces?: {
@@ -48,7 +48,7 @@ export class BackupService implements IBackupService {
 		return Object.keys(this.fileContent.folderWorkspaces);
 	}
 
-	public pushWorkspaceBackupPaths(workspaces: string[]): void {
+	public pushWorkspaceBackupPathsSync(workspaces: string[]): void {
 		// Only allow this on the main thread in the window initialization's critical path due to
 		// the usage of synchronous IO.
 		if (this.workspaceResource) {
@@ -78,13 +78,13 @@ export class BackupService implements IBackupService {
 		});
 	}
 
-	public getWorkspaceTextFilesWithBackups(workspace: string): string[] {
+	public getWorkspaceTextFilesWithBackupsSync(workspace: string): string[] {
 		// Allow sync here as it's only used in workbench initialization's critical path
 		this.loadSync();
 		return this.fileContent.folderWorkspaces[workspace] || [];
 	}
 
-	public getWorkspaceUntitledFileBackups(workspace: string): string[] {
+	public getWorkspaceUntitledFileBackupsSync(workspace: string): string[] {
 		// Hot exit is disabled for empty workspaces
 		if (!this.workspaceResource) {
 			return;
@@ -120,6 +120,9 @@ export class BackupService implements IBackupService {
 		}
 
 		return this.load().then(() => {
+			if (!(this.workspaceResource.fsPath in this.fileContent.folderWorkspaces)) {
+				this.fileContent.folderWorkspaces[this.workspaceResource.fsPath] = [];
+			}
 			if (arrays.contains(this.fileContent.folderWorkspaces[this.workspaceResource.fsPath], resource.fsPath)) {
 				return TPromise.as(void 0);
 			}
@@ -145,7 +148,7 @@ export class BackupService implements IBackupService {
 	}
 
 	private load(): TPromise<void> {
-		return nfcall(fs.readFile, this.environmentService.backupWorkspacesPath, 'utf8').then(content => {
+		return pfs.readFile(this.environmentService.backupWorkspacesPath, 'utf8').then(content => {
 			return JSON.parse(content.toString());
 		}).then(null, () => Object.create(null)).then(content => {
 			this.fileContent = content;
@@ -168,12 +171,19 @@ export class BackupService implements IBackupService {
 	}
 
 	private save(): TPromise<void> {
-		return nfcall(fs.writeFile, this.environmentService.backupWorkspacesPath, JSON.stringify(this.fileContent), { encoding: 'utf8' });
+		const data = JSON.stringify(this.fileContent);
+		return pfs.mkdirp(this.environmentService.backupHome).then(() => {
+			return pfs.writeFile(this.environmentService.backupWorkspacesPath, data);
+		});
 	}
 
 	private saveSync(): void {
 		try {
-			fs.writeFileSync(this.environmentService.backupWorkspacesPath, JSON.stringify(this.fileContent), { encoding: 'utf8' });
+			// The user data directory must exist so only the Backup directory needs to be checked.
+			if (!fs.existsSync(this.environmentService.backupHome)) {
+				fs.mkdirSync(this.environmentService.backupHome);
+			}
+			fs.writeFileSync(this.environmentService.backupWorkspacesPath, JSON.stringify(this.fileContent));
 		} catch (ex) {
 		}
 	}

@@ -745,7 +745,7 @@ export class WindowsManager implements IWindowsService {
 		iPathsToOpen.forEach(iPath => this.eventEmitter.emit(EventTypes.OPEN, iPath));
 
 		// Add to backups
-		this.backupService.pushWorkspaceBackupPaths(iPathsToOpen.map((path) => {
+		this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.map((path) => {
 			return path.workspacePath;
 		}));
 
