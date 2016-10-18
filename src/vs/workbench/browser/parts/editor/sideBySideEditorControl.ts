@@ -1215,7 +1215,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 					// [ ! ]|[ ]: Moves only to the right/bottom but not outside of dimension to the right/bottom
 					case Position.ONE: {
-						newPos = Math.max(0, Math.min(diffPos, this.totalSize - this.silosSize[Position.ONE]));
+						newPos = Math.max(-1 /* 1px border accomodation */, Math.min(diffPos, this.totalSize - this.silosSize[Position.ONE]));
 						break;
 					}
 
@@ -1223,19 +1223,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 						// [ ]|[ ! ]: Moves only to the left/top but not outside of dimension to the left/top
 						if (visibleEditorCount === 2) {
-							newPos = Math.min(this.silosSize[Position.ONE], Math.max(0, this.silosSize[Position.ONE] + diffPos));
+							newPos = Math.min(this.silosSize[Position.ONE], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.ONE] + diffPos));
 						}
 
 						// [ ]|[ ! ]|[ ]: Moves to left/top and right/bottom but not outside of dimensions on both sides
 						else {
-							newPos = Math.min(this.totalSize - this.silosSize[Position.TWO], Math.max(0, this.silosSize[Position.ONE] + diffPos));
+							newPos = Math.min(this.totalSize - this.silosSize[Position.TWO], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.ONE] + diffPos));
 						}
 						break;
 					}
 
 					// [ ]|[ ]|[ ! ]: Moves to the right/bottom but not outside of dimension on the left/top side
 					case Position.THREE: {
-						newPos = Math.min(this.silosSize[Position.ONE] + this.silosSize[Position.TWO], Math.max(0, this.silosSize[Position.ONE] + this.silosSize[Position.TWO] + diffPos));
+						newPos = Math.min(this.silosSize[Position.ONE] + this.silosSize[Position.TWO], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.ONE] + this.silosSize[Position.TWO] + diffPos));
 						break;
 					}
 				}
@@ -1299,7 +1299,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 				// Move the editor to provide feedback to the user and add class
 				if (newPos !== null) {
-					this.silos[position].style(this.layoutVertically ? { left: `${newPos}px` } : { top: `${newPos}px` });
+					this.posSilo(position, `${newPos}px`);
 					this.silos[position].addClass('dragging');
 					this.parent.addClass('dragging');
 				}
@@ -1354,12 +1354,22 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number, borderLeftTopWidth?: string | number): void {
 		let style: any;
 		if (this.layoutVertically) {
-			style = { left: leftTop, right: rightBottom };
+			style = { left: leftTop };
+
+			if (typeof rightBottom === 'number' || typeof rightBottom === 'string') {
+				style['right'] = rightBottom;
+			}
+
 			if (typeof borderLeftTopWidth === 'number' || typeof borderLeftTopWidth === 'string') {
 				style['borderLeftWidth'] = borderLeftTopWidth;
 			}
 		} else {
-			style = { top: leftTop, bottom: rightBottom };
+			style = { top: leftTop };
+
+			if (typeof rightBottom === 'number' || typeof rightBottom === 'string') {
+				style['bottom'] = rightBottom;
+			}
+
 			if (typeof borderLeftTopWidth === 'number' || typeof borderLeftTopWidth === 'string') {
 				style['borderTopWidth'] = borderLeftTopWidth;
 			}
@@ -1765,11 +1775,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private layoutEditor(position: Position): void {
 		const editorSize = this.silosSize[position];
 		if (editorSize && this.visibleEditors[position]) {
-			const editorWidth = this.layoutVertically ? editorSize : this.dimension.width;
+			let editorWidth = this.layoutVertically ? editorSize : this.dimension.width;
 			let editorHeight = (this.layoutVertically ? this.dimension.height : this.silosSize[position]) - SideBySideEditorControl.EDITOR_TITLE_HEIGHT;
 
-			if (!this.layoutVertically && position !== Position.ONE) {
-				editorHeight--; // accomodate for 1px border in containers TWO, THREE when laying out horizontally
+			if (position !== Position.ONE) {
+				if (this.layoutVertically) {
+					editorWidth--; // accomodate for 1px left-border in containers TWO, THREE when laying out vertically
+				} else {
+					editorHeight--; // accomodate for 1px top-border in containers TWO, THREE when laying out horizontally
+				}
 			}
 
 			this.visibleEditors[position].layout(new Dimension(editorWidth, editorHeight));
