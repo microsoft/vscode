@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
-import { Emitter } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/platform';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { IAction, IActionRunner, Action } from 'vs/base/common/actions';
@@ -167,7 +167,7 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	private defaultViewletId: string;
 	private _onDidRegisterExternalViewlets = new Emitter<ViewletDescriptor[]>();
 
-	public get onDidRegisterExternalViewlets() { return this._onDidRegisterExternalViewlets.event; }
+	public get onDidRegisterExternalViewlets(): Event<ViewletDescriptor[]> { return this._onDidRegisterExternalViewlets.event; }
 
 	/**
 	 * Registers a viewlet to the platform.
