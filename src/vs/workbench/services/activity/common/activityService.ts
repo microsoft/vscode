@@ -74,5 +74,10 @@ export interface IActivityService {
 	/**
 	 * Get all registered viewlets and whether they are enabled/disabled
 	 */
-	getViewletsToggleStatus(): { [viewletId: string]: boolean };
+	getRegisteredViewletsToggleStatus(): { [viewletId: string]: boolean };
+
+	/**
+	 * Enable/disable viewlet
+	 */
+	toggleViewlet(viewletId: string): void;
 }

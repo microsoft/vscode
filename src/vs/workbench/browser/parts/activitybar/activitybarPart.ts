@@ -31,8 +31,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
 
 	private viewletsToggleStatus: { [viewletId: string]: boolean; };
+	private registeredViewlets: string[];
 
-	private ENABLED_VIEWLETS_KEY = "workbench.activityBar.enabledExternalViewlets";
+	private VIEWLETS_TOGGLE_STATUS = "workbench.activityBar.enabledExternalViewlets";
 
 	constructor(
 		id: string,
@@ -47,7 +48,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.activityActionItems = {};
 		this.compositeIdToActions = {};
 
-		this.viewletsToggleStatus = {};
+		const viewletsToggleStatusJson = this.storageService.get(this.VIEWLETS_TOGGLE_STATUS);
+		this.viewletsToggleStatus = viewletsToggleStatusJson ? JSON.parse(viewletsToggleStatusJson) : {};
+
+		this.registeredViewlets = [];
 
 		this.registerListeners();
 	}
@@ -68,14 +72,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private onDidRegisterExternalViewlets(descriptors: ViewletDescriptor[]) {
-		const enabledViewletsJson = this.storageService.get(this.ENABLED_VIEWLETS_KEY);
-		const enabledViewlets: string[] = enabledViewletsJson ? JSON.parse(enabledViewletsJson) : [];
 		descriptors.forEach(descriptor => {
-			if (enabledViewlets.indexOf(descriptor.id) !== -1) {
-				this.viewletsToggleStatus[descriptor.id] = true;
+			this.registeredViewlets.push(descriptor.id);
+			if (this.viewletsToggleStatus[descriptor.id]) {
 				this.viewletSwitcherBar.push(this.toAction(descriptor), { label: true, icon: true });
-			} else {
-				this.viewletsToggleStatus[descriptor.id] = false;
 			}
 		});
 	}
@@ -92,8 +92,21 @@ export class ActivitybarPart extends Part implements IActivityService {
 		}
 	}
 
-	public getViewletsToggleStatus(): { [viewletId: string]: boolean } {
-		return this.viewletsToggleStatus;
+	public getRegisteredViewletsToggleStatus(): { [viewletId: string]: boolean } {
+		const result = {};
+		this.registeredViewlets.forEach(viewletId => {
+			result[viewletId] = this.viewletsToggleStatus[viewletId];
+		});
+		return result;
+	}
+
+	public toggleViewlet(viewletId: string): void {
+		this.viewletsToggleStatus[viewletId] = !this.viewletsToggleStatus[viewletId];
+		this.setViewletsToggleStatus();
+	}
+
+	private setViewletsToggleStatus(): void {
+		this.storageService.store(this.VIEWLETS_TOGGLE_STATUS, JSON.stringify(this.viewletsToggleStatus));
 	}
 
 	public showActivity(compositeId: string, badge: IBadge, clazz?: string): void {

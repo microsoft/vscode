@@ -11,7 +11,7 @@ import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, To
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IAction, IActionRunner, Action } from 'vs/base/common/actions';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -32,9 +32,9 @@ export class ToggleExternalViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const viewletsToggleStataus = this.activityService.getViewletsToggleStatus();
+		const viewletsToggleStataus = this.activityService.getRegisteredViewletsToggleStatus();
 
-		const picks = [];
+		const picks: IPickOpenEntry[] = [];
 		for (let viewletId in viewletsToggleStataus) {
 			picks.push({
 				id: viewletId,
@@ -46,7 +46,7 @@ export class ToggleExternalViewletAction extends Action {
 		return TPromise.timeout(50).then(() => {
 			this.quickOpenService.pick(picks, { placeHolder: 'select viewlet to enable', autoFocus: 2 }).then(pick => {
 				if (pick) {
-				
+					this.activityService.toggleViewlet(pick.id);
 				}
 			});
 		});
