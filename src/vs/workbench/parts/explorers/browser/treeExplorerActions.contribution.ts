@@ -5,34 +5,60 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IAction, IActionRunner, Action } from 'vs/base/common/actions';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
-const treeExplorerNodeProviderId = 'pineTree';
-const VIEWLET_ID = 'workbench.view.customTreeExplorerViewlet.' + treeExplorerNodeProviderId;
+export class ToggleExternalViewletAction extends Action {
+	public static ID = 'workbench.view.customTreeExplorerViewlet';
+	public static LABEL = nls.localize('toggleCustomExplorer', 'Toggle Custom Explorer');
 
-export class ToggleExternalViewletAction extends ToggleViewletAction {
-	public static ID = VIEWLET_ID;
-	public static LABEL = nls.localize('toggleExternalViewlet', "Toggle External Viewlet pineTree");
+	private viewletId: string;
 
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService viewletService: IViewletService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IActivityService private activityService: IActivityService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorService);
+		super(id, name);
+	}
+
+	run(): TPromise<any> {
+		const viewletsToggleStataus = this.activityService.getViewletsToggleStatus();
+
+		const picks = [];
+		for (let viewletId in viewletsToggleStataus) {
+			picks.push({
+				id: viewletId,
+				label: (viewletsToggleStataus[viewletId] ? "Disable " : "Enable ") + this.getShortViewletId(viewletId),
+				description: ""
+			});
+		}
+
+		return TPromise.timeout(50).then(() => {
+			this.quickOpenService.pick(picks, { placeHolder: 'select viewlet to enable', autoFocus: 2 }).then(pick => {
+				if (pick) {
+				
+				}
+			});
+		});
+	}
+
+	private getShortViewletId(viewletId: string): string {
+		return viewletId.split('.').pop();
 	}
 }
 
 registry.registerWorkbenchAction(
 	new SyncActionDescriptor(ToggleExternalViewletAction, ToggleExternalViewletAction.ID, ToggleExternalViewletAction.LABEL),
-	"View: Toggle External Viewlet pineTree",
+	"View: Toggle Custom Explorer",
 	nls.localize('view', "View")
 );

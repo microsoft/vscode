@@ -30,6 +30,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
 
+	private viewletsToggleStatus: { [viewletId: string]: boolean; };
+
 	private ENABLED_VIEWLETS_KEY = "workbench.activityBar.enabledExternalViewlets";
 
 	constructor(
@@ -44,6 +46,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		this.activityActionItems = {};
 		this.compositeIdToActions = {};
+
+		this.viewletsToggleStatus = {};
 
 		this.registerListeners();
 	}
@@ -68,7 +72,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 		const enabledViewlets: string[] = enabledViewletsJson ? JSON.parse(enabledViewletsJson) : [];
 		descriptors.forEach(descriptor => {
 			if (enabledViewlets.indexOf(descriptor.id) !== -1) {
+				this.viewletsToggleStatus[descriptor.id] = true;
 				this.viewletSwitcherBar.push(this.toAction(descriptor), { label: true, icon: true });
+			} else {
+				this.viewletsToggleStatus[descriptor.id] = false;
 			}
 		});
 	}
@@ -83,6 +90,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 		if (this.compositeIdToActions[composite.getId()]) {
 			this.compositeIdToActions[composite.getId()].deactivate();
 		}
+	}
+
+	public getViewletsToggleStatus(): { [viewletId: string]: boolean } {
+		return this.viewletsToggleStatus;
 	}
 
 	public showActivity(compositeId: string, badge: IBadge, clazz?: string): void {
