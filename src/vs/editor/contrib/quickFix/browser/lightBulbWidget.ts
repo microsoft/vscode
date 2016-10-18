@@ -6,7 +6,7 @@
 
 import 'vs/css!./lightBulbWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, any } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { IPosition } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
@@ -32,7 +32,10 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 				this._layout();
 			}
 		}));
-		this._toDispose.push(this._editor.onDidChangeModelDecorations(() => {
+		this._toDispose.push(any<any>(
+			this._editor.onDidChangeConfiguration.bind(this._editor),
+			this._editor.onDidChangeModelDecorations.bind(this._editor)
+		)(() => {
 			// hide when something has been added to glyph margin
 			if (this._visible && !this._hasSpaceInGlyphMargin(this._position.lineNumber)) {
 				this.hide();
@@ -110,6 +113,9 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 	}
 
 	private _hasSpaceInGlyphMargin(line: number): boolean {
+		if (!this._editor.getRawConfiguration().glyphMargin) {
+			return false;
+		}
 		for (const {options} of this._editor.getLineDecorations(line)) {
 			if (options.glyphMarginClassName) {
 				return false;
