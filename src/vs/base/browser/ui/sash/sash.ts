@@ -118,7 +118,10 @@ export class Sash extends EventEmitter {
 			return;
 		}
 
-		$(DOM.getElementsByTagName('iframe')).style('pointer-events', 'none'); // disable mouse events on iframes as long as we drag the sash
+		const iframes = $(DOM.getElementsByTagName('iframe'));
+		if (iframes) {
+			iframes.style('pointer-events', 'none'); // disable mouse events on iframes as long as we drag the sash
+		}
 
 		let mouseDownEvent = new StandardMouseEvent(e);
 		let startX = mouseDownEvent.posx;
@@ -163,7 +166,10 @@ export class Sash extends EventEmitter {
 			$window.off('mousemove');
 			document.body.classList.remove(containerCSSClass);
 
-			$(DOM.getElementsByTagName('iframe')).style('pointer-events', 'auto');
+			const iframes = $(DOM.getElementsByTagName('iframe'));
+			if (iframes) {
+				iframes.style('pointer-events', 'auto');
+			}
 		});
 
 		document.body.classList.add(containerCSSClass);
