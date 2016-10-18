@@ -12,7 +12,6 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import * as errors from 'vs/base/common/errors';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
-
 import { ExtHostFileSystemEventService } from 'vs/workbench/api/node/extHostFileSystemEventService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
