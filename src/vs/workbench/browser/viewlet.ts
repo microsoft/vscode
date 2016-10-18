@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
-import Event, { Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/platform';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { IAction, IActionRunner, Action } from 'vs/base/common/actions';

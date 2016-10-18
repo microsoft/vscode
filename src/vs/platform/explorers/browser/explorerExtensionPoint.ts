@@ -74,4 +74,4 @@ ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.e
 		));
 	}
 	Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerExternalViewlets(descriptors);
-})
+});

@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, ExtHostTreeExplorersShape, MainThreadTreeExplorersShape } from './extHost.protocol';
-import { InternalTreeExplorerNode, TreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
 

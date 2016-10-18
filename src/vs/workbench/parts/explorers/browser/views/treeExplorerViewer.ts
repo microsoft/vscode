@@ -6,23 +6,17 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { $, Builder } from 'vs/base/browser/builder';
-
 import { ITree, IDataSource, IRenderer, IElementCallback } from 'vs/base/parts/tree/browser/tree';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-
 import { IActionRunner } from 'vs/base/common/actions';
 import { IActionProvider, ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
-
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITreeExplorerService } from 'vs/workbench/parts/explorers/browser/treeExplorerService';
-
-const providerId = 'pineTree'; // For now
 
 export class TreeDataSource implements IDataSource {
 	constructor(

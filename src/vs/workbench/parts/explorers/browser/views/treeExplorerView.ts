@@ -5,15 +5,11 @@
 'use strict';
 
 import nls = require('vs/nls');
-import labels = require('vs/base/common/labels');
-
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
-
 import { IActionRunner, IAction } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -23,18 +19,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITreeExplorerService } from 'vs/workbench/parts/explorers/browser/treeExplorerService';
-
-import { ITree, IDataSource, IRenderer } from 'vs/base/parts/tree/browser/tree';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-
-import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
 export class TreeExplorerView extends CollapsibleViewletView {
 	private workspace: IWorkspace;
-	private treeViewer: ITree;
 
 	private viewletState: TreeExplorerViewletState;
 
@@ -114,7 +104,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 	private updateInput(): TPromise<void> {
 		return this.treeExplorerViewletService.provideTreeContent('pineTree').then(tree => {
 			this.tree.setInput(tree);
-		})
+		});
 	}
 
 	public getOptimalWidth(): number {

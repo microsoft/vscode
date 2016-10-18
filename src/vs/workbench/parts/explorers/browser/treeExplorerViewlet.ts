@@ -6,14 +6,10 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import { SplitView, Orientation } from 'vs/base/browser/ui/splitview/splitview';
-
+import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
-
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-
 import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/treeExplorerView';
 import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 
@@ -32,7 +28,6 @@ export class TreeExplorerViewlet extends Viewlet {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(ID, telemetryService);
@@ -48,8 +43,7 @@ export class TreeExplorerViewlet extends Viewlet {
 		this.viewletContainer = parent.div().addClass('custom-tree-explorer-viewlet');
 		this.addTreeView(TREE_NAME);
 
-		const settings = this.configurationService.getConfiguration<ICustomViewletConfiguration>();
-		return this.onConfigurationUpdated(settings);
+		return TPromise.as(null);
 	}
 
 	layout(dimension: Dimension): void {
@@ -59,15 +53,11 @@ export class TreeExplorerViewlet extends Viewlet {
 	setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible).then(() => {
 			this.view.setVisible(visible).done();
-		})
-	}
-
-	private onConfigurationUpdated(config: ICustomViewletConfiguration): TPromise<void> {
-		return TPromise.as(null);
+		});
 	}
 
 	private addTreeView(treeName: string): void {
-		// 0 for now, add back header later if needed
+		// Hide header (root node) by default
 		const headerSize = 0;
 
 		this.view = this.instantiationService.createInstance(TreeExplorerView, this.viewletState, treeName, this.getActionRunner(), headerSize);
@@ -76,12 +66,5 @@ export class TreeExplorerViewlet extends Viewlet {
 
 	dispose(): void {
 		this.view = null;
-	}
-}
-
-
-export interface ICustomViewletConfiguration {
-	viewlet: {
-
 	}
 }

@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TreeExplorerNodeProvider } from 'vscode';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, {Emitter} from 'vs/base/common/event';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
