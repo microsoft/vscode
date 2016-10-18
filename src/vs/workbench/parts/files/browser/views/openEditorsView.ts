@@ -25,6 +25,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletSer
 import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, OpenEditor, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 
 const $ = dom.$;
 
@@ -77,6 +78,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	public getActions(): IAction[] {
 		return [
+			this.instantiationService.createInstance(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL),
 			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
 			this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL)
 		];

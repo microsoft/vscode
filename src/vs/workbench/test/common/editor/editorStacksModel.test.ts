@@ -296,9 +296,9 @@ suite('Editor Stacks Model', () => {
 		const group2 = model.openGroup('second');
 		const group3 = model.openGroup('third');
 
-		assert.equal(Position.LEFT, model.positionOfGroup(group1));
-		assert.equal(Position.CENTER, model.positionOfGroup(group2));
-		assert.equal(Position.RIGHT, model.positionOfGroup(group3));
+		assert.equal(Position.ONE, model.positionOfGroup(group1));
+		assert.equal(Position.TWO, model.positionOfGroup(group2));
+		assert.equal(Position.THREE, model.positionOfGroup(group3));
 	});
 
 	test('Groups - Rename Group', function () {

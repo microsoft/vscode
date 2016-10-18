@@ -20,6 +20,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { IOptions } from 'vs/workbench/common/options';
+import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions, TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
@@ -248,7 +249,7 @@ export class Workbench implements IPartService {
 						return {
 							input: inputWithOptions.input,
 							options: inputWithOptions.options,
-							position: Position.LEFT
+							position: EditorPosition.ONE
 						};
 					});
 

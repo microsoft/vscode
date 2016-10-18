@@ -257,7 +257,7 @@ export class ElectronIntegration {
 			return this.editorService.openEditors(resources.map((r, index) => {
 				return {
 					input: r,
-					position: activeEditor ? activeEditor.position : Position.LEFT
+					position: activeEditor ? activeEditor.position : Position.ONE
 				};
 			}));
 		});

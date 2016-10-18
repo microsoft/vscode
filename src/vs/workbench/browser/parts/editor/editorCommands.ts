@@ -127,13 +127,13 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: 
 			newPosition = newPosition + 1;
 			break;
 		case ActiveEditorMovePositioning.FIRST:
-			newPosition = Position.LEFT;
+			newPosition = Position.ONE;
 			break;
 		case ActiveEditorMovePositioning.LAST:
-			newPosition = Position.RIGHT;
+			newPosition = Position.THREE;
 			break;
 		case ActiveEditorMovePositioning.CENTER:
-			newPosition = Position.CENTER;
+			newPosition = Position.TWO;
 			break;
 		case ActiveEditorMovePositioning.POSITION:
 			newPosition = args.value - 1;
@@ -211,7 +211,12 @@ function handleCommandDeprecations(): void {
 		'workbench.files.action.reopenClosedFile': 'workbench.action.reopenClosedEditor',
 		'workbench.files.action.workingFilesPicker': 'workbench.action.showAllEditors',
 		'workbench.action.cycleEditor': 'workbench.action.navigateEditorGroups',
-		'workbench.action.terminal.focus': 'workbench.action.focusPanel'
+		'workbench.action.terminal.focus': 'workbench.action.focusPanel',
+		'workbench.action.showEditorsInLeftGroup': 'workbench.action.showEditorsInFirstGroup',
+		'workbench.action.showEditorsInCenterGroup': 'workbench.action.showEditorsInSecondGroup',
+		'workbench.action.showEditorsInRightGroup': 'workbench.action.showEditorsInThirdGroup',
+		'workbench.action.moveEditorToLeftGroup': 'workbench.action.moveEditorToPreviousGroup',
+		'workbench.action.moveEditorToRightGroup': 'workbench.action.moveEditorToNextGroup'
 	};
 
 	Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {
