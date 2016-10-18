@@ -84,7 +84,7 @@ export class SplitEditorAction extends Action {
 					targetPosition = Position.THREE;
 				}
 
-				// Push the center group to the right/bottom to make room for the splitted input
+				// Push the second group to the right/bottom to make room for the splitted input
 				else if (editorToSplit.position === Position.ONE) {
 					options.preserveFocus = true;
 
@@ -163,7 +163,7 @@ export class FocusActiveGroupAction extends Action {
 export class FocusFirstGroupAction extends Action {
 
 	public static ID = 'workbench.action.focusFirstEditorGroup';
-	public static LABEL = nls.localize('focusFirstEditorGroup', "Focus Left Editor Group");
+	public static LABEL = nls.localize('focusFirstEditorGroup', "Focus First Editor Group");
 
 	constructor(
 		id: string,
@@ -281,7 +281,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
 
 	public static ID = 'workbench.action.focusSecondEditorGroup';
-	public static LABEL = nls.localize('focusSecondEditorGroup', "Focus Center Editor Group");
+	public static LABEL = nls.localize('focusSecondEditorGroup', "Focus Second Editor Group");
 
 	constructor(
 		id: string,
@@ -305,7 +305,7 @@ export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
 export class FocusThirdGroupAction extends BaseFocusSideGroupAction {
 
 	public static ID = 'workbench.action.focusThirdEditorGroup';
-	public static LABEL = nls.localize('focusThirdEditorGroup', "Focus Right Editor Group");
+	public static LABEL = nls.localize('focusThirdEditorGroup', "Focus Third Editor Group");
 
 	constructor(
 		id: string,
@@ -947,55 +947,55 @@ export class ReopenClosedEditorAction extends Action {
 	}
 }
 
-export const NAVIGATE_IN_LEFT_GROUP_PREFIX = 'edt left ';
+export const NAVIGATE_IN_GROUP_ONE_PREFIX = 'edt one ';
 
-export class ShowEditorsInLeftGroupAction extends QuickOpenAction {
+export class ShowEditorsInGroupOneAction extends QuickOpenAction {
 
-	public static ID = 'workbench.action.showEditorsInLeftGroup';
-	public static LABEL = nls.localize('showEditorsInLeftGroup', "Show Editors in Left Group");
+	public static ID = 'workbench.action.showEditorsInFirstGroup';
+	public static LABEL = nls.localize('showEditorsInFirstGroup', "Show Editors in First Group");
 
 	constructor(
 		actionId: string,
 		actionLabel: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(actionId, actionLabel, NAVIGATE_IN_LEFT_GROUP_PREFIX, quickOpenService);
+		super(actionId, actionLabel, NAVIGATE_IN_GROUP_ONE_PREFIX, quickOpenService);
 
 		this.class = 'show-group-editors-action';
 	}
 }
 
-export const NAVIGATE_IN_CENTER_GROUP_PREFIX = 'edt center ';
+export const NAVIGATE_IN_GROUP_TWO_PREFIX = 'edt two ';
 
-export class ShowEditorsInCenterGroupAction extends QuickOpenAction {
+export class ShowEditorsInGroupTwoAction extends QuickOpenAction {
 
-	public static ID = 'workbench.action.showEditorsInCenterGroup';
-	public static LABEL = nls.localize('showEditorsInCenterGroup', "Show Editors in Center Group");
+	public static ID = 'workbench.action.showEditorsInSecondGroup';
+	public static LABEL = nls.localize('showEditorsInSecondGroup', "Show Editors in Second Group");
 
 	constructor(
 		actionId: string,
 		actionLabel: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(actionId, actionLabel, NAVIGATE_IN_CENTER_GROUP_PREFIX, quickOpenService);
+		super(actionId, actionLabel, NAVIGATE_IN_GROUP_TWO_PREFIX, quickOpenService);
 
 		this.class = 'show-group-editors-action';
 	}
 }
 
-export const NAVIGATE_IN_RIGHT_GROUP_PREFIX = 'edt right ';
+export const NAVIGATE_IN_GROUP_THREE_PREFIX = 'edt three ';
 
-export class ShowEditorsInRightGroupAction extends QuickOpenAction {
+export class ShowEditorsInGroupThreeAction extends QuickOpenAction {
 
-	public static ID = 'workbench.action.showEditorsInRightGroup';
-	public static LABEL = nls.localize('showEditorsInRightGroup', "Show Editors in Right Group");
+	public static ID = 'workbench.action.showEditorsInThirdGroup';
+	public static LABEL = nls.localize('showEditorsInThirdGroup', "Show Editors in Third Group");
 
 	constructor(
 		actionId: string,
 		actionLabel: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(actionId, actionLabel, NAVIGATE_IN_RIGHT_GROUP_PREFIX, quickOpenService);
+		super(actionId, actionLabel, NAVIGATE_IN_GROUP_THREE_PREFIX, quickOpenService);
 
 		this.class = 'show-group-editors-action';
 	}
@@ -1024,12 +1024,12 @@ export class ShowEditorsInGroupAction extends Action {
 
 		switch (stacks.positionOfGroup(context.group)) {
 			case Position.TWO:
-				return this.quickOpenService.show((groupCount === 2) ? NAVIGATE_IN_RIGHT_GROUP_PREFIX : NAVIGATE_IN_CENTER_GROUP_PREFIX);
+				return this.quickOpenService.show((groupCount === 2) ? NAVIGATE_IN_GROUP_THREE_PREFIX : NAVIGATE_IN_GROUP_TWO_PREFIX);
 			case Position.THREE:
-				return this.quickOpenService.show(NAVIGATE_IN_RIGHT_GROUP_PREFIX);
+				return this.quickOpenService.show(NAVIGATE_IN_GROUP_THREE_PREFIX);
 		}
 
-		return this.quickOpenService.show(NAVIGATE_IN_LEFT_GROUP_PREFIX);
+		return this.quickOpenService.show(NAVIGATE_IN_GROUP_ONE_PREFIX);
 	}
 }
 
@@ -1064,12 +1064,12 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 		if (stacks.activeGroup) {
 			const activePosition = stacks.positionOfGroup(stacks.activeGroup);
 			const count = stacks.groups.length;
-			let prefix = NAVIGATE_IN_LEFT_GROUP_PREFIX;
+			let prefix = NAVIGATE_IN_GROUP_ONE_PREFIX;
 
 			if (activePosition === Position.TWO && count === 3) {
-				prefix = NAVIGATE_IN_CENTER_GROUP_PREFIX;
+				prefix = NAVIGATE_IN_GROUP_TWO_PREFIX;
 			} else if (activePosition === Position.THREE || (activePosition === Position.TWO && count === 2)) {
-				prefix = NAVIGATE_IN_RIGHT_GROUP_PREFIX;
+				prefix = NAVIGATE_IN_GROUP_THREE_PREFIX;
 			}
 
 			this.quickOpenService.show(prefix, { quickNavigateConfiguration: { keybindings: keys } });
@@ -1231,10 +1231,10 @@ export class MoveEditorRightInGroupAction extends Action {
 	}
 }
 
-export class MoveEditorToLeftGroupAction extends Action {
+export class MoveEditorToPreviousGroupAction extends Action {
 
-	public static ID = 'workbench.action.moveEditorToLeftGroup';
-	public static LABEL = nls.localize('moveEditorToLeftGroup', "Move Editor into Group to the Left");
+	public static ID = 'workbench.action.moveEditorToPreviousGroup';
+	public static LABEL = nls.localize('moveEditorToPreviousGroup', "Move Editor into Previous Group");
 
 	constructor(
 		id: string,
@@ -1255,10 +1255,10 @@ export class MoveEditorToLeftGroupAction extends Action {
 	}
 }
 
-export class MoveEditorToRightGroupAction extends Action {
+export class MoveEditorToNextGroupAction extends Action {
 
-	public static ID = 'workbench.action.moveEditorToRightGroup';
-	public static LABEL = nls.localize('moveEditorToRightGroup', "Move Editor into Group to the Right");
+	public static ID = 'workbench.action.moveEditorToNextGroup';
+	public static LABEL = nls.localize('moveEditorToNextGroup', "Move Editor into Next Group");
 
 	constructor(
 		id: string,
