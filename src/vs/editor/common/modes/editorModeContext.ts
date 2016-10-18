@@ -24,7 +24,8 @@ export class EditorModeContext {
 	private _hasDocumentSymbolProvider: IContextKey<boolean>;
 	private _hasReferenceProvider: IContextKey<boolean>;
 	private _hasRenameProvider: IContextKey<boolean>;
-	private _hasFormattingProvider: IContextKey<boolean>;
+	private _hasDocumentFormattingProvider: IContextKey<boolean>;
+	private _hasDocumentSelectionFormattingProvider: IContextKey<boolean>;
 	private _hasSignatureHelpProvider: IContextKey<boolean>;
 
 	constructor(
@@ -43,7 +44,8 @@ export class EditorModeContext {
 		this._hasDocumentSymbolProvider = ModeContextKeys.hasDocumentSymbolProvider.bindTo(contextKeyService);
 		this._hasReferenceProvider = ModeContextKeys.hasReferenceProvider.bindTo(contextKeyService);
 		this._hasRenameProvider = ModeContextKeys.hasRenameProvider.bindTo(contextKeyService);
-		this._hasFormattingProvider = ModeContextKeys.hasFormattingProvider.bindTo(contextKeyService);
+		this._hasDocumentFormattingProvider = ModeContextKeys.hasDocumentFormattingProvider.bindTo(contextKeyService);
+		this._hasDocumentSelectionFormattingProvider = ModeContextKeys.hasDocumentSelectionFormattingProvider.bindTo(contextKeyService);
 		this._hasSignatureHelpProvider = ModeContextKeys.hasSignatureHelpProvider.bindTo(contextKeyService);
 
 		// update when model/mode changes
@@ -82,7 +84,8 @@ export class EditorModeContext {
 		this._hasDocumentSymbolProvider.reset();
 		this._hasReferenceProvider.reset();
 		this._hasRenameProvider.reset();
-		this._hasFormattingProvider.reset();
+		this._hasDocumentFormattingProvider.reset();
+		this._hasDocumentSelectionFormattingProvider.reset();
 		this._hasSignatureHelpProvider.reset();
 	}
 
@@ -103,6 +106,7 @@ export class EditorModeContext {
 		this._hasReferenceProvider.set(modes.ReferenceProviderRegistry.has(model));
 		this._hasRenameProvider.set(modes.RenameProviderRegistry.has(model));
 		this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
-		this._hasFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
+		this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
+		this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 	}
 }
