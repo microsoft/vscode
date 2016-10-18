@@ -17,167 +17,167 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IExtensionTemplateData {
-    icon: HTMLImageElement;
-    name: HTMLElement;
-    identifier: HTMLElement;
-    author: HTMLElement;
-    extensionDisposables: IDisposable[];
-    extensionDependencies: IExtensionDependencies;
+	icon: HTMLImageElement;
+	name: HTMLElement;
+	identifier: HTMLElement;
+	author: HTMLElement;
+	extensionDisposables: IDisposable[];
+	extensionDependencies: IExtensionDependencies;
 }
 
 export class DataSource implements IDataSource {
 
-    public getId(tree: ITree, element: IExtensionDependencies): string {
-        let id = `${element.extension.publisher}.${element.extension.name}`;
-        this.getParent(tree, element).then(parent => {
-            id = parent ? this.getId(tree, parent) + '/' + id : id;
-        });
-        return id;
-    }
+	public getId(tree: ITree, element: IExtensionDependencies): string {
+		let id = `${element.extension.publisher}.${element.extension.name}`;
+		this.getParent(tree, element).then(parent => {
+			id = parent ? this.getId(tree, parent) + '/' + id : id;
+		});
+		return id;
+	}
 
-    public hasChildren(tree: ITree, element: IExtensionDependencies): boolean {
-        return element.hasDependencies && !this.isSelfAncestor(element);
-    }
+	public hasChildren(tree: ITree, element: IExtensionDependencies): boolean {
+		return element.hasDependencies && !this.isSelfAncestor(element);
+	}
 
-    public getChildren(tree: ITree, element: IExtensionDependencies): Promise {
-        return TPromise.as(element.dependencies);
-    }
+	public getChildren(tree: ITree, element: IExtensionDependencies): Promise {
+		return TPromise.as(element.dependencies);
+	}
 
-    public getParent(tree: ITree, element: IExtensionDependencies): Promise {
-        return TPromise.as(element.dependent);
-    }
+	public getParent(tree: ITree, element: IExtensionDependencies): Promise {
+		return TPromise.as(element.dependent);
+	}
 
-    private isSelfAncestor(element: IExtensionDependencies): boolean {
-        let ancestor = element.dependent;
-        while (ancestor !== null) {
-            if (ancestor.extension.identifier === element.extension.identifier) {
-                return true;
-            }
-            ancestor = ancestor.dependent;
-        }
-        return false;
-    }
+	private isSelfAncestor(element: IExtensionDependencies): boolean {
+		let ancestor = element.dependent;
+		while (ancestor !== null) {
+			if (ancestor.extension.identifier === element.extension.identifier) {
+				return true;
+			}
+			ancestor = ancestor.dependent;
+		}
+		return false;
+	}
 }
 
 export class Renderer implements IRenderer {
 
-    private static EXTENSION_TEMPLATE_ID = 'extension-template';
+	private static EXTENSION_TEMPLATE_ID = 'extension-template';
 
-    constructor( @IInstantiationService private instantiationService: IInstantiationService) {
-    }
+	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	}
 
-    public getHeight(tree: ITree, element: IExtensionDependencies): number {
-        return 62;
-    }
+	public getHeight(tree: ITree, element: IExtensionDependencies): number {
+		return 62;
+	}
 
-    public getTemplateId(tree: ITree, element: IExtensionDependencies): string {
-        return Renderer.EXTENSION_TEMPLATE_ID;
-    }
+	public getTemplateId(tree: ITree, element: IExtensionDependencies): string {
+		return Renderer.EXTENSION_TEMPLATE_ID;
+	}
 
-    public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): IExtensionTemplateData {
-        dom.addClass(container, 'dependency');
+	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): IExtensionTemplateData {
+		dom.addClass(container, 'dependency');
 
-        const icon = dom.append(container, dom.$<HTMLImageElement>('img.icon'));
-        const details = dom.append(container, dom.$('.details'));
+		const icon = dom.append(container, dom.$<HTMLImageElement>('img.icon'));
+		const details = dom.append(container, dom.$('.details'));
 
-        const header = dom.append(details, dom.$('.header'));
-        const name = dom.append(header, dom.$('span.name'));
-        const openExtensionAction = this.instantiationService.createInstance(OpenExtensionAction);
-        const extensionDisposables = [dom.addDisposableListener(name, 'click', (e: MouseEvent) => {
-            tree.setFocus(openExtensionAction.extensionDependencies);
-            openExtensionAction.run(e.ctrlKey || e.metaKey);
-            e.stopPropagation();
-            e.preventDefault();
-        })];
-        var identifier = dom.append(header, dom.$('span.identifier'));
+		const header = dom.append(details, dom.$('.header'));
+		const name = dom.append(header, dom.$('span.name'));
+		const openExtensionAction = this.instantiationService.createInstance(OpenExtensionAction);
+		const extensionDisposables = [dom.addDisposableListener(name, 'click', (e: MouseEvent) => {
+			tree.setFocus(openExtensionAction.extensionDependencies);
+			openExtensionAction.run(e.ctrlKey || e.metaKey);
+			e.stopPropagation();
+			e.preventDefault();
+		})];
+		var identifier = dom.append(header, dom.$('span.identifier'));
 
-        const footer = dom.append(details, dom.$('.footer'));
-        var author = dom.append(footer, dom.$('.author'));
-        return {
-            icon,
-            name,
-            identifier,
-            author,
-            extensionDisposables,
-            set extensionDependencies(e: IExtensionDependencies) {
-                openExtensionAction.extensionDependencies = e;
-            }
-        };
-    }
+		const footer = dom.append(details, dom.$('.footer'));
+		var author = dom.append(footer, dom.$('.author'));
+		return {
+			icon,
+			name,
+			identifier,
+			author,
+			extensionDisposables,
+			set extensionDependencies(e: IExtensionDependencies) {
+				openExtensionAction.extensionDependencies = e;
+			}
+		};
+	}
 
 
-    public renderElement(tree: ITree, element: IExtensionDependencies, templateId: string, templateData: any): void {
-        const extension = element.extension;
-        const data = <IExtensionTemplateData>templateData;
+	public renderElement(tree: ITree, element: IExtensionDependencies, templateId: string, templateData: any): void {
+		const extension = element.extension;
+		const data = <IExtensionTemplateData>templateData;
 
-        const onError = once(domEvent(data.icon, 'error'));
-        onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
-        data.icon.src = extension.iconUrl;
+		const onError = once(domEvent(data.icon, 'error'));
+		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
+		data.icon.src = extension.iconUrl;
 
-        if (!data.icon.complete) {
-            data.icon.style.visibility = 'hidden';
-            data.icon.onload = () => data.icon.style.visibility = 'inherit';
-        } else {
-            data.icon.style.visibility = 'inherit';
-        }
+		if (!data.icon.complete) {
+			data.icon.style.visibility = 'hidden';
+			data.icon.onload = () => data.icon.style.visibility = 'inherit';
+		} else {
+			data.icon.style.visibility = 'inherit';
+		}
 
-        data.name.textContent = extension.displayName;
-        data.identifier.textContent = `${extension.publisher}.${extension.name}`;
-        data.author.textContent = extension.publisherDisplayName;
-        data.extensionDependencies = element;
-    }
+		data.name.textContent = extension.displayName;
+		data.identifier.textContent = `${extension.publisher}.${extension.name}`;
+		data.author.textContent = extension.publisherDisplayName;
+		data.extensionDependencies = element;
+	}
 
-    public disposeTemplate(tree: ITree, templateId: string, templateData: IExtensionTemplateData): void {
-        templateData.extensionDisposables = dispose(templateData.extensionDisposables);
-    }
+	public disposeTemplate(tree: ITree, templateId: string, templateData: IExtensionTemplateData): void {
+		templateData.extensionDisposables = dispose(templateData.extensionDisposables);
+	}
 }
 
 export class Controller extends DefaultController {
 
-    constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
-        super();
-    }
+	constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
+		super();
+	}
 
-    protected onLeftClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
-        let currentFoucssed = tree.getFocus();
-        if (super.onLeftClick(tree, element, event)) {
-            if (element.dependent === null) {
-                if (currentFoucssed) {
-                    tree.setFocus(currentFoucssed);
-                } else {
-                    tree.focusFirst();
-                }
-                return true;
-            }
-        }
-        return false;
-    }
+	protected onLeftClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
+		let currentFoucssed = tree.getFocus();
+		if (super.onLeftClick(tree, element, event)) {
+			if (element.dependent === null) {
+				if (currentFoucssed) {
+					tree.setFocus(currentFoucssed);
+				} else {
+					tree.focusFirst();
+				}
+				return true;
+			}
+		}
+		return false;
+	}
 
-    protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
-        if (super.onEnter(tree, event)) {
-            this.extensionsWorkdbenchService.open(tree.getFocus(), event.ctrlKey || event.metaKey);
-        }
-        return false;
-    }
+	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
+		if (super.onEnter(tree, event)) {
+			this.extensionsWorkdbenchService.open(tree.getFocus(), event.ctrlKey || event.metaKey);
+		}
+		return false;
+	}
 }
 
 class OpenExtensionAction extends Action {
 
-    private _extensionDependencies: IExtensionDependencies;
+	private _extensionDependencies: IExtensionDependencies;
 
-    constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
-        super('extensions.action.openDependency', '');
-    }
+	constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
+		super('extensions.action.openDependency', '');
+	}
 
-    public set extensionDependencies(extensionDependencies: IExtensionDependencies) {
-        this._extensionDependencies = extensionDependencies;
-    }
+	public set extensionDependencies(extensionDependencies: IExtensionDependencies) {
+		this._extensionDependencies = extensionDependencies;
+	}
 
-    public get extensionDependencies(): IExtensionDependencies {
-        return this._extensionDependencies;
-    }
+	public get extensionDependencies(): IExtensionDependencies {
+		return this._extensionDependencies;
+	}
 
-    run(sideByside: boolean): TPromise<any> {
-        return this.extensionsWorkdbenchService.open(this._extensionDependencies.extension, sideByside);
-    }
+	run(sideByside: boolean): TPromise<any> {
+		return this.extensionsWorkdbenchService.open(this._extensionDependencies.extension, sideByside);
+	}
 }
