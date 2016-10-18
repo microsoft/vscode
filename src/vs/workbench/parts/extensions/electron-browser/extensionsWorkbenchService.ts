@@ -471,20 +471,27 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrapError<void>(new Error('Missing gallery'));
 		}
 
-		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies);
+		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies)
+			.then(() => {
+				this.promptToRestart(ext, true);
+			});
 	}
 
 	setEnablement(extension: IExtension, enable: boolean): TPromise<any> {
 		return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, extension.displayName).then(restart => {
 			if (restart) {
-				const message = enable ? localize('postEnableMessage', "In order to enable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName)
-					: localize('postDisableMessage', "In order to disable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName);
-				this.messageService.show(Severity.Info, {
-					message,
-					actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now")), LaterAction]
-				});
+				this.promptToRestart(extension, enable);
 				this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
 			}
+		});
+	}
+
+	private promptToRestart(extension: IExtension, enable: boolean): void {
+		const message = enable ? localize('postEnableMessage', "In order to enable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName)
+			: localize('postDisableMessage', "In order to disable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName);
+		this.messageService.show(Severity.Info, {
+			message,
+			actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now")), LaterAction]
 		});
 	}
 
