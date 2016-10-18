@@ -2385,7 +2385,7 @@
 							"name": "keyword.control.as.tsx"
 						}
 					},
-					"end": "(?=$|[;,})\\]])",
+					"end": "(?=$|[;,:})\\]])",
 					"patterns": [
 						{
 							"include": "#type"
@@ -2607,25 +2607,52 @@
 			]
 		},
 		"regex": {
-			"name": "string.regex.tsx",
-			"begin": "(?<=[=(:,\\[?+!]|return|case|=>|&&|\\|\\||\\*\\/)\\s*(/)(?![/*+?])(?=.*/)",
-			"beginCaptures": {
-				"1": {
-					"name": "punctuation.definition.string.begin.tsx"
-				}
-			},
-			"end": "(/)([gimuy]*)",
-			"endCaptures": {
-				"1": {
-					"name": "punctuation.definition.string.end.tsx"
-				},
-				"2": {
-					"name": "keyword.other.tsx"
-				}
-			},
 			"patterns": [
 				{
-					"include": "#regexp"
+					"name": "string.regex.tsx",
+					"begin": "(?<=[=(:,\\[?+!]|return|case|=>|&&|\\|\\||\\*\\/)\\s*(/)(?![/*+?])(?=.*/)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.string.begin.tsx"
+						}
+					},
+					"end": "(/)([gimuy]*)",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.definition.string.end.tsx"
+						},
+						"2": {
+							"name": "keyword.other.tsx"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#regexp"
+						}
+					]
+				},
+				{
+					"name": "string.regex.tsx",
+					"begin": "/(?![/*])(?=(?:[^/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+/(?![/*])[gimy]*(?!\\s*[a-zA-Z0-9_$]))",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.tsx"
+						}
+					},
+					"end": "(/)([gimuy]*)",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.definition.string.end.tsx"
+						},
+						"2": {
+							"name": "keyword.other.tsx"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#regexp"
+						}
+					]
 				}
 			]
 		},
@@ -3366,5 +3393,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/d3b73efa6a26a86aa31f8ab49e9d74db8e7c1651"
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/fea3b25eb632f689a02057a1715faab29343dda2"
 }
