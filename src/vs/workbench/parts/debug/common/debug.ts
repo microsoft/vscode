@@ -31,7 +31,7 @@ export const DEBUG_SCHEME = 'debug';
 
 export interface IRawModelUpdate {
 	threadId: number;
-	sessionId: string;
+	rawSession: IRawDebugSession;
 	thread?: DebugProtocol.Thread;
 	callStack?: DebugProtocol.StackFrame[];
 	stoppedDetails?: IRawStoppedDetails;
@@ -93,7 +93,7 @@ export interface IThread extends ITreeElement {
 	 * Only gets the first 20 stack frames. Calling this method consecutive times
 	 * with getAdditionalStackFrames = true gets the remainder of the call stack.
 	 */
-	getCallStack(debugService: IDebugService, getAdditionalStackFrames?: boolean): TPromise<IStackFrame[]>;
+	getCallStack(getAdditionalStackFrames?: boolean): TPromise<IStackFrame[]>;
 
 	/**
 	 * Gets the callstack if it has already been received from the debug
@@ -120,6 +120,7 @@ export interface IScope extends IExpressionContainer {
 
 export interface IStackFrame extends ITreeElement {
 	threadId: number;
+	sessionId: string;
 	name: string;
 	lineNumber: number;
 	column: number;
@@ -166,10 +167,13 @@ export interface IExceptionBreakpoint extends IEnablement {
 // model interfaces
 
 export interface IViewModel extends ITreeElement {
+	/**
+	 * Returns the active debug session or null if debug is inactive.
+	 */
 	activeSession: IRawDebugSession;
 	getFocusedStackFrame(): IStackFrame;
 	getSelectedExpression(): IExpression;
-	getFocusedThreadId(): number;
+	getFocusedThread(): IThread;
 	setSelectedExpression(expression: IExpression);
 	getSelectedFunctionBreakpoint(): IFunctionBreakpoint;
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
@@ -180,7 +184,8 @@ export interface IViewModel extends ITreeElement {
 }
 
 export interface IModel extends ITreeElement {
-	getThreads(): { [threadId: number]: IThread; };
+	getSessions(): IRawDebugSession[];
+	getThreads(sessionId): { [threadId: number]: IThread; };
 	getBreakpoints(): IBreakpoint[];
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): IFunctionBreakpoint[];
@@ -271,6 +276,7 @@ export interface IRawBreakpointContribution {
 
 export interface IRawDebugSession {
 	configuration: { type: string, capabilities: DebugProtocol.Capabilities };
+	getId(): string;
 
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 
