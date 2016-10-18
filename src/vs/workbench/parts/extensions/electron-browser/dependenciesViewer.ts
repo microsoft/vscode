@@ -15,6 +15,7 @@ import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 export interface IExtensionTemplateData {
 	icon: HTMLImageElement;
@@ -85,6 +86,7 @@ export class Renderer implements IRenderer {
 		const openExtensionAction = this.instantiationService.createInstance(OpenExtensionAction);
 		const extensionDisposables = [dom.addDisposableListener(name, 'click', (e: MouseEvent) => {
 			tree.setFocus(openExtensionAction.extensionDependencies);
+			tree.setSelection([openExtensionAction.extensionDependencies]);
 			openExtensionAction.run(e.ctrlKey || e.metaKey);
 			e.stopPropagation();
 			e.preventDefault();
@@ -136,6 +138,7 @@ export class Controller extends DefaultController {
 
 	constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
 		super();
+		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, (tree: ITree, event: any) => { this.openExtension(tree, true); });
 	}
 
 	protected onLeftClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
@@ -155,9 +158,14 @@ export class Controller extends DefaultController {
 
 	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
 		if (super.onEnter(tree, event)) {
-			this.extensionsWorkdbenchService.open(tree.getFocus(), event.ctrlKey || event.metaKey);
+			this.openExtension(tree, false);
 		}
 		return false;
+	}
+
+	private openExtension(tree: ITree, sideByside: boolean) {
+		const element: IExtensionDependencies = tree.getFocus();
+		this.extensionsWorkdbenchService.open(element.extension, sideByside);
 	}
 }
 
