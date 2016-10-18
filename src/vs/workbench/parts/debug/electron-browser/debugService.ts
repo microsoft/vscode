@@ -253,7 +253,7 @@ export class DebugService implements debug.IDebugService {
 				}
 			};
 
-			this.sendAllBreakpoints().done(sendConfigurationDone, sendConfigurationDone);
+			this.sendAllBreakpoints(session).done(sendConfigurationDone, sendConfigurationDone);
 		}));
 
 		this.toDisposeOnSessionEnd.push(session.onDidStop(event => {
@@ -1024,75 +1024,95 @@ export class DebugService implements debug.IDebugService {
 		return result;
 	}
 
-	private sendAllBreakpoints(): TPromise<any> {
-		return TPromise.join(arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => this.sendBreakpoints(bp.source.uri)))
-			.then(() => this.sendFunctionBreakpoints())
+	private sendAllBreakpoints(session?: RawDebugSession): TPromise<any> {
+		return TPromise.join(arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => this.sendBreakpoints(bp.source.uri, false, session)))
+			.then(() => this.sendFunctionBreakpoints(session))
 			// send exception breakpoints at the end since some debug adapters rely on the order
-			.then(() => this.sendExceptionBreakpoints());
+			.then(() => this.sendExceptionBreakpoints(session));
 	}
 
-	private sendBreakpoints(modelUri: uri, sourceModified = false): TPromise<void> {
-		if (!this.session || !this.session.readyForBreakpoints) {
-			return TPromise.as(null);
-		}
-		if (this.textFileService.isDirty(modelUri)) {
-			// Only send breakpoints for a file once it is not dirty #8077
-			this.breakpointsToSendOnResourceSaved[modelUri.toString()] = true;
-			return TPromise.as(null);
-		}
-
-		const breakpointsToSend = arrays.distinct(
-			this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.source.uri.toString() === modelUri.toString()),
-			bp => `${bp.desiredLineNumber}`
-		);
-		const rawSource = breakpointsToSend.length > 0 ? breakpointsToSend[0].source.raw : Source.toRawSource(modelUri, this.model);
-
-		return this.session.setBreakpoints({
-			source: rawSource,
-			lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
-			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition, hitCondition: bp.hitCondition })),
-			sourceModified
-		}).then(response => {
-			if (!response || !response.body) {
-				return;
+	private sendBreakpoints(modelUri: uri, sourceModified = false, session?: RawDebugSession): TPromise<void> {
+		const sendBreakpointsToSession = (session: RawDebugSession): TPromise<void> => {
+			if (!session.readyForBreakpoints) {
+				return TPromise.as(null);
+			}
+			if (this.textFileService.isDirty(modelUri)) {
+				// Only send breakpoints for a file once it is not dirty #8077
+				this.breakpointsToSendOnResourceSaved[modelUri.toString()] = true;
+				return TPromise.as(null);
 			}
 
-			const data: { [id: string]: { line?: number, verified: boolean } } = {};
-			for (let i = 0; i < breakpointsToSend.length; i++) {
-				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
-			}
+			const breakpointsToSend = arrays.distinct(
+				this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.source.uri.toString() === modelUri.toString()),
+				bp => `${bp.desiredLineNumber}`
+			);
+			const rawSource = breakpointsToSend.length > 0 ? breakpointsToSend[0].source.raw : Source.toRawSource(modelUri, this.model);
 
-			this.model.updateBreakpoints(data);
-		});
+			return session.setBreakpoints({
+				source: rawSource,
+				lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
+				breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition, hitCondition: bp.hitCondition })),
+				sourceModified
+			}).then(response => {
+				if (!response || !response.body) {
+					return;
+				}
+
+				const data: { [id: string]: { line?: number, verified: boolean } } = {};
+				for (let i = 0; i < breakpointsToSend.length; i++) {
+					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
+				}
+
+				this.model.updateBreakpoints(data);
+			});
+		};
+
+		return this.sendToOneOrAllSessions(session, sendBreakpointsToSession);
 	}
 
-	private sendFunctionBreakpoints(): TPromise<void> {
-		if (!this.session || !this.session.readyForBreakpoints || !this.session.configuration.capabilities.supportsFunctionBreakpoints) {
-			return TPromise.as(null);
-		}
-
-		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
-		return this.session.setFunctionBreakpoints({ breakpoints: breakpointsToSend }).then(response => {
-			if (!response || !response.body) {
-				return;
+	private sendFunctionBreakpoints(session?: RawDebugSession): TPromise<void> {
+		const sendFunctionBreakpointsToSession = (session: RawDebugSession): TPromise<void> => {
+			if (!session.readyForBreakpoints || !session.configuration.capabilities.supportsFunctionBreakpoints) {
+				return TPromise.as(null);
 			}
 
-			const data: { [id: string]: { name?: string, verified?: boolean } } = {};
-			for (let i = 0; i < breakpointsToSend.length; i++) {
-				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
-			}
+			const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
+			return session.setFunctionBreakpoints({ breakpoints: breakpointsToSend }).then(response => {
+				if (!response || !response.body) {
+					return;
+				}
 
-			this.model.updateFunctionBreakpoints(data);
-		});
+				const data: { [id: string]: { name?: string, verified?: boolean } } = {};
+				for (let i = 0; i < breakpointsToSend.length; i++) {
+					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
+				}
+
+				this.model.updateFunctionBreakpoints(data);
+			});
+		};
+
+		return this.sendToOneOrAllSessions(session, sendFunctionBreakpointsToSession);
 	}
 
-	private sendExceptionBreakpoints(): TPromise<any> {
-		if (!this.session || !this.session.readyForBreakpoints || this.model.getExceptionBreakpoints().length === 0) {
-			return TPromise.as(null);
+	private sendExceptionBreakpoints(session?: debug.IRawDebugSession): TPromise<void> {
+		const sendExceptionBreakpointsToSession = (session: RawDebugSession): TPromise<any> => {
+			if (!session || !session.readyForBreakpoints || this.model.getExceptionBreakpoints().length === 0) {
+				return TPromise.as(null);
+			}
+
+			const enabledExceptionBps = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
+			return session.setExceptionBreakpoints({ filters: enabledExceptionBps.map(exb => exb.filter) });
+		};
+
+		return this.sendToOneOrAllSessions(session, sendExceptionBreakpointsToSession);
+	}
+
+	private sendToOneOrAllSessions(session: debug.IRawDebugSession, send: (session: RawDebugSession) => TPromise<void>): TPromise<void> {
+		if (session) {
+			return send(<RawDebugSession>session);
 		}
 
-		const enabledExceptionBps = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
-		return this.session.setExceptionBreakpoints({ filters: enabledExceptionBps.map(exb => exb.filter) });
+		return TPromise.join(this.model.getSessions().map(s => send(<RawDebugSession>s))).then(() => void 0);
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
