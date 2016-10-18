@@ -5,8 +5,6 @@
 
 'use strict';
 
-import * as fs from 'fs';
-import * as crypto from 'crypto';
 import * as nls from 'vs/nls';
 import pkg from 'vs/platform/package';
 import paths = require('vs/base/common/paths');
@@ -52,7 +50,6 @@ export class ExtensionHostProcessWorker {
 	private extensionHostProcessQueuedSender: IQueuedSender;
 	private extensionHostProcessReady: boolean;
 	private initializeTimer: number;
-	private workspaceStoragePath: string;
 
 	private lastExtensionHostError: string;
 	private unsentMessages: any[];
@@ -222,7 +219,6 @@ export class ExtensionHostProcessWorker {
 				contextService: {
 					workspace: this.contextService.getWorkspace()
 				},
-				workspaceStoragePath: this.getStoragePath(),
 				extensions: extensionDescriptors
 			});
 			this.extensionHostProcessQueuedSender.send(initPayload);
@@ -408,58 +404,5 @@ export class ExtensionHostProcessWorker {
 					console.log(message);
 			}
 		}
-	}
-
-	private getStoragePath(): string {
-		const workspace = this.contextService.getWorkspace();
-
-		if (!workspace) {
-			return void 0;
-		}
-
-		if (this.workspaceStoragePath) {
-			return this.workspaceStoragePath;
-		}
-
-		function rmkDir(directory: string): boolean {
-			try {
-				fs.mkdirSync(directory);
-				return true;
-			} catch (err) {
-				if (err.code === 'ENOENT') {
-					if (rmkDir(paths.dirname(directory))) {
-						fs.mkdirSync(directory);
-						return true;
-					}
-				} else {
-					return fs.statSync(directory).isDirectory();
-				}
-			}
-		}
-
-		if (workspace) {
-			const hash = crypto.createHash('md5');
-			hash.update(workspace.resource.fsPath);
-			if (workspace.uid) {
-				hash.update(workspace.uid.toString());
-			}
-			this.workspaceStoragePath = paths.join(this.environmentService.appSettingsHome, 'workspaceStorage', hash.digest('hex'));
-			if (!fs.existsSync(this.workspaceStoragePath)) {
-				try {
-					if (rmkDir(this.workspaceStoragePath)) {
-						fs.writeFileSync(paths.join(this.workspaceStoragePath, 'meta.json'), JSON.stringify({
-							workspacePath: workspace.resource.fsPath,
-							uid: workspace.uid ? workspace.uid : null
-						}, null, 4));
-					} else {
-						this.workspaceStoragePath = void 0;
-					}
-				} catch (err) {
-					this.workspaceStoragePath = void 0;
-				}
-			}
-		}
-
-		return this.workspaceStoragePath;
 	}
 }
