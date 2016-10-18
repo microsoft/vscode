@@ -43,7 +43,7 @@ namespace schema {
 }
 
 ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.explorerContribtion).setHandler(extensions => {
-	let baseOrder = 200;
+	let baseOrder = 200; // Stock viewlet order goes up to 100
 	let descriptors = [];
 
 	for (let extension of extensions) {
@@ -69,7 +69,8 @@ ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.e
 			'workbench.view.customTreeExplorerViewlet.' + treeExplorerNodeProviderId,
 			treeLabel,
 			treeExplorerNodeProviderId,
-			baseOrder++
+			baseOrder++,
+			true
 		));
 	}
 	Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerExternalViewlets(descriptors);
