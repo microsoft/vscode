@@ -5,6 +5,7 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
+import Event, { fromEventEmitter } from 'vs/base/common/event';
 import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -36,48 +37,20 @@ var EDITOR_ID = 0;
 
 export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
 
-	public onDidChangeModelRawContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
-	}
-	public onDidChangeModelContent(listener: (e: editorCommon.IModelContentChangedEvent2) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelContentChanged2, listener);
-	}
-	public onDidChangeModelMode(listener: (e: editorCommon.IModelModeChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelModeChanged, listener);
-	}
-	public onDidChangeModelOptions(listener: (e: editorCommon.IModelOptionsChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelOptionsChanged, listener);
-	}
-	public onDidChangeModelDecorations(listener: (e: editorCommon.IModelDecorationsChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelDecorationsChanged, listener);
-	}
-	public onDidChangeConfiguration(listener: (e: editorCommon.IConfigurationChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ConfigurationChanged, listener);
-	}
-	public onDidChangeModel(listener: (e: editorCommon.IModelChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelChanged, listener);
-	}
-	public onDidChangeCursorPosition(listener: (e: editorCommon.ICursorPositionChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.CursorPositionChanged, listener);
-	}
-	public onDidChangeCursorSelection(listener: (e: editorCommon.ICursorSelectionChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.CursorSelectionChanged, listener);
-	}
-	public onDidFocusEditorText(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.EditorTextFocus, listener);
-	}
-	public onDidBlurEditorText(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.EditorTextBlur, listener);
-	}
-	public onDidFocusEditor(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.EditorFocus, listener);
-	}
-	public onDidBlurEditor(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.EditorBlur, listener);
-	}
-	public onDidDispose(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.Disposed, listener);
-	}
+	public readonly onDidChangeModelRawContent: Event<editorCommon.IModelContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelRawContentChanged);
+	public readonly onDidChangeModelContent: Event<editorCommon.IModelContentChangedEvent2> = fromEventEmitter(this, editorCommon.EventType.ModelContentChanged2);
+	public readonly onDidChangeModelMode: Event<editorCommon.IModelModeChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelModeChanged);
+	public readonly onDidChangeModelOptions: Event<editorCommon.IModelOptionsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelOptionsChanged);
+	public readonly onDidChangeModelDecorations: Event<editorCommon.IModelDecorationsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelDecorationsChanged);
+	public readonly onDidChangeConfiguration: Event<editorCommon.IConfigurationChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ConfigurationChanged);
+	public readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelChanged);
+	public readonly onDidChangeCursorPosition: Event<editorCommon.ICursorPositionChangedEvent> = fromEventEmitter(this, editorCommon.EventType.CursorPositionChanged);
+	public readonly onDidChangeCursorSelection: Event<editorCommon.ICursorSelectionChangedEvent> = fromEventEmitter(this, editorCommon.EventType.CursorSelectionChanged);
+	public readonly onDidFocusEditorText: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorTextFocus);
+	public readonly onDidBlurEditorText: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorTextBlur);
+	public readonly onDidFocusEditor: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorFocus);
+	public readonly onDidBlurEditor: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorBlur);
+	public readonly onDidDispose: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.Disposed);
 
 	protected domElement: IContextKeyServiceTarget;
 

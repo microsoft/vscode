@@ -33,8 +33,8 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 			}
 		}));
 		this._toDispose.push(any<any>(
-			this._editor.onDidChangeConfiguration.bind(this._editor),
-			this._editor.onDidChangeModelDecorations.bind(this._editor)
+			this._editor.onDidChangeConfiguration,
+			this._editor.onDidChangeModelDecorations
 		)(() => {
 			// hide when something has been added to glyph margin
 			if (this._visible && !this._hasSpaceInGlyphMargin(this._position.lineNumber)) {
