@@ -290,11 +290,14 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 		}));
 
 		this.toDispose.push(model.onDidChangeCallStack(() => {
-			const session = this.debugService.getViewModel().activeSession;
-			const threads = session ? model.getThreads(session.getId()) : Object.create(null);
-			const threadsArray = Object.keys(threads).map(ref => threads[ref]);
-			// Only show the threads in the call stack if there is more than 1 thread.
-			const newTreeInput = threadsArray.length === 1 ? threadsArray[0] : model;
+			let newTreeInput: any = this.debugService.getModel();
+			const sessions = this.debugService.getModel().getSessions();
+			if (sessions.length === 1) {
+				const threads = sessions[0] ? model.getThreads(sessions[0].getId()) : Object.create(null);
+				const threadsArray = Object.keys(threads).map(ref => threads[ref]);
+				// Only show the threads in the call stack if there is more than 1 thread.
+				newTreeInput = threadsArray.length === 1 ? threadsArray[0] : sessions[0];
+			}
 
 			if (this.tree.getInput() === newTreeInput) {
 				this.tree.refresh().done(null, errors.onUnexpectedError);

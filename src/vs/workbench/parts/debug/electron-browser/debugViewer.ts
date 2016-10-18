@@ -354,6 +354,7 @@ export class CallStackDataSource implements tree.IDataSource {
 	}
 
 	public hasChildren(tree: tree.ITree, element: any): boolean {
+		// TODO@isidor also has children if it is a session
 		return element instanceof model.Model || (element instanceof model.Thread && (<model.Thread>element).stopped);
 	}
 
@@ -361,14 +362,12 @@ export class CallStackDataSource implements tree.IDataSource {
 		if (element instanceof model.Thread) {
 			return this.getThreadChildren(element);
 		}
-
-		// TODO@Isidor FIX THIS
-		const session = this.debugService.getViewModel().activeSession;
-		if (!session) {
-			return TPromise.as([]);
+		if (element instanceof model.Model) {
+			return TPromise.as(element.getSessions());
 		}
 
-		const threads = (<model.Model>element).getThreads(session.getId());
+		const session = <debug.IRawDebugSession>element;
+		const threads = this.debugService.getModel().getThreads(session.getId());
 		return TPromise.as(Object.keys(threads).map(ref => threads[ref]));
 	}
 
