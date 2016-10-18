@@ -1116,7 +1116,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			return true;
 		}
 
-		return false;
+		return super.run(mode, context);
 	}
 }
 
