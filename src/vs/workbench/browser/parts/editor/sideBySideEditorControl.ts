@@ -1181,11 +1181,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			DOM.EventHelper.stop(e);
 
 			// Overlay the editor area with a div to be able to capture all mouse events
+			// Do NOT cover the title area to prevent missing double click events!
 			const overlayDiv = $('div').style({
-				top: 0,
-				height: '100%'
+				top: `${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px`,
+				height: `calc(100% - ${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px)`
 			}).id('monaco-workbench-editor-move-overlay');
-			overlayDiv.appendTo(this.parent);
+			overlayDiv.appendTo(this.silos[position]);
 
 			// Update flag
 			this.dragging = true;
