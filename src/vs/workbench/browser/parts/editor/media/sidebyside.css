@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 .vs .monaco-workbench > .editor:not(.empty) > .content {
-	background-color: #F3F3F3;
+	background-color: #ECECEC;
 }
 
 .vs-dark .monaco-workbench > .editor:not(.empty) > .content {
-	background-color: #252526;
+	background-color: #2D2D2D;
 }
 
 #monaco-workbench-editor-move-overlay,
@@ -38,16 +38,6 @@
 	background: none !important;
 	outline: 2px dashed #f38518;
 	outline-offset: -2px;
-}
-
-.vs .monaco-workbench > .editor > .content.vertical-layout.dragging {
-	border-left: 1px solid #E7E7E7;
-	border-right: 1px solid #E7E7E7;
-}
-
-.vs-dark .monaco-workbench > .editor > .content.vertical-layout.dragging {
-	border-left: 1px solid #444;
-	border-right: 1px solid #444;
 }
 
 .monaco-workbench > .editor > .content > .one-editor-silo {
