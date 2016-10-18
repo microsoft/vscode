@@ -524,7 +524,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout(true);
+			this.workbenchLayout.layout({ forceStyleReCompute: true });
 		}
 	}
 
@@ -544,7 +544,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout(true);
+			this.workbenchLayout.layout({ forceStyleReCompute: true });
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
@@ -587,7 +587,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout(true);
+			this.workbenchLayout.layout({ forceStyleReCompute: true });
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
@@ -615,7 +615,7 @@ export class Workbench implements IPartService {
 	}
 
 	public toggleMaximizedPanel(): void {
-		this.workbenchLayout.layout(true, true);
+		this.workbenchLayout.layout({ forceStyleReCompute: true, toggleMaximizedPanel: true });
 	}
 
 	public getSideBarPosition(): Position {
@@ -638,7 +638,7 @@ export class Workbench implements IPartService {
 		this.sidebarPart.getContainer().addClass(newPositionValue);
 
 		// Layout
-		this.workbenchLayout.layout(true);
+		this.workbenchLayout.layout({ forceStyleReCompute: true });
 	}
 
 	public dispose(): void {
