@@ -15,6 +15,8 @@ var hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export interface IResolvedLanguage {
 	name: string;
+	mimetypes: string[];
+	aliases: string[];
 	extensions: string[];
 	filenames: string[];
 	configurationFiles: string[];
@@ -55,12 +57,20 @@ export class LanguagesRegistry {
 		}
 
 		// Rebuild fast path maps
+		this.mime2LanguageId = {};
 		this.name2LanguageId = {};
+		this.lowerName2Id = {};
 		Object.keys(this._languages).forEach((langId) => {
 			let language = this._languages[langId];
 			if (language.name) {
 				this.name2LanguageId[language.name] = langId;
 			}
+			language.aliases.forEach((alias) => {
+				this.lowerName2Id[alias.toLowerCase()] = langId;
+			});
+			language.mimetypes.forEach((mimetype) => {
+				this.mime2LanguageId[mimetype] = langId;
+			});
 		});
 
 		this._onDidAddModes.fire(addedModes);
@@ -69,34 +79,44 @@ export class LanguagesRegistry {
 	private _registerLanguage(lang: ILanguageExtensionPoint): void {
 		const langId = lang.id;
 
-		var primaryMime: string = null;
-
-		if (typeof lang.mimetypes !== 'undefined' && Array.isArray(lang.mimetypes)) {
-			for (var i = 0; i < lang.mimetypes.length; i++) {
-				if (!primaryMime) {
-					primaryMime = lang.mimetypes[i];
-				}
-				this.mime2LanguageId[lang.mimetypes[i]] = langId;
-			}
-		}
-
-		if (!primaryMime) {
-			primaryMime = `text/x-${langId}`;
-			this.mime2LanguageId[primaryMime] = langId;
-		}
-
 		let resolvedLanguage: IResolvedLanguage = null;
 		if (hasOwnProperty.call(this._languages, langId)) {
 			resolvedLanguage = this._languages[langId];
 		} else {
 			resolvedLanguage = {
 				name: null,
+				mimetypes: [],
+				aliases: [],
 				extensions: [],
 				filenames: [],
 				configurationFiles: []
 			};
 			this._languages[langId] = resolvedLanguage;
 		}
+
+		LanguagesRegistry._mergeLanguage(resolvedLanguage, lang);
+	}
+
+	private static _mergeLanguage(resolvedLanguage: IResolvedLanguage, lang: ILanguageExtensionPoint): void {
+		const langId = lang.id;
+
+		let primaryMime: string = null;
+
+		if (typeof lang.mimetypes !== 'undefined' && Array.isArray(lang.mimetypes)) {
+			for (let i = 0; i < lang.mimetypes.length; i++) {
+				if (!primaryMime) {
+					primaryMime = lang.mimetypes[i];
+				}
+				resolvedLanguage.mimetypes.push(lang.mimetypes[i]);
+			}
+		}
+
+		if (!primaryMime) {
+			primaryMime = `text/x-${langId}`;
+			resolvedLanguage.mimetypes.push(primaryMime);
+		}
+
+
 
 		if (Array.isArray(lang.extensions)) {
 			for (let extension of lang.extensions) {
@@ -119,12 +139,12 @@ export class LanguagesRegistry {
 		}
 
 		if (typeof lang.firstLine === 'string' && lang.firstLine.length > 0) {
-			var firstLineRegexStr = lang.firstLine;
+			let firstLineRegexStr = lang.firstLine;
 			if (firstLineRegexStr.charAt(0) !== '^') {
 				firstLineRegexStr = '^' + firstLineRegexStr;
 			}
 			try {
-				var firstLineRegex = new RegExp(firstLineRegexStr);
+				let firstLineRegex = new RegExp(firstLineRegexStr);
 				if (!strings.regExpLeadsToEndlessLoop(firstLineRegex)) {
 					mime.registerTextMime({ id: langId, mime: primaryMime, firstline: firstLineRegex });
 				}
@@ -134,14 +154,14 @@ export class LanguagesRegistry {
 			}
 		}
 
-		this.lowerName2Id[langId.toLowerCase()] = langId;
+		resolvedLanguage.aliases.push(langId);
 
 		if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases)) {
-			for (var i = 0; i < lang.aliases.length; i++) {
+			for (let i = 0; i < lang.aliases.length; i++) {
 				if (!lang.aliases[i] || lang.aliases[i].length === 0) {
 					continue;
 				}
-				this.lowerName2Id[lang.aliases[i].toLowerCase()] = langId;
+				resolvedLanguage.aliases.push(lang.aliases[i]);
 			}
 		}
 
@@ -230,11 +250,9 @@ export class LanguagesRegistry {
 		if (!languageName) {
 			return [];
 		}
-
 		if (hasOwnProperty.call(this.name2LanguageId, languageName)) {
 			return [this.name2LanguageId[languageName]];
 		}
-
 		return [];
 	}
 
