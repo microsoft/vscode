@@ -72,9 +72,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public _serviceBrand: any;
 
-	private static GROUP_ONE_LABEL = nls.localize('groupOne', "One");
-	private static GROUP_TWO_LABEL = nls.localize('groupTwo', "Two");
-	private static GROUP_THREE_LABEL = nls.localize('groupThree', "Three");
+	private static GROUP_LEFT = nls.localize('groupOneVertical', "Left");
+	private static GROUP_CENTER = nls.localize('groupTwoVertical', "Center");
+	private static GROUP_RIGHT = nls.localize('groupThreeVertical', "Right");
+	private static GROUP_TOP = nls.localize('groupOneHorizontal', "Top");
+	private static GROUP_MIDDLE = nls.localize('groupTwoHorizontal', "Middle");
+	private static GROUP_BOTTOM = nls.localize('groupThreeHorizontal', "Bottom");
 
 	private static EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
 
@@ -83,6 +86,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private memento: any;
 	private stacks: EditorStacksModel;
 	private previewEditors: boolean;
+	private layoutVertically: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
@@ -125,10 +129,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.stacks = this.instantiationService.createInstance(EditorStacksModel, restoreFromStorage);
 
-		const editorConfig = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor;
-		this.previewEditors = editorConfig.enablePreview;
+		const config = configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		if (config && config.workbench && config.workbench.editor) {
+			const editorConfig = config.workbench.editor;
 
-		this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
+			this.previewEditors = editorConfig.enablePreview;
+			this.layoutVertically = editorConfig.sideBySideLayout !== 'horizontal';
+
+			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
+		}
 
 		this.registerListeners();
 	}
@@ -140,18 +149,27 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
-		const newPreviewEditors = configuration.workbench.editor.enablePreview;
+		if (configuration && configuration.workbench && configuration.workbench.editor) {
+			const editorConfig = configuration.workbench.editor;
 
-		// Pin all preview editors of the user chose to disable preview
-		if (this.previewEditors !== newPreviewEditors && !newPreviewEditors) {
-			this.stacks.groups.forEach(group => {
-				if (group.previewEditor) {
-					this.pinEditor(group, group.previewEditor);
-				}
-			});
+			// Pin all preview editors of the user chose to disable preview
+			const newPreviewEditors = editorConfig.enablePreview;
+			if (this.previewEditors !== newPreviewEditors && !newPreviewEditors) {
+				this.stacks.groups.forEach(group => {
+					if (group.previewEditor) {
+						this.pinEditor(group, group.previewEditor);
+					}
+				});
+			}
+			this.previewEditors = newPreviewEditors;
+
+			// Rename groups when layout changes
+			const newLayoutVertically = editorConfig.sideBySideLayout !== 'horizontal';
+			if (newLayoutVertically !== this.layoutVertically) {
+				this.layoutVertically = newLayoutVertically;
+				this.renameGroups();
+			}
 		}
-
-		this.previewEditors = newPreviewEditors;
 	}
 
 	private onEditorDirty(identifier: EditorIdentifier): void {
@@ -1329,20 +1347,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			// ONE | TWO | THREE
 			if (groups.length > 2) {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_ONE_LABEL);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), EditorPart.GROUP_TWO_LABEL);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.THREE), EditorPart.GROUP_THREE_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), this.layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), this.layoutVertically ? EditorPart.GROUP_CENTER : EditorPart.GROUP_MIDDLE);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.THREE), this.layoutVertically ? EditorPart.GROUP_RIGHT : EditorPart.GROUP_BOTTOM);
 			}
 
 			// ONE | TWO
 			else if (groups.length > 1) {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_ONE_LABEL);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), EditorPart.GROUP_TWO_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), this.layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), this.layoutVertically ? EditorPart.GROUP_RIGHT : EditorPart.GROUP_BOTTOM);
 			}
 
 			// ONE
 			else {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), EditorPart.GROUP_ONE_LABEL);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), this.layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
 			}
 		}
 	}
