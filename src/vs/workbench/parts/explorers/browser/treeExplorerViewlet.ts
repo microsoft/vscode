@@ -38,9 +38,12 @@ export class TreeExplorerViewlet extends Viewlet {
 
 		this.externalViewletId = this.activityService.getExternalViewletIdToOpen();
 		this.treeNodeProviderId = this.getTreeProviderName(this.externalViewletId);
-		this.activityService.setInternalViewletId(this.externalViewletId, VIEWLET_ID_ROOT + TreeExplorerViewlet._idCounter);
 
 		TreeExplorerViewlet._idCounter++;
+	}
+
+	getId(): string {
+		return this.externalViewletId;
 	}
 
 	create(parent: Builder): TPromise<void> {
