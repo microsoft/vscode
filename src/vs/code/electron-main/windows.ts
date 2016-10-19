@@ -29,6 +29,7 @@ import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product';
+import Uri from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
 const EventTypes = {
@@ -765,7 +766,7 @@ export class WindowsManager implements IWindowsService {
 
 		// Add to backups
 		this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.map((path) => {
-			return path.workspacePath;
+			return Uri.file(path.workspacePath);
 		}));
 
 		return arrays.distinct(usedWindows);

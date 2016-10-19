@@ -39,21 +39,21 @@ suite('BackupService', () => {
 	});
 
 	test('pushWorkspaceBackupPathsSync should persist paths to workspaces.json', () => {
-		backupService.pushWorkspaceBackupPathsSync(['/foo', '/bar']);
-		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), ['/foo', '/bar']);
+		backupService.pushWorkspaceBackupPathsSync([Uri.file('/foo'), Uri.file('/bar')]);
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [Uri.file('/foo'), Uri.file('/bar')]);
 	});
 
 	test('pushWorkspaceBackupPathsSync should throw if a workspace is set', () => {
 		backupService.setCurrentWorkspace(Uri.file('/foo'));
-		assert.throws(() => backupService.pushWorkspaceBackupPathsSync(['/foo', '/bar']));
+		assert.throws(() => backupService.pushWorkspaceBackupPathsSync([Uri.file('/foo'), Uri.file('/bar')]));
 	});
 
 	test('removeWorkspaceBackupPath should remove workspaces from workspaces.json', done => {
-		backupService.pushWorkspaceBackupPathsSync(['/foo', '/bar']);
+		backupService.pushWorkspaceBackupPathsSync([Uri.file('/foo'), Uri.file('/bar')]);
 		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), ['/foo', '/bar']);
-		backupService.removeWorkspaceBackupPath('/foo').then(() => {
+		backupService.removeWorkspaceBackupPath(Uri.file('/foo')).then(() => {
 			assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), ['/bar']);
-			backupService.removeWorkspaceBackupPath('/bar').then(() => {
+			backupService.removeWorkspaceBackupPath(Uri.file('/bar')).then(() => {
 				assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
 				done();
 			});
@@ -61,10 +61,10 @@ suite('BackupService', () => {
 	});
 
 	test('removeWorkspaceBackupPath should fail gracefully when removing a path that doesn\'t exist', done => {
-		backupService.pushWorkspaceBackupPathsSync(['/foo']);
-		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), ['/foo']);
-		backupService.removeWorkspaceBackupPath('/bar').then(() => {
-			assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), ['/foo']);
+		backupService.pushWorkspaceBackupPathsSync([Uri.file('/foo')]);
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [Uri.file('/foo')]);
+		backupService.removeWorkspaceBackupPath(Uri.file('/bar')).then(() => {
+			assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [Uri.file('/foo')]);
 			done();
 		});
 	});
@@ -72,7 +72,7 @@ suite('BackupService', () => {
 	test('registerResourceForBackup should register backups to workspaces.json', done => {
 		backupService.setCurrentWorkspace(Uri.file('/foo'));
 		backupService.registerResourceForBackup(Uri.file('/bar')).then(() => {
-			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync('/foo'), ['/bar']);
+			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(Uri.file('/foo')), ['/bar']);
 			done();
 		});
 	});
@@ -80,9 +80,9 @@ suite('BackupService', () => {
 	test('deregisterResourceForBackup should deregister backups from workspaces.json', done => {
 		backupService.setCurrentWorkspace(Uri.file('/foo'));
 		backupService.registerResourceForBackup(Uri.file('/bar')).then(() => {
-			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync('/foo'), ['/bar']);
+			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(Uri.file('/foo')), ['/bar']);
 			backupService.deregisterResourceForBackup(Uri.file('/bar')).then(() => {
-				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync('/foo'), []);
+				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(Uri.file('/foo')), []);
 				done();
 			});
 		});
@@ -136,9 +136,9 @@ suite('BackupService', () => {
 		const workspaceResource = Uri.file('/foo');
 		backupService.setCurrentWorkspace(workspaceResource);
 		backupService.registerResourceForBackup(Uri.file('/bar')).then(() => {
-			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource.fsPath), ['/bar']);
+			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource), ['/bar']);
 			backupService.registerResourceForBackup(Uri.file('/baz')).then(() => {
-				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource.fsPath), ['/bar', '/baz']);
+				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource), ['/bar', '/baz']);
 				done();
 			});
 		});
@@ -153,9 +153,9 @@ suite('BackupService', () => {
 		const untitledBackup2 = path.join(untitledBackupDir, 'foo');
 		pfs.mkdirp(untitledBackupDir).then(() => {
 			pfs.writeFile(untitledBackup1, 'test').then(() => {
-				assert.deepEqual(backupService.getWorkspaceUntitledFileBackupsSync(workspaceResource.fsPath), [untitledBackup1]);
+				assert.deepEqual(backupService.getWorkspaceUntitledFileBackupsSync(workspaceResource), [untitledBackup1]);
 				pfs.writeFile(untitledBackup2, 'test').then(() => {
-					assert.deepEqual(backupService.getWorkspaceUntitledFileBackupsSync(workspaceResource.fsPath), [untitledBackup1, untitledBackup2]);
+					assert.deepEqual(backupService.getWorkspaceUntitledFileBackupsSync(workspaceResource), [untitledBackup1, untitledBackup2]);
 					done();
 				});
 			});

@@ -175,10 +175,10 @@ export class Workbench implements IPartService {
 
 		// Restore any backups if they exist for this workspace (empty workspaces are not supported yet)
 		if (workspace) {
-			options.filesToRestore = this.backupService.getWorkspaceTextFilesWithBackupsSync(workspace.resource.fsPath).map(filePath => {
+			options.filesToRestore = this.backupService.getWorkspaceTextFilesWithBackupsSync(workspace.resource).map(filePath => {
 				return { resource: Uri.file(filePath), options: { pinned: true } };
 			});
-			options.untitledFilesToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(workspace.resource.fsPath).map(untitledFilePath => {
+			options.untitledFilesToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(workspace.resource).map(untitledFilePath => {
 				return { resource: Uri.file(untitledFilePath), options: { pinned: true } };
 			});
 		}
