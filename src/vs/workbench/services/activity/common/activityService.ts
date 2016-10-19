@@ -85,4 +85,10 @@ export interface IActivityService {
 	 * Get the external viewlet id to open
 	 */
 	getExternalViewletIdToOpen(): string;
+
+	/**
+	 * Tell activitybar the internal viewlet id corresponding to the external viewlet id
+	 * once the viewlet is initialized
+	 */
+	setInternalViewletId(externalViewletId: string, internalViewletId: string): void;
 }
