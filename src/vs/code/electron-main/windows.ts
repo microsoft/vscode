@@ -6,6 +6,7 @@
 'use strict';
 
 import * as path from 'path';
+import * as os from 'os';
 import * as fs from 'original-fs';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
@@ -530,8 +531,26 @@ export class WindowsManager implements IWindowsService {
 
 			loggedStartupTimes = true;
 
-			window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart } });
+			this.logStartupTimes(window);
 		});
+	}
+
+	private logStartupTimes(window: VSCodeWindow): void {
+		let totalmem: number;
+		let cpus: { count: number; speed: number; model: string; };
+
+		try {
+			totalmem = os.totalmem();
+
+			const rawCpus = os.cpus();
+			if (rawCpus && rawCpus.length > 0) {
+				cpus = { count: rawCpus.length, speed: rawCpus[0].speed, model: rawCpus[0].model };
+			}
+		} catch (error) {
+			this.logService.log(error); // be on the safe side with these hardware method calls
+		}
+
+		window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart }, totalmem, cpus });
 	}
 
 	private onBroadcast(event: string, payload: any): void {

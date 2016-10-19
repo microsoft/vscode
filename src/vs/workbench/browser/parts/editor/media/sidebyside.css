@@ -11,12 +11,16 @@
 	background-color: #2D2D2D;
 }
 
+.monaco-workbench > .editor > .content.dragging > .monaco-sash {
+	display: none; /* hide sashes while dragging editors around */
+}
+
 #monaco-workbench-editor-move-overlay,
 #monaco-workbench-editor-drop-overlay {
 	position: absolute;
 	left: 0;
 	width: 100%;
-	z-index: 3000000;
+	z-index: 10000;
 }
 
 #monaco-workbench-editor-drop-overlay {
@@ -59,7 +63,7 @@
 }
 
 .monaco-workbench > .editor > .content > .one-editor-silo.dragging {
-	z-index: 2000000;
+	z-index: 70;
 	box-sizing: content-box;
 }
 

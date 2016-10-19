@@ -52,5 +52,27 @@ suite('Actions', () => {
 			enabled: true,
 			//		run: function() { return null; }
 		}));
+		assert(!isAction({
+			id: 'id',
+			label: 42,
+			class: 'style',
+			checked: true,
+			enabled: true,
+		}));
+		assert(!isAction({
+			id: 'id',
+			label: 'label',
+			class: 'style',
+			checked: 'checked',
+			enabled: true,
+		}));
+		assert(!isAction({
+			id: 'id',
+			label: 'label',
+			class: 'style',
+			checked: true,
+			enabled: true,
+			run: true
+		}));
 	});
 });

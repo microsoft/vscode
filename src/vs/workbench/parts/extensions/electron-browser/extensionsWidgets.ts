@@ -64,17 +64,21 @@ export class StatusWidget implements IDisposable {
 			return;
 		}
 
-		const status = append(this.container, $('span.extension-status'));
-		const state = this.extension.state;
-		const installed = state === ExtensionState.Installed;
-		const disabled = state === ExtensionState.Disabled;
-		const disabledInWorkspace = this.extensionsRuntimeService.getDisabledExtensions(true).indexOf(this.extension.identifier) !== -1;
-		toggleClass(status, 'disabled', disabled);
-		toggleClass(status, 'active', installed);
+		this.extensionsRuntimeService.getExtensions().done(extensions => {
+			const status = append(this.container, $('span.extension-status'));
+			const state = this.extension.state;
+			const enabled = state === ExtensionState.Enabled || extensions.some(e => e.id === this.extension.identifier);
+			const disabled = state === ExtensionState.Disabled;
+			const installed = state === ExtensionState.Installed;
+			toggleClass(status, 'disabled', disabled || installed);
+			toggleClass(status, 'active', enabled);
 
-		status.title = disabledInWorkspace ? localize('disabledWorkspace', "Disabled (Workspace)")
-			: disabled ? localize('disabled', "Disabled")
-				: installed ? localize('enabled', "Enabled") : '';
+			const disabledInWorkspace = this.extensionsRuntimeService.getDisabledExtensions(true).indexOf(this.extension.identifier) !== -1;
+			status.title = disabledInWorkspace ? localize('disabledWorkspace', "Disabled (Workspace)")
+				: disabled ? localize('disabled', "Disabled")
+					: installed ? localize('installed', "Installed")
+						: enabled ? localize('enabled', "Enabled") : '';
+		});
 	}
 
 	dispose(): void {

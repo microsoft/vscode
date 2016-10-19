@@ -31,6 +31,9 @@ export class VSCodeMenu {
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
 	private currentAutoSaveSetting: string;
+	private currentSidebarLocation: 'left' | 'right';
+	private currentEditorLayout: 'vertical' | 'horizontal';
+	private currentStatusbarVisible: boolean;
 
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
@@ -52,8 +55,7 @@ export class VSCodeMenu {
 		this.mapResolvedKeybindingToActionId = Object.create(null);
 		this.mapLastKnownKeybindingToActionId = this.storageService.getItem<{ [id: string]: string; }>(VSCodeMenu.lastKnownKeybindingsMapStorageKey) || Object.create(null);
 
-		const config = configurationService.getConfiguration<IFilesConfiguration>();
-		this.currentAutoSaveSetting = config && config.files && config.files.autoSave;
+		this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>());
 	}
 
 	public ready(): void {
@@ -110,16 +112,39 @@ export class VSCodeMenu {
 		});
 
 		// Update when auto save config changes
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
+		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true /* update menu if changed */));
 
 		// Listen to update service
 		this.updateService.on('change', () => this.updateMenu());
 	}
 
-	private onConfigurationUpdated(config: IFilesConfiguration): void {
+	private onConfigurationUpdated(config: IFilesConfiguration, handleMenu?: boolean): void {
+		let updateMenu = false;
 		const newAutoSaveSetting = config && config.files && config.files.autoSave;
 		if (newAutoSaveSetting !== this.currentAutoSaveSetting) {
 			this.currentAutoSaveSetting = newAutoSaveSetting;
+			updateMenu = true;
+		}
+
+		const newSidebarLocation = this.configurationService.lookup<'left' | 'right'>('workbench.sideBar.location').value;
+		if (newSidebarLocation !== this.currentSidebarLocation) {
+			this.currentSidebarLocation = newSidebarLocation;
+			updateMenu = true;
+		}
+
+		const newStatusbarVisible = this.configurationService.lookup<boolean>('workbench.statusBar.visible').value;
+		if (newStatusbarVisible !== this.currentStatusbarVisible) {
+			this.currentStatusbarVisible = newStatusbarVisible;
+			updateMenu = true;
+		}
+
+		const newEditorLayout = this.configurationService.lookup<'vertical' | 'horizontal'>('workbench.editor.sideBySideLayout').value;
+		if (newEditorLayout !== this.currentEditorLayout) {
+			this.currentEditorLayout = newEditorLayout;
+			updateMenu = true;
+		}
+
+		if (handleMenu && updateMenu) {
 			this.updateMenu();
 		}
 	}
@@ -487,16 +512,39 @@ export class VSCodeMenu {
 		const fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 });
 		const toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
 		const splitEditor = this.createMenuItem(nls.localize({ key: 'miSplitEditor', comment: ['&& denotes a mnemonic'] }, "Split &&Editor"), 'workbench.action.splitEditor');
-		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Editor &&Layout"), 'workbench.action.toggleEditorLayout');
+
+		let editorLayoutLabel: string;
+		if (this.currentEditorLayout !== 'horizontal') {
+			editorLayoutLabel = nls.localize({ key: 'miHorizontalEditorLayout', comment: ['&& denotes a mnemonic'] }, "Horizontal Editor &&Layout");
+		} else {
+			editorLayoutLabel = nls.localize({ key: 'miVerticalEditorLayout', comment: ['&& denotes a mnemonic'] }, "Vertical Editor &&Layout");
+		}
+		const toggleEditorLayout = this.createMenuItem(editorLayoutLabel, 'workbench.action.toggleEditorLayout');
+
 		const toggleSidebar = this.createMenuItem(nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar"), 'workbench.action.toggleSidebarVisibility');
-		const moveSidebar = this.createMenuItem(nls.localize({ key: 'miMoveSidebar', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar"), 'workbench.action.toggleSidebarPosition');
+
+		let moveSideBarLabel: string;
+		if (this.currentSidebarLocation !== 'right') {
+			moveSideBarLabel = nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right");
+		} else {
+			moveSideBarLabel = nls.localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left");
+		}
+
+		const moveSidebar = this.createMenuItem(moveSideBarLabel, 'workbench.action.toggleSidebarPosition');
+
 		const togglePanel = this.createMenuItem(nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel"), 'workbench.action.togglePanel');
-		const toggleStatusbar = this.createMenuItem(nls.localize({ key: 'miToggleStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Status Bar"), 'workbench.action.toggleStatusbarVisibility');
+
+		let statusBarLabel: string;
+		if (this.currentStatusbarVisible) {
+			statusBarLabel = nls.localize({ key: 'miHideStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Hide Status Bar");
+		} else {
+			statusBarLabel = nls.localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Show Status Bar");
+		}
+		const toggleStatusbar = this.createMenuItem(statusBarLabel, 'workbench.action.toggleStatusbarVisibility');
 
 		const toggleWordWrap = this.createMenuItem(nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
 		const toggleRenderWhitespace = this.createMenuItem(nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"), 'editor.action.toggleRenderWhitespace');
 		const toggleRenderControlCharacters = this.createMenuItem(nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters"), 'editor.action.toggleRenderControlCharacter');
-
 
 		const zoomIn = this.createMenuItem(nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"), 'workbench.action.zoomIn');
 		const zoomOut = this.createMenuItem(nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "Zoom O&&ut"), 'workbench.action.zoomOut');
@@ -734,12 +782,13 @@ export class VSCodeMenu {
 		}
 	}
 
-	private createMenuItem(label: string, actionId: string, enabled?: boolean): Electron.MenuItem;
-	private createMenuItem(label: string, click: () => void, enabled?: boolean): Electron.MenuItem;
-	private createMenuItem(arg1: string, arg2: any, arg3?: boolean): Electron.MenuItem {
+	private createMenuItem(label: string, actionId: string, enabled?: boolean, checked?: boolean): Electron.MenuItem;
+	private createMenuItem(label: string, click: () => void, enabled?: boolean, checked?: boolean): Electron.MenuItem;
+	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean): Electron.MenuItem {
 		const label = mnemonicLabel(arg1);
 		const click: () => void = (typeof arg2 === 'function') ? arg2 : () => this.windowsService.sendToFocused('vscode:runAction', arg2);
 		const enabled = typeof arg3 === 'boolean' ? arg3 : this.windowsService.getWindowCount() > 0;
+		const checked = typeof arg4 === 'boolean' ? arg4 : false;
 
 		let actionId: string;
 		if (typeof arg2 === 'string') {
@@ -752,6 +801,11 @@ export class VSCodeMenu {
 			click,
 			enabled
 		};
+
+		if (checked) {
+			options['type'] = 'checkbox';
+			options['checked'] = checked;
+		}
 
 		return new MenuItem(options);
 	}
