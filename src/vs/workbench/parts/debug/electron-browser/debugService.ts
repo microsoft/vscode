@@ -268,7 +268,8 @@ export class DebugService implements debug.IDebugService {
 					allThreadsStopped: event.body.allThreadsStopped
 				});
 
-				const thread = this.model.getThreads(session.getId())[threadId];
+				const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
+				const thread = process.getThread(threadId);
 				thread.getCallStack().then(callStack => {
 					if (callStack.length > 0) {
 						// focus first stack frame from top that has source location
@@ -981,9 +982,9 @@ export class DebugService implements debug.IDebugService {
 		this.model.clearThreads(session.getId(), false, threadId);
 
 		// Get a top stack frame of a stopped thread if there is any.
-		const threads = this.model.getThreads(session.getId());
-		const stoppedReference = Object.keys(threads).filter(ref => threads[ref].stopped).pop();
-		const stoppedThread = stoppedReference ? threads[parseInt(stoppedReference)] : null;
+
+		const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
+		const stoppedThread = process && process.getAllThreads().filter(t => t.stopped).pop();
 		const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;
 		const stackFrameToFocus = callStack && callStack.length > 0 ? callStack[0] : null;
 

@@ -212,14 +212,14 @@ export class BaseDebugController extends treedefaults.DefaultController {
 
 // call stack
 
-class ThreadAndSessionId {
-	constructor(public sessionId: string, public threadId: number) { }
+class ThreadAndProcessIds {
+	constructor(public processId: string, public threadId: number) { }
 }
 
 export class CallStackController extends BaseDebugController {
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
-		if (element instanceof ThreadAndSessionId) {
+		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
 		if (element instanceof model.StackFrame) {
@@ -231,7 +231,7 @@ export class CallStackController extends BaseDebugController {
 
 	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
-		if (element instanceof ThreadAndSessionId) {
+		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
 		if (element instanceof model.StackFrame) {
@@ -270,8 +270,9 @@ export class CallStackController extends BaseDebugController {
 	}
 
 	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
-	private showMoreStackFrames(tree: tree.ITree, threadAndSessionId: ThreadAndSessionId): boolean {
-		const thread = this.debugService.getModel().getThreads(threadAndSessionId.sessionId)[threadAndSessionId.threadId];
+	private showMoreStackFrames(tree: tree.ITree, threadAndProcessIds: ThreadAndProcessIds): boolean {
+		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === threadAndProcessIds.processId).pop();
+		const thread = process && process.getThread(threadAndProcessIds.threadId);
 		if (thread) {
 			thread.getCallStack(true)
 				.done(() => tree.refresh(), errors.onUnexpectedError);
@@ -338,10 +339,6 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 
 export class CallStackDataSource implements tree.IDataSource {
 
-	constructor( @debug.IDebugService private debugService: debug.IDebugService) {
-		// noop
-	}
-
 	public getId(tree: tree.ITree, element: any): string {
 		if (typeof element === 'number') {
 			return element.toString();
@@ -366,8 +363,7 @@ export class CallStackDataSource implements tree.IDataSource {
 		}
 
 		const process = <debug.IProcess>element;
-		const threads = this.debugService.getModel().getThreads(process.getId());
-		return TPromise.as(Object.keys(threads).map(ref => threads[ref]));
+		return TPromise.as(process.getAllThreads());
 	}
 
 	private getThreadChildren(thread: debug.IThread): TPromise<any> {
@@ -376,7 +372,7 @@ export class CallStackDataSource implements tree.IDataSource {
 				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 			}
 			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
-				return callStack.concat([new ThreadAndSessionId(thread.process.getId(), thread.threadId)]);
+				return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
 			}
 
 			return callStack;

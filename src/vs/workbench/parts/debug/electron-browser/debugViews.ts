@@ -293,10 +293,9 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 			let newTreeInput: any = this.debugService.getModel();
 			const processes = this.debugService.getModel().getProcesses();
 			if (processes.length === 1) {
-				const threads = processes[0] ? model.getThreads(processes[0].getId()) : Object.create(null);
-				const threadsArray = Object.keys(threads).map(ref => threads[ref]);
+				const threads = processes[0].getAllThreads();
 				// Only show the threads in the call stack if there is more than 1 thread.
-				newTreeInput = threadsArray.length === 1 ? threadsArray[0] : processes[0];
+				newTreeInput = threads.length === 1 ? threads[0] : processes[0];
 			}
 
 			if (this.tree.getInput() === newTreeInput) {

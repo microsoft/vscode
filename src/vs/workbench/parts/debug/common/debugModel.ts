@@ -401,10 +401,18 @@ export class Thread implements debug.IThread {
 
 export class Process implements debug.IProcess {
 
-	public threads: { [reference: number]: debug.IThread; };
+	private threads: { [reference: number]: debug.IThread; };
 
 	constructor(public session: debug.ISession) {
 		this.threads = {};
+	}
+
+	public getThread(threadId: number): debug.IThread {
+		return this.threads[threadId];
+	}
+
+	public getAllThreads(): debug.IThread[] {
+		return Object.keys(this.threads).map(key => this.threads[key]);
 	}
 
 	public getId(): string {
@@ -619,15 +627,6 @@ export class Model implements debug.IModel {
 
 	public get onDidChangeReplElements(): Event<void> {
 		return this._onDidChangeREPLElements.event;
-	}
-
-	public getThreads(processId: string): { [reference: number]: debug.IThread; } {
-		const process = this.processes.filter(p => p.getId() === processId).pop();
-		if (!process) {
-			return {};
-		}
-
-		return process.threads;
 	}
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
