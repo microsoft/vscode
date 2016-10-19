@@ -14,6 +14,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 export class ToggleEditorLayoutAction extends Action {
 
@@ -47,4 +48,4 @@ export class ToggleEditorLayoutAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL), 'View: Toggle Editor Layout', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_1, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_1 } }), 'View: Toggle Editor Layout', nls.localize('view', "View"));
