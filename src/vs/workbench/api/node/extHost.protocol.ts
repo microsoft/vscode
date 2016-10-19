@@ -118,8 +118,8 @@ export abstract class MainThreadEditorsShape {
 }
 
 export abstract class MainThreadTreeExplorersShape {
-	$registerTreeContentProvider(treeContentProviderId: string): void { throw ni(); }
-	$unregisterTreeContentProvider(treeContentProviderId: string): void { throw ni(); }
+	$registerTreeExplorerNodeProvider(providerId: string): void { throw ni(); }
+	$unregisterTreeExplorerNodeProvider(providerId: string): void { throw ni(); }
 }
 
 export abstract class MainThreadErrorsShape {
@@ -365,7 +365,7 @@ export const ExtHostContext = {
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments', ExtHostDocumentsShape),
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant', ExtHostDocumentSaveParticipantShape),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors', ExtHostEditorsShape),
-	ExtHostExplorers: createExtId<ExtHostTreeExplorersShape>('ExtHostExplorers',ExtHostTreeExplorersShape),
+	ExtHostExplorers: createExtId<ExtHostTreeExplorersShape>('ExtHostExplorers', ExtHostTreeExplorersShape),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService', ExtHostFileSystemEventServiceShape),
 	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor', ExtHostHeapServiceShape),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ExtHostLanguageFeaturesShape),

@@ -31,13 +31,13 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		this._externalNodeMaps = Object.create(null);
 	}
 
-	registerTreeContentProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable {
-		this._proxy.$registerTreeContentProvider(providerId);
+	registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable {
+		this._proxy.$registerTreeExplorerNodeProvider(providerId);
 		this._treeExplorerNodeProviders[providerId] = provider;
 
 		return new Disposable(() => {
 			if (delete this._treeExplorerNodeProviders[providerId]) {
-				this._proxy.$unregisterTreeContentProvider(providerId);
+				this._proxy.$unregisterTreeExplorerNodeProvider(providerId);
 			}
 		});
 	}

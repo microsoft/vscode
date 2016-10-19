@@ -13,8 +13,6 @@ import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/tr
 export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 	private _proxy: ExtHostTreeExplorersShape;
 
-	private _treeContents: { [treeContentProviderId: string]: InternalTreeExplorerNode };
-
 	constructor(
 		@IThreadService threadService: IThreadService,
 		@ITreeExplorerViewletService private treeExplorerService: ITreeExplorerViewletService
@@ -22,16 +20,12 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 		super();
 
 		this._proxy = threadService.get(ExtHostContext.ExtHostExplorers);
-		this._treeContents = Object.create(null);
 	}
 
-	$registerTreeContentProvider(providerId: string): void {
-		this.treeExplorerService.registerTreeContentProvider(providerId, {
+	$registerTreeExplorerNodeProvider(providerId: string): void {
+		this.treeExplorerService.registerTreeExplorerNodeProvider(providerId, {
 			provideRootNode: (): TPromise<InternalTreeExplorerNode> => {
-				return this._proxy.$provideRootNode(providerId).then(treeContent => {
-					this._treeContents[providerId] = treeContent;
-					return treeContent;
-				});
+				return this._proxy.$provideRootNode(providerId);
 			},
 			resolveChildren: (node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> => {
 				return this._proxy.$resolveChildren(providerId, node);
@@ -42,7 +36,7 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 		});
 	}
 
-	$unregisterTreeContentProvider(treeContentProviderId: string): void {
+	$unregisterTreeExplorerNodeProvider(providerId: string): void {
 
 	}
 }

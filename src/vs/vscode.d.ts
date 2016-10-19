@@ -3818,7 +3818,7 @@ declare module 'vscode' {
 		 * for custom tree explorers.
 		 *
 		 * @param providerId A unique id that identifies the provider.
-		 * @param provider A [TreeContentProvider](#TreeContentProvider)
+		 * @param provider A [TreeExplorerNodeProvider](#TreeExplorerNodeProvider)
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable;
