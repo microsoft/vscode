@@ -100,7 +100,8 @@ export interface ISession extends IBaseSession, ITreeElement {
 }
 
 export interface IProcess extends IBaseSession, ITreeElement {
-
+	getThread(threadId: number): IThread;
+	getAllThreads(): IThread[];
 }
 
 export interface IThread extends ITreeElement {
@@ -223,7 +224,6 @@ export interface IViewModel extends ITreeElement {
 
 export interface IModel extends ITreeElement {
 	getProcesses(): IProcess[];
-	getThreads(sessionId): { [threadId: number]: IThread; };
 	getBreakpoints(): IBreakpoint[];
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): IFunctionBreakpoint[];

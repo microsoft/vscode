@@ -12,13 +12,11 @@ import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
 
 suite('Debug - Model', () => {
 	let model: debugmodel.Model;
-	let process: debugmodel.Process;
 	let rawSession: MockSession;
 
 	setup(() => {
 		model = new debugmodel.Model([], true, [], [], []);
 		rawSession = new MockSession();
-		process = new debugmodel.Process(rawSession);
 	});
 
 	teardown(() => {
@@ -91,12 +89,12 @@ suite('Debug - Model', () => {
 				name: threadName
 			}
 		});
+		const process = model.getProcesses().filter(p => p.getId() === rawSession.getId()).pop();
 
-		var threads = model.getThreads(process.getId());
-		assert.equal(threads[threadId].name, threadName);
+		assert.equal(process.getThread(threadId).name, threadName);
 
-		model.clearThreads(process.getId(),true);
-		assert.equal(model.getThreads[threadId], null);
+		model.clearThreads(process.getId(), true);
+		assert.equal(process.getThread(threadId), null);
 	});
 
 	test('threads multiple wtih allThreadsStopped', () => {
@@ -137,11 +135,13 @@ suite('Debug - Model', () => {
 			},
 			allThreadsStopped: true
 		});
+		const process = model.getProcesses().filter(p => p.getId() === rawSession.getId()).pop();
 
-		const thread1 = model.getThreads(process.getId())[threadId1];
-		const thread2 = model.getThreads(process.getId())[threadId2];
+		const thread1 = process.getThread(threadId1);
+		const thread2 = process.getThread(threadId2);
 
 		// at the beginning, callstacks are obtainable but not available
+		assert.equal(process.getAllThreads().length, 2);
 		assert.equal(thread1.name, threadName1);
 		assert.equal(thread1.stopped, true);
 		assert.equal(thread1.getCachedCallStack(), undefined);
@@ -183,8 +183,9 @@ suite('Debug - Model', () => {
 		assert.equal(thread2.getCachedCallStack(), undefined);
 
 		model.clearThreads(process.getId(), true);
-		assert.equal(model.getThreads[threadId1], null);
-		assert.equal(model.getThreads[threadId2], null);
+		assert.equal(process.getThread(threadId1), null);
+		assert.equal(process.getThread(threadId2), null);
+		assert.equal(process.getAllThreads().length, 0);
 	});
 
 	test('threads mutltiple without allThreadsStopped', () => {
@@ -225,14 +226,16 @@ suite('Debug - Model', () => {
 			},
 			allThreadsStopped: false
 		});
+		const process = model.getProcesses().filter(p => p.getId() === rawSession.getId()).pop();
 
-		const stoppedThread = model.getThreads(process.getId())[stoppedThreadId];
-		const runningThread = model.getThreads(process.getId())[runningThreadId];
+		const stoppedThread = process.getThread(stoppedThreadId);
+		const runningThread = process.getThread(runningThreadId);
 
 		// the callstack for the stopped thread is obtainable but not available
 		// the callstack for the running thread is not obtainable nor available
 		assert.equal(stoppedThread.name, stoppedThreadName);
 		assert.equal(stoppedThread.stopped, true);
+		assert.equal(process.getAllThreads().length, 2);
 		assert.equal(stoppedThread.getCachedCallStack(), undefined);
 		assert.equal(stoppedThread.stoppedDetails.reason, stoppedReason);
 		assert.equal(runningThread.name, runningThreadName);
@@ -268,8 +271,9 @@ suite('Debug - Model', () => {
 		assert.equal(stoppedThread.getCachedCallStack(), undefined);
 
 		model.clearThreads(process.getId(), true);
-		assert.equal(model.getThreads[stoppedThreadId], null);
-		assert.equal(model.getThreads[runningThreadId], null);
+		assert.equal(process.getThread(stoppedThreadId), null);
+		assert.equal(process.getThread(runningThreadId), null);
+		assert.equal(process.getAllThreads().length, 0 );
 	});
 
 	// Expressions
@@ -285,6 +289,7 @@ suite('Debug - Model', () => {
 
 	test('watch expressions', () => {
 		assert.equal(model.getWatchExpressions().length, 0);
+		const process = new debugmodel.Process(rawSession);
 		const thread = new debugmodel.Thread(process, 'mockthread', 1);
 		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
 		model.addWatchExpression(stackFrame, 'console').done();
@@ -305,6 +310,7 @@ suite('Debug - Model', () => {
 
 	test('repl expressions', () => {
 		assert.equal(model.getReplElements().length, 0);
+		const process = new debugmodel.Process(rawSession);
 		const thread = new debugmodel.Thread(process, 'mockthread', 1);
 		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
 		model.addReplExpression(stackFrame, 'myVariable').done();
@@ -364,6 +370,7 @@ suite('Debug - Model', () => {
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression(null, false), type), null);
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression('son', false), type), 'son');
 
+		const process = new debugmodel.Process(rawSession);
 		const thread = new debugmodel.Thread(process, 'mockthread', 1);
 		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
 		const scope = new debugmodel.Scope(stackFrame, 'myscope', 1, false, 1, 0);
