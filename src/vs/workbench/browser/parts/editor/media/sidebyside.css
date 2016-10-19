@@ -11,6 +11,10 @@
 	background-color: #2D2D2D;
 }
 
+.monaco-workbench > .editor > .content.dragging > .monaco-sash {
+	display: none; /* hide sashes while dragging editors around */
+}
+
 #monaco-workbench-editor-move-overlay,
 #monaco-workbench-editor-drop-overlay {
 	position: absolute;
