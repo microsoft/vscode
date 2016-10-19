@@ -90,5 +90,5 @@ export interface IExtensionsRuntimeService {
 	 *
 	 * Throws error if enablement is requested for workspace and there is no workspace
 	 */
-	setEnablement(identifier: string, enable: boolean, displayName: string, workspace?: boolean): TPromise<boolean>;
+	setEnablement(identifier: string, enable: boolean, workspace?: boolean): TPromise<boolean>;
 }

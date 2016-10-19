@@ -56,7 +56,7 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 		});
 	}
 
-	public setEnablement(identifier: string, enable: boolean, displayName: string, workspace: boolean = false): TPromise<boolean> {
+	public setEnablement(identifier: string, enable: boolean, workspace: boolean = false): TPromise<boolean> {
 		const disabled = this.getDisabledExtensionsFromStorage().indexOf(identifier) !== -1;
 
 		if (!enable === disabled) {
