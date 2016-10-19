@@ -34,6 +34,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private viewletsToggleStatus: { [viewletId: string]: boolean; };
 	private registeredViewlets: string[];
 
+	// Since the internal viewlet can't get the external viewlet's id upon initialization,
+	// internal viewlet initializes with id like 'workbench.view.customTreeExplorerViewlet.1'.
+	// This maps the internal viewlet id to externalId like 'workbench.view.customTreeExplorerViewlet.myTree'
+	private internalViewletIdMap: { [externalViewletId: string]: string; };
 	private externalViewletIdToOpen: string;
 
 	private VIEWLETS_TOGGLE_STATUS = 'workbench.activityBar.viewletsToggleStatus';
@@ -55,6 +59,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.viewletsToggleStatus = viewletsToggleStatusJson ? JSON.parse(viewletsToggleStatusJson) : {};
 
 		this.registeredViewlets = [];
+
+		this.internalViewletIdMap = {};
 
 		this.registerListeners();
 	}
@@ -117,6 +123,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 		return this.externalViewletIdToOpen;
 	}
 
+	setInternalViewletId(externalViewletId: string, internalViewletId: string): void {
+		this.internalViewletIdMap[externalViewletId] = internalViewletId;
+	}
+
 	public showActivity(compositeId: string, badge: IBadge, clazz?: string): void {
 		const action = this.compositeIdToActions[compositeId];
 		if (action) {
@@ -174,7 +184,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private toAction(composite: ViewletDescriptor): ActivityAction {
-		const action = this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite);
+		const action = this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite, this.internalViewletIdMap);
 		action.onOpenViewlet((viewletId) => {
 			this.externalViewletIdToOpen = viewletId;
 		});
@@ -212,7 +222,9 @@ class ViewletActivityAction extends ActivityAction {
 	get onOpenViewlet(): Event<string> { return this._onOpenViewlet.event; };
 
 	constructor(
-		id: string, private viewlet: ViewletDescriptor,
+		id: string,
+		private viewlet: ViewletDescriptor,
+		private internalViewletIdMap: { [externalViewletId: string]: string; },
 		@IViewletService private viewletService: IViewletService,
 		@IPartService private partService: IPartService
 	) {
@@ -236,7 +248,12 @@ class ViewletActivityAction extends ActivityAction {
 			this.partService.setSideBarHidden(true);
 		} else {
 			this._onOpenViewlet.fire(this.viewlet.id);
-			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
+			// If the viewlet is external and has been initialized, find the internal viewlet id for opening
+			if (this.viewlet.isExternal && this.internalViewletIdMap[this.viewlet.id]) {
+				this.viewletService.openViewlet(this.internalViewletIdMap[this.viewlet.id], true).done(null, errors.onUnexpectedError);
+			} else {
+				this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
+			}
 			this.activate();
 		}
 

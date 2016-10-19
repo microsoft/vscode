@@ -90,13 +90,11 @@ export class TreeExplorerView extends CollapsibleViewletView {
 	}
 
 	create(): TPromise<void> {
-		return TPromise.as(null);
+		return this.updateInput();
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
-			this.updateInput().done();
-		});
+		return super.setVisible(visible);
 	}
 
 	private updateInput(): TPromise<void> {
