@@ -8,14 +8,16 @@ import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
 import * as sinon from 'sinon';
-import { MockRawSession } from 'vs/workbench/parts/debug/test/common/mockDebugService';
+import { MockProcess, MockRawSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
 
 suite('Debug - Model', () => {
 	let model: debugmodel.Model;
+	let process: MockProcess;
 	let rawSession: MockRawSession;
 
 	setup(() => {
 		model = new debugmodel.Model([], true, [], [], []);
+		process = new MockProcess();
 		rawSession = new MockRawSession();
 	});
 
@@ -90,10 +92,10 @@ suite('Debug - Model', () => {
 			}
 		});
 
-		var threads = model.getThreads(rawSession.getId());
+		var threads = model.getThreads(process.getId());
 		assert.equal(threads[threadId].name, threadName);
 
-		model.clearThreads(rawSession.getId(),true);
+		model.clearThreads(process.getId(),true);
 		assert.equal(model.getThreads[threadId], null);
 	});
 
@@ -136,8 +138,8 @@ suite('Debug - Model', () => {
 			allThreadsStopped: true
 		});
 
-		const thread1 = model.getThreads(rawSession.getId())[threadId1];
-		const thread2 = model.getThreads(rawSession.getId())[threadId2];
+		const thread1 = model.getThreads(process.getId())[threadId1];
+		const thread2 = model.getThreads(process.getId())[threadId2];
 
 		// at the beginning, callstacks are obtainable but not available
 		assert.equal(thread1.name, threadName1);
@@ -180,7 +182,7 @@ suite('Debug - Model', () => {
 		assert.equal(thread2.stopped, true);
 		assert.equal(thread2.getCachedCallStack(), undefined);
 
-		model.clearThreads(rawSession.getId(), true);
+		model.clearThreads(process.getId(), true);
 		assert.equal(model.getThreads[threadId1], null);
 		assert.equal(model.getThreads[threadId2], null);
 	});
@@ -224,8 +226,8 @@ suite('Debug - Model', () => {
 			allThreadsStopped: false
 		});
 
-		const stoppedThread = model.getThreads(rawSession.getId())[stoppedThreadId];
-		const runningThread = model.getThreads(rawSession.getId())[runningThreadId];
+		const stoppedThread = model.getThreads(process.getId())[stoppedThreadId];
+		const runningThread = model.getThreads(process.getId())[runningThreadId];
 
 		// the callstack for the stopped thread is obtainable but not available
 		// the callstack for the running thread is not obtainable nor available
@@ -265,7 +267,7 @@ suite('Debug - Model', () => {
 		assert.equal(stoppedThread.stopped, true);
 		assert.equal(stoppedThread.getCachedCallStack(), undefined);
 
-		model.clearThreads(rawSession.getId(), true);
+		model.clearThreads(process.getId(), true);
 		assert.equal(model.getThreads[stoppedThreadId], null);
 		assert.equal(model.getThreads[runningThreadId], null);
 	});
@@ -283,14 +285,15 @@ suite('Debug - Model', () => {
 
 	test('watch expressions', () => {
 		assert.equal(model.getWatchExpressions().length, 0);
-		const stackFrame = new debugmodel.StackFrame(rawSession, 1, 1, null, 'app.js', 1, 1);
-		model.addWatchExpression(null, stackFrame, 'console').done();
-		model.addWatchExpression(null, stackFrame, 'console').done();
+		const thread = new debugmodel.Thread(process, 'mockthread', 1);
+		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
+		model.addWatchExpression(stackFrame, 'console').done();
+		model.addWatchExpression(stackFrame, 'console').done();
 		const watchExpressions = model.getWatchExpressions();
 		assertWatchExpressions(watchExpressions, 'console');
 
-		model.renameWatchExpression(null, stackFrame, watchExpressions[0].getId(), 'new_name').done();
-		model.renameWatchExpression(null, stackFrame, watchExpressions[1].getId(), 'new_name').done();
+		model.renameWatchExpression(stackFrame, watchExpressions[0].getId(), 'new_name').done();
+		model.renameWatchExpression(stackFrame, watchExpressions[1].getId(), 'new_name').done();
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
 		model.clearWatchExpressionValues();
@@ -302,10 +305,11 @@ suite('Debug - Model', () => {
 
 	test('repl expressions', () => {
 		assert.equal(model.getReplElements().length, 0);
-		const stackFrame = new debugmodel.StackFrame(rawSession, 1, 1, null, 'app.js', 1, 1);
-		model.addReplExpression(null, stackFrame, 'myVariable').done();
-		model.addReplExpression(null, stackFrame, 'myVariable').done();
-		model.addReplExpression(null, stackFrame, 'myVariable').done();
+		const thread = new debugmodel.Thread(process, 'mockthread', 1);
+		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
+		model.addReplExpression(stackFrame, 'myVariable').done();
+		model.addReplExpression(stackFrame, 'myVariable').done();
+		model.addReplExpression(stackFrame, 'myVariable').done();
 
 		assert.equal(model.getReplElements().length, 3);
 		model.getReplElements().forEach(re => {
@@ -360,11 +364,13 @@ suite('Debug - Model', () => {
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression(null, false), type), null);
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression('son', false), type), 'son');
 
-		const scope = new debugmodel.Scope(rawSession, 1, 'myscope', 1, false, 1, 0);
-		const son = new debugmodel.Variable(rawSession, new debugmodel.Variable(rawSession, new debugmodel.Variable(rawSession, scope, 0, 'grandfather', '75', 1, 0), 0, 'father', '45', 1, 0), 0, 'son', '20', 1, 0);
+		const thread = new debugmodel.Thread(process, 'mockthread', 1);
+		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
+		const scope = new debugmodel.Scope(stackFrame, 'myscope', 1, false, 1, 0);
+		const son = new debugmodel.Variable(stackFrame, new debugmodel.Variable(stackFrame, new debugmodel.Variable(stackFrame, scope, 0, 'grandfather', '75', 1, 0), 0, 'father', '45', 1, 0), 0, 'son', '20', 1, 0);
 		assert.equal(debugmodel.getFullExpressionName(son, type), 'grandfather.father.son');
 
-		const grandson = new debugmodel.Variable(rawSession, son, 0, '/weird_name', '1', 0, 0);
+		const grandson = new debugmodel.Variable(stackFrame, son, 0, '/weird_name', '1', 0, 0);
 		assert.equal(debugmodel.getFullExpressionName(grandson, type), 'grandfather.father.son[\'/weird_name\']');
 	});
 });

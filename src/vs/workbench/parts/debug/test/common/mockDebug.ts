@@ -142,30 +142,10 @@ export class MockDebugService implements debug.IDebugService {
 	}
 }
 
-
-export class MockRawSession implements debug.IRawDebugSession {
-
-	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
-		return {
-			type: 'mock',
-			capabilities: {}
-		};
-	}
+export class MockProcess implements debug.IProcess {
 
 	public getId() {
 		return 'mockrawsession';
-	}
-
-	public get onDidEvent(): Event<DebugProtocol.Event> {
-		return null;
-	}
-
-	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
-		return TPromise.as(null);
-	}
-
-	public disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse> {
-		return TPromise.as(null);
 	}
 
 	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
@@ -185,6 +165,28 @@ export class MockRawSession implements debug.IRawDebugSession {
 	}
 
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
+		return TPromise.as(null);
+	}
+}
+
+export class MockRawSession extends MockProcess implements debug.IRawDebugSession {
+
+	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
+		return {
+			type: 'mock',
+			capabilities: {}
+		};
+	}
+
+	public get onDidEvent(): Event<DebugProtocol.Event> {
+		return null;
+	}
+
+	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
+		return TPromise.as(null);
+	}
+
+	public disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse> {
 		return TPromise.as(null);
 	}
 }

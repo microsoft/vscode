@@ -423,13 +423,14 @@ export class DebugService implements debug.IDebugService {
 		let thread: debug.IThread = null;
 		let session: debug.IRawDebugSession = null;
 		if (focusedStackFrame) {
-			session = this.model.getSessions().filter(s => s.getId() === focusedStackFrame.sessionId).pop();
-			thread = this.model.getThreads(focusedStackFrame.sessionId)[focusedStackFrame.threadId];
+			const processId = focusedStackFrame.thread.process.getId();
+			session = this.model.getSessions().filter(s => s.getId() === processId).pop();
+			thread = this.model.getThreads(processId)[focusedStackFrame.thread.threadId];
 		}
 
 		this.viewModel.setFocusedStackFrame(focusedStackFrame, thread, session);
 		if (focusedStackFrame) {
-			return this.model.evaluateWatchExpressions(this.session, focusedStackFrame);
+			return this.model.evaluateWatchExpressions(focusedStackFrame);
 		} else {
 			this.model.clearWatchExpressionValues();
 			return TPromise.as(null);
@@ -491,7 +492,7 @@ export class DebugService implements debug.IDebugService {
 	public addReplExpression(name: string): TPromise<void> {
 		this.telemetryService.publicLog('debugService/addReplExpression');
 		const focussedStackFrame = this.viewModel.getFocusedStackFrame();
-		return this.model.addReplExpression(this.session, focussedStackFrame, name)
+		return this.model.addReplExpression(focussedStackFrame, name)
 			// Evaluate all watch expressions again since repl evaluation might have changed some.
 			.then(() => this.setFocusedStackFrameAndEvaluate(focussedStackFrame));
 	}
@@ -529,11 +530,11 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
-		return this.model.addWatchExpression(this.session, this.viewModel.getFocusedStackFrame(), name);
+		return this.model.addWatchExpression(this.viewModel.getFocusedStackFrame(), name);
 	}
 
 	public renameWatchExpression(id: string, newName: string): TPromise<void> {
-		return this.model.renameWatchExpression(this.session, this.viewModel.getFocusedStackFrame(), id, newName);
+		return this.model.renameWatchExpression(this.viewModel.getFocusedStackFrame(), id, newName);
 	}
 
 	public removeWatchExpressions(id?: string): void {
