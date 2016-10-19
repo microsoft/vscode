@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ExtHostAPIImplementation, defineAPI } from 'vs/workbench/api/node/extHost.api.impl';
+import { createApiImplementation, defineAPI } from 'vs/workbench/api/node/extHost.api.impl';
 import { IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
@@ -76,7 +76,7 @@ export class ExtensionHostMain {
 		this._extensionService = new ExtHostExtensionService(threadService, telemetryService, { _serviceBrand: 'optionalArgs', workspaceStoragePath });
 
 		// Create the ext host API
-		defineAPI(new ExtHostAPIImplementation(threadService, this._extensionService, this._contextService, telemetryService));
+		defineAPI(createApiImplementation(threadService, this._extensionService, this._contextService, telemetryService));
 	}
 
 	private _getOrCreateWorkspaceStoragePath(): string {
