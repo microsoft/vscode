@@ -206,7 +206,6 @@ const schema: IJSONSchema = {
 	},
 	properties: {
 		engines: {
-			required: ['vscode'],
 			properties: {
 				'vscode': {
 					type: 'string',
