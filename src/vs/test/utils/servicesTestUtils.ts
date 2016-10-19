@@ -175,7 +175,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHistoryService, 'getHistory', []);
 	instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	instantiationService.stub(IFileService, TestFileService);
-	instantiationService.stub(IBackupService, TestBackupService);
+	instantiationService.stub(IBackupService, new TestBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
@@ -574,6 +574,10 @@ export const TestFileService = {
 		});
 	},
 
+	backupFile: function (resource: URI, content: string) {
+		return TPromise.as(void 0);
+	},
+
 	discardBackup: function (resource: URI) {
 		return TPromise.as(void 0);
 	},
@@ -587,9 +591,49 @@ export const TestFileService = {
 	}
 };
 
-export const TestBackupService = {
-	removeWorkspaceBackupPath: function () {
+export class TestBackupService implements IBackupService {
+	public _serviceBrand: any;
+
+	// Lists used for verification in tests
+	public registeredResources: URI[] = [];
+	public deregisteredResources: URI[] = [];
+
+	public getWorkspaceBackupPaths(): TPromise<string[]> {
+		return TPromise.as([]);
+	}
+
+	public getWorkspaceBackupPathsSync(): string[] {
+		return [];
+	}
+
+	public pushWorkspaceBackupPathsSync(workspaces: URI[]): void {
+		return null;
+	}
+
+	public removeWorkspaceBackupPath(workspace: URI): TPromise<void> {
 		return TPromise.as(void 0);
+	}
+
+	public getWorkspaceTextFilesWithBackupsSync(workspace: URI): string[] {
+		return [];
+	}
+
+	public getWorkspaceUntitledFileBackupsSync(workspace: URI): string[] {
+		return [];
+	}
+
+	public registerResourceForBackup(resource: URI): TPromise<void> {
+		this.registeredResources.push(resource);
+		return TPromise.as(void 0);
+	}
+
+	public deregisterResourceForBackup(resource: URI): TPromise<void> {
+		this.deregisteredResources.push(resource);
+		return TPromise.as(void 0);
+	}
+
+	public getBackupResource(resource: URI): URI {
+		return null;
 	}
 };
 

@@ -72,7 +72,7 @@ export class BackupService implements IBackupService {
 	public removeWorkspaceBackupPath(workspace: Uri): TPromise<void> {
 		return this.load().then(() => {
 			if (!this.fileContent.folderWorkspaces) {
-				return;
+				return TPromise.as(void 0);
 			}
 			delete this.fileContent.folderWorkspaces[workspace.fsPath];
 			return this.save();
@@ -88,7 +88,7 @@ export class BackupService implements IBackupService {
 	public getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[] {
 		// Hot exit is disabled for empty workspaces
 		if (!this.workspaceResource) {
-			return;
+			return [];
 		}
 
 		const workspaceHash = crypto.createHash('md5').update(workspace.fsPath).digest('hex');
@@ -105,7 +105,7 @@ export class BackupService implements IBackupService {
 	public getBackupResource(resource: Uri): Uri {
 		// Hot exit is disabled for empty workspaces
 		if (!this.workspaceResource) {
-			return;
+			return null;
 		}
 
 		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
@@ -135,7 +135,7 @@ export class BackupService implements IBackupService {
 	public deregisterResourceForBackup(resource: Uri): TPromise<void> {
 		// Hot exit is disabled for empty workspaces
 		if (!this.workspaceResource) {
-			return;
+			return TPromise.as(void 0);
 		}
 
 		return this.load().then(() => {
@@ -149,14 +149,27 @@ export class BackupService implements IBackupService {
 	}
 
 	private load(): TPromise<void> {
-		return pfs.readFile(this.environmentService.backupWorkspacesPath, 'utf8').then(content => {
-			return JSON.parse(content.toString());
-		}).then(null, () => Object.create(null)).then(content => {
-			this.fileContent = content;
-			if (!this.fileContent.folderWorkspaces) {
-				this.fileContent.folderWorkspaces = Object.create(null);
+		return pfs.fileExists(this.environmentService.backupWorkspacesPath).then(exists => {
+			if (!exists) {
+				this.fileContent = {
+					folderWorkspaces: Object.create(null)
+				};
+				return TPromise.as(void 0);
 			}
-			return void 0;
+
+			return pfs.readFile(this.environmentService.backupWorkspacesPath, 'utf8').then(content => {
+				try {
+					return JSON.parse(content.toString());
+				} catch (ex) {
+					return Object.create(null);
+				}
+			}).then(content => {
+				this.fileContent = content;
+				if (!this.fileContent.folderWorkspaces) {
+					this.fileContent.folderWorkspaces = Object.create(null);
+				}
+				return TPromise.as(void 0);
+			});
 		});
 	}
 

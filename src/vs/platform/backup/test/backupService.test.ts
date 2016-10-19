@@ -32,15 +32,11 @@ suite('BackupService', () => {
 
 		// Delete any existing backups completely, this in itself is a test to ensure that the
 		// the backupHome directory is re-created
-		nfcall(extfs.del, environmentService.backupHome, os.tmpdir()).then(() => {
-			done();
-		});
+		extfs.del(environmentService.backupHome, os.tmpdir(), done);
 	});
 
 	teardown(done => {
-		nfcall(extfs.del, environmentService.backupHome, os.tmpdir()).then(() => {
-			done();
-		});
+		extfs.del(environmentService.backupHome, os.tmpdir(), done);
 	});
 
 	test('pushWorkspaceBackupPathsSync should persist paths to workspaces.json', () => {

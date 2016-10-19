@@ -37,7 +37,6 @@ import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -97,8 +96,7 @@ export class FileService implements IFileService {
 		private eventEmitter: IEventService,
 		private environmentService: IEnvironmentService,
 		private configurationService: IConfigurationService,
-		private backupService: IBackupService,
-		private contextService: IWorkspaceContextService
+		private backupService: IBackupService
 	) {
 		this.basePath = basePath ? paths.normalize(basePath) : void 0;
 
@@ -519,12 +517,11 @@ export class FileService implements IFileService {
 
 	private getBackupRootPath(): string {
 		// Hot exit is disabled for empty workspaces
-		const workspace = this.contextService.getWorkspace();
-		if (!workspace) {
+		if (!this.basePath) {
 			return null;
 		}
 
-		const workspaceHash = crypto.createHash('md5').update(workspace.resource.fsPath).digest('hex');
+		const workspaceHash = crypto.createHash('md5').update(this.basePath).digest('hex');
 		return paths.join(this.environmentService.userDataPath, 'Backups', workspaceHash);
 	}
 

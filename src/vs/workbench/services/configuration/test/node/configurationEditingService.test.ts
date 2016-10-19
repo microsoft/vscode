@@ -87,7 +87,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 		const configurationService = new WorkspaceConfigurationService(workspaceContextService, new TestEventService(), environmentService);
 		const textFileService = workbenchInstantiationService().createInstance(TestDirtyTextFileService, dirty);
 		const events = new utils.TestEventService();
-		const fileService = new FileService(noWorkspace ? null : workspaceDir, { disableWatcher: true }, events, environmentService, configurationService, null, null);
+		const fileService = new FileService(noWorkspace ? null : workspaceDir, { disableWatcher: true }, events, environmentService, configurationService, null);
 
 		return configurationService.initialize().then(() => {
 			return {
