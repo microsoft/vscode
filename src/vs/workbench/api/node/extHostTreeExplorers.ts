@@ -45,7 +45,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 	$provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode> {
 		const provider = this._treeExplorerNodeProviders[providerId];
 		if (!provider) {
-			throw new Error(`no TreeContentProvider registered with id '${providerId}'`);
+			throw new Error(`no TreeExplorerNodeProvider registered with id '${providerId}'`);
 		}
 
 		return asWinJsPromise(() => provider.provideRootNode()).then(externalRootNode => {
@@ -55,13 +55,15 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 			const internalRootNode = new InternalTreeExplorerNode(externalRootNode, provider);
 			this._externalNodeMaps[providerId][internalRootNode.id] = externalRootNode;
 			return internalRootNode;
+		}, err => {
+			throw new Error(`TreeExplorerNodeProvider '${providerId}' failed to provide root node`);
 		});
 	}
 
 	$resolveChildren(providerId: string, mainThreadNode: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
 		const provider = this._treeExplorerNodeProviders[providerId];
 		if (!provider) {
-			throw new Error(`no TreeContentProvider registered with id '${providerId}'`);
+			throw new Error(`no TreeExplorerNodeProvider registered with id '${providerId}'`);
 		}
 
 		const externalNodeMap = this._externalNodeMaps[providerId];
@@ -73,20 +75,24 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 				externalNodeMap[internalChild.id] = externalChild;
 				return internalChild;
 			});
+		}, err => {
+			throw new Error(`TreeExplorerNodeProvider '${providerId}' failed to resolveChildren`);
 		});
 	}
 
 	$resolveCommand(providerId: string, mainThreadNode: InternalTreeExplorerNode): TPromise<void> {
 		const provider = this._treeExplorerNodeProviders[providerId];
 		if (!provider) {
-			throw new Error(`no TreeContentProvider registered with id '${providerId}'`);
+			throw new Error(`no TreeExplorerNodeProvider registered with id '${providerId}'`);
 		}
 
 		if (mainThreadNode.clickCommand) {
 			const externalNode = this._externalNodeMaps[providerId][mainThreadNode.id];
-			return TPromise.wrap(this.commands.executeCommand(mainThreadNode.clickCommand, externalNode).then(() => {
+			return asWinJsPromise(() => this.commands.executeCommand(mainThreadNode.clickCommand, externalNode)).then(() => {
 				return null;
-			}));
+			}, err => {
+				throw new Error(`Failed to execute command '${mainThreadNode.clickCommand}' provided by TreeExplorerNodeProvider '${providerId}'`);
+			});
 		}
 
 		return TPromise.as(null);
