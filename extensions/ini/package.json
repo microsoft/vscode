@@ -11,11 +11,11 @@
 			"configuration": "./ini.language-configuration.json"
 			},
 			{
-				"id": "propaties",
+				"id": "properties",
 				"extensions": [ ".properties", ".gitconfig" ],
 				"filenames": ["config", ".gitattributes", ".gitconfig", "gitconfig", ".editorconfig"],
-				"aliases": [ "propaties", "Propaties" ],
-				"configuration": "./propaties.language-configuration.json"
+				"aliases": [ "properties", "properties" ],
+				"configuration": "./properties.language-configuration.json"
 			}
 		],
 		"grammars": [{
@@ -23,9 +23,9 @@
 			"scopeName": "source.ini",
 			"path": "./syntaxes/Ini.tmLanuage"
 		},{
-			"language": "propaties",
-			"scopeName": "source.propaties",
-			"path": "./syntaxes/propaties.plist"
+			"language": "properties",
+			"scopeName": "source.properties",
+			"path": "./syntaxes/properties.plist"
 		}]
 	}
 }
