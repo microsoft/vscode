@@ -8,9 +8,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
-export const ITreeExplorerService = createDecorator<ITreeExplorerService>('customViewletService');
+export const ITreeExplorerViewletService = createDecorator<ITreeExplorerViewletService>('customViewletService');
 
-export interface ITreeExplorerService {
+export interface ITreeExplorerViewletService {
 	_serviceBrand: any;
 
 	registerTreeContentProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void;
@@ -19,7 +19,7 @@ export interface ITreeExplorerService {
 	resolveCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void>;
 }
 
-export class TreeExplorerViewletService implements ITreeExplorerService {
+export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 	public _serviceBrand: any;
 
 	private _treeContentProviders: { [providerId: string]: InternalTreeExplorerNodeProvider };
