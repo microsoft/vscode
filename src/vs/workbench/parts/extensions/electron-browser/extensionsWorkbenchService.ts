@@ -39,6 +39,7 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from './extensionsInput';
 import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -312,7 +313,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
 		@IURLService urlService: IURLService,
-		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
+		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -485,7 +487,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrap(null);
 		}
 
-		return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, workspace).then(reload => {
+		return this.doSetEnablement(extension, enable, workspace).then(reload => {
 			(<Extension>extension).needsReload = reload;
 			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
 			this._onChange.fire();
@@ -505,6 +507,19 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		return this.extensionService.uninstall(local);
+	}
+
+	private doSetEnablement(extension: IExtension, enable: boolean, workspace: boolean): TPromise<boolean> {
+		if (workspace) {
+			return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, workspace);
+		}
+
+		const globalElablement = this.extensionsRuntimeService.setEnablement(extension.identifier, enable, false);
+		if (!this.workspaceContextService.getWorkspace()) {
+			return globalElablement;
+		}
+		return TPromise.join([globalElablement, this.extensionsRuntimeService.setEnablement(extension.identifier, enable, true)])
+			.then(values => values[0] || values[1]);
 	}
 
 	private onInstallExtension(event: InstallExtensionEvent): void {
