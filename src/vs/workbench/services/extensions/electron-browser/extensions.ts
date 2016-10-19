@@ -13,7 +13,7 @@ import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extension
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IExtensionsRuntimeService, IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IChoiceService, Severity, IMessageService } from 'vs/platform/message/common/message';
+import { Severity, IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 
@@ -36,7 +36,6 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
-		@IChoiceService private choiceService: IChoiceService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService,
 		@IEnvironmentService private environmentService: IEnvironmentService
@@ -57,48 +56,27 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 		});
 	}
 
-	public setEnablement(identifier: string, enable: boolean, displayName: string): TPromise<boolean> {
+	public setEnablement(identifier: string, enable: boolean, displayName: string, workspace: boolean = false): TPromise<boolean> {
 		const disabled = this.getDisabledExtensionsFromStorage().indexOf(identifier) !== -1;
 
 		if (!enable === disabled) {
 			return TPromise.wrap(true);
 		}
 
-		if (!this.workspace) {
-			return this.setGlobalEnablement(identifier, enable, displayName);
+		if (workspace && !this.workspace) {
+			return TPromise.wrapError(localize('noWorkspace', "No workspace."));
 		}
 
 		if (enable) {
-			if (this.getDisabledExtensionsFromStorage(StorageScope.GLOBAL).indexOf(identifier) !== -1) {
-				return this.choiceService.choose(Severity.Info, localize('enableExtensionGlobally', "Would you like to enable '{0}' extension globally?", displayName),
-					[localize('yes', "Yes"), localize('no', "No")])
-					.then((option) => {
-						if (option === 0) {
-							return TPromise.join([this.enableExtension(identifier, StorageScope.GLOBAL), this.enableExtension(identifier, StorageScope.WORKSPACE)]).then(() => true);
-						}
-						return TPromise.wrap(false);
-					});
+			if (workspace) {
+				return this.enableExtension(identifier, StorageScope.WORKSPACE);
 			}
-			return this.choiceService.choose(Severity.Info, localize('enableExtensionForWorkspace', "Would you like to enable '{0}' extension for this workspace?", displayName),
-				[localize('yes', "Yes"), localize('no', "No")])
-				.then((option) => {
-					if (option === 0) {
-						return this.enableExtension(identifier, StorageScope.WORKSPACE).then(() => true);
-					}
-					return TPromise.wrap(false);
-				});
+			return this.enableExtension(identifier, StorageScope.GLOBAL);
 		} else {
-			return this.choiceService.choose(Severity.Info, localize('disableExtension', "Would you like to disable '{0}' extension for this workspace or globally?", displayName),
-				[localize('workspace', "Workspace"), localize('globally', "Globally"), localize('cancel', "Cancel")])
-				.then((option) => {
-					switch (option) {
-						case 0:
-							return this.disableExtension(identifier, StorageScope.WORKSPACE);
-						case 1:
-							return this.disableExtension(identifier, StorageScope.GLOBAL);
-						default: return TPromise.wrap(false);
-					}
-				});
+			if (workspace) {
+				return this.disableExtension(identifier, StorageScope.WORKSPACE);
+			}
+			return this.disableExtension(identifier, StorageScope.GLOBAL);
 		}
 	}
 
@@ -128,28 +106,6 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 		const globallyDisabled = this._getDisabledExtensions(StorageScope.GLOBAL);
 		const workspaceDisabled = this._getDisabledExtensions(StorageScope.WORKSPACE);
 		return [...globallyDisabled, ...workspaceDisabled];
-	}
-
-	private setGlobalEnablement(identifier: string, enable: boolean, displayName: string): TPromise<boolean> {
-		if (enable) {
-			return this.choiceService.choose(Severity.Info, localize('enableExtensionGloballyNoWorkspace', "Would you like to enable '{0}' extension globally?", displayName),
-				[localize('yes', "Yes"), localize('no', "No")])
-				.then((option) => {
-					if (option === 0) {
-						return this.enableExtension(identifier, StorageScope.GLOBAL).then(() => true);
-					}
-					return TPromise.wrap(false);
-				});
-		} else {
-			return this.choiceService.choose(Severity.Info, localize('disableExtensionGlobally', "Would you like to disable '{0}' extension globally?", displayName),
-				[localize('yes', "Yes"), localize('no', "No")])
-				.then((option) => {
-					if (option === 0) {
-						return this.disableExtension(identifier, StorageScope.GLOBAL).then(() => true);
-					}
-					return TPromise.wrap(false);
-				});
-		}
 	}
 
 	private disableExtension(identifier: string, scope: StorageScope): TPromise<boolean> {

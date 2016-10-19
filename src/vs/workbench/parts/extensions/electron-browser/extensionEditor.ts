@@ -188,7 +188,18 @@ export class ExtensionEditor extends BaseEditor {
 		this.description = append(details, $('.description'));
 
 		const extensionActions = append(details, $('.actions'));
-		this.extensionActionBar = new ActionBar(extensionActions, { animated: false });
+		this.extensionActionBar = new ActionBar(extensionActions, {
+			animated: false,
+			actionItemProvider: (action: Action) => {
+				if (action.id === EnableAction.ID) {
+					return (<EnableAction>action).actionItem;
+				}
+				if (action.id === DisableAction.ID) {
+					return (<DisableAction>action).actionItem;
+				}
+				return null;
+			}
+		});
 		this.disposables.push(this.extensionActionBar);
 
 		chain(fromEventEmitter<{ error?: any; }>(this.extensionActionBar, 'run'))
