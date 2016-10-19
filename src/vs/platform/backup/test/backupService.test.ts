@@ -6,6 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
+import * as platform from 'vs/base/common/platform';
 import crypto = require('crypto');
 import os = require('os');
 import path = require('path');
@@ -18,6 +19,10 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { BackupService } from 'vs/platform/backup/node/backupService';
 
 suite('BackupService', () => {
+	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
+	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
+	const bazFile = Uri.file(platform.isWindows ? 'C:\\baz' : '/baz');
+
 	let environmentService: IEnvironmentService;
 	let backupService: BackupService;
 
@@ -39,21 +44,21 @@ suite('BackupService', () => {
 	});
 
 	test('pushWorkspaceBackupPathsSync should persist paths to workspaces.json', () => {
-		backupService.pushWorkspaceBackupPathsSync([Uri.file('/foo'), Uri.file('/bar')]);
-		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [Uri.file('/foo'), Uri.file('/bar')]);
+		backupService.pushWorkspaceBackupPathsSync([fooFile, barFile]);
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [fooFile.fsPath, barFile.fsPath]);
 	});
 
 	test('pushWorkspaceBackupPathsSync should throw if a workspace is set', () => {
-		backupService.setCurrentWorkspace(Uri.file('/foo'));
-		assert.throws(() => backupService.pushWorkspaceBackupPathsSync([Uri.file('/foo'), Uri.file('/bar')]));
+		backupService.setCurrentWorkspace(fooFile);
+		assert.throws(() => backupService.pushWorkspaceBackupPathsSync([fooFile]));
 	});
 
 	test('removeWorkspaceBackupPath should remove workspaces from workspaces.json', done => {
-		backupService.pushWorkspaceBackupPathsSync([Uri.file('/foo'), Uri.file('/bar')]);
-		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), ['/foo', '/bar']);
-		backupService.removeWorkspaceBackupPath(Uri.file('/foo')).then(() => {
-			assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), ['/bar']);
-			backupService.removeWorkspaceBackupPath(Uri.file('/bar')).then(() => {
+		backupService.pushWorkspaceBackupPathsSync([fooFile, barFile]);
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [fooFile.fsPath, barFile.fsPath]);
+		backupService.removeWorkspaceBackupPath(fooFile).then(() => {
+			assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [barFile.fsPath]);
+			backupService.removeWorkspaceBackupPath(barFile).then(() => {
 				assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
 				done();
 			});
@@ -61,28 +66,28 @@ suite('BackupService', () => {
 	});
 
 	test('removeWorkspaceBackupPath should fail gracefully when removing a path that doesn\'t exist', done => {
-		backupService.pushWorkspaceBackupPathsSync([Uri.file('/foo')]);
-		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [Uri.file('/foo')]);
-		backupService.removeWorkspaceBackupPath(Uri.file('/bar')).then(() => {
-			assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [Uri.file('/foo')]);
+		backupService.pushWorkspaceBackupPathsSync([fooFile]);
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [fooFile.fsPath]);
+		backupService.removeWorkspaceBackupPath(barFile).then(() => {
+			assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [fooFile.fsPath]);
 			done();
 		});
 	});
 
 	test('registerResourceForBackup should register backups to workspaces.json', done => {
-		backupService.setCurrentWorkspace(Uri.file('/foo'));
-		backupService.registerResourceForBackup(Uri.file('/bar')).then(() => {
-			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(Uri.file('/foo')), ['/bar']);
+		backupService.setCurrentWorkspace(fooFile);
+		backupService.registerResourceForBackup(barFile).then(() => {
+			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(fooFile), [barFile.fsPath]);
 			done();
 		});
 	});
 
 	test('deregisterResourceForBackup should deregister backups from workspaces.json', done => {
-		backupService.setCurrentWorkspace(Uri.file('/foo'));
-		backupService.registerResourceForBackup(Uri.file('/bar')).then(() => {
-			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(Uri.file('/foo')), ['/bar']);
-			backupService.deregisterResourceForBackup(Uri.file('/bar')).then(() => {
-				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(Uri.file('/foo')), []);
+		backupService.setCurrentWorkspace(fooFile);
+		backupService.registerResourceForBackup(barFile).then(() => {
+			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(fooFile), [barFile.fsPath]);
+			backupService.deregisterResourceForBackup(barFile).then(() => {
+				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(fooFile), []);
 				done();
 			});
 		});
@@ -90,62 +95,62 @@ suite('BackupService', () => {
 
 	test('getBackupResource should get the correct backup path for text files', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
-		const workspaceResource = Uri.file('/foo');
+		const workspaceResource = fooFile;
 		backupService.setCurrentWorkspace(workspaceResource);
-		const backupResource = Uri.file('/bar');
+		const backupResource = barFile;
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
-		const expectedPath = path.join(environmentService.backupHome, workspaceHash, 'file', filePathHash);
+		const expectedPath = Uri.file(path.join(environmentService.backupHome, workspaceHash, 'file', filePathHash)).fsPath;
 		assert.equal(backupService.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
 	test('getBackupResource should get the correct backup path for untitled files', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
-		const workspaceResource = Uri.file('/bar');
+		const workspaceResource = barFile;
 		backupService.setCurrentWorkspace(workspaceResource);
 		const backupResource = Uri.from({ scheme: 'untitled' });
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
-		const expectedPath = path.join(environmentService.backupHome, workspaceHash, 'untitled', filePathHash);
+		const expectedPath = Uri.file(path.join(environmentService.backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 		assert.equal(backupService.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
 	test('getBackupResource should get the correct backup path for text files', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
-		const workspaceResource = Uri.file('/foo');
+		const workspaceResource = fooFile;
 		backupService.setCurrentWorkspace(workspaceResource);
-		const backupResource = Uri.file('/bar');
+		const backupResource = barFile;
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
-		const expectedPath = path.join(environmentService.backupHome, workspaceHash, 'file', filePathHash);
+		const expectedPath = Uri.file(path.join(environmentService.backupHome, workspaceHash, 'file', filePathHash)).fsPath;
 		assert.equal(backupService.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
 	test('getBackupResource should get the correct backup path for untitled files', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
-		const workspaceResource = Uri.file('/foo');
+		const workspaceResource = fooFile;
 		backupService.setCurrentWorkspace(workspaceResource);
 		const backupResource = Uri.from({ scheme: 'untitled' });
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
-		const expectedPath = path.join(environmentService.backupHome, workspaceHash, 'untitled', filePathHash);
+		const expectedPath = Uri.file(path.join(environmentService.backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 		assert.equal(backupService.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
 	test('getWorkspaceTextFilesWithBackupsSync should return text file resources that have backups', done => {
-		const workspaceResource = Uri.file('/foo');
+		const workspaceResource = fooFile;
 		backupService.setCurrentWorkspace(workspaceResource);
-		backupService.registerResourceForBackup(Uri.file('/bar')).then(() => {
-			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource), ['/bar']);
-			backupService.registerResourceForBackup(Uri.file('/baz')).then(() => {
-				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource), ['/bar', '/baz']);
+		backupService.registerResourceForBackup(barFile).then(() => {
+			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource), [barFile.fsPath]);
+			backupService.registerResourceForBackup(bazFile).then(() => {
+				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource), [barFile.fsPath, bazFile.fsPath]);
 				done();
 			});
 		});
 	});
 
 	test('getWorkspaceUntitledFileBackupsSync should return untitled file backup resources', done => {
-		const workspaceResource = Uri.file('/foo');
+		const workspaceResource = fooFile;
 		backupService.setCurrentWorkspace(workspaceResource);
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const untitledBackupDir = path.join(environmentService.backupHome, workspaceHash, 'untitled');
