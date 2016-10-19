@@ -43,6 +43,6 @@ export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 	}
 
 	resolveCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void> {
-		return TPromise.wrap(this._treeExplorerNodeProvider[providerId].resolveCommand(node));
+		return TPromise.wrap(this._treeExplorerNodeProvider[providerId].executeCommand(node));
 	}
 }

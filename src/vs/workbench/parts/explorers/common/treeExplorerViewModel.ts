@@ -36,9 +36,9 @@ export class InternalTreeExplorerNode implements TreeExplorerNodeContent {
 }
 
 export interface InternalTreeExplorerNodeProvider {
-	resolveCommand(node: TreeExplorerNodeContent): TPromise<void>;
 	provideRootNode(): Thenable<InternalTreeExplorerNode>;
 	resolveChildren(node: InternalTreeExplorerNode): Thenable<InternalTreeExplorerNode[]>;
+	executeCommand(node: TreeExplorerNodeContent): TPromise<void>;
 }
 
 export interface TreeExplorerNodeContent {

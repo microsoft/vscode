@@ -80,7 +80,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		});
 	}
 
-	$resolveCommand(providerId: string, mainThreadNode: InternalTreeExplorerNode): TPromise<void> {
+	$executeCommand(providerId: string, mainThreadNode: InternalTreeExplorerNode): TPromise<void> {
 		const provider = this._treeExplorerNodeProviders[providerId];
 		if (!provider) {
 			throw new Error(`no TreeExplorerNodeProvider registered with id '${providerId}'`);
