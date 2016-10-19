@@ -16,7 +16,7 @@
 	position: absolute;
 	left: 0;
 	width: 100%;
-	z-index: 3000000;
+	z-index: 10000;
 }
 
 #monaco-workbench-editor-drop-overlay {
@@ -59,7 +59,7 @@
 }
 
 .monaco-workbench > .editor > .content > .one-editor-silo.dragging {
-	z-index: 2000000;
+	z-index: 70;
 	box-sizing: content-box;
 }
 

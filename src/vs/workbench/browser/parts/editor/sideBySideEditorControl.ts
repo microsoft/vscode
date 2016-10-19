@@ -875,7 +875,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				overlay = void 0;
 			}
 
-			DOM.removeClass(node, 'dragged-over');
+			POSITIONS.forEach(p => {
+				$this.silos[p].removeClass('dragged-over');
+			});
 		}
 
 		function optionsFromDraggedEditor(identifier: IEditorIdentifier): EditorOptions {
@@ -1023,14 +1025,24 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			} else if (canSplit && isOverSplitLeftOrUp) {
 				overlay.style($this.layoutVertically ? { width: '50%' } : { height: '50%' });
 			} else {
-				overlay.style({ left: '0', width: '100%' });
+				if ($this.layoutVertically) {
+					overlay.style({ left: '0', width: '100%' });
+				} else {
+					overlay.style({ top: $this.showTabs ? `${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : 0, height: $this.showTabs ? `calc(100% - ${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : '100%' });
+				}
 			}
 
 			// Make sure the overlay is visible
 			overlay.style({ opacity: 1 });
 
 			// Indicate a drag over is happening
-			DOM.addClass(node, 'dragged-over');
+			POSITIONS.forEach(p => {
+				if (p === position) {
+					$this.silos[p].addClass('dragged-over');
+				} else {
+					$this.silos[p].removeClass('dragged-over');
+				}
+			});
 		}
 
 		function createOverlay(target: HTMLElement): void {
@@ -1039,7 +1051,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
 						overlay = $('div').style({
-							top: $this.showTabs ? SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px' : 0,
+							top: $this.showTabs ? `${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : 0,
 							height: $this.showTabs ? `calc(100% - ${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : '100%'
 						}).id(overlayId);
 
