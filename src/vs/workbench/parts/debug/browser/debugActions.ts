@@ -257,7 +257,8 @@ export class StopAction extends AbstractDebugAction {
 	public run(): TPromise<any> {
 		let process = this.debugService.getViewModel().focusedProcess;
 		if (!process) {
-			process = this.debugService.getModel().getProcesses().pop();
+			const processes = this.debugService.getModel().getProcesses();
+			process = processes.length > 0 ? processes[0] : null;
 		}
 
 		return process ? process.disconnect(false, true) : TPromise.as(null);
