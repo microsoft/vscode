@@ -84,77 +84,6 @@ export function getFullExpressionName(expression: debug.IExpression, sessionType
 	return result;
 }
 
-export class Thread implements debug.IThread {
-	private promisedCallStack: TPromise<debug.IStackFrame[]>;
-	private cachedCallStack: debug.IStackFrame[];
-	public stoppedDetails: debug.IRawStoppedDetails;
-	public stopped: boolean;
-
-	constructor(private session: debug.IRawDebugSession, public name: string, public threadId: number) {
-		this.promisedCallStack = undefined;
-		this.stoppedDetails = undefined;
-		this.cachedCallStack = undefined;
-		this.stopped = false;
-	}
-
-	public getId(): string {
-		return `thread:${this.sessionId}:${this.name}:${this.threadId}`;
-	}
-
-	public get sessionId(): string {
-		return this.session.getId();
-	}
-
-	public clearCallStack(): void {
-		this.promisedCallStack = undefined;
-		this.cachedCallStack = undefined;
-	}
-
-	public getCachedCallStack(): debug.IStackFrame[] {
-		return this.cachedCallStack;
-	}
-
-	public getCallStack(getAdditionalStackFrames = false): TPromise<debug.IStackFrame[]> {
-		if (!this.stopped) {
-			return TPromise.as([]);
-		}
-
-		if (!this.promisedCallStack) {
-			this.promisedCallStack = this.getCallStackImpl(0).then(callStack => {
-				this.cachedCallStack = callStack;
-				return callStack;
-			});
-		} else if (getAdditionalStackFrames) {
-			this.promisedCallStack = this.promisedCallStack.then(callStackFirstPart => this.getCallStackImpl(callStackFirstPart.length).then(callStackSecondPart => {
-				this.cachedCallStack = callStackFirstPart.concat(callStackSecondPart);
-				return this.cachedCallStack;
-			}));
-		}
-
-		return this.promisedCallStack;
-	}
-
-	private getCallStackImpl(startFrame: number): TPromise<debug.IStackFrame[]> {
-		return this.session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
-			if (!response || !response.body) {
-				return [];
-			}
-
-			this.stoppedDetails.totalFrames = response.body.totalFrames;
-			return response.body.stackFrames.map((rsf, level) => {
-				if (!rsf) {
-					return new StackFrame(this.session, this.threadId, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
-				}
-
-				return new StackFrame(this.session, this.threadId, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
-			});
-		}, (err: Error) => {
-			this.stoppedDetails.framesErrorMessage = err.message;
-			return [];
-		});
-	}
-}
-
 export class OutputElement implements debug.ITreeElement {
 	private static ID_COUNTER = 0;
 
@@ -413,60 +342,74 @@ export class StackFrame implements debug.IStackFrame {
 	}
 }
 
-export class Breakpoint implements debug.IBreakpoint {
+export class Thread implements debug.IThread {
+	private promisedCallStack: TPromise<debug.IStackFrame[]>;
+	private cachedCallStack: debug.IStackFrame[];
+	public stoppedDetails: debug.IRawStoppedDetails;
+	public stopped: boolean;
 
-	public lineNumber: number;
-	public verified: boolean;
-	public idFromAdapter: number;
-	public message: string;
-	private id: string;
+	constructor(private session: debug.IRawDebugSession, public name: string, public threadId: number) {
+		this.promisedCallStack = undefined;
+		this.stoppedDetails = undefined;
+		this.cachedCallStack = undefined;
+		this.stopped = false;
+	}
 
-	constructor(
-		public source: Source,
-		public desiredLineNumber: number,
-		public enabled: boolean,
-		public condition: string,
-		public hitCondition: string
-	) {
-		if (enabled === undefined) {
-			this.enabled = true;
+	public getId(): string {
+		return `thread:${this.sessionId}:${this.name}:${this.threadId}`;
+	}
+
+	public get sessionId(): string {
+		return this.session.getId();
+	}
+
+	public clearCallStack(): void {
+		this.promisedCallStack = undefined;
+		this.cachedCallStack = undefined;
+	}
+
+	public getCachedCallStack(): debug.IStackFrame[] {
+		return this.cachedCallStack;
+	}
+
+	public getCallStack(getAdditionalStackFrames = false): TPromise<debug.IStackFrame[]> {
+		if (!this.stopped) {
+			return TPromise.as([]);
 		}
-		this.lineNumber = this.desiredLineNumber;
-		this.verified = false;
-		this.id = uuid.generateUuid();
+
+		if (!this.promisedCallStack) {
+			this.promisedCallStack = this.getCallStackImpl(0).then(callStack => {
+				this.cachedCallStack = callStack;
+				return callStack;
+			});
+		} else if (getAdditionalStackFrames) {
+			this.promisedCallStack = this.promisedCallStack.then(callStackFirstPart => this.getCallStackImpl(callStackFirstPart.length).then(callStackSecondPart => {
+				this.cachedCallStack = callStackFirstPart.concat(callStackSecondPart);
+				return this.cachedCallStack;
+			}));
+		}
+
+		return this.promisedCallStack;
 	}
 
-	public getId(): string {
-		return this.id;
-	}
-}
+	private getCallStackImpl(startFrame: number): TPromise<debug.IStackFrame[]> {
+		return this.session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
+			if (!response || !response.body) {
+				return [];
+			}
 
-export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
+			this.stoppedDetails.totalFrames = response.body.totalFrames;
+			return response.body.stackFrames.map((rsf, level) => {
+				if (!rsf) {
+					return new StackFrame(this.session, this.threadId, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
+				}
 
-	private id: string;
-	public verified: boolean;
-	public idFromAdapter: number;
-
-	constructor(public name: string, public enabled: boolean, public hitCondition: string) {
-		this.verified = false;
-		this.id = uuid.generateUuid();
-	}
-
-	public getId(): string {
-		return this.id;
-	}
-}
-
-export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
-
-	private id: string;
-
-	constructor(public filter: string, public label: string, public enabled: boolean) {
-		this.id = uuid.generateUuid();
-	}
-
-	public getId(): string {
-		return this.id;
+				return new StackFrame(this.session, this.threadId, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
+			});
+		}, (err: Error) => {
+			this.stoppedDetails.framesErrorMessage = err.message;
+			return [];
+		});
 	}
 }
 
@@ -545,7 +488,63 @@ class DebugSession {
 			}
 		});
 	}
+}
 
+export class Breakpoint implements debug.IBreakpoint {
+
+	public lineNumber: number;
+	public verified: boolean;
+	public idFromAdapter: number;
+	public message: string;
+	private id: string;
+
+	constructor(
+		public source: Source,
+		public desiredLineNumber: number,
+		public enabled: boolean,
+		public condition: string,
+		public hitCondition: string
+	) {
+		if (enabled === undefined) {
+			this.enabled = true;
+		}
+		this.lineNumber = this.desiredLineNumber;
+		this.verified = false;
+		this.id = uuid.generateUuid();
+	}
+
+	public getId(): string {
+		return this.id;
+	}
+}
+
+export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
+
+	private id: string;
+	public verified: boolean;
+	public idFromAdapter: number;
+
+	constructor(public name: string, public enabled: boolean, public hitCondition: string) {
+		this.verified = false;
+		this.id = uuid.generateUuid();
+	}
+
+	public getId(): string {
+		return this.id;
+	}
+}
+
+export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
+
+	private id: string;
+
+	constructor(public filter: string, public label: string, public enabled: boolean) {
+		this.id = uuid.generateUuid();
+	}
+
+	public getId(): string {
+		return this.id;
+	}
 }
 
 export class Model implements debug.IModel {
