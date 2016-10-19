@@ -48,7 +48,7 @@ export class BackupService implements IBackupService {
 		return Object.keys(this.fileContent.folderWorkspaces);
 	}
 
-	public pushWorkspaceBackupPathsSync(workspaces: string[]): void {
+	public pushWorkspaceBackupPathsSync(workspaces: Uri[]): void {
 		// Only allow this on the main thread in the window initialization's critical path due to
 		// the usage of synchronous IO.
 		if (this.workspaceResource) {
@@ -61,36 +61,37 @@ export class BackupService implements IBackupService {
 			if (!workspace) {
 				return;
 			}
-			if (!this.fileContent.folderWorkspaces[workspace]) {
-				this.fileContent.folderWorkspaces[workspace] = [];
+
+			if (!this.fileContent.folderWorkspaces[workspace.fsPath]) {
+				this.fileContent.folderWorkspaces[workspace.fsPath] = [];
 			}
 		});
 		this.saveSync();
 	}
 
-	public removeWorkspaceBackupPath(workspace: string): TPromise<void> {
+	public removeWorkspaceBackupPath(workspace: Uri): TPromise<void> {
 		return this.load().then(() => {
 			if (!this.fileContent.folderWorkspaces) {
 				return;
 			}
-			delete this.fileContent.folderWorkspaces[workspace];
+			delete this.fileContent.folderWorkspaces[workspace.fsPath];
 			return this.save();
 		});
 	}
 
-	public getWorkspaceTextFilesWithBackupsSync(workspace: string): string[] {
+	public getWorkspaceTextFilesWithBackupsSync(workspace: Uri): string[] {
 		// Allow sync here as it's only used in workbench initialization's critical path
 		this.loadSync();
-		return this.fileContent.folderWorkspaces[workspace] || [];
+		return this.fileContent.folderWorkspaces[workspace.fsPath] || [];
 	}
 
-	public getWorkspaceUntitledFileBackupsSync(workspace: string): string[] {
+	public getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[] {
 		// Hot exit is disabled for empty workspaces
 		if (!this.workspaceResource) {
 			return;
 		}
 
-		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
+		const workspaceHash = crypto.createHash('md5').update(workspace.fsPath).digest('hex');
 		const untitledDir = path.join(this.environmentService.backupHome, workspaceHash, 'untitled');
 
 		// Allow sync here as it's only used in workbench initialization's critical path

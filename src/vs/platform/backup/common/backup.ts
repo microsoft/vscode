@@ -33,7 +33,7 @@ export interface IBackupService {
 	 *
 	 * @param workspaces The workspaces to add.
 	 */
-	pushWorkspaceBackupPathsSync(workspaces: string[]): void;
+	pushWorkspaceBackupPathsSync(workspaces: Uri[]): void;
 
 	/**
 	 * Removes a workspace backup path being tracked for restoration, deregistering all associated
@@ -41,7 +41,7 @@ export interface IBackupService {
 	 *
 	 * @param workspace The absolute workspace path being removed.
 	 */
-	removeWorkspaceBackupPath(workspace: string): TPromise<void>;
+	removeWorkspaceBackupPath(workspace: Uri): TPromise<void>;
 
 	/**
 	 * Gets the set of text files that are backed up for a particular workspace.
@@ -49,7 +49,7 @@ export interface IBackupService {
 	 * @param workspace The workspace to get the backed up files for.
 	 * @return The absolute paths for text files _that have backups_.
 	 */
-	getWorkspaceTextFilesWithBackupsSync(workspace: string): string[];
+	getWorkspaceTextFilesWithBackupsSync(workspace: Uri): string[];
 
 	/**
 	 * Gets the set of untitled file backups for a particular workspace.
@@ -57,7 +57,7 @@ export interface IBackupService {
 	 * @param workspace The workspace to get the backups for for.
 	 * @return The absolute paths for all the untitled file _backups_.
 	 */
-	getWorkspaceUntitledFileBackupsSync(workspace: string): string[];
+	getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[];
 
 	/**
 	 * Registers a resource for backup, flagging it for restoration.

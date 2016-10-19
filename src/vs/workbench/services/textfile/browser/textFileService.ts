@@ -190,7 +190,7 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private cleanupBackupsBeforeShutdown(): boolean | TPromise<boolean> {
-		return this.backupService.removeWorkspaceBackupPath(this.contextService.getWorkspace().resource.fsPath).then(() => {
+		return this.backupService.removeWorkspaceBackupPath(this.contextService.getWorkspace().resource).then(() => {
 			return this.fileService.discardBackups().then(() => {
 				return false; // no veto
 			});
