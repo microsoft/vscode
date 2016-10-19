@@ -326,7 +326,8 @@ export class Workbench implements IPartService {
 		}
 
 		// Empty workbench
-		else if (!this.workbenchParams.workspace) {
+		else if (!this.workbenchParams.workspace && this.telemetryService.getExperiments().openUntitledFile) {
+			// some first time users will not have an untiled file; returning users will always have one
 			return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
 		}
 
@@ -428,7 +429,8 @@ export class Workbench implements IPartService {
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
 		if (!this.contextService.getWorkspace()) {
-			this.sideBarHidden = true; // we hide sidebar in single-file-mode
+			// some first time users will see a sidebar; returning users will not see the sidebar
+			this.sideBarHidden = !this.telemetryService.getExperiments().showDefaultViewlet;
 		}
 
 		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
