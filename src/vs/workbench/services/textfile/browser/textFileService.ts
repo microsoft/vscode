@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
@@ -117,7 +118,8 @@ export abstract class TextFileService implements ITextFileService {
 
 	private beforeShutdown(): boolean | TPromise<boolean> {
 		// If hot exit is enabled then save the dirty files in the workspace and then exit
-		if (this.configuredHotExit && this.contextService.getWorkspace()) {
+		// Hot exit is currently disabled for both empty workspaces (#13733) and on Mac (#13305)
+		if (this.configuredHotExit && this.contextService.getWorkspace() && !platform.isMacintosh) {
 			// If there are no dirty files, clean up and exit
 			if (this.getDirty().length === 0) {
 				return this.cleanupBackupsBeforeShutdown();
