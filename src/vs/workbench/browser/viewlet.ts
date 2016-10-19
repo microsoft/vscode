@@ -334,7 +334,8 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 				}
 
 				return null;
-			}
+			},
+			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
@@ -470,7 +471,8 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 				}
 
 				return null;
-			}
+			},
+			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
