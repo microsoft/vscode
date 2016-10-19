@@ -75,6 +75,7 @@ export interface IBaseSession {
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 	onDidEvent: Event<DebugProtocol.Event>;
+	restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse>;
 }
 
 export interface ISession extends IBaseSession, ITreeElement {
@@ -93,7 +94,6 @@ export interface ISession extends IBaseSession, ITreeElement {
 	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
 	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
 	setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse>;
-	restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse>;
 	completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse>;
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
 	source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
@@ -166,6 +166,7 @@ export interface IStackFrame extends ITreeElement {
 	frameId: number;
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
+	restart(): TPromise<any>;
 }
 
 export interface IEnablement extends ITreeElement {
@@ -461,7 +462,6 @@ export interface IDebugService {
 	stepBack(threadId: number): TPromise<void>;
 	continue(threadId: number): TPromise<void>;
 	pause(threadId: number): TPromise<any>;
-	restartFrame(frameId: number): TPromise<any>;
 	completions(text: string, position: Position): TPromise<ISuggestion[]>;
 }
 

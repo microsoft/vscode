@@ -330,6 +330,10 @@ export class StackFrame implements debug.IStackFrame {
 
 		return this.scopes;
 	}
+
+	public restart(): TPromise<any> {
+		return this.thread.process.restartFrame({ frameId: this.frameId });
+	}
 }
 
 export class Thread implements debug.IThread {
@@ -514,6 +518,10 @@ export class Process implements debug.IProcess {
 
 	public get onDidEvent(): Event<DebugProtocol.Event> {
 		return this.session.onDidEvent;
+	}
+
+	public restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse> {
+		return this.session.restartFrame(args);
 	}
 }
 

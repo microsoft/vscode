@@ -333,12 +333,11 @@ export class RestartFrameAction extends AbstractDebugAction {
 	}
 
 	public run(frame: debug.IStackFrame): TPromise<any> {
+		if (!frame) {
+			frame = this.debugService.getViewModel().focusedStackFrame;
+		}
 
-		const frameId = (frame && frame instanceof model.StackFrame)
-			? frame.frameId
-			: this.debugService.getViewModel().focusedStackFrame.frameId;
-
-		return this.debugService.restartFrame(frameId);
+		return frame.restart();
 	}
 }
 
