@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
 import vscode = require('vscode');
+import { TPromise } from 'vs/base/common/winjs.base';
+import Event, { Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape } from './extHost.protocol';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 
@@ -38,9 +39,9 @@ export class ExtHostTerminal implements vscode.Terminal {
 	public get processId(): Thenable<number> {
 		this._checkDisposed();
 		if (this._processId) {
-			return Promise.resolve<number>(this._processId);
+			return TPromise.as<number>(this._processId);
 		}
-		return new Promise<number>((resolve) => {
+		return new TPromise<number>((resolve) => {
 			setTimeout(() => {
 				this.processId.then(resolve);
 			}, 200);
