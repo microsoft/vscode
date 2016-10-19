@@ -111,6 +111,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private silos: Builder[];
 	private silosSize: number[];
 	private silosInitialRatio: number[];
+	private silosMinimized: boolean[];
 
 	private sashOne: Sash;
 	private startSiloOneSize: number;
@@ -150,6 +151,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this.silos = [];
 		this.silosSize = [];
+		this.silosMinimized = [];
 
 		this.visibleEditors = [];
 		this.visibleEditorFocusTrackers = [];
@@ -177,6 +179,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private get minSize(): number {
 		return this.layoutVertically ? SideBySideEditorControl.MIN_EDITOR_WIDTH : SideBySideEditorControl.MIN_EDITOR_HEIGHT;
+	}
+
+	private isSiloMinimized(position: number): boolean {
+		return this.silosSize[position] === this.minSize && this.silosMinimized[position];
+	}
+
+	private updateMinimizedState(): void {
+		POSITIONS.forEach(p => this.silosMinimized[p] = this.silosSize[p] === this.minSize);
 	}
 
 	private get snapToMinimizeThresholdSize(): number {
@@ -422,8 +432,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		if (this.lastActiveEditor !== editor) {
 			this.doSetActive(editor, this.visibleEditors.indexOf(editor));
 
-			// Automatically maximize this position if it has min editor size
-			if (this.silosSize[this.lastActivePosition] === this.minSize) {
+			// Automatically maximize this position if it is minimized
+			if (this.isSiloMinimized(this.lastActivePosition)) {
 
 				// Log this fact in telemetry
 				if (this.telemetryService) {
@@ -431,6 +441,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				}
 
 				let remainingSize = this.totalSize;
+				let layout = false;
 
 				// Minimize all other positions to min size
 				POSITIONS.forEach(p => {
@@ -452,6 +463,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						this.sashTwo.layout();
 					}
 
+					layout = true;
+				}
+
+				// Since we triggered a change in minimized/maximized editors, we need
+				// to update our stored state of minimized silos accordingly
+				this.updateMinimizedState();
+
+				if (layout) {
 					this.layoutContainers();
 				}
 			}
@@ -464,7 +483,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private focusNextNonMinimized(): void {
 
 		// If the current focussed editor is minimized, try to focus the next largest editor
-		if (!types.isUndefinedOrNull(this.lastActivePosition) && this.silosSize[this.lastActivePosition] === this.minSize) {
+		if (!types.isUndefinedOrNull(this.lastActivePosition) && this.silosMinimized[this.lastActivePosition]) {
 			let candidate: Position = null;
 			let currentSize = this.minSize;
 			POSITIONS.forEach(position => {
@@ -765,6 +784,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			});
 		}
 
+		// Since we triggered a change in minimized/maximized editors, we need
+		// to update our stored state of minimized silos accordingly
+		this.updateMinimizedState();
+
+		// Layout silos
 		this.layoutControl(this.dimension);
 	}
 
@@ -1545,6 +1569,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.silosSize[Position.TWO] = this.totalSize - this.silosSize[Position.ONE] - this.silosSize[Position.THREE];
 		}
 
+		// We allow silos to turn into minimized state from user dragging the sash,
+		// so we need to update our stored state of minimized silos accordingly
+		this.updateMinimizedState();
+
 		// Pass on to containers
 		this.layoutContainers();
 	}
@@ -1609,6 +1637,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.silosSize[Position.THREE] = newSiloThreeSize;
 		this.silosSize[Position.TWO] = this.totalSize - this.silosSize[Position.ONE] - this.silosSize[Position.THREE];
 
+		// We allow silos to turn into minimized state from user dragging the sash,
+		// so we need to update our stored state of minimized silos accordingly
+		this.updateMinimizedState();
+
+		// Pass on to containers
 		this.layoutContainers();
 	}
 
@@ -1676,12 +1709,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		let totalSize = 0;
 
 		// Set preferred dimensions based on ratio to previous dimenions
+		let wasInitialRatioRestored = false;
 		const oldTotalSize = this.layoutVertically ? oldDimension.width : oldDimension.height;
 		POSITIONS.forEach(position => {
 			if (this.visibleEditors[position]) {
 
 				// Keep minimized editors in tact by not letting them grow if we have size to give
-				if (this.silosSize[position] !== this.minSize) {
+				if (!this.isSiloMinimized(position)) {
 					let siloSizeRatio: number;
 
 					// We have some stored initial ratios when the editor was restored on startup
@@ -1689,6 +1723,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 					if (this.silosInitialRatio && types.isNumber(this.silosInitialRatio[position])) {
 						siloSizeRatio = this.silosInitialRatio[position];
 						delete this.silosInitialRatio[position]; // dont use again
+						wasInitialRatioRestored = true;
 					} else {
 						siloSizeRatio = this.silosSize[position] / oldTotalSize;
 					}
@@ -1699,6 +1734,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				totalSize += this.silosSize[position];
 			}
 		});
+
+		// When restoring from an initial ratio state, we treat editors of min-size as
+		// minimized, so we need to update our stored state of minimized silos accordingly
+		if (wasInitialRatioRestored) {
+			this.updateMinimizedState();
+		}
 
 		// Compensate for overflow either through rounding error or min editor size
 		if (totalSize > 0) {
@@ -1712,7 +1753,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// that if the user chose this layout.
 				let positionToGive: Position = null;
 				POSITIONS.forEach(position => {
-					if (this.visibleEditors[position] && positionToGive === null && this.silosSize[position] !== this.minSize) {
+					if (this.visibleEditors[position] && positionToGive === null && !this.isSiloMinimized(position)) {
 						positionToGive = position;
 					}
 				});
