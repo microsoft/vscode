@@ -31,7 +31,7 @@ export const DEBUG_SCHEME = 'debug';
 
 export interface IRawModelUpdate {
 	threadId: number;
-	rawSession: IRawDebugSession;
+	rawSession: ISession;
 	thread?: DebugProtocol.Thread;
 	callStack?: DebugProtocol.StackFrame[];
 	stoppedDetails?: IRawStoppedDetails;
@@ -65,11 +65,42 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 	type?: string;
 }
 
-export interface IProcess extends ITreeElement {
+export interface IBaseSession {
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
+
+	configuration: { type: string, capabilities: DebugProtocol.Capabilities };
+	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
+	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
+	onDidEvent: Event<DebugProtocol.Event>;
+}
+
+export interface ISession extends IBaseSession, ITreeElement {
+	readyForBreakpoints: boolean;
+	emittedStopped: boolean;
+	getLengthInSeconds(): number;
+	attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse>;
+	setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse>;
+	setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): TPromise<DebugProtocol.SetFunctionBreakpointsResponse>;
+	setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse>;
+	onDidStop: Event<DebugProtocol.StoppedEvent>;
+	threads(): TPromise<DebugProtocol.ThreadsResponse>;
+	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
+	stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse>;
+	stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse>;
+	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
+	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
+	setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse>;
+	restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse>;
+	completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse>;
+	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
+	source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
+}
+
+export interface IProcess extends IBaseSession, ITreeElement {
+
 }
 
 export interface IThread extends ITreeElement {
@@ -175,14 +206,14 @@ export interface IExceptionBreakpoint extends IEnablement {
 
 export interface IViewModel extends ITreeElement {
 	/**
-	 * Returns the active debug session or null if debug is inactive.
+	 * Returns the active debug process or null if debug is inactive.
 	 */
-	activeSession: IRawDebugSession;
-	getFocusedStackFrame(): IStackFrame;
+	focusedProcess: IProcess;
+	focusedThread: IThread;
+	focusedStackFrame: IStackFrame;
 	getSelectedExpression(): IExpression;
-	getFocusedThread(): IThread;
-	setSelectedExpression(expression: IExpression);
 	getSelectedFunctionBreakpoint(): IFunctionBreakpoint;
+	setSelectedExpression(expression: IExpression);
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
 
 	onDidFocusStackFrame: Event<IStackFrame>;
@@ -191,7 +222,7 @@ export interface IViewModel extends ITreeElement {
 }
 
 export interface IModel extends ITreeElement {
-	getSessions(): IRawDebugSession[];
+	getProcesses(): IProcess[];
 	getThreads(sessionId): { [threadId: number]: IThread; };
 	getBreakpoints(): IBreakpoint[];
 	areBreakpointsActivated(): boolean;
@@ -279,17 +310,6 @@ export interface IRawAdapter extends IRawEnvAdapter {
 
 export interface IRawBreakpointContribution {
 	language: string;
-}
-
-export interface IRawDebugSession extends IProcess {
-	configuration: { type: string, capabilities: DebugProtocol.Capabilities };
-	getId(): string;
-
-	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
-
-	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
-
-	onDidEvent: Event<DebugProtocol.Event>;
 }
 
 export interface IConfigurationManager {

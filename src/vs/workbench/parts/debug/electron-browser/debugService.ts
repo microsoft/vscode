@@ -143,8 +143,8 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
 	}
 
-	private get session(): RawDebugSession {
-		return <RawDebugSession>this.viewModel.activeSession;
+	private get session(): debug.ISession {
+		return this.viewModel.focusedProcess ? (<model.Process>this.viewModel.focusedProcess).session : null;
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
@@ -349,7 +349,7 @@ export class DebugService implements debug.IDebugService {
 		this.appendReplOutput(event.body.output, outputSeverity);
 	}
 
-	private getThreadData(session: RawDebugSession): TPromise<void> {
+	private getThreadData(session: debug.ISession): TPromise<void> {
 		return session.threads().then(response => {
 			if (response && response.body && response.body.threads) {
 				response.body.threads.forEach(thread => this.model.rawUpdate({ rawSession: session, threadId: thread.id, thread }));
@@ -420,15 +420,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
-		let thread: debug.IThread = null;
-		let session: debug.IRawDebugSession = null;
-		if (focusedStackFrame) {
-			const processId = focusedStackFrame.thread.process.getId();
-			session = this.model.getSessions().filter(s => s.getId() === processId).pop();
-			thread = this.model.getThreads(processId)[focusedStackFrame.thread.threadId];
-		}
-
-		this.viewModel.setFocusedStackFrame(focusedStackFrame, thread, session);
+		this.viewModel.setFocusedStackFrame(focusedStackFrame);
 		if (focusedStackFrame) {
 			return this.model.evaluateWatchExpressions(focusedStackFrame);
 		} else {
@@ -491,10 +483,9 @@ export class DebugService implements debug.IDebugService {
 
 	public addReplExpression(name: string): TPromise<void> {
 		this.telemetryService.publicLog('debugService/addReplExpression');
-		const focussedStackFrame = this.viewModel.getFocusedStackFrame();
-		return this.model.addReplExpression(focussedStackFrame, name)
+		return this.model.addReplExpression(this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions again since repl evaluation might have changed some.
-			.then(() => this.setFocusedStackFrameAndEvaluate(focussedStackFrame));
+			.then(() => this.setFocusedStackFrameAndEvaluate(this.viewModel.focusedStackFrame));
 	}
 
 	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
@@ -523,18 +514,18 @@ export class DebugService implements debug.IDebugService {
 				variable.value = response.body.value;
 			}
 			// Evaluate all watch expressions again since changing variable value might have changed some #8118.
-			return this.setFocusedStackFrameAndEvaluate(this.viewModel.getFocusedStackFrame());
+			return this.setFocusedStackFrameAndEvaluate(this.viewModel.focusedStackFrame);
 		}, err => {
 			(<model.Variable>variable).errorMessage = err.message;
 		});
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
-		return this.model.addWatchExpression(this.viewModel.getFocusedStackFrame(), name);
+		return this.model.addWatchExpression(this.viewModel.focusedStackFrame, name);
 	}
 
 	public renameWatchExpression(id: string, newName: string): TPromise<void> {
-		return this.model.renameWatchExpression(this.viewModel.getFocusedStackFrame(), id, newName);
+		return this.model.renameWatchExpression(this.viewModel.focusedStackFrame, id, newName);
 	}
 
 	public removeWatchExpressions(id?: string): void {
@@ -777,7 +768,7 @@ export class DebugService implements debug.IDebugService {
 		) : this.createSession(false, null);
 	}
 
-	private onSessionEnd(session: RawDebugSession): void {
+	private onSessionEnd(session: debug.ISession): void {
 		if (session) {
 			const bpsExist = this.model.getBreakpoints().length > 0;
 			this.telemetryService.publicLog('debugSessionStop', {
@@ -797,7 +788,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.partService.removeClass('debugging');
 
-		this.model.removeSession(session.getId());
+		this.model.removeProcess(session.getId());
 		this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 		this.setStateAndEmit(debug.State.Inactive);
 
@@ -962,10 +953,10 @@ export class DebugService implements debug.IDebugService {
 		if (!this.session || !this.session.configuration.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);
 		}
-		const focussedStackFrame = this.viewModel.getFocusedStackFrame();
+		const focusedStackFrame = this.viewModel.focusedStackFrame;
 
 		return this.session.completions({
-			frameId: focussedStackFrame ? focussedStackFrame.frameId : undefined,
+			frameId: focusedStackFrame ? focusedStackFrame.frameId : undefined,
 			text,
 			column: position.column,
 			line: position.lineNumber
@@ -978,7 +969,7 @@ export class DebugService implements debug.IDebugService {
 		}, err => []);
 	}
 
-	private lazyTransitionToRunningState(session: RawDebugSession, threadId?: number): void {
+	private lazyTransitionToRunningState(session: debug.ISession, threadId?: number): void {
 		let setNewFocusedStackFrameScheduler: RunOnceScheduler;
 
 		const toDispose = session.onDidStop(e => {
@@ -1025,15 +1016,15 @@ export class DebugService implements debug.IDebugService {
 		return result;
 	}
 
-	private sendAllBreakpoints(session?: RawDebugSession): TPromise<any> {
+	private sendAllBreakpoints(session?: debug.ISession): TPromise<any> {
 		return TPromise.join(arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => this.sendBreakpoints(bp.source.uri, false, session)))
 			.then(() => this.sendFunctionBreakpoints(session))
 			// send exception breakpoints at the end since some debug adapters rely on the order
 			.then(() => this.sendExceptionBreakpoints(session));
 	}
 
-	private sendBreakpoints(modelUri: uri, sourceModified = false, session?: RawDebugSession): TPromise<void> {
-		const sendBreakpointsToSession = (session: RawDebugSession): TPromise<void> => {
+	private sendBreakpoints(modelUri: uri, sourceModified = false, session?: debug.ISession): TPromise<void> {
+		const sendBreakpointsToSession = (session: debug.ISession): TPromise<void> => {
 			if (!session.readyForBreakpoints) {
 				return TPromise.as(null);
 			}
@@ -1071,8 +1062,8 @@ export class DebugService implements debug.IDebugService {
 		return this.sendToOneOrAllSessions(session, sendBreakpointsToSession);
 	}
 
-	private sendFunctionBreakpoints(session?: RawDebugSession): TPromise<void> {
-		const sendFunctionBreakpointsToSession = (session: RawDebugSession): TPromise<void> => {
+	private sendFunctionBreakpoints(session?: debug.ISession): TPromise<void> {
+		const sendFunctionBreakpointsToSession = (session: debug.ISession): TPromise<void> => {
 			if (!session.readyForBreakpoints || !session.configuration.capabilities.supportsFunctionBreakpoints) {
 				return TPromise.as(null);
 			}
@@ -1095,8 +1086,8 @@ export class DebugService implements debug.IDebugService {
 		return this.sendToOneOrAllSessions(session, sendFunctionBreakpointsToSession);
 	}
 
-	private sendExceptionBreakpoints(session?: debug.IRawDebugSession): TPromise<void> {
-		const sendExceptionBreakpointsToSession = (session: RawDebugSession): TPromise<any> => {
+	private sendExceptionBreakpoints(session?: debug.ISession): TPromise<void> {
+		const sendExceptionBreakpointsToSession = (session: debug.ISession): TPromise<any> => {
 			if (!session || !session.readyForBreakpoints || this.model.getExceptionBreakpoints().length === 0) {
 				return TPromise.as(null);
 			}
@@ -1108,12 +1099,12 @@ export class DebugService implements debug.IDebugService {
 		return this.sendToOneOrAllSessions(session, sendExceptionBreakpointsToSession);
 	}
 
-	private sendToOneOrAllSessions(session: debug.IRawDebugSession, send: (session: RawDebugSession) => TPromise<void>): TPromise<void> {
+	private sendToOneOrAllSessions(session: debug.ISession, send: (session: debug.ISession) => TPromise<void>): TPromise<void> {
 		if (session) {
-			return send(<RawDebugSession>session);
+			return send(session);
 		}
 
-		return TPromise.join(this.model.getSessions().map(s => send(<RawDebugSession>s))).then(() => void 0);
+		return TPromise.join(this.model.getProcesses().map(p => send(p.session))).then(() => void 0);
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {

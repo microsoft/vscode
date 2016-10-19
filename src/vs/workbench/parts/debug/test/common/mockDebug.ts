@@ -12,12 +12,7 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export class MockDebugService implements debug.IDebugService {
-	private session: MockRawSession;
 	public _serviceBrand: any;
-
-	constructor() {
-		this.session = new MockRawSession();
-	}
 
 	public get state(): debug.State {
 		return null;
@@ -89,10 +84,6 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public get activeSession(): debug.IRawDebugSession {
-		return this.session;
-	}
-
 	public getModel(): debug.IModel {
 		return null;
 	}
@@ -142,10 +133,16 @@ export class MockDebugService implements debug.IDebugService {
 	}
 }
 
-export class MockProcess implements debug.IProcess {
+export class MockSession implements debug.ISession {
+	public readyForBreakpoints = true;
+	public emittedStopped = true;
 
 	public getId() {
 		return 'mockrawsession';
+	}
+
+	public getLengthInSeconds(): number {
+		return 100;
 	}
 
 	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
@@ -154,6 +151,10 @@ export class MockProcess implements debug.IProcess {
 				stackFrames: []
 			}
 		});
+	}
+
+	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
+		return TPromise.as(null);
 	}
 
 	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
@@ -167,9 +168,6 @@ export class MockProcess implements debug.IProcess {
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
 		return TPromise.as(null);
 	}
-}
-
-export class MockRawSession extends MockProcess implements debug.IRawDebugSession {
 
 	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
 		return {
@@ -189,4 +187,62 @@ export class MockRawSession extends MockProcess implements debug.IRawDebugSessio
 	public disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse> {
 		return TPromise.as(null);
 	}
+
+	public threads(): TPromise<DebugProtocol.ThreadsResponse> {
+		return TPromise.as(null);
+	}
+
+	public stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse> {
+		return TPromise.as(null);
+	}
+
+	public stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse> {
+		return TPromise.as(null);
+	}
+
+	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
+		return TPromise.as(null);
+	}
+
+	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
+		return TPromise.as(null);
+	}
+
+	public pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse> {
+		return TPromise.as(null);
+	}
+
+	public setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse> {
+		return TPromise.as(null);
+	}
+
+	public restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse> {
+		return TPromise.as(null);
+	}
+
+	public completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse> {
+		return TPromise.as(null);
+	}
+
+	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
+		return TPromise.as(null);
+	}
+
+	public source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse> {
+		return TPromise.as(null);
+	}
+
+	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse> {
+		return TPromise.as(null);
+	}
+
+	public setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): TPromise<DebugProtocol.SetFunctionBreakpointsResponse> {
+		return TPromise.as(null);
+	}
+
+	public setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse> {
+		return TPromise.as(null);
+	}
+
+	public onDidStop: Event<DebugProtocol.StoppedEvent> = null;
 }

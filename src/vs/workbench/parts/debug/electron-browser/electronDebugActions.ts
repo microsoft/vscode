@@ -20,9 +20,9 @@ export class CopyValueAction extends actions.Action {
 
 	public run(): TPromise<any> {
 		if (this.value instanceof Variable) {
-			const frameId = this.debugService.getViewModel().getFocusedStackFrame().frameId;
-			const session = this.debugService.getViewModel().activeSession;
-			return session.evaluate({ expression: getFullExpressionName(this.value, session.configuration.type), frameId }).then(result => {
+			const frameId = this.debugService.getViewModel().focusedStackFrame.frameId;
+			const process = this.debugService.getViewModel().focusedProcess;
+			return process.evaluate({ expression: getFullExpressionName(this.value, process.configuration.type), frameId }).then(result => {
 				clipboard.writeText(result.body.result);
 			}, err => clipboard.writeText(this.value.value));
 		}

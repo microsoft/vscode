@@ -8,17 +8,17 @@ import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
 import * as sinon from 'sinon';
-import { MockProcess, MockRawSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
+import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
 
 suite('Debug - Model', () => {
 	let model: debugmodel.Model;
-	let process: MockProcess;
-	let rawSession: MockRawSession;
+	let process: debugmodel.Process;
+	let rawSession: MockSession;
 
 	setup(() => {
 		model = new debugmodel.Model([], true, [], [], []);
-		process = new MockProcess();
-		rawSession = new MockRawSession();
+		rawSession = new MockSession();
+		process = new debugmodel.Process(rawSession);
 	});
 
 	teardown(() => {

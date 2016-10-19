@@ -170,7 +170,7 @@ export class StepOverAction extends AbstractDebugAction {
 
 	public run(thread: debug.IThread): TPromise<any> {
 		if (!thread) {
-			thread = this.debugService.getViewModel().getFocusedThread();
+			thread = this.debugService.getViewModel().focusedThread;
 		}
 
 		return this.debugService.next(thread.threadId);
@@ -191,7 +191,7 @@ export class StepIntoAction extends AbstractDebugAction {
 
 	public run(thread: debug.IThread): TPromise<any> {
 		if (!thread) {
-			thread = this.debugService.getViewModel().getFocusedThread();
+			thread = this.debugService.getViewModel().focusedThread;
 		}
 
 		return this.debugService.stepIn(thread.threadId);
@@ -212,7 +212,7 @@ export class StepOutAction extends AbstractDebugAction {
 
 	public run(thread: debug.IThread): TPromise<any> {
 		if (!thread) {
-			thread = this.debugService.getViewModel().getFocusedThread();
+			thread = this.debugService.getViewModel().focusedThread;
 		}
 
 		return this.debugService.stepOut(thread.threadId);
@@ -233,16 +233,16 @@ export class StepBackAction extends AbstractDebugAction {
 
 	public run(thread: debug.IThread): TPromise<any> {
 		if (!thread) {
-			thread = this.debugService.getViewModel().getFocusedThread();
+			thread = this.debugService.getViewModel().focusedThread;
 		}
 
 		return this.debugService.stepBack(thread.threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
-		const activeSession = this.debugService.getViewModel().activeSession;
+		const process = this.debugService.getViewModel().focusedProcess;
 		return super.isEnabled(state) && state === debug.State.Stopped &&
-			activeSession && activeSession.configuration.capabilities.supportsStepBack;
+			process && process.configuration.capabilities.supportsStepBack;
 	}
 }
 
@@ -255,8 +255,8 @@ export class StopAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		var session = this.debugService.getViewModel().activeSession;
-		return session ? session.disconnect(false, true) : TPromise.as(null);
+		const process = this.debugService.getViewModel().focusedProcess;
+		return process ? process.disconnect(false, true) : TPromise.as(null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -273,8 +273,8 @@ export class DisconnectAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const session = this.debugService.getViewModel().activeSession;
-		return session ? session.disconnect(false, true) : TPromise.as(null);
+		const process = this.debugService.getViewModel().focusedProcess;
+		return process ? process.disconnect(false, true) : TPromise.as(null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -292,7 +292,7 @@ export class ContinueAction extends AbstractDebugAction {
 
 	public run(thread: debug.IThread): TPromise<any> {
 		if (!thread) {
-			thread = this.debugService.getViewModel().getFocusedThread();
+			thread = this.debugService.getViewModel().focusedThread;
 		}
 
 		return this.debugService.continue(thread.threadId);
@@ -313,7 +313,7 @@ export class PauseAction extends AbstractDebugAction {
 
 	public run(thread: debug.IThread): TPromise<any> {
 		if (!thread) {
-			thread = this.debugService.getViewModel().getFocusedThread();
+			thread = this.debugService.getViewModel().focusedThread;
 		}
 
 		return this.debugService.pause(thread.threadId);
@@ -336,7 +336,7 @@ export class RestartFrameAction extends AbstractDebugAction {
 
 		const frameId = (frame && frame instanceof model.StackFrame)
 			? frame.frameId
-			: this.debugService.getViewModel().getFocusedStackFrame().frameId;
+			: this.debugService.getViewModel().focusedStackFrame.frameId;
 
 		return this.debugService.restartFrame(frameId);
 	}
@@ -608,8 +608,8 @@ export class SetValueAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: debug.State): boolean {
-		const session = this.debugService.getViewModel().activeSession;
-		return super.isEnabled(state) && state === debug.State.Stopped && session && session.configuration.capabilities.supportsSetVariable;
+		const process = this.debugService.getViewModel().focusedProcess;
+		return super.isEnabled(state) && state === debug.State.Stopped && process && process.configuration.capabilities.supportsSetVariable;
 	}
 }
 
@@ -638,7 +638,7 @@ class RunToCursorAction extends EditorAction {
 		const lineNumber = editor.getPosition().lineNumber;
 		const uri = editor.getModel().uri;
 
-		const oneTimeListener = debugService.getViewModel().activeSession.onDidEvent(event => {
+		const oneTimeListener = debugService.getViewModel().focusedProcess.onDidEvent(event => {
 			if (event.event === 'stopped' || event.event === 'exit') {
 				const toRemove = debugService.getModel().getBreakpoints()
 					.filter(bp => bp.desiredLineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
@@ -651,7 +651,7 @@ class RunToCursorAction extends EditorAction {
 
 		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop());
 		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints([{ uri, lineNumber }])).then(() => {
-			debugService.continue(debugService.getViewModel().getFocusedThread().threadId);
+			debugService.continue(debugService.getViewModel().focusedThread.threadId);
 		});
 	}
 }
@@ -763,8 +763,8 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const session = this.debugService.getViewModel().activeSession;
-		const type = session ? session.configuration.type : null;
+		const process = this.debugService.getViewModel().focusedProcess;
+		const type = process ? process.configuration.type : null;
 		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, type));
 	}
 }
