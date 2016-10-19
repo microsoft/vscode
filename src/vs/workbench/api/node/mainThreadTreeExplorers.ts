@@ -30,8 +30,8 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 			resolveChildren: (node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> => {
 				return this._proxy.$resolveChildren(providerId, node);
 			},
-			resolveCommand: (node: InternalTreeExplorerNode): TPromise<void> => {
-				return this._proxy.$resolveCommand(providerId, node);
+			executeCommand: (node: InternalTreeExplorerNode): TPromise<void> => {
+				return this._proxy.$executeCommand(providerId, node);
 			}
 		});
 	}
