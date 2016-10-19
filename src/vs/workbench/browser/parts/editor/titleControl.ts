@@ -248,7 +248,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 				}
 
 				return null;
-			}
+			},
+			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
 		});
 
 		// Action Run Handling

@@ -433,7 +433,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					}
 
 					return null;
-				}
+				},
+				getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
 			});
 		});
 
