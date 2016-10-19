@@ -248,7 +248,7 @@ export abstract class TextFileService implements ITextFileService {
 
 		// touch resource if options tell so and file is not dirty
 		if (options && options.force && resource.scheme === 'file' && !this.isDirty(resource)) {
-			return this.fileService.touchFile(resource).then(() => true);
+			return this.fileService.touchFile(resource).then(() => true, () => true /* gracefully ignore errors if just touching */);
 		}
 
 		return this.saveAll([resource]).then(result => result.results.length === 1 && result.results[0].success);
