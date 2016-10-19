@@ -21,7 +21,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 export class ToggleEditorLayoutAction extends Action {
 
 	public static ID = 'workbench.action.toggleEditorLayout';
-	public static LABEL = nls.localize('toggleEditorLayout', "Toggle Editor Layout");
+	public static LABEL = nls.localize('toggleEditorLayout', "Toggle Vertical/Horizontal Layout");
 
 	private static editorLayoutConfigurationKey = 'workbench.editor.sideBySideLayout';
 
@@ -78,4 +78,4 @@ export class ToggleEditorLayoutAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_1, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_1 } }), 'View: Toggle Editor Layout', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_1, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_1 } }), 'View: Toggle Vertical/Horizontal Layout', nls.localize('view', "View"));
