@@ -17,7 +17,7 @@ import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension } from './extensions';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from './extensionsActions';
-import { Label, RatingsWidget, InstallWidget, StatusWidget } from './extensionsWidgets';
+import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
 
 export interface ITemplateData {
@@ -26,7 +26,6 @@ export interface ITemplateData {
 	name: HTMLElement;
 	installCount: HTMLElement;
 	ratings: HTMLElement;
-	status: HTMLElement;
 	author: HTMLElement;
 	description: HTMLElement;
 	extension: IExtension;
@@ -60,7 +59,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const version = append(header, $('span.version'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
-		const status = append(headerContainer, $('span.status'));
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
@@ -82,7 +80,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const versionWidget = this.instantiationService.createInstance(Label, version, e => e.version);
 		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
-		const statusWidget = this.instantiationService.createInstance(StatusWidget, status, null);
 
 		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
 		const combinedInstallAction = this.instantiationService.createInstance(CombinedInstallAction);
@@ -95,7 +92,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposables = [versionWidget, installCountWidget, ratingsWidget, combinedInstallAction, builtinStatusAction, updateAction, enableAction, disableAction, reloadAction, actionbar];
 
 		return {
-			element, icon, name, installCount, ratings, status, author, description, disposables,
+			element, icon, name, installCount, ratings, author, description, disposables,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				versionWidget.extension = extension;
@@ -106,7 +103,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				updateAction.extension = extension;
 				enableAction.extension = extension;
 				disableAction.extension = extension;
-				statusWidget.extension = extension;
 				reloadAction.extension = extension;
 			}
 		};

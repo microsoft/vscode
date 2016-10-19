@@ -328,7 +328,8 @@ export class EnableForWorkspaceAction extends Action {
 
 	private update(): void {
 		if (!!this.workspaceContextService.getWorkspace()) {
-			this.enabled = this.extensionsRuntimeService.getDisabledExtensions(true).indexOf(this.extension.identifier) !== -1;
+			const globalDisabled = this.extensionsRuntimeService.getDisabledExtensions(false);
+			this.enabled = globalDisabled.indexOf(this.extension.identifier) === -1;
 		}
 	}
 
@@ -341,12 +342,18 @@ export class EnableGloballyAction extends Action {
 
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
-	set extension(extension: IExtension) { this._extension = extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
 	) {
-		super('extensions.enableGlobally', localize('enableGloballyAction', "Global"), '', true);
+		super('extensions.enableGlobally', localize('enableGloballyAction', "Global"), '', false);
+	}
+
+	private update(): void {
+		const globalDisabled = this.extensionsRuntimeService.getDisabledExtensions(false);
+		this.enabled = globalDisabled.indexOf(this.extension.identifier) !== -1;
 	}
 
 	run(): TPromise<any> {
