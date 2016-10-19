@@ -16,12 +16,12 @@ import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegis
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITreeExplorerService } from 'vs/workbench/parts/explorers/browser/treeExplorerService';
+import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
 
 export class TreeDataSource implements IDataSource {
 	constructor(
 		private treeNodeProviderId: string,
-		@ITreeExplorerService private treeExplorerViewletService: ITreeExplorerService
+		@ITreeExplorerViewletService private treeExplorerViewletService: ITreeExplorerViewletService
 	) {
 
 	}
@@ -82,7 +82,7 @@ export class TreeController extends DefaultController {
 
 	constructor(
 		private treeNodeProviderId: string,
-		@ITreeExplorerService private treeExplorerViewletService: ITreeExplorerService
+		@ITreeExplorerViewletService private treeExplorerViewletService: ITreeExplorerViewletService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 	}
