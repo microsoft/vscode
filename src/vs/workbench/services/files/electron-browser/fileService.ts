@@ -83,7 +83,7 @@ export class FileService implements IFileService {
 
 		// create service
 		const workspace = this.contextService.getWorkspace();
-		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService, this.environmentService, this.configurationService, this.backupService, this.contextService);
+		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService, this.environmentService, this.configurationService, this.backupService);
 
 		// Listeners
 		this.registerListeners();

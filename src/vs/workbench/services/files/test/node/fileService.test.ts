@@ -9,11 +9,14 @@ import fs = require('fs');
 import path = require('path');
 import os = require('os');
 import assert = require('assert');
+import crypto = require('crypto');
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileService, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { EventType, FileChangesEvent, FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { nfcall } from 'vs/base/common/async';
+import { TestBackupService, TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
 import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import extfs = require('vs/base/node/extfs');
@@ -33,7 +36,7 @@ suite('FileService', () => {
 
 		extfs.copy(sourceDir, testDir, () => {
 			events = new utils.TestEventService();
-			service = new FileService(testDir, { disableWatcher: true }, events, null, null, null, null);
+			service = new FileService(testDir, { disableWatcher: true }, events, null, null, null);
 			done();
 		});
 	});
@@ -275,6 +278,73 @@ suite('FileService', () => {
 		});
 	});
 
+	suite('backups', () => {
+		const environment = TestEnvironmentService;
+		const fooResource = uri.file('/foo');
+		const barResource = uri.file('/bar');
+
+		let _service: FileService;
+		let backup: TestBackupService;
+		let workspaceHash;
+		let workspaceBackupRoot;
+		let fooFileHash;
+		let barFileHash;
+		let fooBackupPath;
+		let barBackupPath;
+
+		setup((done) => {
+			extfs.del(TestEnvironmentService.backupHome, os.tmpdir(), done);
+			backup = new TestBackupService();
+			_service = new FileService(testDir, { disableWatcher: true }, events, environment, null, backup);
+			workspaceHash = crypto.createHash('md5').update(testDir).digest('hex');
+			workspaceBackupRoot = path.join(environment.backupHome, workspaceHash, 'file');
+			fooFileHash = crypto.createHash('md5').update(fooResource.fsPath).digest('hex');
+			barFileHash = crypto.createHash('md5').update(barResource.fsPath).digest('hex');
+			fooBackupPath = path.join(workspaceBackupRoot, fooFileHash);
+			barBackupPath = path.join(workspaceBackupRoot, barFileHash);
+		});
+
+		teardown((done) => {
+			extfs.del(TestEnvironmentService.backupHome, os.tmpdir(), done);
+		});
+
+		test('backupFile', function (done: () => void) {
+			_service.backupFile(fooResource, 'test').then(() => {
+				assert.equal(fs.readdirSync(workspaceBackupRoot).length, 1);
+				assert.equal(fs.existsSync(fooBackupPath), true);
+				assert.deepEqual(backup.registeredResources, [fooResource]);
+				assert.equal(fs.readFileSync(fooBackupPath), 'test');
+				done();
+			});
+		});
+
+		test('discardBackup', function (done: () => void) {
+			_service.backupFile(fooResource, 'test').then(() => {
+				assert.equal(fs.readdirSync(workspaceBackupRoot).length, 1);
+				_service.discardBackup(fooResource).then(() => {
+					assert.equal(fs.existsSync(fooBackupPath), false);
+					assert.equal(fs.readdirSync(workspaceBackupRoot).length, 0);
+					done();
+				});
+			});
+		});
+
+		test('discardBackups', function (done: () => void) {
+			_service.backupFile(fooResource, 'test').then(() => {
+				assert.equal(fs.readdirSync(workspaceBackupRoot).length, 1);
+				_service.backupFile(barResource, 'test').then(() => {
+					assert.equal(fs.readdirSync(workspaceBackupRoot).length, 2);
+					_service.discardBackups().then(() => {
+						assert.equal(fs.existsSync(fooBackupPath), false);
+						assert.equal(fs.existsSync(barBackupPath), false);
+						assert.equal(fs.existsSync(workspaceBackupRoot), false);
+						done();
+					});
+				});
+			});
+		});
+	});
+
 	test('resolveFile', function (done: () => void) {
 		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).done(r => {
 			assert.equal(r.children.length, 6);
@@ -494,7 +564,7 @@ suite('FileService', () => {
 				encoding: 'windows1252',
 				encodingOverride: encodingOverride,
 				disableWatcher: true
-			}, null, null, null, null, null);
+			}, null, null, null, null);
 
 			_service.resolveContent(uri.file(path.join(testDir, 'index.html'))).done(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -520,7 +590,7 @@ suite('FileService', () => {
 
 		let _service = new FileService(_testDir, {
 			disableWatcher: true
-		}, null, null, null, null, null);
+		}, null, null, null, null);
 
 		extfs.copy(_sourceDir, _testDir, () => {
 			fs.readFile(resource.fsPath, (error, data) => {

@@ -194,7 +194,7 @@ export abstract class TextFileService implements ITextFileService {
 	private cleanupBackupsBeforeShutdown(): boolean | TPromise<boolean> {
 		const workspace = this.contextService.getWorkspace();
 		if (!workspace) {
-			return TPromise.as(false); // no backups to cleanup, no eto
+			return false; // no backups to cleanup, no eto
 		}
 		return this.backupService.removeWorkspaceBackupPath(workspace.resource).then(() => {
 			return this.fileService.discardBackups().then(() => {
