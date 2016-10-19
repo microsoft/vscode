@@ -6,7 +6,7 @@
 .global-message-list {
 	font-size: 12px;
 	position: absolute;
-	z-index: 2000; /* on top of the world */
+	z-index: 300;
 	color: #eee;
 	list-style-type: none;
 	line-height: 35px;

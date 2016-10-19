@@ -19,7 +19,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { Action } from 'vs/base/common/actions';
 
-export function setup() {
+export function setup(): void {
 	registerActiveEditorMoveCommand();
 	registerDiffEditorCommands();
 	handleCommandDeprecations();
@@ -47,7 +47,7 @@ const isActiveEditorMoveArg = function (arg): boolean {
 	return true;
 };
 
-function registerActiveEditorMoveCommand() {
+function registerActiveEditorMoveCommand(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: EditorCommands.MoveActiveEditor,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -71,7 +71,7 @@ function registerActiveEditorMoveCommand() {
 	});
 }
 
-function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: ServicesAccessor) {
+function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: ServicesAccessor): void {
 	const config = <IWorkbenchEditorConfiguration>accessor.get(IConfigurationService).getConfiguration();
 	const tabsShown = config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
 	args.to = args.to || ActiveEditorMovePositioning.RIGHT;
@@ -79,16 +79,17 @@ function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: Servic
 	args.value = types.isUndefined(args.value) ? 1 : args.value;
 
 	const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor();
-
-	switch (args.by) {
-		case ActiveEditorMovePositioningBy.TAB:
-			return moveActiveTab(args, activeEditor, accessor);
-		case ActiveEditorMovePositioningBy.GROUP:
-			return moveActiveEditorToGroup(args, activeEditor, accessor);
+	if (activeEditor) {
+		switch (args.by) {
+			case ActiveEditorMovePositioningBy.TAB:
+				return moveActiveTab(args, activeEditor, accessor);
+			case ActiveEditorMovePositioningBy.GROUP:
+				return moveActiveEditorToGroup(args, activeEditor, accessor);
+		}
 	}
 }
 
-function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor) {
+function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
 	const editorGroupsService: IEditorGroupService = accessor.get(IEditorGroupService);
 	const editorGroup = editorGroupsService.getStacksModel().groupAt(activeEditor.position);
 	let index = editorGroup.indexOf(activeEditor.input);
@@ -117,7 +118,7 @@ function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, a
 	editorGroupsService.moveEditor(activeEditor.input, editorGroup, editorGroup, index);
 }
 
-function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor) {
+function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
 	let newPosition = activeEditor.position;
 	switch (args.to) {
 		case ActiveEditorMovePositioning.LEFT:
@@ -127,13 +128,13 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: 
 			newPosition = newPosition + 1;
 			break;
 		case ActiveEditorMovePositioning.FIRST:
-			newPosition = Position.LEFT;
+			newPosition = Position.ONE;
 			break;
 		case ActiveEditorMovePositioning.LAST:
-			newPosition = Position.RIGHT;
+			newPosition = Position.THREE;
 			break;
 		case ActiveEditorMovePositioning.CENTER:
-			newPosition = Position.CENTER;
+			newPosition = Position.TWO;
 			break;
 		case ActiveEditorMovePositioning.POSITION:
 			newPosition = args.value - 1;
@@ -211,7 +212,12 @@ function handleCommandDeprecations(): void {
 		'workbench.files.action.reopenClosedFile': 'workbench.action.reopenClosedEditor',
 		'workbench.files.action.workingFilesPicker': 'workbench.action.showAllEditors',
 		'workbench.action.cycleEditor': 'workbench.action.navigateEditorGroups',
-		'workbench.action.terminal.focus': 'workbench.action.focusPanel'
+		'workbench.action.terminal.focus': 'workbench.action.focusPanel',
+		'workbench.action.showEditorsInLeftGroup': 'workbench.action.showEditorsInFirstGroup',
+		'workbench.action.showEditorsInCenterGroup': 'workbench.action.showEditorsInSecondGroup',
+		'workbench.action.showEditorsInRightGroup': 'workbench.action.showEditorsInThirdGroup',
+		'workbench.action.moveEditorToLeftGroup': 'workbench.action.moveEditorToPreviousGroup',
+		'workbench.action.moveEditorToRightGroup': 'workbench.action.moveEditorToNextGroup'
 	};
 
 	Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {

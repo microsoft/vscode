@@ -118,7 +118,10 @@ export class Renderer implements IRenderer {
 	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
 	private static OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
 
-	constructor(private actionProvider: ActionProvider, @IInstantiationService private instantiationService: IInstantiationService,
+	constructor(
+		private actionProvider: ActionProvider,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		// noop
 	}
@@ -141,7 +144,12 @@ export class Renderer implements IRenderer {
 			editorGroupTemplate.root = dom.append(container, $('.editor-group'));
 			editorGroupTemplate.name = dom.append(editorGroupTemplate.root, $('span.name'));
 			editorGroupTemplate.actionBar = new ActionBar(container);
-			editorGroupTemplate.actionBar.push(this.actionProvider.getEditorGroupActions(), { icon: true, label: false });
+
+			const editorGroupActions = this.actionProvider.getEditorGroupActions();
+			editorGroupActions.forEach(a => {
+				const key = keybindingForAction(a.id, this.keybindingService);
+				editorGroupTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? this.keybindingService.getLabelFor(key) : void 0 });
+			});
 
 			return editorGroupTemplate;
 		}
@@ -149,7 +157,13 @@ export class Renderer implements IRenderer {
 		const editorTemplate: IOpenEditorTemplateData = Object.create(null);
 		editorTemplate.container = container;
 		editorTemplate.actionBar = new ActionBar(container);
-		editorTemplate.actionBar.push(this.actionProvider.getOpenEditorActions(), { icon: true, label: false });
+
+		const openEditorActions = this.actionProvider.getOpenEditorActions();
+		openEditorActions.forEach(a => {
+			const key = keybindingForAction(a.id, this.keybindingService);
+			editorTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? this.keybindingService.getLabelFor(key) : void 0 });
+		});
+
 		editorTemplate.root = this.instantiationService.createInstance(EditorLabel, container, void 0);
 
 		return editorTemplate;
@@ -298,14 +312,7 @@ export class Controller extends treedefaults.DefaultController {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.actionProvider.getSecondaryActions(tree, element),
-			getKeyBinding: (action) => {
-				const opts = this.keybindingService.lookupKeybindings(action.id);
-				if (opts.length > 0) {
-					return opts[0]; // only take the first one
-				}
-
-				return keybindingForAction(action.id);
-			},
+			getKeyBinding: (action) => keybindingForAction(action.id, this.keybindingService),
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
 					tree.DOMFocus();

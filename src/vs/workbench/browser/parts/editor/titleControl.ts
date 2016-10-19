@@ -31,6 +31,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Keybinding } from 'vs/base/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -241,14 +242,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 			actionItemProvider: (action: Action) => this.actionItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: nls.localize('araLabelEditorActions', "Editor actions"),
-			getKeyBinding: (action) => {
-				const opts = this.keybindingService.lookupKeybindings(action.id);
-				if (opts.length > 0) {
-					return opts[0]; // only take the first one
-				}
-
-				return null;
-			}
+			getKeyBinding: (action) => this.getKeybinding(action),
+			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
 		});
 
 		// Action Run Handling
@@ -438,18 +433,24 @@ export abstract class TitleControl implements ITitleAreaControl {
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as(this.getContextMenuActions(identifier)),
 			getActionsContext: () => identifier,
-			getKeyBinding: (action) => {
-				const opts = this.keybindingService.lookupKeybindings(action.id);
-				if (opts.length > 0) {
-					return opts[0]; // only take the first one
-				}
-
-				return null;
-			},
-			onHide: (cancel) => {
-				this.resourceContext.set(currentContext); // restore previous context
-			}
+			getKeyBinding: (action) => this.getKeybinding(action),
+			onHide: (cancel) => this.resourceContext.set(currentContext) // restore previous context
 		});
+	}
+
+	protected getKeybinding(action: IAction): Keybinding {
+		const opts = this.keybindingService.lookupKeybindings(action.id);
+		if (opts.length > 0) {
+			return opts[0]; // only take the first one
+		}
+
+		return null;
+	}
+
+	protected getKeybindingLabel(action: IAction): string {
+		const keybinding = this.getKeybinding(action);
+
+		return keybinding ? this.keybindingService.getLabelFor(keybinding) : void 0;
 	}
 
 	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {

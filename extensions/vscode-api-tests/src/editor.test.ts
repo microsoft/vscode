@@ -6,14 +6,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import { workspace, window, Position, Range, commands } from 'vscode';
+import { workspace, window, Position, Range, commands, TextEditor, TextDocument } from 'vscode';
 import { createRandomFile, deleteFile, cleanUp } from './utils';
 
 suite('editor tests', () => {
 
 	teardown(cleanUp);
 
-	function withRandomFileEditor(initialContents: string, run: (editor: vscode.TextEditor, doc: vscode.TextDocument) => Thenable<void>): Thenable<boolean> {
+	function withRandomFileEditor(initialContents: string, run: (editor: TextEditor, doc: TextDocument) => Thenable<void>): Thenable<boolean> {
 		return createRandomFile(initialContents).then(file => {
 			return workspace.openTextDocument(file).then(doc => {
 				return window.showTextDocument(doc).then((editor) => {
@@ -57,7 +57,7 @@ suite('editor tests', () => {
 		});
 	});
 
-	function executeReplace(editor: vscode.TextEditor, range: Range, text: string, undoStopBefore: boolean, undoStopAfter: boolean): Thenable<boolean> {
+	function executeReplace(editor: TextEditor, range: Range, text: string, undoStopBefore: boolean, undoStopAfter: boolean): Thenable<boolean> {
 		return editor.edit((builder) => {
 			builder.replace(range, text);
 		}, { undoStopBefore: undoStopBefore, undoStopAfter: undoStopAfter });

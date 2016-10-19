@@ -16,19 +16,19 @@ import { Selection, Range, Position, EditorOptions, EndOfLine, TextEditorRevealT
 import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorConfiguration, ISelectionChangeEvent } from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import * as TypeConverters from './extHostTypeConverters';
-import { TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, TextEditorViewColumnChangeEvent, ViewColumn } from 'vscode';
 import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorAddData, ITextEditorPositionData } from './extHost.protocol';
+import * as vscode from 'vscode';
 
 export class ExtHostEditors extends ExtHostEditorsShape {
 
-	public onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
-	private _onDidChangeTextEditorSelection: Emitter<TextEditorSelectionChangeEvent>;
+	public onDidChangeTextEditorSelection: Event<vscode.TextEditorSelectionChangeEvent>;
+	private _onDidChangeTextEditorSelection: Emitter<vscode.TextEditorSelectionChangeEvent>;
 
-	public onDidChangeTextEditorOptions: Event<TextEditorOptionsChangeEvent>;
-	private _onDidChangeTextEditorOptions: Emitter<TextEditorOptionsChangeEvent>;
+	public onDidChangeTextEditorOptions: Event<vscode.TextEditorOptionsChangeEvent>;
+	private _onDidChangeTextEditorOptions: Emitter<vscode.TextEditorOptionsChangeEvent>;
 
-	public onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
-	private _onDidChangeTextEditorViewColumn: Emitter<TextEditorViewColumnChangeEvent>;
+	public onDidChangeTextEditorViewColumn: Event<vscode.TextEditorViewColumnChangeEvent>;
+	private _onDidChangeTextEditorViewColumn: Emitter<vscode.TextEditorViewColumnChangeEvent>;
 
 	private _editors: { [id: string]: ExtHostTextEditor };
 	private _proxy: MainThreadEditorsShape;
@@ -43,13 +43,13 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		extHostDocuments: ExtHostDocuments
 	) {
 		super();
-		this._onDidChangeTextEditorSelection = new Emitter<TextEditorSelectionChangeEvent>();
+		this._onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>();
 		this.onDidChangeTextEditorSelection = this._onDidChangeTextEditorSelection.event;
 
-		this._onDidChangeTextEditorOptions = new Emitter<TextEditorOptionsChangeEvent>();
+		this._onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>();
 		this.onDidChangeTextEditorOptions = this._onDidChangeTextEditorOptions.event;
 
-		this._onDidChangeTextEditorViewColumn = new Emitter<TextEditorViewColumnChangeEvent>();
+		this._onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>();
 		this.onDidChangeTextEditorViewColumn = this._onDidChangeTextEditorViewColumn.event;
 
 		this._extHostDocuments = extHostDocuments;
@@ -77,7 +77,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		return this._onDidChangeVisibleTextEditors && this._onDidChangeVisibleTextEditors.event;
 	}
 
-	showTextDocument(document: TextDocument, column: ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor> {
+	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor> {
 		return this._proxy.$tryShowTextDocument(<URI>document.uri, TypeConverters.fromViewColumn(column), preserveFocus).then(id => {
 			let editor = this._editors[id];
 			if (editor) {
@@ -300,7 +300,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	private _documentData: ExtHostDocumentData;
 	private _selections: Selection[];
-	private _options: TextEditorOptions;
+	private _options: vscode.TextEditorOptions;
 	private _viewColumn: vscode.ViewColumn;
 
 	constructor(proxy: MainThreadEditorsShape, id: string, document: ExtHostDocumentData, selections: Selection[], options: EditorOptions, viewColumn: vscode.ViewColumn) {
@@ -336,11 +336,11 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- options
 
-	get options(): TextEditorOptions {
+	get options(): vscode.TextEditorOptions {
 		return this._options;
 	}
 
-	set options(value: TextEditorOptions) {
+	set options(value: vscode.TextEditorOptions) {
 		this._options = value;
 		this._runOnProxy(() => {
 			return this._proxy.$trySetOptions(this._id, this._options);
