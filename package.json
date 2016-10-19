@@ -12,7 +12,8 @@
     "test": "mocha",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
-    "watch": "gulp watch"
+    "watch": "gulp watch",
+    "monaco-editor-setup": "node scripts/monaco-editor-setup.js"
   },
   "dependencies": {
     "applicationinsights": "0.15.6",
