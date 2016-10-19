@@ -7,6 +7,7 @@
 
 import { append, $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -63,7 +64,18 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
-		const actionbar = new ActionBar(footer, { animated: false });
+		const actionbar = new ActionBar(footer, {
+			animated: false,
+			actionItemProvider: (action: Action) => {
+				if (action.id === EnableAction.ID) {
+					return (<EnableAction>action).actionItem;
+				}
+				if (action.id === DisableAction.ID) {
+					return (<DisableAction>action).actionItem;
+				}
+				return null;
+			}
+		});
 
 		actionbar.addListener2(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
 

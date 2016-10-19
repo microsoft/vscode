@@ -5,7 +5,7 @@
 
 .monaco-workbench > .part.statusbar {
 	box-sizing: border-box;
-	z-index: 25;
+	z-index: 80;
 	width: 100%;
 	height: 22px;
 	background: #007ACC;

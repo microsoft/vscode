@@ -29,6 +29,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
+import * as vscode from 'vscode';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(

@@ -37,6 +37,7 @@ import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IQuickOpenService, IFilePickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -1363,7 +1364,7 @@ export class CompareResourcesAction extends Action {
 export class RefreshViewExplorerAction extends Action {
 
 	constructor(explorerView: ExplorerView, clazz: string) {
-		super('workbench.files.action.refreshExplorer', nls.localize('refresh', "Refresh"), clazz, true, (context: any) => explorerView.refresh());
+		super('workbench.files.action.refreshFilesExplorer', nls.localize('refresh', "Refresh"), clazz, true, (context: any) => explorerView.refresh());
 	}
 }
 
@@ -1809,7 +1810,7 @@ export class ShowActiveFileInExplorer extends Action {
 
 export class CollapseExplorerView extends Action {
 
-	public static ID = 'workbench.files.action.collapseFilesExplorerFolders';
+	public static ID = 'workbench.files.action.collapseExplorerFolders';
 	public static LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
 
 	constructor(
@@ -1858,7 +1859,7 @@ export class RefreshExplorerView extends Action {
 	}
 }
 
-export function keybindingForAction(id: string): Keybinding {
+export function keybindingForAction(id: string, keybindingService?: IKeybindingService): Keybinding {
 	switch (id) {
 		case GlobalNewUntitledFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_N);
@@ -1878,6 +1879,13 @@ export function keybindingForAction(id: string): Keybinding {
 			} else {
 				return new Keybinding(KeyMod.CtrlCmd | KeyCode.Enter);
 			}
+	}
+
+	if (keybindingService) {
+		const keys = keybindingService.lookupKeybindings(id);
+		if (keys.length > 0) {
+			return keys[0]; // only take the first one
+		}
 	}
 
 	return null;
