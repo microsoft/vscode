@@ -86,6 +86,12 @@ export class InstallAction extends Action {
 
 export class UninstallAction extends Action {
 
+	private static UninstallLabel = localize('uninstallAction', "Uninstall");
+	private static UninstallingLabel = localize('Uninstalling', "Uninstalling");
+
+	private static UninstallClass = 'extension-action uninstall';
+	private static UnInstallingClass = 'extension-action uninstall uninstalling';
+
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
@@ -96,7 +102,7 @@ export class UninstallAction extends Action {
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super('extensions.uninstall', localize('uninstall', "Uninstall"), 'extension-action uninstall', false);
+		super('extensions.uninstall', UninstallAction.UninstallLabel, UninstallAction.UninstallClass, false);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
@@ -109,6 +115,14 @@ export class UninstallAction extends Action {
 		}
 
 		const state = this.extension.state;
+
+		if (state === ExtensionState.Uninstalling) {
+			this.label = UninstallAction.UninstallingLabel;
+			this.class = UninstallAction.UnInstallingClass;
+		} else {
+			this.label = UninstallAction.UninstallLabel;
+			this.class = UninstallAction.UninstallClass;
+		}
 
 		if (ExtensionState.Installed === state) {
 			this.enabled = true;
@@ -181,6 +195,10 @@ export class CombinedInstallAction extends Action {
 			this.enabled = false;
 			this.label = this.installAction.label;
 			this.class = this.installAction.class;
+		} else if (this.extension.state === ExtensionState.Uninstalling) {
+			this.enabled = false;
+			this.label = this.uninstallAction.label;
+			this.class = this.uninstallAction.class;
 		} else {
 			this.enabled = false;
 			this.label = this.installAction.label;
@@ -510,7 +528,8 @@ export class ReloadAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.reload || /* Following is needed due to extension is stale */this.extension.state === ExtensionState.Installed;
+		const state = this.extension.state;
+		this.enabled = state !== ExtensionState.Installing && state !== ExtensionState.Uninstalling && (this.extension.reload || /* Following is needed due to extension is stale */this.extension.state === ExtensionState.Installed);
 		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
 	}
 
