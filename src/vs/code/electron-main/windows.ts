@@ -631,7 +631,7 @@ export class WindowsManager implements IWindowsService {
 			});
 			// Get rid of duplicates
 			iPathsToOpen = arrays.distinct(iPathsToOpen, path => {
-				return path.workspacePath;
+				return platform.isLinux ? path.workspacePath : path.workspacePath.toLowerCase();
 			});
 		}
 
