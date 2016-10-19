@@ -265,14 +265,14 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 
 		const model = this.debugService.getModel();
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
-			const focussedThread = this.debugService.getViewModel().getFocusedThread();
+			const focussedThread = this.debugService.getViewModel().focusedThread;
 			if (!focussedThread) {
 				this.pauseMessage.hide();
 				return;
 			}
 
 			return this.tree.expand(focussedThread).then(() => {
-				const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 				this.tree.setSelection([focusedStackFrame]);
 				if (focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason) {
 					this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
@@ -291,12 +291,12 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 
 		this.toDispose.push(model.onDidChangeCallStack(() => {
 			let newTreeInput: any = this.debugService.getModel();
-			const sessions = this.debugService.getModel().getSessions();
-			if (sessions.length === 1) {
-				const threads = sessions[0] ? model.getThreads(sessions[0].getId()) : Object.create(null);
+			const processes = this.debugService.getModel().getProcesses();
+			if (processes.length === 1) {
+				const threads = processes[0] ? model.getThreads(processes[0].getId()) : Object.create(null);
 				const threadsArray = Object.keys(threads).map(ref => threads[ref]);
 				// Only show the threads in the call stack if there is more than 1 thread.
-				newTreeInput = threadsArray.length === 1 ? threadsArray[0] : sessions[0];
+				newTreeInput = threadsArray.length === 1 ? threadsArray[0] : processes[0];
 			}
 
 			if (this.tree.getInput() === newTreeInput) {

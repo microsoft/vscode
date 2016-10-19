@@ -148,18 +148,18 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 	public showAt(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
-		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
+		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== this.editor.getModel().uri.toString())) {
 			return;
 		}
 
-		const session = this.debugService.getViewModel().activeSession;
+		const process = this.debugService.getViewModel().focusedProcess;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
 		const expressionRange = this.getExactExpressionRange(lineContent, range);
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 
-		const evaluatedExpression = session.configuration.capabilities.supportsEvaluateForHovers ?
+		const evaluatedExpression = process.configuration.capabilities.supportsEvaluateForHovers ?
 			evaluateExpression(focusedStackFrame, new Expression(matchingExpression, true), 'hover') :
 			this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
 
@@ -198,7 +198,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	}
 
 	private findExpressionInStackFrame(namesToFind: string[]): TPromise<debug.IExpression> {
-		return this.debugService.getViewModel().getFocusedStackFrame().getScopes()
+		return this.debugService.getViewModel().focusedStackFrame.getScopes()
 			// no expensive scopes
 			.then(scopes => scopes.filter(scope => !scope.expensive))
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))

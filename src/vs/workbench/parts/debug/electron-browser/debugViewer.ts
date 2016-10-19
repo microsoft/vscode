@@ -322,7 +322,7 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 				actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
 			}
 		} else if (element instanceof model.StackFrame) {
-			const capabilities = this.debugService.getViewModel().activeSession.configuration.capabilities;
+			const capabilities = this.debugService.getViewModel().focusedProcess.configuration.capabilities;
 			if (typeof capabilities.supportsRestartFrame === 'boolean' && capabilities.supportsRestartFrame) {
 				actions.push(this.instantiationService.createInstance(debugactions.RestartFrameAction, debugactions.RestartFrameAction.ID, debugactions.RestartFrameAction.LABEL));
 			}
@@ -354,8 +354,7 @@ export class CallStackDataSource implements tree.IDataSource {
 	}
 
 	public hasChildren(tree: tree.ITree, element: any): boolean {
-		// TODO@isidor also has children if it is a session
-		return element instanceof model.Model || (element instanceof model.Thread && (<model.Thread>element).stopped);
+		return element instanceof model.Model || element instanceof model.Process || (element instanceof model.Thread && (<model.Thread>element).stopped);
 	}
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
@@ -363,11 +362,11 @@ export class CallStackDataSource implements tree.IDataSource {
 			return this.getThreadChildren(element);
 		}
 		if (element instanceof model.Model) {
-			return TPromise.as(element.getSessions());
+			return TPromise.as(element.getProcesses());
 		}
 
-		const session = <debug.IRawDebugSession>element;
-		const threads = this.debugService.getModel().getThreads(session.getId());
+		const process = <debug.IProcess>element;
+		const threads = this.debugService.getModel().getThreads(process.getId());
 		return TPromise.as(Object.keys(threads).map(ref => threads[ref]));
 	}
 
@@ -594,7 +593,7 @@ export class VariablesDataSource implements tree.IDataSource {
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof viewmodel.ViewModel) {
-			let focusedStackFrame = (<viewmodel.ViewModel>element).getFocusedStackFrame();
+			const focusedStackFrame = (<viewmodel.ViewModel>element).focusedStackFrame;
 			return focusedStackFrame ? focusedStackFrame.getScopes() : TPromise.as([]);
 		}
 
@@ -1165,10 +1164,10 @@ export class BreakpointsRenderer implements tree.IRenderer {
 			data.breakpoint.title = functionBreakpoint.name;
 
 			// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
-			const session = this.debugService.getViewModel().activeSession;
-			if ((session && !session.configuration.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
+			const process = this.debugService.getViewModel().focusedProcess;
+			if ((process && !process.configuration.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
 				tree.addTraits('disabled', [functionBreakpoint]);
-				if (session && !session.configuration.capabilities.supportsFunctionBreakpoints) {
+				if (process && !process.configuration.capabilities.supportsFunctionBreakpoints) {
 					data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 				}
 			} else {

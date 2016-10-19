@@ -8,11 +8,9 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 
 export class ViewModel implements debug.IViewModel {
 
-	private focusedStackFrame: debug.IStackFrame;
-	private focusedThread: debug.IThread;
+	private _focusedStackFrame: debug.IStackFrame;
 	private selectedExpression: debug.IExpression;
 	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
-	private _activeSession: debug.IRawDebugSession;
 	private _onDidFocusStackFrame: Emitter<debug.IStackFrame>;
 	private _onDidSelectExpression: Emitter<debug.IExpression>;
 	private _onDidSelectFunctionBreakpoint: Emitter<debug.IFunctionBreakpoint>;
@@ -29,18 +27,16 @@ export class ViewModel implements debug.IViewModel {
 		return 'root';
 	}
 
-	public get activeSession(): debug.IRawDebugSession {
-		return this._activeSession;
+	public get focusedProcess(): debug.IProcess {
+		return this._focusedStackFrame ? this._focusedStackFrame.thread.process : null;
 	}
 
-	public getFocusedStackFrame(): debug.IStackFrame {
-		return this.focusedStackFrame;
+	public get focusedStackFrame(): debug.IStackFrame {
+		return this._focusedStackFrame;
 	}
 
-	public setFocusedStackFrame(focusedStackFrame: debug.IStackFrame, focusedThread: debug.IThread, activeSession: debug.IRawDebugSession): void {
-		this.focusedStackFrame = focusedStackFrame;
-		this.focusedThread = focusedThread;
-		this._activeSession = activeSession;
+	public setFocusedStackFrame(focusedStackFrame: debug.IStackFrame): void {
+		this._focusedStackFrame = focusedStackFrame;
 		this._onDidFocusStackFrame.fire(focusedStackFrame);
 	}
 
@@ -48,8 +44,8 @@ export class ViewModel implements debug.IViewModel {
 		return this._onDidFocusStackFrame.event;
 	}
 
-	public getFocusedThread(): debug.IThread {
-		return this.focusedThread;
+	public get focusedThread(): debug.IThread {
+		return this._focusedStackFrame ? this._focusedStackFrame.thread : null;
 	}
 
 	public getSelectedExpression(): debug.IExpression {

@@ -132,25 +132,24 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private createCallStackDecorations(modelUrlStr: string): editorcommon.IModelDeltaDecoration[] {
 		const result: editorcommon.IModelDeltaDecoration[] = [];
-		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		const focusedThread = this.debugService.getViewModel().getFocusedThread();
-		if (!focusedStackFrame || !focusedThread || !focusedThread.getCachedCallStack()) {
+		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+		if (!focusedStackFrame || !focusedStackFrame.thread.getCachedCallStack()) {
 			return result;
 		}
 
 		// only show decorations for the currently focussed thread.
-		focusedThread.getCachedCallStack().filter(sf => sf.source.uri.toString() === modelUrlStr).forEach(sf => {
+		focusedStackFrame.thread.getCachedCallStack().filter(sf => sf.source.uri.toString() === modelUrlStr).forEach(sf => {
 			const wholeLineRange = createRange(sf.lineNumber, sf.column, sf.lineNumber, Number.MAX_VALUE);
 
 			// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
 			// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
-			if (sf === focusedThread.getCachedCallStack()[0]) {
+			if (sf === focusedStackFrame.thread.getCachedCallStack()[0]) {
 				result.push({
 					options: DebugEditorModelManager.TOP_STACK_FRAME_MARGIN,
 					range: createRange(sf.lineNumber, sf.column, sf.lineNumber, sf.column + 1)
 				});
 
-				if (focusedThread.stoppedDetails.reason === 'exception') {
+				if (focusedStackFrame.thread.stoppedDetails.reason === 'exception') {
 					result.push({
 						options: DebugEditorModelManager.TOP_STACK_FRAME_EXCEPTION_DECORATION,
 						range: wholeLineRange
@@ -290,8 +289,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return result;
 		}
 
-		const session = this.debugService.getViewModel().activeSession;
-		if (session && !session.configuration.capabilities.supportsConditionalBreakpoints) {
+		const process = this.debugService.getViewModel().focusedProcess;
+		if (process && !process.configuration.capabilities.supportsConditionalBreakpoints) {
 			return DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
 		}
 

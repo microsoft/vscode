@@ -38,9 +38,9 @@ export class Source {
 	public static toRawSource(uri: uri, model: IModel): DebugProtocol.Source {
 		if (model) {
 			// first try to find the raw source amongst the stack frames - since that represenation has more data (source reference),
-			const sessions = model.getSessions();
-			for (let i = 0; i < sessions.length; i++) {
-				const threads = model.getThreads(sessions[i].getId());
+			const processes = model.getProcesses();
+			for (let i = 0; i < processes.length; i++) {
+				const threads = model.getThreads(processes[i].getId());
 				for (let threadId in threads) {
 					if (threads.hasOwnProperty(threadId) && threads[threadId].getCachedCallStack()) {
 						const found = threads[threadId].getCachedCallStack().filter(sf => sf.source.uri.toString() === uri.toString()).pop();

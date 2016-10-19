@@ -27,7 +27,6 @@ import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/exte
 import { TerminalSupport } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-
 import { shell } from 'electron';
 
 export interface SessionExitedEvent extends DebugProtocol.ExitedEvent {
@@ -44,7 +43,7 @@ export interface SessionTerminatedEvent extends DebugProtocol.TerminatedEvent {
 	};
 }
 
-export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSession {
+export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 
 	public restarted: boolean;
 	public emittedStopped: boolean;

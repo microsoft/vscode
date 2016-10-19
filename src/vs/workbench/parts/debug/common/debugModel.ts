@@ -399,39 +399,23 @@ export class Thread implements debug.IThread {
 	}
 }
 
-class Process implements debug.IProcess {
+export class Process implements debug.IProcess {
 
 	public threads: { [reference: number]: debug.IThread; };
 
-	constructor(public rawSession: debug.IRawDebugSession) {
+	constructor(public session: debug.ISession) {
 		this.threads = {};
 	}
 
 	public getId(): string {
-		return this.rawSession.getId();
-	}
-
-	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
-		return this.rawSession.stackTrace(args);
-	}
-
-	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
-		return this.rawSession.scopes(args);
-	}
-
-	public variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse> {
-		return this.rawSession.variables(args);
-	}
-
-	public evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
-		return this.rawSession.evaluate(args);
+		return this.session.getId();
 	}
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
 
 		if (data.thread && !this.threads[data.threadId]) {
 			// A new thread came in, initialize it.
-			this.threads[data.threadId] = new Thread(this.rawSession, data.thread.name, data.thread.id);
+			this.threads[data.threadId] = new Thread(this, data.thread.name, data.thread.id);
 		}
 
 		if (data.stoppedDetails) {
@@ -490,6 +474,38 @@ class Process implements debug.IProcess {
 				});
 			}
 		});
+	}
+
+	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
+		return this.session.stackTrace(args);
+	}
+
+	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
+		return this.session.scopes(args);
+	}
+
+	public variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse> {
+		return this.session.variables(args);
+	}
+
+	public evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
+		return this.session.evaluate(args);
+	}
+
+	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
+		return this.session.configuration;
+	}
+
+	public disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse> {
+		return this.session.disconnect(restart, force);
+	}
+
+	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
+		return this.session.custom(request, args);
+	}
+
+	public get onDidEvent(): Event<DebugProtocol.Event> {
+		return this.session.onDidEvent;
 	}
 }
 
@@ -580,11 +596,11 @@ export class Model implements debug.IModel {
 		return 'root';
 	}
 
-	public getSessions(): debug.IRawDebugSession[] {
-		return this.processes.map(p => p.rawSession);
+	public getProcesses(): Process[] {
+		return this.processes;
 	}
 
-	public removeSession(id: string): void {
+	public removeProcess(id: string): void {
 		this.processes = this.processes.filter(p => p.getId() !== id);
 		this._onDidChangeCallStack.fire();
 	}
@@ -605,8 +621,8 @@ export class Model implements debug.IModel {
 		return this._onDidChangeREPLElements.event;
 	}
 
-	public getThreads(sessionId: string): { [reference: number]: debug.IThread; } {
-		const process = this.processes.filter(p => p.getId() === sessionId).pop();
+	public getThreads(processId: string): { [reference: number]: debug.IThread; } {
+		const process = this.processes.filter(p => p.getId() === processId).pop();
 		if (!process) {
 			return {};
 		}
@@ -625,8 +641,8 @@ export class Model implements debug.IModel {
 		this._onDidChangeCallStack.fire();
 	}
 
-	public clearThreads(sessionId: string, removeThreads: boolean, reference: number = undefined): void {
-		const process = this.processes.filter(p => p.getId() === sessionId).pop();
+	public clearThreads(processId: string, removeThreads: boolean, reference: number = undefined): void {
+		const process = this.processes.filter(p => p.getId() === processId).pop();
 		if (process) {
 			process.clearThreads(removeThreads, reference);
 			this._onDidChangeCallStack.fire();
