@@ -20,7 +20,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -568,11 +568,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private onUninstallExtension(id: string): void {
-		const previousLength = this.installed.length;
 		const extension = this.installed.filter(e => e.local.id === id)[0];
-		this.installed = this.installed.filter(e => e.local.id !== id);
-
-		if (previousLength === this.installed.length) {
+		const newLength = this.installed.filter(e => e.local.id !== id).length;
+		// TODO: @Joao why is this?
+		if (newLength === this.installed.length) {
 			return;
 		}
 
@@ -584,23 +583,32 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this._onChange.fire();
 	}
 
-	private onDidUninstallExtension(id: string): void {
+	private onDidUninstallExtension({id, error}: DidUninstallExtensionEvent): void {
+		if (!error) {
+			this.installed = this.installed.filter(e => e.local.id !== id);
+		}
+
 		const uninstalling = this.uninstalling.filter(e => e.id === id)[0];
 		this.uninstalling = this.uninstalling.filter(e => e.id !== id);
-
 		if (!uninstalling) {
 			return;
 		}
-		this.unInstalled.push(uninstalling.extension);
-		uninstalling.extension.needsReload = true;
-		this.reportTelemetry(uninstalling, true);
 
+		if (!error) {
+			this.unInstalled.push(uninstalling.extension);
+			uninstalling.extension.needsReload = true;
+			this.reportTelemetry(uninstalling, true);
+		}
 		this._onChange.fire();
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
 		if (extension.gallery && this.installing.some(e => e.extension.gallery.id === extension.gallery.id)) {
 			return ExtensionState.Installing;
+		}
+
+		if (extension.gallery && this.uninstalling.some(e => e.extension.gallery.id === extension.gallery.id)) {
+			return ExtensionState.Uninstalling;
 		}
 
 		const disabledExtensions = this.extensionsRuntimeService.getDisabledExtensions();

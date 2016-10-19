@@ -21,6 +21,7 @@ export enum ExtensionState {
 	Installed,
 	Enabled,
 	Disabled,
+	Uninstalling,
 	Uninstalled
 }
 

@@ -98,6 +98,7 @@ export interface IExtensionManifest {
 	icon?: string;
 	categories?: string[];
 	activationEvents?: string[];
+	extensionDependencies: string[];
 	contributes?: IExtensionContributions;
 }
 
@@ -211,13 +212,18 @@ export interface DidInstallExtensionEvent {
 	error?: Error;
 }
 
+export interface DidUninstallExtensionEvent {
+	id: string;
+	error?: Error;
+}
+
 export interface IExtensionManagementService {
 	_serviceBrand: any;
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
 	onUninstallExtension: Event<string>;
-	onDidUninstallExtension: Event<string>;
+	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	install(zipPath: string): TPromise<void>;
 	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies?: boolean): TPromise<void>;
