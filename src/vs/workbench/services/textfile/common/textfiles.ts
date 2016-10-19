@@ -322,7 +322,12 @@ export interface ITextFileService extends IDisposable {
 	 */
 	confirmSave(resources?: URI[]): ConfirmResult;
 
-	// TODO: Doc
+	/**
+	 * Backs up the provided file to a temporary directory to be used by the hot
+	 * exit feature and crash recovery.
+	 *
+	 * @param resource The resource to backup.
+	 */
 	backup(resource: URI): void;
 
 	/**

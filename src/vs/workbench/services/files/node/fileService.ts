@@ -458,7 +458,6 @@ export class FileService implements IFileService {
 	}
 
 	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
-		// TODO: This should not backup unless necessary. Currently this is called for each file on close to ensure the files are backed up.
 		let registerResourcePromise: TPromise<void>;
 		if (resource.scheme === 'file') {
 			registerResourcePromise = this.backupService.registerResourceForBackup(resource);

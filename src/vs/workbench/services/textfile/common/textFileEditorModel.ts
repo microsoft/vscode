@@ -265,12 +265,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				diag('load() - created text editor model', this.resource, new Date());
 
 				if (this.restoreResource) {
-					// TODO: De-duplicate code
 					this.createTextEditorModelPromise = this.textFileService.resolveTextContent(this.restoreResource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then((restoreContent) => {
 						return this.createTextEditorModel(restoreContent.value, content.resource).then(() => {
 							this.createTextEditorModelPromise = null;
 
-							// TODO: This does not set the dirty indicator immediately, making it look like the file is not actually dirty
 							this.setDirty(true);
 							this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
 
