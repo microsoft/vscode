@@ -976,3 +976,125 @@ export class BuiltinStatusLabelAction extends Action {
 		return TPromise.as(null);
 	}
 }
+
+export class DisableAllAction extends Action {
+
+	static ID = 'workbench.extensions.action.disableAll';
+	static LABEL = localize('disableAll', "Disable All");
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		id: string = DisableAllAction.ID, label: string = DisableAllAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, '', extensionsWorkbenchService.local.length > 0);
+
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+	}
+
+	private update(): void {
+		this.enabled = this.extensionsWorkbenchService.local.length > 0;
+	}
+
+	run(): TPromise<any> {
+		return TPromise.join(this.extensionsWorkbenchService.local.map(e => this.extensionsWorkbenchService.setEnablement(e, false)));
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class DisableAllWorkpsaceAction extends Action {
+
+	static ID = 'workbench.extensions.action.disableAllWorkspace';
+	static LABEL = localize('disableAllWorkspace', "Disable All (Workspace)");
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		id: string = DisableAllWorkpsaceAction.ID, label: string = DisableAllWorkpsaceAction.LABEL,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, '', !!workspaceContextService.getWorkspace() && extensionsWorkbenchService.local.length > 0);
+
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+	}
+
+	private update(): void {
+		this.enabled = !!this.workspaceContextService.getWorkspace() && this.extensionsWorkbenchService.local.length > 0;
+	}
+
+	run(): TPromise<any> {
+		return TPromise.join(this.extensionsWorkbenchService.local.map(e => this.extensionsWorkbenchService.setEnablement(e, false, true)));
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class EnableAllAction extends Action {
+
+	static ID = 'workbench.extensions.action.enableAll';
+	static LABEL = localize('enableAll', "Enable All");
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		id: string = EnableAllAction.ID, label: string = EnableAllAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, '', extensionsWorkbenchService.local.length > 0);
+
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+	}
+
+	private update(): void {
+		this.enabled = this.extensionsWorkbenchService.local.length > 0;
+	}
+
+	run(): TPromise<any> {
+		return TPromise.join(this.extensionsWorkbenchService.local.map(e => this.extensionsWorkbenchService.setEnablement(e, true)));
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class EnableAllWorkpsaceAction extends Action {
+
+	static ID = 'workbench.extensions.action.enableAllWorkspace';
+	static LABEL = localize('enableAllWorkspace', "Enable All (Workspace)");
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		id: string = EnableAllWorkpsaceAction.ID, label: string = EnableAllWorkpsaceAction.LABEL,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, '', !!workspaceContextService.getWorkspace() && extensionsWorkbenchService.local.length > 0);
+
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+	}
+
+	private update(): void {
+		this.enabled = !!this.workspaceContextService.getWorkspace() && this.extensionsWorkbenchService.local.length > 0;
+	}
+
+	run(): TPromise<any> {
+		return TPromise.join(this.extensionsWorkbenchService.local.map(e => this.extensionsWorkbenchService.setEnablement(e, true, true)));
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}

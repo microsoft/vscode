@@ -481,8 +481,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	setEnablement(extension: IExtension, enable: boolean, workspace: boolean = false): TPromise<any> {
-		return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, workspace).then(restart => {
-			(<Extension>extension).needsReload = restart;
+		if (extension.type === LocalExtensionType.System) {
+			return TPromise.wrap(null);
+		}
+
+		return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, workspace).then(reload => {
+			(<Extension>extension).needsReload = reload;
 			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
 			this._onChange.fire();
 		});

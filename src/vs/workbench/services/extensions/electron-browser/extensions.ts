@@ -121,9 +121,8 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 		if (index !== -1) {
 			disabledExtensions.splice(index, 1);
 			this._setDisabledExtensions(disabledExtensions, scope);
-			return TPromise.wrap(true);
 		}
-		return TPromise.wrap(false);
+		return TPromise.wrap(true);
 	}
 
 	private _getDisabledExtensions(scope: StorageScope): string[] {
