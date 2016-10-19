@@ -80,4 +80,9 @@ export interface IActivityService {
 	 * Enable/disable viewlet
 	 */
 	toggleViewlet(viewletId: string): void;
+
+	/**
+	 * Get the external viewlet id to open
+	 */
+	getExternalViewletIdToOpen(): string;
 }

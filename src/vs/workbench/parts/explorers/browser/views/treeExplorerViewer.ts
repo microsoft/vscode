@@ -20,6 +20,7 @@ import { ITreeExplorerService } from 'vs/workbench/parts/explorers/browser/treeE
 
 export class TreeDataSource implements IDataSource {
 	constructor(
+		private treeNodeProviderId: string,
 		@ITreeExplorerService private treeExplorerViewletService: ITreeExplorerService
 	) {
 
@@ -34,7 +35,7 @@ export class TreeDataSource implements IDataSource {
 	}
 
 	getChildren(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
-		return this.treeExplorerViewletService.resolveChildren('pineTree', node);
+		return this.treeExplorerViewletService.resolveChildren(this.treeNodeProviderId, node);
 	}
 
 	getParent(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode> {
@@ -80,6 +81,7 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 export class TreeController extends DefaultController {
 
 	constructor(
+		private treeNodeProviderId: string,
 		@ITreeExplorerService private treeExplorerViewletService: ITreeExplorerService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
@@ -89,7 +91,7 @@ export class TreeController extends DefaultController {
 		super.onLeftClick(tree, node, event, origin);
 
 		if (node.clickCommand) {
-			this.treeExplorerViewletService.resolveCommand('pineTree', node);
+			this.treeExplorerViewletService.resolveCommand(this.treeNodeProviderId, node);
 		}
 
 		return true;
