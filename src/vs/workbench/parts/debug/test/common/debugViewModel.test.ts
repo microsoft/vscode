@@ -6,7 +6,7 @@
 import assert = require('assert');
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import { StackFrame, Expression, Thread } from 'vs/workbench/parts/debug/common/debugModel';
-import { MockRawSession } from 'vs/workbench/parts/debug/test/common/mockDebugService';
+import { MockProcess } from 'vs/workbench/parts/debug/test/common/mockDebug';
 
 suite('Debug - View Model', () => {
 	var model: ViewModel;
@@ -22,9 +22,10 @@ suite('Debug - View Model', () => {
 	test('focused stack frame', () => {
 		assert.equal(model.getFocusedStackFrame(), null);
 		assert.equal(model.getFocusedThread(), null);
-		const rawSession = new MockRawSession;
-		const frame = new StackFrame(rawSession, 1, 1, null, 'app.js', 1, 1);
-		model.setFocusedStackFrame(frame, new Thread(rawSession, 'myThread', 1), null);
+		const process = new MockProcess();
+		const thread = new Thread(process, 'myThread', 1);
+		const frame = new StackFrame(thread, 1, null, 'app.js', 1, 1);
+		model.setFocusedStackFrame(frame, thread, null);
 
 		assert.equal(model.getFocusedStackFrame(), frame);
 		assert.equal(model.getFocusedThread().threadId, 1);

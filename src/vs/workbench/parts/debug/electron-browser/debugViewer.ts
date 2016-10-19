@@ -377,7 +377,7 @@ export class CallStackDataSource implements tree.IDataSource {
 				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 			}
 			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
-				return callStack.concat([new ThreadAndSessionId(thread.sessionId, thread.threadId)]);
+				return callStack.concat([new ThreadAndSessionId(thread.process.getId(), thread.threadId)]);
 			}
 
 			return callStack;
