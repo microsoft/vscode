@@ -1348,12 +1348,69 @@ declare module 'vscode' {
 		provideTextDocumentContent(uri: Uri, token: CancellationToken): string | Thenable<string>;
 	}
 
+	/**
+	 * A node provider for the tree explorer viewlet contributed by extension.
+	 *
+	 * Providers are registered through (#workspace.registerTreeExplorerNodeProvider) with a
+	 * `providerId` that should be identical to the `treeExplorerNodeProviderId` in the extension's
+	 * `contributes.explorer` section.
+	 *
+	 * The contributed tree explorer viewlet will ask provider with the same providerId to provide
+	 * the root node and resolve children for each node. In addition, the provider could **optionally**
+	 * provide the following information for each node:
+	 * - label: A human-readable string used for rendering the tree node.
+	 * - hasChildren: A boolean that determines if the node has children and is expandable.
+	 * - clickCommand: A command that will be executed when the node is clicked.
+	 */
 	export interface TreeExplorerNodeProvider<T> {
+
+		/**
+		 * Provide the root node. This function will be called when the viewlet is first opened.
+		 * The root node is hidden and its direct children will be displayed on the first level of
+		 * the tree explorer.
+		 *
+		 * @return The root node.
+		 */
 		provideRootNode(): T | Thenable<T>;
+
+		/**
+		 * Resolve the children of the `node`.
+		 *
+		 * @param node The node from which the provider resolves children.
+		 * @return Children of `node`.
+		 */
 		resolveChildren(node: T): T[] | Thenable<T[]>;
 
+		/**
+		 * Provide the human-readable label for `node` that will be used for rendering.
+		 *
+		 * Default to use `node.toString()` if not provided.
+		 *
+		 * @param node The node from which the provider computes label.
+		 * @return A human-readable label.
+		 */
 		getLabel?(node: T): string;
+
+		/**
+		 * Determine if `node` has children and is expandable.
+		 * A `true` return value will let the tree explorer render the node with a triangle on its side.
+		 *
+		 * Default to return `true` if not provided.
+		 *
+		 * @param node The node to determine if it has children and is expandable.
+		 * @return Whether the current `node` has children and is expandable.
+		 */
 		getHasChildren?(node: T): boolean;
+
+		/**
+		 * Get the click command that should be executed when the node is clicked.
+		 *
+		 * Commands can be registered through (#commands.registerCommand). `node` will be provided
+		 * as the first argument to the command's callback function.
+		 *
+		 * @param node The node that the command is associated with.
+		 * @return The command string that denotes the command to execute upon click.
+		 */
 		getClickCommand?(node: T): string;
 	}
 
