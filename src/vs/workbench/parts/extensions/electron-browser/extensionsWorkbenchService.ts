@@ -481,7 +481,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	setEnablement(extension: IExtension, enable: boolean, workspace: boolean = false): TPromise<any> {
-		return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, extension.displayName, workspace).then(restart => {
+		return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, workspace).then(restart => {
 			(<Extension>extension).needsReload = restart;
 			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
 			this._onChange.fire();
@@ -585,6 +585,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private onDidUninstallExtension({id, error}: DidUninstallExtensionEvent): void {
 		if (!error) {
+			this.newlyInstalled = this.newlyInstalled.filter(e => e.local.id !== id);
 			this.installed = this.installed.filter(e => e.local.id !== id);
 		}
 
@@ -596,9 +597,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		if (!error) {
 			this.unInstalled.push(uninstalling.extension);
+			this.extensionsRuntimeService.setEnablement(uninstalling.extension.identifier, true);
 			uninstalling.extension.needsReload = true;
 			this.reportTelemetry(uninstalling, true);
 		}
+
 		this._onChange.fire();
 	}
 
