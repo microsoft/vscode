@@ -469,7 +469,7 @@ export function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
 
 export class CloseEditorAction extends Action {
 
-	public static ID = 'workbench.action.closeEditor';
+	public static ID = 'workbench.action.closeActiveEditor';
 	public static LABEL = nls.localize('closeEditor', "Close Editor");
 
 	constructor(
