@@ -942,14 +942,6 @@ export class DebugService implements debug.IDebugService {
 		return this.session.pause({ threadId });
 	}
 
-	public restartFrame(frameId: number): TPromise<any> {
-		if (!this.session) {
-			return TPromise.as(null);
-		}
-
-		return this.session.restartFrame({ frameId });
-	}
-
 	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
 		if (!this.session || !this.session.configuration.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);
