@@ -7,6 +7,7 @@
 
 import { append, $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -15,7 +16,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension } from './extensions';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction } from './extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from './extensionsActions';
 import { Label, RatingsWidget, InstallWidget, StatusWidget } from './extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
 
@@ -53,16 +54,28 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const element = append(root, $('.extension'));
 		const icon = append(element, $<HTMLImageElement>('img.icon'));
 		const details = append(element, $('.details'));
-		const header = append(details, $('.header'));
+		const headerContainer = append(details, $('.header-container'));
+		const header = append(headerContainer, $('.header'));
 		const name = append(header, $('span.name'));
 		const version = append(header, $('span.version'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
-		const status = append(header, $(''));
+		const status = append(headerContainer, $('span.status'));
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
-		const actionbar = new ActionBar(footer, { animated: false });
+		const actionbar = new ActionBar(footer, {
+			animated: false,
+			actionItemProvider: (action: Action) => {
+				if (action.id === EnableAction.ID) {
+					return (<EnableAction>action).actionItem;
+				}
+				if (action.id === DisableAction.ID) {
+					return (<DisableAction>action).actionItem;
+				}
+				return null;
+			}
+		});
 
 		actionbar.addListener2(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
 
@@ -72,13 +85,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const statusWidget = this.instantiationService.createInstance(StatusWidget, status, null);
 
 		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
-		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
+		const combinedInstallAction = this.instantiationService.createInstance(CombinedInstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
-		const restartAction = this.instantiationService.createInstance(EnableAction);
+		const enableAction = this.instantiationService.createInstance(EnableAction);
 		const disableAction = this.instantiationService.createInstance(DisableAction);
+		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 
-		actionbar.push([restartAction, updateAction, disableAction, installAction, builtinStatusAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, installAction, builtinStatusAction, updateAction, restartAction, disableAction, actionbar];
+		actionbar.push([enableAction, updateAction, disableAction, reloadAction, combinedInstallAction, builtinStatusAction], actionOptions);
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, combinedInstallAction, builtinStatusAction, updateAction, enableAction, disableAction, reloadAction, actionbar];
 
 		return {
 			element, icon, name, installCount, ratings, status, author, description, disposables,
@@ -88,11 +102,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				installCountWidget.extension = extension;
 				ratingsWidget.extension = extension;
 				builtinStatusAction.extension = extension;
-				installAction.extension = extension;
+				combinedInstallAction.extension = extension;
 				updateAction.extension = extension;
-				restartAction.extension = extension;
+				enableAction.extension = extension;
 				disableAction.extension = extension;
 				statusWidget.extension = extension;
+				reloadAction.extension = extension;
 			}
 		};
 	}

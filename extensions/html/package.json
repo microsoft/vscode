@@ -18,25 +18,56 @@
     "install-client-next": "npm install vscode-languageclient@next -f -S",
     "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S"
   },
-	"contributes": {
-		"languages": [{
-			"id": "html",
-			"extensions": [ ".html", ".htm", ".shtml", ".xhtml", ".mdoc", ".jsp", ".asp", ".aspx", ".jshtm", ".vue" ],
-			"aliases": [ "HTML", "htm", "html", "xhtml" ],
-			"mimetypes": ["text/html", "text/x-jshtm", "text/template", "text/ng-template", "application/xhtml+xml"],
-      "configuration": "./language-configuration.json"
-		}],
-		"grammars": [{
-      "language": "html",
-			"scopeName": "text.html.basic",
-			"path": "./syntaxes/html.json"
-		}],
+  "contributes": {
+    "languages": [
+      {
+        "id": "html",
+        "extensions": [
+          ".html",
+          ".htm",
+          ".shtml",
+          ".xhtml",
+          ".mdoc",
+          ".jsp",
+          ".asp",
+          ".aspx",
+          ".jshtm",
+          ".vue"
+        ],
+        "aliases": [
+          "HTML",
+          "htm",
+          "html",
+          "xhtml"
+        ],
+        "mimetypes": [
+          "text/html",
+          "text/x-jshtm",
+          "text/template",
+          "text/ng-template",
+          "application/xhtml+xml"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "html",
+        "scopeName": "text.html.basic",
+        "path": "./syntaxes/html.json"
+      }
+    ],
     "configuration": {
       "id": "html",
       "order": 20,
       "type": "object",
       "title": "HTML",
       "properties": {
+        "html.format.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable default HTML formatter"
+        },
         "html.format.wrapLineLength": {
           "type": "integer",
           "default": 120,

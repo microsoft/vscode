@@ -25,7 +25,7 @@ import {
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import * as semver from 'semver';
 import * as path from 'path';
@@ -46,7 +46,7 @@ interface IExtensionStateProvider {
 
 class Extension implements IExtension {
 
-	public needsRestart = false;
+	public needsReload = false;
 
 	constructor(
 		private galleryService: IExtensionGalleryService,
@@ -166,6 +166,10 @@ class Extension implements IExtension {
 
 	get outdated(): boolean {
 		return this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
+	}
+
+	get reload(): boolean {
+		return this.needsReload;
 	}
 
 	get telemetryData(): any {
@@ -290,6 +294,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private installing: IActiveExtension[] = [];
 	private uninstalling: IActiveExtension[] = [];
 	private installed: Extension[] = [];
+	private newlyInstalled: Extension[] = [];
+	private unInstalled: Extension[] = [];
 	private syncDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
@@ -474,17 +480,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies);
 	}
 
-	setEnablement(extension: IExtension, enable: boolean): TPromise<any> {
-		return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, extension.displayName).then(restart => {
-			if (restart) {
-				const message = enable ? localize('postEnableMessage', "In order to enable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName)
-					: localize('postDisableMessage', "In order to disable '{0}' extension, this window of VS Code needs to be restarted.", extension.displayName);
-				this.messageService.show(Severity.Info, {
-					message,
-					actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now")), LaterAction]
-				});
-				this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
-			}
+	setEnablement(extension: IExtension, enable: boolean, workspace: boolean = false): TPromise<any> {
+		return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, extension.displayName, workspace).then(restart => {
+			(<Extension>extension).needsReload = restart;
+			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
+			this._onChange.fire();
 		});
 	}
 
@@ -548,8 +548,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this.installing = this.installing.filter(e => e.id !== id);
 
 		if (!error) {
+			this.newlyInstalled.push(extension);
 			extension.local = local;
-			extension.needsRestart = true;
+			extension.needsReload = true;
 
 			const galleryId = local.metadata && local.metadata.id;
 			const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
@@ -590,8 +591,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		if (!uninstalling) {
 			return;
 		}
-
+		this.unInstalled.push(uninstalling.extension);
+		uninstalling.extension.needsReload = true;
 		this.reportTelemetry(uninstalling, true);
+
+		this._onChange.fire();
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
@@ -603,11 +607,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const local = this.installed.filter(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))[0];
 
 		if (local) {
-			if (local.needsRestart) {
-				return ExtensionState.Disabled;
-			} else {
-				return disabledExtensions.indexOf(`${local.publisher}.${local.name}`) === -1 ? ExtensionState.Installed : ExtensionState.Disabled;
+			if (this.newlyInstalled.some(e => e.gallery && extension.gallery && e.gallery.id === extension.gallery.id)) {
+				return ExtensionState.Installed;
 			}
+			return disabledExtensions.indexOf(`${local.publisher}.${local.name}`) === -1 ? ExtensionState.Enabled : ExtensionState.Disabled;
 		}
 
 		return ExtensionState.Uninstalled;

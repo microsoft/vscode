@@ -2386,7 +2386,7 @@
 							"name": "keyword.control.as.js"
 						}
 					},
-					"end": "(?=$|[;,})\\]])",
+					"end": "(?=$|[;,:})\\]])",
 					"patterns": [
 						{
 							"include": "#type"
@@ -2608,25 +2608,52 @@
 			]
 		},
 		"regex": {
-			"name": "string.regex.js",
-			"begin": "(?<=[=(:,\\[?+!]|return|case|=>|&&|\\|\\||\\*\\/)\\s*(/)(?![/*+?])(?=.*/)",
-			"beginCaptures": {
-				"1": {
-					"name": "punctuation.definition.string.begin.js"
-				}
-			},
-			"end": "(/)([gimuy]*)",
-			"endCaptures": {
-				"1": {
-					"name": "punctuation.definition.string.end.js"
-				},
-				"2": {
-					"name": "keyword.other.js"
-				}
-			},
 			"patterns": [
 				{
-					"include": "#regexp"
+					"name": "string.regex.js",
+					"begin": "(?<=[=(:,\\[?+!]|return|case|=>|&&|\\|\\||\\*\\/)\\s*(/)(?![/*+?])(?=.*/)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.string.begin.js"
+						}
+					},
+					"end": "(/)([gimuy]*)",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.definition.string.end.js"
+						},
+						"2": {
+							"name": "keyword.other.js"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#regexp"
+						}
+					]
+				},
+				{
+					"name": "string.regex.js",
+					"begin": "/(?![/*])(?=(?:[^/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+/(?![/*])[gimy]*(?!\\s*[a-zA-Z0-9_$]))",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.js"
+						}
+					},
+					"end": "(/)([gimuy]*)",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.definition.string.end.js"
+						},
+						"2": {
+							"name": "keyword.other.js"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#regexp"
+						}
+					]
 				}
 			]
 		},
@@ -3367,5 +3394,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/d3b73efa6a26a86aa31f8ab49e9d74db8e7c1651"
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/fea3b25eb632f689a02057a1715faab29343dda2"
 }

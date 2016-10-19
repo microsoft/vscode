@@ -66,6 +66,10 @@
 	color: #75BEFF;
 }
 
+.monaco-shell .feedback-form .content .channels a:hover {
+	text-decoration: underline;
+}
+
 .monaco-shell .feedback-form .feedback-alias, .monaco-shell .feedback-form .feedback-description {
 	resize: none;
 	font-size: 1.1em;

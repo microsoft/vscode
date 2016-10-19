@@ -30,7 +30,6 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 export class AbstractDebugAction extends Action {
 
 	protected toDispose: lifecycle.IDisposable[];
-	private keybinding: string;
 
 	constructor(
 		id: string, label: string, cssClass: string,
@@ -42,11 +41,6 @@ export class AbstractDebugAction extends Action {
 		this.toDispose = [];
 		this.toDispose.push(this.debugService.onDidChangeState((state) => this.updateEnablement(state)));
 
-		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
-		if (keys && keys.length) {
-			this.keybinding = keys[0];
-		}
-
 		this.updateLabel(label);
 		this.updateEnablement(this.debugService.state);
 	}
@@ -56,11 +50,7 @@ export class AbstractDebugAction extends Action {
 	}
 
 	protected updateLabel(newLabel: string): void {
-		if (this.keybinding) {
-			this.label = nls.localize('debugActionLabelAndKeybinding', "{0} ({1})", newLabel, this.keybinding);
-		} else {
-			this.label = newLabel;
-		}
+		this.label = newLabel;
 	}
 
 	protected updateEnablement(state: debug.State): void {

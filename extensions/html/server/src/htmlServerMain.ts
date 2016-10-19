@@ -48,8 +48,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			textDocumentSync: documents.syncKind,
 			completionProvider: { resolveProvider: false, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
 			documentHighlightProvider: true,
-			documentRangeFormattingProvider: true,
-			documentFormattingProvider: true,
+			documentRangeFormattingProvider: params.initializationOptions['format.enable'],
 			documentLinkProvider: true
 		}
 	};
@@ -105,11 +104,6 @@ function getFormattingOptions(formatParams: FormattingOptions) {
 	}
 	return merge(formatParams, merge(formatSettings, {}));
 }
-
-connection.onDocumentFormatting(formatParams => {
-	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, null, getFormattingOptions(formatParams.options));
-});
 
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
