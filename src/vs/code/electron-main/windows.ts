@@ -632,6 +632,9 @@ export class WindowsManager implements IWindowsService {
 			});
 			// Get rid of duplicates
 			iPathsToOpen = arrays.distinct(iPathsToOpen, path => {
+				if (!('workspacePath' in path)) {
+					return path.workspacePath;
+				}
 				return platform.isLinux ? path.workspacePath : path.workspacePath.toLowerCase();
 			});
 		}
@@ -764,8 +767,8 @@ export class WindowsManager implements IWindowsService {
 		// Emit events
 		iPathsToOpen.forEach(iPath => this.eventEmitter.emit(EventTypes.OPEN, iPath));
 
-		// Add to backups
-		this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.map((path) => {
+		// Start tracking workspace backups
+		this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(path => 'workspacePath' in path).map(path => {
 			return Uri.file(path.workspacePath);
 		}));
 

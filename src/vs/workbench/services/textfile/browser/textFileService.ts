@@ -117,7 +117,7 @@ export abstract class TextFileService implements ITextFileService {
 
 	private beforeShutdown(): boolean | TPromise<boolean> {
 		// If hot exit is enabled then save the dirty files in the workspace and then exit
-		if (this.configuredHotExit) {
+		if (this.configuredHotExit && this.contextService.getWorkspace()) {
 			// If there are no dirty files, clean up and exit
 			if (this.getDirty().length === 0) {
 				return this.cleanupBackupsBeforeShutdown();
@@ -190,7 +190,11 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private cleanupBackupsBeforeShutdown(): boolean | TPromise<boolean> {
-		return this.backupService.removeWorkspaceBackupPath(this.contextService.getWorkspace().resource).then(() => {
+		const workspace = this.contextService.getWorkspace();
+		if (!workspace) {
+			return TPromise.as(false); // no backups to cleanup, no eto
+		}
+		return this.backupService.removeWorkspaceBackupPath(workspace.resource).then(() => {
 			return this.fileService.discardBackups().then(() => {
 				return false; // no veto
 			});
