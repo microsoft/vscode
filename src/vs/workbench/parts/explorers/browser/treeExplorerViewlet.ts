@@ -12,11 +12,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/treeExplorerView';
 import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
+import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
 
-const TREE_NAME = 'pineTree'; // For now
-
-export const CUSTOM_VIEWLET_ID_ROOT = 'workbench.view.treeExplorerViewlet.';
-const ID = 'workbench.view.customTreeExplorerViewlet.' + TREE_NAME;
+export const VIEWLET_ID_ROOT = 'workbench.view.customTreeExplorerViewlet.';
 
 export class TreeExplorerViewlet extends Viewlet {
 	private static _idCounter = 1;
@@ -26,13 +24,20 @@ export class TreeExplorerViewlet extends Viewlet {
 
 	private viewletState: TreeExplorerViewletState;
 
+	private externalViewletId: string;
+	private treeNodeProviderId: string;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IActivityService private activityService: IActivityService
 	) {
-		super(ID, telemetryService);
+		super(VIEWLET_ID_ROOT + TreeExplorerViewlet._idCounter, telemetryService);
 
 		this.viewletState = new TreeExplorerViewletState();
+
+		this.externalViewletId = this.activityService.getExternalViewletIdToOpen();
+		this.treeNodeProviderId = this.getTreeProviderName(this.externalViewletId);
 
 		TreeExplorerViewlet._idCounter++;
 	}
@@ -41,7 +46,7 @@ export class TreeExplorerViewlet extends Viewlet {
 		super.create(parent);
 
 		this.viewletContainer = parent.div().addClass('custom-tree-explorer-viewlet');
-		this.addTreeView(TREE_NAME);
+		this.addTreeView(this.treeNodeProviderId);
 
 		return TPromise.as(null);
 	}
@@ -56,12 +61,17 @@ export class TreeExplorerViewlet extends Viewlet {
 		});
 	}
 
-	private addTreeView(treeName: string): void {
+	private addTreeView(treeNodeProviderId: string): void {
 		// Hide header (root node) by default
 		const headerSize = 0;
 
-		this.view = this.instantiationService.createInstance(TreeExplorerView, this.viewletState, treeName, this.getActionRunner(), headerSize);
+		this.view = this.instantiationService.createInstance(TreeExplorerView, this.viewletState, treeNodeProviderId, this.getActionRunner(), headerSize);
 		this.view.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
+	}
+
+	private getTreeProviderName(viewletId: string): string {
+		const tokens = viewletId.split('.');
+		return tokens[tokens.length - 1];
 	}
 
 	dispose(): void {

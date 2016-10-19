@@ -28,9 +28,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 
 	private viewletState: TreeExplorerViewletState;
 
-	private _treeName: string;
-
-	get treeName(): string { return this._treeName; }
+	private treeNodeProviderIdName: string;
 
 	constructor(
 		viewletState: TreeExplorerViewletState,
@@ -49,7 +47,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		super(actionRunner, false, nls.localize('treeExplorerViewletTree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
 		this.viewletState = viewletState;
-		this._treeName = treeName;
+		this.treeNodeProviderIdName = treeName;
 
 		this.workspace = contextService.getWorkspace();
 
@@ -72,9 +70,9 @@ export class TreeExplorerView extends CollapsibleViewletView {
 	}
 
 	createViewer(container: Builder): ITree {
-		const dataSource = this.instantiationService.createInstance(TreeDataSource);
+		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.treeNodeProviderIdName);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
-		const controller = this.instantiationService.createInstance(TreeController);
+		const controller = this.instantiationService.createInstance(TreeController, this.treeNodeProviderIdName);
 		const sorter = null;
 		const filter = null;
 		const dnd = null;
@@ -102,7 +100,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 	}
 
 	private updateInput(): TPromise<void> {
-		return this.treeExplorerViewletService.provideTreeContent('pineTree').then(tree => {
+		return this.treeExplorerViewletService.provideTreeContent(this.treeNodeProviderIdName).then(tree => {
 			this.tree.setInput(tree);
 		});
 	}

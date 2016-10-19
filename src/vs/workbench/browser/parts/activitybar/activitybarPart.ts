@@ -8,6 +8,7 @@
 import 'vs/css!./media/activitybarpart';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+import Event, { Emitter } from 'vs/base/common/event';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
@@ -33,7 +34,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private viewletsToggleStatus: { [viewletId: string]: boolean; };
 	private registeredViewlets: string[];
 
-	private VIEWLETS_TOGGLE_STATUS = "workbench.activityBar.viewletsToggleStatus";
+	private externalViewletIdToOpen: string;
+
+	private VIEWLETS_TOGGLE_STATUS = 'workbench.activityBar.viewletsToggleStatus';
 
 	constructor(
 		id: string,
@@ -92,7 +95,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		}
 	}
 
-	public getRegisteredViewletsToggleStatus(): { [viewletId: string]: boolean } {
+	getRegisteredViewletsToggleStatus(): { [viewletId: string]: boolean } {
 		const result = {};
 		this.registeredViewlets.forEach(viewletId => {
 			result[viewletId] = this.viewletsToggleStatus[viewletId];
@@ -100,7 +103,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		return result;
 	}
 
-	public toggleViewlet(viewletId: string): void {
+	toggleViewlet(viewletId: string): void {
 		this.viewletsToggleStatus[viewletId] = !this.viewletsToggleStatus[viewletId];
 		this.setViewletsToggleStatus();
 		this.refreshViewletSwitcher();
@@ -108,6 +111,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private setViewletsToggleStatus(): void {
 		this.storageService.store(this.VIEWLETS_TOGGLE_STATUS, JSON.stringify(this.viewletsToggleStatus));
+	}
+
+	getExternalViewletIdToOpen(): string {
+		return this.externalViewletIdToOpen;
 	}
 
 	public showActivity(compositeId: string, badge: IBadge, clazz?: string): void {
@@ -168,6 +175,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private toAction(composite: ViewletDescriptor): ActivityAction {
 		const action = this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite);
+		action.onOpenViewlet((viewletId) => {
+			this.externalViewletIdToOpen = viewletId;
+		});
 
 		this.activityActionItems[action.id] = new ActivityActionItem(action, composite.name, this.getKeybindingLabel(composite.id));
 		this.compositeIdToActions[composite.id] = action;
@@ -198,6 +208,9 @@ class ViewletActivityAction extends ActivityAction {
 	private static preventDoubleClickDelay = 300;
 	private lastRun: number = 0;
 
+	private _onOpenViewlet = new Emitter<string>();
+	get onOpenViewlet(): Event<string> { return this._onOpenViewlet.event; };
+
 	constructor(
 		id: string, private viewlet: ViewletDescriptor,
 		@IViewletService private viewletService: IViewletService,
@@ -222,6 +235,7 @@ class ViewletActivityAction extends ActivityAction {
 		if (!sideBarHidden && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
 			this.partService.setSideBarHidden(true);
 		} else {
+			this._onOpenViewlet.fire(this.viewlet.id);
 			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
 			this.activate();
 		}
