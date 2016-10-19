@@ -1353,7 +1353,6 @@ declare module 'vscode' {
 		resolveChildren(node: T): T[] | Thenable<T[]>;
 
 		getLabel?(node: T): string;
-		getShouldInitiallyExpand?(node: T): boolean;
 		getHasChildren?(node: T): boolean;
 		getClickCommand?(node: T): string;
 	}

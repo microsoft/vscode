@@ -14,7 +14,6 @@ export class InternalTreeExplorerNode implements TreeExplorerNodeContent {
 
 	label: string = 'label';
 	hasChildren: boolean = true;
-	shouldInitiallyExpand: boolean = false;
 	clickCommand: string = null;
 
 	constructor(node: any, provider: TreeExplorerNodeProvider<any>) {
@@ -25,9 +24,6 @@ export class InternalTreeExplorerNode implements TreeExplorerNodeContent {
 		}
 		if (provider.getHasChildren) {
 			this.hasChildren = provider.getHasChildren(node);
-		}
-		if (provider.getShouldInitiallyExpand) {
-			this.shouldInitiallyExpand = provider.getShouldInitiallyExpand(node);
 		}
 		if (provider.getClickCommand) {
 			this.clickCommand = provider.getClickCommand(node);
@@ -44,6 +40,5 @@ export interface InternalTreeExplorerNodeProvider {
 export interface TreeExplorerNodeContent {
 	label: string;
 	hasChildren: boolean;
-	shouldInitiallyExpand: boolean;
 	clickCommand: string;
 }
