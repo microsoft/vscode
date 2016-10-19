@@ -255,7 +255,11 @@ export class StopAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const process = this.debugService.getViewModel().focusedProcess;
+		let process = this.debugService.getViewModel().focusedProcess;
+		if (!process) {
+			process = this.debugService.getModel().getProcesses().pop();
+		}
+
 		return process ? process.disconnect(false, true) : TPromise.as(null);
 	}
 
@@ -273,7 +277,11 @@ export class DisconnectAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const process = this.debugService.getViewModel().focusedProcess;
+		let process = this.debugService.getViewModel().focusedProcess;
+		if (!process) {
+			process = this.debugService.getModel().getProcesses().pop();
+		}
+
 		return process ? process.disconnect(false, true) : TPromise.as(null);
 	}
 
