@@ -13,7 +13,7 @@ export const ITreeExplorerViewletService = createDecorator<ITreeExplorerViewletS
 export interface ITreeExplorerViewletService {
 	_serviceBrand: any;
 
-	registerTreeContentProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void;
+	registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void;
 	provideTreeContent(providerId: string): TPromise<InternalTreeExplorerNode>;
 	resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]>;
 	resolveCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void>;
@@ -22,27 +22,27 @@ export interface ITreeExplorerViewletService {
 export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 	public _serviceBrand: any;
 
-	private _treeContentProviders: { [providerId: string]: InternalTreeExplorerNodeProvider };
+	private _treeExplorerNodeProvider: { [providerId: string]: InternalTreeExplorerNodeProvider };
 
 	constructor(
 		@IInstantiationService private _instantiationService: IInstantiationService
 	) {
-		this._treeContentProviders = Object.create(null);
+		this._treeExplorerNodeProvider = Object.create(null);
 	}
 
-	registerTreeContentProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void {
-		this._treeContentProviders[providerId] = provider;
+	registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void {
+		this._treeExplorerNodeProvider[providerId] = provider;
 	}
 
 	provideTreeContent(providerId: string): TPromise<InternalTreeExplorerNode> {
-		return TPromise.wrap(this._treeContentProviders[providerId].provideRootNode());
+		return TPromise.wrap(this._treeExplorerNodeProvider[providerId].provideRootNode());
 	}
 
 	resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
-		return TPromise.wrap(this._treeContentProviders[providerId].resolveChildren(node));
+		return TPromise.wrap(this._treeExplorerNodeProvider[providerId].resolveChildren(node));
 	}
 
 	resolveCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void> {
-		return TPromise.wrap(this._treeContentProviders[providerId].resolveCommand(node));
+		return TPromise.wrap(this._treeExplorerNodeProvider[providerId].resolveCommand(node));
 	}
 }
