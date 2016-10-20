@@ -81,8 +81,9 @@ suite('Debug - Model', () => {
 		var threadId = 1;
 		var threadName = 'firstThread';
 
+		model.addProcess(rawSession);
 		model.rawUpdate({
-			rawSession,
+			sessionId: rawSession.getId(),
 			threadId: threadId,
 			thread: {
 				id: threadId,
@@ -107,8 +108,9 @@ suite('Debug - Model', () => {
 		const stoppedReason = 'breakpoint';
 
 		// Add the threads
+		model.addProcess(rawSession);
 		model.rawUpdate({
-			rawSession,
+			sessionId: rawSession.getId(),
 			threadId: threadId1,
 			thread: {
 				id: threadId1,
@@ -117,7 +119,7 @@ suite('Debug - Model', () => {
 		});
 
 		model.rawUpdate({
-			rawSession,
+			sessionId: rawSession.getId(),
 			threadId: threadId2,
 			thread: {
 				id: threadId2,
@@ -127,7 +129,7 @@ suite('Debug - Model', () => {
 
 		// Stopped event with all threads stopped
 		model.rawUpdate({
-			rawSession,
+			sessionId: rawSession.getId(),
 			threadId: threadId1,
 			stoppedDetails: {
 				reason: stoppedReason,
@@ -196,10 +198,10 @@ suite('Debug - Model', () => {
 		const runningThreadId = 2;
 		const runningThreadName = 'runningThread';
 		const stoppedReason = 'breakpoint';
-
+		model.addProcess(rawSession);
 		// Add the threads
 		model.rawUpdate({
-			rawSession,
+			sessionId: rawSession.getId(),
 			threadId: stoppedThreadId,
 			thread: {
 				id: stoppedThreadId,
@@ -208,7 +210,7 @@ suite('Debug - Model', () => {
 		});
 
 		model.rawUpdate({
-			rawSession,
+			sessionId: rawSession.getId(),
 			threadId: runningThreadId,
 			thread: {
 				id: runningThreadId,
@@ -218,7 +220,7 @@ suite('Debug - Model', () => {
 
 		// Stopped event with only one thread stopped
 		model.rawUpdate({
-			rawSession,
+			sessionId: rawSession.getId(),
 			threadId: stoppedThreadId,
 			stoppedDetails: {
 				reason: stoppedReason,
