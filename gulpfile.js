@@ -11,7 +11,6 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 const gulp = require('gulp');
 const util = require('./build/lib/util');
 const path = require('path');
-const glob = require('glob');
 const compilation = require('./build/lib/compilation');
 
 // Fast compile for development time
@@ -62,6 +61,6 @@ if (runningEditorTasks) {
 } else {
 	// Load all the gulpfiles only if running tasks other than the editor tasks
 	const build = path.join(__dirname, 'build');
-	glob.sync('gulpfile.*.js', { cwd: build })
+	require('glob').sync('gulpfile.*.js', { cwd: build })
 		.forEach(f => require(`./build/${ f }`));
 }
