@@ -246,8 +246,7 @@ export class WorkbenchShell {
 		}, errors.onUnexpectedError);
 
 		// Backup
-		const backupService = instantiationService.createInstance(BackupService);
-		backupService.setCurrentWorkspace(this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource : null);
+		const backupService = instantiationService.createInstance(BackupService, this.contextService.getWorkspace().resource);
 		serviceCollection.set(IBackupService, backupService);
 
 		// Storage
