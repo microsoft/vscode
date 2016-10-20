@@ -70,13 +70,13 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Update activity bar on registering an external viewlet
 		this.toUnbind.push(
 			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets))
-				.onDidRegisterExternalViewlets(descriptors => this.onDidRegisterExternalViewlets(descriptors))
+				.onDidRegisterExternalViewlets(viewlets => this.onDidRegisterExternalViewlets(viewlets))
 		);
 	}
 
-	private onDidRegisterExternalViewlets(descriptors: ViewletDescriptor[]): void {
-		descriptors.forEach(d => {
-			this.registeredViewlets[d.id] = d;
+	private onDidRegisterExternalViewlets(viewlets: ViewletDescriptor[]): void {
+		viewlets.forEach(v => {
+			this.registeredViewlets[v.id] = v;
 		});
 
 		this.viewletSwitcherBar.push(this.getAllEnabledExternalViewlets().map(d => this.toAction(d)), { label: true, icon: true });
@@ -149,14 +149,14 @@ export class ActivitybarPart extends Part implements IActivityService {
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
 		});
 
-		const allStockViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().filter(descriptor => !descriptor.isExternal);
+		const allStockViewlets = this.getAllStockViewlets();
 		this.fillViewletSwitcher(allStockViewlets);
 	}
 
 	private refreshViewletSwitcher(): void {
 		this.viewletSwitcherBar.clear();
 
-		const allStockViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().filter(descriptor => !descriptor.isExternal);
+		const allStockViewlets = this.getAllStockViewlets();
 		const allEnabledExternalViewlets = this.getAllEnabledExternalViewlets();
 		this.fillViewletSwitcher(allStockViewlets.concat(allEnabledExternalViewlets));
 	}
@@ -164,6 +164,14 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private fillViewletSwitcher(viewlets: ViewletDescriptor[]) {
 		const viewletActions = viewlets.map(v => this.toAction(v));
 		this.viewletSwitcherBar.push(viewletActions, { label: true, icon: true });
+	}
+
+	// Get an ordered list of all stock viewlets
+	private getAllStockViewlets(): ViewletDescriptor[] {
+		return (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets))
+			.getViewlets()
+			.filter(viewlet => !viewlet.isExternal)
+			.sort((v1, v2) => v1.order - v2.order);
 	}
 
 	// Get an ordered list of all enabled external viewlets
