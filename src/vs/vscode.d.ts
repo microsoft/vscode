@@ -1349,23 +1349,24 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A node provider for the tree explorer viewlet contributed by extension.
+	 * A node provider for the tree explorer contributed by extension.
 	 *
 	 * Providers are registered through (#workspace.registerTreeExplorerNodeProvider) with a
-	 * `providerId` that should be identical to the `treeExplorerNodeProviderId` in the extension's
+	 * `providerId` that corresponds to the `treeExplorerNodeProviderId` in the extension's
 	 * `contributes.explorer` section.
 	 *
-	 * The contributed tree explorer viewlet will ask provider with the same providerId to provide
-	 * the root node and resolve children for each node. In addition, the provider could **optionally**
+	 * The contributed tree explorer will ask the corresponding provider to provide the root
+	 * node and resolve children for each node. In addition, the provider could **optionally**
 	 * provide the following information for each node:
-	 * - label: A human-readable string used for rendering the tree node.
-	 * - hasChildren: A boolean that determines if the node has children and is expandable.
-	 * - clickCommand: A command that will be executed when the node is clicked.
+	 * - label: A human-readable label used for rendering the node.
+	 * - hasChildren: Whether the node has children and is expandable.
+	 * - clickCommand: A command to execute when the node is clicked.
 	 */
 	export interface TreeExplorerNodeProvider<T> {
 
 		/**
-		 * Provide the root node. This function will be called when the viewlet is first opened.
+		 * Provide the root node. This function will be called when the tree explorer is activated
+		 * for the first time.
 		 * The root node is hidden and its direct children will be displayed on the first level of
 		 * the tree explorer.
 		 *
@@ -1374,7 +1375,7 @@ declare module 'vscode' {
 		provideRootNode(): T | Thenable<T>;
 
 		/**
-		 * Resolve the children of the `node`.
+		 * Resolve the children of `node`.
 		 *
 		 * @param node The node from which the provider resolves children.
 		 * @return Children of `node`.
@@ -1382,7 +1383,7 @@ declare module 'vscode' {
 		resolveChildren(node: T): T[] | Thenable<T[]>;
 
 		/**
-		 * Provide the human-readable label for `node` that will be used for rendering.
+		 * Provide a human-readable string that will be used for rendering the node.
 		 *
 		 * Default to use `node.toString()` if not provided.
 		 *
@@ -1393,23 +1394,22 @@ declare module 'vscode' {
 
 		/**
 		 * Determine if `node` has children and is expandable.
-		 * A `true` return value will let the tree explorer render the node with a triangle on its side.
 		 *
 		 * Default to return `true` if not provided.
 		 *
 		 * @param node The node to determine if it has children and is expandable.
-		 * @return Whether the current `node` has children and is expandable.
+		 * @return A boolean that determines if `node` has children and is expandable.
 		 */
 		getHasChildren?(node: T): boolean;
 
 		/**
-		 * Get the click command that should be executed when the node is clicked.
+		 * Get the command to execute when `node` is clicked.
 		 *
 		 * Commands can be registered through (#commands.registerCommand). `node` will be provided
 		 * as the first argument to the command's callback function.
 		 *
 		 * @param node The node that the command is associated with.
-		 * @return The command string that denotes the command to execute upon click.
+		 * @return The command to execute when `node` is clicked.
 		 */
 		getClickCommand?(node: T): string;
 	}
@@ -3870,11 +3870,10 @@ declare module 'vscode' {
 		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
 
 		/**
-		 * Register a tree explorer node provider, used as a data source
-		 * for custom tree explorers.
+		 * Register a [tree explorer node provider](#TreeExplorerNodeProvider).
 		 *
 		 * @param providerId A unique id that identifies the provider.
-		 * @param provider A [TreeExplorerNodeProvider](#TreeExplorerNodeProvider)
+		 * @param provider A [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable;
