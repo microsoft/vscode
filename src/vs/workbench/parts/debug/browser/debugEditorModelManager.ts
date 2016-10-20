@@ -290,7 +290,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		}
 
 		const process = this.debugService.getViewModel().focusedProcess;
-		if (process && !process.configuration.capabilities.supportsConditionalBreakpoints) {
+		if (process && !process.session.configuration.capabilities.supportsConditionalBreakpoints) {
 			return DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
 		}
 

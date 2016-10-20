@@ -187,7 +187,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		const configuration = this.debugService.getConfigurationManager().configuration;
 		this.actions[5] = configuration && configuration.request === 'attach' ? this.disconnectAction : this.stopAction;
 
-		if (process && process.configuration.capabilities.supportsStepBack) {
+		if (process && process.session.configuration.capabilities.supportsStepBack) {
 			if (!this.stepBackAction) {
 				this.stepBackAction = instantiationService.createInstance(StepBackAction, StepBackAction.ID, StepBackAction.LABEL);
 				this.toDispose.push(this.stepBackAction);
