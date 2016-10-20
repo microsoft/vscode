@@ -287,6 +287,21 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		super(stackFrame, reference, `variable:${stackFrame.getId()}:${parent.getId()}:${name}:${reference}`, true, namedVariables, indexedVariables, startOfVariables);
 		this.value = massageValue(value);
 	}
+
+	public setVariable(value: string): TPromise<any> {
+		return this.stackFrame.thread.process.session.setVariable({
+			name: this.name,
+			value,
+			variablesReference: this.parent.reference
+		}).then(response => {
+			if (response && response.body) {
+				this.value = response.body.value;
+			}
+			// TODO@Isidor notify stackFrame that a change has happened so watch expressions get revelauted
+		}, err => {
+			this.errorMessage = err.message;
+		});
+	}
 }
 
 export class Scope extends ExpressionContainer implements debug.IScope {

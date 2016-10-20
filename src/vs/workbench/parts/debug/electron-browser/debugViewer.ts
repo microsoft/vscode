@@ -118,9 +118,9 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 			} else if (element instanceof model.FunctionBreakpoint && !element.name) {
 				debugService.removeFunctionBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
 			} else if (element instanceof model.Variable) {
-				(<model.Variable>element).errorMessage = null;
+				element.errorMessage = null;
 				if (renamed && element.value !== inputBox.value) {
-					debugService.setVariable(element, inputBox.value)
+					element.setVariable(inputBox.value)
 						// if everything went fine we need to refresh that tree element since his value updated
 						.done(() => tree.refresh(element, false), errors.onUnexpectedError);
 				}

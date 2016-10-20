@@ -85,6 +85,7 @@ export interface ISession {
 	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
 
 	completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse>;
+	setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse>;
 }
 
 export interface IProcess extends ITreeElement {
@@ -407,11 +408,6 @@ export interface IDebugService {
 	 * Appends new output to the repl.
 	 */
 	appendReplOutput(value: string, severity?: severity): void;
-
-	/**
-	 * Sets the value for the variable against the debug adapter.
-	 */
-	setVariable(variable: IExpression, value: string): TPromise<void>;
 
 	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
