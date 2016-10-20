@@ -81,7 +81,7 @@ suite('Debug - Model', () => {
 		var threadId = 1;
 		var threadName = 'firstThread';
 
-		model.addProcess(rawSession);
+		model.addProcess('mockProcess', rawSession);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
 			threadId: threadId,
@@ -108,7 +108,7 @@ suite('Debug - Model', () => {
 		const stoppedReason = 'breakpoint';
 
 		// Add the threads
-		model.addProcess(rawSession);
+		model.addProcess('mockProcess', rawSession);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
 			threadId: threadId1,
@@ -198,7 +198,7 @@ suite('Debug - Model', () => {
 		const runningThreadId = 2;
 		const runningThreadName = 'runningThread';
 		const stoppedReason = 'breakpoint';
-		model.addProcess(rawSession);
+		model.addProcess('mockProcess', rawSession);
 		// Add the threads
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
@@ -291,7 +291,7 @@ suite('Debug - Model', () => {
 
 	test('watch expressions', () => {
 		assert.equal(model.getWatchExpressions().length, 0);
-		const process = new debugmodel.Process(rawSession);
+		const process = new debugmodel.Process('mockProcess', rawSession);
 		const thread = new debugmodel.Thread(process, 'mockthread', 1);
 		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
 		model.addWatchExpression(stackFrame, 'console').done();
@@ -312,7 +312,7 @@ suite('Debug - Model', () => {
 
 	test('repl expressions', () => {
 		assert.equal(model.getReplElements().length, 0);
-		const process = new debugmodel.Process(rawSession);
+		const process = new debugmodel.Process('mockProcess', rawSession);
 		const thread = new debugmodel.Thread(process, 'mockthread', 1);
 		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
 		model.addReplExpression(stackFrame, 'myVariable').done();
@@ -372,7 +372,7 @@ suite('Debug - Model', () => {
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression(null, false), type), null);
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression('son', false), type), 'son');
 
-		const process = new debugmodel.Process(rawSession);
+		const process = new debugmodel.Process('mockProcess', rawSession);
 		const thread = new debugmodel.Thread(process, 'mockthread', 1);
 		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
 		const scope = new debugmodel.Scope(stackFrame, 'myscope', 1, false, 1, 0);

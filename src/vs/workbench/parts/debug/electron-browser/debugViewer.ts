@@ -391,6 +391,11 @@ interface IThreadTemplateData {
 	stateLabel: HTMLSpanElement;
 }
 
+interface IProcessTemplateData {
+	process: HTMLElement;
+	name: HTMLElement;
+}
+
 interface IErrorTemplateData {
 	label: HTMLElement;
 }
@@ -413,6 +418,7 @@ export class CallStackRenderer implements tree.IRenderer {
 	private static STACK_FRAME_TEMPLATE_ID = 'stackFrame';
 	private static ERROR_TEMPLATE_ID = 'error';
 	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
+	private static PROCESS_TEMPLATE_ID = 'process';
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
@@ -423,6 +429,9 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {
+		if (element instanceof model.Process) {
+			return CallStackRenderer.PROCESS_TEMPLATE_ID;
+		}
 		if (element instanceof model.Thread) {
 			return CallStackRenderer.THREAD_TEMPLATE_ID;
 		}
@@ -437,6 +446,14 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 
 	public renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement): any {
+		if (templateId === CallStackRenderer.PROCESS_TEMPLATE_ID) {
+			let data: IProcessTemplateData = Object.create(null);
+			data.process = dom.append(container, $('.process'));
+			data.name = dom.append(data.process, $('.name'));
+
+			return data;
+		}
+
 		if (templateId === CallStackRenderer.LOAD_MORE_TEMPLATE_ID) {
 			let data: ILoadMoreTemplateData = Object.create(null);
 			data.label = dom.append(container, $('.load-more'));
@@ -470,15 +487,22 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
-		if (templateId === CallStackRenderer.THREAD_TEMPLATE_ID) {
+		if (templateId === CallStackRenderer.PROCESS_TEMPLATE_ID {
+			this.renderProcess(element, templateData);
+		} else if (templateId === CallStackRenderer.THREAD_TEMPLATE_ID) {
 			this.renderThread(element, templateData);
 		} else if (templateId === CallStackRenderer.STACK_FRAME_TEMPLATE_ID) {
 			this.renderStackFrame(element, templateData);
 		} else if (templateId === CallStackRenderer.ERROR_TEMPLATE_ID) {
 			this.renderError(element, templateData);
-		} else {
+		} else if (templateId === CallStackRenderer.LOAD_MORE_TEMPLATE_ID) {
 			this.renderLoadMore(element, templateData);
 		}
+	}
+
+	private renderProcess(process: debug.IProcess, data: IProcessTemplateData): void {
+		data.process.title = nls.localize('process', "Process");
+		data.name.textContent = process.name;
 	}
 
 	private renderThread(thread: debug.IThread, data: IThreadTemplateData): void {
