@@ -1,5 +1,6 @@
 {
 	"name": "git",
+	"publisher": "vscode",
 	"displayName": "git",
 	"description": "Git",
 	"version": "0.0.1",
