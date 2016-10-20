@@ -17,8 +17,6 @@ import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import aria = require('vs/base/browser/ui/aria/aria');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import { ISuggestion } from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -881,26 +879,6 @@ export class DebugService implements debug.IDebugService {
 
 	public getConfigurationManager(): debug.IConfigurationManager {
 		return this.configurationManager;
-	}
-
-	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
-		if (!this.session || !this.session.configuration.capabilities.supportsCompletionsRequest) {
-			return TPromise.as([]);
-		}
-		const focusedStackFrame = this.viewModel.focusedStackFrame;
-
-		return this.session.completions({
-			frameId: focusedStackFrame ? focusedStackFrame.frameId : undefined,
-			text,
-			column: position.column,
-			line: position.lineNumber
-		}).then(response => {
-			return response && response.body && response.body.targets ? response.body.targets.map(item => ({
-				label: item.label,
-				insertText: item.text || item.label,
-				type: item.type
-			})) : [];
-		}, err => []);
 	}
 
 	private lazyTransitionToRunningState(session: RawDebugSession, threadId?: number): void {

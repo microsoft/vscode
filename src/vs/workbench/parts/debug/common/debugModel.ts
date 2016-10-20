@@ -12,6 +12,8 @@ import objects = require('vs/base/common/objects');
 import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
+import { ISuggestion } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
@@ -333,6 +335,25 @@ export class StackFrame implements debug.IStackFrame {
 
 	public restart(): TPromise<any> {
 		return this.thread.process.session.restartFrame({ frameId: this.frameId });
+	}
+
+	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
+		if (!this.thread.process.session.configuration.capabilities.supportsCompletionsRequest) {
+			return TPromise.as([]);
+		}
+
+		return this.thread.process.session.completions({
+			frameId: this.frameId,
+			text,
+			column: position.column,
+			line: position.lineNumber
+		}).then(response => {
+			return response && response.body && response.body.targets ? response.body.targets.map(item => ({
+				label: item.label,
+				insertText: item.text || item.label,
+				type: item.type
+			})) : [];
+		}, err => []);
 	}
 }
 
