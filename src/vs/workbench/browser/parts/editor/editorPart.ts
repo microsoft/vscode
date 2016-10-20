@@ -909,7 +909,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this.doOpenEditors(editors, activePosition, ratio);
 	}
 
-	public restoreEditors(): TPromise<BaseEditor[]> {
+	public restoreEditors(untitledToRestoreInputs?: EditorInput[]): TPromise<BaseEditor[]> {
 		const editors = this.stacks.groups.map((group, index) => {
 			return {
 				input: group.activeEditor,
@@ -917,6 +917,17 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				options: group.isPinned(group.activeEditor) ? EditorOptions.create({ pinned: true }) : void 0
 			};
 		});
+
+		// Add any untitled files to be restored from backup
+		if (untitledToRestoreInputs && untitledToRestoreInputs.length) {
+			editors.push(...untitledToRestoreInputs.map(input => {
+				return {
+					input: input,
+					position: Position.ONE,
+					options: null
+				};
+			}));
+		}
 
 		if (!editors.length) {
 			return TPromise.as<BaseEditor[]>([]);
