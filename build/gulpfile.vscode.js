@@ -227,8 +227,7 @@ function packageTask(platform, arch, opts) {
 		}));
 
 		const sources = es.merge(src, extensions, marketplaceExtensions)
-			.pipe(filter(['**', '!**/*.js.map']))
-			.pipe(util.handleAzureJson({ platform }));
+			.pipe(filter(['**', '!**/*.js.map']));
 
 		let version = packageJson.version;
 		const quality = product.quality;
