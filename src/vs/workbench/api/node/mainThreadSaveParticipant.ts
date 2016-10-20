@@ -93,6 +93,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 		}
 
 		const model: IModel = editorModel.textEditorModel;
+		const versionNow = model.getVersionId();
 		const {tabSize, insertSpaces} = model.getOptions();
 
 		return new TPromise<ISingleEditOperation[]>((resolve, reject) => {
@@ -100,7 +101,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 			getDocumentFormattingEdits(model, { tabSize, insertSpaces }).then(resolve, reject);
 
 		}).then(edits => {
-			if (edits) {
+			if (edits && versionNow === model.getVersionId()) {
 				const editor = this._findEditor(model);
 				if (editor) {
 					this._editsWithEditor(editor, edits);
