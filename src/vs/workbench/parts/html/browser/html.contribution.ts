@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import URI from 'vs/base/common/uri';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { HtmlInput } from '../common/htmlInput';
 import { HtmlPreviewPart } from 'vs/workbench/parts/html/browser/htmlPreviewPart';
@@ -17,7 +17,7 @@ import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { isCommonCodeEditor, ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
 import { HtmlZoneController } from './htmlEditorZone';
 
 // --- Register Editor
@@ -29,20 +29,41 @@ import { HtmlZoneController } from './htmlEditorZone';
 
 // --- Register Commands
 
+interface HtmlZoneParams {
+	editorPosition: EditorPosition;
+	lineNumber: number;
+	resource: URI;
+}
 
-CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor) {
-	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-	if (editor) {
+let warn = true;
 
-		const lineNumber = Math.floor(Math.random() * editor.getModel().getLineCount());
-		console.log('ADDED at ' + lineNumber);
+CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: ServicesAccessor, params: HtmlZoneParams) {
 
-		HtmlZoneController.getInstance(editor).addZone(lineNumber, `
-			<body style="background-color: pink;">
-				<h4>Hello World</h4>
-			</body>
-		`);
+	if (warn) {
+		console.warn(`'_workbench.htmlZone' is an EXPERIMENTAL feature and therefore subject to CHANGE and REMOVAL without notice.`);
+		warn = false;
 	}
+
+	let codeEditor: ICommonCodeEditor;
+	for (const editor of accessor.get(IWorkbenchEditorService).getVisibleEditors()) {
+		if (editor.position === params.editorPosition) {
+			const control = editor.getControl();
+			if (isCommonCodeEditor(control)) {
+				codeEditor = control;
+			}
+		}
+	}
+
+	if (!codeEditor) {
+		console.warn('NO matching editor found');
+		return;
+	}
+
+	return accessor.get(IWorkbenchEditorService).resolveEditorModel({ resource: params.resource }).then(model => {
+		const contents = (<IModel>model.textEditorModel).getValue();
+		HtmlZoneController.getInstance(codeEditor).addZone(params.lineNumber, contents);
+	});
+
 });
 
 CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: ServicesAccessor, resource: URI | string, position?: EditorPosition, label?: string) {
