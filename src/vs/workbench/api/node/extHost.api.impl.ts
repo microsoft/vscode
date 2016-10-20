@@ -5,6 +5,7 @@
 'use strict';
 
 import { Emitter } from 'vs/base/common/event';
+import { TrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -425,7 +426,7 @@ export function defineAPI(factory: IExtensionApiFactory, extensions: IExtensionD
 	let defaultApiImpl: typeof vscode;
 
 	// create trie to enable fast 'filename -> extension id' look up
-	const trie = new TrieMap<IExtensionDescription>();
+	const trie = new TrieMap<IExtensionDescription>(TrieMap.PathSplitter);
 	for (const ext of extensions) {
 		if (ext.name) {
 			const path = realpathSync(ext.extensionFolderPath);
@@ -456,69 +457,4 @@ export function defineAPI(factory: IExtensionApiFactory, extensions: IExtensionD
 		}
 		return defaultApiImpl;
 	};
-}
-
-// --- trie'ish datastructure
-
-interface Node<E> {
-	element?: E;
-	children: { [key: string]: Node<E> };
-}
-
-class TrieMap<E> {
-
-	private static _sep = /[\\/]/;
-
-	private _root: Node<E> = {
-		children: Object.create(null)
-	};
-
-	insert(path: string, element: E): void {
-		const parts = path.split(TrieMap._sep);
-		let i = 0;
-
-		// find insertion node
-		let node = this._root;
-		for (; i < parts.length; i++) {
-			let child = node.children[parts[i]];
-			if (child) {
-				node = child;
-				continue;
-			}
-			break;
-		}
-
-		// create new nodes
-		let newNode: Node<E>;
-		for (; i < parts.length; i++) {
-			newNode = { children: Object.create(null) };
-			node.children[parts[i]] = newNode;
-			node = newNode;
-		}
-
-		newNode.element = element;
-	}
-
-	findSubstr(path: string): E {
-		const parts = path.split(TrieMap._sep);
-
-		let lastNode: Node<E>;
-		let {children} = this._root;
-		for (const part of parts) {
-			const node = children[part];
-			if (!node) {
-				break;
-			}
-			if (node.element) {
-				lastNode = node;
-			}
-			children = node.children;
-		}
-
-		// return the last matching node
-		// that had an element
-		if (lastNode) {
-			return lastNode.element;
-		}
-	}
 }
