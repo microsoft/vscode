@@ -27,6 +27,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class ActivitybarPart extends Part implements IActivityService {
 	public _serviceBrand: any;
+
 	private viewletSwitcherBar: ActionBar;
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
@@ -81,17 +82,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.viewletSwitcherBar.push(this.getAllEnabledExternalViewlets().map(d => this.toAction(d)), { label: true, icon: true });
 	}
 
-	// Get an ordered list of all enabled external viewlets
-	private getAllEnabledExternalViewlets(): ViewletDescriptor[] {
-		const externalViewletsToShow: ViewletDescriptor[] = [];
-		this.enabledExternalViewlets.forEach(viewletId => {
-			if (this.registeredViewlets[viewletId]) {
-				externalViewletsToShow.push(this.registeredViewlets[viewletId]);
-			}
-		});
-		return externalViewletsToShow;
-	}
-
 	private onActiveCompositeChanged(composite: IComposite): void {
 		if (this.compositeIdToActions[composite.getId()]) {
 			this.compositeIdToActions[composite.getId()].activate();
@@ -126,10 +116,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private setEnabledExternalViewlets(): void {
 		this.storageService.store(ActivitybarPart.ENABLED_EXTERNAL_VIEWLETS, JSON.stringify(this.enabledExternalViewlets));
-	}
-
-	getExternalViewletIdToOpen(): string {
-		return this.externalViewletIdToOpen;
 	}
 
 	public showActivity(compositeId: string, badge: IBadge, clazz?: string): void {
@@ -184,9 +170,20 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.viewletSwitcherBar.push(viewletActions, { label: true, icon: true });
 	}
 
+	// Get an ordered list of all enabled external viewlets
+	private getAllEnabledExternalViewlets(): ViewletDescriptor[] {
+		const externalViewletsToShow: ViewletDescriptor[] = [];
+		this.enabledExternalViewlets.forEach(viewletId => {
+			if (this.registeredViewlets[viewletId]) {
+				externalViewletsToShow.push(this.registeredViewlets[viewletId]);
+			}
+		});
+		return externalViewletsToShow;
+	}
+
 	private toAction(composite: ViewletDescriptor): ActivityAction {
 		const action = this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite);
-		action.onOpenViewlet((viewletId) => {
+		action.onOpenExternalViewlet((viewletId) => {
 			this.externalViewletIdToOpen = viewletId;
 		});
 
@@ -195,6 +192,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		return action;
 	};
+
+	getExternalViewletIdToOpen(): string {
+		return this.externalViewletIdToOpen;
+	}
 
 	private getKeybindingLabel(id: string): string {
 		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
@@ -219,8 +220,8 @@ class ViewletActivityAction extends ActivityAction {
 	private static preventDoubleClickDelay = 300;
 	private lastRun: number = 0;
 
-	private _onOpenViewlet = new Emitter<string>();
-	get onOpenViewlet(): Event<string> { return this._onOpenViewlet.event; };
+	private _onOpenExternalViewlet = new Emitter<string>();
+	get onOpenExternalViewlet(): Event<string> { return this._onOpenExternalViewlet.event; };
 
 	constructor(
 		id: string,
@@ -247,7 +248,9 @@ class ViewletActivityAction extends ActivityAction {
 		if (!sideBarHidden && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
 			this.partService.setSideBarHidden(true);
 		} else {
-			this._onOpenViewlet.fire(this.viewlet.id);
+			if (this.viewlet.isExternal) {
+				this._onOpenExternalViewlet.fire(this.viewlet.id);
+			}
 			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
 			this.activate();
 		}
