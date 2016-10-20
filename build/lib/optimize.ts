@@ -13,13 +13,15 @@ const minifyCSS = require('gulp-cssnano');
 const uglify = require('gulp-uglify');
 const es = require('event-stream');
 const concat = require('gulp-concat');
-const File = require('vinyl');
-const bundle = require('./lib/bundle');
-const util = require('./lib/util');
-const i18n = require('./lib/i18n');
+const VinylFile = require('vinyl');
+const bundle = require('./bundle');
+const util = require('./util');
+const i18n = require('./i18n');
 const gulpUtil = require('gulp-util');
 const flatmap = require('gulp-flatmap');
 const pump = require('pump');
+
+const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
 function log(prefix, message) {
 	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
@@ -59,7 +61,7 @@ function loader(bundledFileHeader, bundleLoader) {
 		.pipe(es.through(function(data) {
 			if (isFirst) {
 				isFirst = false;
-				this.emit('data', new File({
+				this.emit('data', new VinylFile({
 					path: 'fake',
 					base: '',
 					contents: new Buffer(bundledFileHeader)
@@ -72,7 +74,7 @@ function loader(bundledFileHeader, bundleLoader) {
 		.pipe(util.loadSourcemaps())
 		.pipe(concat('vs/loader.js'))
 		.pipe(es.mapSync(function (f) {
-			f.sourceMap.sourceRoot = util.toFileUri(path.join(path.dirname(__dirname), 'src'));
+			f.sourceMap.sourceRoot = util.toFileUri(path.join(REPO_ROOT_PATH, 'src'));
 			return f;
 		}))
 	);
@@ -100,10 +102,10 @@ function toConcatStream(bundledFileHeader, sources, dest) {
 	}
 
 	const treatedSources = sources.map(function(source) {
-		const root = source.path ? path.dirname(__dirname).replace(/\\/g, '/') : '';
+		const root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
 		const base = source.path ? root + '/out-build' : '';
 
-		return new File({
+		return new VinylFile({
 			path: source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake',
 			base: base,
 			contents: new Buffer(source.contents)
@@ -163,7 +165,7 @@ exports.optimizeTask = function(opts) {
 
 			const bundleInfoArray = [];
 			if (opts.bundleInfo) {
-				bundleInfoArray.push(new File({
+				bundleInfoArray.push(new VinylFile({
 					path: 'bundleInfo.json',
 					base: '.',
 					contents: new Buffer(JSON.stringify(result.bundleData, null, '\t'))
