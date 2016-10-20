@@ -38,6 +38,15 @@ gulp.task('compile-build', ['compile-client-build', 'compile-extensions-build'])
 gulp.task('watch-build', ['watch-client-build', 'watch-extensions-build']);
 
 var ALL_EDITOR_TASKS = [
+	// Always defined tasks
+	'clean-client',
+	'compile-client',
+	'watch-client',
+	'clean-client-build',
+	'compile-client-build',
+	'watch-client-build',
+
+	// Editor tasks (defined in gulpfile.editor)
 	'clean-optimized-editor',
 	'optimize-editor',
 	'clean-minified-editor',
@@ -46,9 +55,7 @@ var ALL_EDITOR_TASKS = [
 	'editor-distro',
 	'analyze-editor-distro'
 ];
-var runningEditorTasks = process.argv.slice(2).every(function(arg) {
-	return (ALL_EDITOR_TASKS.indexOf(arg) !== -1);
-});
+var runningEditorTasks = process.argv.length > 2 && process.argv.slice(2).every(function(arg) { return (ALL_EDITOR_TASKS.indexOf(arg) !== -1); });
 
 if (runningEditorTasks) {
 	require(`./build/gulpfile.editor`);
