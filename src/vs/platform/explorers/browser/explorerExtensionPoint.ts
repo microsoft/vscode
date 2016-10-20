@@ -11,6 +11,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/platform';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { VIEWLET_ID_ROOT } from 'vs/workbench/parts/explorers/common/treeExplorer';
 
 namespace schema {
 
@@ -66,7 +67,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.e
 		descriptors.push(new ViewletDescriptor(
 			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
 			'TreeExplorerViewlet',
-			'workbench.view.customTreeExplorerViewlet.' + treeExplorerNodeProviderId,
+			VIEWLET_ID_ROOT + treeExplorerNodeProviderId,
 			treeLabel,
 			treeExplorerNodeProviderId,
 			baseOrder++,

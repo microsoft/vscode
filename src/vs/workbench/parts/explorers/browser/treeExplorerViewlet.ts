@@ -13,8 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/treeExplorerView';
 import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
-
-export const VIEWLET_ID_ROOT = 'workbench.view.customTreeExplorerViewlet.';
+import { VIEWLET_ID_ROOT } from 'vs/workbench/parts/explorers/common/treeExplorer';
 
 export class TreeExplorerViewlet extends Viewlet {
 	private static _idCounter = 1;
