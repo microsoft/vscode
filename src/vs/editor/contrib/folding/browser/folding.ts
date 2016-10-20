@@ -109,9 +109,10 @@ export class FoldingController implements IFoldingController {
 			return;
 		}
 
-		// Clean the state before restoring
+		// State should be applied on the clean state
+		// Clean the state
 		this.cleanState();
-		// restore
+		// apply state
 		this.applyRegions(<IFoldingRange[]>state.collapsedRegions);
 		// Start listening to the model
 		this.onModelChanged();
