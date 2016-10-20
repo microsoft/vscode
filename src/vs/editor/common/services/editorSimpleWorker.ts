@@ -244,12 +244,12 @@ export abstract class BaseEditorSimpleWorker {
 	}
 
 	private _suggestFiltered(model: ICommonModel, position: editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult {
+		let currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
 		let value = this._suggestUnfiltered(model, position, wordDefRegExp);
 
 		// filter suggestions
 		return {
-			currentWord: value.currentWord,
-			suggestions: value.suggestions.filter((element) => !!fuzzyContiguousFilter(value.currentWord, element.label)),
+			suggestions: value.suggestions.filter((element) => !!fuzzyContiguousFilter(currentWord, element.label)),
 			incomplete: value.incomplete
 		};
 	}
@@ -269,10 +269,7 @@ export abstract class BaseEditorSimpleWorker {
 			};
 		});
 
-		return {
-			currentWord: currentWord,
-			suggestions: suggestions
-		};
+		return { suggestions };
 	}
 
 	// ---- END suggest --------------------------------------------------------------------------

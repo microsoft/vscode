@@ -233,7 +233,6 @@ export interface ISuggestion {
  * @internal
  */
 export interface ISuggestResult {
-	currentWord: string;
 	suggestions: ISuggestion[];
 	incomplete?: boolean;
 }
