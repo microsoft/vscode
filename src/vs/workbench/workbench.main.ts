@@ -23,6 +23,7 @@ import 'vs/platform/actions/browser/menusExtensionPoint';
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarPosition';
+import 'vs/workbench/browser/actions/toggleEditorLayout';
 import 'vs/workbench/browser/actions/openSettings';
 import 'vs/workbench/browser/actions/configureLocale';
 

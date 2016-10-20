@@ -192,7 +192,7 @@ export interface ITextFileEditorModelManager {
 
 	getAll(resource?: URI): ITextFileEditorModel[];
 
-	loadOrCreate(resource: URI, preferredEncoding: string, refresh?: boolean): TPromise<ITextEditorModel>;
+	loadOrCreate(resource: URI, preferredEncoding: string, refresh?: boolean, restoreResource?: URI): TPromise<ITextEditorModel>;
 }
 
 export interface IModelSaveOptions {
@@ -216,6 +216,10 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	updatePreferredEncoding(encoding: string): void;
 
 	save(options?: IModelSaveOptions): TPromise<void>;
+
+	backup(): TPromise<void>;
+
+	setRestoreResource(resource: URI): void;
 
 	revert(): TPromise<void>;
 
@@ -317,6 +321,14 @@ export interface ITextFileService extends IDisposable {
 	 * confirming for all dirty resources.
 	 */
 	confirmSave(resources?: URI[]): ConfirmResult;
+
+	/**
+	 * Backs up the provided file to a temporary directory to be used by the hot
+	 * exit feature and crash recovery.
+	 *
+	 * @param resource The resource to backup.
+	 */
+	backup(resource: URI): void;
 
 	/**
 	 * Convinient fast access to the current auto save mode.

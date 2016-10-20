@@ -13,6 +13,7 @@ import * as encoding from 'vs/base/node/encoding';
 import strings = require('vs/base/common/strings');
 import { getConfigurationKeys } from 'vs/platform/configuration/common/model';
 import { setProperty } from 'vs/base/common/jsonEdit';
+import { Queue } from 'vs/base/common/async';
 import { applyEdits } from 'vs/base/common/jsonFormatter';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -42,6 +43,8 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 	public _serviceBrand: any;
 
+	private queue: Queue<void>;
+
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -49,9 +52,14 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
+		this.queue = new Queue<void>();
 	}
 
 	public writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue): TPromise<void> {
+		return this.queue.queue(() => this.doWriteConfiguration(target, value)); // queue up writes to prevent race conditions
+	}
+
+	private doWriteConfiguration(target: ConfigurationTarget, value: IConfigurationValue): TPromise<void> {
 		const operation = this.getConfigurationEditOperation(target, value);
 
 		// First validate before making any edits

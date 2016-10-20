@@ -40,6 +40,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
+import * as vscode from 'vscode';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -884,7 +885,30 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return threadService.sync().then(() => {
-			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(_ => { throw new Error(); }, err => { });
+			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 });
+		});
+	});
+
+	test('Format Doc, order', function () {
+		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
+			provideDocumentFormattingEdits(): any {
+				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
+			}
+		}));
+
+		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
+			provideDocumentFormattingEdits(): any {
+				return undefined;
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+				assert.equal(first.text, 'testing');
+				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+			});
 		});
 	});
 
@@ -933,7 +957,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return threadService.sync().then(() => {
-			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }).then(_ => { throw new Error(); }, err => { });
+			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 });
 		});
 	});
 

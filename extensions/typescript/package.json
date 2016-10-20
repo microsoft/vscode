@@ -6,7 +6,7 @@
 	"author": "Microsoft Corporation",
 	"license": "MIT",
 	"publisher": "vscode",
-	"aiKey":"AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
 	"engines": {
 		"vscode": "*"
 	},
@@ -74,7 +74,10 @@
 			"order": 20,
 			"properties": {
 				"typescript.tsdk": {
-					"type": ["string", "null"],
+					"type": [
+						"string",
+						"null"
+					],
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
 				},
@@ -83,19 +86,23 @@
 					"default": false,
 					"description": "%typescript.experimentalAutomaticTypeAcquisition%"
 				},
-				"typescript.check.workspaceVersion" :{
+				"typescript.check.workspaceVersion": {
 					"type": "boolean",
 					"default": true,
 					"description": "%typescript.check.workspaceVersion%"
 				},
-				"typescript.check.tscVersion" :{
+				"typescript.check.tscVersion": {
 					"type": "boolean",
 					"default": true,
 					"description": "%typescript.check.tscVersion%"
 				},
 				"typescript.tsserver.trace": {
 					"type": "string",
-					"enum": ["off", "messages", "verbose"],
+					"enum": [
+						"off",
+						"messages",
+						"verbose"
+					],
 					"default": "off",
 					"description": "%typescript.tsserver.trace%"
 				},
@@ -108,6 +115,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "%typescript.validate.enable%"
+				},
+				"typescript.format.enable": {
+					"type": "boolean",
+					"default": true,
+					"description": "%typescript.format.enable%"
 				},
 				"typescript.format.insertSpaceAfterCommaDelimiter": {
 					"type": "boolean",
@@ -168,6 +180,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "%javascript.validate.enable%"
+				},
+				"javascript.format.enable": {
+					"type": "boolean",
+					"default": true,
+					"description": "%javascript.format.enable%"
 				},
 				"javascript.format.insertSpaceAfterCommaDelimiter": {
 					"type": "boolean",

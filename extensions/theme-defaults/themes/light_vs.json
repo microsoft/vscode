@@ -248,7 +248,7 @@
 			}
 		},
 		{
-			"scope": "keyword.operator.new",
+			"scope": ["keyword.operator.new", "keyword.operator.expression"],
 			"settings": {
 				"foreground": "#0000ff"
 			}
@@ -288,6 +288,13 @@
 			"scope": ["storage.modifier.import.java", "storage.modifier.package.java"],
 			"settings": {
 				"foreground": "#000000"
+			}
+		},
+		{
+			"name": "this.self",
+			"scope": "variable.language",
+			"settings": {
+				"foreground": "#0000ff"
 			}
 		}
 	]

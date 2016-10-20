@@ -279,8 +279,10 @@ export class CallStackController extends BaseDebugController {
 	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		this.debugService.setFocusedStackFrameAndEvaluate(stackFrame).done(null, errors.onUnexpectedError);
 
-		const sideBySide = (event && (event.ctrlKey || event.metaKey));
-		this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		if (stackFrame) {
+			const sideBySide = (event && (event.ctrlKey || event.metaKey));
+			this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		}
 	}
 }
 
@@ -362,7 +364,7 @@ export class CallStackDataSource implements tree.IDataSource {
 
 	private getThreadChildren(thread: debug.IThread): TPromise<any> {
 		return thread.getCallStack(this.debugService).then((callStack: any[]) => {
-			if (thread.stoppedDetails.framesErrorMessage) {
+			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
 				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 			}
 			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {

@@ -19,9 +19,10 @@ export interface IExtensionsViewlet extends IViewlet {
 export enum ExtensionState {
 	Installing,
 	Installed,
-	NeedsRestart,
-	Uninstalled,
-	Disabled
+	Enabled,
+	Disabled,
+	Uninstalling,
+	Uninstalled
 }
 
 export interface IExtension {
@@ -42,6 +43,7 @@ export interface IExtension {
 	rating: number;
 	ratingCount: number;
 	outdated: boolean;
+	reload: boolean;
 	hasDependencies: boolean;
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;
@@ -71,6 +73,7 @@ export interface IExtensionsWorkbenchService {
 	install(vsix: string): TPromise<void>;
 	install(extension: IExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
+	setEnablement(extension: IExtension, enable: boolean, workspace?: boolean): TPromise<void>;
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 }

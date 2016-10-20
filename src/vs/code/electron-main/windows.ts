@@ -6,6 +6,7 @@
 'use strict';
 
 import * as path from 'path';
+import * as os from 'os';
 import * as fs from 'original-fs';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
@@ -14,6 +15,7 @@ import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
 import { EventEmitter } from 'events';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
@@ -27,6 +29,7 @@ import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product';
+import Uri from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
 const EventTypes = {
@@ -49,6 +52,7 @@ export interface IOpenConfiguration {
 	forceEmpty?: boolean;
 	windowToUse?: VSCodeWindow;
 	diffMode?: boolean;
+	restoreBackups?: boolean;
 }
 
 interface IWindowState {
@@ -166,7 +170,8 @@ export class WindowsManager implements IWindowsService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IUpdateService private updateService: IUpdateService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IBackupService private backupService: IBackupService
 	) { }
 
 	onOpen(clb: (path: IPath) => void): () => void {
@@ -530,8 +535,26 @@ export class WindowsManager implements IWindowsService {
 
 			loggedStartupTimes = true;
 
-			window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart } });
+			this.logStartupTimes(window);
 		});
+	}
+
+	private logStartupTimes(window: VSCodeWindow): void {
+		let totalmem: number;
+		let cpus: { count: number; speed: number; model: string; };
+
+		try {
+			totalmem = os.totalmem();
+
+			const rawCpus = os.cpus();
+			if (rawCpus && rawCpus.length > 0) {
+				cpus = { count: rawCpus.length, speed: rawCpus[0].speed, model: rawCpus[0].model };
+			}
+		} catch (error) {
+			this.logService.log(error); // be on the safe side with these hardware method calls
+		}
+
+		window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart }, totalmem, cpus });
 	}
 
 	private onBroadcast(event: string, payload: any): void {
@@ -600,6 +623,20 @@ export class WindowsManager implements IWindowsService {
 		else {
 			const ignoreFileNotFound = openConfig.cli._.length > 0; // we assume the user wants to create this file from command line
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
+		}
+
+		// Add any existing backup workspaces
+		if (openConfig.restoreBackups) {
+			this.backupService.getWorkspaceBackupPathsSync().forEach(ws => {
+				iPathsToOpen.push(this.toIPath(ws));
+			});
+			// Get rid of duplicates
+			iPathsToOpen = arrays.distinct(iPathsToOpen, path => {
+				if (!('workspacePath' in path)) {
+					return path.workspacePath;
+				}
+				return platform.isLinux ? path.workspacePath : path.workspacePath.toLowerCase();
+			});
 		}
 
 		let filesToOpen: IPath[] = [];
@@ -729,6 +766,11 @@ export class WindowsManager implements IWindowsService {
 
 		// Emit events
 		iPathsToOpen.forEach(iPath => this.eventEmitter.emit(EventTypes.OPEN, iPath));
+
+		// Start tracking workspace backups
+		this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(path => 'workspacePath' in path).map(path => {
+			return Uri.file(path.workspacePath);
+		}));
 
 		return arrays.distinct(usedWindows);
 	}

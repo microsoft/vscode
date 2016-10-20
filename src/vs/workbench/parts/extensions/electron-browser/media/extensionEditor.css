@@ -248,6 +248,10 @@
 	font-size: 16px;
 }
 
+.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .name:hover {
+	text-decoration: underline;
+}
+
 .extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .identifier {
 	font-size: 90%;
 	opacity: 0.6;

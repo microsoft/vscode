@@ -69,7 +69,7 @@ function editorLoaderConfig() {
 }
 
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
-gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common.optimizeTask({
+gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'], common.optimizeTask({
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,

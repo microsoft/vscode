@@ -258,6 +258,24 @@ gulp.task('mixin', function () {
 		.pipe(gulp.dest('.'));
 });
 
-const build = path.join(__dirname, 'build');
-glob.sync('gulpfile.*.js', { cwd: build })
-	.forEach(f => require(`./build/${ f }`));
+var ALL_EDITOR_TASKS = [
+	'clean-optimized-editor',
+	'optimize-editor',
+	'clean-minified-editor',
+	'minify-editor',
+	'clean-editor-distro',
+	'editor-distro',
+	'analyze-editor-distro'
+];
+var runningEditorTasks = process.argv.slice(2).every(function(arg) {
+	return (ALL_EDITOR_TASKS.indexOf(arg) !== -1);
+});
+
+if (runningEditorTasks) {
+	require(`./build/gulpfile.editor`);
+} else {
+	// Load all the gulpfiles only if running tasks other than the editor tasks
+	const build = path.join(__dirname, 'build');
+	glob.sync('gulpfile.*.js', { cwd: build })
+		.forEach(f => require(`./build/${ f }`));
+}
