@@ -12,9 +12,10 @@ import * as labels from 'vs/base/common/labels';
 import { Registry } from 'vs/platform/platform';
 import { Action } from 'vs/base/common/actions';
 import * as strings from 'vs/base/common/strings';
+import Event, { Emitter } from 'vs/base/common/event';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
-import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions as EditorExtensions, EditorOptions } from 'vs/workbench/common/editor';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ICommonCodeEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -242,6 +243,9 @@ class DefaultSettingsInput extends StringEditorInput {
 	static RESOURCE: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' }); // URI is used to register JSON schema support
 	private static INSTANCE: DefaultSettingsInput;
 
+	private _willDispose = new Emitter<void>();
+	public willDispose: Event<void> = this._willDispose.event;
+
 	public static getInstance(instantiationService: IInstantiationService, configurationService: IWorkspaceConfigurationService): DefaultSettingsInput {
 		if (!DefaultSettingsInput.INSTANCE) {
 			const editorConfig = configurationService.getConfiguration<any>();
@@ -257,6 +261,12 @@ class DefaultSettingsInput extends StringEditorInput {
 
 	protected getResource(): URI {
 		return DefaultSettingsInput.RESOURCE;
+	}
+
+	public dispose() {
+		this._willDispose.fire();
+		this._willDispose.dispose();
+		super.dispose();
 	}
 }
 
@@ -285,6 +295,8 @@ export class DefaultSettingsEditor extends StringEditor {
 
 	private static VIEW_STATE: Map<URI, IEditorViewState> = new Map<URI, IEditorViewState>();
 
+	private inputDisposeListener;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -306,8 +318,16 @@ export class DefaultSettingsEditor extends StringEditor {
 		return DefaultSettingsEditor.ID;
 	}
 
+	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+		this.listenToInput(input);
+		return super.setInput(input, options);
+	}
+
 	public clearInput(): void {
 		this.saveState();
+		if (this.inputDisposeListener) {
+			this.inputDisposeListener.dispose();
+		}
 		super.clearInput();
 	}
 
@@ -321,11 +341,14 @@ export class DefaultSettingsEditor extends StringEditor {
 	}
 
 	private saveState() {
-		const resource = this.getResource();
-		if (DefaultSettingsEditor.VIEW_STATE.has(resource)) {
-			DefaultSettingsEditor.VIEW_STATE.delete(resource);
+		const state = this.getControl().saveViewState();
+		if (state) {
+			const resource = this.getResource();
+			if (DefaultSettingsEditor.VIEW_STATE.has(resource)) {
+				DefaultSettingsEditor.VIEW_STATE.delete(resource);
+			}
+			DefaultSettingsEditor.VIEW_STATE.set(resource, state);
 		}
-		DefaultSettingsEditor.VIEW_STATE.set(resource, this.getControl().saveViewState());
 	}
 
 	private getResource(): URI {
@@ -335,6 +358,15 @@ export class DefaultSettingsEditor extends StringEditor {
 	private foldAll() {
 		const foldingController = (<ICommonCodeEditor>this.getControl()).getContribution<IFoldingController>(FoldingContributionId);
 		foldingController.foldAll();
+	}
+
+	private listenToInput(input: EditorInput) {
+		if (this.inputDisposeListener) {
+			this.inputDisposeListener.dispose();
+		}
+		if (input instanceof DefaultSettingsInput) {
+			this.inputDisposeListener = input.willDispose(() => this.saveState());
+		}
 	}
 }
 
