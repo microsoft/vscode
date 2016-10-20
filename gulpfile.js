@@ -9,7 +9,6 @@
 require('events').EventEmitter.defaultMaxListeners = 100;
 
 const gulp = require('gulp');
-const mocha = require('gulp-mocha');
 const util = require('./build/lib/util');
 const path = require('path');
 const glob = require('glob');
@@ -37,12 +36,6 @@ gulp.task('watch', ['watch-client', 'watch-extensions']);
 gulp.task('clean-build', ['clean-client-build', 'clean-extensions-build']);
 gulp.task('compile-build', ['compile-client-build', 'compile-extensions-build']);
 gulp.task('watch-build', ['watch-client-build', 'watch-extensions-build']);
-
-gulp.task('test', function () {
-	return gulp.src('test/all.js')
-		.pipe(mocha({ ui: 'tdd', delay: true }))
-		.once('end', function () { process.exit(); });
-});
 
 var ALL_EDITOR_TASKS = [
 	'clean-optimized-editor',
