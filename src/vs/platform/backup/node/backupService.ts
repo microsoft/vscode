@@ -57,17 +57,13 @@ export class BackupService implements IBackupService {
 	}
 
 	public getWorkspaceBackupPathsSync(): string[] {
+		this.disallowOnRendererProcess();
 		this.loadSync();
 		return Object.keys(this.fileContent.folderWorkspaces);
 	}
 
 	public pushWorkspaceBackupPathsSync(workspaces: Uri[]): void {
-		// Only allow this on the main thread in the window initialization's critical path due to
-		// the usage of synchronous IO.
-		if (this.workspaceResource) {
-			throw new Error('pushWorkspaceBackupPaths should only be called on the main process');
-		}
-
+		this.disallowOnRendererProcess();
 		this.loadSync();
 		workspaces.forEach(workspace => {
 			// Hot exit is disabled for empty workspaces
@@ -93,21 +89,15 @@ export class BackupService implements IBackupService {
 	}
 
 	public getWorkspaceTextFilesWithBackupsSync(workspace: Uri): string[] {
-		// Allow sync here as it's only used in workbench initialization's critical path
+		this.disallowOnRendererProcess();
 		this.loadSync();
 		return this.fileContent.folderWorkspaces[workspace.fsPath] || [];
 	}
 
 	public getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[] {
-		// Hot exit is disabled for empty workspaces
-		if (!this.workspaceResource) {
-			return [];
-		}
-
+		this.disallowOnRendererProcess();
 		const workspaceHash = crypto.createHash('md5').update(workspace.fsPath).digest('hex');
 		const untitledDir = path.join(this.backupHome, workspaceHash, 'untitled');
-
-		// Allow sync here as it's only used in workbench initialization's critical path
 		try {
 			return fs.readdirSync(untitledDir).map(file => path.join(untitledDir, file));
 		} catch (ex) {
@@ -217,6 +207,16 @@ export class BackupService implements IBackupService {
 			}
 			fs.writeFileSync(this.backupWorkspacesPath, JSON.stringify(this.fileContent));
 		} catch (ex) {
+		}
+	}
+
+	/**
+	 * Only allow this on the main thread in the window initialization's critical path due to
+	 * the usage of synchronous IO.
+	 */
+	private disallowOnRendererProcess(): void {
+		if (this.workspaceResource) {
+			throw new Error('This should only be called on the main process');
 		}
 	}
 }
