@@ -5,29 +5,30 @@
 
 'use strict';
 
-const path = require('path');
-const gulp = require('gulp');
-const sourcemaps = require('gulp-sourcemaps');
-const filter = require('gulp-filter');
-const minifyCSS = require('gulp-cssnano');
-const uglify = require('gulp-uglify');
-const es = require('event-stream');
-const concat = require('gulp-concat');
-const VinylFile = require('vinyl');
-const bundle = require('./bundle');
-const util = require('./util');
-const i18n = require('./i18n');
-const gulpUtil = require('gulp-util');
-const flatmap = require('gulp-flatmap');
-const pump = require('pump');
+import * as path from 'path';
+import * as gulp from 'gulp';
+import * as sourcemaps from 'gulp-sourcemaps';
+import * as filter from 'gulp-filter';
+import * as minifyCSS from 'gulp-cssnano';
+import * as uglify from 'gulp-uglify';
+import * as es from 'event-stream';
+import * as concat from 'gulp-concat';
+import * as VinylFile from 'vinyl';
+import * as bundle from './bundle';
+import * as util from './util';
+import * as i18n from './i18n';
+import * as gulpUtil from 'gulp-util';
+import * as flatmap from 'gulp-flatmap';
+import * as pump from 'pump';
+import * as sm from 'source-map';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
-function log(prefix, message) {
+function log(prefix:string, message:string): void {
 	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
 }
 
-exports.loaderConfig = function (emptyPaths) {
+export function loaderConfig(emptyPaths:string[]) {
 	const result = {
 		paths: {
 			'vs': 'out-build/vs',
@@ -39,11 +40,15 @@ exports.loaderConfig = function (emptyPaths) {
 	result['vs/css'] = { inlineResources: true };
 
 	return result;
-};
+}
 
 const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
 
-function loader(bundledFileHeader, bundleLoader) {
+declare class FileSourceMap extends VinylFile {
+	public sourceMap: sm.RawSourceMap;
+}
+
+function loader(bundledFileHeader:string, bundleLoader:boolean): NodeJS.ReadWriteStream {
 	let sources = [
 		'out-build/vs/loader.js'
 	];
@@ -73,14 +78,14 @@ function loader(bundledFileHeader, bundleLoader) {
 		}))
 		.pipe(util.loadSourcemaps())
 		.pipe(concat('vs/loader.js'))
-		.pipe(es.mapSync(function (f) {
+		.pipe(es.mapSync<FileSourceMap,FileSourceMap>(function (f) {
 			f.sourceMap.sourceRoot = util.toFileUri(path.join(REPO_ROOT_PATH, 'src'));
 			return f;
 		}))
 	);
 }
 
-function toConcatStream(bundledFileHeader, sources, dest) {
+function toConcatStream(bundledFileHeader:string, sources:bundle.IFile[], dest:string): NodeJS.ReadWriteStream {
 	const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
 
 	// If a bundle ends up including in any of the sources our copyright, then
@@ -117,24 +122,44 @@ function toConcatStream(bundledFileHeader, sources, dest) {
 		.pipe(concat(dest));
 }
 
-function toBundleStream(bundledFileHeader, bundles) {
+function toBundleStream(bundledFileHeader:string, bundles:bundle.IConcatFile[]): NodeJS.ReadWriteStream {
 	return es.merge(bundles.map(function(bundle) {
 		return toConcatStream(bundledFileHeader, bundle.sources, bundle.dest);
 	}));
 }
 
-/**
- * opts:
- * - entryPoints (for AMD files, will get bundled and get Copyright treatment)
- * - otherSources (for non-AMD files that should get Copyright treatment)
- * - resources (svg, etc.)
- * - loaderConfig
- * - bundleLoader (boolean - true by default - append css and nls to loader)
- * - header (basically the Copyright treatment)
- * - bundleInfo (boolean - emit bundleInfo.json file)
- * - out (out folder name)
- */
-exports.optimizeTask = function(opts) {
+export interface IOptimizeTaskOpts {
+	/**
+	 * (for AMD files, will get bundled and get Copyright treatment)
+	 */
+	entryPoints: bundle.IEntryPoint[];
+	/**
+	 * (for non-AMD files that should get Copyright treatment)
+	 */
+	otherSources: string[];
+	/**
+	 * (svg, etc.)
+	 */
+	resources: string[];
+	loaderConfig: any;
+	/**
+	 * (true by default - append css and nls to loader)
+	 */
+	bundleLoader?: boolean;
+	/**
+	 * (basically the Copyright treatment)
+	 */
+	header: string;
+	/**
+	 * (emit bundleInfo.json file)
+	 */
+	bundleInfo: boolean;
+	/**
+	 * (out folder name)
+	 */
+	out: string;
+}
+export function optimizeTask(opts:IOptimizeTaskOpts):()=>NodeJS.ReadWriteStream {
 	const entryPoints = opts.entryPoints;
 	const otherSources = opts.otherSources;
 	const resources = opts.resources;
@@ -163,7 +188,7 @@ exports.optimizeTask = function(opts) {
 			});
 			gulp.src(filteredResources, { base: 'out-build' }).pipe(resourcesStream);
 
-			const bundleInfoArray = [];
+			const bundleInfoArray:VinylFile[] = [];
 			if (opts.bundleInfo) {
 				bundleInfoArray.push(new VinylFile({
 					path: 'bundleInfo.json',
@@ -175,7 +200,7 @@ exports.optimizeTask = function(opts) {
 		});
 
 		const otherSourcesStream = es.through();
-		const otherSourcesStreamArr = [];
+		const otherSourcesStreamArr:NodeJS.ReadWriteStream[] = [];
 
 		gulp.src(otherSources, { base: 'out-build' })
 			.pipe(es.through(function (data) {
@@ -209,49 +234,54 @@ exports.optimizeTask = function(opts) {
 	};
 };
 
+declare class FileWithCopyright extends VinylFile {
+	public __hasOurCopyright: boolean;
+}
 /**
  * Wrap around uglify and allow the preserveComments function
  * to have a file "context" to include our copyright only once per file.
  */
-function uglifyWithCopyrights() {
-	const preserveComments = f => (node, comment) => {
-		const text = comment.value;
-		const type = comment.type;
+function uglifyWithCopyrights():NodeJS.ReadWriteStream {
+	const preserveComments = (f:FileWithCopyright) => {
+		return (node, comment:{value:string;type:string;}) => {
+			const text = comment.value;
+			const type = comment.type;
 
-		if (/@minifier_do_not_preserve/.test(text)) {
-			return false;
-		}
-
-		const isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
-
-		if (isOurCopyright) {
-			if (f.__hasOurCopyright) {
+			if (/@minifier_do_not_preserve/.test(text)) {
 				return false;
 			}
-			f.__hasOurCopyright = true;
-			return true;
-		}
 
-		if ('comment2' === type) {
-			// check for /*!. Note that text doesn't contain leading /*
-			return (text.length > 0 && text[0] === '!') || /@preserve|license|@cc_on|copyright/i.test(text);
-		} else if ('comment1' === type) {
-			return /license|copyright/i.test(text);
-		}
-		return false;
+			const isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
+
+			if (isOurCopyright) {
+				if (f.__hasOurCopyright) {
+					return false;
+				}
+				f.__hasOurCopyright = true;
+				return true;
+			}
+
+			if ('comment2' === type) {
+				// check for /*!. Note that text doesn't contain leading /*
+				return (text.length > 0 && text[0] === '!') || /@preserve|license|@cc_on|copyright/i.test(text);
+			} else if ('comment1' === type) {
+				return /license|copyright/i.test(text);
+			}
+			return false;
+		};
 	};
 
 	const input = es.through();
 	const output = input
 		.pipe(flatmap((stream, f) => {
 			return stream
-				.pipe(uglify({ preserveComments: preserveComments(f) }));
+				.pipe(uglify({ preserveComments: preserveComments(<FileWithCopyright>f) }));
 		}));
 
 	return es.duplex(input, output);
 }
 
-exports.minifyTask = function (src, sourceMapBaseUrl) {
+export function minifyTask(src:string, sourceMapBaseUrl:string):(cb:any)=>void {
 	const sourceMappingURL = sourceMapBaseUrl && (f => `${ sourceMapBaseUrl }/${ f.relative }.map`);
 
 	return cb => {
@@ -274,7 +304,7 @@ exports.minifyTask = function (src, sourceMapBaseUrl) {
 				addComment: true
 			}),
 			gulp.dest(src + '-min')
-		, err => {
+		, (err:any) => {
 			if (err instanceof uglify.GulpUglifyError) {
 				console.error(`Uglify error in '${ err.cause && err.cause.filename }'`);
 			}
