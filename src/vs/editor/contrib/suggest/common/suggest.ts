@@ -197,5 +197,19 @@ export function getSuggestionComparator(snippetConfig: SnippetConfig): (a: ISugg
 }
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {
-	return provideSuggestionItems(model, position);
+
+	const result: ISuggestResult = {
+		incomplete: false,
+		suggestions: []
+	};
+
+	return provideSuggestionItems(model, position).then(items => {
+
+		for (const {container, suggestion} of items) {
+			result.incomplete = result.incomplete || container.incomplete;
+			result.suggestions.push(suggestion);
+		}
+
+		return result;
+	});
 });
