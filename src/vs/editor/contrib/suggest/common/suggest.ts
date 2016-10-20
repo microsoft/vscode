@@ -45,7 +45,7 @@ export const snippetSuggestSupport: ISuggestSupport = {
 	provideCompletionItems(model: IReadOnlyModel, position: Position): ISuggestResult {
 		const suggestions = Registry.as<ISnippetsRegistry>(Extensions.Snippets).getSnippetCompletions(model, position);
 		if (suggestions) {
-			return { suggestions, currentWord: '' };
+			return { suggestions };
 		}
 	}
 };
@@ -112,7 +112,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 
 function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestResult): void {
 	if (typeof suggestion.overwriteBefore !== 'number') {
-		suggestion.overwriteBefore = container.currentWord.length;
+		suggestion.overwriteBefore = 0;
 	}
 	if (typeof suggestion.overwriteAfter !== 'number' || suggestion.overwriteAfter < 0) {
 		suggestion.overwriteAfter = 0;

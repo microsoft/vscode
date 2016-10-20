@@ -338,7 +338,7 @@ export const Suggest = {
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 
-		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : container.currentWord.length;
+		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;
 		let startPosition = new types.Position(position.line, Math.max(0, position.character - overwriteBefore));
 		let endPosition = position;
 		if (typeof suggestion.overwriteAfter === 'number') {

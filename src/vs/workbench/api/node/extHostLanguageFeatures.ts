@@ -513,7 +513,6 @@ class SuggestAdapter {
 
 			const result: modes.ISuggestResult = {
 				suggestions: [],
-				currentWord: ''
 			};
 
 			// the default text edit range
