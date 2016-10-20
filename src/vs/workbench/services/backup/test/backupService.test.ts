@@ -20,8 +20,8 @@ import { IBackupFormat } from 'vs/platform/backup/common/backup';
 import { BackupService } from 'vs/workbench/services/backup/node/backupService';
 
 class TestBackupService extends BackupService {
-	constructor(backupHome: string, backupWorkspacesPath: string) {
-		super(TestEnvironmentService);
+	constructor(workspace: Uri, backupHome: string, backupWorkspacesPath: string) {
+		super(workspace, TestEnvironmentService);
 
 		this.backupHome = backupHome;
 		this.backupWorkspacesPath = backupWorkspacesPath;
@@ -33,6 +33,7 @@ suite('BackupService', () => {
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 
+	const workspaceResource = Uri.file(platform.isWindows ? 'C:\\workspace' : '/workspace');
 	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
 	const bazFile = Uri.file(platform.isWindows ? 'C:\\baz' : '/baz');
@@ -40,7 +41,7 @@ suite('BackupService', () => {
 	let backupService: BackupService;
 
 	setup(done => {
-		backupService = new TestBackupService(backupHome, backupWorkspacesPath);
+		backupService = new TestBackupService(workspaceResource, backupHome, backupWorkspacesPath);
 
 		// Delete any existing backups completely and then re-create it.
 		extfs.del(backupHome, os.tmpdir(), () => {
@@ -92,26 +93,24 @@ suite('BackupService', () => {
 	});
 
 	test('registerResourceForBackup should register backups to workspaces.json', done => {
-		backupService.setCurrentWorkspace(fooFile);
-		backupService.registerResourceForBackup(barFile).then(() => {
+		backupService.registerResourceForBackup(fooFile).then(() => {
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
 				const json = <IBackupFormat>JSON.parse(content);
-				assert.deepEqual(json.folderWorkspaces[fooFile.fsPath], [barFile.fsPath]);
+				assert.deepEqual(json.folderWorkspaces[workspaceResource.fsPath], [fooFile.fsPath]);
 				done();
 			});
 		});
 	});
 
 	test('deregisterResourceForBackup should deregister backups from workspaces.json', done => {
-		backupService.setCurrentWorkspace(fooFile);
-		backupService.registerResourceForBackup(barFile).then(() => {
+		backupService.registerResourceForBackup(fooFile).then(() => {
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
 				const json = <IBackupFormat>JSON.parse(content);
-				assert.deepEqual(json.folderWorkspaces[fooFile.fsPath], [barFile.fsPath]);
-				backupService.deregisterResourceForBackup(barFile).then(() => {
+				assert.deepEqual(json.folderWorkspaces[workspaceResource.fsPath], [fooFile.fsPath]);
+				backupService.deregisterResourceForBackup(fooFile).then(() => {
 					pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
 						const json2 = <IBackupFormat>JSON.parse(content);
-						assert.deepEqual(json2.folderWorkspaces[fooFile.fsPath], []);
+						assert.deepEqual(json2.folderWorkspaces[workspaceResource.fsPath], []);
 						done();
 					});
 				});
@@ -121,9 +120,7 @@ suite('BackupService', () => {
 
 	test('getBackupResource should get the correct backup path for text files', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
-		const workspaceResource = fooFile;
-		backupService.setCurrentWorkspace(workspaceResource);
-		const backupResource = barFile;
+		const backupResource = fooFile;
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
@@ -132,8 +129,6 @@ suite('BackupService', () => {
 
 	test('getBackupResource should get the correct backup path for untitled files', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
-		const workspaceResource = barFile;
-		backupService.setCurrentWorkspace(workspaceResource);
 		const backupResource = Uri.from({ scheme: 'untitled' });
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
@@ -143,9 +138,7 @@ suite('BackupService', () => {
 
 	test('getBackupResource should get the correct backup path for text files', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
-		const workspaceResource = fooFile;
-		backupService.setCurrentWorkspace(workspaceResource);
-		const backupResource = barFile;
+		const backupResource = fooFile;
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
@@ -154,8 +147,6 @@ suite('BackupService', () => {
 
 	test('getBackupResource should get the correct backup path for untitled files', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
-		const workspaceResource = fooFile;
-		backupService.setCurrentWorkspace(workspaceResource);
 		const backupResource = Uri.from({ scheme: 'untitled' });
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
@@ -164,14 +155,13 @@ suite('BackupService', () => {
 	});
 
 	test('doesTextFileHaveBackup should return whether a backup resource exists', done => {
-		backupService.setCurrentWorkspace(fooFile);
-		backupService.doesTextFileHaveBackup(barFile).then(exists => {
+		backupService.doesTextFileHaveBackup(fooFile).then(exists => {
 			assert.equal(exists, false);
-			backupService.registerResourceForBackup(barFile).then(() => {
-				backupService.doesTextFileHaveBackup(barFile).then(exists2 => {
+			backupService.registerResourceForBackup(fooFile).then(() => {
+				backupService.doesTextFileHaveBackup(fooFile).then(exists2 => {
 					assert.equal(exists2, true);
-					backupService.deregisterResourceForBackup(barFile).then(() => {
-						backupService.doesTextFileHaveBackup(barFile).then(exists3 => {
+					backupService.deregisterResourceForBackup(fooFile).then(() => {
+						backupService.doesTextFileHaveBackup(fooFile).then(exists3 => {
 							assert.equal(exists3, false);
 							done();
 						});
