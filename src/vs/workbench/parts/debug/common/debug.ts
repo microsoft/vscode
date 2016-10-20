@@ -207,17 +207,17 @@ export interface IExceptionBreakpoint extends IEnablement {
 
 export interface IViewModel extends ITreeElement {
 	/**
-	 * Returns the focused debug process or null if there are no processes.
+	 * Returns the focused debug process or null if no process is stopped.
 	 */
 	focusedProcess: IProcess;
 
 	/**
-	 * Returns the focused thread or null if there are no threads.
+	 * Returns the focused thread or null if no thread is stopped.
 	 */
 	focusedThread: IThread;
 
 	/**
-	 * Returns the focused stack frame or null if there are no stack frames (debug inactive).
+	 * Returns the focused stack frame or null if there are no stack frames.
 	 */
 	focusedStackFrame: IStackFrame;
 	getSelectedExpression(): IExpression;
