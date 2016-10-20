@@ -44,12 +44,28 @@ export function getEmbeddedContent(languageService: LanguageService, document: T
 }
 
 function substituteWithWhitespace(result, start, end, oldContent) {
+	let accumulatedWS = 0;
 	for (let i = start; i < end; i++) {
 		let ch = oldContent[i];
-		if (ch !== '\n' && ch !== '\r') {
-			ch = ' ';
+		if (ch === '\n' || ch === '\r') {
+			// only write new lines, skip the whitespace
+			accumulatedWS = 0;
+			result += ch;
+		} else {
+			accumulatedWS++;
 		}
-		result += ch;
+	}
+	result = append(result, ' ', accumulatedWS);
+	return result;
+}
+
+function append(result: string, str: string, n: number): string {
+	while (n) {
+		if (n & 1) {
+			result += str;
+		}
+		n >>= 1;
+		str += str;
 	}
 	return result;
 }
