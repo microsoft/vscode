@@ -141,26 +141,26 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
 	}
 
-	private get session(): RawDebugSession {
-		return this.viewModel.focusedProcess ? <RawDebugSession>(<model.Process>this.viewModel.focusedProcess).session : null;
-	}
-
 	private onBroadcast(broadcast: IBroadcast): void {
 
 		// attach: PH is ready to be attached to
+		// TODO@Isidor this is a hack to just get any 'extensionHost' session.
+		// Optimally the broadcast would contain the id of the session
+		// We are only intersted if we have an active debug session for extensionHost
+		const session = <RawDebugSession>this.model.getProcesses().map(p => p.session).filter(s => s.configuration.type === 'extensionHost').pop();
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			this.rawAttach(broadcast.payload.port);
+			this.rawAttach(session, broadcast.payload.port);
 			return;
 		}
 
 		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
-			this.onSessionEnd(this.session);
+			this.onSessionEnd(session);
 			return;
 		}
 
 		// from this point on we require an active session
-		if (!this.session || this.session.configuration.type !== 'extensionHost') {
-			return; // we are only intersted if we have an active debug session for extensionHost
+		if (!session) {
+			return;
 		}
 
 		// a plugin logged output, show it inside the REPL
@@ -720,9 +720,9 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
-	private rawAttach(port: number): TPromise<any> {
-		if (this.session) {
-			return this.session.attach({ port });
+	private rawAttach(session: RawDebugSession, port: number): TPromise<any> {
+		if (session) {
+			return session.attach({ port });
 		}
 
 		this.setStateAndEmit(debug.State.Initializing);
@@ -818,8 +818,9 @@ export class DebugService implements debug.IDebugService {
 
 		if (source.inMemory) {
 			// internal module
-			if (source.reference !== 0 && this.session && source.available) {
-				return this.session.source({ sourceReference: source.reference }).then(response => {
+			const process = this.viewModel.focusedProcess;
+			if (source.reference !== 0 && process && source.available) {
+				return process.session.source({ sourceReference: source.reference }).then(response => {
 					const mime = response && response.body && response.body.mimeType ? response.body.mimeType : guessMimeTypes(source.name)[0];
 					const inputValue = response && response.body ? response.body.content : '';
 					return this.getDebugStringEditorInput(source, inputValue, mime);
