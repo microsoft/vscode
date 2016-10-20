@@ -5,7 +5,6 @@ import { Stream } from 'stream';
 import File = require('vinyl');
 import * as sm from 'source-map';
 import assign = require('object-assign');
-import clone = require('clone');
 import path = require('path');
 
 declare class FileSourceMap extends File {
@@ -35,6 +34,14 @@ function collect(node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.No
 	}
 
 	loop(node);
+	return result;
+}
+
+function clone<T>(object:T): T {
+	var result = <T>{};
+	for (var id in object) {
+		result[id] = object[id];
+	}
 	return result;
 }
 
