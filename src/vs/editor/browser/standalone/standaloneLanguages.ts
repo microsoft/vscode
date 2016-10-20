@@ -403,8 +403,7 @@ class SuggestAdapter {
 
 		return toThenable<CompletionItem[] | CompletionList>(this._provider.provideCompletionItems(model, position, token)).then(value => {
 			const result: modes.ISuggestResult = {
-				suggestions: [],
-				currentWord: '',
+				suggestions: []
 			};
 
 			// default text edit start

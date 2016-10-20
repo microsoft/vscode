@@ -1,0 +1,192 @@
+{
+	"comment": "Lua Syntax: version 0.8",
+	"fileTypes": [
+		"lua"
+	],
+	"firstLineMatch": "\\A#!.*?\\blua\\b",
+	"keyEquivalent": "^~L",
+	"name": "Lua",
+	"patterns": [
+		{
+			"captures": {
+				"1": {
+					"name": "keyword.control.lua"
+				},
+				"2": {
+					"name": "entity.name.function.scope.lua"
+				},
+				"3": {
+					"name": "entity.name.function.lua"
+				},
+				"4": {
+					"name": "punctuation.definition.parameters.begin.lua"
+				},
+				"5": {
+					"name": "variable.parameter.function.lua"
+				},
+				"6": {
+					"name": "punctuation.definition.parameters.end.lua"
+				}
+			},
+			"match": "\\b(function)(?:\\s+([a-zA-Z_.:]+[.:])?([a-zA-Z_]\\w*)\\s*)?(\\()([^)]*)(\\))",
+			"name": "meta.function.lua"
+		},
+		{
+			"match": "(?<![\\d.])\\s0x[a-fA-F\\d]+|\\b\\d+(\\.\\d+)?([eE]-?\\d+)?|\\.\\d+([eE]-?\\d+)?",
+			"name": "constant.numeric.lua"
+		},
+		{
+			"begin": "'",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.lua"
+				}
+			},
+			"end": "'",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.lua"
+				}
+			},
+			"name": "string.quoted.single.lua",
+			"patterns": [
+				{
+					"match": "\\\\.",
+					"name": "constant.character.escape.lua"
+				}
+			]
+		},
+		{
+			"begin": "\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.lua"
+				}
+			},
+			"end": "\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.lua"
+				}
+			},
+			"name": "string.quoted.double.lua",
+			"patterns": [
+				{
+					"match": "\\\\.",
+					"name": "constant.character.escape.lua"
+				}
+			]
+		},
+		{
+			"begin": "(?<=\\.cdef)\\s*(\\[(=*)\\[)",
+			"beginCaptures": {
+				"0": {
+					"name": "string.quoted.other.multiline.lua"
+				},
+				"1": {
+					"name": "punctuation.definition.string.begin.lua"
+				}
+			},
+			"contentName": "meta.embedded.lua",
+			"end": "(\\]\\2\\])",
+			"endCaptures": {
+				"0": {
+					"name": "string.quoted.other.multiline.lua"
+				},
+				"1": {
+					"name": "punctuation.definition.string.end.lua"
+				}
+			},
+			"patterns": [
+				{
+					"include": "source.c"
+				}
+			]
+		},
+		{
+			"begin": "(?<!--)\\[(=*)\\[",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.lua"
+				}
+			},
+			"end": "\\]\\1\\]",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.lua"
+				}
+			},
+			"name": "string.quoted.other.multiline.lua"
+		},
+		{
+			"begin": "--\\[(=*)\\[",
+			"captures": {
+				"0": {
+					"name": "punctuation.definition.comment.lua"
+				}
+			},
+			"end": "\\]\\1\\]",
+			"name": "comment.block.lua"
+		},
+		{
+			"begin": "(^[ \\t]+)?(?=--(?!\\[\\[))",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.whitespace.comment.leading.lua"
+				}
+			},
+			"end": "(?!\\G)",
+			"patterns": [
+				{
+					"begin": "--",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.lua"
+						}
+					},
+					"end": "\\n",
+					"name": "comment.line.double-dash.lua"
+				}
+			]
+		},
+		{
+			"match": "\\b(break|do|else|for|if|elseif|return|then|repeat|while|until|end|function|local|in)\\b",
+			"name": "keyword.control.lua"
+		},
+		{
+			"match": "(?<![^.]\\.|:)\\b(false|nil|true|_G|_VERSION|math\\.(pi|huge))\\b|(?<![.])\\.{3}(?!\\.)",
+			"name": "constant.language.lua"
+		},
+		{
+			"match": "(?<![^.]\\.|:)\\b(self)\\b",
+			"name": "variable.language.self.lua"
+		},
+		{
+			"match": "(?<![^.]\\.|:)\\b(assert|collectgarbage|dofile|error|getfenv|getmetatable|ipairs|loadfile|loadstring|module|next|pairs|pcall|print|rawequal|rawget|rawset|require|select|setfenv|setmetatable|tonumber|tostring|type|unpack|xpcall)\\b(?=\\s*(?:[({\"']|\\[\\[))",
+			"name": "support.function.lua"
+		},
+		{
+			"match": "(?<![^.]\\.|:)\\b(coroutine\\.(create|resume|running|status|wrap|yield)|string\\.(byte|char|dump|find|format|gmatch|gsub|len|lower|match|rep|reverse|sub|upper)|table\\.(concat|insert|maxn|remove|sort)|math\\.(abs|acos|asin|atan2?|ceil|cosh?|deg|exp|floor|fmod|frexp|ldexp|log|log10|max|min|modf|pow|rad|random|randomseed|sinh?|sqrt|tanh?)|io\\.(close|flush|input|lines|open|output|popen|read|tmpfile|type|write)|os\\.(clock|date|difftime|execute|exit|getenv|remove|rename|setlocale|time|tmpname)|package\\.(cpath|loaded|loadlib|path|preload|seeall)|debug\\.(debug|[gs]etfenv|[gs]ethook|getinfo|[gs]etlocal|[gs]etmetatable|getregistry|[gs]etupvalue|traceback))\\b(?=\\s*(?:[({\"']|\\[\\[))",
+			"name": "support.function.library.lua"
+		},
+		{
+			"match": "\\b(and|or|not)\\b",
+			"name": "keyword.operator.lua"
+		},
+		{
+			"match": "\\b([A-Za-z_]\\w*)\\b(?=\\s*(?:[({\"']|\\[\\[))",
+			"name": "support.function.any-method.lua"
+		},
+		{
+			"match": "(?<=[^.]\\.|:)\\b([A-Za-z_]\\w*)",
+			"name": "variable.other.lua"
+		},
+		{
+			"match": "\\+|-|%|#|\\*|\\/|\\^|==?|~=|<=?|>=?|(?<!\\.)\\.{2}(?!\\.)",
+			"name": "keyword.operator.lua"
+		}
+	],
+	"scopeName": "source.lua",
+	"uuid": "93E017CC-6F27-11D9-90EB-000D93589AF7",
+	"version": "https://github.com/textmate/lua.tmbundle/commit/609fe340f40b31f4189dabbb38f885b58cf0dd26"
+}

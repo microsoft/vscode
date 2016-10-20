@@ -13,10 +13,11 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Storage, InMemoryLocalStorage } from 'vs/workbench/node/storage';
+import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
+import {IBackupService} from 'vs/platform/backup/common/backup';
 import { IConfigurationService, getConfigurationValue, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -110,9 +111,10 @@ export class TestTextFileService extends TextFileService {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IBackupService backupService: IBackupService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService, backupService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -173,6 +175,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHistoryService, 'getHistory', []);
 	instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	instantiationService.stub(IFileService, TestFileService);
+	instantiationService.stub(IBackupService, new TestBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
@@ -304,11 +307,6 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 	getBoolean(key: string, scope: StorageScope = StorageScope.GLOBAL, defaultValue?: boolean): boolean {
 		return this.storage.getBoolean(key, scope, defaultValue);
 	}
-
-	getStoragePath(scope: StorageScope = StorageScope.GLOBAL): string {
-		return this.storage.getStoragePath(scope);
-	}
-
 }
 
 export class TestEditorGroupService implements IEditorGroupService {
@@ -574,6 +572,68 @@ export const TestFileService = {
 				name: paths.basename(res.fsPath)
 			};
 		});
+	},
+
+	backupFile: function (resource: URI, content: string) {
+		return TPromise.as(void 0);
+	},
+
+	discardBackup: function (resource: URI) {
+		return TPromise.as(void 0);
+	},
+
+	discardBackups: function () {
+		return TPromise.as(void 0);
+	},
+
+	isHotExitEnabled: function () {
+		return false;
+	}
+};
+
+export class TestBackupService implements IBackupService {
+	public _serviceBrand: any;
+
+	// Lists used for verification in tests
+	public registeredResources: URI[] = [];
+	public deregisteredResources: URI[] = [];
+
+	public getWorkspaceBackupPaths(): TPromise<string[]> {
+		return TPromise.as([]);
+	}
+
+	public getWorkspaceBackupPathsSync(): string[] {
+		return [];
+	}
+
+	public pushWorkspaceBackupPathsSync(workspaces: URI[]): void {
+		return null;
+	}
+
+	public removeWorkspaceBackupPath(workspace: URI): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	public getWorkspaceTextFilesWithBackupsSync(workspace: URI): string[] {
+		return [];
+	}
+
+	public getWorkspaceUntitledFileBackupsSync(workspace: URI): string[] {
+		return [];
+	}
+
+	public registerResourceForBackup(resource: URI): TPromise<void> {
+		this.registeredResources.push(resource);
+		return TPromise.as(void 0);
+	}
+
+	public deregisterResourceForBackup(resource: URI): TPromise<void> {
+		this.deregisteredResources.push(resource);
+		return TPromise.as(void 0);
+	}
+
+	public getBackupResource(resource: URI): URI {
+		return null;
 	}
 };
 

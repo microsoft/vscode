@@ -16,10 +16,13 @@ import { Delayer } from 'vs/base/common/async';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
+import Uri from 'vs/base/common/uri';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { IOptions } from 'vs/workbench/common/options';
+import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions, TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
@@ -159,7 +162,8 @@ export class Workbench implements IPartService {
 		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IBackupService private backupService: IBackupService
 	) {
 		this.container = container;
 
@@ -169,7 +173,22 @@ export class Workbench implements IPartService {
 			serviceCollection
 		};
 
-		this.hasFilesToCreateOpenOrDiff = (options.filesToCreate && options.filesToCreate.length > 0) || (options.filesToOpen && options.filesToOpen.length > 0) || (options.filesToDiff && options.filesToDiff.length > 0);
+		// Restore any backups if they exist for this workspace (empty workspaces are not supported yet)
+		if (workspace) {
+			options.filesToRestore = this.backupService.getWorkspaceTextFilesWithBackupsSync(workspace.resource).map(filePath => {
+				return { resource: Uri.file(filePath), options: { pinned: true } };
+			});
+			options.untitledFilesToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(workspace.resource).map(untitledFilePath => {
+				return { resource: Uri.file(untitledFilePath), options: { pinned: true } };
+			});
+		}
+
+		this.hasFilesToCreateOpenOrDiff =
+			(options.filesToCreate && options.filesToCreate.length > 0) ||
+			(options.filesToOpen && options.filesToOpen.length > 0) ||
+			(options.filesToDiff && options.filesToDiff.length > 0) ||
+			(options.filesToRestore && options.filesToRestore.length > 0) ||
+			(options.untitledFilesToRestore && options.untitledFilesToRestore.length > 0);
 
 		this.toDispose = [];
 		this.toShutdown = [];
@@ -221,7 +240,7 @@ export class Workbench implements IPartService {
 			const compositeAndEditorPromises: TPromise<any>[] = [];
 
 			// Load Viewlet
-			const viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+			const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 			let viewletId = viewletRegistry.getDefaultViewletId();
 			if (this.shouldRestoreSidebar()) {
 				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId()); // help developers and restore last view
@@ -233,7 +252,7 @@ export class Workbench implements IPartService {
 			}
 
 			// Load Panel
-			const panelRegistry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
+			const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
 			const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
 			if (!this.panelHidden && !!panelId) {
 				compositeAndEditorPromises.push(this.panelPart.openPanel(panelId, false));
@@ -248,7 +267,7 @@ export class Workbench implements IPartService {
 						return {
 							input: inputWithOptions.input,
 							options: inputWithOptions.options,
-							position: Position.LEFT
+							position: EditorPosition.ONE
 						};
 					});
 
@@ -296,6 +315,8 @@ export class Workbench implements IPartService {
 			const wbopt = this.workbenchParams.options;
 			const filesToCreate = wbopt.filesToCreate || [];
 			const filesToOpen = wbopt.filesToOpen || [];
+			const filesToRestore = wbopt.filesToRestore || [];
+			const untitledFilesToRestore = wbopt.untitledFilesToRestore || [];
 			const filesToDiff = wbopt.filesToDiff;
 
 			// Files to diff is exclusive
@@ -314,10 +335,17 @@ export class Workbench implements IPartService {
 				inputs.push(...filesToCreate.map(resourceInput => this.untitledEditorService.createOrGet(resourceInput.resource)));
 				options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
 
+				// Files to restore
+				inputs.push(...untitledFilesToRestore.map(resourceInput => this.untitledEditorService.createOrGet(null, null, resourceInput.resource)));
+				options.push(...untitledFilesToRestore.map(r => null)); // fill empty options for files to create because we dont have options there
+
 				// Files to open
-				return TPromise.join<EditorInput>(filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput))).then((inputsToOpen) => {
+				let filesToOpenInputPromise = filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput));
+				let filesToRestoreInputPromise = filesToRestore.map(resourceInput => this.editorService.createInput(resourceInput, true));
+
+				return TPromise.join<EditorInput>(filesToOpenInputPromise.concat(filesToRestoreInputPromise)).then((inputsToOpen) => {
 					inputs.push(...inputsToOpen);
-					options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
+					options.push(...filesToOpen.concat(filesToRestore).map(resourceInput => TextEditorOptions.from(resourceInput)));
 
 					return inputs.map((input, index) => { return { input, options: options[index] }; });
 				});
@@ -326,6 +354,7 @@ export class Workbench implements IPartService {
 
 		// Empty workbench
 		else if (!this.workbenchParams.workspace && this.telemetryService.getExperiments().openUntitledFile) {
+			// some first time users will not have an untiled file; returning users will always have one
 			return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
 		}
 
@@ -417,9 +446,9 @@ export class Workbench implements IPartService {
 		}
 
 		// Set the some services to registries that have been created eagerly
-		<IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);
-		<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench).setInstantiationService(this.instantiationService);
-		<IEditorRegistry>Registry.as(EditorExtensions.Editors).setInstantiationService(this.instantiationService);
+		Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);
+		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).setInstantiationService(this.instantiationService);
+		Registry.as<IEditorRegistry>(EditorExtensions.Editors).setInstantiationService(this.instantiationService);
 	}
 
 	private initSettings(): void {
@@ -427,16 +456,17 @@ export class Workbench implements IPartService {
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
 		if (!this.contextService.getWorkspace()) {
+			// some first time users will see a sidebar; returning users will not see the sidebar
 			this.sideBarHidden = !this.telemetryService.getExperiments().showDefaultViewlet;
 		}
 
-		const viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 		if (!viewletRegistry.getDefaultViewletId()) {
 			this.sideBarHidden = true; // can only hide sidebar if we dont have a default Viewlet id
 		}
 
 		// Panel part visibility
-		const panelRegistry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
+		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
 		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, true);
 		if (!this.contextService.getWorkspace() || !panelRegistry.getDefaultPanelId()) {
 			this.panelHidden = true; // we hide panel part in single-file-mode or if there is no default panel
@@ -523,7 +553,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout(true);
+			this.workbenchLayout.layout({ forceStyleReCompute: true });
 		}
 	}
 
@@ -543,7 +573,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout(true);
+			this.workbenchLayout.layout({ forceStyleReCompute: true });
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
@@ -559,7 +589,7 @@ export class Workbench implements IPartService {
 
 		// If sidebar becomes visible, show last active Viewlet or default viewlet
 		else if (!hidden && !this.sidebarPart.getActiveViewlet()) {
-			const registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+			const registry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 			const viewletToOpen = this.sidebarPart.getLastActiveViewletId() || registry.getDefaultViewletId();
 			if (viewletToOpen) {
 				this.sidebarPart.openViewlet(viewletToOpen, true).done(null, errors.onUnexpectedError);
@@ -586,7 +616,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout(true);
+			this.workbenchLayout.layout({ forceStyleReCompute: true });
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
@@ -602,7 +632,7 @@ export class Workbench implements IPartService {
 
 		// If panel part becomes visible, show last active panel or default panel
 		else if (!hidden && !this.panelPart.getActivePanel()) {
-			const registry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
+			const registry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
 			const panelToOpen = this.panelPart.getLastActivePanelId() || registry.getDefaultPanelId();
 			if (panelToOpen) {
 				this.panelPart.openPanel(panelToOpen, true).done(null, errors.onUnexpectedError);
@@ -614,7 +644,7 @@ export class Workbench implements IPartService {
 	}
 
 	public toggleMaximizedPanel(): void {
-		this.workbenchLayout.layout(true, true);
+		this.workbenchLayout.layout({ forceStyleReCompute: true, toggleMaximizedPanel: true });
 	}
 
 	public getSideBarPosition(): Position {
@@ -637,7 +667,7 @@ export class Workbench implements IPartService {
 		this.sidebarPart.getContainer().addClass(newPositionValue);
 
 		// Layout
-		this.workbenchLayout.layout(true);
+		this.workbenchLayout.layout({ forceStyleReCompute: true });
 	}
 
 	public dispose(): void {

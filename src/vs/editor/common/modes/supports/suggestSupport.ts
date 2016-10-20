@@ -6,7 +6,7 @@
 
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
-import { IFilter, matchesPrefix, fuzzyContiguousFilter } from 'vs/base/common/filters';
+import { IFilter, matchesPrefix } from 'vs/base/common/filters';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -37,16 +37,4 @@ export class TextualSuggestSupport implements ISuggestSupport {
 			return wireCancellationToken(token, this._editorWorkerService.textualSuggest(model.uri, position));
 		}
 	}
-}
-
-export function filterSuggestions(value: ISuggestResult): ISuggestResult {
-	if (!value) {
-		return;
-	}
-
-	return {
-		currentWord: value.currentWord,
-		suggestions: value.suggestions.filter((element) => !!fuzzyContiguousFilter(value.currentWord, element.label)),
-		incomplete: value.incomplete
-	};
 }

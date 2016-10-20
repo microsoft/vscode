@@ -39,8 +39,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.7.2' },
-	{ name: 'ms-vscode.node-debug2', version: '0.0.8' }
+	{ name: 'ms-vscode.node-debug', version: '1.7.3' },
+	{ name: 'ms-vscode.node-debug2', version: '0.1.1' }
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -227,8 +227,7 @@ function packageTask(platform, arch, opts) {
 		}));
 
 		const sources = es.merge(src, extensions, marketplaceExtensions)
-			.pipe(filter(['**', '!**/*.js.map']))
-			.pipe(util.handleAzureJson({ platform }));
+			.pipe(filter(['**', '!**/*.js.map']));
 
 		let version = packageJson.version;
 		const quality = product.quality;

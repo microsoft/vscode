@@ -88,7 +88,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
 		let command = this._commands[id];
 		if (!command) {
-			return Promise.reject<T>(`Contributed command '${id}' does not exist.`);
+			return TPromise.wrapError<T>(`Contributed command '${id}' does not exist.`);
 		}
 
 		let {callback, thisArg, description} = command;
@@ -98,14 +98,14 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 				try {
 					validateConstraint(args[i], description.args[i].constraint);
 				} catch (err) {
-					return Promise.reject<T>(`Running the contributed command:'${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`);
+					return TPromise.wrapError<T>(`Running the contributed command:'${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`);
 				}
 			}
 		}
 
 		try {
 			let result = callback.apply(thisArg, args);
-			return Promise.resolve(result);
+			return TPromise.as(result);
 		} catch (err) {
 			// console.log(err);
 			// try {
@@ -113,7 +113,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 			// } catch (err) {
 			// 	//
 			// }
-			return Promise.reject<T>(`Running the contributed command:'${id}' failed.`);
+			return TPromise.wrapError<T>(`Running the contributed command:'${id}' failed.`);
 		}
 	}
 

@@ -24,40 +24,22 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Colorizer } from 'vs/editor/browser/standalone/colorizer';
 import { View } from 'vs/editor/browser/view/viewImpl';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import Event, { Emitter, fromEventEmitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
-	public onMouseUp(listener: (e: editorBrowser.IEditorMouseEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.MouseUp, listener);
-	}
-	public onMouseDown(listener: (e: editorBrowser.IEditorMouseEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.MouseDown, listener);
-	}
-	public onContextMenu(listener: (e: editorBrowser.IEditorMouseEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ContextMenu, listener);
-	}
-	public onMouseMove(listener: (e: editorBrowser.IEditorMouseEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.MouseMove, listener);
-	}
-	public onMouseLeave(listener: (e: editorBrowser.IEditorMouseEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.MouseLeave, listener);
-	}
-	public onKeyUp(listener: (e: IKeyboardEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.KeyUp, listener);
-	}
-	public onKeyDown(listener: (e: IKeyboardEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.KeyDown, listener);
-	}
-	public onDidLayoutChange(listener: (e: editorCommon.EditorLayoutInfo) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.EditorLayout, listener);
-	}
-	public onDidScrollChange(listener: (e: editorCommon.IScrollEvent) => void): IDisposable {
-		return this.addListener2('scroll', listener);
-	}
+	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseUp);
+	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDown);
+	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.ContextMenu);
+	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseMove);
+	public readonly onMouseLeave: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseLeave);
+	public readonly onKeyUp: Event<IKeyboardEvent> = fromEventEmitter(this, editorCommon.EventType.KeyUp);
+	public readonly onKeyDown: Event<IKeyboardEvent> = fromEventEmitter(this, editorCommon.EventType.KeyDown);
+	public readonly onDidLayoutChange: Event<editorCommon.EditorLayoutInfo> = fromEventEmitter(this, editorCommon.EventType.EditorLayout);
+	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = fromEventEmitter(this, 'scroll');
 
 	private _codeEditorService: ICodeEditorService;
 	private _commandService: ICommandService;

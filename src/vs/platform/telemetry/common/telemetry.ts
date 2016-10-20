@@ -66,16 +66,27 @@ export const NullTelemetryService = {
 };
 
 export function loadExperiments(storageService: IStorageService, configurationService: IConfigurationService): ITelemetryExperiments {
+
 	const key = 'experiments.randomness';
 	let valueString = storageService.get(key);
 	if (!valueString) {
 		valueString = Math.random().toString();
 		storageService.store(key, valueString);
 	}
+
 	const random0 = parseFloat(valueString);
-	const [random1, showDefaultViewlet] = splitRandom(random0);
+	let [random1, showDefaultViewlet] = splitRandom(random0);
 	const [random2, showCommandsWatermark] = splitRandom(random1);
-	const [, openUntitledFile] = splitRandom(random2);
+	let [, openUntitledFile] = splitRandom(random2);
+
+	// is the user a first time user?
+	let isNewSession = storageService.get('telemetry.lastSessionDate') ? false : true;
+	if (!isNewSession) {
+		// for returning users we fall back to the default configuration for the sidebar and the initially opened, empty editor
+		showDefaultViewlet = defaultExperiments.showDefaultViewlet;
+		openUntitledFile = defaultExperiments.openUntitledFile;
+	}
+
 	return applyOverrides(configurationService, {
 		showDefaultViewlet,
 		showCommandsWatermark,

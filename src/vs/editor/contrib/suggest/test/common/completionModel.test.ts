@@ -26,7 +26,6 @@ suite('CompletionModel', function () {
 			};
 
 			container: ISuggestResult = {
-				currentWord: '',
 				incomplete,
 				suggestions: [this.suggestion]
 			};

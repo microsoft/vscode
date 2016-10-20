@@ -225,7 +225,10 @@ export class SwitchTerminalInstanceAction extends Action {
 	}
 
 	public run(item?: string): TPromise<any> {
-		let selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
+		if (!item) {
+			return TPromise.as(null);
+		}
+		const selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveInstanceByIndex(selectedTerminalIndex);
 		return this.terminalService.showPanel(true);
 	}

@@ -12,7 +12,7 @@ import Event from 'vs/base/common/event';
 
 export enum GroupArrangement {
 	MINIMIZE_OTHERS,
-	EVEN_WIDTH
+	EVEN
 }
 
 export const IEditorGroupService = createDecorator<IEditorGroupService>('editorGroupService');

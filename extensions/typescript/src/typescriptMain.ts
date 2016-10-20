@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, Uri, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter } from 'vscode';
+import { env, languages, commands, workspace, window, Uri, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -103,6 +103,7 @@ class LanguageProvider {
 
 	private completionItemProvider: CompletionItemProvider;
 	private formattingProvider: FormattingProvider;
+	private formattingProviderRegistration: Disposable;
 
 	private _validate: boolean;
 
@@ -147,6 +148,9 @@ class LanguageProvider {
 		let renameProvider = new RenameProvider(client);
 		this.formattingProvider = new FormattingProvider(client);
 		this.formattingProvider.updateConfiguration(config);
+		if (this.formattingProvider.isEnabled) {
+			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
+		}
 
 		this.description.modeIds.forEach(modeId => {
 			let selector: DocumentFilter = { scheme: 'file', language: modeId };
@@ -158,7 +162,6 @@ class LanguageProvider {
 			languages.registerDocumentSymbolProvider(selector, documentSymbolProvider);
 			languages.registerSignatureHelpProvider(selector, signatureHelpProvider, '(', ',');
 			languages.registerRenameProvider(selector, renameProvider);
-			languages.registerDocumentRangeFormattingEditProvider(selector, this.formattingProvider);
 			languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n');
 			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
 			languages.setLanguageConfiguration(modeId, {
@@ -209,6 +212,13 @@ class LanguageProvider {
 		}
 		if (this.formattingProvider) {
 			this.formattingProvider.updateConfiguration(config);
+			if (!this.formattingProvider.isEnabled() && this.formattingProviderRegistration) {
+				this.formattingProviderRegistration.dispose();
+				this.formattingProviderRegistration = undefined;
+
+			} else if (this.formattingProvider.isEnabled() && !this.formattingProviderRegistration) {
+				this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
+			}
 		}
 	}
 

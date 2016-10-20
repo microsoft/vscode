@@ -12,6 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { fromRange } from 'vs/workbench/api/node/extHostTypeConverters';
 import { Uri, CancellationToken } from 'vscode';
 import { MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
+import * as vscode from 'vscode';
 
 export class ExtHostWorkspace {
 
