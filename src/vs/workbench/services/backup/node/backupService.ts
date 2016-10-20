@@ -8,27 +8,22 @@
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as arrays from 'vs/base/common/arrays';
-import fs = require('fs');
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
-import { IBackupService } from 'vs/platform/backup/common/backup';
+import { IBackupFormat } from 'vs/platform/backup/common/backup';
+import { IBackupService } from 'vs/workbench/services/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
-
-interface IBackupFormat {
-	folderWorkspaces?: {
-		[workspacePath: string]: string[]
-	};
-}
 
 export class BackupService implements IBackupService {
 
 	public _serviceBrand: any;
 
+	protected backupHome: string;
+	protected backupWorkspacesPath: string;
+
 	private workspaceResource: Uri;
 	private fileContent: IBackupFormat;
-	private backupHome: string;
-	private backupWorkspacesPath: string;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService
@@ -41,41 +36,10 @@ export class BackupService implements IBackupService {
 		this.workspaceResource = resource;
 	}
 
-	/**
-	 * Due to the Environment service not being initialized when it's needed on the main thread
-	 * side, this is here so that tests can override the paths pulled from it.
-	 */
-	public setBackupPathsForTest(backupHome: string, backupWorkspacesPath: string) {
-		this.backupHome = backupHome;
-		this.backupWorkspacesPath = backupWorkspacesPath;
-	}
-
 	public getWorkspaceBackupPaths(): TPromise<string[]> {
 		return this.load().then(() => {
 			return Object.keys(this.fileContent.folderWorkspaces);
 		});
-	}
-
-	public getWorkspaceBackupPathsSync(): string[] {
-		this.disallowOnRendererProcess();
-		this.loadSync();
-		return Object.keys(this.fileContent.folderWorkspaces);
-	}
-
-	public pushWorkspaceBackupPathsSync(workspaces: Uri[]): void {
-		this.disallowOnRendererProcess();
-		this.loadSync();
-		workspaces.forEach(workspace => {
-			// Hot exit is disabled for empty workspaces
-			if (!workspace) {
-				return;
-			}
-
-			if (!this.fileContent.folderWorkspaces[workspace.fsPath]) {
-				this.fileContent.folderWorkspaces[workspace.fsPath] = [];
-			}
-		});
-		this.saveSync();
 	}
 
 	public removeWorkspaceBackupPath(workspace: Uri): TPromise<void> {
@@ -86,23 +50,6 @@ export class BackupService implements IBackupService {
 			delete this.fileContent.folderWorkspaces[workspace.fsPath];
 			return this.save();
 		});
-	}
-
-	public getWorkspaceTextFilesWithBackupsSync(workspace: Uri): string[] {
-		this.disallowOnRendererProcess();
-		this.loadSync();
-		return this.fileContent.folderWorkspaces[workspace.fsPath] || [];
-	}
-
-	public getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[] {
-		this.disallowOnRendererProcess();
-		const workspaceHash = crypto.createHash('md5').update(workspace.fsPath).digest('hex');
-		const untitledDir = path.join(this.backupHome, workspaceHash, 'untitled');
-		try {
-			return fs.readdirSync(untitledDir).map(file => path.join(untitledDir, file));
-		} catch (ex) {
-			return [];
-		}
 	}
 
 	public doesTextFileHaveBackup(resource: Uri): TPromise<boolean> {
@@ -182,47 +129,10 @@ export class BackupService implements IBackupService {
 		});
 	}
 
-	private loadSync(): void {
-		if (fs.existsSync(this.backupWorkspacesPath)) {
-			try {
-				this.fileContent = JSON.parse(fs.readFileSync(this.backupWorkspacesPath, 'utf8').toString()); // invalid JSON or permission issue can happen here
-			} catch (error) {
-				this.fileContent = Object.create(null);
-			}
-		} else {
-			this.fileContent = Object.create(null);
-		}
-
-		if (!this.fileContent.folderWorkspaces) {
-			this.fileContent.folderWorkspaces = Object.create(null);
-		}
-	}
-
 	private save(): TPromise<void> {
 		const data = JSON.stringify(this.fileContent);
 		return pfs.mkdirp(this.backupHome).then(() => {
 			return pfs.writeFile(this.backupWorkspacesPath, data);
 		});
-	}
-
-	private saveSync(): void {
-		try {
-			// The user data directory must exist so only the Backup directory needs to be checked.
-			if (!fs.existsSync(this.backupHome)) {
-				fs.mkdirSync(this.backupHome);
-			}
-			fs.writeFileSync(this.backupWorkspacesPath, JSON.stringify(this.fileContent));
-		} catch (ex) {
-		}
-	}
-
-	/**
-	 * Only allow this on the main thread in the window initialization's critical path due to
-	 * the usage of synchronous IO.
-	 */
-	private disallowOnRendererProcess(): void {
-		if (this.workspaceResource) {
-			throw new Error('This should only be called on the main process');
-		}
 	}
 }
