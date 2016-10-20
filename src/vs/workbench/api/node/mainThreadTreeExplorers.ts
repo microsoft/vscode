@@ -35,8 +35,4 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 			}
 		});
 	}
-
-	$unregisterTreeExplorerNodeProvider(providerId: string): void {
-
-	}
 }

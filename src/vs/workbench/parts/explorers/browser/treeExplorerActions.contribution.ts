@@ -39,7 +39,7 @@ export class ToggleExternalViewletAction extends Action {
 			});
 		}
 
-		return TPromise.timeout(50).then(() => {
+		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
 			this.quickOpenService.pick(picks, { placeHolder: 'Select Viewlet to toggle', autoFocus: 2 }).then(pick => {
 				if (pick) {
 					this.activityService.toggleViewlet(pick.id);
