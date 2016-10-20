@@ -13,7 +13,8 @@
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
     "watch": "gulp watch",
-    "monaco-editor-setup": "node scripts/monaco-editor-setup.js"
+    "monaco-editor-setup": "node scripts/monaco-editor-setup.js",
+    "monaco-editor-test": "mocha --only-monaco-editor"
   },
   "dependencies": {
     "applicationinsights": "0.15.6",
@@ -37,7 +38,6 @@
     "yauzl": "2.3.1"
   },
   "devDependencies": {
-    "async": "^1.4.0",
     "azure-storage": "^0.3.1",
     "clean-css": "3.4.6",
     "coveralls": "^2.11.11",

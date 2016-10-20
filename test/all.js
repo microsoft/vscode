@@ -13,7 +13,6 @@ var istanbul = require('istanbul');
 var i_remap = require('remap-istanbul/lib/remap');
 var jsdom = require('jsdom-no-contextify');
 var minimatch = require('minimatch');
-var async = require('async');
 var fs = require('fs');
 var vm = require('vm');
 var TEST_GLOB = '**/test/**/*.test.js';
@@ -23,6 +22,7 @@ var optimist = require('optimist')
 	.describe('build', 'Run from out-build').boolean('build')
 	.describe('run', 'Run a single file').string('run')
 	.describe('coverage', 'Generate a coverage report').boolean('coverage')
+	.describe('only-monaco-editor', 'Run only monaco editor tests').boolean('only-monaco-editor')
 	.describe('forceLoad', 'Force loading').boolean('forceLoad')
 	.describe('browser', 'Run tests in a browser').boolean('browser')
 	.alias('h', 'help').boolean('h')
@@ -38,42 +38,6 @@ if (argv.help) {
 var out = argv.build ? 'out-build' : 'out';
 var loader = require('../' + out + '/vs/loader');
 var src = path.join(path.dirname(__dirname), out);
-
-function loadSingleTest(test) {
-	var moduleId = path.relative(src, path.resolve(test)).replace(/\.js$/, '');
-
-	return function (cb) {
-		define([moduleId], function () {
-			cb(null);
-		}, cb);
-	};
-}
-
-function loadClientTests(cb) {
-	glob(TEST_GLOB, { cwd: src }, function (err, files) {
-		var modules = files.map(function (file) {
-			return file.replace(/\.js$/, '');
-		});
-
-		// load all modules with the AMD loader
-		define(modules, function () {
-			cb(null);
-		}, cb);
-	});
-}
-
-function loadPluginTests(cb) {
-	var root = path.join(path.dirname(__dirname), 'extensions');
-	glob(TEST_GLOB, { cwd: root }, function (err, files) {
-
-		// load modules with commonjs
-		var modules = files.map(function (file) {
-			return '../extensions/' + file.replace(/\.js$/, '');
-		});
-		modules.forEach(require);
-		cb(null);
-	});
-}
 
 function main() {
 	process.on('uncaughtException', function (e) {
@@ -210,20 +174,50 @@ function main() {
 		write.apply(process.stderr, arguments);
 	};
 
-	var loadTasks = [];
+	var loadFunc = null;
 
 	if (argv.run) {
 		var tests = (typeof argv.run === 'string') ? [argv.run] : argv.run;
-
-		loadTasks = loadTasks.concat(tests.map(function (test) {
-			return loadSingleTest(test);
-		}));
+		var modulesToLoad = tests.map(function(test) {
+			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
+		});
+		loadFunc = function(cb) {
+			define(modulesToLoad, function () { cb(null); }, cb);
+		};
+	} else if (argv['only-monaco-editor']) {
+		loadFunc = function(cb) {
+			glob(TEST_GLOB, { cwd: src }, function (err, files) {
+				var modulesToLoad = files.map(function (file) {
+					return file.replace(/\.js$/, '');
+				});
+				modulesToLoad = modulesToLoad.filter(function(module) {
+					if (/^vs\/workbench\//.test(module)) {
+						return false;
+					}
+					// platform tests drag in the workbench.
+					// see https://github.com/Microsoft/vscode/commit/12eaba2f64c69247de105c3d9c47308ac6e44bc9
+					// and cry a little
+					if (/^vs\/platform\//.test(module)) {
+						return false;
+					}
+					return !/(\/|\\)node(\/|\\)/.test(module);
+				});
+				console.log(JSON.stringify(modulesToLoad, null, '\t'));
+				define(modulesToLoad, function () { cb(null); }, cb);
+			});
+		};
 	} else {
-		loadTasks.push(loadClientTests);
-		loadTasks.push(loadPluginTests);
+		loadFunc = function(cb) {
+			glob(TEST_GLOB, { cwd: src }, function (err, files) {
+				var modulesToLoad = files.map(function (file) {
+					return file.replace(/\.js$/, '');
+				});
+				define(modulesToLoad, function () { cb(null); }, cb);
+			});
+		};
 	}
 
-	async.parallel(loadTasks, function (err) {
+	loadFunc(function(err) {
 		if (err) {
 			console.error(err);
 			return process.exit(1);
