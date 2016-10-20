@@ -86,6 +86,7 @@ export interface ISession {
 
 	completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse>;
 	setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse>;
+	source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
 }
 
 export interface IProcess extends ITreeElement {
