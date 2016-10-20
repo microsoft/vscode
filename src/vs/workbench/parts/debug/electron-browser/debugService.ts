@@ -499,26 +499,6 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeReplExpressions();
 	}
 
-	public setVariable(variable: debug.IExpression, value: string): TPromise<any> {
-		if (!this.session || !(variable instanceof model.Variable)) {
-			return TPromise.as(null);
-		}
-
-		return this.session.setVariable({
-			name: variable.name,
-			value,
-			variablesReference: (<model.Variable>variable).parent.reference
-		}).then(response => {
-			if (response && response.body) {
-				variable.value = response.body.value;
-			}
-			// Evaluate all watch expressions again since changing variable value might have changed some #8118.
-			return this.setFocusedStackFrameAndEvaluate(this.viewModel.focusedStackFrame);
-		}, err => {
-			(<model.Variable>variable).errorMessage = err.message;
-		});
-	}
-
 	public addWatchExpression(name: string): TPromise<void> {
 		return this.model.addWatchExpression(this.viewModel.focusedStackFrame, name);
 	}
