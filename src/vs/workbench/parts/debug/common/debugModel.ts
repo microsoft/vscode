@@ -467,7 +467,7 @@ export class Process implements debug.IProcess {
 
 	private threads: { [reference: number]: debug.IThread; };
 
-	constructor(private _session: debug.ISession & debug.ITreeElement) {
+	constructor(public name: string, private _session: debug.ISession & debug.ITreeElement) {
 		this.threads = {};
 	}
 
@@ -644,8 +644,8 @@ export class Model implements debug.IModel {
 		return this.processes;
 	}
 
-	public addProcess(session: debug.ISession & debug.ITreeElement): void {
-		this.processes.push(new Process(session));
+	public addProcess(name: string, session: debug.ISession & debug.ITreeElement): void {
+		this.processes.push(new Process(name, session));
 	}
 
 	public removeProcess(id: string): void {
