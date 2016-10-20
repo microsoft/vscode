@@ -152,7 +152,12 @@ export class RestartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const process = this.debugService.getViewModel().focusedProcess;
+		let process = this.debugService.getViewModel().focusedProcess;
+		if (!process) {
+			const processes = this.debugService.getModel().getProcesses();
+			process = processes.length > 0 ? processes[0] : null;
+		}
+
 		return this.debugService.restartSession(process ? process.session : null);
 	}
 
@@ -326,7 +331,7 @@ export class PauseAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread.pause();
+		return thread ? thread.pause() : TPromise.as(null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
