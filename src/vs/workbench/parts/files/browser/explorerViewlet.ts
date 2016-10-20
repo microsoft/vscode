@@ -39,6 +39,8 @@ export class ExplorerViewlet extends Viewlet {
 
 	private explorerView: ExplorerView;
 	private openEditorsView: OpenEditorsView;
+	private emptyView: EmptyView;
+
 	private openEditorsVisible: boolean;
 	private lastFocusedView: ExplorerView | OpenEditorsView | EmptyView;
 	private focusListener: IDisposable;
@@ -84,9 +86,13 @@ export class ExplorerViewlet extends Viewlet {
 	public getActions(): IAction[] {
 		if (this.openEditorsVisible) {
 			return [];
-		} else {
+		}
+
+		if (this.explorerView) {
 			return this.explorerView.getActions();
 		}
+
+		return [];
 	}
 
 	private onConfigurationUpdated(config: IFilesConfiguration): TPromise<void> {
@@ -142,7 +148,7 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	private addExplorerView(): void {
-		let explorerView: ExplorerView | EmptyView;
+		let explorerOrEmptyView: ExplorerView | EmptyView;
 
 		// With a Workspace
 		if (this.contextService.getWorkspace()) {
@@ -179,20 +185,21 @@ export class ExplorerViewlet extends Viewlet {
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 
 			const headerSize = this.openEditorsVisible ? undefined : 0; // If open editors are not visible set header size explicitly to 0, otherwise const it be computed by super class.
-			this.explorerView = explorerView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
+			this.explorerView = explorerOrEmptyView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
 		}
 
 		// No workspace
 		else {
-			explorerView = this.instantiationService.createInstance(EmptyView);
+			this.emptyView = explorerOrEmptyView = this.instantiationService.createInstance(EmptyView);
 		}
 
 		if (this.openEditorsVisible) {
-			this.splitView.addView(explorerView);
+			this.splitView.addView(explorerOrEmptyView);
 		} else {
-			explorerView.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
+			explorerOrEmptyView.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
 		}
-		this.views.push(explorerView);
+
+		this.views.push(explorerOrEmptyView);
 	}
 
 	public getExplorerView(): ExplorerView {
@@ -214,12 +221,16 @@ export class ExplorerViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
+		const hasOpenedEditors = !!this.editorGroupService.getStacksModel().activeGroup;
+
 		if (this.lastFocusedView && this.lastFocusedView.isExpanded() && this.hasSelectionOrFocus(this.lastFocusedView)) {
-			this.lastFocusedView.focusBody();
-			return;
+			if (this.lastFocusedView !== this.openEditorsView || hasOpenedEditors) {
+				this.lastFocusedView.focusBody();
+				return;
+			}
 		}
 
-		if (this.hasSelectionOrFocus(this.openEditorsView)) {
+		if (this.hasSelectionOrFocus(this.openEditorsView) && hasOpenedEditors) {
 			return this.openEditorsView.focusBody();
 		}
 
@@ -227,12 +238,16 @@ export class ExplorerViewlet extends Viewlet {
 			return this.explorerView.focusBody();
 		}
 
-		if (this.openEditorsView && this.openEditorsView.isExpanded()) {
-			return this.openEditorsView.focusBody();
+		if (this.openEditorsView && this.openEditorsView.isExpanded() && hasOpenedEditors) {
+			return this.openEditorsView.focusBody(); // we have entries in the opened editors view to focus on
 		}
 
 		if (this.explorerView && this.explorerView.isExpanded()) {
 			return this.explorerView.focusBody();
+		}
+
+		if (this.emptyView && this.emptyView.isExpanded()) {
+			return this.emptyView.focusBody();
 		}
 
 		return this.openEditorsView.focus();
@@ -262,6 +277,7 @@ export class ExplorerViewlet extends Viewlet {
 
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
+
 		if (this.openEditorsVisible) {
 			this.splitView.layout(dimension.height);
 		} else if (this.explorerView) {
@@ -298,13 +314,20 @@ export class ExplorerViewlet extends Viewlet {
 			this.splitView.dispose();
 			this.splitView = null;
 		}
+
 		if (this.explorerView) {
 			this.explorerView.dispose();
 			this.explorerView = null;
 		}
+
 		if (this.openEditorsView) {
 			this.openEditorsView.dispose();
 			this.openEditorsView = null;
+		}
+
+		if (this.emptyView) {
+			this.emptyView.dispose();
+			this.emptyView = null;
 		}
 
 		if (this.focusListener) {
