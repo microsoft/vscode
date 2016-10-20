@@ -189,53 +189,31 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		this.contentChangedScheduler = new RunOnceScheduler(() => {
-			let myToken = (++this.computeToken);
-
-			this.computeCollapsibleRegions().then(regions => {
-				if (myToken !== this.computeToken) {
-					return; // A new request was made in the meantime or the model was changed
-				}
-				this.applyRegions(regions);
-			});
-		}, 200);
-		this.cursorChangedScheduler = new RunOnceScheduler(() => {
-			this.revealCursor();
-		}, 200);
-
+		this.computeAndApplyCollapsibleRegions();
+		this.contentChangedScheduler = new RunOnceScheduler(() => this.computeAndApplyCollapsibleRegions(), 200);
+		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
 		this.localToDispose.push(this.contentChangedScheduler);
 		this.localToDispose.push(this.cursorChangedScheduler);
-		this.localToDispose.push(this.editor.onDidChangeModelContent(() => {
-			this.contentChangedScheduler.schedule();
-		}));
-		this.localToDispose.push({
-			dispose: () => {
-				++this.computeToken;
-				this.editor.changeDecorations(changeAccessor => {
-					this.decorations.forEach(dec => dec.dispose(changeAccessor));
 
-				});
-				this.decorations = [];
-				this.editor.setHiddenAreas([]);
-			}
-		});
+		this.localToDispose.push(this.editor.onDidChangeModelContent(e => this.contentChangedScheduler.schedule()));
+		this.localToDispose.push(this.editor.onDidChangeCursorPosition(e => this.cursorChangedScheduler.schedule()));
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		this.localToDispose.push(this.editor.onDidChangeCursorPosition(e => {
-			this.cursorChangedScheduler.schedule();
-		}));
 
-		this.contentChangedScheduler.schedule();
+		this.localToDispose.push({ dispose: () => this.disposeDecorations() });
 	}
 
-	private computeCollapsibleRegions(): TPromise<IFoldingRange[]> {
+	private computeAndApplyCollapsibleRegions(): void {
 		let model = this.editor.getModel();
-		if (!model) {
-			return TPromise.as([]);
-		}
+		this.applyRegions(model ? computeRanges(model) : []);
+	}
 
-		let ranges = computeRanges(model);
-		return TPromise.as(ranges);
+	private disposeDecorations() {
+		this.editor.changeDecorations(changeAccessor => {
+			this.decorations.forEach(dec => dec.dispose(changeAccessor));
+		});
+		this.decorations = [];
+		this.editor.setHiddenAreas([]);
 	}
 
 	private revealCursor() {
