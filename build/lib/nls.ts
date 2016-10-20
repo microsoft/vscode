@@ -62,7 +62,7 @@ define([], [${ wrap + lines.map(l => indent + l).join(',\n') + wrap }]);`;
 /**
  * Returns a stream containing the patched JavaScript and source maps.
  */
-function nls(): Stream {
+function nls(): NodeJS.ReadWriteStream {
 	var input = through();
 	var output = input.pipe(through(function (f: FileSourceMap) {
 		if (!f.sourceMap) {

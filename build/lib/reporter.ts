@@ -39,7 +39,7 @@ export interface IReporter {
 	end(emitError:boolean): NodeJS.ReadWriteStream;
 }
 
-exports.createReporter = () => {
+export function createReporter(): IReporter {
 	const errors:Error[] = [];
 	allErrors.push(errors);
 
@@ -68,5 +68,5 @@ exports.createReporter = () => {
 		}
 	}
 
-	return ReportFunc;
+	return <IReporter><any>ReportFunc;
 };

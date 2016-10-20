@@ -24,7 +24,7 @@ function onEnd() {
     errors.map(function (err) { return util.log(util.colors.red('Error') + ": " + err); });
     util.log("Finished " + util.colors.green('compilation') + " with " + errors.length + " errors after " + util.colors.magenta((new Date().getTime() - startTime) + ' ms'));
 }
-exports.createReporter = function () {
+function createReporter() {
     var errors = [];
     allErrors.push(errors);
     var ReportFunc = (function () {
@@ -50,4 +50,6 @@ exports.createReporter = function () {
         return ReportFunc;
     }());
     return ReportFunc;
-};
+}
+exports.createReporter = createReporter;
+;
