@@ -15,7 +15,6 @@ import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/tre
 import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
 import { VIEWLET_ID_ROOT } from 'vs/workbench/parts/explorers/common/treeExplorer';
-import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/treeExplorerActions';
 
 export class TreeExplorerViewlet extends Viewlet {
 	private static _idCounter = 1;
@@ -67,8 +66,7 @@ export class TreeExplorerViewlet extends Viewlet {
 	}
 
 	getActions(): IAction[] {
-		const refresh = this.instantiationService.createInstance(RefreshViewExplorerAction);
-		return [refresh];
+		return this.view.getActions();
 	}
 
 	private addTreeView(treeNodeProviderId: string): void {
