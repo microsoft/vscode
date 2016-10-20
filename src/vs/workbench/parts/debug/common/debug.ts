@@ -83,6 +83,8 @@ export interface ISession {
 	stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse>;
 	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
 	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
+
+	completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse>;
 }
 
 export interface IProcess extends ITreeElement {
@@ -161,6 +163,7 @@ export interface IStackFrame extends ITreeElement {
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
 	restart(): TPromise<any>;
+	completions(text: string, position: Position): TPromise<ISuggestion[]>;
 }
 
 export interface IEnablement extends ITreeElement {
@@ -449,8 +452,6 @@ export interface IDebugService {
 	 * Opens a new or reveals an already visible editor showing the source.
 	 */
 	openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
-
-	completions(text: string, position: Position): TPromise<ISuggestion[]>;
 }
 
 // Editor interfaces
