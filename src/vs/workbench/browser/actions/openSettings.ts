@@ -321,7 +321,11 @@ export class DefaultSettingsEditor extends StringEditor {
 	}
 
 	private saveState() {
-		DefaultSettingsEditor.VIEW_STATE.set(this.getResource(), this.getControl().saveViewState());
+		const resource = this.getResource();
+		if (DefaultSettingsEditor.VIEW_STATE.has(resource)) {
+			DefaultSettingsEditor.VIEW_STATE.delete(resource);
+		}
+		DefaultSettingsEditor.VIEW_STATE.set(resource, this.getControl().saveViewState());
 	}
 
 	private getResource(): URI {
