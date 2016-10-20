@@ -108,7 +108,14 @@ export class FoldingController implements IFoldingController {
 		if (!state || !Array.isArray(state.collapsedRegions) || state.collapsedRegions.length === 0 || state.lineCount !== model.getLineCount()) {
 			return;
 		}
+
+		// State should be applied on the clean state
+		// Clean the state
+		this.cleanState();
+		// apply state
 		this.applyRegions(<IFoldingRange[]>state.collapsedRegions);
+		// Start listening to the model
+		this.onModelChanged();
 	}
 
 	private cleanState(): void {
