@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/css!../media/treeExplorer.contribution';
+
 import { ITreeExplorerViewletService, TreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
