@@ -19,24 +19,34 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { BackupService } from 'vs/platform/backup/node/backupService';
 
 suite('BackupService', () => {
+	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service')
+	const backupHome = path.join(parentDir, 'Backups');
+	const backupWorkspacesHome = path.join(backupHome, 'workspaces.json');
+
 	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
 	const bazFile = Uri.file(platform.isWindows ? 'C:\\baz' : '/baz');
 
-	let environmentService: IEnvironmentService;
 	let backupService: BackupService;
 
 	setup(done => {
-		environmentService = TestEnvironmentService;
-		backupService = new BackupService(environmentService);
+		const environmentService = TestEnvironmentService;
 
-		// Delete any existing backups completely, this in itself is a test to ensure that the
-		// the backupHome directory is re-created
-		extfs.del(environmentService.backupHome, os.tmpdir(), done);
+		backupService = new BackupService(environmentService);
+		backupService.setBackupPathsForTest(backupHome, backupWorkspacesHome);
+
+		// Delete any existing backups completely and then re-create it.
+		extfs.del(backupHome, os.tmpdir(), () => {
+			pfs.mkdirp(backupHome).then(() => {
+				pfs.writeFileAndFlush(backupWorkspacesHome, '').then(() => {
+					done();
+				});
+			});
+		});
 	});
 
 	teardown(done => {
-		extfs.del(environmentService.backupHome, os.tmpdir(), done);
+		extfs.del(backupHome, os.tmpdir(), done);
 	});
 
 	test('pushWorkspaceBackupPathsSync should persist paths to workspaces.json', () => {
@@ -96,7 +106,7 @@ suite('BackupService', () => {
 		const backupResource = barFile;
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
-		const expectedPath = Uri.file(path.join(environmentService.backupHome, workspaceHash, 'file', filePathHash)).fsPath;
+		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
 		assert.equal(backupService.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
@@ -107,7 +117,7 @@ suite('BackupService', () => {
 		const backupResource = Uri.from({ scheme: 'untitled' });
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
-		const expectedPath = Uri.file(path.join(environmentService.backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
+		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 		assert.equal(backupService.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
@@ -118,7 +128,7 @@ suite('BackupService', () => {
 		const backupResource = barFile;
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
-		const expectedPath = Uri.file(path.join(environmentService.backupHome, workspaceHash, 'file', filePathHash)).fsPath;
+		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
 		assert.equal(backupService.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
@@ -129,7 +139,7 @@ suite('BackupService', () => {
 		const backupResource = Uri.from({ scheme: 'untitled' });
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
-		const expectedPath = Uri.file(path.join(environmentService.backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
+		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 		assert.equal(backupService.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
@@ -149,7 +159,7 @@ suite('BackupService', () => {
 		const workspaceResource = fooFile;
 		backupService.setCurrentWorkspace(workspaceResource);
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-		const untitledBackupDir = path.join(environmentService.backupHome, workspaceHash, 'untitled');
+		const untitledBackupDir = path.join(backupHome, workspaceHash, 'untitled');
 		const untitledBackup1 = path.join(untitledBackupDir, 'bar');
 		const untitledBackup2 = path.join(untitledBackupDir, 'foo');
 		pfs.mkdirp(untitledBackupDir).then(() => {
