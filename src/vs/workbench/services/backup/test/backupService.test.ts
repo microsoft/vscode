@@ -13,7 +13,6 @@ import path = require('path');
 import extfs = require('vs/base/node/extfs');
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
-import { nfcall } from 'vs/base/common/async';
 import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IBackupFormat } from 'vs/platform/backup/common/backup';
