@@ -72,17 +72,17 @@ export interface IActivityService {
 	clearActivity(compositeId: string): void;
 
 	/**
-	 * Get all registered viewlets and whether they are enabled/disabled
+	 * Get all registered viewlets and whether they are enabled/disabled.
 	 */
-	getRegisteredViewletsToggleStatus(): { [viewletId: string]: boolean };
+	getRegisteredViewletsIsEnabled(): { [viewletId: string]: boolean };
 
 	/**
-	 * Enable/disable viewlet
+	 * Enable/disable viewlet.
 	 */
 	toggleViewlet(viewletId: string): void;
 
 	/**
-	 * Get the external viewlet id to open
+	 * Get the external viewlet id that is about to open.
 	 */
 	getExternalViewletIdToOpen(): string;
 }

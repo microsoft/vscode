@@ -31,12 +31,12 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
 
-	private viewletsToggleStatus: { [viewletId: string]: boolean; };
-	private registeredViewlets: string[];
+	private enabledExternalViewlets: string[];
+	private registeredViewlets: { [viewletId: string]: ViewletDescriptor; };
 
 	private externalViewletIdToOpen: string;
 
-	private VIEWLETS_TOGGLE_STATUS = 'workbench.activityBar.viewletsToggleStatus';
+	private static ENABLED_EXTERNAL_VIEWLETS = 'workbench.activityBar.enabledExternalViewlets';
 
 	constructor(
 		id: string,
@@ -51,10 +51,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.activityActionItems = {};
 		this.compositeIdToActions = {};
 
-		const viewletsToggleStatusJson = this.storageService.get(this.VIEWLETS_TOGGLE_STATUS);
-		this.viewletsToggleStatus = viewletsToggleStatusJson ? JSON.parse(viewletsToggleStatusJson) : {};
-
-		this.registeredViewlets = [];
+		const enabledExternalViewletsJson = this.storageService.get(ActivitybarPart.ENABLED_EXTERNAL_VIEWLETS);
+		this.enabledExternalViewlets = enabledExternalViewletsJson ? JSON.parse(enabledExternalViewletsJson) : [];
+		this.registeredViewlets = {};
 
 		this.registerListeners();
 	}
@@ -74,13 +73,23 @@ export class ActivitybarPart extends Part implements IActivityService {
 		);
 	}
 
-	private onDidRegisterExternalViewlets(descriptors: ViewletDescriptor[]) {
-		descriptors.forEach(descriptor => {
-			this.registeredViewlets.push(descriptor.id);
-			if (this.viewletsToggleStatus[descriptor.id]) {
-				this.viewletSwitcherBar.push(this.toAction(descriptor), { label: true, icon: true });
+	private onDidRegisterExternalViewlets(descriptors: ViewletDescriptor[]): void {
+		descriptors.forEach(d => {
+			this.registeredViewlets[d.id] = d;
+		});
+
+		this.viewletSwitcherBar.push(this.getAllEnabledExternalViewlets().map(d => this.toAction(d)), { label: true, icon: true });
+	}
+
+	// Get an ordered list of all enabled external viewlets
+	private getAllEnabledExternalViewlets(): ViewletDescriptor[] {
+		const externalViewletsToShow: ViewletDescriptor[] = [];
+		this.enabledExternalViewlets.forEach(viewletId => {
+			if (this.registeredViewlets[viewletId]) {
+				externalViewletsToShow.push(this.registeredViewlets[viewletId]);
 			}
 		});
+		return externalViewletsToShow;
 	}
 
 	private onActiveCompositeChanged(composite: IComposite): void {
@@ -95,22 +104,28 @@ export class ActivitybarPart extends Part implements IActivityService {
 		}
 	}
 
-	getRegisteredViewletsToggleStatus(): { [viewletId: string]: boolean } {
+	getRegisteredViewletsIsEnabled(): { [viewletId: string]: boolean } {
 		const result = {};
-		this.registeredViewlets.forEach(viewletId => {
-			result[viewletId] = this.viewletsToggleStatus[viewletId];
-		});
+		for (let viewletId in this.registeredViewlets) {
+			result[viewletId] = (this.enabledExternalViewlets.indexOf(viewletId) !== -1);
+		}
 		return result;
 	}
 
 	toggleViewlet(viewletId: string): void {
-		this.viewletsToggleStatus[viewletId] = !this.viewletsToggleStatus[viewletId];
-		this.setViewletsToggleStatus();
+		const index = this.enabledExternalViewlets.indexOf(viewletId);
+		if (index === -1) {
+			this.enabledExternalViewlets.push(viewletId);
+		} else {
+			this.enabledExternalViewlets.splice(index, 1);
+		}
+
+		this.setEnabledExternalViewlets();
 		this.refreshViewletSwitcher();
 	}
 
-	private setViewletsToggleStatus(): void {
-		this.storageService.store(this.VIEWLETS_TOGGLE_STATUS, JSON.stringify(this.viewletsToggleStatus));
+	private setEnabledExternalViewlets(): void {
+		this.storageService.store(ActivitybarPart.ENABLED_EXTERNAL_VIEWLETS, JSON.stringify(this.enabledExternalViewlets));
 	}
 
 	getExternalViewletIdToOpen(): string {
@@ -156,20 +171,16 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private refreshViewletSwitcher(): void {
 		this.viewletSwitcherBar.clear();
 
-		// Load stock viewlets + enabled external viewlets
-		const allEnabledViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().filter(descriptor => {
-			if (!descriptor.isExternal) {
-				return true;
-			} else {
-				return this.viewletsToggleStatus[descriptor.id];
-			}
+		// Load stock viewlets
+		const allStockViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().filter(descriptor => {
+			return !descriptor.isExternal;
 		});
-		this.fillViewletSwitcher(allEnabledViewlets);
+		const allEnabledExternalViewlets = this.getAllEnabledExternalViewlets();
+		this.fillViewletSwitcher(allStockViewlets.concat(allEnabledExternalViewlets));
 	}
 
 	private fillViewletSwitcher(viewlets: ViewletDescriptor[]) {
-		// Build Viewlet Actions in correct order
-		const viewletActions = viewlets.sort((v1, v2) => v1.order - v2.order).map(v => this.toAction(v));
+		const viewletActions = viewlets.map(v => this.toAction(v));
 		this.viewletSwitcherBar.push(viewletActions, { label: true, icon: true });
 	}
 
