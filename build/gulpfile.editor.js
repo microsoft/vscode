@@ -6,7 +6,7 @@
 var gulp = require('gulp');
 var path = require('path');
 var util = require('./lib/util');
-var common = require('./gulpfile.common');
+var common = require('./lib/optimize');
 var es = require('event-stream');
 var File = require('vinyl');
 
