@@ -31,7 +31,7 @@ export const DEBUG_SCHEME = 'debug';
 
 export interface IRawModelUpdate {
 	threadId: number;
-	rawSession: ISession;
+	rawSession: ISession & ITreeElement;
 	thread?: DebugProtocol.Thread;
 	callStack?: DebugProtocol.StackFrame[];
 	stoppedDetails?: IRawStoppedDetails;
@@ -65,7 +65,7 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 	type?: string;
 }
 
-export interface IBaseSession {
+export interface ISession {
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
@@ -76,32 +76,18 @@ export interface IBaseSession {
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 	onDidEvent: Event<DebugProtocol.Event>;
 	restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse>;
-}
 
-export interface ISession extends IBaseSession, ITreeElement {
-	readyForBreakpoints: boolean;
-	emittedStopped: boolean;
-	getLengthInSeconds(): number;
-	attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse>;
-	setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse>;
-	setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): TPromise<DebugProtocol.SetFunctionBreakpointsResponse>;
-	setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse>;
-	onDidStop: Event<DebugProtocol.StoppedEvent>;
-	threads(): TPromise<DebugProtocol.ThreadsResponse>;
 	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
 	stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse>;
 	stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse>;
 	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
 	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
-	setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse>;
-	completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse>;
-	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
-	source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
 }
 
-export interface IProcess extends IBaseSession, ITreeElement {
+export interface IProcess extends ITreeElement {
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
+	session: ISession;
 }
 
 export interface IThread extends ITreeElement {

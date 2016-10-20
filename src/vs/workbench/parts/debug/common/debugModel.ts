@@ -31,7 +31,7 @@ export function evaluateExpression(stackFrame: debug.IStackFrame, expression: Ex
 	}
 	expression.stackFrame = stackFrame;
 
-	return stackFrame.thread.process.evaluate({
+	return stackFrame.thread.process.session.evaluate({
 		expression: expression.name,
 		frameId: stackFrame ? stackFrame.frameId : undefined,
 		context
@@ -227,7 +227,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	}
 
 	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
-		return this.stackFrame.thread.process.variables({
+		return this.stackFrame.thread.process.session.variables({
 			variablesReference: this.reference,
 			start,
 			count,
@@ -322,7 +322,7 @@ export class StackFrame implements debug.IStackFrame {
 
 	public getScopes(): TPromise<debug.IScope[]> {
 		if (!this.scopes) {
-			this.scopes = this.thread.process.scopes({ frameId: this.frameId }).then(response => {
+			this.scopes = this.thread.process.session.scopes({ frameId: this.frameId }).then(response => {
 				return response && response.body && response.body.scopes ?
 					response.body.scopes.map(rs => new Scope(this, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables)) : [];
 			}, err => []);
@@ -332,7 +332,7 @@ export class StackFrame implements debug.IStackFrame {
 	}
 
 	public restart(): TPromise<any> {
-		return this.thread.process.restartFrame({ frameId: this.frameId });
+		return this.thread.process.session.restartFrame({ frameId: this.frameId });
 	}
 }
 
@@ -383,7 +383,7 @@ export class Thread implements debug.IThread {
 	}
 
 	private getCallStackImpl(startFrame: number): TPromise<debug.IStackFrame[]> {
-		return this.process.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
+		return this.process.session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
 			if (!response || !response.body) {
 				return [];
 			}
@@ -407,8 +407,12 @@ export class Process implements debug.IProcess {
 
 	private threads: { [reference: number]: debug.IThread; };
 
-	constructor(public session: debug.ISession) {
+	constructor(private _session: debug.ISession & debug.ITreeElement) {
 		this.threads = {};
+	}
+
+	public get session(): debug.ISession {
+		return this._session;
 	}
 
 	public getThread(threadId: number): debug.IThread {
@@ -420,7 +424,7 @@ export class Process implements debug.IProcess {
 	}
 
 	public getId(): string {
-		return this.session.getId();
+		return this._session.getId();;
 	}
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
@@ -486,42 +490,6 @@ export class Process implements debug.IProcess {
 				});
 			}
 		});
-	}
-
-	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
-		return this.session.stackTrace(args);
-	}
-
-	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
-		return this.session.scopes(args);
-	}
-
-	public variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse> {
-		return this.session.variables(args);
-	}
-
-	public evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
-		return this.session.evaluate(args);
-	}
-
-	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
-		return this.session.configuration;
-	}
-
-	public disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse> {
-		return this.session.disconnect(restart, force);
-	}
-
-	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
-		return this.session.custom(request, args);
-	}
-
-	public get onDidEvent(): Event<DebugProtocol.Event> {
-		return this.session.onDidEvent;
-	}
-
-	public restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse> {
-		return this.session.restartFrame(args);
 	}
 }
 

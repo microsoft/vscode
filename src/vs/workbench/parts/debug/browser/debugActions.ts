@@ -242,7 +242,7 @@ export class StepBackAction extends AbstractDebugAction {
 	protected isEnabled(state: debug.State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;
 		return super.isEnabled(state) && state === debug.State.Stopped &&
-			process && process.configuration.capabilities.supportsStepBack;
+			process && process.session.configuration.capabilities.supportsStepBack;
 	}
 }
 
@@ -261,7 +261,7 @@ export class StopAction extends AbstractDebugAction {
 			process = processes.length > 0 ? processes[0] : null;
 		}
 
-		return process ? process.disconnect(false, true) : TPromise.as(null);
+		return process ? process.session.disconnect(false, true) : TPromise.as(null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -283,7 +283,7 @@ export class DisconnectAction extends AbstractDebugAction {
 			process = this.debugService.getModel().getProcesses().pop();
 		}
 
-		return process ? process.disconnect(false, true) : TPromise.as(null);
+		return process ? process.session.disconnect(false, true) : TPromise.as(null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -617,7 +617,7 @@ export class SetValueAction extends AbstractDebugAction {
 
 	protected isEnabled(state: debug.State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;
-		return super.isEnabled(state) && state === debug.State.Stopped && process && process.configuration.capabilities.supportsSetVariable;
+		return super.isEnabled(state) && state === debug.State.Stopped && process && process.session.configuration.capabilities.supportsSetVariable;
 	}
 }
 
@@ -646,7 +646,7 @@ class RunToCursorAction extends EditorAction {
 		const lineNumber = editor.getPosition().lineNumber;
 		const uri = editor.getModel().uri;
 
-		const oneTimeListener = debugService.getViewModel().focusedProcess.onDidEvent(event => {
+		const oneTimeListener = debugService.getViewModel().focusedProcess.session.onDidEvent(event => {
 			if (event.event === 'stopped' || event.event === 'exit') {
 				const toRemove = debugService.getModel().getBreakpoints()
 					.filter(bp => bp.desiredLineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
@@ -772,7 +772,7 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		const process = this.debugService.getViewModel().focusedProcess;
-		const type = process ? process.configuration.type : null;
+		const type = process ? process.session.configuration.type : null;
 		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, type));
 	}
 }

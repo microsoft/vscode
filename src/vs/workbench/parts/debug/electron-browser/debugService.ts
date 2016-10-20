@@ -143,8 +143,8 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
 	}
 
-	private get session(): debug.ISession {
-		return this.viewModel.focusedProcess ? (<model.Process>this.viewModel.focusedProcess).session : null;
+	private get session(): RawDebugSession {
+		return this.viewModel.focusedProcess ? <RawDebugSession>(<model.Process>this.viewModel.focusedProcess).session : null;
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
@@ -350,7 +350,7 @@ export class DebugService implements debug.IDebugService {
 		this.appendReplOutput(event.body.output, outputSeverity);
 	}
 
-	private getThreadData(session: debug.ISession): TPromise<void> {
+	private getThreadData(session: RawDebugSession): TPromise<void> {
 		return session.threads().then(response => {
 			if (response && response.body && response.body.threads) {
 				response.body.threads.forEach(thread => this.model.rawUpdate({ rawSession: session, threadId: thread.id, thread }));
@@ -769,7 +769,7 @@ export class DebugService implements debug.IDebugService {
 		) : this.createSession(false, null);
 	}
 
-	private onSessionEnd(session: debug.ISession): void {
+	private onSessionEnd(session: RawDebugSession): void {
 		if (session) {
 			const bpsExist = this.model.getBreakpoints().length > 0;
 			this.telemetryService.publicLog('debugSessionStop', {
@@ -962,7 +962,7 @@ export class DebugService implements debug.IDebugService {
 		}, err => []);
 	}
 
-	private lazyTransitionToRunningState(session: debug.ISession, threadId?: number): void {
+	private lazyTransitionToRunningState(session: RawDebugSession, threadId?: number): void {
 		let setNewFocusedStackFrameScheduler: RunOnceScheduler;
 
 		const toDispose = session.onDidStop(e => {
@@ -1009,15 +1009,15 @@ export class DebugService implements debug.IDebugService {
 		return result;
 	}
 
-	private sendAllBreakpoints(session?: debug.ISession): TPromise<any> {
+	private sendAllBreakpoints(session?: RawDebugSession): TPromise<any> {
 		return TPromise.join(arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => this.sendBreakpoints(bp.source.uri, false, session)))
 			.then(() => this.sendFunctionBreakpoints(session))
 			// send exception breakpoints at the end since some debug adapters rely on the order
 			.then(() => this.sendExceptionBreakpoints(session));
 	}
 
-	private sendBreakpoints(modelUri: uri, sourceModified = false, session?: debug.ISession): TPromise<void> {
-		const sendBreakpointsToSession = (session: debug.ISession): TPromise<void> => {
+	private sendBreakpoints(modelUri: uri, sourceModified = false, session?: RawDebugSession): TPromise<void> {
+		const sendBreakpointsToSession = (session: RawDebugSession): TPromise<void> => {
 			if (!session.readyForBreakpoints) {
 				return TPromise.as(null);
 			}
@@ -1055,8 +1055,8 @@ export class DebugService implements debug.IDebugService {
 		return this.sendToOneOrAllSessions(session, sendBreakpointsToSession);
 	}
 
-	private sendFunctionBreakpoints(session?: debug.ISession): TPromise<void> {
-		const sendFunctionBreakpointsToSession = (session: debug.ISession): TPromise<void> => {
+	private sendFunctionBreakpoints(session?: RawDebugSession): TPromise<void> {
+		const sendFunctionBreakpointsToSession = (RawDebugSession): TPromise<void> => {
 			if (!session.readyForBreakpoints || !session.configuration.capabilities.supportsFunctionBreakpoints) {
 				return TPromise.as(null);
 			}
@@ -1079,8 +1079,8 @@ export class DebugService implements debug.IDebugService {
 		return this.sendToOneOrAllSessions(session, sendFunctionBreakpointsToSession);
 	}
 
-	private sendExceptionBreakpoints(session?: debug.ISession): TPromise<void> {
-		const sendExceptionBreakpointsToSession = (session: debug.ISession): TPromise<any> => {
+	private sendExceptionBreakpoints(session?: RawDebugSession): TPromise<void> {
+		const sendExceptionBreakpointsToSession = (session: RawDebugSession): TPromise<any> => {
 			if (!session || !session.readyForBreakpoints || this.model.getExceptionBreakpoints().length === 0) {
 				return TPromise.as(null);
 			}
@@ -1092,12 +1092,12 @@ export class DebugService implements debug.IDebugService {
 		return this.sendToOneOrAllSessions(session, sendExceptionBreakpointsToSession);
 	}
 
-	private sendToOneOrAllSessions(session: debug.ISession, send: (session: debug.ISession) => TPromise<void>): TPromise<void> {
+	private sendToOneOrAllSessions(session: RawDebugSession, send: (session: RawDebugSession) => TPromise<void>): TPromise<void> {
 		if (session) {
 			return send(session);
 		}
 
-		return TPromise.join(this.model.getProcesses().map(p => send(p.session))).then(() => void 0);
+		return TPromise.join(this.model.getProcesses().map(p => send(<RawDebugSession>p.session))).then(() => void 0);
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {

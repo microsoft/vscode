@@ -159,7 +159,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 
-		const evaluatedExpression = process.configuration.capabilities.supportsEvaluateForHovers ?
+		const evaluatedExpression = process.session.configuration.capabilities.supportsEvaluateForHovers ?
 			evaluateExpression(focusedStackFrame, new Expression(matchingExpression, true), 'hover') :
 			this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
 
