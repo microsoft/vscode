@@ -149,18 +149,14 @@ export class ActivitybarPart extends Part implements IActivityService {
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
 		});
 
-		// Load stock viewlets
-		const allViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().filter(v => !v.isExternal);
-		this.fillViewletSwitcher(allViewlets);
+		const allStockViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().filter(descriptor => !descriptor.isExternal);
+		this.fillViewletSwitcher(allStockViewlets);
 	}
 
 	private refreshViewletSwitcher(): void {
 		this.viewletSwitcherBar.clear();
 
-		// Load stock viewlets
-		const allStockViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().filter(descriptor => {
-			return !descriptor.isExternal;
-		});
+		const allStockViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().filter(descriptor => !descriptor.isExternal);
 		const allEnabledExternalViewlets = this.getAllEnabledExternalViewlets();
 		this.fillViewletSwitcher(allStockViewlets.concat(allEnabledExternalViewlets));
 	}
@@ -183,6 +179,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private toAction(composite: ViewletDescriptor): ActivityAction {
 		const action = this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite);
+		// Store the viewletId of the external viewlet that is about to open.
+		// Later retrieved by TreeExplorerViewlet, which wouldn't know its id until
+		// its construction at runtime.
 		action.onOpenExternalViewlet((viewletId) => {
 			this.externalViewletIdToOpen = viewletId;
 		});

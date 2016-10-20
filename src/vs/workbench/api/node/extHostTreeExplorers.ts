@@ -36,9 +36,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		this._treeExplorerNodeProviders[providerId] = provider;
 
 		return new Disposable(() => {
-			if (delete this._treeExplorerNodeProviders[providerId]) {
-				this._proxy.$unregisterTreeExplorerNodeProvider(providerId);
-			}
+			delete this._treeExplorerNodeProviders[providerId];
 		});
 	}
 
