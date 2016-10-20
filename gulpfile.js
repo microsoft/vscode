@@ -9,14 +9,6 @@
 require('events').EventEmitter.defaultMaxListeners = 100;
 
 const gulp = require('gulp');
-// Record all defined tasks to determine later in this file (at the bottom)
-// if further gulpfiles need to be included or not
-var ALL_KNOWN_TASKS = [], originalGulpTask = gulp.task;
-gulp.task = function() {
-	ALL_KNOWN_TASKS.push(arguments[0]);
-	return originalGulpTask.apply(gulp, Array.prototype.slice.call(arguments, 0));
-};
-
 const json = require('gulp-json-editor');
 const buffer = require('gulp-buffer');
 const tsb = require('gulp-tsb');
@@ -266,13 +258,22 @@ gulp.task('mixin', function () {
 		.pipe(gulp.dest('.'));
 });
 
-require(`./build/gulpfile.editor`);
-
-var runningKnownTasks = process.argv.slice(2).every(function(arg) {
-	return (ALL_KNOWN_TASKS.indexOf(arg) !== -1);
+var ALL_EDITOR_TASKS = [
+	'clean-optimized-editor',
+	'optimize-editor',
+	'clean-minified-editor',
+	'minify-editor',
+	'clean-editor-distro',
+	'editor-distro',
+	'analyze-editor-distro'
+];
+var runningEditorTasks = process.argv.slice(2).every(function(arg) {
+	return (ALL_EDITOR_TASKS.indexOf(arg) !== -1);
 });
 
-if (!runningKnownTasks) {
+if (runningEditorTasks) {
+	require(`./build/gulpfile.editor`);
+} else {
 	// Load all the gulpfiles only if running tasks other than the editor tasks
 	const build = path.join(__dirname, 'build');
 	glob.sync('gulpfile.*.js', { cwd: build })
