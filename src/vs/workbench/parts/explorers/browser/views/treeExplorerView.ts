@@ -10,7 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
-import { IActionRunner } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -22,6 +22,7 @@ import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browse
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
+import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/treeExplorerActions';
 
 export class TreeExplorerView extends CollapsibleViewletView {
 	private workspace: IWorkspace;
@@ -81,6 +82,11 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		});
 	}
 
+	getActions(): IAction[] {
+		const refresh = this.instantiationService.createInstance(RefreshViewExplorerAction, this);
+		return [refresh];
+	}
+
 	create(): TPromise<void> {
 		return this.updateInput();
 	}
@@ -89,7 +95,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		return super.setVisible(visible);
 	}
 
-	private updateInput(): TPromise<void> {
+	updateInput(): TPromise<void> {
 		return this.treeExplorerViewletService.provideTreeContent(this.treeNodeProviderIdName).then(tree => {
 			this.tree.setInput(tree);
 		});
