@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IAction } from 'vs/base/common/actions';
 import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -14,6 +15,7 @@ import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/tre
 import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
 import { VIEWLET_ID_ROOT } from 'vs/workbench/parts/explorers/common/treeExplorer';
+import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/treeExplorerActions';
 
 export class TreeExplorerViewlet extends Viewlet {
 	private static _idCounter = 1;
@@ -62,6 +64,11 @@ export class TreeExplorerViewlet extends Viewlet {
 		return super.setVisible(visible).then(() => {
 			this.view.setVisible(visible).done();
 		});
+	}
+
+	getActions(): IAction[] {
+		const refresh = this.instantiationService.createInstance(RefreshViewExplorerAction);
+		return [refresh];
 	}
 
 	private addTreeView(treeNodeProviderId: string): void {

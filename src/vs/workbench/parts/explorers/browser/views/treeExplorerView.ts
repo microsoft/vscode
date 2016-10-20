@@ -10,7 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
-import { IActionRunner, IAction } from 'vs/base/common/actions';
+import { IActionRunner } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -54,19 +54,11 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		this.create();
 	}
 
-	renderHeader(container: HTMLElement): void {
-
-	}
-
 	renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		DOM.addClass(this.treeContainer, 'tree-explorer-viewlet-tree-view');
 
 		this.tree = this.createViewer($(this.treeContainer));
-	}
-
-	getActions(): IAction[] {
-		return [];
 	}
 
 	createViewer(container: Builder): ITree {
