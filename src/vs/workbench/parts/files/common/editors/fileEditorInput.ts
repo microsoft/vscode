@@ -16,7 +16,7 @@ import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, L
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupService } from 'vs/platform/backup/common/backup';
+import { IBackupService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 

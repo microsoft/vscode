@@ -27,7 +27,7 @@ import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorMo
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupService } from 'vs/platform/backup/common/backup';
+import { IBackupService } from 'vs/workbench/services/backup/common/backup';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.

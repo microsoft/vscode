@@ -16,12 +16,22 @@ import Uri from 'vs/base/common/uri';
 import { nfcall } from 'vs/base/common/async';
 import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { BackupService } from 'vs/platform/backup/node/backupService';
+import { IBackupFormat } from 'vs/platform/backup/common/backup';
+import { BackupService } from 'vs/workbench/services/backup/node/backupService';
+
+class TestBackupService extends BackupService {
+	constructor(backupHome: string, backupWorkspacesPath: string) {
+		super(TestEnvironmentService);
+
+		this.backupHome = backupHome;
+		this.backupWorkspacesPath = backupWorkspacesPath;
+	}
+}
 
 suite('BackupService', () => {
 	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service')
 	const backupHome = path.join(parentDir, 'Backups');
-	const backupWorkspacesHome = path.join(backupHome, 'workspaces.json');
+	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 
 	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
@@ -30,15 +40,12 @@ suite('BackupService', () => {
 	let backupService: BackupService;
 
 	setup(done => {
-		const environmentService = TestEnvironmentService;
-
-		backupService = new BackupService(environmentService);
-		backupService.setBackupPathsForTest(backupHome, backupWorkspacesHome);
+		backupService = new TestBackupService(backupHome, backupWorkspacesPath);
 
 		// Delete any existing backups completely and then re-create it.
 		extfs.del(backupHome, os.tmpdir(), () => {
 			pfs.mkdirp(backupHome).then(() => {
-				pfs.writeFileAndFlush(backupWorkspacesHome, '').then(() => {
+				pfs.writeFileAndFlush(backupWorkspacesPath, '').then(() => {
 					done();
 				});
 			});
@@ -49,56 +56,65 @@ suite('BackupService', () => {
 		extfs.del(backupHome, os.tmpdir(), done);
 	});
 
-	test('pushWorkspaceBackupPathsSync should persist paths to workspaces.json', () => {
-		backupService.pushWorkspaceBackupPathsSync([fooFile, barFile]);
-		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [fooFile.fsPath, barFile.fsPath]);
-	});
-
-	test('pushWorkspaceBackupPathsSync should throw if a workspace is set', () => {
-		backupService.setCurrentWorkspace(fooFile);
-		assert.throws(() => backupService.pushWorkspaceBackupPathsSync([fooFile]));
-	});
-
 	test('removeWorkspaceBackupPath should remove workspaces from workspaces.json', done => {
-		backupService.pushWorkspaceBackupPathsSync([fooFile, barFile]);
-		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [fooFile.fsPath, barFile.fsPath]);
-		backupService.removeWorkspaceBackupPath(fooFile).then(() => {
-			assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [barFile.fsPath]);
-			backupService.removeWorkspaceBackupPath(barFile).then(() => {
-				assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
-				done();
+		const workspacesJson: IBackupFormat = { folderWorkspaces: {} };
+		workspacesJson.folderWorkspaces[fooFile.fsPath] = [];
+		workspacesJson.folderWorkspaces[barFile.fsPath] = [];
+		pfs.writeFileAndFlush(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
+			backupService.removeWorkspaceBackupPath(fooFile).then(() => {
+				pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
+					const json = <IBackupFormat>JSON.parse(buffer);
+					assert.deepEqual(Object.keys(json.folderWorkspaces), [barFile.fsPath]);
+					backupService.removeWorkspaceBackupPath(barFile).then(() => {
+						pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
+							const json2 = <IBackupFormat>JSON.parse(content);
+							assert.deepEqual(Object.keys(json2.folderWorkspaces), []);
+							done();
+						});
+					});
+				});
 			});
 		});
 	});
 
 	test('removeWorkspaceBackupPath should fail gracefully when removing a path that doesn\'t exist', done => {
-		backupService.pushWorkspaceBackupPathsSync([fooFile]);
-		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [fooFile.fsPath]);
-		backupService.removeWorkspaceBackupPath(barFile).then(() => {
-			assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [fooFile.fsPath]);
-			done();
+		const workspacesJson: IBackupFormat = { folderWorkspaces: {} };
+		workspacesJson.folderWorkspaces[fooFile.fsPath] = [];
+		pfs.writeFileAndFlush(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
+			backupService.removeWorkspaceBackupPath(barFile).then(() => {
+				pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
+					const json = <IBackupFormat>JSON.parse(content);
+					assert.deepEqual(Object.keys(json.folderWorkspaces), [fooFile.fsPath]);
+					done();
+				});
+			});
 		});
 	});
 
 	test('registerResourceForBackup should register backups to workspaces.json', done => {
 		backupService.setCurrentWorkspace(fooFile);
 		backupService.registerResourceForBackup(barFile).then(() => {
-			backupService.setCurrentWorkspace(null); // Unset the workspace to emulate the main process
-			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(fooFile), [barFile.fsPath]);
-			done();
+			pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
+				const json = <IBackupFormat>JSON.parse(content);
+				assert.deepEqual(json.folderWorkspaces[fooFile.fsPath], [barFile.fsPath]);
+				done();
+			});
 		});
 	});
 
 	test('deregisterResourceForBackup should deregister backups from workspaces.json', done => {
 		backupService.setCurrentWorkspace(fooFile);
 		backupService.registerResourceForBackup(barFile).then(() => {
-			backupService.setCurrentWorkspace(null); // Unset the workspace to emulate the main process
-			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(fooFile), [barFile.fsPath]);
-			backupService.setCurrentWorkspace(fooFile);
-			backupService.deregisterResourceForBackup(barFile).then(() => {
-				backupService.setCurrentWorkspace(null); // Unset the workspace to emulate the main process
-				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(fooFile), []);
-				done();
+			pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
+				const json = <IBackupFormat>JSON.parse(content);
+				assert.deepEqual(json.folderWorkspaces[fooFile.fsPath], [barFile.fsPath]);
+				backupService.deregisterResourceForBackup(barFile).then(() => {
+					pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
+						const json2 = <IBackupFormat>JSON.parse(content);
+						assert.deepEqual(json2.folderWorkspaces[fooFile.fsPath], []);
+						done();
+					});
+				});
 			});
 		});
 	});
@@ -145,38 +161,6 @@ suite('BackupService', () => {
 		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 		assert.equal(backupService.getBackupResource(backupResource).fsPath, expectedPath);
-	});
-
-	test('getWorkspaceTextFilesWithBackupsSync should return text file resources that have backups', done => {
-		const workspaceResource = fooFile;
-		backupService.setCurrentWorkspace(workspaceResource);
-		backupService.registerResourceForBackup(barFile).then(() => {
-			backupService.setCurrentWorkspace(null); // Unset the workspace to emulate the main process
-			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource), [barFile.fsPath]);
-			backupService.setCurrentWorkspace(workspaceResource);
-			backupService.registerResourceForBackup(bazFile).then(() => {
-				backupService.setCurrentWorkspace(null); // Unset the workspace to emulate the main process
-				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource), [barFile.fsPath, bazFile.fsPath]);
-				done();
-			});
-		});
-	});
-
-	test('getWorkspaceUntitledFileBackupsSync should return untitled file backup resources', done => {
-		const workspaceResource = fooFile;
-		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-		const untitledBackupDir = path.join(backupHome, workspaceHash, 'untitled');
-		const untitledBackup1 = path.join(untitledBackupDir, 'bar');
-		const untitledBackup2 = path.join(untitledBackupDir, 'foo');
-		pfs.mkdirp(untitledBackupDir).then(() => {
-			pfs.writeFile(untitledBackup1, 'test').then(() => {
-				assert.deepEqual(backupService.getWorkspaceUntitledFileBackupsSync(workspaceResource), [untitledBackup1]);
-				pfs.writeFile(untitledBackup2, 'test').then(() => {
-					assert.deepEqual(backupService.getWorkspaceUntitledFileBackupsSync(workspaceResource), [untitledBackup1, untitledBackup2]);
-					done();
-				});
-			});
-		});
 	});
 
 	test('doesTextFileHaveBackup should return whether a backup resource exists', done => {

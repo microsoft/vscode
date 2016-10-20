@@ -17,7 +17,7 @@ import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import {IBackupService} from 'vs/platform/backup/common/backup';
+import {IBackupService} from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService, getConfigurationValue, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';

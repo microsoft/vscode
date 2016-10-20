@@ -27,7 +27,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
 import product from 'vs/platform/product';
-import { IBackupService } from 'vs/platform/backup/common/backup';
+import { IBackupService } from 'vs/workbench/services/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 

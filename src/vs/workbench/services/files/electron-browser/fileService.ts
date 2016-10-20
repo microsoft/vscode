@@ -26,7 +26,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IBackupService } from 'vs/platform/backup/common/backup';
+import { IBackupService } from 'vs/workbench/services/backup/common/backup';
 
 import { shell } from 'electron';
 

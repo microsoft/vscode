@@ -33,7 +33,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IBackupService } from 'vs/platform/backup/common/backup';
+import { IBackupService } from 'vs/workbench/services/backup/common/backup';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
