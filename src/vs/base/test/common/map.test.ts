@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { BoundedLinkedMap, LRUCache, LinkedMap } from 'vs/base/common/map';
+import { BoundedLinkedMap, LRUCache, LinkedMap, TrieMap } from 'vs/base/common/map';
 import * as assert from 'assert';
 
 suite('Map', () => {
@@ -270,5 +270,24 @@ suite('Map', () => {
 		assert.equal(cache.get('6'), 6);
 		assert.ok(!cache.has('3'));
 		assert.ok(!cache.has('4'));
+	});
+
+
+	test('TrieMap - basics', function () {
+
+		const map = new TrieMap<number>(TrieMap.PathSplitter);
+
+		map.insert('/user/foo/bar', 1);
+		map.insert('/user/foo', 2);
+		map.insert('/user/foo/flip/flop', 3);
+
+		assert.equal(map.findSubstr('/user/bar'), undefined);
+		assert.equal(map.findSubstr('/user/foo'), 2);
+		assert.equal(map.findSubstr('\\user\\foo'), 2);
+		assert.equal(map.findSubstr('/user/foo/ba'), 2);
+		assert.equal(map.findSubstr('/user/foo/far/boo'), 2);
+		assert.equal(map.findSubstr('/user/foo/bar'), 1);
+		assert.equal(map.findSubstr('/user/foo/bar/far/boo'), 1);
+
 	});
 });
