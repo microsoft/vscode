@@ -102,11 +102,11 @@ export function setExecutableBit(pattern: string | string[]): NodeJS.ReadWriteSt
 	}
 
 	var input = es.through();
-	var _filter = _filter(pattern, { restore: true });
+	var filter = _filter(pattern, { restore: true });
 	var output = input
-		.pipe(_filter)
+		.pipe(filter)
 		.pipe(setBit)
-		.pipe(_filter.restore);
+		.pipe(filter.restore);
 
 	return es.duplex(input, output);
 }
