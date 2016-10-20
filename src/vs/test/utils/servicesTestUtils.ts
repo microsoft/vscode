@@ -17,8 +17,8 @@ import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import {IBackupService} from 'vs/platform/backup/common/backup';
-import { IConfigurationService, getConfigurationValue, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { IBackupService } from 'vs/platform/backup/common/backup';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -44,6 +44,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -640,37 +641,6 @@ export class TestBackupService implements IBackupService {
 		return null;
 	}
 };
-
-export class TestConfigurationService extends EventEmitter implements IConfigurationService {
-	public _serviceBrand: any;
-
-	private configuration = Object.create(null);
-
-	public reloadConfiguration<T>(section?: string): TPromise<T> {
-		return TPromise.as(this.getConfiguration());
-	}
-
-	public getConfiguration(): any {
-		return this.configuration;
-	}
-
-	public setUserConfiguration(key: any, value: any): Thenable<void> {
-		this.configuration[key] = value;
-		return TPromise.as(null);
-	}
-
-	public onDidUpdateConfiguration() {
-		return { dispose() { } };
-	}
-
-	public lookup<C>(key: string): IConfigurationValue<C> {
-		return {
-			value: getConfigurationValue<C>(this.getConfiguration(), key),
-			default: getConfigurationValue<C>(this.getConfiguration(), key),
-			user: getConfigurationValue<C>(this.getConfiguration(), key)
-		};
-	}
-}
 
 export class TestLifecycleService implements ILifecycleService {
 

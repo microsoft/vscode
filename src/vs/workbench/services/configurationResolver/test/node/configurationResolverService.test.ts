@@ -11,7 +11,8 @@ import { IConfigurationService, getConfigurationValue } from 'vs/platform/config
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/node/configurationResolverService';
-import { TestEnvironmentService, TestConfigurationService, TestEditorService, } from 'vs/test/utils/servicesTestUtils';
+import { TestEnvironmentService, TestEditorService, } from 'vs/test/utils/servicesTestUtils';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('Configuration Resolver Service', () => {
 	let configurationResolverService: IConfigurationResolverService;
