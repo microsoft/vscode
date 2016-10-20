@@ -206,10 +206,18 @@ export interface IExceptionBreakpoint extends IEnablement {
 
 export interface IViewModel extends ITreeElement {
 	/**
-	 * Returns the active debug process or null if debug is inactive.
+	 * Returns the focused debug process or null if there are no processes.
 	 */
 	focusedProcess: IProcess;
+
+	/**
+	 * Returns the focused thread or null if there are no threads.
+	 */
 	focusedThread: IThread;
+
+	/**
+	 * Returns the focused stack frame or null if there are no stack frames (debug inactive).
+	 */
 	focusedStackFrame: IStackFrame;
 	getSelectedExpression(): IExpression;
 	getSelectedFunctionBreakpoint(): IFunctionBreakpoint;
@@ -432,7 +440,7 @@ export interface IDebugService {
 	/**
 	 * Restarts an active debug session or creates a new one if there is no active session.
 	 */
-	restartSession(): TPromise<any>;
+	restartSession(session: ISession): TPromise<any>;
 
 	/**
 	 * Gets the current debug model.
