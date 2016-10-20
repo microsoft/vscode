@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
@@ -26,6 +27,7 @@ import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorMo
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -42,6 +44,8 @@ export abstract class TextFileService implements ITextFileService {
 	private _onFilesAssociationChange: Emitter<void>;
 	private currentFilesAssociationConfig: { [key: string]: string; };
 
+	private configuredHotExit: boolean;
+
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
 	private configuredAutoSaveDelay: number;
 	private configuredAutoSaveOnFocusChange: boolean;
@@ -56,7 +60,8 @@ export abstract class TextFileService implements ITextFileService {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService protected fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IBackupService private backupService: IBackupService
 	) {
 		this.toUnbind = [];
 
@@ -112,10 +117,33 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private beforeShutdown(): boolean | TPromise<boolean> {
+		// If hot exit is enabled then save the dirty files in the workspace and then exit
+		// Hot exit is currently disabled for both empty workspaces (#13733) and on Mac (#13305)
+		if (this.configuredHotExit && this.contextService.getWorkspace() && !platform.isMacintosh) {
+			// If there are no dirty files, clean up and exit
+			if (this.getDirty().length === 0) {
+				return this.cleanupBackupsBeforeShutdown();
+			}
+
+			return this.backupService.getWorkspaceBackupPaths().then(workspaceBackupPaths => {
+				// Only remove the workspace from the backup service if it's not the last one or it's not dirty
+				if (workspaceBackupPaths.length > 1) {
+					return this.confirmBeforeShutdown();
+				}
+
+				// Backup and hot exit
+				return this.backupAll().then(result => {
+					if (result.results.some(r => !r.success)) {
+						return true; // veto if some backups failed
+					}
+
+					return false; // the backup went smoothly, no veto
+				});
+			});
+		}
 
 		// Dirty files need treatment on shutdown
 		if (this.getDirty().length) {
-
 			// If auto save is enabled, save all files and then check again for dirty files
 			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
 				return this.saveAll(false /* files only */).then(() => {
@@ -123,7 +151,9 @@ export abstract class TextFileService implements ITextFileService {
 						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
 					}
 
-					return false; // all good, no veto
+					return this.fileService.discardBackups().then(() => {
+						return false; // all good, no veto
+					});
 				});
 			}
 
@@ -131,7 +161,9 @@ export abstract class TextFileService implements ITextFileService {
 			return this.confirmBeforeShutdown();
 		}
 
-		return false; // no veto
+		return this.fileService.discardBackups().then(() => {
+			return false; // no veto
+		});
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
@@ -144,19 +176,31 @@ export abstract class TextFileService implements ITextFileService {
 					return true; // veto if some saves failed
 				}
 
-				return false; // no veto
+				return this.cleanupBackupsBeforeShutdown();
 			});
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-			return false; // no veto
+			return this.cleanupBackupsBeforeShutdown();
 		}
 
 		// Cancel
 		else if (confirm === ConfirmResult.CANCEL) {
 			return true; // veto
 		}
+	}
+
+	private cleanupBackupsBeforeShutdown(): boolean | TPromise<boolean> {
+		const workspace = this.contextService.getWorkspace();
+		if (!workspace) {
+			return false; // no backups to cleanup, no eto
+		}
+		return this.backupService.removeWorkspaceBackupPath(workspace.resource).then(() => {
+			return this.fileService.discardBackups().then(() => {
+				return false; // no veto
+			});
+		});
 	}
 
 	private onWindowFocusLost(): void {
@@ -208,6 +252,9 @@ export abstract class TextFileService implements ITextFileService {
 		if (!wasAutoSaveEnabled && this.getAutoSaveMode() !== AutoSaveMode.OFF) {
 			this.saveAll().done(null, errors.onUnexpectedError);
 		}
+
+		// Hot exit is disabled for empty workspaces
+		this.configuredHotExit = this.contextService.getWorkspace() && configuration && configuration.files && configuration.files.hotExit;
 
 		// Check for change in files associations
 		const filesAssociation = configuration && configuration.files && configuration.files.associations;
@@ -355,6 +402,66 @@ export abstract class TextFileService implements ITextFileService {
 			return {
 				results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
 			};
+		});
+	}
+
+	/**
+	 * Performs an immedate backup of all dirty file and untitled models.
+	 */
+	private backupAll(): TPromise<ITextFileOperationResult> {
+		const toBackup = this.getDirty();
+
+		// split up between files and untitled
+		const filesToBackup: URI[] = [];
+		const untitledToBackup: URI[] = [];
+		toBackup.forEach(s => {
+			if (s.scheme === 'file') {
+				filesToBackup.push(s);
+			} else if (s.scheme === 'untitled') {
+				untitledToBackup.push(s);
+			}
+		});
+
+		return this.doBackupAll(filesToBackup, untitledToBackup);
+	}
+
+	private doBackupAll(fileResources: URI[], untitledResources: URI[]): TPromise<ITextFileOperationResult> {
+		// Handle file resources first
+		const dirtyFileModels = this.getDirtyFileModels(fileResources);
+
+		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
+		dirtyFileModels.forEach(m => {
+			mapResourceToResult[m.getResource().toString()] = {
+				source: m.getResource()
+			};
+		});
+
+		return TPromise.join(dirtyFileModels.map(model => {
+			return model.backup().then(() => {
+				mapResourceToResult[model.getResource().toString()].success = true;
+			});
+		})).then(results => {
+			// Handle untitled resources
+			const untitledModelPromises = untitledResources.map(untitledResource => this.untitledEditorService.get(untitledResource))
+				.filter(untitled => !!untitled)
+				.map(untitled => untitled.resolve());
+
+			return TPromise.join(untitledModelPromises).then(untitledModels => {
+				const untitledBackupPromises = untitledModels.map(model => {
+					mapResourceToResult[model.getResource().toString()] = {
+						source: model.getResource(),
+						target: model.getResource()
+					};
+					return model.backup().then(() => {
+						mapResourceToResult[model.getResource().toString()].success = true;
+					});
+				});
+				return TPromise.join(untitledBackupPromises).then(() => {
+					return {
+						results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
+					};
+				});
+			});
 		});
 	}
 
@@ -518,6 +625,14 @@ export abstract class TextFileService implements ITextFileService {
 				results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
 			};
 		});
+	}
+
+	public backup(resource: URI): void {
+		let model = this.getDirtyFileModels(resource);
+		if (!model || model.length === 0) {
+			return;
+		}
+		this.fileService.backupFile(resource, model[0].getValue());
 	}
 
 	public getAutoSaveMode(): AutoSaveMode {
