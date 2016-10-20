@@ -22,7 +22,7 @@ var REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
 }
-exports.loaderConfig = function (emptyPaths) {
+function loaderConfig(emptyPaths) {
     var result = {
         paths: {
             'vs': 'out-build/vs',
@@ -32,7 +32,8 @@ exports.loaderConfig = function (emptyPaths) {
     };
     result['vs/css'] = { inlineResources: true };
     return result;
-};
+}
+exports.loaderConfig = loaderConfig;
 var IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
 function loader(bundledFileHeader, bundleLoader) {
     var sources = [
@@ -104,18 +105,7 @@ function toBundleStream(bundledFileHeader, bundles) {
         return toConcatStream(bundledFileHeader, bundle.sources, bundle.dest);
     }));
 }
-/**
- * opts:
- * - entryPoints (for AMD files, will get bundled and get Copyright treatment)
- * - otherSources (for non-AMD files that should get Copyright treatment)
- * - resources (svg, etc.)
- * - loaderConfig
- * - bundleLoader (boolean - true by default - append css and nls to loader)
- * - header (basically the Copyright treatment)
- * - bundleInfo (boolean - emit bundleInfo.json file)
- * - out (out folder name)
- */
-exports.optimizeTask = function (opts) {
+function optimizeTask(opts) {
     var entryPoints = opts.entryPoints;
     var otherSources = opts.otherSources;
     var resources = opts.resources;
@@ -176,35 +166,39 @@ exports.optimizeTask = function (opts) {
         }))
             .pipe(gulp.dest(out));
     };
-};
+}
+exports.optimizeTask = optimizeTask;
+;
 /**
  * Wrap around uglify and allow the preserveComments function
  * to have a file "context" to include our copyright only once per file.
  */
 function uglifyWithCopyrights() {
-    var preserveComments = function (f) { return function (node, comment) {
-        var text = comment.value;
-        var type = comment.type;
-        if (/@minifier_do_not_preserve/.test(text)) {
-            return false;
-        }
-        var isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
-        if (isOurCopyright) {
-            if (f.__hasOurCopyright) {
+    var preserveComments = function (f) {
+        return function (node, comment) {
+            var text = comment.value;
+            var type = comment.type;
+            if (/@minifier_do_not_preserve/.test(text)) {
                 return false;
             }
-            f.__hasOurCopyright = true;
-            return true;
-        }
-        if ('comment2' === type) {
-            // check for /*!. Note that text doesn't contain leading /*
-            return (text.length > 0 && text[0] === '!') || /@preserve|license|@cc_on|copyright/i.test(text);
-        }
-        else if ('comment1' === type) {
-            return /license|copyright/i.test(text);
-        }
-        return false;
-    }; };
+            var isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
+            if (isOurCopyright) {
+                if (f.__hasOurCopyright) {
+                    return false;
+                }
+                f.__hasOurCopyright = true;
+                return true;
+            }
+            if ('comment2' === type) {
+                // check for /*!. Note that text doesn't contain leading /*
+                return (text.length > 0 && text[0] === '!') || /@preserve|license|@cc_on|copyright/i.test(text);
+            }
+            else if ('comment1' === type) {
+                return /license|copyright/i.test(text);
+            }
+            return false;
+        };
+    };
     var input = es.through();
     var output = input
         .pipe(flatmap(function (stream, f) {
@@ -213,7 +207,7 @@ function uglifyWithCopyrights() {
     }));
     return es.duplex(input, output);
 }
-exports.minifyTask = function (src, sourceMapBaseUrl) {
+function minifyTask(src, sourceMapBaseUrl) {
     var sourceMappingURL = sourceMapBaseUrl && (function (f) { return (sourceMapBaseUrl + "/" + f.relative + ".map"); });
     return function (cb) {
         var jsFilter = filter('**/*.js', { restore: true });
@@ -230,4 +224,6 @@ exports.minifyTask = function (src, sourceMapBaseUrl) {
             cb(err);
         });
     };
-};
+}
+exports.minifyTask = minifyTask;
+;
