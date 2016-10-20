@@ -916,7 +916,7 @@ export class DebugService implements debug.IDebugService {
 			.then(() => this.sendExceptionBreakpoints(session));
 	}
 
-	private sendBreakpoints(modelUri: uri, sourceModified = false, session?: RawDebugSession): TPromise<void> {
+	private sendBreakpoints(modelUri: uri, sourceModified = false, targetSession?: RawDebugSession): TPromise<void> {
 		const sendBreakpointsToSession = (session: RawDebugSession): TPromise<void> => {
 			if (!session.readyForBreakpoints) {
 				return TPromise.as(null);
@@ -952,11 +952,11 @@ export class DebugService implements debug.IDebugService {
 			});
 		};
 
-		return this.sendToOneOrAllSessions(session, sendBreakpointsToSession);
+		return this.sendToOneOrAllSessions(targetSession, sendBreakpointsToSession);
 	}
 
-	private sendFunctionBreakpoints(session?: RawDebugSession): TPromise<void> {
-		const sendFunctionBreakpointsToSession = (RawDebugSession): TPromise<void> => {
+	private sendFunctionBreakpoints(targetSession?: RawDebugSession): TPromise<void> {
+		const sendFunctionBreakpointsToSession = (session: RawDebugSession): TPromise<void> => {
 			if (!session.readyForBreakpoints || !session.configuration.capabilities.supportsFunctionBreakpoints) {
 				return TPromise.as(null);
 			}
@@ -976,10 +976,10 @@ export class DebugService implements debug.IDebugService {
 			});
 		};
 
-		return this.sendToOneOrAllSessions(session, sendFunctionBreakpointsToSession);
+		return this.sendToOneOrAllSessions(targetSession, sendFunctionBreakpointsToSession);
 	}
 
-	private sendExceptionBreakpoints(session?: RawDebugSession): TPromise<void> {
+	private sendExceptionBreakpoints(targetSession?: RawDebugSession): TPromise<void> {
 		const sendExceptionBreakpointsToSession = (session: RawDebugSession): TPromise<any> => {
 			if (!session || !session.readyForBreakpoints || this.model.getExceptionBreakpoints().length === 0) {
 				return TPromise.as(null);
@@ -989,7 +989,7 @@ export class DebugService implements debug.IDebugService {
 			return session.setExceptionBreakpoints({ filters: enabledExceptionBps.map(exb => exb.filter) });
 		};
 
-		return this.sendToOneOrAllSessions(session, sendExceptionBreakpointsToSession);
+		return this.sendToOneOrAllSessions(targetSession, sendExceptionBreakpointsToSession);
 	}
 
 	private sendToOneOrAllSessions(session: RawDebugSession, send: (session: RawDebugSession) => TPromise<void>): TPromise<void> {
