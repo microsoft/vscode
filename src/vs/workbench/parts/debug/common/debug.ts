@@ -77,6 +77,7 @@ export interface ISession {
 	onDidEvent: Event<DebugProtocol.Event>;
 	restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse>;
 
+	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
 	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
 	stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse>;
 	stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse>;
@@ -137,6 +138,13 @@ export interface IThread extends ITreeElement {
 	 * threads can be retrieved from the debug adapter.
 	 */
 	stopped: boolean;
+
+	next(): TPromise<any>;
+	stepIn(): TPromise<any>;
+	stepOut(): TPromise<any>;
+	stepBack(): TPromise<any>;
+	continue(): TPromise<any>;
+	pause(): TPromise<any>;
 }
 
 export interface IScope extends IExpressionContainer {
@@ -442,12 +450,6 @@ export interface IDebugService {
 	 */
 	openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
 
-	next(threadId: number): TPromise<void>;
-	stepIn(threadId: number): TPromise<void>;
-	stepOut(threadId: number): TPromise<void>;
-	stepBack(threadId: number): TPromise<void>;
-	continue(threadId: number): TPromise<void>;
-	pause(threadId: number): TPromise<any>;
 	completions(text: string, position: Position): TPromise<ISuggestion[]>;
 }
 

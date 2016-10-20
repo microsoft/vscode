@@ -883,65 +883,6 @@ export class DebugService implements debug.IDebugService {
 		return this.configurationManager;
 	}
 
-	public next(threadId: number): TPromise<void> {
-		if (!this.session) {
-			return TPromise.as(null);
-		}
-
-		return this.session.next({ threadId }).then(() => {
-			this.lazyTransitionToRunningState(this.session, threadId);
-		});
-	}
-
-	public stepIn(threadId: number): TPromise<void> {
-		if (!this.session) {
-			return TPromise.as(null);
-		}
-
-		return this.session.stepIn({ threadId }).then(() => {
-			this.lazyTransitionToRunningState(this.session, threadId);
-		});
-	}
-
-	public stepOut(threadId: number): TPromise<void> {
-		if (!this.session) {
-			return TPromise.as(null);
-		}
-
-		return this.session.stepOut({ threadId }).then(() => {
-			this.lazyTransitionToRunningState(this.session, threadId);
-		});
-	}
-
-	public stepBack(threadId: number): TPromise<void> {
-		if (!this.session) {
-			return TPromise.as(null);
-		}
-
-		return this.session.stepBack({ threadId }).then(() => {
-			this.lazyTransitionToRunningState(this.session, threadId);
-		});
-	}
-
-	public continue(threadId: number): TPromise<void> {
-		if (!this.session) {
-			return TPromise.as(null);
-		}
-
-		return this.session.continue({ threadId }).then(response => {
-			const allThreadsContinued = response && response.body ? response.body.allThreadsContinued !== false : true;
-			this.lazyTransitionToRunningState(this.session, allThreadsContinued ? undefined : threadId);
-		});
-	}
-
-	public pause(threadId: number): TPromise<any> {
-		if (!this.session) {
-			return TPromise.as(null);
-		}
-
-		return this.session.pause({ threadId });
-	}
-
 	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
 		if (!this.session || !this.session.configuration.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);

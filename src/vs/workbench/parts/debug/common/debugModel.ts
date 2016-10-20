@@ -401,6 +401,30 @@ export class Thread implements debug.IThread {
 			return [];
 		});
 	}
+
+	public next(): TPromise<any> {
+		return this.process.session.next({ threadId: this.threadId });
+	}
+
+	public stepIn(): TPromise<any> {
+		return this.process.session.stepIn({ threadId: this.threadId });
+	}
+
+	public stepOut(): TPromise<any> {
+		return this.process.session.stepOut({ threadId: this.threadId });
+	}
+
+	public stepBack(): TPromise<any> {
+		return this.process.session.stepBack({ threadId: this.threadId });
+	}
+
+	public continue(): TPromise<any> {
+		return this.process.session.continue({ threadId: this.threadId });
+	}
+
+	public pause(): TPromise<any> {
+		return this.process.session.pause({ threadId: this.threadId });
+	}
 }
 
 export class Process implements debug.IProcess {

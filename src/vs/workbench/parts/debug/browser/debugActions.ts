@@ -169,11 +169,11 @@ export class StepOverAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		if (!thread) {
+		if (!(thread instanceof model.Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return this.debugService.next(thread.threadId);
+		return thread.next();
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -190,11 +190,11 @@ export class StepIntoAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		if (!thread) {
+		if (!(thread instanceof model.Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return this.debugService.stepIn(thread.threadId);
+		return thread.stepIn();
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -211,11 +211,11 @@ export class StepOutAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		if (!thread) {
+		if (!(thread instanceof model.Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return this.debugService.stepOut(thread.threadId);
+		return thread.stepOut();
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -232,11 +232,11 @@ export class StepBackAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		if (!thread) {
+		if (!(thread instanceof model.Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return this.debugService.stepBack(thread.threadId);
+		return thread.stepBack();
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -300,11 +300,11 @@ export class ContinueAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		if (!thread) {
+		if (!(thread instanceof model.Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return this.debugService.continue(thread.threadId);
+		return thread.continue();
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -321,11 +321,11 @@ export class PauseAction extends AbstractDebugAction {
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		if (!thread) {
+		if (!(thread instanceof model.Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return this.debugService.pause(thread.threadId);
+		return thread.pause();
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -659,7 +659,7 @@ class RunToCursorAction extends EditorAction {
 
 		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop());
 		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints([{ uri, lineNumber }])).then(() => {
-			debugService.continue(debugService.getViewModel().focusedThread.threadId);
+			debugService.getViewModel().focusedThread.continue();
 		});
 	}
 }
