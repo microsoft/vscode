@@ -5,7 +5,7 @@
 
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 
-export const ID = '';
+export const ID = 'editor.contrib.folding';
 
 export interface IFoldingController extends IEditorContribution {
 
