@@ -52,6 +52,8 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<html><style>foo { }</style></html>', 'css', '             foo { }               ');
 		assertEmbeddedLanguageContent('<html><script>var i = 0;</script></html>', 'css', '                                        ');
 		assertEmbeddedLanguageContent('<html><style>foo { }</style>Hello<style>foo { }</style></html>', 'css', '             foo { }                    foo { }               ');
+		assertEmbeddedLanguageContent('<html>\n  <style>\n    foo { }  \n  </style>\n</html>\n', 'css', '\n         \n    foo { }  \n  \n\n');
+
 	});
 
 	test('Scripts', function (): any {
