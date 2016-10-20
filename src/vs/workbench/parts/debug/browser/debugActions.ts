@@ -152,7 +152,8 @@ export class RestartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.restartSession();
+		const process = this.debugService.getViewModel().focusedProcess;
+		return this.debugService.restartSession(process ? process.session : null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {

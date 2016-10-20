@@ -296,7 +296,7 @@ export class DebugService implements debug.IDebugService {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (session && session.getId() === event.body.sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
-					this.restartSession().done(null, err => this.messageService.show(severity.Error, err.message));
+					this.restartSession(session).done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
 					session.disconnect().done(null, errors.onUnexpectedError);
 				}
@@ -737,8 +737,8 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
-	public restartSession(): TPromise<any> {
-		return this.session ? this.session.disconnect(true).then(() =>
+	public restartSession(session: debug.ISession): TPromise<any> {
+		return session ? session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
 					this.createSession(false, null).then(() => c(null), err => e(err));
