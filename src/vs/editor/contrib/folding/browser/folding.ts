@@ -19,18 +19,18 @@ import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser'
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { CollapsibleRegion, getCollapsibleRegionsToFoldAtLine, getCollapsibleRegionsToUnfoldAtLine, doesLineBelongsToCollapsibleRegion, IFoldingRange } from 'vs/editor/contrib/folding/common/foldingModel';
 import { computeRanges, limitByIndent } from 'vs/editor/contrib/folding/common/indentFoldStrategy';
+import { IFoldingController, ID } from 'vs/editor/contrib/folding/common/folding';
 import { Selection } from 'vs/editor/common/core/selection';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
 @editorContribution
-export class FoldingController implements editorCommon.IEditorContribution {
+export class FoldingController implements IFoldingController {
 
-	private static ID = 'editor.contrib.folding';
 	static MAX_FOLDING_REGIONS = 5000;
 
 	public static get(editor: editorCommon.ICommonCodeEditor): FoldingController {
-		return editor.getContribution<FoldingController>(FoldingController.ID);
+		return editor.getContribution<FoldingController>(ID);
 	}
 
 	private editor: ICodeEditor;
@@ -66,7 +66,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 	}
 
 	public getId(): string {
-		return FoldingController.ID;
+		return ID;
 	}
 
 	public dispose(): void {
@@ -439,7 +439,15 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		}
 	}
 
-	public changeAll(collapse: boolean): void {
+	public foldAll(): void {
+		this.changeAll(true);
+	}
+
+	public unfoldAll(): void {
+		this.changeAll(false);
+	}
+
+	private changeAll(collapse: boolean): void {
 		if (this.decorations.length > 0) {
 			let hasChanges = true;
 			this.editor.changeDecorations(changeAccessor => {
@@ -648,7 +656,7 @@ class FoldAllAction extends FoldingAction<void> {
 	}
 
 	invoke(foldingController: FoldingController, editor: editorCommon.ICommonCodeEditor): void {
-		foldingController.changeAll(true);
+		foldingController.foldAll();
 	}
 }
 
@@ -669,7 +677,7 @@ class UnfoldAllAction extends FoldingAction<void> {
 	}
 
 	invoke(foldingController: FoldingController, editor: editorCommon.ICommonCodeEditor): void {
-		foldingController.changeAll(false);
+		foldingController.unfoldAll();
 	}
 }
 
