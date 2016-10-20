@@ -104,13 +104,9 @@ export class BackupService implements IBackupService {
 	}
 
 	private loadSync(): void {
-		if (fs.existsSync(this.backupWorkspacesPath)) {
-			try {
-				this.fileContent = JSON.parse(fs.readFileSync(this.backupWorkspacesPath, 'utf8').toString()); // invalid JSON or permission issue can happen here
-			} catch (error) {
-				this.fileContent = Object.create(null);
-			}
-		} else {
+		try {
+			this.fileContent = JSON.parse(fs.readFileSync(this.backupWorkspacesPath, 'utf8').toString()); // invalid JSON or permission issue can happen here
+		} catch (error) {
 			this.fileContent = Object.create(null);
 		}
 
