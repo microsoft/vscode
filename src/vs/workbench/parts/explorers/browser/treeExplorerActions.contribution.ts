@@ -16,7 +16,7 @@ import { IActivityService } from 'vs/workbench/services/activity/common/activity
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 export class ToggleExternalViewletAction extends Action {
-	public static ID = 'workbench.view.customTreeExplorerViewlet';
+	public static ID = 'workbench.action.customTreeExplorer.toggle';
 	public static LABEL = nls.localize('toggleCustomExplorer', 'Toggle Custom Explorer');
 
 	constructor(
