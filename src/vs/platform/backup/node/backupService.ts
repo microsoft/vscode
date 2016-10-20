@@ -27,14 +27,27 @@ export class BackupService implements IBackupService {
 
 	private workspaceResource: Uri;
 	private fileContent: IBackupFormat;
+	private backupHome: string;
+	private backupWorkspacesPath: string;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
+		this.backupHome = environmentService.backupHome;
+		this.backupWorkspacesPath = environmentService.backupWorkspacesPath;
 	}
 
 	public setCurrentWorkspace(resource: Uri): void {
 		this.workspaceResource = resource;
+	}
+
+	/**
+	 * Due to the Environment service not being initialized when it's needed on the main thread
+	 * side, this is here so that tests can override the paths pulled from it.
+	 */
+	public setBackupPathsForTest(backupHome: string, backupWorkspacesPath: string) {
+		this.backupHome = backupHome;
+		this.backupWorkspacesPath = backupWorkspacesPath;
 	}
 
 	public getWorkspaceBackupPaths(): TPromise<string[]> {
@@ -92,7 +105,7 @@ export class BackupService implements IBackupService {
 		}
 
 		const workspaceHash = crypto.createHash('md5').update(workspace.fsPath).digest('hex');
-		const untitledDir = path.join(this.environmentService.backupHome, workspaceHash, 'untitled');
+		const untitledDir = path.join(this.backupHome, workspaceHash, 'untitled');
 
 		// Allow sync here as it's only used in workbench initialization's critical path
 		try {
@@ -110,7 +123,7 @@ export class BackupService implements IBackupService {
 
 		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
 		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
-		const backupPath = path.join(this.environmentService.backupHome, workspaceHash, resource.scheme, backupName);
+		const backupPath = path.join(this.backupHome, workspaceHash, resource.scheme, backupName);
 		return Uri.file(backupPath);
 	}
 
@@ -149,7 +162,7 @@ export class BackupService implements IBackupService {
 	}
 
 	private load(): TPromise<void> {
-		return pfs.fileExists(this.environmentService.backupWorkspacesPath).then(exists => {
+		return pfs.fileExists(this.backupWorkspacesPath).then(exists => {
 			if (!exists) {
 				this.fileContent = {
 					folderWorkspaces: Object.create(null)
@@ -157,7 +170,7 @@ export class BackupService implements IBackupService {
 				return TPromise.as(void 0);
 			}
 
-			return pfs.readFile(this.environmentService.backupWorkspacesPath, 'utf8').then(content => {
+			return pfs.readFile(this.backupWorkspacesPath, 'utf8').then(content => {
 				try {
 					return JSON.parse(content.toString());
 				} catch (ex) {
@@ -174,11 +187,16 @@ export class BackupService implements IBackupService {
 	}
 
 	private loadSync(): void {
-		try {
-			this.fileContent = JSON.parse(fs.readFileSync(this.environmentService.backupWorkspacesPath, 'utf8').toString()); // invalid JSON or permission issue can happen here
-		} catch (error) {
+		if (fs.existsSync(this.backupWorkspacesPath)) {
+			try {
+				this.fileContent = JSON.parse(fs.readFileSync(this.backupWorkspacesPath, 'utf8').toString()); // invalid JSON or permission issue can happen here
+			} catch (error) {
+				this.fileContent = Object.create(null);
+			}
+		} else {
 			this.fileContent = Object.create(null);
 		}
+
 		if (!this.fileContent.folderWorkspaces) {
 			this.fileContent.folderWorkspaces = Object.create(null);
 		}
@@ -186,18 +204,18 @@ export class BackupService implements IBackupService {
 
 	private save(): TPromise<void> {
 		const data = JSON.stringify(this.fileContent);
-		return pfs.mkdirp(this.environmentService.backupHome).then(() => {
-			return pfs.writeFile(this.environmentService.backupWorkspacesPath, data);
+		return pfs.mkdirp(this.backupHome).then(() => {
+			return pfs.writeFile(this.backupWorkspacesPath, data);
 		});
 	}
 
 	private saveSync(): void {
 		try {
 			// The user data directory must exist so only the Backup directory needs to be checked.
-			if (!fs.existsSync(this.environmentService.backupHome)) {
-				fs.mkdirSync(this.environmentService.backupHome);
+			if (!fs.existsSync(this.backupHome)) {
+				fs.mkdirSync(this.backupHome);
 			}
-			fs.writeFileSync(this.environmentService.backupWorkspacesPath, JSON.stringify(this.fileContent));
+			fs.writeFileSync(this.backupWorkspacesPath, JSON.stringify(this.fileContent));
 		} catch (ex) {
 		}
 	}
