@@ -83,6 +83,7 @@ suite('BackupService', () => {
 	test('registerResourceForBackup should register backups to workspaces.json', done => {
 		backupService.setCurrentWorkspace(fooFile);
 		backupService.registerResourceForBackup(barFile).then(() => {
+			backupService.setCurrentWorkspace(null); // Unset the workspace to emulate the main process
 			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(fooFile), [barFile.fsPath]);
 			done();
 		});
@@ -91,8 +92,11 @@ suite('BackupService', () => {
 	test('deregisterResourceForBackup should deregister backups from workspaces.json', done => {
 		backupService.setCurrentWorkspace(fooFile);
 		backupService.registerResourceForBackup(barFile).then(() => {
+			backupService.setCurrentWorkspace(null); // Unset the workspace to emulate the main process
 			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(fooFile), [barFile.fsPath]);
+			backupService.setCurrentWorkspace(fooFile);
 			backupService.deregisterResourceForBackup(barFile).then(() => {
+				backupService.setCurrentWorkspace(null); // Unset the workspace to emulate the main process
 				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(fooFile), []);
 				done();
 			});
@@ -147,8 +151,11 @@ suite('BackupService', () => {
 		const workspaceResource = fooFile;
 		backupService.setCurrentWorkspace(workspaceResource);
 		backupService.registerResourceForBackup(barFile).then(() => {
+			backupService.setCurrentWorkspace(null); // Unset the workspace to emulate the main process
 			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource), [barFile.fsPath]);
+			backupService.setCurrentWorkspace(workspaceResource);
 			backupService.registerResourceForBackup(bazFile).then(() => {
+				backupService.setCurrentWorkspace(null); // Unset the workspace to emulate the main process
 				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(workspaceResource), [barFile.fsPath, bazFile.fsPath]);
 				done();
 			});
@@ -157,7 +164,6 @@ suite('BackupService', () => {
 
 	test('getWorkspaceUntitledFileBackupsSync should return untitled file backup resources', done => {
 		const workspaceResource = fooFile;
-		backupService.setCurrentWorkspace(workspaceResource);
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 		const untitledBackupDir = path.join(backupHome, workspaceHash, 'untitled');
 		const untitledBackup1 = path.join(untitledBackupDir, 'bar');

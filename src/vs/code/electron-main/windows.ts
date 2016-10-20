@@ -625,18 +625,29 @@ export class WindowsManager implements IWindowsService {
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
-		// Add any existing backup workspaces
+		let configuration: IWindowConfiguration;
+		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
+
+		// Restore any existing backup workspaces
 		if (openConfig.restoreBackups) {
-			this.backupService.getWorkspaceBackupPathsSync().forEach(ws => {
-				iPathsToOpen.push(this.toIPath(ws));
+			const workspacesWithBackups = this.backupService.getWorkspaceBackupPathsSync();
+
+			workspacesWithBackups.forEach(workspacePath => {
+				const filesToRestore = this.backupService.getWorkspaceTextFilesWithBackupsSync(Uri.file(workspacePath)).map(filePath => {
+					return { filePath: filePath };
+				});
+				const untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(workspacePath)).map(filePath => {
+					return { filePath: filePath };
+				});
+				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, workspacePath, [], [], [], filesToRestore, untitledToRestore);
+				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
+				usedWindows.push(browserWindow);
+
+				openInNewWindow = true; // any other folders to open must open in new window then
 			});
-			// Get rid of duplicates
-			iPathsToOpen = arrays.distinct(iPathsToOpen, path => {
-				if (!('workspacePath' in path)) {
-					return path.workspacePath;
-				}
-				return platform.isLinux ? path.workspacePath : path.workspacePath.toLowerCase();
-			});
+
+			// Start tracking the backups
+			this.backupService.pushWorkspaceBackupPathsSync(workspacesWithBackups.map(ws => Uri.file(ws)));
 		}
 
 		let filesToOpen: IPath[] = [];
@@ -659,8 +670,6 @@ export class WindowsManager implements IWindowsService {
 		} else {
 			filesToOpen = candidates;
 		}
-
-		let configuration: IWindowConfiguration;
 
 		// Handle files to open/diff or to create when we dont open a folder
 		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
@@ -701,7 +710,6 @@ export class WindowsManager implements IWindowsService {
 		}
 
 		// Handle folders to open
-		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
 		if (foldersToOpen.length > 0) {
 
 			// Check for existing instances
@@ -766,11 +774,6 @@ export class WindowsManager implements IWindowsService {
 
 		// Emit events
 		iPathsToOpen.forEach(iPath => this.eventEmitter.emit(EventTypes.OPEN, iPath));
-
-		// Start tracking workspace backups
-		this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(path => 'workspacePath' in path).map(path => {
-			return Uri.file(path.workspacePath);
-		}));
 
 		return arrays.distinct(usedWindows);
 	}
@@ -885,7 +888,7 @@ export class WindowsManager implements IWindowsService {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
 	}
 
-	private toConfiguration(userEnv: platform.IProcessEnvironment, cli: ParsedArgs, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
+	private toConfiguration(userEnv: platform.IProcessEnvironment, cli: ParsedArgs, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], filesToRestore?: IPath[], untitledToRestore?: IPath[]): IWindowConfiguration {
 		const configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
@@ -894,6 +897,8 @@ export class WindowsManager implements IWindowsService {
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
+		configuration.filesToRestore = filesToRestore;
+		configuration.untitledToRestore = untitledToRestore;
 
 		return configuration;
 	}
