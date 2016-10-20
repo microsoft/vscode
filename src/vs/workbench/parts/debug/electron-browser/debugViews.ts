@@ -265,21 +265,22 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 
 		const model = this.debugService.getModel();
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
-			const focussedThread = this.debugService.getViewModel().focusedThread;
-			if (!focussedThread) {
+			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+			if (!stackFrame) {
 				this.pauseMessage.hide();
 				return;
 			}
 
-			return this.tree.expand(focussedThread).then(() => {
+			const thread = stackFrame.thread;
+			return this.tree.expand(thread).then(() => {
 				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 				this.tree.setSelection([focusedStackFrame]);
-				if (focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason) {
-					this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
-					if (focussedThread.stoppedDetails.text) {
-						this.pauseMessageLabel.title(focussedThread.stoppedDetails.text);
+				if (thread.stoppedDetails && thread.stoppedDetails.reason) {
+					this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason));
+					if (thread.stoppedDetails.text) {
+						this.pauseMessageLabel.title(thread.stoppedDetails.text);
 					}
-					focussedThread.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
+					thread.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
 					this.pauseMessage.show();
 				} else {
 					this.pauseMessage.hide();

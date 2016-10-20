@@ -31,6 +31,10 @@ export class ViewModel implements debug.IViewModel {
 		return this._focusedStackFrame ? this._focusedStackFrame.thread.process : null;
 	}
 
+	public get focusedThread(): debug.IThread {
+		return this._focusedStackFrame ? this._focusedStackFrame.thread : null;
+	}
+
 	public get focusedStackFrame(): debug.IStackFrame {
 		return this._focusedStackFrame;
 	}
@@ -42,10 +46,6 @@ export class ViewModel implements debug.IViewModel {
 
 	public get onDidFocusStackFrame(): Event<debug.IStackFrame> {
 		return this._onDidFocusStackFrame.event;
-	}
-
-	public get focusedThread(): debug.IThread {
-		return this._focusedStackFrame ? this._focusedStackFrame.thread : null;
 	}
 
 	public getSelectedExpression(): debug.IExpression {

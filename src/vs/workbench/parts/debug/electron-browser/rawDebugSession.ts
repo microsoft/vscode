@@ -247,23 +247,38 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
-		return this.send('next', args);
+		return this.send('next', args).then(response => {
+			this.fireFakeContinued(args.threadId);
+			return response;
+		});
 	}
 
 	public stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse> {
-		return this.send('stepIn', args);
+		return this.send('stepIn', args).then(response => {
+			this.fireFakeContinued(args.threadId);
+			return response;
+		});
 	}
 
 	public stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse> {
-		return this.send('stepOut', args);
+		return this.send('stepOut', args).then(response => {
+			this.fireFakeContinued(args.threadId);
+			return response;
+		});
 	}
 
 	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
-		return this.send('stepBack', args);
+		return this.send('stepBack', args).then(response => {
+			this.fireFakeContinued(args.threadId);
+			return response;
+		});
 	}
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
-		return this.send('continue', args);
+		return this.send('continue', args).then(response => {
+			this.fireFakeContinued(args.threadId);
+			return response;
+		});
 	}
 
 	public pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse> {
@@ -364,6 +379,17 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 			response.message = `unknown request '${request.command}'`;
 			this.sendResponse(response);
 		}
+	}
+
+	private fireFakeContinued(threadId: number): void {
+		this._onDidContinued.fire({
+			type: 'event',
+			event: 'continued',
+			body: {
+				threadId
+			},
+			seq: undefined
+		});
 	}
 
 	private connectServer(port: number): TPromise<void> {
