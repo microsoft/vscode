@@ -68,6 +68,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	private _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
+		id: string,
 		private debugServerPort: number,
 		private adapter: Adapter,
 		private customTelemetryService: ITelemetryService,
@@ -78,7 +79,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		@IExternalTerminalService private nativeTerminalService: IExternalTerminalService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super();
+		super(id);
 		this.emittedStopped = false;
 		this.readyForBreakpoints = false;
 		this.sentPromises = [];

@@ -7,6 +7,7 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import { guessMimeTypes } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
+import uuid = require('vs/base/common/uuid');
 import uri from 'vs/base/common/uri';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Action } from 'vs/base/common/actions';
@@ -64,7 +65,7 @@ const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 export class DebugService implements debug.IDebugService {
 	public _serviceBrand: any;
 
-	private _state: debug.State;
+	private sessionStates: { [id: string]: debug.State };
 	private _onDidChangeState: Emitter<debug.State>;
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
@@ -101,12 +102,9 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = {};
 		this.breakpointsToSendOnResourceSaved = {};
-		this._state = debug.State.Inactive;
 		this._onDidChangeState = new Emitter<debug.State>();
+		this.sessionStates = {};
 
-		if (!this.contextService.getWorkspace()) {
-			this._state = debug.State.Disabled;
-		}
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
 		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 
@@ -255,7 +253,7 @@ export class DebugService implements debug.IDebugService {
 		}));
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidStop(event => {
-			this.setStateAndEmit(debug.State.Stopped);
+			this.setStateAndEmit(session.getId(), debug.State.Stopped);
 			const threadId = event.body.threadId;
 
 			this.getThreadData(session).done(() => {
@@ -334,7 +332,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (session && session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
+			if (session && session.configuration.type === 'extensionHost' && this.sessionStates[session.getId()] === debug.State.RunningNoDebug) {
 				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (session && session.getId() === event.body.sessionId) {
@@ -402,15 +400,28 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public get state(): debug.State {
-		return this._state;
+		if (!this.contextService.getWorkspace()) {
+			return debug.State.Disabled;
+		}
+
+		const focusedProcess = this.viewModel.focusedProcess;
+		if (focusedProcess) {
+			return this.sessionStates[focusedProcess.getId()];
+		}
+		const processes = this.model.getProcesses();
+		if (processes.length > 0) {
+			return this.sessionStates[processes[0].getId()];
+		}
+
+		return debug.State.Inactive;
 	}
 
 	public get onDidChangeState(): Event<debug.State> {
 		return this._onDidChangeState.event;
 	}
 
-	private setStateAndEmit(newState: debug.State): void {
-		this._state = newState;
+	private setStateAndEmit(sessionId: string, newState: debug.State): void {
+		this.sessionStates[sessionId] = newState;
 		this._onDidChangeState.fire(newState);
 	}
 
@@ -570,7 +581,8 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private doCreateSession(configuration: debug.IExtHostConfig): TPromise<any> {
-		this.setStateAndEmit(debug.State.Initializing);
+		const sessionId = uuid.generateUuid();
+		this.setStateAndEmit(sessionId, debug.State.Initializing);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
@@ -604,7 +616,7 @@ export class DebugService implements debug.IDebugService {
 				this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			const session = this.instantiationService.createInstance(RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
+			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
 			this.model.addProcess(session);
 			this.toDisposeOnSessionEnd[session.getId()] = [];
 			if (client) {
@@ -665,7 +677,7 @@ export class DebugService implements debug.IDebugService {
 				}
 
 				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
-				this.setStateAndEmit(debug.State.Inactive);
+				this.setStateAndEmit(session.getId(), debug.State.Inactive);
 				if (!session.disconnected) {
 					session.disconnect().done(null, errors.onUnexpectedError);
 				}
@@ -730,7 +742,7 @@ export class DebugService implements debug.IDebugService {
 			return session.attach({ port });
 		}
 
-		this.setStateAndEmit(debug.State.Initializing);
+		this.setStateAndEmit(session.getId(), debug.State.Initializing);
 		const configuration = <debug.IExtHostConfig>this.configurationManager.configuration;
 		return this.doCreateSession({
 			type: configuration.type,
@@ -774,7 +786,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.model.removeProcess(session.getId());
 		this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
-		this.setStateAndEmit(debug.State.Inactive);
+		this.setStateAndEmit(session.getId(), debug.State.Inactive);
 
 		// set breakpoints back to unverified since the session ended.
 		// source reference changes across sessions, so we do not use it to persist the source.
@@ -886,7 +898,7 @@ export class DebugService implements debug.IDebugService {
 		const stackFrameToFocus = callStack && callStack.length > 0 ? callStack[0] : null;
 
 		if (!stoppedThread) {
-			this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
+			this.setStateAndEmit(session.getId(), this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
 		}
 
 		// Do not immediatly set a new focused stack frame since that might cause unnecessery flickering
