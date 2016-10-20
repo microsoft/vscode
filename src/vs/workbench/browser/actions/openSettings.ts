@@ -5,25 +5,26 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import network = require('vs/base/common/network');
-import labels = require('vs/base/common/labels');
+import * as network from 'vs/base/common/network';
+import * as labels from 'vs/base/common/labels';
 import { Registry } from 'vs/platform/platform';
 import { Action } from 'vs/base/common/actions';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
+import { LinkedMap as Map } from 'vs/base/common/map';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
 import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
 import { getDefaultValuesContent } from 'vs/platform/configuration/common/model';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { Position } from 'vs/platform/editor/common/editor';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
@@ -238,6 +239,7 @@ export class OpenWorkspaceSettingsAction extends BaseOpenSettingsAction {
 }
 
 class DefaultSettingsInput extends StringEditorInput {
+	static RESOURCE: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' }); // URI is used to register JSON schema support
 	private static INSTANCE: DefaultSettingsInput;
 
 	public static getInstance(instantiationService: IInstantiationService, configurationService: IWorkspaceConfigurationService): DefaultSettingsInput {
@@ -254,7 +256,7 @@ class DefaultSettingsInput extends StringEditorInput {
 	}
 
 	protected getResource(): URI {
-		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' }); // URI is used to register JSON schema support
+		return DefaultSettingsInput.RESOURCE;
 	}
 }
 
@@ -281,6 +283,8 @@ export class DefaultSettingsEditor extends StringEditor {
 
 	public static ID = 'workbench.editors.defaultSettingsEditor';
 
+	private static VIEW_STATE: Map<URI, IEditorViewState> = new Map<URI, IEditorViewState>();
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -302,8 +306,26 @@ export class DefaultSettingsEditor extends StringEditor {
 		return DefaultSettingsEditor.ID;
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
-		return super.setInput(input, options).then(() => this.foldAll());
+	public clearInput(): void {
+		this.saveState();
+		super.clearInput();
+	}
+
+	protected restoreViewState(input: EditorInput) {
+		const viewState = DefaultSettingsEditor.VIEW_STATE.get(this.getResource());
+		if (viewState) {
+			this.getControl().restoreViewState(viewState);
+		} else {
+			this.foldAll();
+		}
+	}
+
+	private saveState() {
+		DefaultSettingsEditor.VIEW_STATE.set(this.getResource(), this.getControl().saveViewState());
+	}
+
+	private getResource(): URI {
+		return DefaultSettingsInput.RESOURCE;
 	}
 
 	private foldAll() {

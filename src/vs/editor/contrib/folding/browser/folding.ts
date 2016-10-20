@@ -108,7 +108,13 @@ export class FoldingController implements IFoldingController {
 		if (!state || !Array.isArray(state.collapsedRegions) || state.collapsedRegions.length === 0 || state.lineCount !== model.getLineCount()) {
 			return;
 		}
+
+		// Clean the state before restoring
+		this.cleanState();
+		// restore
 		this.applyRegions(<IFoldingRange[]>state.collapsedRegions);
+		// Start listening to the model
+		this.onModelChanged();
 	}
 
 	private cleanState(): void {
@@ -189,6 +195,7 @@ export class FoldingController implements IFoldingController {
 			return;
 		}
 
+		this.computeAndApplyCollapsibleRegions();
 		this.contentChangedScheduler = new RunOnceScheduler(() => this.computeAndApplyCollapsibleRegions(), 200);
 		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
 		this.localToDispose.push(this.contentChangedScheduler);
@@ -200,7 +207,6 @@ export class FoldingController implements IFoldingController {
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 
 		this.localToDispose.push({ dispose: () => this.disposeDecorations() });
-		this.contentChangedScheduler.schedule();
 	}
 
 	private computeAndApplyCollapsibleRegions(): void {
