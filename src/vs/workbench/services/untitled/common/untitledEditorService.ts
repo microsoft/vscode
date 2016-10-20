@@ -58,7 +58,7 @@ export interface IUntitledEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	createOrGet(resource?: URI, modeId?: string): UntitledEditorInput;
+	createOrGet(resource?: URI, modeId?: string, restoreResource?: URI): UntitledEditorInput;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -76,7 +76,9 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private _onDidChangeDirty: Emitter<URI>;
 	private _onDidChangeEncoding: Emitter<URI>;
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		this._onDidChangeDirty = new Emitter<URI>();
 		this._onDidChangeEncoding = new Emitter<URI>();
 	}
@@ -130,7 +132,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			.map((i) => i.getResource());
 	}
 
-	public createOrGet(resource?: URI, modeId?: string): UntitledEditorInput {
+	public createOrGet(resource?: URI, modeId?: string, restoreResource?: URI): UntitledEditorInput {
 		let hasAssociatedFilePath = false;
 		if (resource) {
 			hasAssociatedFilePath = (resource.scheme === 'file');
@@ -147,10 +149,10 @@ export class UntitledEditorService implements IUntitledEditorService {
 		}
 
 		// Create new otherwise
-		return this.doCreate(resource, hasAssociatedFilePath, modeId);
+		return this.doCreate(resource, hasAssociatedFilePath, modeId, restoreResource);
 	}
 
-	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, modeId?: string): UntitledEditorInput {
+	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, modeId?: string, restoreResource?: URI): UntitledEditorInput {
 		if (!resource) {
 
 			// Create new taking a resource URI that is not already taken
@@ -162,6 +164,9 @@ export class UntitledEditorService implements IUntitledEditorService {
 		}
 
 		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
+		if (restoreResource) {
+			input.setRestoreResource(restoreResource);
+		}
 
 		const dirtyListener = input.onDidChangeDirty(() => {
 			this._onDidChangeDirty.fire(resource);

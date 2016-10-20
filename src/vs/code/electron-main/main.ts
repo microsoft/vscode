@@ -32,6 +32,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
+import { IBackupService } from 'vs/platform/backup/common/backup';
+import { BackupService } from 'vs/platform/backup/node/backupService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -255,11 +257,11 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 
 	// Open our first window
 	if (environmentService.args['new-window'] && environmentService.args._.length === 0) {
-		windowsService.open({ cli: environmentService.args, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
+		windowsService.open({ cli: environmentService.args, forceNewWindow: true, forceEmpty: true, restoreBackups: true }); // new window if "-n" was used without paths
 	} else if (global.macOpenFiles && global.macOpenFiles.length && (!environmentService.args._ || !environmentService.args._.length)) {
-		windowsService.open({ cli: environmentService.args, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
+		windowsService.open({ cli: environmentService.args, pathsToOpen: global.macOpenFiles, restoreBackups: true }); // mac: open-file event received on startup
 	} else {
-		windowsService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff }); // default: read paths from cli
+		windowsService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff, restoreBackups: true }); // default: read paths from cli
 	}
 }
 
@@ -474,6 +476,7 @@ function start(): void {
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IUpdateService, new SyncDescriptor(UpdateManager));
+	services.set(IBackupService, new SyncDescriptor(BackupService));
 	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
 
 	const instantiationService = new InstantiationService(services);

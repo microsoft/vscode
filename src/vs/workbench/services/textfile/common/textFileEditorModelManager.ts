@@ -171,7 +171,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		return this.mapResourceToModel[resource.toString()];
 	}
 
-	public loadOrCreate(resource: URI, encoding: string, refresh?: boolean): TPromise<ITextFileEditorModel> {
+	public loadOrCreate(resource: URI, encoding: string, refresh?: boolean, restoreResource?: URI): TPromise<ITextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders[resource.toString()];
@@ -194,6 +194,9 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		// Model does not exist
 		else {
 			model = this.instantiationService.createInstance(TextFileEditorModel, resource, encoding);
+			if (restoreResource) {
+				model.setRestoreResource(restoreResource);
+			}
 			modelPromise = model.load();
 
 			// Install state change listener
