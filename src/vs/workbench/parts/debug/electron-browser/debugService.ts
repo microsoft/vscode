@@ -260,7 +260,7 @@ export class DebugService implements debug.IDebugService {
 
 			this.getThreadData(session).done(() => {
 				this.model.rawUpdate({
-					rawSession: session,
+					sessionId: session.getId(),
 					threadId,
 					stoppedDetails: event.body,
 					allThreadsStopped: event.body.allThreadsStopped
@@ -351,7 +351,7 @@ export class DebugService implements debug.IDebugService {
 	private getThreadData(session: RawDebugSession): TPromise<void> {
 		return session.threads().then(response => {
 			if (response && response.body && response.body.threads) {
-				response.body.threads.forEach(thread => this.model.rawUpdate({ rawSession: session, threadId: thread.id, thread }));
+				response.body.threads.forEach(thread => this.model.rawUpdate({ sessionId: session.getId(), threadId: thread.id, thread }));
 			}
 		});
 	}
@@ -605,6 +605,7 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			const session = this.instantiationService.createInstance(RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
+			this.model.addProcess(session);
 			this.toDisposeOnSessionEnd[session.getId()] = [];
 			if (client) {
 				this.toDisposeOnSessionEnd[session.getId()].push(client);

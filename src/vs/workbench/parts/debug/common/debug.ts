@@ -31,7 +31,7 @@ export const DEBUG_SCHEME = 'debug';
 
 export interface IRawModelUpdate {
 	threadId: number;
-	rawSession: ISession & ITreeElement;
+	sessionId: string;
 	thread?: DebugProtocol.Thread;
 	callStack?: DebugProtocol.StackFrame[];
 	stoppedDetails?: IRawStoppedDetails;

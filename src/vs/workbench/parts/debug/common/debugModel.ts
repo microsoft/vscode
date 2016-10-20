@@ -644,6 +644,10 @@ export class Model implements debug.IModel {
 		return this.processes;
 	}
 
+	public addProcess(session: debug.ISession & debug.ITreeElement): void {
+		this.processes.push(new Process(session));
+	}
+
 	public removeProcess(id: string): void {
 		this.processes = this.processes.filter(p => p.getId() !== id);
 		this._onDidChangeCallStack.fire();
@@ -666,18 +670,15 @@ export class Model implements debug.IModel {
 	}
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
-		let process = this.processes.filter(p => p.getId() === data.rawSession.getId()).pop();
-		if (!process) {
-			process = new Process(data.rawSession);
-			this.processes.push(process);
+		let process = this.processes.filter(p => p.getId() === data.sessionId).pop();
+		if (process) {
+			process.rawUpdate(data);
+			this._onDidChangeCallStack.fire();
 		}
-		process.rawUpdate(data);
-
-		this._onDidChangeCallStack.fire();
 	}
 
-	public clearThreads(processId: string, removeThreads: boolean, reference: number = undefined): void {
-		const process = this.processes.filter(p => p.getId() === processId).pop();
+	public clearThreads(id: string, removeThreads: boolean, reference: number = undefined): void {
+		const process = this.processes.filter(p => p.getId() === id).pop();
 		if (process) {
 			process.clearThreads(removeThreads, reference);
 			this._onDidChangeCallStack.fire();
