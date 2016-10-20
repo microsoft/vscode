@@ -29,13 +29,13 @@ export class ToggleExternalViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const viewletsToggleStataus = this.activityService.getRegisteredViewletsToggleStatus();
+		const viewletsToggleStataus = this.activityService.getRegisteredViewletsIsEnabled();
 
 		const picks: IPickOpenEntry[] = [];
 		for (let viewletId in viewletsToggleStataus) {
 			picks.push({
 				id: viewletId,
-				label: (viewletsToggleStataus[viewletId] ? "Disable " : "Enable ") + this.getShortViewletId(viewletId)
+				label: (viewletsToggleStataus[viewletId] ? 'Disable ' : 'Enable ') + this.getShortViewletId(viewletId)
 			});
 		}
 
@@ -55,6 +55,6 @@ export class ToggleExternalViewletAction extends Action {
 
 registry.registerWorkbenchAction(
 	new SyncActionDescriptor(ToggleExternalViewletAction, ToggleExternalViewletAction.ID, ToggleExternalViewletAction.LABEL),
-	"View: Toggle Custom Explorer",
+	'View: Toggle Custom Explorer',
 	nls.localize('view', "View")
 );
