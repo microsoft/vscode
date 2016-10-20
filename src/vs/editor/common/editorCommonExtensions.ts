@@ -134,13 +134,16 @@ export module CommonEditorRegistry {
 		registerLanguageCommand(id, function (accessor, args) {
 
 			const {resource, position} = args;
-			if (!(resource instanceof URI) || !Position.isIPosition(position)) {
-				throw illegalArgument();
+			if (!(resource instanceof URI)) {
+				throw illegalArgument('resource');
+			}
+			if (!Position.isIPosition(position)) {
+				throw illegalArgument('position');
 			}
 
 			const model = accessor.get(IModelService).getModel(resource);
 			if (!model) {
-				throw illegalArgument();
+				throw illegalArgument('Can not find open model for ' + resource);
 			}
 
 			const editorPosition = Position.lift(position);
