@@ -74,11 +74,13 @@ connection.onShutdown(() => {
 });
 
 let workspacePath: string;
+let embeddedLanguages: { [languageId: string]: boolean };
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspacePath = params.rootPath;
+	embeddedLanguages = params.initializationOptions.embeddedLanguages;
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
@@ -118,9 +120,9 @@ connection.onCompletion(textDocumentPosition => {
 	let htmlDocument = htmlDocuments.get(document);
 	let options = languageSettings && languageSettings.suggest;
 	let list = languageService.doComplete(document, textDocumentPosition.position, htmlDocument, options);
-	if (list.items.length === 0) {
+	if (list.items.length === 0 && embeddedLanguages) {
 		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
-		if (embeddedLanguageId) {
+		if (embeddedLanguageId && embeddedLanguages[embeddedLanguageId]) {
 			return connection.sendRequest(EmbeddedCompletionRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
 		}
 	}
@@ -131,9 +133,9 @@ connection.onHover(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let htmlDocument = htmlDocuments.get(document);
 	let hover = languageService.doHover(document, textDocumentPosition.position, htmlDocument);
-	if (!hover) {
+	if (!hover && embeddedLanguages) {
 		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
-		if (embeddedLanguageId) {
+		if (embeddedLanguageId && embeddedLanguages[embeddedLanguageId]) {
 			return connection.sendRequest(EmbeddedHoverRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
 		}
 	}
