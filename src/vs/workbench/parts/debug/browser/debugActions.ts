@@ -170,7 +170,7 @@ export class StepOverAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread.next();
+		return thread ? thread.next() : TPromise.as(null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -191,7 +191,7 @@ export class StepIntoAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread.stepIn();
+		return thread ? thread.stepIn() : TPromise.as(null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -212,7 +212,7 @@ export class StepOutAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread.stepOut();
+		return thread ? thread.stepOut() : TPromise.as(null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -301,7 +301,7 @@ export class ContinueAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread.continue();
+		return thread ? thread.continue() : TPromise.as(null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
