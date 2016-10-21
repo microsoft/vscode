@@ -137,6 +137,7 @@
   },
   "dependencies": {
     "vscode-languageclient": "^2.6.0-next.1",
+    "vscode-languageserver-types": "^1.0.4",
     "vscode-nls": "^1.0.7"
   }
 }
