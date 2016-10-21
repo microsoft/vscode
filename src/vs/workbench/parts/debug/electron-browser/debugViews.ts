@@ -5,6 +5,7 @@
 
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
+import { RunOnceScheduler } from 'vs/base/common/async';
 import dom = require('vs/base/browser/dom');
 import builder = require('vs/base/browser/builder');
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -218,6 +219,8 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 	private static MEMENTO = 'callstackview.memento';
 	private pauseMessage: builder.Builder;
 	private pauseMessageLabel: builder.Builder;
+	private onCallStackChangeScheduler: RunOnceScheduler;
+	private onStackFrameFocusScheduler: RunOnceScheduler;
 
 	constructor(
 		actionRunner: actions.IActionRunner,
@@ -230,6 +233,51 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, keybindingService, contextMenuService);
+		this.createSchedulers();
+	}
+
+	private createSchedulers(): void {
+		this.onStackFrameFocusScheduler = new RunOnceScheduler(() => {
+			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+			if (!stackFrame) {
+				this.pauseMessage.hide();
+				return;
+			}
+
+			const thread = stackFrame.thread;
+			this.tree.expand(thread).done(() => {
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				this.tree.setSelection([focusedStackFrame]);
+				if (thread.stoppedDetails && thread.stoppedDetails.reason) {
+					this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason));
+					if (thread.stoppedDetails.text) {
+						this.pauseMessageLabel.title(thread.stoppedDetails.text);
+					}
+					thread.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
+					this.pauseMessage.show();
+				} else {
+					this.pauseMessage.hide();
+				}
+
+				return this.tree.reveal(focusedStackFrame);
+			}, errors.onUnexpectedError);
+		}, 100);
+
+		this.onCallStackChangeScheduler = new RunOnceScheduler(() => {
+			let newTreeInput: any = this.debugService.getModel();
+			const processes = this.debugService.getModel().getProcesses();
+			if (processes.length === 1) {
+				const threads = processes[0].getAllThreads();
+				// Only show the threads in the call stack if there is more than 1 thread.
+				newTreeInput = threads.length === 1 ? threads[0] : processes[0];
+			}
+
+			if (this.tree.getInput() === newTreeInput) {
+				this.tree.refresh().done(null, errors.onUnexpectedError);
+			} else {
+				this.tree.setInput(newTreeInput).done(null, errors.onUnexpectedError);
+			}
+		}, 50);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -263,46 +311,15 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 			}
 		}));
 
-		const model = this.debugService.getModel();
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
-			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-			if (!stackFrame) {
-				this.pauseMessage.hide();
-				return;
+			if (!this.onStackFrameFocusScheduler.isScheduled()) {
+				this.onStackFrameFocusScheduler.schedule();
 			}
-
-			const thread = stackFrame.thread;
-			return this.tree.expand(thread).then(() => {
-				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				this.tree.setSelection([focusedStackFrame]);
-				if (thread.stoppedDetails && thread.stoppedDetails.reason) {
-					this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason));
-					if (thread.stoppedDetails.text) {
-						this.pauseMessageLabel.title(thread.stoppedDetails.text);
-					}
-					thread.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
-					this.pauseMessage.show();
-				} else {
-					this.pauseMessage.hide();
-				}
-
-				return this.tree.reveal(focusedStackFrame);
-			});
 		}));
 
-		this.toDispose.push(model.onDidChangeCallStack(() => {
-			let newTreeInput: any = this.debugService.getModel();
-			const processes = this.debugService.getModel().getProcesses();
-			if (processes.length === 1) {
-				const threads = processes[0].getAllThreads();
-				// Only show the threads in the call stack if there is more than 1 thread.
-				newTreeInput = threads.length === 1 ? threads[0] : processes[0];
-			}
-
-			if (this.tree.getInput() === newTreeInput) {
-				this.tree.refresh().done(null, errors.onUnexpectedError);
-			} else {
-				this.tree.setInput(newTreeInput).done(null, errors.onUnexpectedError);
+		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => {
+			if (!this.onCallStackChangeScheduler.isScheduled()) {
+				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
 	}
