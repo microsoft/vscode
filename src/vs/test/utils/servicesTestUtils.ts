@@ -623,10 +623,6 @@ export class TestBackupService implements IBackupService {
 		return [];
 	}
 
-	public doesTextFileHaveBackup(resource: URI): TPromise<boolean> {
-		return TPromise.as(false);
-	}
-
 	public registerResourceForBackup(resource: URI): TPromise<void> {
 		this.registeredResources.push(resource);
 		return TPromise.as(void 0);

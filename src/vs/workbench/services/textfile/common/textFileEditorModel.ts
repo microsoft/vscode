@@ -16,13 +16,12 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
-import { IModelContentChangedEvent, IRawText } from 'vs/editor/common/editorCommon';
+import { IModelContentChangedEvent } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IFileService, IFileStat, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -41,6 +40,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private static saveParticipant: ISaveParticipant;
 
 	private resource: URI;
+	private restoreResource: URI;
 	private contentEncoding: string; 			// encoding as reported from disk
 	private preferredEncoding: string;			// encoding as chosen by the user
 	private dirty: boolean;
@@ -71,8 +71,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IBackupService private backupService: IBackupService
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super(modelService, modeService);
 
@@ -184,6 +183,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
+	public setRestoreResource(resource: URI): void {
+		this.restoreResource = resource;
+	}
+
 	public load(force?: boolean /* bypass any caches and really go to disk */): TPromise<EditorModel> {
 		diag('load() - enter', this.resource, new Date());
 
@@ -261,20 +264,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			else {
 				diag('load() - created text editor model', this.resource, new Date());
 
-				return this.backupService.doesTextFileHaveBackup(this.resource).then(backupExists => {
-					let getContentPromise: TPromise<IRawText>;
-					if (backupExists) {
-						const restoreResource = this.backupService.getBackupResource(this.resource);
-						getContentPromise = this.textFileService.resolveTextContent(restoreResource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then(content => content.value);
-					} else {
-						getContentPromise = TPromise.as(content.value);
-					}
-
-					this.createTextEditorModelPromise = getContentPromise.then(fileContent => {
-						return this.createTextEditorModel(fileContent, content.resource).then(() => {
+				if (this.restoreResource) {
+					this.createTextEditorModelPromise = this.textFileService.resolveTextContent(this.restoreResource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then((restoreContent) => {
+						return this.createTextEditorModel(restoreContent.value, content.resource).then(() => {
 							this.createTextEditorModelPromise = null;
 
-							this.setDirty(backupExists); // Ensure we are not tracking a stale state
+							this.setDirty(true);
 							this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
 
 							return this;
@@ -284,9 +279,22 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 							return TPromise.wrapError(error);
 						});
 					});
+				} else {
+					this.createTextEditorModelPromise = this.createTextEditorModel(content.value, content.resource).then(() => {
+						this.createTextEditorModelPromise = null;
 
-					return this.createTextEditorModelPromise;
-				});
+						this.setDirty(false); // Ensure we are not tracking a stale state
+						this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
+
+						return this;
+					}, (error) => {
+						this.createTextEditorModelPromise = null;
+
+						return TPromise.wrapError(error);
+					});
+				}
+
+				return this.createTextEditorModelPromise;
 			}
 		}, (error) => {
 

@@ -219,6 +219,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	backup(): TPromise<void>;
 
+	setRestoreResource(resource: URI): void;
+
 	revert(): TPromise<void>;
 
 	setConflictResolutionMode();

@@ -60,14 +60,6 @@ export interface IBackupService {
 	getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[];
 
 	/**
-	 * Gets whether a text file has a backup to restore.
-	 *
-	 * @param resource The resource to check.
-	 * @returns Whether the file has a backup.
-	 */
-	doesTextFileHaveBackup(resource: Uri): TPromise<boolean>;
-
-	/**
 	 * Registers a resource for backup, flagging it for restoration.
 	 *
 	 * @param resource The resource that is being backed up.
