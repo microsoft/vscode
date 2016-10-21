@@ -171,7 +171,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 						const focus = this.tree.getFocus();
 						if (focus) {
-							this.elementSelected(focus, keyboardEvent);
+							this.elementSelected(focus, keyboardEvent, keyboardEvent.keyCode === KeyCode.RightArrow ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
 						}
 					}
 
@@ -401,23 +401,14 @@ export class QuickOpenWidget implements IModelProvider {
 		this.model.runner.run(value, Mode.PREVIEW, context);
 	}
 
-	private elementSelected(value: any, event?: any): void {
+	private elementSelected(value: any, event?: any, preferredMode?: Mode): void {
 		let hide = true;
 
 		// Trigger open of element on selection
 		if (this.isVisible()) {
-			let eventForContext = event;
-			let mode = Mode.OPEN;
+			let mode = preferredMode || Mode.OPEN;
 
-			if (event instanceof StandardKeyboardEvent) {
-				eventForContext = event.browserEvent;
-
-				if (event.keyCode === KeyCode.RightArrow) {
-					mode = Mode.OPEN_IN_BACKGROUND;
-				}
-			}
-
-			const context: IEntryRunContext = { event: eventForContext, keymods: this.extractKeyMods(eventForContext), quickNavigateConfiguration: this.quickNavigateConfiguration };
+			const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 
 			hide = this.model.runner.run(value, mode, context);
 		}
