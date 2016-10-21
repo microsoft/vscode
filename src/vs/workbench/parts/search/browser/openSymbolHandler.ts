@@ -79,7 +79,8 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			.then(_ => super.run(mode, context))
 			.done(undefined, onUnexpectedError);
 
-		return true;
+		// hide if OPEN
+		return mode === Mode.OPEN;
 	}
 
 	public getInput(): IResourceInput | EditorInput {

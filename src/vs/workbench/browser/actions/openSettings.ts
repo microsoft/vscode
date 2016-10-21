@@ -341,12 +341,12 @@ export class DefaultSettingsEditor extends StringEditor {
 	}
 
 	private saveState() {
+		const resource = this.getResource();
+		if (DefaultSettingsEditor.VIEW_STATE.has(resource)) {
+			DefaultSettingsEditor.VIEW_STATE.delete(resource);
+		}
 		const state = this.getControl().saveViewState();
 		if (state) {
-			const resource = this.getResource();
-			if (DefaultSettingsEditor.VIEW_STATE.has(resource)) {
-				DefaultSettingsEditor.VIEW_STATE.delete(resource);
-			}
 			DefaultSettingsEditor.VIEW_STATE.set(resource, state);
 		}
 	}

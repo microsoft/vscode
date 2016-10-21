@@ -12,6 +12,13 @@ import { CharCode } from 'vs/base/common/charCode';
  */
 export const empty = '';
 
+export function isFalsyOrWhitespace(str: string): boolean {
+	if (!str || typeof str !== 'string') {
+		return true;
+	}
+	return str.trim().length === 0;
+}
+
 /**
  * @returns the provided number with the given number of preceding zeros.
  */

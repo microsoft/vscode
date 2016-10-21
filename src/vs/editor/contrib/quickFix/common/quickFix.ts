@@ -8,44 +8,27 @@
 import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IdGenerator } from 'vs/base/common/idGenerator';
 import { Range } from 'vs/editor/common/core/range';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { CodeActionProviderRegistry, CodeAction, CodeActionProvider } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise } from 'vs/base/common/async';
 
-export interface IQuickFix2 extends CodeAction {
-	support: CodeActionProvider;
-	id: string;
-}
+export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<CodeAction[]> {
 
-export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<IQuickFix2[]> {
-
-	const quickFixes: IQuickFix2[] = [];
-	let ids = new IdGenerator('quickfix');
+	const allResults: CodeAction[] = [];
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return asWinJsPromise((token) => {
-			return support.provideCodeActions(model, range, token);
-		}).then(result => {
-			if (!Array.isArray(result)) {
-				return;
-			}
-			for (let fix of result) {
-				quickFixes.push({
-					command: fix.command,
-					score: fix.score,
-					id: ids.nextId(),
-					support
-				});
+		return asWinJsPromise(token => support.provideCodeActions(model, range, token)).then(result => {
+			if (Array.isArray(result)) {
+				allResults.push(...result);
 			}
 		}, err => {
 			onUnexpectedError(err);
 		});
 	});
 
-	return TPromise.join(promises).then(() => quickFixes);
+	return TPromise.join(promises).then(() => allResults);
 }
 
 CommonEditorRegistry.registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
@@ -60,7 +43,5 @@ CommonEditorRegistry.registerLanguageCommand('_executeCodeActionProvider', funct
 		throw illegalArgument();
 	}
 
-	const editorRange = Range.lift(range);
-
-	return getCodeActions(model, editorRange);
+	return getCodeActions(model, model.validateRange(range));
 });

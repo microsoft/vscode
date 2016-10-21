@@ -147,7 +147,7 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 				}
 			});
 		}).catch(err => {
-			console.log(err);
+			client.warn(err);
 		});
 	}
 

@@ -130,18 +130,18 @@ export function skipDirectories(): NodeJS.ReadWriteStream {
 }
 
 export function cleanNodeModule(name:string, excludes:string[], includes:string[]): NodeJS.ReadWriteStream {
-	const glob = (path:string) => '**/node_modules/' + name + (path ? '/' + path : '');
+	const toGlob = (path:string) => '**/node_modules/' + name + (path ? '/' + path : '');
 	const negate = (str:string) => '!' + str;
 
-	const allFilter = _filter(glob('**'), { restore: true });
-	const globs = [glob('**')].concat(excludes.map(_.compose(negate, glob)));
+	const allFilter = _filter(toGlob('**'), { restore: true });
+	const globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob)));
 
 	const input = es.through();
 	const nodeModuleInput = input.pipe(allFilter);
 	let output:NodeJS.ReadWriteStream = nodeModuleInput.pipe(_filter(globs));
 
 	if (includes) {
-		const includeGlobs = includes.map(glob);
+		const includeGlobs = includes.map(toGlob);
 		output = es.merge(output, nodeModuleInput.pipe(_filter(includeGlobs)));
 	}
 
