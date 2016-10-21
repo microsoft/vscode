@@ -484,18 +484,12 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		this.previousValue = prefix;
 
 		// Track active editor before navigation
-		this.previousActiveEditorInput = this.editorService.getActiveEditorInput();
+		const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
 
 		// Determine if there was a preview editor already open
-		this.previousPreviewEditorInput = null;
-		const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
 		if (activeGroup) {
-			const visiblePreviewEditors = activeGroup.getEditors().filter((input: EditorInput) => {
-				return activeGroup.isPreview(input);
-			});
-			if (visiblePreviewEditors.length) {
-				this.previousPreviewEditorInput = visiblePreviewEditors[0];
-			}
+			this.previousActiveEditorInput = activeGroup.activeEditor;
+			this.previousPreviewEditorInput = activeGroup.previewEditor;
 		}
 
 		const promiseCompletedOnHide = new TPromise<void>(c => {
@@ -580,7 +574,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		else {
 			const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
 			const groupPosition = this.editorGroupService.getStacksModel().positionOfGroup(activeGroup);
-			if (activeGroup.previewEditor) {
+			if (activeGroup && activeGroup.previewEditor) {
 				this.editorService.closeEditor(groupPosition, activeGroup.previewEditor);
 			}
 		}

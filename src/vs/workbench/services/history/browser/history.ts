@@ -119,6 +119,7 @@ export abstract class BaseHistoryService {
 		const activeEditor = this.editorService.getActiveEditor();
 		const activeInput = activeEditor ? activeEditor.input : void 0;
 
+		// Propagate to history
 		this.onEditorEvent(activeEditor);
 
 		// Apply listener for dirty and label changes

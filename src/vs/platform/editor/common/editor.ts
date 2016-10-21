@@ -181,8 +181,7 @@ export interface IEditorOptions {
 
 	/**
 	 * Editor that is being shown with an `forcePreview` will override the `enablePreview` setting
-	 * of the workspace configuration to allow the editor to be shown as a preview editor while
-	 * selecting in the quick open widgets.
+	 * of the workspace configuration to allow the editor to be shown as a preview editor.
 	 */
 	forcePreview?: boolean;
 
