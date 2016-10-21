@@ -9,7 +9,6 @@ import { guessMimeTypes } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
 import uuid = require('vs/base/common/uuid');
 import uri from 'vs/base/common/uri';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { Action } from 'vs/base/common/actions';
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
@@ -317,7 +316,7 @@ export class DebugService implements debug.IDebugService {
 		}));
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidContinued(event => {
-			this.lazyTransitionToRunningState(session, event.body.allThreadsContinued ? undefined : event.body.threadId);
+			this.transitionToRunningState(session, event.body.allThreadsContinued ? undefined : event.body.threadId);
 		}));
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidOutput(event => {
@@ -665,7 +664,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
-				this.lazyTransitionToRunningState(session);
+				this.transitionToRunningState(session);
 
 				this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
@@ -885,19 +884,10 @@ export class DebugService implements debug.IDebugService {
 		return this.configurationManager;
 	}
 
-	private lazyTransitionToRunningState(session: RawDebugSession, threadId?: number): void {
-		let setNewFocusedStackFrameScheduler: RunOnceScheduler;
-
-		const toDispose = session.onDidStop(e => {
-			if (e.body.threadId === threadId || e.body.allThreadsStopped || !threadId) {
-				setNewFocusedStackFrameScheduler.cancel();
-			}
-		});
-
+	private transitionToRunningState(session: RawDebugSession, threadId?: number): void {
 		this.model.clearThreads(session.getId(), false, threadId);
 
 		// Get a top stack frame of a stopped thread if there is any.
-
 		const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 		const stoppedThread = process && process.getAllThreads().filter(t => t.stopped).pop();
 		const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;
@@ -907,15 +897,7 @@ export class DebugService implements debug.IDebugService {
 			this.setStateAndEmit(session.getId(), process.session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
 		}
 
-		// Do not immediatly set a new focused stack frame since that might cause unnecessery flickering
-		// of the tree in the debug viewlet. Only set focused stack frame if no stopped event has arrived in 500ms.
-		setNewFocusedStackFrameScheduler = new RunOnceScheduler(() => {
-			toDispose.dispose();
-			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
-
-			this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
-		}, 500);
-		setNewFocusedStackFrameScheduler.schedule();
+		this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 	}
 
 	private getDebugStringEditorInput(process: debug.IProcess, source: Source, value: string, mtype: string): DebugStringEditorInput {

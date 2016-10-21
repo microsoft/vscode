@@ -48,6 +48,7 @@ const $ = builder.$;
 export class VariablesView extends viewlet.CollapsibleViewletView {
 
 	private static MEMENTO = 'variablesview.memento';
+	private onFocusStackFrameScheduler: RunOnceScheduler;
 
 	constructor(
 		actionRunner: actions.IActionRunner,
@@ -60,6 +61,22 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, keybindingService, contextMenuService);
+
+		// Use schedulre to prevent unnecessary flashing
+		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
+			// Always clear tree highlight to avoid ending up in a broken state #12203
+			this.tree.clearHighlight();
+			this.tree.refresh().then(() => {
+				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+				if (stackFrame) {
+					return stackFrame.getScopes().then(scopes => {
+						if (scopes.length > 0 && !scopes[0].expensive) {
+							return this.tree.expand(scopes[0]);
+						}
+					});
+				}
+			}).done(null, errors.onUnexpectedError);
+		}, 700);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -87,7 +104,15 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		const collapseAction = this.instantiationService.createInstance(viewlet.CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
 		this.toolBar.setActions(actionbarregistry.prepareActions([collapseAction]))();
 
-		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => this.onFocusStackFrame(sf)));
+		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => {
+			// Only delay if the stack frames got cleared and there is no active stack frame
+			// Otherwise just update immediately
+			if (sf) {
+				this.onFocusStackFrameScheduler.schedule(0);
+			} else if (!this.onFocusStackFrameScheduler.isScheduled()) {
+				this.onFocusStackFrameScheduler.schedule();
+			}
+		}));
 		this.toDispose.push(this.debugService.onDidChangeState(state => {
 			collapseAction.enabled = state === debug.State.Running || state === debug.State.Stopped;
 		}));
@@ -117,20 +142,6 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		}));
 	}
 
-	private onFocusStackFrame(stackFrame: debug.IStackFrame): void {
-		// Always clear tree highlight to avoid ending up in a broken state #12203
-		this.tree.clearHighlight();
-		this.tree.refresh().then(() => {
-			if (stackFrame) {
-				return stackFrame.getScopes().then(scopes => {
-					if (scopes.length > 0 && !scopes[0].expensive) {
-						return this.tree.expand(scopes[0]);
-					}
-				});
-			}
-		}).done(null, errors.onUnexpectedError);
-	}
-
 	public shutdown(): void {
 		this.settings[VariablesView.MEMENTO] = (this.state === splitview.CollapsibleState.COLLAPSED);
 		super.shutdown();
@@ -140,6 +151,8 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 	private static MEMENTO = 'watchexpressionsview.memento';
+	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
+	private toReveal: debug.IExpression;
 
 	constructor(
 		actionRunner: actions.IActionRunner,
@@ -151,12 +164,19 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, keybindingService, contextMenuService);
+
 		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			// only expand when a new watch expression is added.
 			if (we instanceof Expression) {
 				this.expand();
 			}
 		}));
+
+		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
+			this.tree.refresh().done(() => {
+				return this.toReveal instanceof Expression ? this.tree.reveal(this.toReveal) : TPromise.as(true);
+			}, errors.onUnexpectedError);
+		}, 250);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -185,7 +205,13 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		const removeAllWatchExpressionsAction = this.instantiationService.createInstance(debugactions.RemoveAllWatchExpressionsAction, debugactions.RemoveAllWatchExpressionsAction.ID, debugactions.RemoveAllWatchExpressionsAction.LABEL);
 		this.toolBar.setActions(actionbarregistry.prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
 
-		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => this.onWatchExpressionsUpdated(we)));
+		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
+			if (!this.onWatchExpressionsUpdatedScheduler.isScheduled()) {
+				this.onWatchExpressionsUpdatedScheduler.schedule();
+			}
+			this.toReveal = we;
+		}));
+
 		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (!expression || !(expression instanceof Expression)) {
 				return;
@@ -200,12 +226,6 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 				});
 			}).done(null, errors.onUnexpectedError);
 		}));
-	}
-
-	private onWatchExpressionsUpdated(expression: debug.IExpression): void {
-		this.tree.refresh().done(() => {
-			return expression instanceof Expression ? this.tree.reveal(expression) : TPromise.as(true);
-		}, errors.onUnexpectedError);
 	}
 
 	public shutdown(): void {
@@ -233,10 +253,8 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, keybindingService, contextMenuService);
-		this.createSchedulers();
-	}
 
-	private createSchedulers(): void {
+		// Create schedulers to prevent unnecessary flashing of tree when reacting to changes
 		this.onStackFrameFocusScheduler = new RunOnceScheduler(() => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			if (!stackFrame) {
