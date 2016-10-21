@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 export const ITreeExplorerViewletService = createDecorator<ITreeExplorerViewletService>('customViewletService');
 
@@ -25,7 +26,8 @@ export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 	private _treeExplorerNodeProvider: { [providerId: string]: InternalTreeExplorerNodeProvider };
 
 	constructor(
-		@IInstantiationService private _instantiationService: IInstantiationService
+		@IInstantiationService private _instantiationService: IInstantiationService,
+		@IMessageService private messageService: IMessageService,
 	) {
 		this._treeExplorerNodeProvider = Object.create(null);
 	}
@@ -35,14 +37,27 @@ export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 	}
 
 	provideTreeContent(providerId: string): TPromise<InternalTreeExplorerNode> {
-		return TPromise.wrap(this._treeExplorerNodeProvider[providerId].provideRootNode());
+		const provider = this.getProvider(providerId);
+		return TPromise.wrap(provider.provideRootNode());
 	}
 
 	resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
-		return TPromise.wrap(this._treeExplorerNodeProvider[providerId].resolveChildren(node));
+		const provider = this.getProvider(providerId);
+		return TPromise.wrap(provider.resolveChildren(node));
 	}
 
 	executeCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void> {
-		return TPromise.wrap(this._treeExplorerNodeProvider[providerId].executeCommand(node));
+		const provider = this.getProvider(providerId);
+		return TPromise.wrap(provider.executeCommand(node));
+	}
+
+	private getProvider(providerId: string): InternalTreeExplorerNodeProvider {
+		const provider = this._treeExplorerNodeProvider[providerId];
+
+		if (!provider) {
+			this.messageService.show(Severity.Error, `No TreeExplorerNodeProvider with id '${providerId}' registered.`);
+		}
+
+		return provider;
 	}
 }
