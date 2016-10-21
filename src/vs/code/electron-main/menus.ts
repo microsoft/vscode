@@ -24,6 +24,20 @@ interface IResolvedKeybinding {
 	binding: number;
 }
 
+interface IConfiguration extends IFilesConfiguration {
+	workbench: {
+		sideBar: {
+			location: 'left' | 'right';
+		},
+		statusBar: {
+			visible: boolean;
+		},
+		editor: {
+			sideBySideLayout: 'vertical' | 'horizontal'
+		}
+	};
+}
+
 export class VSCodeMenu {
 
 	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
@@ -55,7 +69,7 @@ export class VSCodeMenu {
 		this.mapResolvedKeybindingToActionId = Object.create(null);
 		this.mapLastKnownKeybindingToActionId = this.storageService.getItem<{ [id: string]: string; }>(VSCodeMenu.lastKnownKeybindingsMapStorageKey) || Object.create(null);
 
-		this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>());
+		this.onConfigurationUpdated(this.configurationService.getConfiguration<IConfiguration>());
 	}
 
 	public ready(): void {
@@ -118,7 +132,7 @@ export class VSCodeMenu {
 		this.updateService.on('change', () => this.updateMenu());
 	}
 
-	private onConfigurationUpdated(config: IFilesConfiguration, handleMenu?: boolean): void {
+	private onConfigurationUpdated(config: IConfiguration, handleMenu?: boolean): void {
 		let updateMenu = false;
 		const newAutoSaveSetting = config && config.files && config.files.autoSave;
 		if (newAutoSaveSetting !== this.currentAutoSaveSetting) {
@@ -126,22 +140,27 @@ export class VSCodeMenu {
 			updateMenu = true;
 		}
 
-		const newSidebarLocation = this.configurationService.lookup<'left' | 'right'>('workbench.sideBar.location').value;
-		if (newSidebarLocation !== this.currentSidebarLocation) {
-			this.currentSidebarLocation = newSidebarLocation;
-			updateMenu = true;
-		}
+		if (config && config.workbench) {
+			const newSidebarLocation = config.workbench.sideBar && config.workbench.sideBar.location || 'left';
+			if (newSidebarLocation !== this.currentSidebarLocation) {
+				this.currentSidebarLocation = newSidebarLocation;
+				updateMenu = true;
+			}
 
-		const newStatusbarVisible = this.configurationService.lookup<boolean>('workbench.statusBar.visible').value;
-		if (newStatusbarVisible !== this.currentStatusbarVisible) {
-			this.currentStatusbarVisible = newStatusbarVisible;
-			updateMenu = true;
-		}
+			let newStatusbarVisible = config.workbench.statusBar && config.workbench.statusBar.visible;
+			if (typeof newStatusbarVisible !== 'boolean') {
+				newStatusbarVisible = true;
+			}
+			if (newStatusbarVisible !== this.currentStatusbarVisible) {
+				this.currentStatusbarVisible = newStatusbarVisible;
+				updateMenu = true;
+			}
 
-		const newEditorLayout = this.configurationService.lookup<'vertical' | 'horizontal'>('workbench.editor.sideBySideLayout').value;
-		if (newEditorLayout !== this.currentEditorLayout) {
-			this.currentEditorLayout = newEditorLayout;
-			updateMenu = true;
+			const newEditorLayout = config.workbench.editor && config.workbench.editor.sideBySideLayout || 'vertical';
+			if (newEditorLayout !== this.currentEditorLayout) {
+				this.currentEditorLayout = newEditorLayout;
+				updateMenu = true;
+			}
 		}
 
 		if (handleMenu && updateMenu) {
