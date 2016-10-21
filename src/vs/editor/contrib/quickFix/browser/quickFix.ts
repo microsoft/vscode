@@ -62,10 +62,10 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
-		if (e.type === 'manual') {
+		if (e && e.type === 'manual') {
 			this._quickFixContextMenu.show(e.fixes, e.position);
 
-		} else if (e.fixes) {
+		} else if (e && e.fixes) {
 			// auto magically triggered
 			// * update an existing list of code actions
 			// * manage light bulb
