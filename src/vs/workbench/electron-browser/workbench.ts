@@ -411,7 +411,8 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IHistoryService, this.instantiationService.createInstance(HistoryService));
 
 		// Backup File Service
-		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, this.contextService.getWorkspace().resource));
+		const workspace = this.contextService.getWorkspace();
+		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, workspace ? workspace.resource : null));
 
 		// Backup Service
 		serviceCollection.set(IBackupService, this.instantiationService.createInstance(BackupService));
@@ -427,7 +428,6 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
 
 		// Configuration Resolver
-		const workspace = this.contextService.getWorkspace();
 		const configurationResolverService = this.instantiationService.createInstance(ConfigurationResolverService, workspace ? workspace.resource : null, process.env);
 		serviceCollection.set(IConfigurationResolverService, configurationResolverService);
 

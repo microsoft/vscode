@@ -5,6 +5,7 @@
 
 'use strict';
 
+import Uri from 'vs/base/common/uri';
 import { IBackupService, IBackupModelService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextFileService, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -35,6 +36,7 @@ export class BackupModelService implements IBackupModelService {
 		this.toDispose.push(this.textFileService.models.onModelContentChanged((e) => this.onTextFileModelChanged(e)));
 		this.toDispose.push(this.textFileService.models.onModelSaved((e) => this.onTextFileModelClean(e)));
 		this.toDispose.push(this.textFileService.models.onModelReverted((e) => this.onTextFileModelClean(e)));
+		this.toDispose.push(this.untitledEditorService.onDidChangeContent((e) => this.onUntitledModelChanged(e)));
 	}
 
 	private onTextFileModelChanged(event: TextFileModelChangeEvent): void {
@@ -43,6 +45,17 @@ export class BackupModelService implements IBackupModelService {
 			console.log('change: ' + event.resource.fsPath);
 			const model = this.textFileService.models.get(event.resource);
 			this.backupService.doBackup(model.getResource(), model.getValue());
+		}
+	}
+
+	private onUntitledModelChanged(resource: Uri): void {
+		if (this.backupService.isHotExitEnabled) {
+			const input = this.untitledEditorService.get(resource);
+			if (input.isDirty()) {
+				this.backupService.doBackup(resource, input.getValue());
+			} else {
+				this.backupFileService.discardAndDeregisterResource(resource);
+			}
 		}
 	}
 

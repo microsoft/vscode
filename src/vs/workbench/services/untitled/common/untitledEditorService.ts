@@ -17,6 +17,11 @@ export interface IUntitledEditorService {
 	_serviceBrand: any;
 
 	/**
+	 * Events for when untitled editors content changes (e.g. any keystroke).
+	 */
+	onDidChangeContent: Event<URI>;
+
+	/**
 	 * Events for when untitled editors change (e.g. getting dirty, saved or reverted).
 	 */
 	onDidChangeDirty: Event<URI>;
@@ -73,14 +78,20 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private static CACHE: { [resource: string]: UntitledEditorInput } = Object.create(null);
 	private static KNOWN_ASSOCIATED_FILE_PATHS: { [resource: string]: boolean } = Object.create(null);
 
+	private _onDidChangeContent: Emitter<URI>;
 	private _onDidChangeDirty: Emitter<URI>;
 	private _onDidChangeEncoding: Emitter<URI>;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
+		this._onDidChangeContent = new Emitter<URI>();
 		this._onDidChangeDirty = new Emitter<URI>();
 		this._onDidChangeEncoding = new Emitter<URI>();
+	}
+
+	public get onDidChangeContent(): Event<URI> {
+		return this._onDidChangeContent.event;
 	}
 
 	public get onDidChangeDirty(): Event<URI> {
@@ -163,10 +174,11 @@ export class UntitledEditorService implements IUntitledEditorService {
 			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
 		}
 
-		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
-		if (restoreResource) {
-			input.setRestoreResource(restoreResource);
-		}
+		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, restoreResource);
+
+		const contentListener = input.onDidModelChangeContent(() => {
+			this._onDidChangeContent.fire(resource);
+		});
 
 		const dirtyListener = input.onDidChangeDirty(() => {
 			this._onDidChangeDirty.fire(resource);
@@ -181,6 +193,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 		onceDispose(() => {
 			delete UntitledEditorService.CACHE[input.getResource().toString()];
 			delete UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[input.getResource().toString()];
+			contentListener.dispose();
 			dirtyListener.dispose();
 			encodingListener.dispose();
 		});
@@ -204,6 +217,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 	}
 
 	public dispose(): void {
+		this._onDidChangeContent.dispose();
 		this._onDidChangeDirty.dispose();
 		this._onDidChangeEncoding.dispose();
 	}
