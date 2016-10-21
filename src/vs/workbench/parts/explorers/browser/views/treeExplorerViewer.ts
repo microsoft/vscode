@@ -91,7 +91,7 @@ export class TreeController extends DefaultController {
 		super.onLeftClick(tree, node, event, origin);
 
 		if (node.clickCommand) {
-			this.treeExplorerViewletService.resolveCommand(this.treeNodeProviderId, node);
+			this.treeExplorerViewletService.executeCommand(this.treeNodeProviderId, node);
 		}
 
 		return true;
