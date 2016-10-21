@@ -20,7 +20,11 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/co
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from './extensions';
 import { ExtensionsWorkbenchService } from './extensionsWorkbenchService';
-import { OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, UpdateAllAction, OpenExtensionsFolderAction, ConfigureWorkspaceRecommendedExtensionsAction, InstallVSIXAction } from './extensionsActions';
+import {
+	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction,
+	ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, UpdateAllAction, OpenExtensionsFolderAction, ConfigureWorkspaceRecommendedExtensionsAction, InstallVSIXAction,
+	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction
+} from './extensionsActions';
 import { ExtensionsInput } from './extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from './extensionEditor';
@@ -124,6 +128,18 @@ actionRegistry.registerWorkbenchAction(openExtensionsFileActionDescriptor, 'Exte
 
 const installVSIXActionDescriptor = new SyncActionDescriptor(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
 actionRegistry.registerWorkbenchAction(installVSIXActionDescriptor, 'Extensions: Install from VSIX...', ExtensionsLabel);
+
+const disableAllAction = new SyncActionDescriptor(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL);
+actionRegistry.registerWorkbenchAction(disableAllAction, 'Extensions: Disable All', ExtensionsLabel);
+
+const disableAllWorkspaceAction = new SyncActionDescriptor(DisableAllWorkpsaceAction, DisableAllWorkpsaceAction.ID, DisableAllWorkpsaceAction.LABEL);
+actionRegistry.registerWorkbenchAction(disableAllWorkspaceAction, 'Extensions: Disable All (Workspace)', ExtensionsLabel);
+
+const enableAllAction = new SyncActionDescriptor(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL);
+actionRegistry.registerWorkbenchAction(enableAllAction, 'Extensions: Enable All', ExtensionsLabel);
+
+const enableAllWorkspaceAction = new SyncActionDescriptor(EnableAllWorkpsaceAction, EnableAllWorkpsaceAction.ID, EnableAllWorkpsaceAction.LABEL);
+actionRegistry.registerWorkbenchAction(enableAllWorkspaceAction, 'Extensions: Enable All (Workspace)', ExtensionsLabel);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

@@ -184,7 +184,7 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 			return nls.localize('noResultsFoundInGroup', "No matching opened editor found in group");
 		}
 
-		return nls.localize('noOpenedEditors', "List of opened editors is currently empty");
+		return nls.localize('noOpenedEditors', "List of opened editors is currently empty in group");
 	}
 
 	public getAutoFocus(searchValue: string, quickNavigateConfiguration: IQuickNavigateConfiguration): IAutoFocus {
@@ -214,28 +214,24 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 	}
 }
 
-export class LeftEditorGroupPicker extends EditorGroupPicker {
+export class GroupOnePicker extends EditorGroupPicker {
 
 	protected getPosition(): Position {
-		return Position.LEFT;
+		return Position.ONE;
 	}
 }
 
-export class CenterEditorGroupPicker extends EditorGroupPicker {
+export class GroupTwoPicker extends EditorGroupPicker {
 
 	protected getPosition(): Position {
-		const stacks = this.editorGroupService.getStacksModel();
-
-		return stacks.groups.length > 2 ? Position.CENTER : -1; // with 2 groups open, the center one is not available
+		return Position.TWO;
 	}
 }
 
-export class RightEditorGroupPicker extends EditorGroupPicker {
+export class GroupThreePicker extends EditorGroupPicker {
 
 	protected getPosition(): Position {
-		const stacks = this.editorGroupService.getStacksModel();
-
-		return stacks.groups.length > 2 ? Position.RIGHT : Position.CENTER;
+		return Position.THREE;
 	}
 }
 
@@ -259,7 +255,7 @@ export class AllEditorsPicker extends BaseEditorPicker {
 			return nls.localize('noResultsFound', "No matching opened editor found");
 		}
 
-		return nls.localize('noOpenedEditors', "List of opened editors is currently empty");
+		return nls.localize('noOpenedEditorsAllGroups', "List of opened editors is currently empty");
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {

@@ -18,6 +18,7 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class EmptyView extends CollapsibleView {
+	private openFolderButton: Button;
 
 	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 		super({
@@ -39,9 +40,9 @@ export class EmptyView extends CollapsibleView {
 
 		let section = $('div.section').appendTo(container);
 
-		let button = new Button(section);
-		button.label = nls.localize('openFolder', "Open Folder");
-		button.addListener2('click', () => {
+		this.openFolderButton = new Button(section);
+		this.openFolderButton.label = nls.localize('openFolder', "Open Folder");
+		this.openFolderButton.addListener2('click', () => {
 			this.runWorkbenchAction(env.isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
 		});
 	}
@@ -68,7 +69,9 @@ export class EmptyView extends CollapsibleView {
 	}
 
 	public focusBody(): void {
-		// Ignore
+		if (this.openFolderButton) {
+			this.openFolderButton.getElement().focus();
+		}
 	}
 
 	protected reveal(element: any, relativeTop?: number): TPromise<void> {

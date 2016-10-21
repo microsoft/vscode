@@ -52,7 +52,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
 			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-			const unhandledPromises: Promise<any>[] = [];
+			const unhandledPromises: TPromise<any>[] = [];
 			process.on('unhandledRejection', (reason, promise) => {
 				unhandledPromises.push(promise);
 				setTimeout(() => {

@@ -16,6 +16,7 @@ import { fromRange, TextDocumentSaveReason } from 'vs/workbench/api/node/extHost
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import * as vscode from 'vscode';
 
 declare class WeakMap<K, V> {
 	// delete(key: K): boolean;

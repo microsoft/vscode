@@ -23,6 +23,7 @@ export interface IToolBarOptions {
 	actionItemProvider?: IActionItemProvider;
 	ariaLabel?: string;
 	getKeyBinding?: (action: IAction) => Keybinding;
+	getKeyBindingLabel?: (key: Keybinding) => string;
 }
 
 /**
@@ -34,9 +35,12 @@ export class ToolBar {
 	private toggleMenuAction: ToggleMenuAction;
 	private toggleMenuActionItem: DropdownMenuActionItem;
 	private hasSecondaryActions: boolean;
+	private lookupKeybindings: boolean;
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		this.options = options;
+		this.lookupKeybindings = typeof this.options.getKeyBinding === 'function' && typeof this.options.getKeyBindingLabel === 'function';
+
 		this.toggleMenuAction = new ToggleMenuAction(() => this.toggleMenuActionItem && this.toggleMenuActionItem.show());
 
 		let element = document.createElement('div');
@@ -111,22 +115,31 @@ export class ToolBar {
 			}
 
 			this.actionBar.clear();
-			this.actionBar.push(primaryActionsToSet, { icon: true, label: false });
+
+			primaryActionsToSet.forEach(action => {
+				this.actionBar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
+			});
 		};
 	}
 
-	public addPrimaryAction(primaryActions: IAction): () => void {
+	private getKeybindingLabel(action: IAction): string {
+		const key = this.lookupKeybindings ? this.options.getKeyBinding(action) : void 0;
+
+		return key ? this.options.getKeyBindingLabel(key) : void 0;
+	}
+
+	public addPrimaryAction(primaryAction: IAction): () => void {
 		return () => {
 
 			// Add after the "..." action if we have secondary actions
 			if (this.hasSecondaryActions) {
 				let itemCount = this.actionBar.length();
-				this.actionBar.push(primaryActions, { icon: true, label: false, index: itemCount });
+				this.actionBar.push(primaryAction, { icon: true, label: false, index: itemCount, keybinding: this.getKeybindingLabel(primaryAction) });
 			}
 
 			// Otherwise just add to the end
 			else {
-				this.actionBar.push(primaryActions, { icon: true, label: false });
+				this.actionBar.push(primaryAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(primaryAction) });
 			}
 		};
 	}

@@ -4,30 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { localize } from 'vs/nls';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import { IDataSource, ITree, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
+import { IDataSource, ITree, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Action } from 'vs/base/common/actions';
-import { IExtensionDependencies, IExtensionsWorkbenchService, IExtension } from './extensions';
+import { IExtensionDependencies, IExtensionsWorkbenchService } from './extensions';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { Keybinding } from 'vs/base/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position } from 'vs/platform/editor/common/editor';
 
-interface IExtensionTemplateData {
+export interface IExtensionTemplateData {
 	icon: HTMLImageElement;
 	name: HTMLElement;
 	identifier: HTMLElement;
 	author: HTMLElement;
 	extensionDisposables: IDisposable[];
+	extensionDependencies: IExtensionDependencies;
 }
 
 export class DataSource implements IDataSource {
@@ -41,7 +37,7 @@ export class DataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: IExtensionDependencies): boolean {
-		return element.hasDependencies;
+		return element.hasDependencies && !this.isSelfAncestor(element);
 	}
 
 	public getChildren(tree: ITree, element: IExtensionDependencies): Promise {
@@ -51,11 +47,25 @@ export class DataSource implements IDataSource {
 	public getParent(tree: ITree, element: IExtensionDependencies): Promise {
 		return TPromise.as(element.dependent);
 	}
+
+	private isSelfAncestor(element: IExtensionDependencies): boolean {
+		let ancestor = element.dependent;
+		while (ancestor !== null) {
+			if (ancestor.extension.identifier === element.extension.identifier) {
+				return true;
+			}
+			ancestor = ancestor.dependent;
+		}
+		return false;
+	}
 }
 
 export class Renderer implements IRenderer {
 
 	private static EXTENSION_TEMPLATE_ID = 'extension-template';
+
+	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	}
 
 	public getHeight(tree: ITree, element: IExtensionDependencies): number {
 		return 62;
@@ -65,20 +75,36 @@ export class Renderer implements IRenderer {
 		return Renderer.EXTENSION_TEMPLATE_ID;
 	}
 
-	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
+	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): IExtensionTemplateData {
 		dom.addClass(container, 'dependency');
 
-		var data: IExtensionTemplateData = Object.create(null);
-		data.icon = dom.append(container, dom.$<HTMLImageElement>('img.icon'));
+		const icon = dom.append(container, dom.$<HTMLImageElement>('img.icon'));
 		const details = dom.append(container, dom.$('.details'));
 
 		const header = dom.append(details, dom.$('.header'));
-		data.name = dom.append(header, dom.$('span.name'));
-		data.identifier = dom.append(header, dom.$('span.identifier'));
+		const name = dom.append(header, dom.$('span.name'));
+		const openExtensionAction = this.instantiationService.createInstance(OpenExtensionAction);
+		const extensionDisposables = [dom.addDisposableListener(name, 'click', (e: MouseEvent) => {
+			tree.setFocus(openExtensionAction.extensionDependencies);
+			tree.setSelection([openExtensionAction.extensionDependencies]);
+			openExtensionAction.run(e.ctrlKey || e.metaKey);
+			e.stopPropagation();
+			e.preventDefault();
+		})];
+		var identifier = dom.append(header, dom.$('span.identifier'));
 
 		const footer = dom.append(details, dom.$('.footer'));
-		data.author = dom.append(footer, dom.$('.author'));
-		return data;
+		var author = dom.append(footer, dom.$('.author'));
+		return {
+			icon,
+			name,
+			identifier,
+			author,
+			extensionDisposables,
+			set extensionDependencies(e: IExtensionDependencies) {
+				openExtensionAction.extensionDependencies = e;
+			}
+		};
 	}
 
 
@@ -100,21 +126,19 @@ export class Renderer implements IRenderer {
 		data.name.textContent = extension.displayName;
 		data.identifier.textContent = `${extension.publisher}.${extension.name}`;
 		data.author.textContent = extension.publisherDisplayName;
+		data.extensionDependencies = element;
 	}
 
-	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
-		(<IExtensionTemplateData>templateData).extensionDisposables = dispose((<IExtensionTemplateData>templateData).extensionDisposables);
+	public disposeTemplate(tree: ITree, templateId: string, templateData: IExtensionTemplateData): void {
+		templateData.extensionDisposables = dispose(templateData.extensionDisposables);
 	}
 }
 
 export class Controller extends DefaultController {
 
-	constructor( @IContextMenuService private contextMenuService: IContextMenuService,
-		@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
 		super();
-
-		this.downKeyBindingDispatcher.set(OpenExtensionToSideAction.KEY_BINDING.value, (tree: ITree, event: any) => { this.openExtension(tree.getFocus(), true); });
+		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, (tree: ITree, event: any) => { this.openExtension(tree, true); });
 	}
 
 	protected onLeftClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
@@ -132,96 +156,36 @@ export class Controller extends DefaultController {
 		return false;
 	}
 
-	public onContextMenu(tree: ITree, element: any, event: ContextMenuEvent): boolean {
-		tree.setFocus(element);
-		const anchor = { x: event.posx + 1, y: event.posy };
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-
-			getActions: () => {
-				return TPromise.as([this.instantiationService.createInstance(OpenExtensionAction),
-				this.instantiationService.createInstance(OpenExtensionToSideAction)]);
-			},
-
-			getActionItem: () => null,
-
-			getKeyBinding: (action): Keybinding => {
-				return this.keybindingForAction(action.id);
-			},
-
-			getActionsContext: (event) => {
-				return {
-					extension: (<IExtensionDependencies>tree.getFocus()).extension
-				};
-			},
-
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					tree.DOMFocus();
-				}
-			}
-		});
-
-		return true;
-	}
-
 	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
 		if (super.onEnter(tree, event)) {
-			return this.openExtension(tree.getFocus(), event.ctrlKey || event.metaKey);
+			this.openExtension(tree, false);
 		}
 		return false;
 	}
 
-	private openExtension(element: IExtensionDependencies, sideByside: boolean = false): boolean {
-		this.extensionWorkbenchService.open(element.extension, sideByside);
-		return true;
-	}
-
-	private keybindingForAction(id: string): Keybinding {
-		switch (id) {
-			case OpenExtensionAction.ID:
-				return OpenExtensionAction.KEY_BINDING;
-			case OpenExtensionToSideAction.ID:
-				return OpenExtensionToSideAction.KEY_BINDING;
-		}
-
-		return null;
+	private openExtension(tree: ITree, sideByside: boolean) {
+		const element: IExtensionDependencies = tree.getFocus();
+		this.extensionsWorkdbenchService.open(element.extension, sideByside);
 	}
 }
 
 class OpenExtensionAction extends Action {
 
-	public static ID = 'extensions.action.open';
-	public static KEY_BINDING = new Keybinding(KeyCode.Enter);
+	private _extensionDependencies: IExtensionDependencies;
 
 	constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
-		super(OpenExtensionAction.ID, localize('extensions.open', "Open"));
+		super('extensions.action.openDependency', '');
 	}
 
-	run(context: { extension: IExtension }): TPromise<any> {
-		this.extensionsWorkdbenchService.open(context.extension);
-		return TPromise.as(null);
-	}
-}
-
-class OpenExtensionToSideAction extends Action {
-
-	public static ID = 'extensions.action.openSide';
-	public static KEY_BINDING = new Keybinding(KeyMod.WinCtrl | KeyCode.Enter);
-
-	constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(OpenExtensionToSideAction.ID, localize('extensions.openSide', "Open to the Side"));
-		this.updateEnablement();
+	public set extensionDependencies(extensionDependencies: IExtensionDependencies) {
+		this._extensionDependencies = extensionDependencies;
 	}
 
-	private updateEnablement(): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		this.enabled = (!activeEditor || activeEditor.position !== Position.RIGHT);
+	public get extensionDependencies(): IExtensionDependencies {
+		return this._extensionDependencies;
 	}
 
-	run(context: { extension: IExtension }): TPromise<any> {
-		this.extensionsWorkdbenchService.open(context.extension, true);
-		return TPromise.as(null);
+	run(sideByside: boolean): TPromise<any> {
+		return this.extensionsWorkdbenchService.open(this._extensionDependencies.extension, sideByside);
 	}
 }

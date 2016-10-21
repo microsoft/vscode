@@ -8,10 +8,7 @@
 const es = require('event-stream');
 const debounce = require('debounce');
 const filter = require('gulp-filter');
-const azure = require('gulp-azure-storage');
 const rename = require('gulp-rename');
-const vzip = require('gulp-vinyl-zip');
-const util = require('gulp-util');
 const _ = require('underscore');
 const path = require('path');
 const fs = require('fs');
@@ -103,47 +100,6 @@ exports.setExecutableBit = pattern => {
 	return es.duplex(input, output);
 };
 
-exports.handleAzureJson = env => {
-	const input = es.through();
-	const azureJsonFilter = filter('**/*.azure.json', { restore: true });
-
-	const allOpts = [];
-	const result = es.through();
-
-	const output = input
-		.pipe(azureJsonFilter)
-		.pipe(es.through(f => {
-			util.log('Downloading binaries from Azure:', util.colors.yellow(f.relative), '...');
-			const opts = JSON.parse(f.contents.toString());
-			opts.prefix = _.template(opts.zip || opts.prefix)(env);
-			opts.output = path.join(path.dirname(f.relative), opts.output);
-			allOpts.push(opts);
-		}, function () {
-			const streams = allOpts.map(opts => {
-				let result = azure.download(_.extend(opts, { buffer: true, quiet: true }));
-
-				if (opts.zip) {
-					result = result.pipe(vzip.src());
-				}
-
-				return result.pipe(rename(p => {
-					p.dirname = path.join(opts.output, p.dirname);
-				}));
-			});
-
-			es.merge(streams)
-				.pipe(result)
-				.pipe(es.through(null, function() {
-					util.log('Finished downloading from Azure');
-					this.emit('end');
-				}));
-			this.emit('end');
-		}))
-		.pipe(azureJsonFilter.restore);
-
-	return es.duplex(input, es.merge(output, result));
-};
-
 exports.toFileUri = filePath => {
 	const match = filePath.match(/^([a-z])\:(.*)$/i);
 
@@ -206,7 +162,7 @@ exports.loadSourcemaps = () => {
 
 			if (!lastMatch) {
 				f.sourceMap = {
-					version : 3,
+					version: 3,
 					names: [],
 					mappings: '',
 					sources: [f.relative.replace(/\//g, '/')],
@@ -274,7 +230,7 @@ exports.rebase = count => {
 };
 
 exports.filter = fn => {
-	const result = es.through(function(data) {
+	const result = es.through(function (data) {
 		if (fn(data)) {
 			this.emit('data', data);
 		} else {
