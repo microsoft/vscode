@@ -75,6 +75,7 @@ import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWindowConfiguration } from 'vs/workbench/electron-browser/common';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -733,9 +734,8 @@ export class Workbench implements IPartService {
 
 		// Mac specific UI changes
 		if (isMacintosh) {
-			const {serviceCollection} = this.workbenchParams;
-			const windowConfig = this.configurationService.getConfiguration<any>('window');
-			if (windowConfig.macOSUseInlineToolbar) {
+			const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+			if (windowConfig && windowConfig.window.macOSUseInlineToolbar) {
 				this.workbench.addClass('use-inline-toolbar');
 			}
 		}

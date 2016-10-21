@@ -134,14 +134,20 @@ export class ElectronIntegration {
 		ipc.on('vscode:enterFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				this.partService.addClass('fullscreen');
-				this.partService.layout();
+				const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+				if (windowConfig && windowConfig.window.macOSUseInlineToolbar) {
+					this.partService.layout();
+				}
 			});
 		});
 
 		ipc.on('vscode:leaveFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				this.partService.removeClass('fullscreen');
-				this.partService.layout();
+				const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+				if (windowConfig && windowConfig.window.macOSUseInlineToolbar) {
+					this.partService.layout();
+				}
 			});
 		});
 
