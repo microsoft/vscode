@@ -264,7 +264,7 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 			}
 
 			const thread = stackFrame.thread;
-			this.tree.expand(thread).done(() => {
+			this.tree.expandAll([thread.process, thread]).done(() => {
 				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 				this.tree.setSelection([focusedStackFrame]);
 				if (thread.stoppedDetails && thread.stoppedDetails.reason) {
