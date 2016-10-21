@@ -343,8 +343,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		if (block) {
 			this.blockStackChanges = true;
 			this.blockEditorHistoryChanges = true;
-		}
-		else {
+		} else {
 			this.blockStackChanges = false;
 			this.blockEditorHistoryChanges = false;
 		}

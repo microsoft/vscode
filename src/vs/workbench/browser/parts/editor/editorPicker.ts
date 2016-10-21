@@ -81,8 +81,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 			this.runOpen(context);
 
 			return true;
-		}
-		else if (mode === Mode.PREVIEW) {
+		} else if (mode === Mode.PREVIEW) {
 			this.runOpen(context, { forcePreview: true });
 
 			return false;

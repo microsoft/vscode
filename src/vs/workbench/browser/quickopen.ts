@@ -258,8 +258,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		let modeOverrideOptions: IEditorOptions;
 		if (mode === Mode.PREVIEW) {
 			modeOverrideOptions = { forcePreview: true };
-		}
-		else if (mode === Mode.OPEN_IN_BACKGROUND) {
+		} else if (mode === Mode.OPEN_IN_BACKGROUND) {
 			modeOverrideOptions = { forcePreview: false, pinned: true, preserveFocus: true };
 		}
 
@@ -273,8 +272,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 			}
 
 			this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
-		}
-		else {
+		} else {
 			const resourceInput = <IResourceInput>input;
 
 			if (modeOverrideOptions) {
