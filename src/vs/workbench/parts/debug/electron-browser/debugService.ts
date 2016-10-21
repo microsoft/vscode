@@ -256,17 +256,22 @@ export class DebugService implements debug.IDebugService {
 			this.setStateAndEmit(session.getId(), debug.State.Stopped);
 			const threadId = event.body.threadId;
 
-			this.getThreadData(session).done(() => {
+			session.threads().then(response => {
+				if (!response || !response.body || !response.body.threads) {
+					return;
+				}
+
+				const thread = response.body.threads.filter(t => t.id === threadId).pop();
 				this.model.rawUpdate({
 					sessionId: session.getId(),
+					thread,
 					threadId,
 					stoppedDetails: event.body,
 					allThreadsStopped: event.body.allThreadsStopped
 				});
 
 				const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
-				const thread = process.getThread(threadId);
-				thread.getCallStack().then(callStack => {
+				process.getThread(threadId).getCallStack().then(callStack => {
 					if (callStack.length > 0) {
 						// focus first stack frame from top that has source location
 						const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
@@ -284,7 +289,16 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidThread(event => {
 			if (event.body.reason === 'started') {
-				this.getThreadData(session).done(null, errors.onUnexpectedError);
+				session.threads().done(response => {
+					if (response && response.body && response.body.threads) {
+						response.body.threads.forEach(thread =>
+							this.model.rawUpdate({
+								sessionId: session.getId(),
+								threadId: thread.id,
+								thread
+							}));
+					}
+				}, errors.onUnexpectedError);
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(session.getId(), true, event.body.threadId);
 			}
@@ -345,14 +359,6 @@ export class DebugService implements debug.IDebugService {
 	private onOutput(event: DebugProtocol.OutputEvent): void {
 		const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
 		this.appendReplOutput(event.body.output, outputSeverity);
-	}
-
-	private getThreadData(session: RawDebugSession): TPromise<void> {
-		return session.threads().then(response => {
-			if (response && response.body && response.body.threads) {
-				response.body.threads.forEach(thread => this.model.rawUpdate({ sessionId: session.getId(), threadId: thread.id, thread }));
-			}
-		});
 	}
 
 	private loadBreakpoints(): debug.IBreakpoint[] {
