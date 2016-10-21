@@ -154,7 +154,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._widgets[widget.getId()] = widgetData;
 
 		let domNode = widget.getDomNode();
-		domNode.style.position = 'absolute';
+		domNode.style.position = 'fixed';
 		StyleMutator.setMaxWidth(domNode, this._contentWidth);
 		StyleMutator.setVisibility(domNode, 'hidden');
 		domNode.setAttribute('widgetId', widget.getId());
@@ -280,20 +280,18 @@ export class ViewContentWidgets extends ViewPart {
 		if (absoluteLeft + width + 20 > INNER_WIDTH) {
 			let delta = absoluteLeft - (INNER_WIDTH - width - 20);
 			absoluteLeft -= delta;
-			left -= delta;
 		}
 		if (absoluteLeft < 0) {
 			let delta = absoluteLeft;
 			absoluteLeft -= delta;
-			left -= delta;
 		}
 
 		return {
-			aboveTop: aboveTop,
+			aboveTop: absoluteAboveTop,
 			fitsAbove: fitsAbove,
-			belowTop: belowTop,
+			belowTop: absoluteBelowTop,
 			fitsBelow: fitsBelow,
-			left: left
+			left: absoluteLeft
 		};
 	}
 
