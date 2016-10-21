@@ -15,6 +15,7 @@
   "devDependencies": {
     "debounce": "^1.0.0",
     "event-stream": "^3.1.7",
+    "ghooks": "1.0.3",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
     "gulp-bom": "^1.0.0",
@@ -25,6 +26,7 @@
     "gulp-rename": "^1.2.0",
     "gulp-sourcemaps": "^1.6.0",
     "gulp-tsb": "^2.0.1",
+    "gulp-tslint": "^4.3.0",
     "gulp-uglify": "^2.0.0",
     "gulp-util": "^3.0.6",
     "gulp-watch": "^4.3.9",
@@ -40,7 +42,9 @@
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
+    "tslint": "^3.3.0",
     "typescript": "^2.0.3",
+    "typescript-formatter": "3.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
     "vscode-nls-dev": "^2.0.1"
