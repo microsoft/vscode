@@ -5,10 +5,11 @@
 
 'use strict';
 
-import { ExtensionContext } from 'vscode';
+const gulp = require('gulp');
+const mocha = require('gulp-mocha');
 
-export function activate(context: ExtensionContext) {
-}
-
-export function deactivate() {
-}
+gulp.task('test', function () {
+	return gulp.src('test/all.js')
+		.pipe(mocha({ ui: 'tdd', delay: true }))
+		.once('end', function () { process.exit(); });
+});

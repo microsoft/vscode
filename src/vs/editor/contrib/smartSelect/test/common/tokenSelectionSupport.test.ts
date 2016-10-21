@@ -5,14 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { IMode, IndentAction } from 'vs/editor/common/modes';
 import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/common/tokenSelectionSupport';
-import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 import { MockTokenizingMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 class MockJSMode extends MockTokenizingMode {
 
@@ -60,12 +60,13 @@ class MockJSMode extends MockTokenizingMode {
 
 suite('TokenSelectionSupport', () => {
 
-	let modelService;
-	let tokenSelectionSupport;
+	let modelService: ModelServiceImpl;
+	let tokenSelectionSupport: TokenSelectionSupport;
 	let _mode: IMode = new MockJSMode();
 
 	setup(() => {
-		modelService = createMockModelService(new TestInstantiationService());
+
+		modelService = new ModelServiceImpl(null, new TestConfigurationService(), null);
 		tokenSelectionSupport = new TokenSelectionSupport(modelService);
 	});
 

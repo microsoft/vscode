@@ -6,6 +6,7 @@
 
 import { createCSSRule } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { join } from 'vs/base/common/paths';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -127,11 +128,11 @@ namespace schema {
 			collector.error(localize('nonempty', "expected non-empty value."));
 			return false;
 		}
-		if (typeof command.command !== 'string') {
+		if (isFalsyOrWhitespace(command.command)) {
 			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
 			return false;
 		}
-		if (typeof command.title !== 'string') {
+		if (isFalsyOrWhitespace(command.title)) {
 			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'title'));
 			return false;
 		}

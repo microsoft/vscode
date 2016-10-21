@@ -43,7 +43,8 @@ export interface IAutoFocus {
 
 export enum Mode {
 	PREVIEW,
-	OPEN
+	OPEN,
+	OPEN_IN_BACKGROUND
 }
 
 export interface IEntryRunContext {

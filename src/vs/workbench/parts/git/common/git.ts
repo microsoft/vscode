@@ -337,9 +337,3 @@ export interface IGitService extends IEventEmitter {
 export interface IAskpassService {
 	askpass(id: string, host: string, command: string): TPromise<ICredentials>;
 }
-
-// Utils
-
-export function isValidBranchName(value: string): boolean {
-	return !/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$/.test(value);
-}

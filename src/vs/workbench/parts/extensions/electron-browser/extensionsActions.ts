@@ -327,7 +327,7 @@ export class EnableForWorkspaceAction extends Action {
 	}
 
 	private update(): void {
-		if (!!this.workspaceContextService.getWorkspace()) {
+		if (this.extension && !this.workspaceContextService.getWorkspace()) {
 			const globalDisabled = this.extensionsRuntimeService.getDisabledExtensions(false);
 			this.enabled = globalDisabled.indexOf(this.extension.identifier) === -1;
 		}
@@ -352,8 +352,10 @@ export class EnableGloballyAction extends Action {
 	}
 
 	private update(): void {
-		const globalDisabled = this.extensionsRuntimeService.getDisabledExtensions(false);
-		this.enabled = globalDisabled.indexOf(this.extension.identifier) !== -1;
+		if (this.extension) {
+			const globalDisabled = this.extensionsRuntimeService.getDisabledExtensions(false);
+			this.enabled = globalDisabled.indexOf(this.extension.identifier) !== -1;
+		}
 	}
 
 	run(): TPromise<any> {

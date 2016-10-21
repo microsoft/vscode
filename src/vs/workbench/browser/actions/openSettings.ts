@@ -5,20 +5,27 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import network = require('vs/base/common/network');
-import labels = require('vs/base/common/labels');
+import * as network from 'vs/base/common/network';
+import * as labels from 'vs/base/common/labels';
 import { Registry } from 'vs/platform/platform';
 import { Action } from 'vs/base/common/actions';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
+import Event, { Emitter } from 'vs/base/common/event';
+import { LinkedMap as Map } from 'vs/base/common/map';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IEditorRegistry, Extensions as EditorExtensions, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
+import { ICommonCodeEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
 import { getDefaultValuesContent } from 'vs/platform/configuration/common/model';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { Position } from 'vs/platform/editor/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
@@ -28,6 +35,15 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IFoldingController, ID as FoldingContributionId } from 'vs/editor/contrib/folding/common/folding';
+
 
 interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -224,7 +240,11 @@ export class OpenWorkspaceSettingsAction extends BaseOpenSettingsAction {
 }
 
 class DefaultSettingsInput extends StringEditorInput {
+	static RESOURCE: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' }); // URI is used to register JSON schema support
 	private static INSTANCE: DefaultSettingsInput;
+
+	private _willDispose = new Emitter<void>();
+	public willDispose: Event<void> = this._willDispose.event;
 
 	public static getInstance(instantiationService: IInstantiationService, configurationService: IWorkspaceConfigurationService): DefaultSettingsInput {
 		if (!DefaultSettingsInput.INSTANCE) {
@@ -240,7 +260,13 @@ class DefaultSettingsInput extends StringEditorInput {
 	}
 
 	protected getResource(): URI {
-		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' }); // URI is used to register JSON schema support
+		return DefaultSettingsInput.RESOURCE;
+	}
+
+	public dispose() {
+		this._willDispose.fire();
+		this._willDispose.dispose();
+		super.dispose();
 	}
 }
 
@@ -262,6 +288,100 @@ class DefaultKeybindingsInput extends StringEditorInput {
 		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' }); // URI is used to register JSON schema support
 	}
 }
+
+export class DefaultSettingsEditor extends StringEditor {
+
+	public static ID = 'workbench.editors.defaultSettingsEditor';
+
+	private static VIEW_STATE: Map<URI, IEditorViewState> = new Map<URI, IEditorViewState>();
+
+	private inputDisposeListener;
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IMessageService messageService: IMessageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEventService eventService: IEventService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IThemeService themeService: IThemeService,
+		@ICommandService private commandService: ICommandService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService
+	) {
+		super(telemetryService, instantiationService, contextService, storageService,
+			messageService, configurationService, eventService, editorService, themeService, untitledEditorService);
+	}
+
+	public getId(): string {
+		return DefaultSettingsEditor.ID;
+	}
+
+	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+		this.listenToInput(input);
+		return super.setInput(input, options);
+	}
+
+	public clearInput(): void {
+		this.saveState();
+		if (this.inputDisposeListener) {
+			this.inputDisposeListener.dispose();
+		}
+		super.clearInput();
+	}
+
+	protected restoreViewState(input: EditorInput) {
+		const viewState = DefaultSettingsEditor.VIEW_STATE.get(this.getResource());
+		if (viewState) {
+			this.getControl().restoreViewState(viewState);
+		} else {
+			this.foldAll();
+		}
+	}
+
+	private saveState() {
+		const resource = this.getResource();
+		if (DefaultSettingsEditor.VIEW_STATE.has(resource)) {
+			DefaultSettingsEditor.VIEW_STATE.delete(resource);
+		}
+		const state = this.getControl().saveViewState();
+		if (state) {
+			DefaultSettingsEditor.VIEW_STATE.set(resource, state);
+		}
+	}
+
+	private getResource(): URI {
+		return DefaultSettingsInput.RESOURCE;
+	}
+
+	private foldAll() {
+		const foldingController = (<ICommonCodeEditor>this.getControl()).getContribution<IFoldingController>(FoldingContributionId);
+		foldingController.foldAll();
+	}
+
+	private listenToInput(input: EditorInput) {
+		if (this.inputDisposeListener) {
+			this.inputDisposeListener.dispose();
+		}
+		if (input instanceof DefaultSettingsInput) {
+			this.inputDisposeListener = input.willDispose(() => this.saveState());
+		}
+	}
+}
+
+(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
+	new EditorDescriptor(
+		DefaultSettingsEditor.ID,
+		nls.localize('defaultSettingsEditor', "Default Settings Editor"),
+		'vs/workbench/browser/actions/openSettings',
+		'DefaultSettingsEditor'
+	),
+	[
+		new SyncDescriptor(DefaultSettingsInput)
+		// new SyncDescriptor(DefaultKeybindingsInput),
+	]
+);
 
 // Contribute Global Actions
 const category = nls.localize('preferences', "Preferences");

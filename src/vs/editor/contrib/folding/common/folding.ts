@@ -3,8 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path='../../../../src/vs/vscode.d.ts'/>
-/// <reference path='../../../../src/typings/mocha.d.ts'/>
-/// <reference path='../../../../extensions/declares.d.ts'/>
-/// <reference path='../../../../extensions/node.d.ts'/>
-/// <reference path='../../../../extensions/lib.core.d.ts'/>
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+
+export const ID = 'editor.contrib.folding';
+
+export interface IFoldingController extends IEditorContribution {
+
+	foldAll();
+	unfoldAll();
+
+}
