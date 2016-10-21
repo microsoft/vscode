@@ -171,7 +171,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 						const focus = this.tree.getFocus();
 						if (focus) {
-							this.elementSelected(focus, keyboardEvent, keyboardEvent.keyCode === KeyCode.RightArrow ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
+							this.elementSelected(focus, e, keyboardEvent.keyCode === KeyCode.RightArrow ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
 						}
 					}
 
