@@ -633,13 +633,10 @@ export class WindowsManager implements IWindowsService {
 			const workspacesWithBackups = this.backupService.getWorkspaceBackupPathsSync();
 
 			workspacesWithBackups.forEach(workspacePath => {
-				const filesToRestore = this.backupService.getWorkspaceTextFilesWithBackupsSync(Uri.file(workspacePath)).map(filePath => {
-					return { filePath: filePath };
-				});
 				const untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(workspacePath)).map(filePath => {
 					return { filePath: filePath };
 				});
-				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, workspacePath, [], [], [], filesToRestore, untitledToRestore);
+				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, workspacePath, [], [], [], untitledToRestore);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
@@ -888,7 +885,7 @@ export class WindowsManager implements IWindowsService {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
 	}
 
-	private toConfiguration(userEnv: platform.IProcessEnvironment, cli: ParsedArgs, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], filesToRestore?: IPath[], untitledToRestore?: IPath[]): IWindowConfiguration {
+	private toConfiguration(userEnv: platform.IProcessEnvironment, cli: ParsedArgs, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], untitledToRestore?: IPath[]): IWindowConfiguration {
 		const configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
@@ -897,7 +894,6 @@ export class WindowsManager implements IWindowsService {
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
-		configuration.filesToRestore = filesToRestore;
 		configuration.untitledToRestore = untitledToRestore;
 
 		return configuration;
