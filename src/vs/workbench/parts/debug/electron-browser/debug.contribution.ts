@@ -7,7 +7,6 @@ import 'vs/css!../browser/media/debug.contribution';
 import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -139,17 +138,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	handler(accessor: ServicesAccessor, configurationOrName: any) {
 		const debugService = accessor.get(debug.IDebugService);
-		if (typeof configurationOrName === 'string') {
-			const configurationManager = debugService.getConfigurationManager();
-			return configurationManager.getConfiguration(configurationOrName)
-				.then((configuration) => {
-					return configuration ? debugService.createSession(false, configuration)
-						: TPromise.wrapError(new Error(nls.localize('launchConfigDoesNotExist', "Launch configuration '{0}' does not exist.", configurationOrName)));
-				});
-		}
-
-		const noDebug = configurationOrName && !!configurationOrName.noDebug;
-		return debugService.createSession(noDebug, configurationOrName);
+		return debugService.createProcess(configurationOrName);
 	},
 	when: debug.CONTEXT_NOT_IN_DEBUG_MODE,
 	primary: undefined

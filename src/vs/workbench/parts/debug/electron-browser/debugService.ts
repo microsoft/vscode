@@ -294,7 +294,8 @@ export class DebugService implements debug.IDebugService {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (session && session.getId() === event.body.sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
-					this.restartSession(session).done(null, err => this.messageService.show(severity.Error, err.message));
+					const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
+					this.restartProcess(process).done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
 					session.disconnect().done(null, errors.onUnexpectedError);
 				}
@@ -522,15 +523,14 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public createSession(noDebug: boolean, configuration?: debug.IConfig): TPromise<any> {
+	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
 		this.removeReplExpressions();
 
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
 			.then(() => this.configurationService.reloadConfiguration()	// make sure configuration is up to date
 				.then(() => this.extensionService.onReady()
-					.then(() => this.configurationManager.getConfiguration(configuration || this.viewModel.selectedConfigurationName)
-						.then(resolvedConfiguration => {
-							configuration = resolvedConfiguration;
+					.then(() => this.configurationManager.getConfiguration(configurationOrName)
+						.then(configuration => {
 							if (!configuration) {
 								return this.configurationManager.openConfigFile(false).then(openend => {
 									if (openend) {
@@ -542,7 +542,6 @@ export class DebugService implements debug.IDebugService {
 								return;
 							}
 
-							configuration.noDebug = noDebug;
 							if (!this.configurationManager.getAdapter(configuration.type)) {
 								return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
 									: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
@@ -755,14 +754,14 @@ export class DebugService implements debug.IDebugService {
 		);
 	}
 
-	public restartSession(session: debug.ISession): TPromise<any> {
-		return session ? session.disconnect(true).then(() =>
+	public restartProcess(process: debug.IProcess): TPromise<any> {
+		return process ? process.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					this.createSession(false, null).then(() => c(null), err => e(err));
+					this.createProcess(process.name).then(() => c(null), err => e(err));
 				}, 300);
 			})
-		) : this.createSession(false, null);
+		) : this.createProcess(this.viewModel.selectedConfigurationName);
 	}
 
 	private onSessionEnd(session: RawDebugSession): void {
