@@ -6,9 +6,9 @@
 
 import * as path from 'path';
 
-import { languages, workspace, ExtensionContext, IndentAction, commands, CompletionList } from 'vscode';
+import { languages, workspace, ExtensionContext, IndentAction, commands, CompletionList, Hover } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Position, RequestType, Protocol2Code, Code2Protocol } from 'vscode-languageclient';
-import { CompletionList as LSCompletionList } from 'vscode-languageserver-types';
+import { CompletionList as LSCompletionList, Hover as LSHover } from 'vscode-languageserver-types';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { initializeEmbeddedContentDocuments } from './embeddedContentDocuments';
 
@@ -24,6 +24,17 @@ interface EmbeddedCompletionParams {
 
 namespace EmbeddedCompletionRequest {
 	export const type: RequestType<EmbeddedCompletionParams, LSCompletionList, any> = { get method() { return 'embedded/completion'; } };
+}
+
+interface EmbeddedHoverParams {
+	uri: string;
+	version: number;
+	embeddedLanguageId: string;
+	position: Position;
+}
+
+namespace EmbeddedHoverRequest {
+	export const type: RequestType<EmbeddedHoverParams, LSHover, any> = { get method() { return 'embedded/hover'; } };
 }
 
 export function activate(context: ExtensionContext) {
@@ -79,6 +90,24 @@ export function activate(context: ExtensionContext) {
 		});
 	});
 
+	client.onRequest(EmbeddedHoverRequest.type, params => {
+		let position = Protocol2Code.asPosition(params.position);
+		let virtualDocumentURI = embeddedDocuments.getVirtualDocumentUri(params.uri, params.embeddedLanguageId);
+		return embeddedDocuments.openVirtualDocument(virtualDocumentURI, params.version).then(document => {
+			if (document) {
+				return commands.executeCommand<Hover[]>('vscode.executeHoverProvider', virtualDocumentURI, position).then(hover => {
+					if (hover && hover.length > 0) {
+						return <LSHover>{
+							contents: hover[0].contents,
+							range: Code2Protocol.asRange(hover[0].range)
+						};
+					}
+					return void 0;
+				});
+			}
+			return void 0;
+		});
+	});
 
 	let disposable = client.start();
 

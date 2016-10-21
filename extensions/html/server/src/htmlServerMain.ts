@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, FormattingOptions, RequestType, CompletionList, Position } from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, FormattingOptions, RequestType, CompletionList, Position, Hover } from 'vscode-languageserver';
 
 import { HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration, DocumentContext } from 'vscode-html-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
@@ -25,6 +25,17 @@ interface EmbeddedCompletionParams {
 
 namespace EmbeddedCompletionRequest {
 	export const type: RequestType<EmbeddedCompletionParams, CompletionList, any> = { get method() { return 'embedded/completion'; } };
+}
+
+interface EmbeddedHoverParams {
+	uri: string;
+	version: number;
+	embeddedLanguageId: string;
+	position: Position;
+}
+
+namespace EmbeddedHoverRequest {
+	export const type: RequestType<EmbeddedCompletionParams, Hover, any> = { get method() { return 'embedded/hover'; } };
 }
 
 interface EmbeddedContentParams {
@@ -73,6 +84,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
 			completionProvider: { resolveProvider: false, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
+			hoverProvider: true,
 			documentHighlightProvider: true,
 			documentRangeFormattingProvider: params.initializationOptions['format.enable'],
 			documentLinkProvider: true
@@ -113,6 +125,19 @@ connection.onCompletion(textDocumentPosition => {
 		}
 	}
 	return list;
+});
+
+connection.onHover(textDocumentPosition => {
+	let document = documents.get(textDocumentPosition.textDocument.uri);
+	let htmlDocument = htmlDocuments.get(document);
+	let hover = languageService.doHover(document, textDocumentPosition.position, htmlDocument);
+	if (!hover) {
+		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
+		if (embeddedLanguageId) {
+			return connection.sendRequest(EmbeddedHoverRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
+		}
+	}
+	return hover;
 });
 
 connection.onRequest(EmbeddedContentRequest.type, parms => {
