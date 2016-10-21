@@ -15,12 +15,10 @@ import { VIEWLET_ID_ROOT } from 'vs/workbench/parts/explorers/common/treeExplore
 
 namespace schema {
 
-	export type IUserFriendlyIcon = string | { light: string; dark: string; };
-
 	export interface IExplorer {
 		treeExplorerNodeProviderId: string;
 		treeLabel: string;
-		icon: IUserFriendlyIcon;
+		icon: string;
 	}
 
 	export const explorerContribtion: IJSONSchema = {
@@ -52,16 +50,9 @@ ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.e
 
 		const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };
 		if (icon) {
-			if (typeof icon === 'string') {
-				const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
-				const iconPath = join(extension.description.extensionFolderPath, icon);
-				createCSSRule(iconClass, getIconRule(iconPath));
-			} else {
-				const lightIconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
-				const darkIconClass = `.vs-dark .monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
-				createCSSRule(lightIconClass, getIconRule(icon.light));
-				createCSSRule(darkIconClass, getIconRule(icon.dark));
-			}
+			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
+			const iconPath = join(extension.description.extensionFolderPath, icon);
+			createCSSRule(iconClass, getIconRule(iconPath));
 		}
 
 		descriptors.push(new ViewletDescriptor(
