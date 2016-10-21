@@ -281,13 +281,8 @@ export class ExtensionEditor extends BaseEditor {
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
 		this.navbar.push(NavbarSection.Readme, localize('details', "Details"));
 		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"));
-
-		if (extension.hasChangelog) {
-			this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
-		}
-		if (extension.dependencies.length > 0) {
-			this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"));
-		}
+		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
+		this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"));
 
 		this.content.innerHTML = '';
 
@@ -301,7 +296,7 @@ export class ExtensionEditor extends BaseEditor {
 			case NavbarSection.Readme: return this.openReadme();
 			case NavbarSection.Contributions: return this.openContributions();
 			case NavbarSection.Changelog: return this.openChangelog();
-			case NavbarSection.Dependencies: return this.openDependencies();
+			case NavbarSection.Dependencies: return this.openDependencies(extension);
 		}
 	}
 
@@ -323,7 +318,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.contentDisposables.push(webview);
 			})
 			.then(null, () => {
-				const p = append(this.content, $('p'));
+				const p = append(this.content, $('p.nocontent'));
 				p.textContent = noContentCopy;
 			}));
 	}
@@ -333,7 +328,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private openChangelog() {
-		return this.openMarkdown(this.extensionChangelog.get(), localize('noChangelog', "No CHANGELOG available."));
+		return this.openMarkdown(this.extensionChangelog.get(), localize('noChangelog', "No Changelog available."));
 	}
 
 	private openContributions() {
@@ -341,25 +336,36 @@ export class ExtensionEditor extends BaseEditor {
 			.then(manifest => {
 				const content = $('div', { class: 'subcontent' });
 				const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
-				append(this.content, scrollableContent.getDomNode());
-				this.contentDisposables.push(scrollableContent);
 
 				const layout = () => scrollableContent.scanDomNode();
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
-				ExtensionEditor.renderSettings(content, manifest, layout);
-				this.renderCommands(content, manifest, layout);
-				ExtensionEditor.renderLanguages(content, manifest, layout);
-				ExtensionEditor.renderThemes(content, manifest, layout);
-				ExtensionEditor.renderJSONValidation(content, manifest, layout);
-				ExtensionEditor.renderDebuggers(content, manifest, layout);
+				let isEmpty = true;
+				isEmpty = isEmpty && !ExtensionEditor.renderSettings(content, manifest, layout);
+				isEmpty = isEmpty && !this.renderCommands(content, manifest, layout);
+				isEmpty = isEmpty && !ExtensionEditor.renderLanguages(content, manifest, layout);
+				isEmpty = isEmpty && !ExtensionEditor.renderThemes(content, manifest, layout);
+				isEmpty = isEmpty && !ExtensionEditor.renderJSONValidation(content, manifest, layout);
+				isEmpty = isEmpty && !ExtensionEditor.renderDebuggers(content, manifest, layout);
 
 				scrollableContent.scanDomNode();
+
+				if (isEmpty) {
+					append(this.content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
+					return;
+				} else {
+					append(this.content, scrollableContent.getDomNode());
+					this.contentDisposables.push(scrollableContent);
+				}
 			}));
 	}
 
-	private openDependencies() {
+	private openDependencies(extension: IExtension) {
+		if (extension.dependencies.length === 0) {
+			append(this.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
+			return;
+		}
 		addClass(this.content, 'loading');
 		this.extensionDependencies.get().then(extensionDependencies => {
 			removeClass(this.content, 'loading');
@@ -397,14 +403,14 @@ export class ExtensionEditor extends BaseEditor {
 		return tree;
 	}
 
-	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
+	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const configuration = contributes && contributes.configuration;
 		const properties = configuration && configuration.properties;
 		const contrib = properties ? Object.keys(properties) : [];
 
 		if (!contrib.length) {
-			return;
+			return false;
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
@@ -424,14 +430,15 @@ export class ExtensionEditor extends BaseEditor {
 		);
 
 		append(container, details);
+		return true;
 	}
 
-	private static renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
+	private static renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.debuggers || [];
 
 		if (!contrib.length) {
-			return;
+			return false;
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
@@ -443,14 +450,15 @@ export class ExtensionEditor extends BaseEditor {
 		);
 
 		append(container, details);
+		return true;
 	}
 
-	private static renderThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
+	private static renderThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.themes || [];
 
 		if (!contrib.length) {
-			return;
+			return false;
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
@@ -459,14 +467,15 @@ export class ExtensionEditor extends BaseEditor {
 		);
 
 		append(container, details);
+		return true;
 	}
 
-	private static renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
+	private static renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.jsonValidation || [];
 
 		if (!contrib.length) {
-			return;
+			return false;
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
@@ -475,9 +484,10 @@ export class ExtensionEditor extends BaseEditor {
 		);
 
 		append(container, details);
+		return true;
 	}
 
-	private renderCommands(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
+	private renderCommands(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const rawCommands = contributes && contributes.commands || [];
 		const commands = rawCommands.map(c => ({
@@ -521,7 +531,7 @@ export class ExtensionEditor extends BaseEditor {
 		});
 
 		if (!commands.length) {
-			return;
+			return false;
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
@@ -543,9 +553,10 @@ export class ExtensionEditor extends BaseEditor {
 		);
 
 		append(container, details);
+		return true;
 	}
 
-	private static renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
+	private static renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const rawLanguages = contributes && contributes.languages || [];
 		const languages = rawLanguages.map(l => ({
@@ -587,7 +598,7 @@ export class ExtensionEditor extends BaseEditor {
 		});
 
 		if (!languages.length) {
-			return;
+			return false;
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
@@ -611,6 +622,7 @@ export class ExtensionEditor extends BaseEditor {
 		);
 
 		append(container, details);
+		return true;
 	}
 
 	private keybindingToLabel(rawKeyBinding: IKeyBinding): string {
