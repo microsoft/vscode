@@ -238,17 +238,17 @@ export class Workbench implements IPartService {
 			const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 			let viewletId = viewletRegistry.getDefaultViewletId();
 			if (this.shouldRestoreSidebar()) {
-				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId()); // help developers and restore last view
+				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletId); // help developers and restore last view
 			}
 
-			// If an external viewlet is the default viewlet, restore File Explorer viewlet on startup for now
+			// If external viewlet is the last active viewlet, defer its construction until extensions get registered
 			if (!viewletRegistry.getViewlet(viewletId)) {
-				viewletId = 'workbench.view.explorer';
-			}
-
-			if (!this.sideBarHidden && !!viewletId) {
-				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
-				compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
+				this.activitybarPart.setExternalViewletIdToOpen(viewletId);
+			} else {
+				if (!this.sideBarHidden && !!viewletId) {
+					const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
+					compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
+				}
 			}
 
 			// Load Panel

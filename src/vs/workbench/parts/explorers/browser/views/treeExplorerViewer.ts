@@ -20,6 +20,7 @@ import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browse
 import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class TreeDataSource implements IDataSource {
+
 	constructor(
 		private treeNodeProviderId: string,
 		@ITreeExplorerViewletService private treeExplorerViewletService: ITreeExplorerViewletService,
