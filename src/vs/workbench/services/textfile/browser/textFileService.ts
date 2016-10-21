@@ -151,7 +151,9 @@ export abstract class TextFileService implements ITextFileService {
 						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
 					}
 
-					return this.cleanupBackupsBeforeShutdown();
+					return this.fileService.discardBackups().then(() => {
+						return false; // all good, no veto
+					});
 				});
 			}
 
@@ -159,7 +161,9 @@ export abstract class TextFileService implements ITextFileService {
 			return this.confirmBeforeShutdown();
 		}
 
-		return this.cleanupBackupsBeforeShutdown();
+		return this.fileService.discardBackups().then(() => {
+			return false; // no veto
+		});
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
