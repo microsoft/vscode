@@ -17,7 +17,7 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 	IGalleryExtension, IExtensionIdentity, IExtensionManifest, IGalleryMetadata,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType
+	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -104,8 +104,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private _onUninstallExtension = new Emitter<string>();
 	onUninstallExtension: Event<string> = this._onUninstallExtension.event;
 
-	private _onDidUninstallExtension = new Emitter<string>();
-	onDidUninstallExtension: Event<string> = this._onDidUninstallExtension.event;
+	private _onDidUninstallExtension = new Emitter<DidUninstallExtensionEvent>();
+	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -315,23 +315,75 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			return this.scanUserExtensions().then<void>(installed => {
 				const promises = installed
 					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
-					.map(({ id }) => this.uninstallExtension(id));
-
+					.map(e => this.checkForDependenciesAndUninstall(e, installed));
 				return TPromise.join(promises);
 			});
 		});
 	}
 
-	private uninstallExtension(id: string): TPromise<void> {
-		const extensionPath = path.join(this.extensionsPath, id);
+	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
+		return this.preUninstallExtension(extension.id)
+			.then(() => this.getDependenciesToUninstall(extension, installed)
+				.then(dependencies => dependencies.length ? this.promptAndUninstall(extension, dependencies) : this.uninstallExtension(extension.id)))
+			.then(() => this.postUninstallExtension(extension.id),
+			error => {
+				this.postUninstallExtension(extension.id, error);
+				return TPromise.wrapError(error);
+			});
+	}
 
+	private promptAndUninstall(extension: ILocalExtension, dependencies: ILocalExtension[]): TPromise<void> {
+		const message = nls.localize('uninstallDependeciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName);
+		const options = [
+			nls.localize('uninstallOnly', "Only"),
+			nls.localize('uninstallAll', "All"),
+			nls.localize('cancel', "Cancel")
+		];
+		return this.choiceService.choose(Severity.Info, message, options)
+			.then<void>(value => {
+				if (value === 0) {
+					return this.doUninstall(extension.id);
+				}
+				if (value === 1) {
+					return TPromise.join(dependencies.map(d => this.doUninstall(d.id)));
+				}
+				return TPromise.wrapError(errors.canceled());
+			}, error => TPromise.wrapError(errors.canceled()));
+	}
+
+	private getDependenciesToUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<ILocalExtension[]> {
+		if (extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length) {
+			return TPromise.wrap(installed.filter(i => extension.manifest.extensionDependencies.indexOf(`${i.manifest.publisher}.${i.manifest.name}`) !== -1));
+		}
+		return TPromise.wrap([]);
+	}
+
+	private doUninstall(id: string): TPromise<void> {
+		return this.preUninstallExtension(id)
+			.then(() => this.uninstallExtension(id))
+			.then(() => this.postUninstallExtension(id),
+			error => {
+				this.postUninstallExtension(id, error);
+				return TPromise.wrapError(error);
+			});
+	}
+
+	private preUninstallExtension(id: string): TPromise<void> {
+		const extensionPath = path.join(this.extensionsPath, id);
 		return pfs.exists(extensionPath)
 			.then(exists => exists ? null : Promise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
-			.then(() => this._onUninstallExtension.fire(id))
-			.then(() => this.setObsolete(id))
+			.then(() => this._onUninstallExtension.fire(id));
+	}
+
+	private uninstallExtension(id: string): TPromise<void> {
+		const extensionPath = path.join(this.extensionsPath, id);
+		return this.setObsolete(id)
 			.then(() => pfs.rimraf(extensionPath))
-			.then(() => this.unsetObsolete(id))
-			.then(() => this._onDidUninstallExtension.fire(id));
+			.then(() => this.unsetObsolete(id));
+	}
+
+	private postUninstallExtension(id: string, error?: any): TPromise<void> {
+		return this._onDidUninstallExtension.fire({ id, error });
 	}
 
 	getInstalled(type: LocalExtensionType = null): TPromise<ILocalExtension[]> {

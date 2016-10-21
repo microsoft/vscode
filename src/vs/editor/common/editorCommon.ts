@@ -3118,7 +3118,11 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
-	export const hasFormattingProvider = new RawContextKey<boolean>('editorHasFormattingProvider', undefined);
+	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', undefined);
 	/**
 	 * @internal
 	 */

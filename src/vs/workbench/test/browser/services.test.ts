@@ -290,7 +290,7 @@ suite('Workbench UI Services', () => {
 			assert(service.getVisibleEditors()[0] === editor);
 		});
 
-		service.openEditor(activeInput, null, Position.LEFT).then((editor) => {
+		service.openEditor(activeInput, null, Position.ONE).then((editor) => {
 			assert.strictEqual(openedEditorInput, activeInput);
 			assert.strictEqual(openedEditorOptions, null);
 			assert.strictEqual(editor, activeEditor);

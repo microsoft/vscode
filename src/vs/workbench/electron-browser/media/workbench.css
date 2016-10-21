@@ -43,7 +43,7 @@
 	left: 0;
 	height: 100%;
 	width: 100%;
-	z-index: 3000000;
+	z-index: 10000;
 }
 
 .vs #monaco-workbench-drop-overlay {

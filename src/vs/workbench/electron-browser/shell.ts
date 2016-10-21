@@ -20,6 +20,8 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
+import { BackupService } from 'vs/platform/backup/node/backupService';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { Storage, inMemoryLocalStorageInstance } from 'vs/workbench/common/storage';
 import { ITelemetryService, NullTelemetryService, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
@@ -242,6 +244,11 @@ export class WorkbenchShell {
 				});
 			});
 		}, errors.onUnexpectedError);
+
+		// Backup
+		const backupService = instantiationService.createInstance(BackupService);
+		backupService.setCurrentWorkspace(this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource : null);
+		serviceCollection.set(IBackupService, backupService);
 
 		// Storage
 		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
