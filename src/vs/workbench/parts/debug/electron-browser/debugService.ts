@@ -105,13 +105,13 @@ export class DebugService implements debug.IDebugService {
 		this._onDidChangeState = new Emitter<debug.State>();
 		this.sessionStates = {};
 
-		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
+		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 
 		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
-		this.viewModel = new viewmodel.ViewModel();
+		this.viewModel = new viewmodel.ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
 
 		this.registerListeners(eventService, lifecycleService);
 	}
@@ -528,8 +528,7 @@ export class DebugService implements debug.IDebugService {
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
 			.then(() => this.configurationService.reloadConfiguration()	// make sure configuration is up to date
 				.then(() => this.extensionService.onReady()
-					.then(() => this.configurationManager.setConfiguration(configuration || this.configurationManager.configurationName)
-						.then(() => this.configurationManager.resolveInteractiveVariables())
+					.then(() => this.configurationManager.getConfiguration(configuration || this.viewModel.selectedConfigurationName)
 						.then(resolvedConfiguration => {
 							configuration = resolvedConfiguration;
 							if (!configuration) {
@@ -544,7 +543,7 @@ export class DebugService implements debug.IDebugService {
 							}
 
 							configuration.noDebug = noDebug;
-							if (!this.configurationManager.adapter) {
+							if (!this.configurationManager.getAdapter(configuration.type)) {
 								return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
 									: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
 										{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
@@ -590,8 +589,9 @@ export class DebugService implements debug.IDebugService {
 			telemetryInfo['common.vscodesessionid'] = info.sessionId;
 			return telemetryInfo;
 		}).then(data => {
-			const { aiKey, type } = this.configurationManager.adapter;
-			const publisher = this.configurationManager.adapter.extensionDescription.publisher;
+			const adapter = this.configurationManager.getAdapter(configuration.type);
+			const { aiKey, type } = adapter;
+			const publisher = adapter.extensionDescription.publisher;
 			this.customTelemetryService = null;
 			let client: TelemetryClient;
 
@@ -616,8 +616,8 @@ export class DebugService implements debug.IDebugService {
 				this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
-			this.model.addProcess(name, session);
+			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
+			this.model.addProcess(configuration.name, session);
 			this.toDisposeOnSessionEnd[session.getId()] = [];
 			if (client) {
 				this.toDisposeOnSessionEnd[session.getId()].push(client);
@@ -667,8 +667,8 @@ export class DebugService implements debug.IDebugService {
 					breakpointCount: this.model.getBreakpoints().length,
 					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 					watchExpressionsCount: this.model.getWatchExpressions().length,
-					extensionName: `${this.configurationManager.adapter.extensionDescription.publisher}.${this.configurationManager.adapter.extensionDescription.name}`,
-					isBuiltin: this.configurationManager.adapter.extensionDescription.isBuiltin
+					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
+					isBuiltin: adapter.extensionDescription.isBuiltin
 				});
 			}).then(undefined, (error: any) => {
 				if (error instanceof Error && error.message === 'Canceled') {
@@ -743,15 +743,16 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		this.setStateAndEmit(session.getId(), debug.State.Initializing);
-		const configuration = <debug.IExtHostConfig>this.configurationManager.configuration;
-		return this.doCreateSession({
-			type: configuration.type,
-			request: 'attach',
-			port,
-			sourceMaps: configuration.sourceMaps,
-			outDir: configuration.outDir,
-			debugServer: configuration.debugServer
-		});
+		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then((configuration: debug.IExtHostConfig) =>
+			this.doCreateSession({
+				type: configuration.type,
+				request: 'attach',
+				port,
+				sourceMaps: configuration.sourceMaps,
+				outDir: configuration.outDir,
+				debugServer: configuration.debugServer
+			})
+		);
 	}
 
 	public restartSession(session: debug.ISession): TPromise<any> {
@@ -897,8 +898,8 @@ export class DebugService implements debug.IDebugService {
 		const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;
 		const stackFrameToFocus = callStack && callStack.length > 0 ? callStack[0] : null;
 
-		if (!stoppedThread) {
-			this.setStateAndEmit(session.getId(), this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
+		if (!stoppedThread && process) {
+			this.setStateAndEmit(session.getId(), process.session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
 		}
 
 		// Do not immediatly set a new focused stack frame since that might cause unnecessery flickering
@@ -1035,7 +1036,7 @@ export class DebugService implements debug.IDebugService {
 		this.storageService.store(DEBUG_BREAKPOINTS_ACTIVATED_KEY, this.model.areBreakpointsActivated() ? 'true' : 'false', StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getFunctionBreakpoints()), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getExceptionBreakpoints()), StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.configurationManager.configurationName, StorageScope.WORKSPACE);
+		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.viewModel.selectedConfigurationName, StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(this.model.getWatchExpressions().map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE);
 	}
 

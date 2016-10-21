@@ -141,6 +141,10 @@ export class MockSession implements debug.ISession {
 		return 'mockrawsession';
 	}
 
+	public get requestType() {
+		return debug.SessionRequestType.LAUNCH;
+	}
+
 	public getLengthInSeconds(): number {
 		return 100;
 	}

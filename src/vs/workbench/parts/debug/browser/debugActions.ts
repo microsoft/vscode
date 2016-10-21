@@ -85,7 +85,7 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
-		this.toDispose.push(debugService.getConfigurationManager().onDidConfigurationChange((configurationName) => {
+		this.toDispose.push(debugService.getViewModel().onDidSelectConfigurationName(configurationName => {
 			if (configurationName) {
 				this.class = 'debug-action configure';
 				this.tooltip = ConfigureAction.LABEL;
@@ -111,7 +111,8 @@ export class SelectConfigAction extends AbstractDebugAction {
 	}
 
 	public run(configName: string): TPromise<any> {
-		return this.debugService.getConfigurationManager().setConfiguration(configName);
+		this.debugService.getViewModel().setSelectedConfigurationName(configName);
+		return TPromise.as(null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -143,12 +144,12 @@ export class RestartAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action restart', debugService, keybindingService);
-		this.setLabel(this.debugService.getConfigurationManager().configuration);
-		this.toDispose.push(this.debugService.getConfigurationManager().onDidConfigurationChange(config => this.setLabel(config)));
+		this.setLabel(this.debugService.getViewModel().focusedProcess);
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedProcess)));
 	}
 
-	private setLabel(config: debug.IConfig): void {
-		this.updateLabel(config && config.request === 'attach' ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
+	private setLabel(process: debug.IProcess): void {
+		this.updateLabel(process && process.session.requestType === debug.SessionRequestType.ATTACH ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 	}
 
 	public run(): TPromise<any> {
