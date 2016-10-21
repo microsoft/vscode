@@ -33,6 +33,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
 
+	private _onDidModelChangeContent: Emitter<void>;
 	private _onDidModelChangeEncoding: Emitter<void>;
 
 	private toUnbind: IDisposable[];
@@ -41,6 +42,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		resource: URI,
 		hasAssociatedFilePath: boolean,
 		modeId: string,
+		restoreResource: URI,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModeService private modeService: IModeService,
@@ -48,10 +50,16 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	) {
 		super();
 		this.resource = resource;
+		this.restoreResource = restoreResource;
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
 		this.toUnbind = [];
+		this._onDidModelChangeContent = new Emitter<void>();
 		this._onDidModelChangeEncoding = new Emitter<void>();
+	}
+
+	public get onDidModelChangeContent(): Event<void> {
+		return this._onDidModelChangeContent.event;
 	}
 
 	public get onDidModelChangeEncoding(): Event<void> {
@@ -64,10 +72,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public getResource(): URI {
 		return this.resource;
-	}
-
-	public setRestoreResource(resource: URI): void {
-		this.restoreResource = resource;
 	}
 
 	public getName(): string {
@@ -121,6 +125,14 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		return null;
 	}
 
+	public getValue(): string {
+		if (this.cachedModel) {
+			return this.cachedModel.getValue();
+		}
+
+		return null;
+	}
+
 	public setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): void {
 		if (this.cachedModel) {
 			this.cachedModel.setEncoding(encoding);
@@ -156,6 +168,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		const model = this.instantiationService.createInstance(UntitledEditorModel, content, this.modeId, this.resource, this.hasAssociatedFilePath);
 
 		// re-emit some events from the model
+		this.toUnbind.push(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
 		this.toUnbind.push(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this.toUnbind.push(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
 
@@ -178,6 +191,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	public dispose(): void {
+		this._onDidModelChangeContent.dispose();
 		this._onDidModelChangeEncoding.dispose();
 
 		// Listeners

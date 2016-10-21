@@ -24,6 +24,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	private configurationChangeListener: IDisposable;
 
 	private dirty: boolean;
+	private _onDidChangeContent: Emitter<void>;
 	private _onDidChangeDirty: Emitter<void>;
 	private _onDidChangeEncoding: Emitter<void>;
 
@@ -51,12 +52,17 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.dirty = hasAssociatedFilePath || value !== ''; // untitled associated to file path are dirty right away
 
+		this._onDidChangeContent = new Emitter<void>();
 		this._onDidChangeDirty = new Emitter<void>();
 		this._onDidChangeEncoding = new Emitter<void>();
 
 		this.backupPromises = [];
 
 		this.registerListeners();
+	}
+
+	public get onDidChangeContent(): Event<void> {
+		return this._onDidChangeContent.event;
 	}
 
 	public get onDidChangeDirty(): Event<void> {
@@ -168,6 +174,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 		}
 
+		this._onDidChangeContent.fire();
+
 		// TODO: Move this to BackupModelService
 		if (this.backupService.isHotExitEnabled) {
 			if (this.dirty) {
@@ -191,6 +199,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			this.configurationChangeListener = null;
 		}
 
+		this._onDidChangeContent.dispose();
 		this._onDidChangeDirty.dispose();
 		this._onDidChangeEncoding.dispose();
 
