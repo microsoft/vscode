@@ -43,7 +43,5 @@ CommonEditorRegistry.registerLanguageCommand('_executeCodeActionProvider', funct
 		throw illegalArgument();
 	}
 
-	const editorRange = Range.lift(range);
-
-	return getCodeActions(model, editorRange);
+	return getCodeActions(model, model.validateRange(range));
 });
