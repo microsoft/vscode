@@ -5,22 +5,22 @@
 
 'use strict';
 
-import {localize} from 'vs/nls';
+import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel} from 'vs/editor/common/editorCommon';
-import {Dimension, Builder} from 'vs/base/browser/builder';
-import {empty as EmptyDisposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {Position} from 'vs/platform/editor/common/editor';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {HtmlInput} from 'vs/workbench/parts/html/common/htmlInput';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {IOpenerService} from 'vs/platform/opener/common/opener';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { Dimension, Builder } from 'vs/base/browser/builder';
+import { empty as EmptyDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { Position } from 'vs/platform/editor/common/editor';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import Webview from './webview';
 
 /**
@@ -103,7 +103,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		super.setEditorVisible(visible, position);
 	}
 
-	private _doSetVisible(visible: boolean):void {
+	private _doSetVisible(visible: boolean): void {
 		if (!visible) {
 			this._themeChangeSubscription.dispose();
 			this._modelChangeSubscription.dispose();

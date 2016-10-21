@@ -5,9 +5,9 @@
 
 'use strict';
 
-import {equal} from 'assert';
-import {WinTerminalService, LinuxTerminalService, MacTerminalService} from 'vs/workbench/parts/execution/electron-browser/terminalService';
-import {DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX} from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { equal } from 'assert';
+import { WinTerminalService, LinuxTerminalService, MacTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
+import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 suite('Execution - TerminalService', () => {
 	let mockOnExit;

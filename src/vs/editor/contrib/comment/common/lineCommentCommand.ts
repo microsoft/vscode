@@ -5,15 +5,15 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ICommentsConfiguration} from 'vs/editor/common/modes';
-import {BlockCommentCommand} from './blockCommentCommand';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
-import {CharCode} from 'vs/base/common/charCode';
+import { ICommentsConfiguration } from 'vs/editor/common/modes';
+import { BlockCommentCommand } from './blockCommentCommand';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { CharCode } from 'vs/base/common/charCode';
 
 export interface IInsertionPoint {
 	ignore: boolean;
@@ -34,7 +34,7 @@ export interface IPreflightData {
 }
 
 export interface ISimpleModel {
-	getLineContent(lineNumber:number): string;
+	getLineContent(lineNumber: number): string;
 }
 
 export const enum Type {
@@ -47,12 +47,12 @@ export class LineCommentCommand implements editorCommon.ICommand {
 
 	private _selection: Selection;
 	private _selectionId: string;
-	private _deltaColumn:number;
+	private _deltaColumn: number;
 	private _moveEndPositionDown: boolean;
 	private _tabSize: number;
-	private _type:Type;
+	private _type: Type;
 
-	constructor(selection:Selection, tabSize:number, type:Type) {
+	constructor(selection: Selection, tabSize: number, type: Type) {
 		this._selection = selection;
 		this._tabSize = tabSize;
 		this._type = type;
@@ -63,14 +63,14 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Do an initial pass over the lines and gather info about the line comment string.
 	 * Returns null if any of the lines doesn't support a line comment string.
 	 */
-	public static _gatherPreflightCommentStrings(model:editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] {
+	public static _gatherPreflightCommentStrings(model: editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] {
 		var lines: ILinePreflightData[] = [],
-			config:ICommentsConfiguration,
-			commentStr:string,
-			seenModes: {[modeId:string]:string;} = Object.create(null),
-			i:number,
-			lineCount:number,
-			lineNumber:number,
+			config: ICommentsConfiguration,
+			commentStr: string,
+			seenModes: { [modeId: string]: string; } = Object.create(null),
+			i: number,
+			lineCount: number,
+			lineNumber: number,
 			modeId: string;
 
 		for (i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
@@ -106,14 +106,14 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Analyze lines and decide which lines are relevant and what the toggle should do.
 	 * Also, build up several offsets and lengths useful in the generation of editor operations.
 	 */
-	public static _analyzeLines(type:Type, model:ISimpleModel, lines:ILinePreflightData[], startLineNumber:number): IPreflightData {
+	public static _analyzeLines(type: Type, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number): IPreflightData {
 		var lineData: ILinePreflightData,
-			lineContentStartOffset:number,
-			commentStrEndOffset:number,
-			i:number,
-			lineCount:number,
-			lineNumber:number,
-			shouldRemoveComments:boolean,
+			lineContentStartOffset: number,
+			commentStrEndOffset: number,
+			i: number,
+			lineCount: number,
+			lineNumber: number,
+			shouldRemoveComments: boolean,
 			lineContent: string,
 			onlyWhitespaceLines = true;
 
@@ -188,7 +188,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Analyze all lines and decide exactly what to do => not supported | insert line comments | remove line comments
 	 */
-	public static _gatherPreflightData(type:Type, model:editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): IPreflightData {
+	public static _gatherPreflightData(type: Type, model: editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): IPreflightData {
 		var lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber);
 		if (lines === null) {
 			return {
@@ -204,9 +204,9 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Given a successful analysis, execute either insert line comments, either remove line comments
 	 */
-	private _executeLineComments(model:ISimpleModel, builder:editorCommon.IEditOperationBuilder, data:IPreflightData, s:Selection): void {
+	private _executeLineComments(model: ISimpleModel, builder: editorCommon.IEditOperationBuilder, data: IPreflightData, s: Selection): void {
 
-		var ops:editorCommon.IIdentifiedSingleEditOperation[];
+		var ops: editorCommon.IIdentifiedSingleEditOperation[];
 
 		if (data.shouldRemoveComments) {
 			ops = LineCommentCommand._createRemoveLineCommentsOperations(data.lines, s.startLineNumber);
@@ -227,7 +227,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		this._selectionId = builder.trackSelection(s);
 	}
 
-	private _attemptRemoveBlockComment(model:editorCommon.ITokenizedModel, s:Selection, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
+	private _attemptRemoveBlockComment(model: editorCommon.ITokenizedModel, s: Selection, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
 		let startLineNumber = s.startLineNumber;
 		let endLineNumber = s.endLineNumber;
 
@@ -271,7 +271,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
-	private _executeBlockComment(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder, s:Selection): void {
+	private _executeBlockComment(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder, s: Selection): void {
 		let modeId = model.getModeIdAtPosition(s.startLineNumber, s.startColumn);
 		let config = LanguageConfigurationRegistry.getComments(modeId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
@@ -316,7 +316,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public getEditOperations(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 
 		var s = this._selection;
 		this._moveEndPositionDown = false;
@@ -334,7 +334,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		return this._executeBlockComment(model, builder, s);
 	}
 
-	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._moveEndPositionDown) {
@@ -352,7 +352,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Generate edit operations in the remove line comment case
 	 */
-	public static _createRemoveLineCommentsOperations(lines:ILinePreflightData[], startLineNumber:number): editorCommon.IIdentifiedSingleEditOperation[] {
+	public static _createRemoveLineCommentsOperations(lines: ILinePreflightData[], startLineNumber: number): editorCommon.IIdentifiedSingleEditOperation[] {
 		var i: number,
 			len: number,
 			lineData: ILinePreflightData,
@@ -377,7 +377,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Generate edit operations in the add line comment case
 	 */
-	public static _createAddLineCommentsOperations(lines:ILinePreflightData[], startLineNumber:number): editorCommon.IIdentifiedSingleEditOperation[] {
+	public static _createAddLineCommentsOperations(lines: ILinePreflightData[], startLineNumber: number): editorCommon.IIdentifiedSingleEditOperation[] {
 		var i: number,
 			len: number,
 			lineData: ILinePreflightData,
@@ -397,7 +397,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	}
 
 	// TODO@Alex -> duplicated in characterHardWrappingLineMapper
-	private static nextVisibleColumn(currentVisibleColumn:number, tabSize:number, isTab:boolean, columnSize:number): number {
+	private static nextVisibleColumn(currentVisibleColumn: number, tabSize: number, isTab: boolean, columnSize: number): number {
 		if (isTab) {
 			return currentVisibleColumn + (tabSize - (currentVisibleColumn % tabSize));
 		}
@@ -407,7 +407,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Adjust insertion points to have them vertically aligned in the add line comment case
 	 */
-	public static _normalizeInsertionPoint(model:ISimpleModel, lines:IInsertionPoint[], startLineNumber:number, tabSize:number): void {
+	public static _normalizeInsertionPoint(model: ISimpleModel, lines: IInsertionPoint[], startLineNumber: number, tabSize: number): void {
 		var minVisibleColumn = Number.MAX_VALUE,
 			i: number,
 			len: number,

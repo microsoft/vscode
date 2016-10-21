@@ -45,5 +45,5 @@ export interface IJSONSchema {
 }
 
 export interface IJSONSchemaMap {
-	[name: string]:IJSONSchema;
+	[name: string]: IJSONSchema;
 }

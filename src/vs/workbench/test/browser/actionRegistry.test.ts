@@ -7,11 +7,11 @@
 
 import * as assert from 'assert';
 import * as Platform from 'vs/platform/platform';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import {Extensions, IWorkbenchActionRegistry} from 'vs/workbench/common/actionRegistry';
-import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
-import {Action} from 'vs/base/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Extensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actionRegistry';
+import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { Action } from 'vs/base/common/actions';
 
 
 class MyClass extends Action {

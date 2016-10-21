@@ -5,25 +5,28 @@
 
 'use strict';
 
-import { ICommandLineArguments, IProcessEnvironment } from 'vs/code/electron-main/env';
 import { IWindowsService } from 'vs/code/electron-main/windows';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IURLService } from 'vs/platform/url/common/url';
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
 export interface IStartArguments {
-	args: ICommandLineArguments;
+	args: ParsedArgs;
 	userEnv: IProcessEnvironment;
 }
 
 export interface ILaunchService {
-	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void>;
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void>;
+	getMainProcessId(): TPromise<number>;
 }
 
 export interface ILaunchChannel extends IChannel {
 	call(command: 'start', arg: IStartArguments): TPromise<void>;
+	call(command: 'get-main-process-id', arg: null): TPromise<any>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -32,10 +35,13 @@ export class LaunchChannel implements ILaunchChannel {
 	constructor(private service: ILaunchService) { }
 
 	call(command: string, arg: any): TPromise<any> {
-		const { args, userEnv } = arg as IStartArguments;
-
 		switch (command) {
-			case 'start': return this.service.start(args, userEnv);
+			case 'start':
+				const { args, userEnv } = arg as IStartArguments;
+				return this.service.start(args, userEnv);
+
+			case 'get-main-process-id':
+				return this.service.getMainProcessId();
 		}
 	}
 }
@@ -44,8 +50,12 @@ export class LaunchChannelClient implements ILaunchService {
 
 	constructor(private channel: ILaunchChannel) { }
 
-	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		return this.channel.call('start', { args, userEnv });
+	}
+
+	getMainProcessId(): TPromise<number> {
+		return this.channel.call('get-main-process-id', null);
 	}
 }
 
@@ -55,9 +65,9 @@ export class LaunchService implements ILaunchService {
 		@ILogService private logService: ILogService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IURLService private urlService: IURLService
-	) {}
+	) { }
 
-	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		this.logService.log('Received data from other instance: ', args, userEnv);
 
 		const openUrlArg = args['open-url'] || [];
@@ -72,9 +82,9 @@ export class LaunchService implements ILaunchService {
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
 			this.windowsService.openPluginDevelopmentHostWindow({ cli: args, userEnv });
-		} else if (args.paths.length === 0 && args['new-window']) {
+		} else if (args._.length === 0 && args['new-window']) {
 			usedWindows = this.windowsService.open({ cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
-		} else if (args.paths.length === 0) {
+		} else if (args._.length === 0) {
 			usedWindows = [this.windowsService.focusLastActive(args)];
 		} else {
 			usedWindows = this.windowsService.open({
@@ -103,5 +113,10 @@ export class LaunchService implements ILaunchService {
 		}
 
 		return TPromise.as(null);
+	}
+
+	getMainProcessId(): TPromise<number> {
+		this.logService.log('Received request for process ID from other instance.');
+		return TPromise.as(process.pid);
 	}
 }

@@ -63,20 +63,26 @@
 	overflow: hidden;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header {
-	display: flex;
-	align-items: baseline;
-	flex-wrap: wrap;
+.extensions-viewlet > .extensions .extension > .details > .header-container {
 	height: 19px;
+	display: flex;
 	overflow: hidden;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header > .name {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	overflow: hidden;
+	flex: 1;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .name {
 	font-weight: bold;
 	min-width: fit-content;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header > .version {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .version {
 	opacity: 0.6;
 	font-size: 80%;
 	padding-left: 6px;
@@ -84,23 +90,29 @@
 	min-width: fit-content;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header > .install-count:not(:empty) {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count:not(:empty) {
 	font-size: 80%;
 	margin: 0 6px;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header > .install-count > .octicon {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count > .octicon {
 	font-size: 100%;
 	margin-right: 2px;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header > .ratings {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .ratings {
 	text-align: right;
 }
 
-.extensions-viewlet.narrow > .extensions .extension > .details > .header > .ratings,
-.extensions-viewlet.narrow > .extensions .extension > .details > .header > .install-count {
+.extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .ratings,
+.extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .install-count {
 	display: none;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .header-container .extension-status {
+	width: 8px;
+	height: 8px;
+	margin-left: 6px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer {

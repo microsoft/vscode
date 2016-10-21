@@ -4,21 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import {suggestFilename} from 'vs/base/common/mime';
+import { suggestFilename } from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
-import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import paths = require('vs/base/common/paths');
-import {UntitledEditorInput as AbstractUntitledEditorInput, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
-import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import Event, {Emitter} from 'vs/base/common/event';
-
-import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
+import { UntitledEditorInput as AbstractUntitledEditorInput, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -29,6 +28,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	public static SCHEMA: string = 'untitled';
 
 	private resource: URI;
+	private restoreResource: URI;
 	private hasAssociatedFilePath: boolean;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
@@ -47,7 +47,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
-
 		this.resource = resource;
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
@@ -65,6 +64,10 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public getResource(): URI {
 		return this.resource;
+	}
+
+	public setRestoreResource(resource: URI): void {
+		this.restoreResource = resource;
 	}
 
 	public getName(): string {
@@ -131,17 +134,25 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			return TPromise.as(this.cachedModel);
 		}
 
-		// Otherwise Create Model and load
-		const model = this.createModel();
-		return model.load().then((resolvedModel: UntitledEditorModel) => {
-			this.cachedModel = resolvedModel;
+		// Otherwise Create Model and load, restoring from backup if necessary
+		let restorePromise: TPromise<string>;
+		if (this.restoreResource) {
+			restorePromise = this.textFileService.resolveTextContent(this.restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
+		} else {
+			restorePromise = TPromise.as('');
+		}
 
-			return this.cachedModel;
+		return restorePromise.then(content => {
+			const model = this.createModel(content);
+			return model.load().then((resolvedModel: UntitledEditorModel) => {
+				this.cachedModel = resolvedModel;
+
+				return this.cachedModel;
+			});
 		});
 	}
 
-	private createModel(): UntitledEditorModel {
-		const content = '';
+	private createModel(content: string): UntitledEditorModel {
 		const model = this.instantiationService.createInstance(UntitledEditorModel, content, this.modeId, this.resource, this.hasAssociatedFilePath);
 
 		// re-emit some events from the model

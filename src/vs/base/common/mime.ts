@@ -7,7 +7,7 @@
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
-import {match} from 'vs/base/common/glob';
+import { match } from 'vs/base/common/glob';
 
 export let MIME_TEXT = 'text/plain';
 export let MIME_BINARY = 'application/octet-stream';

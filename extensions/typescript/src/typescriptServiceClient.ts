@@ -12,9 +12,9 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem }  from 'vscode';
+import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem } from 'vscode';
 import * as Proto from './protocol';
-import { ITypescriptServiceClient, ITypescriptServiceClientHost, APIVersion }  from './typescriptService';
+import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
 import * as VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
@@ -73,7 +73,7 @@ enum MessageAction {
 	close
 }
 
-interface MyMessageItem extends MessageItem  {
+interface MyMessageItem extends MessageItem {
 	id: MessageAction;
 }
 
@@ -120,7 +120,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private callbacks: CallbackMap;
 
 	private _packageInfo: IPackageInfo;
-	private _apiVersion: APIVersion;
+	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 
 	constructor(host: ITypescriptServiceClientHost, storagePath: string, globalState: Memento) {
@@ -147,7 +147,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		const configuration = workspace.getConfiguration();
 		this.tsdk = configuration.get<string>('typescript.tsdk', null);
 		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
-		this._apiVersion = APIVersion.v1_x;
+		this._apiVersion = new API('1.0.0');
 		this.trace = this.readTrace();
 		workspace.onDidChangeConfiguration(() => {
 			this.trace = this.readTrace();
@@ -182,7 +182,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._experimentalAutoBuild;
 	}
 
-	public get apiVersion(): APIVersion {
+	public get apiVersion(): API {
 		return this._apiVersion;
 	}
 
@@ -261,7 +261,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._packageInfo;
 	}
 
-	public logTelemetry(eventName: string, properties?: {[prop: string]: string}) {
+	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
 		if (this.telemetryReporter) {
 			this.telemetryReporter.sendTelemetryEvent(eventName, properties);
 		}
@@ -279,7 +279,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private startService(resendModels: boolean = false): void {
-		let modulePath = path.join(__dirname, '..', 'server', 'typescript', 'lib', 'tsserver.js');
+		let modulePath = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'tsserver.js');
 		let checkGlobalVersion = true;
 		let showVersionStatusItem = false;
 
@@ -337,7 +337,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 								if (!selected || selected.id === MessageAction.close) {
 									return modulePath;
 								}
-								switch(selected.id) {
+								switch (selected.id) {
 									case MessageAction.useLocal:
 										let pathValue = './node_modules/typescript/lib';
 										tsConfig.update('tsdk', pathValue, false);
@@ -377,11 +377,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					version = workspace.getConfiguration().get<string>('typescript.tsdk_version', undefined);
 				}
 				if (version) {
-					this._apiVersion = APIVersion.fromString(version);
+					this._apiVersion = new API(version);
 				}
 
-
-				const label = version || localize('versionNumber.custom' ,'custom');
+				const label = version || localize('versionNumber.custom', 'custom');
 				const tooltip = modulePath;
 				VersionStatus.enable(!!this.tsdk || showVersionStatusItem);
 				VersionStatus.setInfo(label, tooltip);
@@ -407,7 +406,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 					if (tscVersion && tscVersion !== version) {
 						window.showInformationMessage<MyMessageItem>(
-							localize('versionMismatch', 'A version mismatch between the globally installed tsc compiler ({0}) and VS Code\'s language service ({1}) has been detected. This might result in inconsistent compile errors.', tscVersion, version),
+							localize('versionMismatch', 'Version mismatch! global tsc ({0}) != VS Code\'s language service ({1}). Inconsistent compile errors might occur', tscVersion, version),
 							{
 								title: localize('moreInformation', 'More Information'),
 								id: 1
@@ -454,12 +453,19 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							options.execArgv = [`--debug=${port}`];
 						}
 					}
-					electron.fork(modulePath, [], options, (err: any, childProcess: cp.ChildProcess) => {
+					let args: string[] = [];
+					if (this.apiVersion.has206Features()) {
+						args.push('--useSingleInferredProject');
+						if (!workspace.getConfiguration().get<boolean>('typescript.experimentalAutomaticTypeAcquisition', false)) {
+							args.push('--disableAutomaticTypingAcquisition');
+						}
+					}
+					electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
 						if (err) {
 							this.lastError = err;
 							this.error('Starting TSServer failed with error.', err);
 							window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
-							this.logTelemetry('error', {message: err.message});
+							this.logTelemetry('error', { message: err.message });
 							return;
 						}
 						this.lastStart = Date.now();
@@ -491,16 +497,33 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private serviceStarted(resendModels: boolean): void {
+		let configureOptions: Proto.ConfigureRequestArguments = {
+			hostInfo: 'vscode'
+		};
 		if (this._experimentalAutoBuild && this.storagePath) {
 			try {
 				fs.mkdirSync(this.storagePath);
-			} catch(error) {
+			} catch (error) {
 			}
-			this.execute('configure', {
-				autoBuild: true,
-				metaDataDirectory: this.storagePath
+			// configureOptions.autoDiagnostics = true;
+			// configureOptions.metaDataDirectory = this.storagePath;
+		}
+		this.execute('configure', configureOptions);
+		if (this.apiVersion.has206Features()) {
+			let compilerOptions: Proto.ExternalProjectCompilerOptions = {
+				module: Proto.ModuleKind.CommonJS,
+				target: Proto.ScriptTarget.ES6,
+				allowSyntheticDefaultImports: true,
+				allowJs: true,
+			};
+			let args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
+				options: compilerOptions
+			};
+			this.execute('compilerOptionsForInferredProjects', args).then(null, (err) => {
+				this.error(`'compilerOptionsForInferredProjects' request failed with error.`, err);
 			});
 		}
+
 		if (resendModels) {
 			this.host.populateService();
 		}
@@ -521,7 +544,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		let desc = null;
 		try {
 			desc = JSON.parse(contents);
-		} catch(err) {
+		} catch (err) {
 			return undefined;
 		}
 		if (!desc.version) {
@@ -542,7 +565,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			let startService = true;
 			if (this.numberRestarts > 5) {
 				if (diff < 60 * 1000 /* 1 Minutes */) {
-					window.showWarningMessage(localize('serverDied','The TypeScript language service died unexpectedly 5 times in the last 5 Minutes. Please consider to open a bug report.'));
+					window.showWarningMessage(localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes. Please consider to open a bug report.'));
 				} else if (diff < 2 * 1000 /* 2 seconds */) {
 					startService = false;
 					window.showErrorMessage(localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted. Please open a bug report.'));

@@ -19,6 +19,7 @@
 	"files.exclude.boolean": "파일 경로를 일치시킬 GLOB 패턴입니다. 패턴을 사용하거나 사용하지 않도록 설정하려면 true 또는 false로 설정하세요.",
 	"files.exclude.when": "일치하는 파일의 형제에 대한 추가 검사입니다. $(basename)을 일치하는 파일 이름에 대한 변수로 사용하세요.",
 	"filesConfigurationTitle": "파일",
+	"formatOnSave": "파일 저장 시 서식을 지정합니다. 포맷터를 사용할 수 있어야 하며, 파일이 자동으로 저장되어야 하고, 편집기가 종료되지 않아야 합니다.",
 	"openEditorsVisible": "열려 있는 편집기 창에 표시되는 편집기 수입니다. 창을 숨기려면 0으로 설정합니다.",
 	"showExplorerViewlet": "탐색기 표시",
 	"textFileEditor": "텍스트 파일 편집기",

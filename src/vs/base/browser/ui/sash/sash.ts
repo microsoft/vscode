@@ -6,15 +6,15 @@
 'use strict';
 
 import 'vs/css!./sash';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {Builder, $} from 'vs/base/browser/builder';
-import {isIPad} from 'vs/base/browser/browser';
-import {isMacintosh} from 'vs/base/common/platform';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { isIPad } from 'vs/base/browser/browser';
+import { isMacintosh } from 'vs/base/common/platform';
 import types = require('vs/base/common/types');
 import DOM = require('vs/base/browser/dom');
-import {Gesture, EventType, GestureEvent} from 'vs/base/browser/touch';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import { Gesture, EventType, GestureEvent } from 'vs/base/browser/touch';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface ISashLayoutProvider { }
 
@@ -72,9 +72,6 @@ export class Sash extends EventEmitter {
 		this.$e.on(DOM.EventType.DBLCLICK, (e: MouseEvent) => { this.emit('reset', e); });
 		this.$e.on(EventType.Start, (e: GestureEvent) => { this.onTouchStart(e); });
 
-		this.orientation = options.orientation || Orientation.VERTICAL;
-		this.$e.addClass(this.getOrientation());
-
 		this.size = options.baseSize || 5;
 
 		if (isIPad) {
@@ -82,11 +79,7 @@ export class Sash extends EventEmitter {
 			this.$e.addClass('touch');
 		}
 
-		if (this.orientation === Orientation.HORIZONTAL) {
-			this.$e.size(null, this.size);
-		} else {
-			this.$e.size(this.size);
-		}
+		this.setOrientation(options.orientation || Orientation.VERTICAL);
 
 		this.isDisabled = false;
 		this.hidden = false;
@@ -95,6 +88,23 @@ export class Sash extends EventEmitter {
 
 	public getHTMLElement(): HTMLElement {
 		return this.$e.getHTMLElement();
+	}
+
+	public setOrientation(orientation: Orientation): void {
+		this.orientation = orientation;
+
+		this.$e.removeClass('horizontal', 'vertical');
+		this.$e.addClass(this.getOrientation());
+
+		if (this.orientation === Orientation.HORIZONTAL) {
+			this.$e.size(null, this.size);
+		} else {
+			this.$e.size(this.size);
+		}
+
+		if (this.layoutProvider) {
+			this.layout();
+		}
 	}
 
 	private getOrientation(): 'horizontal' | 'vertical' {
@@ -108,7 +118,10 @@ export class Sash extends EventEmitter {
 			return;
 		}
 
-		$(DOM.getElementsByTagName('iframe')).style('pointer-events', 'none'); // disable mouse events on iframes as long as we drag the sash
+		const iframes = $(DOM.getElementsByTagName('iframe'));
+		if (iframes) {
+			iframes.style('pointer-events', 'none'); // disable mouse events on iframes as long as we drag the sash
+		}
 
 		let mouseDownEvent = new StandardMouseEvent(e);
 		let startX = mouseDownEvent.posx;
@@ -153,7 +166,10 @@ export class Sash extends EventEmitter {
 			$window.off('mousemove');
 			document.body.classList.remove(containerCSSClass);
 
-			$(DOM.getElementsByTagName('iframe')).style('pointer-events', 'auto');
+			const iframes = $(DOM.getElementsByTagName('iframe'));
+			if (iframes) {
+				iframes.style('pointer-events', 'auto');
+			}
 		});
 
 		document.body.classList.add(containerCSSClass);

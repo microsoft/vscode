@@ -19,8 +19,7 @@ var $ = builder.$;
 
 export class GitlessView
 	extends ee.EventEmitter
-	implements view.IView
-{
+	implements view.IView {
 	public ID = 'gitless';
 	private _element: HTMLElement;
 
@@ -82,7 +81,7 @@ export class GitlessView
 		return;
 	}
 
-	public setVisible(visible:boolean): winjs.TPromise<void> {
+	public setVisible(visible: boolean): winjs.TPromise<void> {
 		return winjs.TPromise.as(null);
 	}
 

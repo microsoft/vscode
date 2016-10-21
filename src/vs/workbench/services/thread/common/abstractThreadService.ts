@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IManyHandler} from 'vs/base/common/remote';
-import {ProxyIdentifier} from 'vs/workbench/services/thread/common/threadService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IManyHandler } from 'vs/base/common/remote';
+import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 
 // declare var Proxy:any; // TODO@TypeScript
 
@@ -14,9 +14,9 @@ export abstract class AbstractThreadService implements IManyHandler {
 
 	private _isMain: boolean;
 	protected _locals: { [id: string]: any; };
-	private _proxies: {[id:string]:any;} = Object.create(null);
+	private _proxies: { [id: string]: any; } = Object.create(null);
 
-	constructor(isMain:boolean) {
+	constructor(isMain: boolean) {
 		this._isMain = isMain;
 		this._locals = Object.create(null);
 		this._proxies = Object.create(null);
@@ -34,16 +34,16 @@ export abstract class AbstractThreadService implements IManyHandler {
 		return method.apply(actor, args);
 	}
 
-	get<T>(identifier:ProxyIdentifier<T>): T {
+	get<T>(identifier: ProxyIdentifier<T>): T {
 		if (!this._proxies[identifier.id]) {
 			this._proxies[identifier.id] = this._createProxy(identifier.id, identifier.methodNames);
 		}
 		return this._proxies[identifier.id];
 	}
 
-	private _createProxy<T>(id:string, methodNames:string[]): T {
+	private _createProxy<T>(id: string, methodNames: string[]): T {
 		// Check below how to switch to native proxies
-		let result:any = {};
+		let result: any = {};
 		for (let i = 0; i < methodNames.length; i++) {
 			let methodName = methodNames[i];
 			result[methodName] = this.createMethodProxy(id, methodName);
@@ -66,12 +66,12 @@ export abstract class AbstractThreadService implements IManyHandler {
 		};
 	}
 
-	set<T>(identifier:ProxyIdentifier<T>, value:T): void {
+	set<T>(identifier: ProxyIdentifier<T>, value: T): void {
 		if (identifier.isMain !== this._isMain) {
 			throw new Error('Mismatch in object registration!');
 		}
 		this._locals[identifier.id] = value;
 	}
 
-	protected abstract _callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any>;
+	protected abstract _callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any>;
 }

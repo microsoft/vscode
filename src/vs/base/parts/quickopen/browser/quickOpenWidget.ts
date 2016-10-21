@@ -6,27 +6,27 @@
 
 import 'vs/css!./quickopen';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import browser = require('vs/base/browser/browser');
-import {EventType} from 'vs/base/common/events';
+import { EventType } from 'vs/base/common/events';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import {IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
-import {InputBox, MessageType} from 'vs/base/browser/ui/inputbox/inputBox';
+import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
+import { Dimension, Builder, $ } from 'vs/base/browser/builder';
+import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
+import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import Severity from 'vs/base/common/severity';
-import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {DefaultController, ClickBehavior} from 'vs/base/parts/tree/browser/treeDefaults';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { DefaultController, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import DOM = require('vs/base/browser/dom');
-import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {ScrollbarVisibility} from 'vs/base/common/scrollable';
+import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -166,12 +166,12 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 
 					// Select element on Enter
-					else if (keyboardEvent.keyCode === KeyCode.Enter) {
+					else if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.RightArrow) {
 						DOM.EventHelper.stop(e, true);
 
 						const focus = this.tree.getFocus();
 						if (focus) {
-							this.elementSelected(focus, e);
+							this.elementSelected(focus, e, keyboardEvent.keyCode === KeyCode.RightArrow ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
 						}
 					}
 
@@ -401,13 +401,16 @@ export class QuickOpenWidget implements IModelProvider {
 		this.model.runner.run(value, Mode.PREVIEW, context);
 	}
 
-	private elementSelected(value: any, event?: any): void {
+	private elementSelected(value: any, event?: any, preferredMode?: Mode): void {
 		let hide = true;
 
 		// Trigger open of element on selection
 		if (this.isVisible()) {
+			let mode = preferredMode || Mode.OPEN;
+
 			const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
-			hide = this.model.runner.run(value, Mode.OPEN, context);
+
+			hide = this.model.runner.run(value, mode, context);
 		}
 
 		// add telemetry when an item is accepted, logging the index of the item in the list and the length of the list

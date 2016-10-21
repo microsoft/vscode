@@ -7,17 +7,17 @@
 
 import platform = require('vs/base/common/platform');
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {stat} from 'vs/base/node/pfs';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { stat } from 'vs/base/node/pfs';
 import DOM = require('vs/base/browser/dom');
 import DND = require('vs/base/browser/dnd');
-import {Builder, $} from 'vs/base/browser/builder';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {asFileEditorInput} from 'vs/workbench/common/editor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
-import {ipcRenderer as ipc, shell, remote} from 'electron';
+import { ipcRenderer as ipc, shell, remote } from 'electron';
 
 const dialog = remote.dialog;
 

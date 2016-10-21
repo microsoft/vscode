@@ -5,19 +5,19 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Cursor} from 'vs/editor/common/controller/cursor';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import { Cursor } from 'vs/editor/common/controller/cursor';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Model} from 'vs/editor/common/model/model';
-import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
-import {viewModelHelper} from 'vs/editor/test/common/editorTestUtils';
+import { Model } from 'vs/editor/common/model/model';
+import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 
 export function testCommand(
 	lines: string[],
 	mode: string,
 	selection: Selection,
-	commandFactory: (selection:Selection) => editorCommon.ICommand,
+	commandFactory: (selection: Selection) => editorCommon.ICommand,
 	expectedLines: string[],
 	expectedSelection: Selection
 ): void {
@@ -67,7 +67,7 @@ export function getEditOperation(model: editorCommon.IModel, command: editorComm
 /**
  * Create single edit operation
  */
-export function createSingleEditOp(text:string, positionLineNumber:number, positionColumn:number, selectionLineNumber:number = positionLineNumber, selectionColumn:number = positionColumn):editorCommon.IIdentifiedSingleEditOperation {
+export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): editorCommon.IIdentifiedSingleEditOperation {
 	return {
 		identifier: null,
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
@@ -79,7 +79,7 @@ export function createSingleEditOp(text:string, positionLineNumber:number, posit
 /**
  * Create single edit operation
  */
-export function createInsertDeleteSingleEditOp(text:string, positionLineNumber:number, positionColumn:number, selectionLineNumber:number = positionLineNumber, selectionColumn:number = positionColumn):editorCommon.IIdentifiedSingleEditOperation {
+export function createInsertDeleteSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): editorCommon.IIdentifiedSingleEditOperation {
 	return {
 		identifier: null,
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),

@@ -5,21 +5,9 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import Event, {Emitter} from 'vs/base/common/event';
-import {Registry} from 'vs/platform/platform';
-import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
-
-export interface ILegacyLanguageDefinition {
-	id: string;
-	extensions: string[];
-	filenames?: string[];
-	firstLine?: string;
-	aliases: string[];
-	mimetypes: string[];
-	moduleId: string;
-	ctorName: string;
-	deps?: string[];
-}
+import Event, { Emitter } from 'vs/base/common/event';
+import { Registry } from 'vs/platform/platform';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 
 // Define extension point ids
 export var Extensions = {
@@ -28,42 +16,22 @@ export var Extensions = {
 
 export class EditorModesRegistry {
 
-	private _compatModes: ILegacyLanguageDefinition[];
 	private _languages: ILanguageExtensionPoint[];
-
-	private _onDidAddCompatModes: Emitter<ILegacyLanguageDefinition[]> = new Emitter<ILegacyLanguageDefinition[]>();
-	public onDidAddCompatModes: Event<ILegacyLanguageDefinition[]> = this._onDidAddCompatModes.event;
 
 	private _onDidAddLanguages: Emitter<ILanguageExtensionPoint[]> = new Emitter<ILanguageExtensionPoint[]>();
 	public onDidAddLanguages: Event<ILanguageExtensionPoint[]> = this._onDidAddLanguages.event;
 
 	constructor() {
-		this._compatModes = [];
 		this._languages = [];
-	}
-
-	// --- compat modes
-
-
-	public registerCompatModes(def:ILegacyLanguageDefinition[]): void {
-		this._compatModes = this._compatModes.concat(def);
-		this._onDidAddCompatModes.fire(def);
-	}
-	public registerCompatMode(def:ILegacyLanguageDefinition): void {
-		this._compatModes.push(def);
-		this._onDidAddCompatModes.fire([def]);
-	}
-	public getCompatModes(): ILegacyLanguageDefinition[] {
-		return this._compatModes.slice(0);
 	}
 
 	// --- languages
 
-	public registerLanguage(def:ILanguageExtensionPoint): void {
+	public registerLanguage(def: ILanguageExtensionPoint): void {
 		this._languages.push(def);
 		this._onDidAddLanguages.fire([def]);
 	}
-	public registerLanguages(def:ILanguageExtensionPoint[]): void {
+	public registerLanguages(def: ILanguageExtensionPoint[]): void {
 		this._languages = this._languages.concat(def);
 		this._onDidAddLanguages.fire(def);
 	}

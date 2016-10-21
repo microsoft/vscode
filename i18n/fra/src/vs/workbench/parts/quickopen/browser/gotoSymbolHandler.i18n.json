@@ -14,7 +14,7 @@
 	"enum": "énumérations ({0})",
 	"file": "fichiers ({0})",
 	"function": "fonctions ({0})",
-	"gotoSymbol": "Atteindre le symbole...",
+	"gotoSymbol": "Atteindre le symbole dans le fichier...",
 	"gotoSymbolHandlerAriaLabel": "Tapez pour réduire le nombre de symboles de l'éditeur actif.",
 	"interface": "interfaces ({0})",
 	"key": "touches ({0})",

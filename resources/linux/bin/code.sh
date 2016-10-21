@@ -24,7 +24,7 @@ if [ ! -L $0 ]; then
 else
 	if which readlink >/dev/null; then
 		# if readlink exists, follow the symlink and find relatively
-		VSCODE_PATH="$(dirname $(readlink $0))/.."
+		VSCODE_PATH="$(dirname $(readlink -f $0))/.."
 	else
 		# else use the standard install location
 		VSCODE_PATH="/usr/share/@@NAME@@"

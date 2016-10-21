@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ICommandService, ICommand, CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICommandService, ICommand, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 export class CommandService implements ICommandService {
 
@@ -48,7 +48,7 @@ export class CommandService implements ICommandService {
 		}
 	}
 
-	protected _getCommand(id:string): ICommand {
+	protected _getCommand(id: string): ICommand {
 		return CommandsRegistry.getCommand(id);
 	}
 }

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ILink} from 'vs/editor/common/modes';
-import {CharCode} from 'vs/base/common/charCode';
-import {CharacterClassifier} from 'vs/editor/common/core/characterClassifier';
+import { ILink } from 'vs/editor/common/modes';
+import { CharCode } from 'vs/base/common/charCode';
+import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;
-	getLineContent(lineNumber:number): string;
+	getLineContent(lineNumber: number): string;
 }
 
 const enum State {
@@ -30,14 +30,14 @@ const enum State {
 	Accept = 13
 }
 
-type Edge = [State,number,State];
+type Edge = [State, number, State];
 
 class StateMachine {
 
 	private _states: State[][];
 	private _maxCharCode: number;
 
-	constructor(edges:Edge[]) {
+	constructor(edges: Edge[]) {
 		let maxCharCode = 0;
 		let maxState = State.Invalid;
 		for (let i = 0, len = edges.length; i < len; i++) {
@@ -53,9 +53,9 @@ class StateMachine {
 			}
 		}
 
-		let states:number[][] = [];
+		let states: number[][] = [];
 		for (let i = 0; i <= maxState; i++) {
-			let tmp:number[] = [];
+			let tmp: number[] = [];
 			for (let j = 0; j <= maxCharCode; j++) {
 				tmp[j] = State.Invalid;
 			}
@@ -71,7 +71,7 @@ class StateMachine {
 		this._maxCharCode = maxCharCode;
 	}
 
-	public nextState(currentState:State, chCode:number): State {
+	public nextState(currentState: State, chCode: number): State {
 		if (chCode < 0 || chCode > this._maxCharCode) {
 			return State.Invalid;
 		}
@@ -121,7 +121,7 @@ const enum CharacterClass {
 	CannotEndIn = 2
 }
 
-const classifier = (function() {
+const classifier = (function () {
 	let result = new CharacterClassifier(CharacterClass.None);
 
 	const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
@@ -139,7 +139,7 @@ const classifier = (function() {
 
 class LinkComputer {
 
-	private static _createLink(line:string, lineNumber:number, linkBeginIndex:number, linkEndIndex:number):ILink {
+	private static _createLink(line: string, lineNumber: number, linkBeginIndex: number, linkEndIndex: number): ILink {
 		// Do not allow to end link in certain characters...
 		let lastIncludedCharIndex = linkEndIndex - 1;
 		do {
@@ -162,8 +162,8 @@ class LinkComputer {
 		};
 	}
 
-	public static computeLinks(model:ILinkComputerTarget):ILink[] {
-		let result:ILink[] = [];
+	public static computeLinks(model: ILinkComputerTarget): ILink[] {
+		let result: ILink[] = [];
 		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
 			const line = model.getLineContent(i);
 			const len = line.length;
@@ -181,7 +181,7 @@ class LinkComputer {
 				const chCode = line.charCodeAt(j);
 
 				if (state === State.Accept) {
-					let chClass:CharacterClass;
+					let chClass: CharacterClass;
 					switch (chCode) {
 						case CharCode.OpenParen:
 							hasOpenParens = true;
@@ -257,7 +257,7 @@ class LinkComputer {
  * document. *Note* that this operation is computational
  * expensive and should not run in the UI thread.
  */
-export function computeLinks(model:ILinkComputerTarget):ILink[] {
+export function computeLinks(model: ILinkComputerTarget): ILink[] {
 	if (!model || typeof model.getLineCount !== 'function' || typeof model.getLineContent !== 'function') {
 		// Unknown caller!
 		return [];

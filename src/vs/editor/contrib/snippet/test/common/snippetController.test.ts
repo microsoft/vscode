@@ -5,13 +5,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {Selection} from 'vs/editor/common/core/selection';
-import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
-import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
-import {MockCodeEditor, withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
-import {Cursor} from 'vs/editor/common/controller/cursor';
+import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
+import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 
 class TestSnippetController extends SnippetController {
 
@@ -198,7 +198,7 @@ suite('SnippetController', () => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
 			snippetController.run(codeSnippet, 0, 0, false);
 
-			editor.setPosition({lineNumber:1, column: 1});
+			editor.setPosition({ lineNumber: 1, column: 1 });
 
 			assert.equal(snippetController.isInSnippetMode(), false);
 		});
@@ -406,6 +406,30 @@ suite('SnippetController', () => {
 			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 2, endLineNumber: 2, endColumn: 2 }), second.toString());
 
 		}, ['af', '\taf']);
+	});
+
+	test('Final tabstop, #11890 stay at the beginning', () => {
+
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelections([
+				new Selection(1, 5, 1, 5)
+			]);
+
+			codeSnippet = CodeSnippet.fromTextmate([
+				'afterEach((done) => {',
+				'${1}\ttest',
+				'});'
+			].join('\n'));
+
+			controller.run(codeSnippet, 2, 0, true);
+
+			assert.equal(editor.getSelections().length, 1);
+			const [first] = editor.getSelections();
+
+			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 3, endLineNumber: 2, endColumn: 3 }), first.toString());
+
+		}, ['  af']);
 	});
 
 	test('Final tabstop, no tabstop', () => {

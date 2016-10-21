@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IStorageService} from 'vs/platform/storage/common/storage';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -66,16 +66,27 @@ export const NullTelemetryService = {
 };
 
 export function loadExperiments(storageService: IStorageService, configurationService: IConfigurationService): ITelemetryExperiments {
+
 	const key = 'experiments.randomness';
 	let valueString = storageService.get(key);
 	if (!valueString) {
 		valueString = Math.random().toString();
 		storageService.store(key, valueString);
 	}
+
 	const random0 = parseFloat(valueString);
-	const [random1, showDefaultViewlet] = splitRandom(random0);
+	let [random1, showDefaultViewlet] = splitRandom(random0);
 	const [random2, showCommandsWatermark] = splitRandom(random1);
-	const [, openUntitledFile] = splitRandom(random2);
+	let [, openUntitledFile] = splitRandom(random2);
+
+	// is the user a first time user?
+	let isNewSession = storageService.get('telemetry.lastSessionDate') ? false : true;
+	if (!isNewSession) {
+		// for returning users we fall back to the default configuration for the sidebar and the initially opened, empty editor
+		showDefaultViewlet = defaultExperiments.showDefaultViewlet;
+		openUntitledFile = defaultExperiments.openUntitledFile;
+	}
+
 	return applyOverrides(configurationService, {
 		showDefaultViewlet,
 		showCommandsWatermark,
@@ -105,7 +116,7 @@ export interface ITelemetryAppender {
 }
 
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
-	return { log: (e, d) => appenders.forEach(a => a.log(e,d)) };
+	return { log: (e, d) => appenders.forEach(a => a.log(e, d)) };
 }
 
 export const NullAppender: ITelemetryAppender = { log: () => null };

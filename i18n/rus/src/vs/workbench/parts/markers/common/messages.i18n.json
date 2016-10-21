@@ -22,7 +22,7 @@
 	"markers.panel.single.info.label": "1 сообщение",
 	"markers.panel.single.unknown.label": "1 неизвестный",
 	"markers.panel.single.warning.label": "1 предупреждение",
-	"markers.panel.title.no.problems": "Проблемы отсутствуют",
+	"markers.panel.title.problems": "Проблемы",
 	"problems.panel.configuration.autoreveal": "Определяет, следует ли представлению \"Проблемы\" отображать файлы при их открытии",
 	"problems.panel.configuration.title": "Представление \"Проблемы\"",
 	"problems.tree.aria.label.error.marker": "Ошибка, созданная {0}: {1} в строке {2} и столбце {3}",

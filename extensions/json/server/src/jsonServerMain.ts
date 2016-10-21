@@ -9,17 +9,17 @@ import {
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType
 } from 'vscode-languageserver';
 
-import {xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription} from 'request-light';
+import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import path = require('path');
 import fs = require('fs');
 import URI from './utils/uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
-import {JSONDocument, JSONSchema, LanguageSettings, getLanguageService} from 'vscode-json-languageservice';
-import {ProjectJSONContribution} from './jsoncontributions/projectJSONContribution';
-import {GlobPatternContribution} from './jsoncontributions/globPatternContribution';
-import {FileAssociationContribution} from './jsoncontributions/fileAssociationContribution';
-import {getLanguageModelCache} from './languageModelCache';
+import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService } from 'vscode-json-languageservice';
+import { ProjectJSONContribution } from './jsoncontributions/projectJSONContribution';
+import { GlobPatternContribution } from './jsoncontributions/globPatternContribution';
+import { FileAssociationContribution } from './jsoncontributions/fileAssociationContribution';
+import { getLanguageModelCache } from './languageModelCache';
 
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
@@ -64,8 +64,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			completionProvider: { resolveProvider: true, triggerCharacters: ['"', ':'] },
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			documentRangeFormattingProvider: true,
-			documentFormattingProvider: true
+			documentRangeFormattingProvider: params.initializationOptions['format.enable']
 		}
 	};
 });
@@ -76,7 +75,7 @@ let workspaceContext = {
 	}
 };
 
-let schemaRequestService = (uri:string): Thenable<string> => {
+let schemaRequestService = (uri: string): Thenable<string> => {
 	if (Strings.startsWith(uri, 'file://')) {
 		let fsPath = URI.parse(uri).fsPath;
 		return new Promise<string>((c, e) => {
@@ -153,7 +152,7 @@ connection.onNotification(SchemaAssociationNotification.type, associations => {
 });
 
 function updateConfiguration() {
-	let languageSettings : LanguageSettings = {
+	let languageSettings: LanguageSettings = {
 		validate: true,
 		allowComments: true,
 		schemas: []
@@ -204,7 +203,7 @@ documents.onDidClose(event => {
 	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 });
 
-let pendingValidationRequests : { [uri: string]: NodeJS.Timer; } = {};
+let pendingValidationRequests: { [uri: string]: NodeJS.Timer; } = {};
 const validationDelayMs = 200;
 
 function cleanPendingValidation(textDocument: TextDocument): void {
@@ -276,11 +275,6 @@ connection.onDocumentSymbol(documentSymbolParams => {
 	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let jsonDocument = getJSONDocument(document);
 	return languageService.findDocumentSymbols(document, jsonDocument);
-});
-
-connection.onDocumentFormatting(formatParams => {
-	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, null, formatParams.options);
 });
 
 connection.onDocumentRangeFormatting(formatParams => {

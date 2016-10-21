@@ -6,8 +6,10 @@
 {
 	"debug": "偵錯",
 	"debugCategory": "偵錯",
+	"debugErrorEditor": "對錯誤偵錯",
 	"debugPanel": "偵錯主控台",
 	"launchConfigDoesNotExist": "啟動設定 '{0}' 不存在。",
+	"toggleDebugPanel": "偵錯主控台",
 	"toggleDebugViewlet": "顯示偵錯",
 	"view": "檢視"
 }

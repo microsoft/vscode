@@ -35,7 +35,7 @@
 
 .extension-editor > .header > .details > .title {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
 }
 
 .extension-editor > .header > .details > .title > .name {
@@ -56,6 +56,12 @@
 	user-select: text;
 	-webkit-user-select: text;
 	white-space: nowrap;
+}
+
+.extension-editor > .header > .details > .title .extension-status {
+	width: 10px;
+	height: 10px;
+	margin-left: 10px;
 }
 
 .extension-editor > .header > .details > .subtitle {
@@ -212,4 +218,76 @@
 	background-color: rgba(128, 128, 128, 0.17);
 	border-radius: 4px;
 	padding: 1px 4px;
+}
+
+.extension-editor .subcontent .monaco-tree-row .content .unknown-dependency {
+	line-height: 62px;
+}
+
+.extension-editor .subcontent .monaco-tree-row .content .unknown-dependency > .error-marker {
+	background-color: #BE1100;
+	padding: 2px 4px;
+	margin-left: 40px;
+	font-weight: bold;
+	font-size: 11px;
+}
+
+.extension-editor .subcontent .monaco-tree-row .unknown-dependency > .message {
+	padding-left: 10px;
+	font-weight: bold;
+	font-size: 14px;
+}
+
+.extension-editor .subcontent .monaco-tree-row .dependency {
+	display: flex;
+	align-items: center;
+}
+
+.extension-editor .subcontent .monaco-tree-row .dependency > .details {
+	flex: 1;
+	overflow: hidden;
+	padding-left: 10px;
+}
+
+.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header {
+	display: flex;
+	align-items: center;
+	height: 19px;
+	overflow: hidden;
+}
+
+.extension-editor .subcontent .monaco-tree-row .dependency > .icon {
+	height: 40px;
+	width: 40px;
+}
+
+.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .name {
+	font-weight: bold;
+	font-size: 16px;
+}
+
+.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .name:hover {
+	text-decoration: underline;
+}
+
+.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .identifier {
+	font-size: 90%;
+	opacity: 0.6;
+	margin-left: 10px;
+	background: rgba(173, 173, 173, 0.31);
+	padding: 0px 4px;
+	border-radius: 4px;
+}
+
+.extension-editor .subcontent .monaco-tree-row .dependency > .details > .footer {
+	display: flex;
+	height: 19px;
+	overflow: hidden;
+	padding-top: 5px;
+}
+
+.extension-editor .subcontent .monaco-tree-row .dependency > .details > .footer > .author {
+	font-size: 90%;
+	font-weight: 600;
+	opacity: 0.6;
 }

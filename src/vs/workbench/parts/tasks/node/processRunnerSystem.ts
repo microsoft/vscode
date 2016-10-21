@@ -30,7 +30,7 @@ import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEv
 import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, CommandOptions, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType } from 'vs/workbench/parts/tasks/common/taskSystem';
 import * as FileConfig from './processRunnerConfiguration';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 
@@ -153,7 +153,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		return TPromise.as({ success: true });
 	}
 
-	public tasks():TPromise<TaskDescription[]> {
+	public tasks(): TPromise<TaskDescription[]> {
 		let result: TaskDescription[];
 		if (!this.configuration || !this.configuration.tasks) {
 			result = [];
@@ -253,7 +253,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 				this.emit(TaskSystemEvents.Inactive, event);
 			}));
 			watchingProblemMatcher.aboutToStart();
-			let delayer:Async.Delayer<any> = null;
+			let delayer: Async.Delayer<any> = null;
 			this.activeTaskIdentifier = task.id;
 			this.activeTaskPromise = this.childProcess.start().then((success): ITaskSummary => {
 				this.childProcessEnded();
@@ -297,12 +297,12 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 				});
 			});
 			let result: ITaskExecuteResult = (<any>task).tscWatch
-				? { kind: TaskExecuteKind.Started, started: { restartOnFileChanges: '**/*.ts'} , promise: this.activeTaskPromise }
+				? { kind: TaskExecuteKind.Started, started: { restartOnFileChanges: '**/*.ts' }, promise: this.activeTaskPromise }
 				: { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
 			return result;
 		} else {
 			let event: TaskEvent = { taskId: task.id, taskName: task.name, type: TaskType.SingleRun };
-			this.emit(TaskSystemEvents.Active, event );
+			this.emit(TaskSystemEvents.Active, event);
 			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
 			this.activeTaskIdentifier = task.id;
 			this.activeTaskPromise = this.childProcess.start().then((success): ITaskSummary => {
@@ -339,7 +339,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	private handleError(task: TaskDescription, error: ErrorData): Promise {
 		let makeVisible = false;
 		if (error.error && !error.terminated) {
-			let args:string = this.configuration.args ? this.configuration.args.join(' ') : '';
+			let args: string = this.configuration.args ? this.configuration.args.join(' ') : '';
 			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', this.configuration.command, args));
 			this.outputChannel.append(error.error.message);
 			makeVisible = true;
@@ -384,7 +384,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		return result;
 	}
 
-	private resolveVariables(value:string[]): string[] {
+	private resolveVariables(value: string[]): string[] {
 		return value.map(s => this.resolveVariable(s));
 	}
 
@@ -392,7 +392,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		if (values.length === 0) {
 			return values;
 		}
-		let result:T[] = [];
+		let result: T[] = [];
 		values.forEach((matcher) => {
 			if (!matcher.filePrefix) {
 				result.push(matcher);
@@ -409,7 +409,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		return this.configurationResolverService.resolve(value);
 	}
 
-	public log(value: string): void  {
+	public log(value: string): void {
 		this.outputChannel.append(value + '\n');
 	}
 

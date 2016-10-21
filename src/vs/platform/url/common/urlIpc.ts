@@ -12,8 +12,8 @@ import Event, { filterEvent } from 'vs/base/common/event';
 import { IWindowsService } from 'vs/code/electron-main/windows';
 import URI from 'vs/base/common/uri';
 
-const URISerializer: Serializer<URI,any> = uri => uri.toJSON();
-const URIDeserializer: Deserializer<URI,any> = raw => URI.revive(raw);
+const URISerializer: Serializer<URI, any> = uri => uri.toJSON();
+const URIDeserializer: Deserializer<URI, any> = raw => URI.revive(raw);
 
 export interface IURLChannel extends IChannel {
 	call(command: 'event:onOpenURL'): TPromise<void>;

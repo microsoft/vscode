@@ -9,18 +9,17 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ISaveParticipant, ITextFileEditorModel } from 'vs/workbench/parts/files/common/files';
+import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPosition, IModel, ICommonCodeEditor, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { getDocumentRangeFormattingEdits } from 'vs/editor/contrib/format/common/format';
+import { getDocumentFormattingEdits } from 'vs/editor/contrib/format/common/format';
 import { EditOperationsCommand } from 'vs/editor/contrib/format/common/formatCommand';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TextFileEditorModel } from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from './extHost.protocol';
-import { SaveReason } from 'vs/workbench/parts/files/common/files';
 
 class TrimWhitespaceParticipant implements ISaveParticipant {
 
@@ -94,14 +93,15 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 		}
 
 		const model: IModel = editorModel.textEditorModel;
+		const versionNow = model.getVersionId();
 		const {tabSize, insertSpaces} = model.getOptions();
 
 		return new TPromise<ISingleEditOperation[]>((resolve, reject) => {
 			setTimeout(resolve, 750);
-			getDocumentRangeFormattingEdits(model, model.getFullModelRange(), { tabSize, insertSpaces }).then(resolve, reject);
+			getDocumentFormattingEdits(model, { tabSize, insertSpaces }).then(resolve, reject);
 
 		}).then(edits => {
-			if (edits) {
+			if (edits && versionNow === model.getVersionId()) {
 				const editor = this._findEditor(model);
 				if (editor) {
 					this._editsWithEditor(editor, edits);

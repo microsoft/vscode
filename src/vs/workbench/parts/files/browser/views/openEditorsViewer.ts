@@ -6,30 +6,31 @@
 import nls = require('vs/nls');
 import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IAction} from 'vs/base/common/actions';
-import {EditorLabel} from 'vs/workbench/browser/labels';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IAction } from 'vs/base/common/actions';
+import { EditorLabel } from 'vs/workbench/browser/labels';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import {IDataSource, ITree, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent, IRenderer} from 'vs/base/parts/tree/browser/tree';
-import {ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
-import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import { IDataSource, ITree, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent, IRenderer } from 'vs/base/parts/tree/browser/tree';
+import { ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
+import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
-import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {UntitledEditorInput, IEditorGroup, IEditorStacksModel, getUntitledOrFileResource} from 'vs/workbench/common/editor';
-import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
-import {ITextFileService, AutoSaveMode, asFileResource} from 'vs/workbench/parts/files/common/files';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
-import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { UntitledEditorInput, IEditorGroup, IEditorStacksModel, getUntitledOrFileResource } from 'vs/workbench/common/editor';
+import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
+import { asFileResource } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
+import { keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
 const $ = dom.$;
 
@@ -117,7 +118,10 @@ export class Renderer implements IRenderer {
 	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
 	private static OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
 
-	constructor(private actionProvider: ActionProvider, @IInstantiationService private instantiationService: IInstantiationService,
+	constructor(
+		private actionProvider: ActionProvider,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		// noop
 	}
@@ -140,7 +144,12 @@ export class Renderer implements IRenderer {
 			editorGroupTemplate.root = dom.append(container, $('.editor-group'));
 			editorGroupTemplate.name = dom.append(editorGroupTemplate.root, $('span.name'));
 			editorGroupTemplate.actionBar = new ActionBar(container);
-			editorGroupTemplate.actionBar.push(this.actionProvider.getEditorGroupActions(), { icon: true, label: false });
+
+			const editorGroupActions = this.actionProvider.getEditorGroupActions();
+			editorGroupActions.forEach(a => {
+				const key = keybindingForAction(a.id, this.keybindingService);
+				editorGroupTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? this.keybindingService.getLabelFor(key) : void 0 });
+			});
 
 			return editorGroupTemplate;
 		}
@@ -148,7 +157,13 @@ export class Renderer implements IRenderer {
 		const editorTemplate: IOpenEditorTemplateData = Object.create(null);
 		editorTemplate.container = container;
 		editorTemplate.actionBar = new ActionBar(container);
-		editorTemplate.actionBar.push(this.actionProvider.getOpenEditorActions(), { icon: true, label: false });
+
+		const openEditorActions = this.actionProvider.getOpenEditorActions();
+		openEditorActions.forEach(a => {
+			const key = keybindingForAction(a.id, this.keybindingService);
+			editorTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? this.keybindingService.getLabelFor(key) : void 0 });
+		});
+
 		editorTemplate.root = this.instantiationService.createInstance(EditorLabel, container, void 0);
 
 		return editorTemplate;
@@ -297,14 +312,7 @@ export class Controller extends treedefaults.DefaultController {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.actionProvider.getSecondaryActions(tree, element),
-			getKeyBinding: (action) => {
-				const opts = this.keybindingService.lookupKeybindings(action.id);
-				if (opts.length > 0) {
-					return opts[0]; // only take the first one
-				}
-
-				return keybindingForAction(action.id);
-			},
+			getKeyBinding: (action) => keybindingForAction(action.id, this.keybindingService),
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
 					tree.DOMFocus();

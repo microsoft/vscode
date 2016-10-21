@@ -2,58 +2,54 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 'use strict';
-
-const es = require('event-stream');
-const _ = require('underscore');
-const util = require('gulp-util');
-
-const allErrors = [];
-let startTime = null;
-let count = 0;
-
+var es = require('event-stream');
+var _ = require('underscore');
+var util = require('gulp-util');
+var allErrors = [];
+var startTime = null;
+var count = 0;
 function onStart() {
-	if (count++ > 0) {
-		return;
-	}
-
-	startTime = new Date().getTime();
-	util.log(`Starting ${ util.colors.green('compilation') }...`);
+    if (count++ > 0) {
+        return;
+    }
+    startTime = new Date().getTime();
+    util.log("Starting " + util.colors.green('compilation') + "...");
 }
-
 function onEnd() {
-	if (--count > 0) {
-		return ;
-	}
-
-	const errors = _.flatten(allErrors);
-	errors.map(err => util.log(`${ util.colors.red('Error') }: ${ err }`));
-
-	util.log(`Finished ${ util.colors.green('compilation') } with ${ errors.length } errors after ${ util.colors.magenta((new Date().getTime() - startTime) + ' ms') }`);
+    if (--count > 0) {
+        return;
+    }
+    var errors = _.flatten(allErrors);
+    errors.map(function (err) { return util.log(util.colors.red('Error') + ": " + err); });
+    util.log("Finished " + util.colors.green('compilation') + " with " + errors.length + " errors after " + util.colors.magenta((new Date().getTime() - startTime) + ' ms'));
 }
-
-module.exports = () => {
-	const errors = [];
-	allErrors.push(errors);
-
-	const result = err => errors.push(err);
-	result.hasErrors = () => errors.length > 0;
-
-	result.end = emitError => {
-		errors.length = 0;
-		onStart();
-
-		return es.through(null, function () {
-			onEnd();
-
-			if (emitError && errors.length > 0) {
-				this.emit('error', 'Errors occurred.');
-			} else {
-				this.emit('end');
-			}
-		});
-	};
-
-	return result;
-};
+function createReporter() {
+    var errors = [];
+    allErrors.push(errors);
+    var ReportFunc = (function () {
+        function ReportFunc(err) {
+            errors.push(err);
+        }
+        ReportFunc.hasErrors = function () {
+            return errors.length > 0;
+        };
+        ReportFunc.end = function (emitError) {
+            errors.length = 0;
+            onStart();
+            return es.through(null, function () {
+                onEnd();
+                if (emitError && errors.length > 0) {
+                    this.emit('error', 'Errors occurred.');
+                }
+                else {
+                    this.emit('end');
+                }
+            });
+        };
+        return ReportFunc;
+    }());
+    return ReportFunc;
+}
+exports.createReporter = createReporter;
+;

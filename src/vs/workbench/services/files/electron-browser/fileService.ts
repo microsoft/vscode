@@ -5,29 +5,30 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import encoding = require('vs/base/node/encoding');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import uri from 'vs/base/common/uri';
 import timer = require('vs/base/common/timer');
-import {asFileEditorInput} from 'vs/workbench/common/editor';
-import {IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions} from 'vs/platform/files/common/files';
-import {FileService as NodeFileService, IFileServiceOptions, IEncodingOverride} from 'vs/workbench/services/files/node/fileService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Action} from 'vs/base/common/actions';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IMessageService, IMessageWithAction, Severity, CloseAction} from 'vs/platform/message/common/message';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions } from 'vs/platform/files/common/files';
+import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Action } from 'vs/base/common/actions';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IMessageService, IMessageWithAction, Severity, CloseAction } from 'vs/platform/message/common/message';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 
-import {shell} from 'electron';
+import { shell } from 'electron';
 
 export class FileService implements IFileService {
 
@@ -47,11 +48,12 @@ export class FileService implements IFileService {
 		@IEventService private eventService: IEventService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IBackupService private backupService: IBackupService
 	) {
 		this.toUnbind = [];
 		this.activeOutOfWorkspaceWatchers = Object.create(null);
@@ -81,17 +83,17 @@ export class FileService implements IFileService {
 
 		// create service
 		const workspace = this.contextService.getWorkspace();
-		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService);
+		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService, this.environmentService, this.configurationService, this.backupService);
 
 		// Listeners
 		this.registerListeners();
 	}
 
-	private onFileServiceError(msg: string): void {
+	private onFileServiceError(msg: any): void {
 		errors.onUnexpectedError(msg);
 
 		// Detect if we run < .NET Framework 4.5
-		if (msg && msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
+		if (typeof msg === 'string' && msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
 			this.messageService.show(Severity.Warning, <IMessageWithAction>{
 				message: nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
 				actions: [
@@ -239,6 +241,22 @@ export class FileService implements IFileService {
 		}
 
 		return this.raw.del(resource);
+	}
+
+	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
+		return this.raw.backupFile(resource, content);
+	}
+
+	public discardBackup(resource: uri): TPromise<void> {
+		return this.raw.discardBackup(resource);
+	}
+
+	public discardBackups(): TPromise<void> {
+		return this.raw.discardBackups();
+	}
+
+	public isHotExitEnabled(): boolean {
+		return this.raw.isHotExitEnabled();
 	}
 
 	private doMoveItemToTrash(resource: uri): TPromise<void> {

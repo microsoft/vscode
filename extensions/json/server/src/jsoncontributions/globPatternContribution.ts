@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {MarkedString, CompletionItemKind, CompletionItem} from 'vscode-languageserver';
+import { MarkedString, CompletionItemKind, CompletionItem } from 'vscode-languageserver';
 import Strings = require('../utils/strings');
-import {JSONWorkerContribution, JSONPath, CompletionsCollector} from 'vscode-json-languageservice';
+import { JSONWorkerContribution, JSONPath, CompletionsCollector } from 'vscode-json-languageservice';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();

@@ -7,17 +7,17 @@
 
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {IconLabel, IIconLabelOptions, IIconLabelCreationOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IEditorInput} from 'vs/platform/editor/common/editor';
-import {getResource} from 'vs/workbench/common/editor';
-import {getPathLabel} from 'vs/base/common/labels';
-import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IModelService} from 'vs/editor/common/services/modelService';
+import { IconLabel, IIconLabelOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { getResource } from 'vs/workbench/common/editor';
+import { getPathLabel } from 'vs/base/common/labels';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export interface IEditorLabel {
 	name: string;

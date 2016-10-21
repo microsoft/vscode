@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 .vs .monaco-workbench > .editor:not(.empty) > .content {
-	background-color: #F3F3F3;
+	background-color: #ECECEC;
 }
 
 .vs-dark .monaco-workbench > .editor:not(.empty) > .content {
-	background-color: #252526;
+	background-color: #2D2D2D;
+}
+
+.monaco-workbench > .editor > .content.dragging > .monaco-sash {
+	display: none; /* hide sashes while dragging editors around */
 }
 
 #monaco-workbench-editor-move-overlay,
@@ -16,7 +20,7 @@
 	position: absolute;
 	left: 0;
 	width: 100%;
-	z-index: 3000000;
+	z-index: 10000;
 }
 
 #monaco-workbench-editor-drop-overlay {
@@ -40,91 +44,103 @@
 	outline-offset: -2px;
 }
 
-.vs .monaco-workbench > .editor > .content.dragging {
-	border-left: 1px solid #E7E7E7;
-	border-right: 1px solid #E7E7E7;
-}
-
-.vs-dark .monaco-workbench > .editor > .content.dragging {
-	border-left: 1px solid #444;
-	border-right: 1px solid #444;
-}
-
 .monaco-workbench > .editor > .content > .one-editor-silo {
 	position: absolute;
 	box-sizing:	border-box; /* use border box to be able to draw a border as separator between editors */
 }
 
-.monaco-workbench > .editor > .content > .one-editor-silo.editor-left {
+.monaco-workbench > .editor > .content > .one-editor-silo.editor-one {
 	left: 0;
+	top: 0;
 }
 
-.monaco-workbench > .editor > .content > .one-editor-silo.editor-right {
+.monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
 	right: 0;
 }
 
-.monaco-workbench > .editor > .content > .one-editor-silo.dragging {
-	z-index: 2000000;
+.monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
+	bottom: 0;
 }
 
-.monaco-workbench > .editor > .content.dragging > .one-editor-silo {
+.monaco-workbench > .editor > .content > .one-editor-silo.dragging {
+	z-index: 70;
 	box-sizing: content-box;
 }
 
-.vs .monaco-workbench > .editor > .content.dragging > .one-editor-silo.editor-left,
-.vs .monaco-workbench > .editor > .content.dragging > .one-editor-silo.editor-center {
-	border-right: 1px solid #E7E7E7;
-}
-
-.vs .monaco-workbench > .editor > .content > .one-editor-silo.dragging {
+.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
 	border-left: 1px solid #E7E7E7;
 	border-right: 1px solid #E7E7E7;
 }
 
-.vs .monaco-workbench > .editor > .content > .one-editor-silo.editor-center,
-.vs .monaco-workbench > .editor > .content > .one-editor-silo.editor-right,
-.vs .monaco-workbench > .editor > .content.dragging > .one-editor-silo.editor-right {
+.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
+	border-top: 1px solid #E7E7E7;
+	border-bottom: 1px solid #E7E7E7;
+}
+
+.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
+.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
 	border-left: 1px solid #E7E7E7;
 }
 
-.vs-dark .monaco-workbench > .editor > .content.dragging > .one-editor-silo.editor-left,
-.vs-dark .monaco-workbench > .editor > .content.dragging > .one-editor-silo.editor-center {
-	border-right: 1px solid #444;
+.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
+.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
+	border-top: 1px solid #E7E7E7;
 }
 
-.vs-dark .monaco-workbench > .editor > .content > .one-editor-silo.dragging {
+.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
 	border-left: 1px solid #444;
 	border-right: 1px solid #444;
 }
 
-.vs-dark .monaco-workbench > .editor > .content > .one-editor-silo.editor-center,
-.vs-dark .monaco-workbench > .editor > .content > .one-editor-silo.editor-right,
-.vs-dark .monaco-workbench > .editor > .content.dragging > .one-editor-silo.editor-right {
+.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
+	border-top: 1px solid #444;
+	border-bottom: 1px solid #444;
+}
+
+.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
+.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
 	border-left: 1px solid #444;
 }
 
-.hc-black .monaco-workbench > .editor > .content.dragging > .one-editor-silo.editor-left,
-.hc-black .monaco-workbench > .editor > .content.dragging > .one-editor-silo.editor-center {
-	border-right: 1px solid #6FC3DF;
+.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
+.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
+	border-top: 1px solid #444;
 }
 
-.hc-black .monaco-workbench > .editor > .content > .one-editor-silo.dragging {
+.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
 	border-left: 1px solid #6FC3DF;
 	border-right: 1px solid #6FC3DF;
 }
 
-.hc-black .monaco-workbench > .editor > .content > .one-editor-silo.editor-center,
-.hc-black .monaco-workbench > .editor > .content > .one-editor-silo.editor-right,
-.hc-black .monaco-workbench > .editor > .content.dragging > .one-editor-silo.editor-right {
+.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
+	border-top: 1px solid #6FC3DF;
+	border-bottom: 1px solid #6FC3DF;
+}
+
+.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
+.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
 	border-left: 1px solid #6FC3DF;
 }
 
-.monaco-workbench > .editor > .content > .one-editor-silo.draggedunder {
+.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
+.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
+	border-top: 1px solid #6FC3DF;
+}
+
+.monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.draggedunder {
 	transition: left 200ms ease-out;
 }
 
-.monaco-workbench > .editor > .content > .editor-right.draggedunder {
+.monaco-workbench > .editor > .content.vertical-layout > .editor-three.draggedunder {
 	transition-property: right;
+}
+
+.monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.draggedunder {
+	transition: top 200ms ease-out;
+}
+
+.monaco-workbench > .editor > .content.horizontal-layout > .editor-three.draggedunder {
+	transition-property: bottom;
 }
 
 .monaco-workbench > .editor > .content > .one-editor-silo > .container {

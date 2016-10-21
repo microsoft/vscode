@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/java.tmbundle Syntaxes/Java.plist ./syntaxes/java.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "java",
@@ -13,7 +16,7 @@
 		"grammars": [{
 			"language": "java",
 			"scopeName": "source.java",
-			"path": "./syntaxes/Java.plist"
+			"path": "./syntaxes/java.json"
 		}]
 	}
 }

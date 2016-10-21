@@ -4,19 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
-import {EditorModel, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
-import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
-import {IFileOperationResult, FileOperationResult, FileChangesEvent, EventType} from 'vs/platform/files/common/files';
-import {ITextFileService, BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, TextFileModelChangeEvent, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IHistoryService} from 'vs/workbench/services/history/common/history';
+import { EditorModel, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
+import { IFileOperationResult, FileOperationResult, FileChangesEvent, EventType } from 'vs/platform/files/common/files';
+import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, LocalFileChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IBackupService } from 'vs/platform/backup/common/backup';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -25,6 +27,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 	private resource: URI;
 	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
+	private restoreFromBackup: boolean;
 
 	private name: string;
 	private description: string;
@@ -42,7 +45,8 @@ export class FileEditorInput extends CommonFileEditorInput {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IHistoryService private historyService: IHistoryService,
 		@IEventService private eventService: IEventService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IBackupService private backupService: IBackupService
 	) {
 		super();
 
@@ -71,7 +75,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 
 	private onLocalFileChange(e: LocalFileChangeEvent): void {
 		const movedTo = e.gotMoved() && e.getAfter() && e.getAfter().resource;
-		if (e.gotDeleted() || movedTo) {
+		if (e.gotDeleted() || movedTo) {
 			this.disposeIfRelated(e.getBefore().resource, movedTo);
 		}
 	}
@@ -99,6 +103,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 		this.name = null;
 		this.description = null;
 		this.verboseDescription = null;
+	}
+
+	public setRestoreFromBackup(restore: boolean): void {
+		this.restoreFromBackup = restore;
 	}
 
 	public getResource(): URI {
@@ -194,7 +202,8 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
-		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh).then(null, error => {
+		const backupResource = this.restoreFromBackup ? this.backupService.getBackupResource(this.resource) : null;
+		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh, backupResource).then(null, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {

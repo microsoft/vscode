@@ -19,6 +19,7 @@
 	"files.exclude.boolean": "Das Globmuster, mit dem Dateipfade verglichen werden sollen. Legen Sie diesen Wert auf \"true\" oder \"false\" fest, um das Muster zu aktivieren bzw. zu deaktivieren.",
 	"files.exclude.when": "Zusätzliche Überprüfung der gleichgeordneten Elemente einer entsprechenden Datei. Verwenden Sie \"$(basename)\" als Variable für den entsprechenden Dateinamen.",
 	"filesConfigurationTitle": "Dateien",
+	"formatOnSave": "Hiermit wird eine Datei beim Speichern formatiert. Es muss ein Formatierer vorhanden sein, die Datei darf nicht automatisch gespeichert werden, und der Editor darf nicht geschlossen werden.",
 	"openEditorsVisible": "Die Anzahl der Editoren, die im Bereich \"Geöffnete Editoren\" angezeigt werden. Legen Sie diesen Wert auf 0 fest, um den Bereich auszublenden.",
 	"showExplorerViewlet": "Explorer anzeigen",
 	"textFileEditor": "Textdatei-Editor",

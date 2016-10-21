@@ -57,18 +57,6 @@
 			}
 		},
 		{
-			"scope": "entity.name.function",
-			"settings": {
-				"foreground": "#d4d4d4"
-			}
-		},
-		{
-			"scope": "entity.name.class",
-			"settings": {
-				"foreground": "#d4d4d4"
-			}
-		},
-		{
 			"scope": "entity.name.selector",
 			"settings": {
 				"foreground": "#d7ba7d"
@@ -270,7 +258,7 @@
 			}
 		},
 		{
-			"scope": "keyword.operator.new",
+			"scope": ["keyword.operator.new", "keyword.operator.expression"],
 			"settings": {
 				"foreground": "#569cd6"
 			}
@@ -304,6 +292,13 @@
 			"scope": ["storage.modifier.import.java", "storage.modifier.package.java"],
 			"settings": {
 				"foreground": "#d4d4d4"
+			}
+		},
+		{
+			"name": "this.self",
+			"scope": "variable.language",
+			"settings": {
+				"foreground": "#569cd6"
 			}
 		}
 	]

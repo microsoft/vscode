@@ -13,6 +13,7 @@
 	"closeEditorsToTheRight": "將編輯器關到右側",
 	"closeOtherEditorsInGroup": "關閉其他編輯器",
 	"evenEditorGroups": "均分編輯器群組寬度",
+	"focusActiveEditorGroup": "聚焦使用中的編輯器群組",
 	"focusFirstEditorGroup": "聚焦左側編輯器群組",
 	"focusLastEditorInStack": "開啟群組中最後一個編輯器",
 	"focusNextGroup": "聚焦下一個群組",

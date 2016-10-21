@@ -6,46 +6,50 @@
 'use strict';
 
 import 'vs/css!./media/fileactions';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {isWindows, isLinux, isMacintosh} from 'vs/base/common/platform';
-import {sequence, ITask} from 'vs/base/common/async';
+import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
+import { sequence, ITask } from 'vs/base/common/async';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import {toErrorMessage} from 'vs/base/common/errorMessage';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import strings = require('vs/base/common/strings');
-import {Event, EventType as CommonEventType} from 'vs/base/common/events';
+import { Event, EventType as CommonEventType } from 'vs/base/common/events';
 import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {Action, IAction} from 'vs/base/common/actions';
-import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
-import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
-import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
-import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, IEditorIdentifier} from 'vs/workbench/common/editor';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
-import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
-import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
-import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {CollapseAction} from 'vs/workbench/browser/viewlet';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {Position, IResourceInput} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {Keybinding} from 'vs/base/common/keybinding';
-import {Selection} from 'vs/editor/common/core/selection';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { Action, IAction } from 'vs/base/common/actions';
+import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
+import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import labels = require('vs/base/common/labels');
+import { LocalFileChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileService, IFileStat, IImportResult } from 'vs/platform/files/common/files';
+import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
+import { asFileEditorInput, getUntitledOrFileResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
+import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
+import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IQuickOpenService, IFilePickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
+import { Selection } from 'vs/editor/common/core/selection';
 
 export interface IEditableData {
 	action: IAction;
@@ -1172,7 +1176,7 @@ export class OpenToSideAction extends Action {
 
 	private updateEnablement(): void {
 		const activeEditor = this.editorService.getActiveEditor();
-		this.enabled = (!activeEditor || activeEditor.position !== Position.RIGHT);
+		this.enabled = (!activeEditor || activeEditor.position !== Position.THREE);
 	}
 
 	public run(): TPromise<any> {
@@ -1230,7 +1234,8 @@ export class GlobalCompareResourcesAction extends Action {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IHistoryService private historyService: IHistoryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
@@ -1243,28 +1248,39 @@ export class GlobalCompareResourcesAction extends Action {
 			// Keep as resource to compare
 			globalResourceToCompare = fileInput.getResource();
 
-			// Listen for next editor to open
-			const unbind = this.editorGroupService.onEditorOpening(e => {
-				unbind.dispose(); // listen once
+			// Pick another entry from history
+			interface IHistoryPickEntry extends IFilePickOpenEntry {
+				input: IEditorInput | IResourceInput;
+			}
 
-				const otherFileInput = asFileEditorInput(e.editorInput);
-				if (otherFileInput) {
-					const compareAction = this.instantiationService.createInstance(CompareResourcesAction, otherFileInput.getResource(), null);
+			const history = this.historyService.getHistory();
+			const picks: IHistoryPickEntry[] = history.map(input => {
+				let resource: URI;
+				let label: string;
+				let description: string;
+
+				if (input instanceof EditorInput) {
+					return void 0; // only files supported
+				}
+
+				const resourceInput = input as IResourceInput;
+				resource = resourceInput.resource;
+				label = paths.basename(resourceInput.resource.fsPath);
+				description = labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService);
+
+				return <IHistoryPickEntry>{ input, resource, label, description };
+			}).filter(p => !!p);
+
+			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select an editor history entry to compare with"), autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(pick => {
+				if (pick) {
+					const compareAction = this.instantiationService.createInstance(CompareResourcesAction, pick.resource, null);
 					if (compareAction._isEnabled()) {
-						e.prevent();
-
 						compareAction.run().done(() => compareAction.dispose());
 					} else {
 						this.messageService.show(Severity.Info, nls.localize('unableToFileToCompare', "The selected file can not be compared with '{0}'.", paths.basename(globalResourceToCompare.fsPath)));
 					}
 				}
 			});
-
-			// Bring up quick open
-			this.quickOpenService.show().then(() => {
-				unbind.dispose(); // make sure to unbind if quick open is closing
-			});
-
 		} else {
 			this.messageService.show(Severity.Info, nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
@@ -1348,7 +1364,7 @@ export class CompareResourcesAction extends Action {
 export class RefreshViewExplorerAction extends Action {
 
 	constructor(explorerView: ExplorerView, clazz: string) {
-		super('workbench.files.action.refreshExplorer', nls.localize('refresh', "Refresh"), clazz, true, (context: any) => explorerView.refresh());
+		super('workbench.files.action.refreshFilesExplorer', nls.localize('refresh', "Refresh"), clazz, true, (context: any) => explorerView.refresh());
 	}
 }
 
@@ -1460,7 +1476,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 			}
 
 			// Just save
-			return this.textFileService.save(source, { force: true /* force a change to the file to trigger external watchers if any */});
+			return this.textFileService.save(source, { force: true /* force a change to the file to trigger external watchers if any */ });
 		}
 
 		return TPromise.as(false);
@@ -1794,7 +1810,7 @@ export class ShowActiveFileInExplorer extends Action {
 
 export class CollapseExplorerView extends Action {
 
-	public static ID = 'workbench.files.action.collapseFilesExplorerFolders';
+	public static ID = 'workbench.files.action.collapseExplorerFolders';
 	public static LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
 
 	constructor(
@@ -1843,7 +1859,7 @@ export class RefreshExplorerView extends Action {
 	}
 }
 
-export function keybindingForAction(id: string): Keybinding {
+export function keybindingForAction(id: string, keybindingService?: IKeybindingService): Keybinding {
 	switch (id) {
 		case GlobalNewUntitledFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_N);
@@ -1863,6 +1879,13 @@ export function keybindingForAction(id: string): Keybinding {
 			} else {
 				return new Keybinding(KeyMod.CtrlCmd | KeyCode.Enter);
 			}
+	}
+
+	if (keybindingService) {
+		const keys = keybindingService.lookupKeybindings(id);
+		if (keys.length > 0) {
+			return keys[0]; // only take the first one
+		}
 	}
 
 	return null;

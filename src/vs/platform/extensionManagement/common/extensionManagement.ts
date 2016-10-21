@@ -98,6 +98,7 @@ export interface IExtensionManifest {
 	icon?: string;
 	categories?: string[];
 	activationEvents?: string[];
+	extensionDependencies: string[];
 	contributes?: IExtensionContributions;
 }
 
@@ -190,6 +191,7 @@ export interface IQueryOptions {
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
+	getRequestHeaders(): TPromise<{ [key: string]: string; }>;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension): TPromise<string>;
 	getAsset(url: string): TPromise<IRequestContext>;
@@ -211,13 +213,18 @@ export interface DidInstallExtensionEvent {
 	error?: Error;
 }
 
+export interface DidUninstallExtensionEvent {
+	id: string;
+	error?: Error;
+}
+
 export interface IExtensionManagementService {
 	_serviceBrand: any;
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
 	onUninstallExtension: Event<string>;
-	onDidUninstallExtension: Event<string>;
+	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	install(zipPath: string): TPromise<void>;
 	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies?: boolean): TPromise<void>;

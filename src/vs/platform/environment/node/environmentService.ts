@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'path';
-import {ParsedArgs} from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/package';
@@ -37,11 +37,11 @@ function getIPCHandleBaseName(): string {
 	// by making the socket unique over the logged in user
 	let userId = getUniqueUserId();
 	if (userId) {
-		name += `-${ userId }`;
+		name += `-${userId}`;
 	}
 
 	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\${ name }`;
+		return `\\\\.\\pipe\\${name}`;
 	}
 
 	return path.join(os.tmpdir(), name);
@@ -77,28 +77,38 @@ export class EnvironmentService implements IEnvironmentService {
 	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize
+	get backupHome(): string { return path.join(this.userDataPath, 'Backups'); }
+
+	@memoize
+	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
+
+	@memoize
 	get extensionsPath(): string { return path.normalize(this._args.extensionHomePath || path.join(this.userHome, 'extensions')); }
 
-	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath; }
+	@memoize
+	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }
 
-	get extensionTestsPath(): string { return this._args.extensionTestsPath; }
-	get disableExtensions(): boolean { return this._args['disable-extensions'];  }
+	@memoize
+	get extensionTestsPath(): string { return this._args.extensionTestsPath ? path.normalize(this._args.extensionTestsPath) : this._args.extensionTestsPath; }
+
+	get disableExtensions(): boolean { return this._args['disable-extensions']; }
 
 	@memoize
 	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this._args, this.isBuilt); }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
+	get wait(): boolean { return this._args.wait; }
 	get performance(): boolean { return this._args.performance; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
 	@memoize
-	get mainIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }${ IPCHandleSuffix }`; }
+	get mainIPCHandle(): string { return `${IPCHandlePrefix}-${pkg.version}${IPCHandleSuffix}`; }
 
 	@memoize
-	get sharedIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }-shared${ IPCHandleSuffix }`; }
+	get sharedIPCHandle(): string { return `${IPCHandlePrefix}-${pkg.version}-shared${IPCHandleSuffix}`; }
 
-	constructor(private _args: ParsedArgs, private _execPath: string) {}
+	constructor(private _args: ParsedArgs, private _execPath: string) { }
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; } {

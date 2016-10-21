@@ -6,15 +6,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import {BaseEditor, EditorInputAction, EditorInputActionContributor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, Extensions, IEditorRegistry, IEditorInputFactory} from 'vs/workbench/common/editor';
+import { BaseEditor, EditorInputAction, EditorInputActionContributor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorInput, EditorOptions, Extensions, IEditorRegistry, IEditorInputFactory } from 'vs/workbench/common/editor';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as Platform from 'vs/platform/platform';
-import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
+import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 let EditorRegistry: IEditorRegistry = Platform.Registry.as(Extensions.Editors);
 

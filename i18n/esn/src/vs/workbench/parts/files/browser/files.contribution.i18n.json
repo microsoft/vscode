@@ -19,6 +19,7 @@
 	"files.exclude.boolean": "El patrón global con el que se harán coincidir las rutas de acceso de los archivos. Establézcalo en true o false para habilitarlo o deshabilitarlo.",
 	"files.exclude.when": "Comprobación adicional de los elementos del mismo nivel de un archivo coincidente. Use $(nombreBase) como variable para el nombre de archivo que coincide.",
 	"filesConfigurationTitle": "Archivos",
+	"formatOnSave": "Formatea un archivo al guardarlo. Debe haber un formateador disponible, el archivo no debe guardarse automáticamente y el editor no debe estar cerrándose.",
 	"openEditorsVisible": "Número de editores mostrados en el panel Editores abiertos. Establezca este valor en 0 para ocultar el panel.",
 	"showExplorerViewlet": "Mostrar explorador",
 	"textFileEditor": "Editor de archivos de texto",

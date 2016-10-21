@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
-import {Position} from 'vs/editor/common/core/position';
-import {ISuggestion} from 'vs/editor/common/modes';
-import {Source} from 'vs/workbench/parts/debug/common/debugSource';
-import {Range} from 'vs/editor/common/core/range';
-import {RawContextKey, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { Position } from 'vs/editor/common/core/position';
+import { ISuggestion } from 'vs/editor/common/modes';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { Range } from 'vs/editor/common/core/range';
+import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
@@ -197,6 +197,13 @@ export enum State {
 	RunningNoDebug
 }
 
+// Service config
+
+export interface IDebugConfiguration {
+	allowBreakpointsEverywhere: boolean;
+	openExplorerOnEnd: boolean;
+}
+
 // service interfaces
 
 export interface IGlobalConfig {
@@ -310,7 +317,7 @@ export interface IDebugService {
 	/**
 	 * Adds new breakpoints to the model. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(rawBreakpoints: IRawBreakpoint[]): TPromise<void[]>;
+	addBreakpoints(rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
@@ -400,7 +407,7 @@ export interface IDebugService {
 	/**
 	 * Returns the active debug session or null if debug is inactive.
 	 */
-	getActiveSession(): IRawDebugSession;
+	activeSession: IRawDebugSession;
 
 	/**
 	 * Gets the current debug model.

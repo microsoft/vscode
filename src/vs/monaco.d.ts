@@ -1,14 +1,14 @@
 declare module monaco {
 
-    interface Thenable<R> {
+    interface Thenable<T> {
         /**
          * Attaches callbacks for the resolution and/or rejection of the Promise.
          * @param onfulfilled The callback to execute when the Promise is resolved.
          * @param onrejected The callback to execute when the Promise is rejected.
          * @returns A Promise for the completion of which ever callback is executed.
          */
-        then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-        then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
+        then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
+        then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
     }
 
     export interface IDisposable {
@@ -1085,7 +1085,7 @@ declare module monaco.editor {
         lineNumbersMinChars?: number;
         /**
          * Enable the rendering of the glyph margin.
-         * Defaults to false.
+         * Defaults to true.
          */
         glyphMargin?: boolean;
         /**
@@ -2788,6 +2788,20 @@ declare module monaco.editor {
          * An array of keybindings for the action.
          */
         keybindings?: number[];
+        /**
+         * Control if the action should show up in the context menu and where.
+         * The context menu of the editor has these default:
+         *   navigation - The navigation group comes first in all cases.
+         *   1_modification - This group comes next and contains commands that modify your code.
+         *   9_cutcopypaste - The last default group with the basic editing commands.
+         * You can also create your own group.
+         * Defaults to null (don't show in context menu).
+         */
+        contextMenuGroupId?: string;
+        /**
+         * Control the order in the context menu group.
+         */
+        contextMenuOrder?: number;
         /**
          * The keybinding rule.
          */
