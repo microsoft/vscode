@@ -229,25 +229,32 @@ class Extension implements IExtension {
 		return TPromise.wrapError('not available');
 	}
 
-	get hasDependencies(): boolean {
+	get dependencies(): string[] {
 		const { local, gallery } = this;
 		if (gallery) {
-			return !!gallery.properties.dependencies.length;
+			return gallery.properties.dependencies;
 		}
-		return false;
+		if (local) {
+			return local.manifest.extensionDependencies && local.manifest.extensionDependencies;
+		}
+		return [];
 	}
 }
 
 class ExtensionDependencies implements IExtensionDependencies {
 
-	constructor(private _extension: Extension, private _map: Map<string, Extension>, private _dependent: IExtensionDependencies = null) { }
+	constructor(private _extension: IExtension, private _identifier: string, private _map: Map<string, Extension>, private _dependent: IExtensionDependencies = null) { }
 
 	get hasDependencies(): boolean {
-		return this._extension.gallery.properties.dependencies.length > 0;
+		return this._extension ? this._extension.dependencies.length > 0 : false;
 	}
 
 	get extension(): IExtension {
 		return this._extension;
+	}
+
+	get identifier(): string {
+		return this._identifier;
 	}
 
 	get dependent(): IExtensionDependencies {
@@ -255,7 +262,7 @@ class ExtensionDependencies implements IExtensionDependencies {
 	}
 
 	get dependencies(): IExtensionDependencies[] {
-		return this._extension.gallery.properties.dependencies.map(d => new ExtensionDependencies(this._map.get(d), this._map, this));
+		return this._extension.dependencies.map(d => new ExtensionDependencies(this._map.get(d), d, this._map, this));
 	}
 }
 
@@ -369,7 +376,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies> {
-		if (!extension.hasDependencies) {
+		if (!extension.dependencies.length) {
 			return TPromise.wrap(null);
 		}
 
@@ -380,7 +387,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				for (const extension of extensions) {
 					map.set(`${extension.publisher}.${extension.name}`, extension);
 				}
-				return new ExtensionDependencies(<Extension>extension, map);
+				return new ExtensionDependencies(extension, extension.identifier, map);
 			});
 	}
 

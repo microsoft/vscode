@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { localize } from 'vs/nls';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
@@ -26,10 +27,14 @@ export interface IExtensionTemplateData {
 	extensionDependencies: IExtensionDependencies;
 }
 
+export interface IUnknownExtensionTemplateData {
+	identifier: HTMLElement;
+}
+
 export class DataSource implements IDataSource {
 
 	public getId(tree: ITree, element: IExtensionDependencies): string {
-		let id = `${element.extension.publisher}.${element.extension.name}`;
+		let id = element.identifier;
 		this.getParent(tree, element).then(parent => {
 			id = parent ? this.getId(tree, parent) + '/' + id : id;
 		});
@@ -51,7 +56,7 @@ export class DataSource implements IDataSource {
 	private isSelfAncestor(element: IExtensionDependencies): boolean {
 		let ancestor = element.dependent;
 		while (ancestor !== null) {
-			if (ancestor.extension.identifier === element.extension.identifier) {
+			if (ancestor.identifier === element.identifier) {
 				return true;
 			}
 			ancestor = ancestor.dependent;
@@ -63,6 +68,7 @@ export class DataSource implements IDataSource {
 export class Renderer implements IRenderer {
 
 	private static EXTENSION_TEMPLATE_ID = 'extension-template';
+	private static UNKNOWN_EXTENSION_TEMPLATE_ID = 'unknown-extension-template';
 
 	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 	}
@@ -72,10 +78,17 @@ export class Renderer implements IRenderer {
 	}
 
 	public getTemplateId(tree: ITree, element: IExtensionDependencies): string {
-		return Renderer.EXTENSION_TEMPLATE_ID;
+		return element.extension ? Renderer.EXTENSION_TEMPLATE_ID : Renderer.UNKNOWN_EXTENSION_TEMPLATE_ID;
 	}
 
-	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): IExtensionTemplateData {
+	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
+		if (Renderer.EXTENSION_TEMPLATE_ID === templateId) {
+			return this.renderExtensionTemplate(tree, container);
+		}
+		return this.renderUnknownExtensionTemplate(tree, container);
+	}
+
+	private renderExtensionTemplate(tree: ITree, container: HTMLElement): IExtensionTemplateData {
 		dom.addClass(container, 'dependency');
 
 		const icon = dom.append(container, dom.$<HTMLImageElement>('img.icon'));
@@ -107,10 +120,25 @@ export class Renderer implements IRenderer {
 		};
 	}
 
+	private renderUnknownExtensionTemplate(tree: ITree, container: HTMLElement): IUnknownExtensionTemplateData {
+		const messageContainer = dom.append(container, dom.$('div.unknown-dependency'));
+		dom.append(messageContainer, dom.$('span.error-marker')).textContent = localize('error', "Error");
+		dom.append(messageContainer, dom.$('span.message')).textContent = localize('Unknown Dependency', "Unknown Dependency:");
+
+		const identifier = dom.append(messageContainer, dom.$('span.message'));
+		return { identifier };
+	}
 
 	public renderElement(tree: ITree, element: IExtensionDependencies, templateId: string, templateData: any): void {
+		if (templateId === Renderer.EXTENSION_TEMPLATE_ID) {
+			this.renderExtension(tree, element, templateData);
+			return;
+		}
+		this.renderUnknownExtension(tree, element, templateData);
+	}
+
+	private renderExtension(tree: ITree, element: IExtensionDependencies, data: IExtensionTemplateData): void {
 		const extension = element.extension;
-		const data = <IExtensionTemplateData>templateData;
 
 		const onError = once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
@@ -124,13 +152,19 @@ export class Renderer implements IRenderer {
 		}
 
 		data.name.textContent = extension.displayName;
-		data.identifier.textContent = `${extension.publisher}.${extension.name}`;
+		data.identifier.textContent = extension.identifier;
 		data.author.textContent = extension.publisherDisplayName;
 		data.extensionDependencies = element;
 	}
 
-	public disposeTemplate(tree: ITree, templateId: string, templateData: IExtensionTemplateData): void {
-		templateData.extensionDisposables = dispose(templateData.extensionDisposables);
+	private renderUnknownExtension(tree: ITree, element: IExtensionDependencies, data: IUnknownExtensionTemplateData): void {
+		data.identifier.textContent = element.identifier;
+	}
+
+	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
+		if (templateId === Renderer.EXTENSION_TEMPLATE_ID) {
+			templateData.extensionDisposables = dispose((<IExtensionTemplateData>templateData).extensionDisposables);
+		}
 	}
 }
 
@@ -138,7 +172,7 @@ export class Controller extends DefaultController {
 
 	constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
 		super();
-		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, (tree: ITree, event: any) => { this.openExtension(tree, true); });
+		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, (tree: ITree, event: any) => this.openExtension(tree, true));
 	}
 
 	protected onLeftClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
@@ -158,14 +192,18 @@ export class Controller extends DefaultController {
 
 	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
 		if (super.onEnter(tree, event)) {
-			this.openExtension(tree, false);
+			return this.openExtension(tree, false);
 		}
 		return false;
 	}
 
-	private openExtension(tree: ITree, sideByside: boolean) {
+	private openExtension(tree: ITree, sideByside: boolean): boolean {
 		const element: IExtensionDependencies = tree.getFocus();
-		this.extensionsWorkdbenchService.open(element.extension, sideByside);
+		if (element.extension) {
+			this.extensionsWorkdbenchService.open(element.extension, sideByside);
+			return true;
+		}
+		return false;
 	}
 }
 
