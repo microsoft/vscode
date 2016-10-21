@@ -220,6 +220,25 @@
 	padding: 1px 4px;
 }
 
+.extension-editor .subcontent .monaco-tree-row .content .unknown-dependency {
+	line-height: 62px;
+}
+
+.extension-editor .subcontent .monaco-tree-row .content .unknown-dependency > .error-marker {
+	background-color: #BE1100;
+	padding: 2px 4px;
+	margin-left: 40px;
+	font-weight: bold;
+	font-size: 11px;
+	-webkit-user-select: none;
+}
+
+.extension-editor .subcontent .monaco-tree-row .unknown-dependency > .message {
+	padding-left: 10px;
+	font-weight: bold;
+	font-size: 14px;
+}
+
 .extension-editor .subcontent .monaco-tree-row .dependency {
 	display: flex;
 	align-items: center;

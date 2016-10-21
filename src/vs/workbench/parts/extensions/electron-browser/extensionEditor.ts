@@ -285,7 +285,7 @@ export class ExtensionEditor extends BaseEditor {
 		if (extension.hasChangelog) {
 			this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
 		}
-		if (extension.hasDependencies) {
+		if (extension.dependencies.length > 0) {
 			this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"));
 		}
 
