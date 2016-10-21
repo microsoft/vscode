@@ -100,7 +100,6 @@ export interface IWindowConfiguration extends ParsedArgs {
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
-	filesToRestore?: IPath[];
 	untitledToRestore?: IPath[];
 }
 
@@ -395,7 +394,6 @@ export class VSCodeWindow {
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.filesToDiff;
-		delete configuration.filesToRestore;
 		delete configuration.untitledToRestore;
 
 		// Some configuration things get inherited if the window is being reloaded and we are

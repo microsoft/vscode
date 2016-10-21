@@ -24,11 +24,6 @@ export interface IOptions {
 	filesToDiff?: IResourceInput[];
 
 	/**
-	 * Instructs the workbench to restore the provided files from backup right after startup.
-	 */
-	filesToRestore?: IResourceInput[];
-
-	/**
 	 * Instructs the workbench to restore the provided untitled file from backup right after startup.
 	 */
 	untitledToRestore?: IResourceInput[];
