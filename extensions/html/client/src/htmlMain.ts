@@ -59,7 +59,9 @@ export function activate(context: ExtensionContext) {
 			// Synchronize the setting section 'html' to the server
 			configurationSection: ['html'],
 		},
+
 		initializationOptions: {
+			embeddedLanguages: { 'css': true },
 			['format.enable']: workspace.getConfiguration('html').get('format.enable')
 		}
 	};
