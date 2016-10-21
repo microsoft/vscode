@@ -76,11 +76,11 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public createSession(noDebug: boolean): TPromise<any> {
+	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
 		return TPromise.as(null);
 	}
 
-	public restartSession(): TPromise<any> {
+	public restartProcess(): TPromise<any> {
 		return TPromise.as(null);
 	}
 

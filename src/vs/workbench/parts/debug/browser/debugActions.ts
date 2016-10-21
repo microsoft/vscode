@@ -129,7 +129,7 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand('_workbench.startDebug');
+		return this.commandService.executeCommand('_workbench.startDebug', this.debugService.getViewModel().selectedConfigurationName);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -159,7 +159,7 @@ export class RestartAction extends AbstractDebugAction {
 			process = processes.length > 0 ? processes[0] : null;
 		}
 
-		return this.debugService.restartSession(process ? process.session : null);
+		return this.debugService.restartProcess(process);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -918,7 +918,12 @@ export class RunAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.createSession(true);
+		return this.debugService.getConfigurationManager().getConfiguration(this.debugService.getViewModel().selectedConfigurationName).then(configuration => {
+			if (configuration) {
+				configuration.noDebug = true;
+				return this.debugService.createProcess(configuration);
+			}
+		});
 	}
 
 	protected isEnabled(state: debug.State): boolean {

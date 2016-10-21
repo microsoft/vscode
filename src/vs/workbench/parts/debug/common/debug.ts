@@ -443,14 +443,14 @@ export interface IDebugService {
 	removeWatchExpressions(id?: string): void;
 
 	/**
-	 * Creates a new debug session. Depending on the configuration will either 'launch' or 'attach'.
+	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createSession(noDebug: boolean, configuration?: IConfig): TPromise<any>;
+	createProcess(configurationOrName: IConfig | string): TPromise<any>;
 
 	/**
-	 * Restarts an active debug session or creates a new one if there is no active session.
+	 * Restarts a process or creates a new one if there is no active session.
 	 */
-	restartSession(session: ISession): TPromise<any>;
+	restartProcess(process: IProcess): TPromise<any>;
 
 	/**
 	 * Gets the current debug model.
