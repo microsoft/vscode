@@ -79,6 +79,7 @@
 
 .monaco-workbench.mac > .part.editor.empty > .watermark dd > .shortcuts {
 	letter-spacing: 0.15em;
+	font-family: "Lucida Grande", sans-serif;
 }
 
 .monaco-workbench > .part.editor.empty > .watermark dt,
