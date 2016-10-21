@@ -16,7 +16,7 @@ export interface ITreeExplorerViewletService {
 	registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void;
 	provideTreeContent(providerId: string): TPromise<InternalTreeExplorerNode>;
 	resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]>;
-	resolveCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void>;
+	executeCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void>;
 }
 
 export class TreeExplorerViewletService implements ITreeExplorerViewletService {
@@ -42,7 +42,7 @@ export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 		return TPromise.wrap(this._treeExplorerNodeProvider[providerId].resolveChildren(node));
 	}
 
-	resolveCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void> {
+	executeCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void> {
 		return TPromise.wrap(this._treeExplorerNodeProvider[providerId].executeCommand(node));
 	}
 }
