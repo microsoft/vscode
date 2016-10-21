@@ -196,7 +196,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 		this.cancelBackupPromises();
 
-		// TODO: Can this be moved to BackupModelService?
+		// TODO: Introduce an event on IUntitledEditorService so this can be moved to BackupModelService?
 		this.backupFileService.discardAndDeregisterResource(this.resource);
 	}
 

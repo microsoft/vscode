@@ -5,16 +5,18 @@
 
 'use strict';
 
+import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import Uri from 'vs/base/common/uri';
 import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITextFileEditorModel, ITextFileOperationResult, IResult, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 export class BackupService implements IBackupService {
 
@@ -33,6 +35,7 @@ export class BackupService implements IBackupService {
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IFileService private fileService: IFileService,
+		@IMessageService private messageService: IMessageService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
@@ -86,7 +89,7 @@ export class BackupService implements IBackupService {
 	/**
 	 * Performs an immedate backup of all dirty file and untitled models.
 	 */
-	private backupAll(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager): TPromise<ITextFileOperationResult> {
+	private backupAll(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager): TPromise<void> {
 		// split up between files and untitled
 		const filesToBackup: ITextFileEditorModel[] = [];
 		const untitledToBackup: Uri[] = [];
@@ -101,19 +104,10 @@ export class BackupService implements IBackupService {
 		return this.doBackupAll(filesToBackup, untitledToBackup);
 	}
 
-	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: Uri[]): TPromise<ITextFileOperationResult> {
+	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: Uri[]): TPromise<void> {
 		// Handle file resources first
-		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
-		dirtyFileModels.forEach(m => {
-			mapResourceToResult[m.getResource().toString()] = {
-				source: m.getResource()
-			};
-		});
-
 		return TPromise.join(dirtyFileModels.map(model => {
-			return this.backupImmediately(model.getResource(), model.getValue()).then(() => {
-				mapResourceToResult[model.getResource().toString()].success = true;
-			});
+			return this.backupImmediately(model.getResource(), model.getValue()).then(() => void 0);
 		})).then(results => {
 			// Handle untitled resources
 			const untitledModelPromises = untitledResources.map(untitledResource => this.untitledEditorService.get(untitledResource))
@@ -122,19 +116,9 @@ export class BackupService implements IBackupService {
 
 			return TPromise.join(untitledModelPromises).then(untitledModels => {
 				const untitledBackupPromises = untitledModels.map(model => {
-					mapResourceToResult[model.getResource().toString()] = {
-						source: model.getResource(),
-						target: model.getResource()
-					};
-					return this.backupImmediately(model.getResource(), model.getValue()).then(() => {
-						mapResourceToResult[model.getResource().toString()].success = true;
-					});
+					return this.backupImmediately(model.getResource(), model.getValue());
 				});
-				return TPromise.join(untitledBackupPromises).then(() => {
-					return {
-						results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
-					};
-				});
+				return TPromise.join(untitledBackupPromises).then(() => void 0);
 			});
 		});
 	}
@@ -158,12 +142,12 @@ export class BackupService implements IBackupService {
 			}
 
 			// Backup and hot exit
-			return this.backupAll(dirtyToBackup, textFileEditorModelManager).then(result => {
-				if (result.results.some(r => !r.success)) {
-					return true; // veto if some backups failed
-				}
-
+			return this.backupAll(dirtyToBackup, textFileEditorModelManager).then(() => {
 				return false; // the backup went smoothly, no veto
+			}, errors => {
+				const firstError = errors[0];
+				this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files could not be backed up (Error: {0}), try saving your files to exit.", firstError.message));
+				return true; // veto, the backups failed
 			});
 		});
 	}
