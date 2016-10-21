@@ -65,7 +65,7 @@ export class DebugService implements debug.IDebugService {
 	public _serviceBrand: any;
 
 	private sessionStates: { [id: string]: debug.State };
-	private _onDidChangeState: Emitter<debug.State>;
+	private _onDidChangeState: Emitter<void>;
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
@@ -101,7 +101,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = {};
 		this.breakpointsToSendOnResourceSaved = {};
-		this._onDidChangeState = new Emitter<debug.State>();
+		this._onDidChangeState = new Emitter<void>();
 		this.sessionStates = {};
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
@@ -422,13 +422,13 @@ export class DebugService implements debug.IDebugService {
 		return debug.State.Inactive;
 	}
 
-	public get onDidChangeState(): Event<debug.State> {
+	public get onDidChangeState(): Event<void> {
 		return this._onDidChangeState.event;
 	}
 
 	private setStateAndEmit(sessionId: string, newState: debug.State): void {
 		this.sessionStates[sessionId] = newState;
-		this._onDidChangeState.fire(newState);
+		this._onDidChangeState.fire();
 	}
 
 	public get enabled(): boolean {
@@ -558,7 +558,7 @@ export class DebugService implements debug.IDebugService {
 								const successExitCode = taskSummary && taskSummary.exitCode === 0;
 								const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 								if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-									return this.doCreateSession(configuration);
+									return this.doCreateProcess(configuration);
 								}
 
 								this.messageService.show(severity.Error, {
@@ -567,7 +567,7 @@ export class DebugService implements debug.IDebugService {
 											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
 									actions: [new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 										this.messageService.hideAll();
-										return this.doCreateSession(configuration);
+										return this.doCreateProcess(configuration);
 									}), CloseAction]
 								});
 							}, (err: TaskError) => {
@@ -583,7 +583,7 @@ export class DebugService implements debug.IDebugService {
 						}))));
 	}
 
-	private doCreateSession(configuration: debug.IExtHostConfig): TPromise<any> {
+	private doCreateProcess(configuration: debug.IExtHostConfig): TPromise<any> {
 		const sessionId = uuid.generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
 
@@ -748,7 +748,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.setStateAndEmit(session.getId(), debug.State.Initializing);
 		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then((configuration: debug.IExtHostConfig) =>
-			this.doCreateSession({
+			this.doCreateProcess({
 				type: configuration.type,
 				request: 'attach',
 				port,
