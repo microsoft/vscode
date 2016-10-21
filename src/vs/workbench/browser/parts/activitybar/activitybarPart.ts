@@ -67,7 +67,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
 
-		// Update activity bar on registering an external viewlet
+		// Update activity bar on registering external viewlets
 		this.toUnbind.push(
 			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets))
 				.onDidRegisterExternalViewlets(viewlets => this.onDidRegisterExternalViewlets(viewlets))
@@ -94,7 +94,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		}
 	}
 
-	getRegisteredViewletsIsEnabled(): { [viewletId: string]: boolean } {
+	getIsEnabledForRegisteredViewlets(): { [viewletId: string]: boolean } {
 		const result = {};
 		for (let viewletId in this.registeredViewlets) {
 			result[viewletId] = (this.enabledExternalViewlets.indexOf(viewletId) !== -1);
@@ -174,7 +174,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 			.sort((v1, v2) => v1.order - v2.order);
 	}
 
-	// Get an ordered list of all enabled external viewlets
+	// Get a list of all enabled external viewlets, ordered by the enabling sequence
 	private getAllEnabledExternalViewlets(): ViewletDescriptor[] {
 		const externalViewletsToShow: ViewletDescriptor[] = [];
 		this.enabledExternalViewlets.forEach(viewletId => {

@@ -74,7 +74,7 @@ export interface IActivityService {
 	/**
 	 * Get all registered external viewlets and whether they are enabled/disabled.
 	 */
-	getRegisteredViewletsIsEnabled(): { [viewletId: string]: boolean };
+	getIsEnabledForRegisteredViewlets(): { [viewletId: string]: boolean };
 
 	/**
 	 * Enable/disable an external viewlet.

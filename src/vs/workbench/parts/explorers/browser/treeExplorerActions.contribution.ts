@@ -29,7 +29,7 @@ export class ToggleExternalViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const viewletsToggleStataus = this.activityService.getRegisteredViewletsIsEnabled();
+		const viewletsToggleStataus = this.activityService.getIsEnabledForRegisteredViewlets();
 
 		const picks: IPickOpenEntry[] = [];
 		for (let viewletId in viewletsToggleStataus) {
