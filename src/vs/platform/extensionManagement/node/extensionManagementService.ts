@@ -11,7 +11,7 @@ import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, distinct } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import {
@@ -322,18 +322,28 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
-		return this.preUninstallExtension(extension.id)
-			.then(() => this.getDependenciesToUninstall(extension, installed)
-				.then(dependencies => dependencies.length ? this.promptAndUninstall(extension, dependencies) : this.uninstallExtension(extension.id)))
-			.then(() => this.postUninstallExtension(extension.id),
-			error => {
-				this.postUninstallExtension(extension.id, error);
-				return TPromise.wrapError(error);
-			});
+		if (this.hasDependencies(extension, installed)) {
+			return this.preUninstallExtension(extension.id)
+				.then(() => this.promptAndUninstall(extension, installed))
+				.then(() => this.postUninstallExtension(extension.id),
+				error => {
+					this.postUninstallExtension(extension.id, error);
+					return TPromise.wrapError(error);
+				});
+		}
+
+		return this.doUninstall(extension.id);
 	}
 
-	private promptAndUninstall(extension: ILocalExtension, dependencies: ILocalExtension[]): TPromise<void> {
-		const message = nls.localize('uninstallDependeciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName);
+	private hasDependencies(extension: ILocalExtension, installed: ILocalExtension[]): boolean {
+		if (extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length) {
+			return installed.some(i => extension.manifest.extensionDependencies.indexOf(`${i.manifest.publisher}.${i.manifest.name}`) !== -1);
+		}
+		return false;
+	}
+
+	private promptAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
+		const message = nls.localize('uninstallDependeciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName || extension.manifest.name);
 		const options = [
 			nls.localize('uninstallOnly', "Only"),
 			nls.localize('uninstallAll', "All"),
@@ -342,20 +352,49 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.choiceService.choose(Severity.Info, message, options)
 			.then<void>(value => {
 				if (value === 0) {
-					return this.doUninstall(extension.id);
+					return this.uninstallExtension(extension.id);
 				}
 				if (value === 1) {
-					return TPromise.join(dependencies.map(d => this.doUninstall(d.id)));
+					return this.uninstallWithDependencies(extension, installed);
 				}
 				return TPromise.wrapError(errors.canceled());
 			}, error => TPromise.wrapError(errors.canceled()));
 	}
 
-	private getDependenciesToUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<ILocalExtension[]> {
-		if (extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length) {
-			return TPromise.wrap(installed.filter(i => extension.manifest.extensionDependencies.indexOf(`${i.manifest.publisher}.${i.manifest.name}`) !== -1));
+	private uninstallWithDependencies(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
+		const allDependencies = distinct(this.getDependenciesToUninstallRecursively(extension, installed, [])).filter(e => e !== extension);
+		const dependenciesToUninstall = this.filterDependents(extension, allDependencies, installed);
+		return TPromise.join([this.uninstallExtension(extension.id), ...dependenciesToUninstall.map(d => this.doUninstall(d.id))]).then(() => null);
+	}
+
+	private getDependenciesToUninstallRecursively(extension: ILocalExtension, installed: ILocalExtension[], checked: ILocalExtension[]): ILocalExtension[] {
+		if (checked.indexOf(extension) !== -1) {
+			return [];
 		}
-		return TPromise.wrap([]);
+		checked.push(extension);
+		if (!extension.manifest.extensionDependencies || extension.manifest.extensionDependencies.length === 0) {
+			return [];
+		}
+		const dependenciesToUninstall = installed.filter(i => extension.manifest.extensionDependencies.indexOf(`${i.manifest.publisher}.${i.manifest.name}`) !== -1);
+		const depsOfDeps = [];
+		for (const dep of dependenciesToUninstall) {
+			depsOfDeps.push(...this.getDependenciesToUninstallRecursively(dep, installed, checked));
+		}
+		return [...dependenciesToUninstall, ...depsOfDeps];
+	}
+
+	private filterDependents(extension: ILocalExtension, dependencies: ILocalExtension[], installed: ILocalExtension[]): ILocalExtension[] {
+		installed = installed.filter(i => i !== extension && i.manifest.extensionDependencies && i.manifest.extensionDependencies.length > 0);
+		let result = dependencies.slice(0);
+		for (let i = 0; i < dependencies.length; i++) {
+			const dep = dependencies[i];
+			const dependents = installed.filter(e => e.manifest.extensionDependencies.indexOf(`${dep.manifest.publisher}.${dep.manifest.name}`) !== -1)
+				.filter(e => dependencies.indexOf(e) === -1);
+			if (dependents.length) {
+				result.splice(i - (dependencies.length - result.length), 1);
+			}
+		}
+		return result;
 	}
 
 	private doUninstall(id: string): TPromise<void> {
