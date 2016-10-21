@@ -16,12 +16,13 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
-import { IModelContentChangedEvent } from 'vs/editor/common/editorCommon';
+import { IModelContentChangedEvent, IRawText } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IFileService, IFileStat, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -51,6 +52,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMillies: number;
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
+	private backupPromises: TPromise<void>[];
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
@@ -69,7 +71,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IBackupService private backupService: IBackupService
 	) {
 		super(modelService, modeService);
 
@@ -82,6 +85,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.preferredEncoding = preferredEncoding;
 		this.dirty = false;
 		this.autoSavePromises = [];
+		this.backupPromises = [];
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
 		this.mapPendingSaveToVersionId = {};
@@ -257,20 +261,32 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			else {
 				diag('load() - created text editor model', this.resource, new Date());
 
-				this.createTextEditorModelPromise = this.createTextEditorModel(content.value, content.resource).then(() => {
-					this.createTextEditorModelPromise = null;
+				return this.backupService.doesTextFileHaveBackup(this.resource).then(backupExists => {
+					let getContentPromise: TPromise<IRawText>;
+					if (backupExists) {
+						const restoreResource = this.backupService.getBackupResource(this.resource);
+						getContentPromise = this.textFileService.resolveTextContent(restoreResource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then(content => content.value);
+					} else {
+						getContentPromise = TPromise.as(content.value);
+					}
 
-					this.setDirty(false); // Ensure we are not tracking a stale state
-					this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
+					this.createTextEditorModelPromise = getContentPromise.then(fileContent => {
+						return this.createTextEditorModel(fileContent, content.resource).then(() => {
+							this.createTextEditorModelPromise = null;
 
-					return this;
-				}, (error) => {
-					this.createTextEditorModelPromise = null;
+							this.setDirty(backupExists); // Ensure we are not tracking a stale state
+							this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
 
-					return TPromise.wrapError(error);
+							return this;
+						}, (error) => {
+							this.createTextEditorModelPromise = null;
+
+							return TPromise.wrapError(error);
+						});
+					});
+
+					return this.createTextEditorModelPromise;
 				});
-
-				return this.createTextEditorModelPromise;
 			}
 		}, (error) => {
 
@@ -318,6 +334,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
 
+			if (this.fileService.isHotExitEnabled()) {
+				this.fileService.discardBackup(this.resource);
+			}
+
 			return;
 		}
 
@@ -333,6 +353,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			} else {
 				diag('makeDirty() - prevented save because we are in conflict resolution mode', this.resource, new Date());
 			}
+		}
+
+		if (this.fileService.isHotExitEnabled()) {
+			this.doBackup();
 		}
 	}
 
@@ -371,6 +395,38 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private cancelAutoSavePromises(): void {
 		while (this.autoSavePromises.length) {
 			this.autoSavePromises.pop().cancel();
+		}
+	}
+
+	public backup(): TPromise<void> {
+		if (!this.dirty) {
+			return TPromise.as<void>(null);
+		}
+
+		return this.doBackup(true);
+	}
+
+	private doBackup(immediate?: boolean): TPromise<void> {
+		// Cancel any currently running backups to make this the one that succeeds
+		this.cancelBackupPromises();
+
+		if (immediate) {
+			return this.fileService.backupFile(this.resource, this.getValue()).then(f => void 0);
+		}
+
+		// Create new backup promise and keep it
+		const promise = TPromise.timeout(1000).then(() => {
+			this.fileService.backupFile(this.resource, this.getValue()); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+		});
+
+		this.backupPromises.push(promise);
+
+		return promise;
+	}
+
+	private cancelBackupPromises(): void {
+		while (this.backupPromises.length) {
+			this.backupPromises.pop().cancel();
 		}
 	}
 
@@ -722,6 +778,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.createTextEditorModelPromise = null;
 
 		this.cancelAutoSavePromises();
+		this.cancelBackupPromises();
+
+		this.fileService.discardBackup(this.resource);
 
 		super.dispose();
 	}

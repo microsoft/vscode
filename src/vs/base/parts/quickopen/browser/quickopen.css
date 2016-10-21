@@ -6,7 +6,7 @@
 .quick-open-widget {
 	position: absolute;
 	width: 600px;
-	z-index: 2050;
+	z-index: 2000;
 	padding-bottom: 6px;
 	left: 50%;
 	margin-left: -300px;

@@ -84,5 +84,5 @@ export const NullStorageService: IStorageService = {
 	remove() { return undefined; },
 	get(a, b, defaultValue) { return defaultValue; },
 	getInteger(a, b, defaultValue) { return defaultValue; },
-	getBoolean(a, b, defaultValue) { return defaultValue; },
+	getBoolean(a, b, defaultValue) { return defaultValue; }
 };

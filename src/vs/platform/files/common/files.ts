@@ -105,6 +105,27 @@ export interface IFileService {
 	del(resource: URI, useTrash?: boolean): TPromise<void>;
 
 	/**
+	 * Backs up the provided file to a temporary directory to be used by the hot
+	 * exit feature and crash recovery.
+	 */
+	backupFile(resource: URI, content: string): TPromise<IFileStat>;
+
+	/**
+	 * Discard the backup for the resource specified.
+	 */
+	discardBackup(resource: URI): TPromise<void>;
+
+	/**
+	 * Discards all backups associated with this session.
+	 */
+	discardBackups(): TPromise<void>;
+
+	/**
+	 * Whether hot exit is enabled.
+	 */
+	isHotExitEnabled(): boolean;
+
+	/**
 	 * Imports the file to the parent identified by the resource.
 	 */
 	importFile(source: URI, targetFolder: URI): TPromise<IImportResult>;
@@ -475,6 +496,7 @@ export interface IFilesConfiguration {
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
+		hotExit: boolean;
 	};
 }
 

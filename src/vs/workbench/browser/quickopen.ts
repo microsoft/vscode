@@ -6,6 +6,7 @@
 
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+import * as objects from 'vs/base/common/objects';
 import filters = require('vs/base/common/filters');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
@@ -17,7 +18,7 @@ import { KeyMod } from 'vs/base/common/keyCodes';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -247,20 +248,38 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
+		const hideWidget = (mode === Mode.OPEN);
+
+		if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
 			let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+
+			let openInBackgroundOptions: IEditorOptions;
+			if (mode === Mode.OPEN_IN_BACKGROUND) {
+				openInBackgroundOptions = { pinned: true, preserveFocus: true };
+			}
 
 			let input = this.getInput();
 			if (input instanceof EditorInput) {
-				this.editorService.openEditor(input, this.getOptions(), sideBySide).done(null, errors.onUnexpectedError);
-			} else {
-				this.editorService.openEditor(<IResourceInput>input, sideBySide).done(null, errors.onUnexpectedError);
-			}
+				let opts = this.getOptions();
+				if (opts) {
+					opts.mixin(openInBackgroundOptions);
+				} else if (openInBackgroundOptions) {
+					opts = EditorOptions.create(openInBackgroundOptions);
+				}
 
-			return true;
+				this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
+			} else {
+				const resourceInput = <IResourceInput>input;
+
+				if (openInBackgroundOptions) {
+					resourceInput.options = objects.assign(resourceInput.options || Object.create(null), openInBackgroundOptions);
+				}
+
+				this.editorService.openEditor(resourceInput, sideBySide).done(null, errors.onUnexpectedError);
+			}
 		}
 
-		return false;
+		return hideWidget;
 	}
 }
 

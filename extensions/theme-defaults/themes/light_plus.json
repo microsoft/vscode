@@ -3,15 +3,21 @@
 	"include": "./light_vs.json",
 	"settings": [
 		{
+			"name": "Function declarations",
+			"scope": [
+				"entity.name.function",
+				"support.function"
+			],
+			"settings": {
+				"foreground": "#795E26"
+			}
+		},
+		{
 			"name": "Types declaration and references",
 			"scope": [
-				"meta.type.name",
-				"meta.return.type",
 				"meta.return-type",
-				"meta.cast",
-				"meta.type.annotation",
+				"support.class",
 				"support.type",
-				"entity.name.class",
 				"entity.name.type",
 				"storage.type.cs",
 				"storage.type.java"
@@ -21,13 +27,17 @@
 			}
 		},
 		{
-			"name": "Function declarations",
+			"name": "Types declaration and references, TS grammar specific",
 			"scope": [
-				"entity.name.function",
-				"entity.name.method"
+				"meta.return.type",
+				"meta.type.cast.expr",
+				"meta.type.new.expr",
+				"support.constant.math",
+				"support.constant.dom",
+				"support.constant.json"
 			],
 			"settings": {
-				"foreground": "#795E26"
+				"foreground": "#267f99"
 			}
 		},
 		{
@@ -38,15 +48,34 @@
 			}
 		},
 		{
-			"name": "Parameter name",
+			"name": "Variable and parameter name",
 			"scope": [
-				"meta.parameter.type.variable",
 				"variable.parameter",
 				"variable",
-				"variable.name"
+				"variable.name",
+				"support.variable"
 			],
 			"settings": {
 				"foreground": "#001080"
+			}
+		},
+		{
+			"name": "Object keys, TS gammar specific",
+			"scope": "object-literal.member.key",
+			"settings": {
+				"foreground": "#001080"
+			}
+		},
+		{
+			"name": "CSS property value",
+			"scope": [
+				"support.property-value",
+				"constant.rgb-value",
+				"support.property-value.scss",
+				"constant.rgb-value.scss"
+			],
+			"settings": {
+				"foreground": "#0451a5"
 			}
 		}
 	]

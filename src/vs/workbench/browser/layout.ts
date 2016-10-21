@@ -20,7 +20,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 
 const DEFAULT_MIN_PART_WIDTH = 170;
 const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;
-const DEFAULT_MIN_EDITOR_PART_HEIGHT = 170;
+const DEFAULT_MIN_EDITOR_PART_HEIGHT = 210; /* 3 x 70px min height of editors when stacked vertically */
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
 
@@ -44,6 +44,11 @@ interface ComputedStyles {
 	panel: { minHeight: number; };
 	editor: { minWidth: number; };
 	statusbar: { height: number; };
+}
+
+export interface ILayoutOptions {
+	forceStyleReCompute?: boolean;
+	toggleMaximizedPanel?: boolean;
 }
 
 /**
@@ -297,8 +302,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		};
 	}
 
-	public layout(forceStyleReCompute?: boolean): void {
-		if (forceStyleReCompute) {
+	public layout(options?: ILayoutOptions): void {
+		if (options && options.forceStyleReCompute) {
 			this.computeStyle();
 			this.editor.getLayout().computeStyle();
 			this.sidebar.getLayout().computeStyle();
@@ -338,12 +343,16 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Panel part
 		let panelHeight: number;
+		const maxPanelHeight = sidebarSize.height - DEFAULT_MIN_EDITOR_PART_HEIGHT;
 		if (isPanelHidden) {
 			panelHeight = 0;
 		} else if (this.panelHeight > 0) {
-			panelHeight = Math.min(sidebarSize.height - DEFAULT_MIN_EDITOR_PART_HEIGHT, Math.max(this.computedStyles.panel.minHeight, this.panelHeight));
+			panelHeight = Math.min(maxPanelHeight, Math.max(this.computedStyles.panel.minHeight, this.panelHeight));
 		} else {
 			panelHeight = sidebarSize.height * 0.4;
+		}
+		if (options && options.toggleMaximizedPanel) {
+			panelHeight = panelHeight === maxPanelHeight ? sidebarSize.height * 0.4 : maxPanelHeight;
 		}
 		const panelDimension = new Dimension(this.workbenchSize.width - sidebarSize.width - activityBarSize.width, panelHeight);
 		this.panelWidth = panelDimension.width;

@@ -24,7 +24,7 @@
 	"name": "HTML",
 	"patterns": [
 		{
-			"begin": "(<)([a-zA-Z0-9:]++)(?=[^>]*></\\2>)",
+			"begin": "(<)([a-zA-Z0-9:\\-]++)(?=[^>]*></\\2>)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.html"
@@ -236,7 +236,7 @@
 			]
 		},
 		{
-			"begin": "(</?)((?i:body|head|html)\\b)",
+			"begin": "(</?)((?i:body|head|html)(?=\\s|\\\\|>))",
 			"captures": {
 				"1": {
 					"name": "punctuation.definition.tag.html"
@@ -254,7 +254,7 @@
 			]
 		},
 		{
-			"begin": "(</?)((?i:address|blockquote|dd|div|section|article|aside|header|footer|nav|menu|dl|dt|fieldset|form|frame|frameset|h1|h2|h3|h4|h5|h6|iframe|noframes|object|ol|p|ul|applet|center|dir|hr|pre)\\b)",
+			"begin": "(</?)((?i:address|blockquote|dd|div|section|article|aside|header|footer|nav|menu|dl|dt|fieldset|form|frame|frameset|h1|h2|h3|h4|h5|h6|iframe|noframes|object|ol|p|ul|applet|center|dir|hr|pre)(?=\\s|\\\\|>))",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.begin.html"
@@ -277,7 +277,7 @@
 			]
 		},
 		{
-			"begin": "(</?)((?i:a|abbr|acronym|area|b|base|basefont|bdo|big|br|button|caption|cite|code|col|colgroup|del|dfn|em|font|head|html|i|img|input|ins|isindex|kbd|label|legend|li|link|map|meta|noscript|optgroup|option|param|q|s|samp|script|select|small|span|strike|strong|style|sub|sup|table|tbody|td|textarea|tfoot|th|thead|title|tr|tt|u|var)\\b)",
+			"begin": "(</?)((?i:a|abbr|acronym|area|b|base|basefont|bdo|big|br|button|caption|cite|code|col|colgroup|del|dfn|em|font|head|html|i|img|input|ins|isindex|kbd|label|legend|li|link|map|meta|noscript|optgroup|option|param|q|s|samp|script|select|small|span|strike|strong|style|sub|sup|table|tbody|td|textarea|tfoot|th|thead|title|tr|tt|u|var)(?=\\s|\\\\|>))",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.begin.html"
@@ -300,7 +300,7 @@
 			]
 		},
 		{
-			"begin": "(</?)([a-zA-Z0-9:]+)",
+			"begin": "(</?)([a-zA-Z0-9:\\-]+)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.begin.html"

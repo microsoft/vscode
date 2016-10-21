@@ -22,7 +22,7 @@
 	"markers.panel.single.info.label": "1 個資訊",
 	"markers.panel.single.unknown.label": "1 個未知",
 	"markers.panel.single.warning.label": "1 個警告",
-	"markers.panel.title.no.problems": "沒有任何問題",
+	"markers.panel.title.problems": "問題",
 	"problems.panel.configuration.autoreveal": "控制 [問題] 檢視是否應自動在開啟檔案時加以顯示",
 	"problems.panel.configuration.title": "[問題] 檢視",
 	"problems.tree.aria.label.error.marker": "{0} 產生的錯誤: 在行 {2} 與欄 {3} 的 {1}",

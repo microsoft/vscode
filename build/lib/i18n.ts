@@ -298,7 +298,7 @@ export function processNlsFiles(opts:{fileHeader:string;}): ThroughStream {
 		if (fileName === 'nls.metadata.json') {
 			let json = null;
 			if (file.isBuffer()) {
-				json = JSON.parse(file.contents.toString('utf8'));
+				json = JSON.parse((<Buffer>file.contents).toString('utf8'));
 			} else {
 				this.emit('error', `Failed to read component file: ${file.relative}`);
 			}

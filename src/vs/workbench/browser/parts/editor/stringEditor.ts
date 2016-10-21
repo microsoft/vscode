@@ -118,16 +118,22 @@ export class StringEditor extends BaseTextEditor {
 			}
 
 			// Otherwise restore View State
-			if (!optionsGotApplied && input instanceof UntitledEditorInput) {
-				const viewState = this.mapResourceToEditorViewState[input.getResource().toString()];
-				if (viewState) {
-					textEditor.restoreViewState(viewState);
-				}
+			if (!optionsGotApplied) {
+				this.restoreViewState(input);
 			}
 
 			// Apply options again because input has changed
 			textEditor.updateOptions(this.getCodeEditorOptions());
 		});
+	}
+
+	protected restoreViewState(input: EditorInput) {
+		if (input instanceof UntitledEditorInput) {
+			const viewState = this.mapResourceToEditorViewState[input.getResource().toString()];
+			if (viewState) {
+				this.getControl().restoreViewState(viewState);
+			}
+		}
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {

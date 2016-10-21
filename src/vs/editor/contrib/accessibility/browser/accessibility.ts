@@ -148,7 +148,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 	private _buildContent() {
 		let opts = this._editor.getConfiguration();
-		let text = nls.localize('introMsg', "Thank you for trying out VS Code's experimental accessibility options.");
+		let text = nls.localize('introMsg', "Thank you for trying out VS Code's accessibility options.");
 
 		text += '\n\n' + nls.localize('status', "Status:");
 

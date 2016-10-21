@@ -104,7 +104,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		this.pendingDirtyResources = [];
 
 		const activeEditor = this.editorService.getActiveEditor();
-		const activePosition = activeEditor ? activeEditor.position : Position.LEFT;
+		const activePosition = activeEditor ? activeEditor.position : Position.ONE;
 
 		// Open
 		this.editorService.openEditors(dirtyNotOpenedResources.map(resource => {

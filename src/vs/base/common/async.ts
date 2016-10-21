@@ -468,6 +468,16 @@ export class Limiter<T> {
 	}
 }
 
+/**
+ * A queue is handles one promise at a time and guarantees that at any time only one promise is executing.
+ */
+export class Queue<T> extends Limiter<T> {
+
+	constructor() {
+		super(1);
+	}
+}
+
 export class TimeoutTimer extends Disposable {
 	private _token: platform.TimeoutToken;
 
@@ -609,4 +619,10 @@ export function ninvoke(thisArg: any, fn: Function, ...args: any[]): Promise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
 	return new Promise((c, e) => fn.call(thisArg, ...args, (err, result) => err ? e(err) : c(result)));
+}
+
+interface IQueuedPromise<T> {
+	t: ITask<TPromise<T>>;
+	c: ValueCallback;
+	e: ErrorCallback;
 }

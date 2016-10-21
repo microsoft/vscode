@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/quickopen';
-import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { Dimension, withElementById } from 'vs/base/browser/builder';
@@ -16,6 +15,7 @@ import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import types = require('vs/base/common/types');
+import { Action } from 'vs/base/common/actions';
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -24,7 +24,7 @@ import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/qui
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/platform';
 import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -148,7 +148,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	public input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<string> {
-
 		if (this.pickOpenWidget && this.pickOpenWidget.isVisible()) {
 			this.pickOpenWidget.hide(HideReason.CANCELED);
 		}
@@ -181,6 +180,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						if (currentValidation) {
 							currentValidation.cancel();
 						}
+
 						currentValidation = TPromise.timeout(100).then(() => {
 							return options.validateInput(value).then(message => {
 								currentDecoration = !!message ? Severity.Error : void 0;
@@ -189,6 +189,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 									currentPick = newPick;
 									resolve(new TPromise(init));
 								}
+
 								return !message;
 							});
 						}, err => {
@@ -1038,6 +1039,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	private resource: URI;
 	private label: string;
 	private description: string;
+	private dirty: boolean;
 
 	constructor(
 		input: IEditorInput | IResourceInput,
@@ -1056,16 +1058,22 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			this.resource = getUntitledOrFileResource(input);
 			this.label = input.getName();
 			this.description = input.getDescription();
+			this.dirty = input.isDirty();
 		} else {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
 			this.label = paths.basename(resourceInput.resource.fsPath);
 			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService);
+			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
+
+			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+				this.dirty = false; // no dirty decoration if auto save is on with a short timeout
+			}
 		}
 	}
 
 	public getIcon(): string {
-		return this.resource && this.textFileService.isDirty(this.resource) ? 'dirty' : '';
+		return this.dirty ? 'dirty' : '';
 	}
 
 	public getLabel(): string {
@@ -1102,12 +1110,52 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			if (this.input instanceof EditorInput) {
 				this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);
 			} else {
-				this.editorService.openEditor({ resource: (this.input as IResourceInput).resource, options: { pinned: true } }, sideBySide);
+				this.editorService.openEditor({ resource: (this.input as IResourceInput).resource, options: { pinned } }, sideBySide);
 			}
 
 			return true;
 		}
 
-		return false;
+		return super.run(mode, context);
+	}
+}
+
+export class RemoveFromEditorHistoryAction extends Action {
+
+	public static ID = 'workbench.action.removeFromEditorHistory';
+	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From Editor History");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IHistoryService private historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		interface IHistoryPickEntry extends IFilePickOpenEntry {
+			input: IEditorInput | IResourceInput;
+		}
+
+		const history = this.historyService.getHistory();
+		const picks: IHistoryPickEntry[] = history.map(h => {
+			const entry = this.instantiationService.createInstance(EditorHistoryEntry, h);
+
+			return <IHistoryPickEntry>{
+				input: h,
+				resource: entry.getResource(),
+				label: entry.getLabel(),
+				description: entry.getDescription()
+			};
+		});
+
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select an editor entry to remove from history"), autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(pick => {
+			if (pick) {
+				this.historyService.remove(pick.input);
+			}
+		});
 	}
 }

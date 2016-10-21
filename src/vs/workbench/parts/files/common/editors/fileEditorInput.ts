@@ -16,6 +16,7 @@ import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, L
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
@@ -26,6 +27,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 	private resource: URI;
 	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
+	private restoreFromBackup: boolean;
 
 	private name: string;
 	private description: string;
@@ -43,7 +45,8 @@ export class FileEditorInput extends CommonFileEditorInput {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IHistoryService private historyService: IHistoryService,
 		@IEventService private eventService: IEventService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IBackupService private backupService: IBackupService
 	) {
 		super();
 
@@ -100,6 +103,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 		this.name = null;
 		this.description = null;
 		this.verboseDescription = null;
+	}
+
+	public setRestoreFromBackup(restore: boolean): void {
+		this.restoreFromBackup = restore;
 	}
 
 	public getResource(): URI {
@@ -195,7 +202,8 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
-		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh).then(null, error => {
+		const backupResource = this.restoreFromBackup ? this.backupService.getBackupResource(this.resource) : null;
+		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh, backupResource).then(null, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {

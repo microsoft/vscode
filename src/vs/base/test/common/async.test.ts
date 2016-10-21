@@ -10,12 +10,12 @@ import Async = require('vs/base/common/async');
 
 suite('Async', () => {
 	test('Throttler - non async', function (done) {
-		var count = 0;
-		var factory = () => {
+		let count = 0;
+		let factory = () => {
 			return TPromise.as(++count);
 		};
 
-		var throttler = new Async.Throttler();
+		let throttler = new Async.Throttler();
 
 		Promise.join([
 			throttler.queue(factory).then((result) => { assert.equal(result, 1); }),
@@ -27,14 +27,14 @@ suite('Async', () => {
 	});
 
 	test('Throttler', function (done) {
-		var count = 0;
-		var factory = () => {
+		let count = 0;
+		let factory = () => {
 			return TPromise.timeout(0).then(() => {
 				return ++count;
 			});
 		};
 
-		var throttler = new Async.Throttler();
+		let throttler = new Async.Throttler();
 
 		Promise.join([
 			throttler.queue(factory).then((result) => { assert.equal(result, 1); }),
@@ -54,15 +54,15 @@ suite('Async', () => {
 	});
 
 	test('Throttler - cancel should not cancel other promises', function (done) {
-		var count = 0;
-		var factory = () => {
+		let count = 0;
+		let factory = () => {
 			return TPromise.timeout(0).then(() => {
 				return ++count;
 			});
 		};
 
-		var throttler = new Async.Throttler();
-		var p1: Promise;
+		let throttler = new Async.Throttler();
+		let p1: Promise;
 
 		Promise.join([
 			p1 = throttler.queue(factory).then((result) => { assert(false, 'should not be here, 1'); }, () => { assert(true, 'yes, it was cancelled'); }),
@@ -75,15 +75,15 @@ suite('Async', () => {
 	});
 
 	test('Throttler - cancel the first queued promise should not cancel other promises', function (done) {
-		var count = 0;
-		var factory = () => {
+		let count = 0;
+		let factory = () => {
 			return TPromise.timeout(0).then(() => {
 				return ++count;
 			});
 		};
 
-		var throttler = new Async.Throttler();
-		var p2: Promise;
+		let throttler = new Async.Throttler();
+		let p2: Promise;
 
 		Promise.join([
 			throttler.queue(factory).then((result) => { assert.equal(result, 1); }, () => { assert(false, 'should not be here, 1'); }),
@@ -96,15 +96,15 @@ suite('Async', () => {
 	});
 
 	test('Throttler - cancel in the middle should not cancel other promises', function (done) {
-		var count = 0;
-		var factory = () => {
+		let count = 0;
+		let factory = () => {
 			return TPromise.timeout(0).then(() => {
 				return ++count;
 			});
 		};
 
-		var throttler = new Async.Throttler();
-		var p3: Promise;
+		let throttler = new Async.Throttler();
+		let p3: Promise;
 
 		Promise.join([
 			throttler.queue(factory).then((result) => { assert.equal(result, 1); }, () => { assert(false, 'should not be here, 1'); }),
@@ -117,13 +117,13 @@ suite('Async', () => {
 	});
 
 	test('Throttler - last factory should be the one getting called', function (done) {
-		var factoryFactory = (n: number) => () => {
+		let factoryFactory = (n: number) => () => {
 			return TPromise.timeout(0).then(() => n);
 		};
 
-		var throttler = new Async.Throttler();
+		let throttler = new Async.Throttler();
 
-		var promises: Promise[] = [];
+		let promises: Promise[] = [];
 
 		promises.push(throttler.queue(factoryFactory(1)).then((n) => { assert.equal(n, 1); }));
 		promises.push(throttler.queue(factoryFactory(2)).then((n) => { assert.equal(n, 3); }));
@@ -133,17 +133,17 @@ suite('Async', () => {
 	});
 
 	test('Throttler - progress should work', function (done) {
-		var order = 0;
-		var factory = () => new Promise((c, e, p) => {
+		let order = 0;
+		let factory = () => new Promise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
 			});
 		});
 
-		var throttler = new Async.Throttler();
-		var promises: Promise[] = [];
-		var progresses: any[][] = [[], [], []];
+		let throttler = new Async.Throttler();
+		let promises: Promise[] = [];
+		let progresses: any[][] = [[], [], []];
 
 		promises.push(throttler.queue(factory).then(null, null, (p) => progresses[0].push(p)));
 		promises.push(throttler.queue(factory).then(null, null, (p) => progresses[1].push(p)));
@@ -158,13 +158,13 @@ suite('Async', () => {
 	});
 
 	test('Delayer', function (done) {
-		var count = 0;
-		var factory = () => {
+		let count = 0;
+		let factory = () => {
 			return TPromise.as(++count);
 		};
 
-		var delayer = new Async.Delayer(0);
-		var promises: Promise[] = [];
+		let delayer = new Async.Delayer(0);
+		let promises: Promise[] = [];
 
 		assert(!delayer.isTriggered());
 
@@ -184,12 +184,12 @@ suite('Async', () => {
 	});
 
 	test('Delayer - simple cancel', function (done) {
-		var count = 0;
-		var factory = () => {
+		let count = 0;
+		let factory = () => {
 			return TPromise.as(++count);
 		};
 
-		var delayer = new Async.Delayer(0);
+		let delayer = new Async.Delayer(0);
 
 		assert(!delayer.isTriggered());
 
@@ -205,13 +205,13 @@ suite('Async', () => {
 	});
 
 	test('Delayer - cancel should cancel all calls to trigger', function (done) {
-		var count = 0;
-		var factory = () => {
+		let count = 0;
+		let factory = () => {
 			return TPromise.as(++count);
 		};
 
-		var delayer = new Async.Delayer(0);
-		var promises: Promise[] = [];
+		let delayer = new Async.Delayer(0);
+		let promises: Promise[] = [];
 
 		assert(!delayer.isTriggered());
 
@@ -233,13 +233,13 @@ suite('Async', () => {
 	});
 
 	test('Delayer - trigger, cancel, then trigger again', function (done) {
-		var count = 0;
-		var factory = () => {
+		let count = 0;
+		let factory = () => {
 			return TPromise.as(++count);
 		};
 
-		var delayer = new Async.Delayer(0);
-		var promises: Promise[] = [];
+		let delayer = new Async.Delayer(0);
+		let promises: Promise[] = [];
 
 		assert(!delayer.isTriggered());
 
@@ -283,12 +283,12 @@ suite('Async', () => {
 	});
 
 	test('Delayer - last task should be the one getting called', function (done) {
-		var factoryFactory = (n: number) => () => {
+		let factoryFactory = (n: number) => () => {
 			return TPromise.as(n);
 		};
 
-		var delayer = new Async.Delayer(0);
-		var promises: Promise[] = [];
+		let delayer = new Async.Delayer(0);
+		let promises: Promise[] = [];
 
 		assert(!delayer.isTriggered());
 
@@ -305,17 +305,17 @@ suite('Async', () => {
 	});
 
 	test('Delayer - progress should work', function (done) {
-		var order = 0;
-		var factory = () => new Promise((c, e, p) => {
+		let order = 0;
+		let factory = () => new Promise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
 			});
 		});
 
-		var delayer = new Async.Delayer(0);
-		var promises: Promise[] = [];
-		var progresses: any[][] = [[], [], []];
+		let delayer = new Async.Delayer(0);
+		let promises: Promise[] = [];
+		let progresses: any[][] = [[], [], []];
 
 		promises.push(delayer.trigger(factory).then(null, null, (p) => progresses[0].push(p)));
 		promises.push(delayer.trigger(factory).then(null, null, (p) => progresses[1].push(p)));
@@ -330,17 +330,17 @@ suite('Async', () => {
 	});
 
 	test('ThrottledDelayer - progress should work', function (done) {
-		var order = 0;
-		var factory = () => new Promise((c, e, p) => {
+		let order = 0;
+		let factory = () => new Promise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
 			});
 		});
 
-		var delayer = new Async.ThrottledDelayer(0);
-		var promises: Promise[] = [];
-		var progresses: any[][] = [[], [], []];
+		let delayer = new Async.ThrottledDelayer(0);
+		let promises: Promise[] = [];
+		let progresses: any[][] = [[], [], []];
 
 		promises.push(delayer.trigger(factory).then(null, null, (p) => progresses[0].push(p)));
 		promises.push(delayer.trigger(factory).then(null, null, (p) => progresses[1].push(p)));
@@ -355,7 +355,7 @@ suite('Async', () => {
 	});
 
 	test('Sequence', function (done) {
-		var factoryFactory = (n: number) => () => {
+		let factoryFactory = (n: number) => () => {
 			return TPromise.as(n);
 		};
 
@@ -377,13 +377,13 @@ suite('Async', () => {
 	});
 
 	test('Limiter - sync', function (done) {
-		var factoryFactory = (n: number) => () => {
+		let factoryFactory = (n: number) => () => {
 			return TPromise.as(n);
 		};
 
-		var limiter = new Async.Limiter(1);
+		let limiter = new Async.Limiter(1);
 
-		var promises: Promise[] = [];
+		let promises: Promise[] = [];
 		[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
 
 		Promise.join(promises).then((res) => {
@@ -401,12 +401,12 @@ suite('Async', () => {
 	});
 
 	test('Limiter - async', function (done) {
-		var factoryFactory = (n: number) => () => {
+		let factoryFactory = (n: number) => () => {
 			return TPromise.timeout(0).then(() => n);
 		};
 
-		var limiter = new Async.Limiter(1);
-		var promises: Promise[] = [];
+		let limiter = new Async.Limiter(1);
+		let promises: Promise[] = [];
 		[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
 
 		Promise.join(promises).then((res) => {
@@ -424,22 +424,123 @@ suite('Async', () => {
 	});
 
 	test('Limiter - assert degree of paralellism', function (done) {
-		var activePromises = 0;
-		var factoryFactory = (n: number) => () => {
+		let activePromises = 0;
+		let factoryFactory = (n: number) => () => {
 			activePromises++;
 			assert(activePromises < 6);
 			return TPromise.timeout(0).then(() => { activePromises--; return n; });
 		};
 
-		var limiter = new Async.Limiter(5);
+		let limiter = new Async.Limiter(5);
 
-		var promises: Promise[] = [];
+		let promises: Promise[] = [];
 		[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
 
 		Promise.join(promises).then((res) => {
 			assert.equal(10, res.length);
 			assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], res);
 			done();
+		});
+	});
+
+	test('Queue - simple', function (done) {
+		let queue = new Async.Queue();
+
+		let syncPromise = false;
+		let f1 = () => TPromise.as(true).then(() => syncPromise = true);
+
+		let asyncPromise = false;
+		let f2 = () => TPromise.timeout(10).then(() => asyncPromise = true);
+
+		queue.queue(f1);
+		queue.queue(f2).then(() => {
+			assert.ok(syncPromise);
+			assert.ok(asyncPromise);
+
+			done();
+		});
+	});
+
+	test('Queue - order is kept', function (done) {
+		let queue = new Async.Queue();
+
+		let res = [];
+
+		let f1 = () => TPromise.as(true).then(() => res.push(1));
+		let f2 = () => TPromise.timeout(10).then(() => res.push(2));
+		let f3 = () => TPromise.as(true).then(() => res.push(3));
+		let f4 = () => TPromise.timeout(20).then(() => res.push(4));
+		let f5 = () => TPromise.timeout(0).then(() => res.push(5));
+
+		queue.queue(f1);
+		queue.queue(f2);
+		queue.queue(f3);
+		queue.queue(f4);
+		queue.queue(f5).then(() => {
+			assert.equal(res[0], 1);
+			assert.equal(res[1], 2);
+			assert.equal(res[2], 3);
+			assert.equal(res[3], 4);
+			assert.equal(res[4], 5);
+
+			done();
+		});
+	});
+
+	test('Queue - errors bubble individually but not cause stop', function (done) {
+		let queue = new Async.Queue();
+
+		let res = [];
+		let error = false;
+
+		let f1 = () => TPromise.as(true).then(() => res.push(1));
+		let f2 = () => TPromise.timeout(10).then(() => res.push(2));
+		let f3 = () => TPromise.as(true).then(() => TPromise.wrapError('error'));
+		let f4 = () => TPromise.timeout(20).then(() => res.push(4));
+		let f5 = () => TPromise.timeout(0).then(() => res.push(5));
+
+		queue.queue(f1);
+		queue.queue(f2);
+		queue.queue(f3).then(null, () => error = true);
+		queue.queue(f4);
+		queue.queue(f5).then(() => {
+			assert.equal(res[0], 1);
+			assert.equal(res[1], 2);
+			assert.ok(error);
+			assert.equal(res[2], 4);
+			assert.equal(res[3], 5);
+
+			done();
+		});
+	});
+
+	test('Queue - order is kept (chained)', function (done) {
+		let queue = new Async.Queue();
+
+		let res = [];
+
+		let f1 = () => TPromise.as(true).then(() => res.push(1));
+		let f2 = () => TPromise.timeout(10).then(() => res.push(2));
+		let f3 = () => TPromise.as(true).then(() => res.push(3));
+		let f4 = () => TPromise.timeout(20).then(() => res.push(4));
+		let f5 = () => TPromise.timeout(0).then(() => res.push(5));
+
+		queue.queue(f1).then(() => {
+			queue.queue(f2).then(() => {
+				queue.queue(f3).then(() => {
+					queue.queue(f4).then(() => {
+						queue.queue(f5).then(() => {
+							assert.equal(res[0], 1);
+							assert.equal(res[1], 2);
+							assert.equal(res[2], 3);
+							assert.equal(res[3], 4);
+							assert.equal(res[4], 5);
+
+							done();
+						});
+					});
+				});
+			});
 		});
 	});
 });

@@ -16,7 +16,8 @@ import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import { TestConfigurationService, TestMessageService } from 'vs/test/utils/servicesTestUtils';
+import { TestMessageService } from 'vs/test/utils/servicesTestUtils';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 
 suite('Workbench - TerminalInstance', () => {

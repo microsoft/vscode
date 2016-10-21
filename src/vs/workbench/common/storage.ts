@@ -9,6 +9,7 @@ import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 // Browser localStorage interface
 export interface IStorage {
@@ -38,7 +39,8 @@ export class Storage implements IStorageService {
 	constructor(
 		globalStorage: IStorage,
 		workspaceStorage: IStorage,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		const workspace = contextService.getWorkspace();
 

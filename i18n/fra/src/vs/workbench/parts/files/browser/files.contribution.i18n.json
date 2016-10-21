@@ -19,6 +19,7 @@
 	"files.exclude.boolean": "Modèle Glob auquel les chemins de fichiers doivent correspondre. Affectez la valeur true ou false pour activer ou désactiver le modèle.",
 	"files.exclude.when": "Vérification supplémentaire des frères d'un fichier correspondant. Utilisez $(basename) comme variable pour le nom de fichier correspondant.",
 	"filesConfigurationTitle": "Fichiers",
+	"formatOnSave": "Met en forme un fichier au moment de l'enregistrement. Un formateur doit être disponible, le fichier ne doit pas être enregistré automatiquement, et l'éditeur ne doit pas être en cours d'arrêt.",
 	"openEditorsVisible": "Nombre d'éditeurs affichés dans le volet Éditeurs ouverts. Définissez la valeur 0 pour masquer le volet.",
 	"showExplorerViewlet": "Afficher l'Explorateur",
 	"textFileEditor": "Éditeur de fichier texte",

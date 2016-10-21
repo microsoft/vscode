@@ -10,6 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionHostMain, IInitData, exit } from 'vs/workbench/node/extensionHostMain';
 import { create as createIPC, IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import marshalling = require('vs/base/common/marshalling');
+import { createQueuedSender } from 'vs/base/node/processes';
 
 interface IRendererConnection {
 	remoteCom: IMainProcessExtHostIPC;
@@ -22,6 +23,9 @@ let onTerminate = function () {
 	exit();
 };
 
+// Utility to not flood the process.send() with messages if it is busy catching up
+const queuedSender = createQueuedSender(process);
+
 function connectToRenderer(): TPromise<IRendererConnection> {
 	return new TPromise<IRendererConnection>((c, e) => {
 		const stats: number[] = [];
@@ -32,7 +36,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			let msg = marshalling.parse(raw);
 
 			const remoteCom = createIPC(data => {
-				process.send(data);
+				queuedSender.send(data);
 				stats.push(data.length);
 			});
 
@@ -48,7 +52,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
 			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-			const unhandledPromises: Promise<any>[] = [];
+			const unhandledPromises: TPromise<any>[] = [];
 			process.on('unhandledRejection', (reason, promise) => {
 				unhandledPromises.push(promise);
 				setTimeout(() => {
@@ -92,13 +96,13 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			}, 1000);
 
 			// Tell the outside that we are initialized
-			process.send('initialized');
+			queuedSender.send('initialized');
 
 			c({ remoteCom, initData: msg });
 		});
 
 		// Tell the outside that we are ready to receive messages
-		process.send('ready');
+		queuedSender.send('ready');
 	});
 }
 

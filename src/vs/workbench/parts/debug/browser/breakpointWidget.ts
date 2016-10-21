@@ -28,7 +28,7 @@ const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpoint
 const CLOSE_BREAKPOINT_WIDGET_COMMAND_ID = 'closeBreakpointWidget';
 const EXPRESSION_PLACEHOLDER = nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true");
 const EXPRESSION_ARIA_LABEL = nls.localize('breakpointWidgetAriaLabel', "The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.");
-const HIT_COUNT_PLACEHOLDER = nls.localize('breakpointWidgetHitCountPlaceholder', "Break when expression equals the hit count");
+const HIT_COUNT_PLACEHOLDER = nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met");
 const HIT_COUNT_ARIA_LABEL = nls.localize('breakpointWidgetHitCountAriaLabel', "The program will only stop here if the hit count is met. Press Enter to accept or Escape to cancel.");
 
 export class BreakpointWidget extends ZoneWidget {
@@ -76,7 +76,11 @@ export class BreakpointWidget extends ZoneWidget {
 			this.hitCountContext = e === 'Hit Count';
 			this.inputBox.setAriaLabel(this.hitCountContext ? HIT_COUNT_ARIA_LABEL : EXPRESSION_ARIA_LABEL);
 			this.inputBox.setPlaceHolder(this.hitCountContext ? HIT_COUNT_PLACEHOLDER : EXPRESSION_PLACEHOLDER);
-			this.inputBox.value = (this.hitCountContext && breakpoint && breakpoint.hitCondition) ? breakpoint.hitCondition : breakpoint && breakpoint.condition ? breakpoint.condition : '';
+			if (this.hitCountContext) {
+				this.inputBox.value = breakpoint && breakpoint.hitCondition ? breakpoint.hitCondition : '';
+			} else {
+				this.inputBox.value = breakpoint && breakpoint.condition ? breakpoint.condition : '';
+			}
 		});
 
 		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
@@ -96,10 +100,16 @@ export class BreakpointWidget extends ZoneWidget {
 			if (!disposed) {
 				disposed = true;
 				if (success) {
+					// if there is already a breakpoint on this location - remove it.
+					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
+						.filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+
 					const raw: debug.IRawBreakpoint = {
 						uri,
 						lineNumber: this.lineNumber,
-						enabled: true
+						enabled: true,
+						condition: oldBreakpoint && oldBreakpoint.condition,
+						hitCondition: oldBreakpoint && oldBreakpoint.hitCondition
 					};
 					if (this.hitCountContext) {
 						raw.hitCondition = this.inputBox.value;
@@ -107,9 +117,6 @@ export class BreakpointWidget extends ZoneWidget {
 						raw.condition = this.inputBox.value;
 					}
 
-					// if there is already a breakpoint on this location - remove it.
-					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
-						.filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
 					if (oldBreakpoint) {
 						this.debugService.removeBreakpoints(oldBreakpoint.getId()).done(null, errors.onUnexpectedError);
 					}

@@ -293,6 +293,10 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return !!this.extensionsGalleryUrl;
 	}
 
+	getRequestHeaders(): TPromise<{ [key: string]: string; }> {
+		return this.commonHeaders;
+	}
+
 	query(options: IQueryOptions = {}): TPromise<IPager<IGalleryExtension>> {
 		if (!this.isEnabled()) {
 			return TPromise.wrapError(new Error('No extension gallery service configured.'));

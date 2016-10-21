@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare namespace vscode {
+declare module 'vscode' {
 
 	/**
 	 * The version of the editor.
@@ -3377,6 +3377,12 @@ declare namespace vscode {
 		export const onDidChangeActiveTextEditor: Event<TextEditor>;
 
 		/**
+		 * An [event](#Event) which fires when the array of [visible editors](#window.visibleTextEditors)
+		 * has changed.
+		 */
+		export const onDidChangeVisibleTextEditors: Event<TextEditor[]>;
+
+		/**
 		 * An [event](#Event) which fires when the selection in an editor has changed.
 		 */
 		export const onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
@@ -3837,8 +3843,7 @@ declare namespace vscode {
 		 *
 		 * When a section-identifier is provided only that part of the configuration
 		 * is returned. Dots in the section-identifier are interpreted as child-access,
-		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting.doIt') === true`.
-		 *
+		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
 		 *
 		 * @param section A dot-separated identifier.
 		 * @return The full workspace configuration or a subset.
@@ -4069,6 +4074,10 @@ declare namespace vscode {
 		/**
 		 * Register a formatting provider for a document range.
 		 *
+		 * *Note:* A document range provider is also a [document formatter](#DocumentFormattingEditProvider)
+		 * which means there is no need to [register](registerDocumentFormattingEditProvider) a document
+		 * formatter when also registering a range provider.
+		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
@@ -4188,115 +4197,19 @@ declare namespace vscode {
 	}
 }
 
-// TS 1.6 & node_module
-// export = vscode;
-
-// when used for JS*
-// !!! DO NOT MODIFY ABOVE COMMENT ("when used for JS*") IT IS BEING USED TO DETECT JS* ONLY CHANGES !!!
-declare module 'vscode' {
-	export = vscode;
-}
-
 /**
  * Thenable is a common denominator between ES6 promises, Q, jquery.Deferred, WinJS.Promise,
  * and others. This API makes no assumption about what promise libary is being used which
  * enables reusing existing code without migrating to a specific promise implementation. Still,
  * we recommend the use of native promises which are available in VS Code.
  */
-interface Thenable<R> {
+interface Thenable<T> {
 	/**
 	* Attaches callbacks for the resolution and/or rejection of the Promise.
 	* @param onfulfilled The callback to execute when the Promise is resolved.
 	* @param onrejected The callback to execute when the Promise is rejected.
 	* @returns A Promise for the completion of which ever callback is executed.
 	*/
-	then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-	then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
+	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
+	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
 }
-
-// ---- ES6 promise ------------------------------------------------------
-
-/**
- * Represents the completion of an asynchronous operation.
- */
-interface Promise<T> extends Thenable<T> {
-	/**
-	* Attaches callbacks for the resolution and/or rejection of the Promise.
-	* @param onfulfilled The callback to execute when the Promise is resolved.
-	* @param onrejected The callback to execute when the Promise is rejected.
-	* @returns A Promise for the completion of which ever callback is executed.
-	*/
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Promise<TResult>;
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Promise<TResult>;
-
-	/**
-	 * Attaches a callback for only the rejection of the Promise.
-	 * @param onrejected The callback to execute when the Promise is rejected.
-	 * @returns A Promise for the completion of the callback.
-	 */
-	catch(onrejected?: (reason: any) => T | Thenable<T>): Promise<T>;
-
-	// [Symbol.toStringTag]: string;
-}
-
-interface PromiseConstructor {
-	// /**
-	//   * A reference to the prototype.
-	//   */
-	// prototype: Promise<any>;
-
-	/**
-	 * Creates a new Promise.
-	 * @param executor A callback used to initialize the promise. This callback is passed two arguments:
-	 * a resolve callback used to resolve the promise with a value or the result of another promise,
-	 * and a reject callback used to reject the promise with a provided reason or error.
-	 */
-	new <T>(executor: (resolve: (value?: T | Thenable<T>) => void, reject: (reason?: any) => void) => void): Promise<T>;
-
-	/**
-	 * Creates a Promise that is resolved with an array of results when all of the provided Promises
-	 * resolve, or rejected when any Promise is rejected.
-	 * @param values An array of Promises.
-	 * @returns A new Promise.
-	 */
-	all<T>(values: Array<T | Thenable<T>>): Promise<T[]>;
-
-	/**
-	 * Creates a Promise that is resolved or rejected when any of the provided Promises are resolved
-	 * or rejected.
-	 * @param values An array of Promises.
-	 * @returns A new Promise.
-	 */
-	race<T>(values: Array<T | Thenable<T>>): Promise<T>;
-
-	/**
-	 * Creates a new rejected promise for the provided reason.
-	 * @param reason The reason the promise was rejected.
-	 * @returns A new rejected Promise.
-	 */
-	reject(reason: any): Promise<void>;
-
-	/**
-	 * Creates a new rejected promise for the provided reason.
-	 * @param reason The reason the promise was rejected.
-	 * @returns A new rejected Promise.
-	 */
-	reject<T>(reason: any): Promise<T>;
-
-	/**
-	 * Creates a new resolved promise for the provided value.
-	 * @param value A promise.
-	 * @returns A promise whose internal state matches the provided promise.
-	 */
-	resolve<T>(value: T | Thenable<T>): Promise<T>;
-
-	/**
-	 * Creates a new resolved promise.
-	 * @returns A resolved promise.
-	 */
-	resolve(): Promise<void>;
-
-	// [Symbol.species]: Function;
-}
-
-declare var Promise: PromiseConstructor;

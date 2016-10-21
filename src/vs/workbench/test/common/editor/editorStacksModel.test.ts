@@ -9,7 +9,8 @@ import * as assert from 'assert';
 import { EditorStacksModel, EditorGroup, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import { EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import { TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService } from 'vs/test/utils/servicesTestUtils';
+import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/test/utils/servicesTestUtils';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -142,6 +143,9 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	public setResource(r: URI): void {
+	}
+
+	public setRestoreFromBackup(restore: boolean): void {
 	}
 
 	public setEncoding(encoding: string) {
@@ -296,9 +300,9 @@ suite('Editor Stacks Model', () => {
 		const group2 = model.openGroup('second');
 		const group3 = model.openGroup('third');
 
-		assert.equal(Position.LEFT, model.positionOfGroup(group1));
-		assert.equal(Position.CENTER, model.positionOfGroup(group2));
-		assert.equal(Position.RIGHT, model.positionOfGroup(group3));
+		assert.equal(Position.ONE, model.positionOfGroup(group1));
+		assert.equal(Position.TWO, model.positionOfGroup(group2));
+		assert.equal(Position.THREE, model.positionOfGroup(group3));
 	});
 
 	test('Groups - Rename Group', function () {

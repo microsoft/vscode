@@ -20,7 +20,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -38,6 +38,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from './extensionsInput';
+import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -45,7 +47,7 @@ interface IExtensionStateProvider {
 
 class Extension implements IExtension {
 
-	public needsRestart = false;
+	public needsReload = false;
 
 	constructor(
 		private galleryService: IExtensionGalleryService,
@@ -68,6 +70,10 @@ class Extension implements IExtension {
 		}
 
 		return this.gallery.displayName || this.gallery.name;
+	}
+
+	get identifier(): string {
+		return `${this.publisher}.${this.name}`;
 	}
 
 	get publisher(): string {
@@ -161,6 +167,10 @@ class Extension implements IExtension {
 
 	get outdated(): boolean {
 		return this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
+	}
+
+	get reload(): boolean {
+		return this.needsReload;
 	}
 
 	get telemetryData(): any {
@@ -285,6 +295,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private installing: IActiveExtension[] = [];
 	private uninstalling: IActiveExtension[] = [];
 	private installed: Extension[] = [];
+	private newlyInstalled: Extension[] = [];
+	private unInstalled: Extension[] = [];
 	private syncDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
@@ -300,7 +312,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
-		@IURLService urlService: IURLService
+		@IURLService urlService: IURLService,
+		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -468,6 +482,18 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies);
 	}
 
+	setEnablement(extension: IExtension, enable: boolean, workspace: boolean = false): TPromise<any> {
+		if (extension.type === LocalExtensionType.System) {
+			return TPromise.wrap(null);
+		}
+
+		return this.doSetEnablement(extension, enable, workspace).then(reload => {
+			(<Extension>extension).needsReload = reload;
+			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
+			this._onChange.fire();
+		});
+	}
+
 	uninstall(extension: IExtension): TPromise<void> {
 		if (!(extension instanceof Extension)) {
 			return;
@@ -481,6 +507,19 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		return this.extensionService.uninstall(local);
+	}
+
+	private doSetEnablement(extension: IExtension, enable: boolean, workspace: boolean): TPromise<boolean> {
+		if (workspace) {
+			return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, workspace);
+		}
+
+		const globalElablement = this.extensionsRuntimeService.setEnablement(extension.identifier, enable, false);
+		if (!this.workspaceContextService.getWorkspace()) {
+			return globalElablement;
+		}
+		return TPromise.join([globalElablement, this.extensionsRuntimeService.setEnablement(extension.identifier, enable, true)])
+			.then(values => values[0] || values[1]);
 	}
 
 	private onInstallExtension(event: InstallExtensionEvent): void {
@@ -528,8 +567,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this.installing = this.installing.filter(e => e.id !== id);
 
 		if (!error) {
+			this.newlyInstalled.push(extension);
 			extension.local = local;
-			extension.needsRestart = true;
+			extension.needsReload = true;
 
 			const galleryId = local.metadata && local.metadata.id;
 			const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
@@ -547,11 +587,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private onUninstallExtension(id: string): void {
-		const previousLength = this.installed.length;
 		const extension = this.installed.filter(e => e.local.id === id)[0];
-		this.installed = this.installed.filter(e => e.local.id !== id);
-
-		if (previousLength === this.installed.length) {
+		const newLength = this.installed.filter(e => e.local.id !== id).length;
+		// TODO: @Joao why is this?
+		if (newLength === this.installed.length) {
 			return;
 		}
 
@@ -563,15 +602,26 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this._onChange.fire();
 	}
 
-	private onDidUninstallExtension(id: string): void {
+	private onDidUninstallExtension({id, error}: DidUninstallExtensionEvent): void {
+		if (!error) {
+			this.newlyInstalled = this.newlyInstalled.filter(e => e.local.id !== id);
+			this.installed = this.installed.filter(e => e.local.id !== id);
+		}
+
 		const uninstalling = this.uninstalling.filter(e => e.id === id)[0];
 		this.uninstalling = this.uninstalling.filter(e => e.id !== id);
-
 		if (!uninstalling) {
 			return;
 		}
 
-		this.reportTelemetry(uninstalling, true);
+		if (!error) {
+			this.unInstalled.push(uninstalling.extension);
+			this.extensionsRuntimeService.setEnablement(uninstalling.extension.identifier, true);
+			uninstalling.extension.needsReload = true;
+			this.reportTelemetry(uninstalling, true);
+		}
+
+		this._onChange.fire();
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
@@ -579,10 +629,18 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return ExtensionState.Installing;
 		}
 
+		if (extension.gallery && this.uninstalling.some(e => e.extension.gallery.id === extension.gallery.id)) {
+			return ExtensionState.Uninstalling;
+		}
+
+		const disabledExtensions = this.extensionsRuntimeService.getDisabledExtensions();
 		const local = this.installed.filter(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))[0];
 
 		if (local) {
-			return local.needsRestart ? ExtensionState.NeedsRestart : ExtensionState.Installed;
+			if (this.newlyInstalled.some(e => e.gallery && extension.gallery && e.gallery.id === extension.gallery.id)) {
+				return ExtensionState.Installed;
+			}
+			return disabledExtensions.indexOf(`${local.publisher}.${local.name}`) === -1 ? ExtensionState.Enabled : ExtensionState.Disabled;
 		}
 
 		return ExtensionState.Uninstalled;

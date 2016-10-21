@@ -231,7 +231,7 @@
 			}
 		},
 		{
-			"scope": "keyword.operator.new",
+			"scope": ["keyword.operator.new", "keyword.operator.expression"],
 			"settings": {
 				"foreground": "#569cd6"
 			}
@@ -259,6 +259,13 @@
 			"scope": ["storage.modifier.import.java", "storage.modifier.package.java"],
 			"settings": {
 				"foreground": "#d4d4d4"
+			}
+		},
+		{
+			"name": "coloring of the TS this",
+			"scope": "variable.this",
+			"settings": {
+				"foreground": "#569cd6"
 			}
 		}
 	]

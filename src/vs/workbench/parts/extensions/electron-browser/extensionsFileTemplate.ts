@@ -7,9 +7,9 @@ import { localize } from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 
-export const SchemaId = 'vscode://schemas/extensions';
-export const Schema: IJSONSchema = {
-	id: SchemaId,
+export const ExtensionsConfigurationSchemaId = 'vscode://schemas/extensions';
+export const ExtensionsConfigurationSchema: IJSONSchema = {
+	id: ExtensionsConfigurationSchemaId,
 	type: 'object',
 	title: localize('app.extensions.json.title', "Extensions"),
 	properties: {
@@ -26,7 +26,7 @@ export const Schema: IJSONSchema = {
 	}
 };
 
-export const InitialContent: string = [
+export const ExtensionsConfigurationInitialContent: string = [
 	'{',
 	'\t// See http://go.microsoft.com/fwlink/?LinkId=827846',
 	'\t// for the documentation about the extensions.json format',

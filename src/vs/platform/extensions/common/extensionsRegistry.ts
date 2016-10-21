@@ -205,15 +205,15 @@ const schema: IJSONSchema = {
 		'dependencies': {}
 	},
 	properties: {
-		// engines: {
-		// 	required: [ 'vscode' ],
-		// 	properties: {
-		// 		'vscode': {
-		// 			type: 'string',
-		// 			description: nls.localize('vscode.extension.engines.vscode', 'Specifies that this package only runs inside VSCode of the given version.'),
-		// 		}
-		// 	}
-		// },
+		engines: {
+			properties: {
+				'vscode': {
+					type: 'string',
+					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^0.10.5 indicates compatibility with a minimum VS Code version of 0.10.5.'),
+					default: '^0.10.0',
+				}
+			}
+		},
 		publisher: {
 			description: nls.localize('vscode.extension.publisher', 'The publisher of the VS Code extension.'),
 			type: 'string'

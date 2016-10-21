@@ -28,6 +28,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	public static SCHEMA: string = 'untitled';
 
 	private resource: URI;
+	private restoreResource: URI;
 	private hasAssociatedFilePath: boolean;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
@@ -46,7 +47,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
-
 		this.resource = resource;
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
@@ -64,6 +64,10 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public getResource(): URI {
 		return this.resource;
+	}
+
+	public setRestoreResource(resource: URI): void {
+		this.restoreResource = resource;
 	}
 
 	public getName(): string {
@@ -130,17 +134,25 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			return TPromise.as(this.cachedModel);
 		}
 
-		// Otherwise Create Model and load
-		const model = this.createModel();
-		return model.load().then((resolvedModel: UntitledEditorModel) => {
-			this.cachedModel = resolvedModel;
+		// Otherwise Create Model and load, restoring from backup if necessary
+		let restorePromise: TPromise<string>;
+		if (this.restoreResource) {
+			restorePromise = this.textFileService.resolveTextContent(this.restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
+		} else {
+			restorePromise = TPromise.as('');
+		}
 
-			return this.cachedModel;
+		return restorePromise.then(content => {
+			const model = this.createModel(content);
+			return model.load().then((resolvedModel: UntitledEditorModel) => {
+				this.cachedModel = resolvedModel;
+
+				return this.cachedModel;
+			});
 		});
 	}
 
-	private createModel(): UntitledEditorModel {
-		const content = '';
+	private createModel(content: string): UntitledEditorModel {
 		const model = this.instantiationService.createInstance(UntitledEditorModel, content, this.modeId, this.resource, this.hasAssociatedFilePath);
 
 		// re-emit some events from the model

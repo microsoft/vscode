@@ -144,15 +144,18 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this._focusTracker.addFocusListener(() => {
 			this._findInputFocussed.set(true);
-			let selection = this._codeEditor.getSelection();
-			if (selection.endColumn === 1) {
-				selection = selection.setEndPosition(selection.endLineNumber - 1, 1);
-			}
-			let currentMatch = this._state.currentMatch;
-			if (selection.startLineNumber !== selection.endLineNumber) {
-				if (!Range.equalsRange(selection, currentMatch)) {
-					// Reseed find scope
-					this._state.change({ searchScope: selection }, true);
+
+			if (this._toggleSelectionFind.checked) {
+				let selection = this._codeEditor.getSelection();
+				if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
+					selection = selection.setEndPosition(selection.endLineNumber - 1, 1);
+				}
+				let currentMatch = this._state.currentMatch;
+				if (selection.startLineNumber !== selection.endLineNumber) {
+					if (!Range.equalsRange(selection, currentMatch)) {
+						// Reseed find scope
+						this._state.change({ searchScope: selection }, true);
+					}
 				}
 			}
 		});
@@ -504,7 +507,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			onChange: () => {
 				if (this._toggleSelectionFind.checked) {
 					let selection = this._codeEditor.getSelection();
-					if (selection.endColumn === 1) {
+					if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
 						selection = selection.setEndPosition(selection.endLineNumber - 1, 1);
 					}
 					if (!selection.isEmpty()) {

@@ -102,13 +102,13 @@ export function toDiagnosticSeverty(value: Severity): types.DiagnosticSeverity {
 }
 
 export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
-	let editorColumn = EditorPosition.LEFT;
+	let editorColumn = EditorPosition.ONE;
 	if (typeof column !== 'number') {
-		// stick with LEFT
+		// stick with ONE
 	} else if (column === <number>types.ViewColumn.Two) {
-		editorColumn = EditorPosition.CENTER;
+		editorColumn = EditorPosition.TWO;
 	} else if (column === <number>types.ViewColumn.Three) {
-		editorColumn = EditorPosition.RIGHT;
+		editorColumn = EditorPosition.THREE;
 	}
 	return editorColumn;
 }
@@ -117,11 +117,11 @@ export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
 	if (typeof position !== 'number') {
 		return;
 	}
-	if (position === EditorPosition.LEFT) {
+	if (position === EditorPosition.ONE) {
 		return <number>types.ViewColumn.One;
-	} else if (position === EditorPosition.CENTER) {
+	} else if (position === EditorPosition.TWO) {
 		return <number>types.ViewColumn.Two;
-	} else if (position === EditorPosition.RIGHT) {
+	} else if (position === EditorPosition.THREE) {
 		return <number>types.ViewColumn.Three;
 	}
 }
@@ -329,7 +329,7 @@ export const Suggest = {
 		return suggestion;
 	},
 
-	to(container: modes.ISuggestResult, position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
+	to(position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.type);
@@ -338,7 +338,7 @@ export const Suggest = {
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 
-		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : container.currentWord.length;
+		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;
 		let startPosition = new types.Position(position.line, Math.max(0, position.character - overwriteBefore));
 		let endPosition = position;
 		if (typeof suggestion.overwriteAfter === 'number') {

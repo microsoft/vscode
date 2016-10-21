@@ -53,7 +53,7 @@ class SelectColorThemeAction extends Action {
 					theme = currentTheme;
 				}
 				this.themeService.setColorTheme(theme.id, broadcast)
-					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem loading theme: {0}", err.message)));
+					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem loading theme: {0}", err)));
 			};
 
 			const placeHolder = localize('themes.selectTheme', "Select Color Theme");

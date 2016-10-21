@@ -20,6 +20,8 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
+import { BackupService } from 'vs/platform/backup/node/backupService';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { Storage, inMemoryLocalStorageInstance } from 'vs/workbench/common/storage';
 import { ITelemetryService, NullTelemetryService, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
@@ -65,7 +67,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -82,7 +84,8 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
-import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
+import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
+import { ExtensionsRuntimeService } from 'vs/workbench/services/extensions/electron-browser/extensions';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -242,6 +245,11 @@ export class WorkbenchShell {
 			});
 		}, errors.onUnexpectedError);
 
+		// Backup
+		const backupService = instantiationService.createInstance(BackupService);
+		backupService.setCurrentWorkspace(this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource : null);
+		serviceCollection.set(IBackupService, backupService);
+
 		// Storage
 		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = instantiationService.createInstance(Storage, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
@@ -290,6 +298,9 @@ export class WorkbenchShell {
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
 		serviceCollection.set(ILifecycleService, lifecycleService);
+
+		const extensionsRuntimeService = instantiationService.createInstance(ExtensionsRuntimeService);
+		serviceCollection.set(IExtensionsRuntimeService, extensionsRuntimeService);
 
 		const extensionHostProcessWorker = this.startExtensionHost(instantiationService);
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
