@@ -6,49 +6,55 @@
 'use strict';
 
 import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {Storage, InMemoryLocalStorage} from 'vs/workbench/common/storage';
-import {EditorInputEvent, IEditorGroup, ConfirmResult} from 'vs/workbench/common/editor';
-import Event, {Emitter} from 'vs/base/common/event';
+import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
+import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
+import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import {IConfigurationService, getConfigurationValue, IConfigurationValue} from 'vs/platform/configuration/common/configuration';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IEditorInput, IEditorOptions, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
-import {IWorkspace, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
-import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
-import {TextFileService} from 'vs/workbench/parts/files/common/textFileService';
-import {IFileService, IResolveContentOptions, IFileOperationResult} from 'vs/platform/files/common/files';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
-import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
-import {RawText} from 'vs/editor/common/model/textModel';
-import {parseArgs} from 'vs/platform/environment/node/argv';
-import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {IHistoryService} from 'vs/workbench/services/history/common/history';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IBackupService } from 'vs/platform/backup/common/backup';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IEditorInput, IEditorOptions, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
+import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { TextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
+import { IFileService, IResolveContentOptions, IFileOperationResult } from 'vs/platform/files/common/files';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { RawText } from 'vs/editor/common/model/textModel';
+import { parseArgs } from 'vs/platform/environment/node/argv';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
 	name: 'Test Workspace',
 	uid: Date.now()
 };
+
+export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
+	return instantiationService.createInstance(FileEditorInput, resource, void 0);
+}
 
 export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
 
@@ -106,9 +112,10 @@ export class TestTextFileService extends TextFileService {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IBackupService backupService: IBackupService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService, backupService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -169,6 +176,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHistoryService, 'getHistory', []);
 	instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	instantiationService.stub(IFileService, TestFileService);
+	instantiationService.stub(IBackupService, new TestBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
@@ -226,11 +234,13 @@ export class TestPartService implements IPartService {
 		return true;
 	}
 
+	public getContainer(part): HTMLElement {
+		return null;
+	}
+
 	public isStatusBarHidden(): boolean {
 		return false;
 	}
-
-	public setStatusBarHidden(hidden: boolean): void { }
 
 	public isSideBarHidden(): boolean {
 		return false;
@@ -244,11 +254,12 @@ export class TestPartService implements IPartService {
 
 	public setPanelHidden(hidden: boolean): void { }
 
+	public toggleMaximizedPanel(): void { }
+
 	public getSideBarPosition() {
 		return 0;
 	}
 
-	public setSideBarPosition(position): void { }
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
 	public getWorkbenchElementId(): string { return ''; }
@@ -271,7 +282,7 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		super();
 
 		let context = new TestContextService();
-		this.storage = new Storage(new InMemoryLocalStorage(), null, context);
+		this.storage = new Storage(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -305,14 +316,12 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private stacksModel: EditorStacksModel;
 
 	private _onEditorsChanged: Emitter<void>;
-	private _onEditorOpening: Emitter<EditorInputEvent>;
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
-		this._onEditorOpening = new Emitter<EditorInputEvent>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
 
 		let services = new ServiceCollection();
@@ -334,10 +343,6 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public get onEditorsChanged(): Event<void> {
 		return this._onEditorsChanged.event;
-	}
-
-	public get onEditorOpening(): Event<EditorInputEvent> {
-		return this._onEditorOpening.event;
 	}
 
 	public get onEditorOpenFail(): Event<IEditorInput> {
@@ -568,39 +573,74 @@ export const TestFileService = {
 				name: paths.basename(res.fsPath)
 			};
 		});
+	},
+
+	backupFile: function (resource: URI, content: string) {
+		return TPromise.as(void 0);
+	},
+
+	discardBackup: function (resource: URI) {
+		return TPromise.as(void 0);
+	},
+
+	discardBackups: function () {
+		return TPromise.as(void 0);
+	},
+
+	isHotExitEnabled: function () {
+		return false;
 	}
 };
 
-export class TestConfigurationService extends EventEmitter implements IConfigurationService {
+export class TestBackupService implements IBackupService {
 	public _serviceBrand: any;
 
-	private configuration = Object.create(null);
+	// Lists used for verification in tests
+	public registeredResources: URI[] = [];
+	public deregisteredResources: URI[] = [];
 
-	public reloadConfiguration<T>(section?: string): TPromise<T> {
-		return TPromise.as(this.getConfiguration());
+	public getWorkspaceBackupPaths(): TPromise<string[]> {
+		return TPromise.as([]);
 	}
 
-	public getConfiguration(): any {
-		return this.configuration;
+	public getWorkspaceBackupPathsSync(): string[] {
+		return [];
 	}
 
-	public setUserConfiguration(key: any, value: any): Thenable<void> {
-		this.configuration[key] = value;
-		return TPromise.as(null);
+	public pushWorkspaceBackupPathsSync(workspaces: URI[]): void {
+		return null;
 	}
 
-	public onDidUpdateConfiguration() {
-		return { dispose() { } };
+	public removeWorkspaceBackupPath(workspace: URI): TPromise<void> {
+		return TPromise.as(void 0);
 	}
 
-	public lookup<C>(key: string): IConfigurationValue<C> {
-		return {
-			value: getConfigurationValue<C>(this.getConfiguration(), key),
-			default: getConfigurationValue<C>(this.getConfiguration(), key),
-			user: getConfigurationValue<C>(this.getConfiguration(), key)
-		};
+	public getWorkspaceTextFilesWithBackupsSync(workspace: URI): string[] {
+		return [];
 	}
-}
+
+	public getWorkspaceUntitledFileBackupsSync(workspace: URI): string[] {
+		return [];
+	}
+
+	public doesTextFileHaveBackup(resource: URI): TPromise<boolean> {
+		return TPromise.as(false);
+	}
+
+	public registerResourceForBackup(resource: URI): TPromise<void> {
+		this.registeredResources.push(resource);
+		return TPromise.as(void 0);
+	}
+
+	public deregisterResourceForBackup(resource: URI): TPromise<void> {
+		this.deregisteredResources.push(resource);
+		return TPromise.as(void 0);
+	}
+
+	public getBackupResource(resource: URI): URI {
+		return null;
+	}
+};
 
 export class TestLifecycleService implements ILifecycleService {
 

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {AppInsightsAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
+import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 
 interface IAppInsightsEvent {
 	eventName: string;

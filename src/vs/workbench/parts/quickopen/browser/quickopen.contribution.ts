@@ -7,15 +7,15 @@
 
 import env = require('vs/base/common/platform');
 import nls = require('vs/nls');
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions} from 'vs/workbench/browser/quickopen';
-import {Registry} from 'vs/platform/platform';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {GotoSymbolAction, GOTO_SYMBOL_PREFIX, SCOPE_PREFIX} from 'vs/workbench/parts/quickopen/browser/gotoSymbolHandler';
-import {ShowAllCommandsAction, ALL_COMMANDS_PREFIX} from 'vs/workbench/parts/quickopen/browser/commandsHandler';
-import {GotoLineAction, GOTO_LINE_PREFIX} from 'vs/workbench/parts/quickopen/browser/gotoLineHandler';
-import {HELP_PREFIX} from 'vs/workbench/parts/quickopen/browser/helpHandler';
+import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions } from 'vs/workbench/browser/quickopen';
+import { Registry } from 'vs/platform/platform';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { GotoSymbolAction, GOTO_SYMBOL_PREFIX, SCOPE_PREFIX } from 'vs/workbench/parts/quickopen/browser/gotoSymbolHandler';
+import { ShowAllCommandsAction, ALL_COMMANDS_PREFIX } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
+import { GotoLineAction, GOTO_LINE_PREFIX } from 'vs/workbench/parts/quickopen/browser/gotoLineHandler';
+import { HELP_PREFIX } from 'vs/workbench/parts/quickopen/browser/helpHandler';
 
 // Register Actions
 let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);

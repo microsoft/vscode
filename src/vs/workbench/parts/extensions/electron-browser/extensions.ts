@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IViewlet} from 'vs/workbench/common/viewlet';
+import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -19,7 +19,9 @@ export interface IExtensionsViewlet extends IViewlet {
 export enum ExtensionState {
 	Installing,
 	Installed,
-	NeedsRestart,
+	Enabled,
+	Disabled,
+	Uninstalling,
 	Uninstalled
 }
 
@@ -28,6 +30,7 @@ export interface IExtension {
 	state: ExtensionState;
 	name: string;
 	displayName: string;
+	identifier: string;
 	publisher: string;
 	publisherDisplayName: string;
 	version: string;
@@ -40,11 +43,21 @@ export interface IExtension {
 	rating: number;
 	ratingCount: number;
 	outdated: boolean;
+	reload: boolean;
+	dependencies: string[];
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
-	hasChangelog : boolean;
-	getChangelog() : TPromise<string>;
+	hasChangelog: boolean;
+	getChangelog(): TPromise<string>;
+}
+
+export interface IExtensionDependencies {
+	dependencies: IExtensionDependencies[];
+	hasDependencies: boolean;
+	identifier: string;
+	extension: IExtension;
+	dependent: IExtensionDependencies;
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';
@@ -61,6 +74,9 @@ export interface IExtensionsWorkbenchService {
 	install(vsix: string): TPromise<void>;
 	install(extension: IExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
+	setEnablement(extension: IExtension, enable: boolean, workspace?: boolean): TPromise<void>;
+	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
+	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 }
 
 export const ConfigurationKey = 'extensions';

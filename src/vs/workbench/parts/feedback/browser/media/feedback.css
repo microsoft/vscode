@@ -7,6 +7,7 @@
 	top: 30px;
 	right: 6px;
 	padding: 1em;
+	cursor: default;
 }
 
 .monaco-shell .feedback-form h2 {
@@ -63,6 +64,10 @@
 
 .monaco-shell.vs-dark .feedback-form .content .channels a {
 	color: #75BEFF;
+}
+
+.monaco-shell .feedback-form .content .channels a:hover {
+	text-decoration: underline;
 }
 
 .monaco-shell .feedback-form .feedback-alias, .monaco-shell .feedback-form .feedback-description {

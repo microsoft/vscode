@@ -25,7 +25,7 @@ export const TERMINAL_DEFAULT_SHELL_WINDOWS = processes.getWindowsShell();
  * A context key that is set when the integrated terminal has focus.
  */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', undefined);
-export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED:ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
+export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
 
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
@@ -39,7 +39,8 @@ export interface ITerminalConfiguration {
 			},
 			shellArgs: {
 				linux: string[],
-				osx: string[]
+				osx: string[],
+				windows: string[]
 			},
 			cursorBlinking: boolean,
 			fontFamily: string,
@@ -140,10 +141,14 @@ export interface ITerminalInstance {
 	scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */
 	scrollDownPage(): void;
+	/** Scroll the terminal buffer to the bottom. */
+	scrollToBottom(): void;
 	/** Scroll the terminal buffer up 1 line. */
 	scrollUpLine(): void;
 	/** Scroll the terminal buffer up 1 page. */
 	scrollUpPage(): void;
+	/** Scroll the terminal buffer to the top. */
+	scrollToTop(): void;
 
 	/**
 	 * Clears the terminal buffer, leaving only the prompt line.

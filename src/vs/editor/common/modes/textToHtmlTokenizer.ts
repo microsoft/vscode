@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
-import {IState, ITokenizationSupport, TokenizationRegistry} from 'vs/editor/common/modes';
-import {NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
+import { IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
+import { NullState, nullTokenize } from 'vs/editor/common/modes/nullMode';
 
 export function tokenizeToHtmlContent(text: string, languageId: string): IHTMLContentElement {
 	return _tokenizeToHtmlContent(text, _getSafeTokenizationSupport(languageId));
@@ -24,7 +24,7 @@ function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
 	}
 	return {
 		getInitialState: () => new NullState(null, null),
-		tokenize: (buffer:string, state: IState, deltaOffset:number = 0, stopAtOffset?:number) => nullTokenize(null, buffer, state, deltaOffset, stopAtOffset)
+		tokenize: (buffer: string, state: IState, deltaOffset: number = 0, stopAtOffset?: number) => nullTokenize(null, buffer, state, deltaOffset, stopAtOffset)
 	};
 }
 
@@ -96,7 +96,7 @@ function _tokenizeLines(text: string, tokenizationSupport: ITokenizationSupport,
 	}
 }
 
-function _tokenizeLine(line: string, tokenizationSupport:ITokenizationSupport, emitToken: IEmitTokenFunc, startState: IState): IState {
+function _tokenizeLine(line: string, tokenizationSupport: ITokenizationSupport, emitToken: IEmitTokenFunc, startState: IState): IState {
 	var tokenized = tokenizationSupport.tokenize(line, startState),
 		endState = tokenized.endState,
 		tokens = tokenized.tokens,

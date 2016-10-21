@@ -9,10 +9,10 @@
 	"exclude.when": "일치하는 파일의 형제에 대한 추가 검사입니다. $(basename)을 일치하는 파일 이름에 대한 변수로 사용하세요.",
 	"findInFolder": "폴더에서 찾기",
 	"name": "검색",
-	"openAnythingHandlerDescription": "이름으로 파일 열기",
-	"openSymbolDescriptionNormal": "이름으로 기호 열기",
-	"search.quickOpen.includeSymbols": "빠른 열기에 대한 파일 결과에 전역 기호 검색 결과를 포함하려면 구성합니다.",
+	"openAnythingHandlerDescription": "파일로 이동",
+	"openSymbolDescriptionNormal": "작업 영역에서 기호로 이동",
+	"search.quickOpen.includeSymbols": "Quick Open에 대한 파일 결과에 전역 기호 검색 결과를 포함하도록 구성합니다.",
 	"searchConfigurationTitle": "검색",
-	"showTriggerActions": "모든 기호 표시",
+	"showTriggerActions": "작업 영역에서 기호로 이동...",
 	"view": "보기"
 }

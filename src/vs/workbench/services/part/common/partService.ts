@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export enum Parts {
 	ACTIVITYBAR_PART,
@@ -23,7 +23,7 @@ export enum Position {
 export const IPartService = createDecorator<IPartService>('partService');
 
 export interface IPartService {
-	_serviceBrand : ServiceIdentifier<any>;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
 	 * Asks the part service to layout all parts.
@@ -46,6 +46,11 @@ export interface IPartService {
 	hasFocus(part: Parts): boolean;
 
 	/**
+	 * Returns the parts HTML element, if there is one.
+	 */
+	getContainer(part: Parts): HTMLElement;
+
+	/**
 	 * Returns iff the part is visible.
 	 */
 	isVisible(part: Parts): boolean;
@@ -54,11 +59,6 @@ export interface IPartService {
 	 * Checks if the statusbar is currently hidden or not
 	 */
 	isStatusBarHidden(): boolean;
-
-	/**
-	 * Set statusbar hidden or not
-	 */
-	setStatusBarHidden(hidden: boolean): void;
 
 	/**
 	 * Checks if the sidebar is currently hidden or not
@@ -81,15 +81,15 @@ export interface IPartService {
 	setPanelHidden(hidden: boolean): void;
 
 	/**
+	 * Maximizes the panel height if the panel is not already maximized.
+	 * Shrinks the panel to the default starting size if the panel is maximized.
+	 */
+	toggleMaximizedPanel(): void;
+
+	/**
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
-
-	/**
-	 * Sets the side bar position. If the side bar is hidden, the side bar will
-	 * also be made visible.
-	 */
-	setSideBarPosition(position: Position): void;
 
 	/**
 	 * Adds a class to the workbench part.

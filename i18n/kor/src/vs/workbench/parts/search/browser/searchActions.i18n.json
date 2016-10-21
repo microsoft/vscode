@@ -10,7 +10,11 @@
 	"RemoveAction.label": "제거",
 	"file.replaceAll.label": "모두 바꾸기",
 	"findInFolder": "폴더에서 찾기",
+	"focusNextInputbox": "다음 입력 상자에 포커스",
+	"focusPreviousInputbox": "이전 입력 상자에 포커스",
 	"match.replace.label": "바꾸기",
+	"nextSearchTerm": "다음 검색어 표시",
+	"previousSearchTerm": "이전 검색어 표시",
 	"replaceInFiles": "파일에서 바꾸기",
 	"showSearchViewlet": "검색 표시"
 }

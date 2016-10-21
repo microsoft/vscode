@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {AbstractGettingStarted} from 'vs/workbench/parts/welcome/common/abstractGettingStarted';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { AbstractGettingStarted } from 'vs/workbench/parts/welcome/common/abstractGettingStarted';
 import * as platform from 'vs/base/common/platform';
 
 import { shell } from 'electron';
@@ -23,7 +23,7 @@ export class ElectronGettingStarted extends AbstractGettingStarted implements IW
 
 	protected handleWelcome(): void {
 		//make sure the user is online, otherwise refer to the next run to show the welcome page
-		if(navigator.onLine) {
+		if (navigator.onLine) {
 			super.handleWelcome();
 		}
 	}

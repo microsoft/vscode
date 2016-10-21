@@ -9,10 +9,10 @@
 	"exclude.when": "Vérification supplémentaire des frères d'un fichier correspondant. Utilisez $(basename) comme variable pour le nom de fichier correspondant.",
 	"findInFolder": "Rechercher dans le dossier",
 	"name": "Recherche",
-	"openAnythingHandlerDescription": "Ouvrir les fichiers par nom",
-	"openSymbolDescriptionNormal": "Ouvrir n'importe quel symbole par nom",
-	"search.quickOpen.includeSymbols": "Configurez l'ajout des résultats d'une recherche de symboles globale dans le fichier de résultats pour l'ouverture rapide.",
+	"openAnythingHandlerDescription": "Accéder au fichier",
+	"openSymbolDescriptionNormal": "Accéder au symbole dans l'espace de travail",
+	"search.quickOpen.includeSymbols": "Configurez l'ajout des résultats d'une recherche de symboles globale dans le fichier de résultats pour Quick Open.",
 	"searchConfigurationTitle": "Rechercher",
-	"showTriggerActions": "Afficher tous les symboles",
+	"showTriggerActions": "Accéder au symbole dans l'espace de travail...",
 	"view": "Affichage"
 }

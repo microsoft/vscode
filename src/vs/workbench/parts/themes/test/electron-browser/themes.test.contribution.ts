@@ -5,18 +5,18 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
-import {TextModel} from 'vs/editor/common/model/textModel';
-import {IModeService} from 'vs/editor/common/services/modeService';
+import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import pfs = require('vs/base/node/pfs');
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {asFileEditorInput} from 'vs/workbench/common/editor';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { asFileEditorInput } from 'vs/workbench/common/editor';
 
 
 interface Data {
@@ -33,7 +33,7 @@ class Snapper {
 	) {
 	}
 
-	private getTestNode(themeId: string) : Element {
+	private getTestNode(themeId: string): Element {
 		let editorNode = document.createElement('div');
 		editorNode.className = 'monaco-editor ' + themeId;
 		document.body.appendChild(editorNode);
@@ -45,11 +45,11 @@ class Snapper {
 		return element;
 	}
 
-	private normalizeType(type: string) : string {
+	private normalizeType(type: string): string {
 		return type.split('.').sort().join('.');
 	}
 
-	private getStyle(testNode: Element, scope: string) : string {
+	private getStyle(testNode: Element, scope: string): string {
 
 		testNode.className = 'token ' + scope.replace(/\./g, ' ');
 
@@ -60,16 +60,16 @@ class Snapper {
 		return '';
 	}
 
-	private getMatchedCSSRule(testNode: Element, scope: string) : string {
+	private getMatchedCSSRule(testNode: Element, scope: string): string {
 
 		testNode.className = 'token ' + scope.replace(/\./g, ' ');
 
 		let rulesList = window.getMatchedCSSRules(testNode);
 
 		if (rulesList) {
-			for (let i = rulesList.length - 1; i >= 0 ; i--) {
-				let selectorText = <string> rulesList.item(i)['selectorText'];
-				if (selectorText && selectorText.match(/\.monaco-editor\..+token/) ) {
+			for (let i = rulesList.length - 1; i >= 0; i--) {
+				let selectorText = <string>rulesList.item(i)['selectorText'];
+				if (selectorText && selectorText.match(/\.monaco-editor\..+token/)) {
 					return selectorText.substr(14);
 				}
 			}
@@ -81,7 +81,7 @@ class Snapper {
 	}
 
 
-	public appendThemeInformation(data: Data[]) : TPromise<Data[]> {
+	public appendThemeInformation(data: Data[]): TPromise<Data[]> {
 		let currentTheme = this.themeService.getColorTheme();
 
 		let getThemeName = (id: string) => {
@@ -114,15 +114,15 @@ class Snapper {
 		});
 	}
 
-	public captureSyntaxTokens(fileName: string, content: string) : TPromise<Data[]> {
+	public captureSyntaxTokens(fileName: string, content: string): TPromise<Data[]> {
 		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
-			let result : Data[] = [];
+			let result: Data[] = [];
 			let model = new TextModelWithTokens([], TextModel.toRawText(content, TextModel.DEFAULT_CREATION_OPTIONS), mode.getId());
-			model.tokenIterator({lineNumber: 1, column: 1}, iterator => {
+			model.tokenIterator({ lineNumber: 1, column: 1 }, iterator => {
 				while (iterator.hasNext()) {
 					let tokenInfo = iterator.next();
 					let lineNumber = tokenInfo.lineNumber;
-					let content = model.getValueInRange({ startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: tokenInfo.startColumn, endColumn: tokenInfo.endColumn});
+					let content = model.getValueInRange({ startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: tokenInfo.startColumn, endColumn: tokenInfo.endColumn });
 					result.push({
 						c: content,
 						t: this.normalizeType(tokenInfo.type),

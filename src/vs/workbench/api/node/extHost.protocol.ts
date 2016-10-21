@@ -30,7 +30,7 @@ import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { SaveReason } from 'vs/workbench/parts/files/common/files';
+import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditorsTracker';
 

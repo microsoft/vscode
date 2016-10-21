@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {isMacintosh} from 'vs/base/common/platform';
-import {isFunction} from 'vs/base/common/types';
-import {Action} from 'vs/base/common/actions';
-import {DropdownMenu, IDropdownMenuOptions} from 'vs/base/browser/ui/dropdown/dropdown';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { isMacintosh } from 'vs/base/common/platform';
+import { isFunction } from 'vs/base/common/types';
+import { Action } from 'vs/base/common/actions';
+import { DropdownMenu, IDropdownMenuOptions } from 'vs/base/browser/ui/dropdown/dropdown';
 
 export interface ILinksDropdownMenuOptions extends IDropdownMenuOptions {
 	tooltip: string;

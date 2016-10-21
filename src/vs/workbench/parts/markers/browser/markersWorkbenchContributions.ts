@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {localize} from 'vs/nls';
-import lifecycle = require('vs/base/common/lifecycle');
+import { localize } from 'vs/nls';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -18,8 +18,7 @@ import * as panel from 'vs/workbench/browser/panel';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import * as markersPanelActions from 'vs/workbench/parts/markers/browser/markersPanelActions';
 
-class StatusUpdater implements IWorkbenchContribution
-{
+class StatusUpdater implements IWorkbenchContribution {
 	static ID = 'vs.markers.statusUpdater';
 
 	private toDispose: lifecycle.IDisposable[];
@@ -37,7 +36,7 @@ class StatusUpdater implements IWorkbenchContribution
 		const stats = this.markerService.getStatistics();
 		const problemCount = stats.errors + stats.warnings + stats.infos + stats.unknowns;
 		if (problemCount > 0) {
-			const badge = new NumberBadge(problemCount, n => localize('errorsAndWarnings', '{0} Errors and Warnings', n));
+			const badge = new NumberBadge(problemCount, n => localize({ comment: ['Argument represents count (number) of errors and warnings.'], key: 'errorsAndWarnings' }, '{0} Errors and Warnings', n));
 			this.activityService.showActivity(Constants.MARKERS_PANEL_ID, badge);
 		} else {
 			this.activityService.showActivity(Constants.MARKERS_PANEL_ID, null);

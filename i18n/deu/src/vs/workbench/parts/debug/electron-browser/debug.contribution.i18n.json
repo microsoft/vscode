@@ -6,9 +6,10 @@
 {
 	"debug": "Debuggen",
 	"debugCategory": "Debuggen",
-	"debugErrorEditor": "Fehler debuggen",
+	"debugErrorEditor": "Debuggingfehler",
 	"debugPanel": "Debugkonsole",
 	"launchConfigDoesNotExist": "Die Startkonfiguration \"{0}\" ist nicht vorhanden.",
+	"toggleDebugPanel": "Debugkonsole",
 	"toggleDebugViewlet": "Debuggen anzeigen",
 	"view": "Anzeigen"
 }

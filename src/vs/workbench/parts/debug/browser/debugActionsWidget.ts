@@ -8,18 +8,18 @@ import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import builder = require('vs/base/browser/builder');
 import dom = require('vs/base/browser/dom');
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import actions = require('vs/base/common/actions');
 import events = require('vs/base/common/events');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
-import {IPartService} from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 import wbext = require('vs/workbench/common/contributions');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {PauseAction, ContinueAction, StepBackAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction} from 'vs/workbench/parts/debug/browser/debugActions';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import { PauseAction, ContinueAction, StepBackAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import IDebugService = debug.IDebugService;
 
@@ -183,7 +183,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		}
 
 		this.actions[0] = state === debug.State.Running ? this.pauseAction : this.continueAction;
-		const session = this.debugService.getActiveSession();
+		const session = this.debugService.activeSession;
 		const configuration = this.debugService.getConfigurationManager().configuration;
 		this.actions[5] = configuration && configuration.request === 'attach' ? this.disconnectAction : this.stopAction;
 

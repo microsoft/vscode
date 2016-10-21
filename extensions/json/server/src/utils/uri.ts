@@ -302,7 +302,7 @@ export default class URI {
 			// when occurring in paths - otherwise the result
 			// cannot be parsed back again
 			let lastIdx = 0;
-			while(true) {
+			while (true) {
 				let idx = path.indexOf(URI._slash, lastIdx);
 				if (idx === -1) {
 					parts.push(encoder(path.substring(lastIdx)).replace(/[#?]/, _encode));
@@ -323,7 +323,7 @@ export default class URI {
 	}
 
 	public toJSON(): any {
-		return <UriState> {
+		return <UriState>{
 			scheme: this.scheme,
 			authority: this.authority,
 			path: this.path,

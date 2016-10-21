@@ -6,9 +6,9 @@
 
 import * as path from 'path';
 
-import {languages, window, commands, ExtensionContext} from 'vscode';
-import {LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit, Protocol2Code} from 'vscode-languageclient';
-import {activateColorDecorations} from './colorDecorators';
+import { languages, window, commands, ExtensionContext } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit, Protocol2Code } from 'vscode-languageclient';
+import { activateColorDecorations } from './colorDecorators';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();

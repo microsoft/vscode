@@ -92,7 +92,7 @@ function stringPower(str: string, power: number): string {
 function lcsTest(Algorithm: any, originalStr: string, modifiedStr: string, answerStr: string) {
 	lcsInnerTest(Algorithm, originalStr, modifiedStr, answerStr);
 	for (var i = 2; i <= 5; i++) {
-		lcsInnerTest(Algorithm, stringPower(originalStr,i), stringPower(modifiedStr,i), stringPower(answerStr,i), true);
+		lcsInnerTest(Algorithm, stringPower(originalStr, i), stringPower(modifiedStr, i), stringPower(answerStr, i), true);
 	}
 }
 

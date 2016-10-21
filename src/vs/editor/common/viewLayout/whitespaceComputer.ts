@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorWhitespace} from 'vs/editor/common/editorCommon';
+import { IEditorWhitespace } from 'vs/editor/common/editorCommon';
 
 /**
  * Represent whitespaces in between lines and provide fast CRUD management methods.
@@ -15,44 +15,44 @@ export class WhitespaceComputer {
 	/**
 	 * heights[i] is the height in pixels for whitespace at index i
 	 */
-	private heights:number[];
+	private heights: number[];
 
 	/**
 	 * afterLineNumbers[i] is the line number whitespace at index i is after
 	 */
-	private afterLineNumbers:number[];
+	private afterLineNumbers: number[];
 
 	/**
 	 * ordinals[i] is the orinal of the whitespace at index i
 	 */
-	private ordinals:number[];
+	private ordinals: number[];
 
 	/**
 	 * prefixSum[i] = SUM(heights[j]), 1 <= j <= i
 	 */
-	private prefixSum:number[];
+	private prefixSum: number[];
 
 	/**
 	 * prefixSum[i], 1 <= i <= prefixSumValidIndex can be trusted
 	 */
-	private prefixSumValidIndex:number;
+	private prefixSumValidIndex: number;
 
 	/**
 	 * ids[i] is the whitespace id of whitespace at index i
 	 */
-	private ids:number[];
+	private ids: number[];
 
 	/**
 	 * index at which a whitespace is positioned (inside heights, afterLineNumbers, prefixSum members)
 	 */
-	private whitespaceId2Index:{
-		[id:string]:number;
+	private whitespaceId2Index: {
+		[id: string]: number;
 	};
 
 	/**
 	 * last whitespace id issued
 	 */
-	private lastWhitespaceId:number;
+	private lastWhitespaceId: number;
 
 	constructor() {
 		this.heights = [];
@@ -69,13 +69,13 @@ export class WhitespaceComputer {
 	 * Find the insertion index for a new value inside a sorted array of values.
 	 * If the value is already present in the sorted array, the insertion index will be after the already existing value.
 	 */
-	public static findInsertionIndex(sortedArray:number[], value:number, ordinals:number[], valueOrdinal:number): number {
+	public static findInsertionIndex(sortedArray: number[], value: number, ordinals: number[], valueOrdinal: number): number {
 		var low = 0,
 			high = sortedArray.length,
-			mid:number;
+			mid: number;
 
 		while (low < high) {
-			mid = Math.floor( (low + high) / 2 );
+			mid = Math.floor((low + high) / 2);
 
 			if (value === sortedArray[mid]) {
 				if (valueOrdinal < ordinals[mid]) {
@@ -102,10 +102,10 @@ export class WhitespaceComputer {
 	 * @param heightInPx The height of the whitespace, in pixels.
 	 * @return An id that can be used later to mutate or delete the whitespace
 	 */
-	public insertWhitespace(afterLineNumber:number, ordinal:number, heightInPx:number): number {
-		afterLineNumber = afterLineNumber|0;
-		ordinal = ordinal|0;
-		heightInPx = heightInPx|0;
+	public insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number): number {
+		afterLineNumber = afterLineNumber | 0;
+		ordinal = ordinal | 0;
+		heightInPx = heightInPx | 0;
 
 		var id = (++this.lastWhitespaceId);
 		var insertionIndex = WhitespaceComputer.findInsertionIndex(this.afterLineNumbers, afterLineNumber, this.ordinals, ordinal);
@@ -113,12 +113,12 @@ export class WhitespaceComputer {
 		return id;
 	}
 
-	private insertWhitespaceAtIndex(id:number, insertIndex:number, afterLineNumber:number, ordinal:number, heightInPx:number): void {
-		id = id|0;
-		insertIndex = insertIndex|0;
-		afterLineNumber = afterLineNumber|0;
-		ordinal = ordinal|0;
-		heightInPx = heightInPx|0;
+	private insertWhitespaceAtIndex(id: number, insertIndex: number, afterLineNumber: number, ordinal: number, heightInPx: number): void {
+		id = id | 0;
+		insertIndex = insertIndex | 0;
+		afterLineNumber = afterLineNumber | 0;
+		ordinal = ordinal | 0;
+		heightInPx = heightInPx | 0;
 
 		this.heights.splice(insertIndex, 0, heightInPx);
 		this.ids.splice(insertIndex, 0, id);
@@ -139,10 +139,10 @@ export class WhitespaceComputer {
 		this.prefixSumValidIndex = Math.min(this.prefixSumValidIndex, insertIndex - 1);
 	}
 
-	public changeWhitespace(id:number, newAfterLineNumber:number, newHeight:number): boolean {
-		id = id|0;
-		newAfterLineNumber = newAfterLineNumber|0;
-		newHeight = newHeight|0;
+	public changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean {
+		id = id | 0;
+		newAfterLineNumber = newAfterLineNumber | 0;
+		newHeight = newHeight | 0;
 
 		let hasChanges = false;
 		hasChanges = this.changeWhitespaceHeight(id, newHeight) || hasChanges;
@@ -157,9 +157,9 @@ export class WhitespaceComputer {
 	 * @param newHeightInPx The new height of the whitespace, in pixels
 	 * @return Returns true if the whitespace is found and if the new height is different than the old height
 	 */
-	public changeWhitespaceHeight(id:number, newHeightInPx:number): boolean {
-		id = id|0;
-		newHeightInPx = newHeightInPx|0;
+	public changeWhitespaceHeight(id: number, newHeightInPx: number): boolean {
+		id = id | 0;
+		newHeightInPx = newHeightInPx | 0;
 
 		var sid = id.toString();
 		if (this.whitespaceId2Index.hasOwnProperty(sid)) {
@@ -180,9 +180,9 @@ export class WhitespaceComputer {
 	 * @param newAfterLineNumber The new line number the whitespace will follow
 	 * @return Returns true if the whitespace is found and if the new line number is different than the old line number
 	 */
-	public changeWhitespaceAfterLineNumber(id:number, newAfterLineNumber:number): boolean {
-		id = id|0;
-		newAfterLineNumber = newAfterLineNumber|0;
+	public changeWhitespaceAfterLineNumber(id: number, newAfterLineNumber: number): boolean {
+		id = id | 0;
+		newAfterLineNumber = newAfterLineNumber | 0;
 
 		var sid = id.toString();
 		if (this.whitespaceId2Index.hasOwnProperty(sid)) {
@@ -215,8 +215,8 @@ export class WhitespaceComputer {
 	 * @param id The whitespace to remove
 	 * @return Returns true if the whitespace is found and it is removed.
 	 */
-	public removeWhitespace(id:number): boolean {
-		id = id|0;
+	public removeWhitespace(id: number): boolean {
+		id = id | 0;
 
 		var sid = id.toString();
 
@@ -230,8 +230,8 @@ export class WhitespaceComputer {
 		return false;
 	}
 
-	private removeWhitespaceAtIndex(removeIndex:number): void {
-		removeIndex = removeIndex|0;
+	private removeWhitespaceAtIndex(removeIndex: number): void {
+		removeIndex = removeIndex | 0;
 
 		this.heights.splice(removeIndex, 1);
 		this.ids.splice(removeIndex, 1);
@@ -257,13 +257,13 @@ export class WhitespaceComputer {
 	 * @param fromLineNumber The line number at which the deletion started, inclusive
 	 * @param toLineNumber The line number at which the deletion ended, inclusive
 	 */
-	public onModelLinesDeleted(fromLineNumber:number, toLineNumber:number): void {
-		fromLineNumber = fromLineNumber|0;
-		toLineNumber = toLineNumber|0;
+	public onModelLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+		fromLineNumber = fromLineNumber | 0;
+		toLineNumber = toLineNumber | 0;
 
-		var afterLineNumber:number,
-			i:number,
-			len:number;
+		var afterLineNumber: number,
+			i: number,
+			len: number;
 
 		for (i = 0, len = this.afterLineNumbers.length; i < len; i++) {
 			afterLineNumber = this.afterLineNumbers[i];
@@ -287,13 +287,13 @@ export class WhitespaceComputer {
 	 * @param fromLineNumber The line number at which the insertion started, inclusive
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
 	 */
-	public onModelLinesInserted(fromLineNumber:number, toLineNumber:number): void {
-		fromLineNumber = fromLineNumber|0;
-		toLineNumber = toLineNumber|0;
+	public onModelLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+		fromLineNumber = fromLineNumber | 0;
+		toLineNumber = toLineNumber | 0;
 
-		var afterLineNumber:number,
-			i:number,
-			len:number;
+		var afterLineNumber: number,
+			i: number,
+			len: number;
 
 		for (i = 0, len = this.afterLineNumbers.length; i < len; i++) {
 			afterLineNumber = this.afterLineNumbers[i];
@@ -321,8 +321,8 @@ export class WhitespaceComputer {
 	 * @param index The index of the whitespace.
 	 * @return The sum of the heights of all whitespaces before the one at `index`, including the one at `index`.
 	 */
-	public getAccumulatedHeight(index:number): number {
-		index = index|0;
+	public getAccumulatedHeight(index: number): number {
+		index = index | 0;
 
 		var startIndex = Math.max(0, this.prefixSumValidIndex + 1);
 		if (startIndex === 0) {
@@ -343,8 +343,8 @@ export class WhitespaceComputer {
 	 * @param lineNumber The line number whitespaces should be before.
 	 * @return The sum of the heights of the whitespaces before `lineNumber`.
 	 */
-	public getAccumulatedHeightBeforeLineNumber(lineNumber:number): number {
-		lineNumber = lineNumber|0;
+	public getAccumulatedHeightBeforeLineNumber(lineNumber: number): number {
+		lineNumber = lineNumber | 0;
 
 		var lastWhitespaceBeforeLineNumber = this.findLastWhitespaceBeforeLineNumber(lineNumber);
 
@@ -355,8 +355,8 @@ export class WhitespaceComputer {
 		return this.getAccumulatedHeight(lastWhitespaceBeforeLineNumber);
 	}
 
-	private findLastWhitespaceBeforeLineNumber(lineNumber:number): number {
-		lineNumber = lineNumber|0;
+	private findLastWhitespaceBeforeLineNumber(lineNumber: number): number {
+		lineNumber = lineNumber | 0;
 
 		// Find the whitespace before line number
 		let afterLineNumbers = this.afterLineNumbers;
@@ -364,26 +364,26 @@ export class WhitespaceComputer {
 		let high = afterLineNumbers.length - 1;
 
 		while (low <= high) {
-			let delta = (high - low)|0;
-			let halfDelta = (delta / 2)|0;
-			let mid = (low + halfDelta)|0;
+			let delta = (high - low) | 0;
+			let halfDelta = (delta / 2) | 0;
+			let mid = (low + halfDelta) | 0;
 
 			if (afterLineNumbers[mid] < lineNumber) {
 				if (mid + 1 >= afterLineNumbers.length || afterLineNumbers[mid + 1] >= lineNumber) {
 					return mid;
 				} else {
-					low = (mid + 1)|0;
+					low = (mid + 1) | 0;
 				}
 			} else {
-				high = (mid - 1)|0;
+				high = (mid - 1) | 0;
 			}
 		}
 
 		return -1;
 	}
 
-	private findFirstWhitespaceAfterLineNumber(lineNumber:number): number {
-		lineNumber = lineNumber|0;
+	private findFirstWhitespaceAfterLineNumber(lineNumber: number): number {
+		lineNumber = lineNumber | 0;
 
 		var lastWhitespaceBeforeLineNumber = this.findLastWhitespaceBeforeLineNumber(lineNumber);
 		var firstWhitespaceAfterLineNumber = lastWhitespaceBeforeLineNumber + 1;
@@ -399,8 +399,8 @@ export class WhitespaceComputer {
 	 * Find the index of the first whitespace which has `afterLineNumber` >= `lineNumber`.
 	 * @return The index of the first whitespace with `afterLineNumber` >= `lineNumber` or -1 if no whitespace is found.
 	 */
-	public getFirstWhitespaceIndexAfterLineNumber(lineNumber:number): number {
-		lineNumber = lineNumber|0;
+	public getFirstWhitespaceIndexAfterLineNumber(lineNumber: number): number {
+		lineNumber = lineNumber | 0;
 
 		return this.findFirstWhitespaceAfterLineNumber(lineNumber);
 	}
@@ -418,8 +418,8 @@ export class WhitespaceComputer {
 	 * @param index The index of the whitespace.
 	 * @return `afterLineNumber` of whitespace at `index`.
 	 */
-	public getAfterLineNumberForWhitespaceIndex(index:number): number {
-		index = index|0;
+	public getAfterLineNumberForWhitespaceIndex(index: number): number {
+		index = index | 0;
 
 		return this.afterLineNumbers[index];
 	}
@@ -430,8 +430,8 @@ export class WhitespaceComputer {
 	 * @param index The index of the whitespace.
 	 * @return `id` of whitespace at `index`.
 	 */
-	public getIdForWhitespaceIndex(index:number): number {
-		index = index|0;
+	public getIdForWhitespaceIndex(index: number): number {
+		index = index | 0;
 
 		return this.ids[index];
 	}
@@ -442,14 +442,14 @@ export class WhitespaceComputer {
 	 * @param index The index of the whitespace.
 	 * @return `height` of whitespace at `index`.
 	 */
-	public getHeightForWhitespaceIndex(index:number): number {
-		index = index|0;
+	public getHeightForWhitespaceIndex(index: number): number {
+		index = index | 0;
 
 		return this.heights[index];
 	}
 
-	public getWhitespaces(deviceLineHeight:number): IEditorWhitespace[] {
-		deviceLineHeight = deviceLineHeight|0;
+	public getWhitespaces(deviceLineHeight: number): IEditorWhitespace[] {
+		deviceLineHeight = deviceLineHeight | 0;
 
 		var result: IEditorWhitespace[] = [];
 		for (var i = 0; i < this.heights.length; i++) {

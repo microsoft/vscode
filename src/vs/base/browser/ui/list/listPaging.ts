@@ -27,11 +27,11 @@ class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITempl
 	constructor(
 		private renderer: IPagedRenderer<TElement, TTemplateData>,
 		private modelProvider: () => IPagedModel<TElement>
-	) {}
+	) { }
 
 	renderTemplate(container: HTMLElement): ITemplateData<TTemplateData> {
 		const data = this.renderer.renderTemplate(container);
-		return { data, disposable: { dispose: () => {} } };
+		return { data, disposable: { dispose: () => { } } };
 	}
 
 	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>): void {

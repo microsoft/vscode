@@ -10,7 +10,7 @@ import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 suite('HtmlContent', () => {
 	test('render text', () => {
 		var result = renderHtml({
-			text:'testing',
+			text: 'testing',
 			isText: true
 		});
 		assert.strictEqual(result.nodeType, document.TEXT_NODE);
@@ -29,8 +29,8 @@ suite('HtmlContent', () => {
 
 
 	test('render simple element', () => {
-		var result:HTMLElement = <any>renderHtml({
-			text:'testing'
+		var result: HTMLElement = <any>renderHtml({
+			text: 'testing'
 		});
 		assert.strictEqual(result.nodeType, document.ELEMENT_NODE);
 		assert.strictEqual(result.textContent, 'testing');
@@ -38,8 +38,8 @@ suite('HtmlContent', () => {
 	});
 
 	test('render element with class', () => {
-		var result:HTMLElement = <any> renderHtml({
-			text:'testing',
+		var result: HTMLElement = <any>renderHtml({
+			text: 'testing',
 			className: 'testClass'
 		});
 		assert.strictEqual(result.nodeType, document.ELEMENT_NODE);
@@ -47,25 +47,25 @@ suite('HtmlContent', () => {
 	});
 
 	test('render element with style', () => {
-		var result:HTMLElement = <any> renderHtml({
-			text:'testing',
+		var result: HTMLElement = <any>renderHtml({
+			text: 'testing',
 			style: 'width: 100px;'
 		});
 		assert.strictEqual(result.getAttribute('style'), 'width: 100px;');
 	});
 
 	test('render element with custom style', () => {
-		var result:HTMLElement = <any> renderHtml({
-			text:'testing',
+		var result: HTMLElement = <any>renderHtml({
+			text: 'testing',
 			customStyle: {
-				'width':'100px'
+				'width': '100px'
 			}
 		});
 		assert.strictEqual(result.style.width, '100px');
 	});
 
 	test('render element with children', () => {
-		var result:HTMLElement = <any> renderHtml({
+		var result: HTMLElement = <any>renderHtml({
 			className: 'parent',
 			children: [{
 				text: 'child'
@@ -77,7 +77,7 @@ suite('HtmlContent', () => {
 	});
 
 	test('simple formatting', () => {
-		var result:HTMLElement = <any> renderHtml({
+		var result: HTMLElement = <any>renderHtml({
 			formattedText: '**bold**'
 		});
 		assert.strictEqual(result.children.length, 1);
@@ -85,13 +85,13 @@ suite('HtmlContent', () => {
 		assert.strictEqual((<HTMLElement>result.firstChild).tagName, 'B');
 		assert.strictEqual(result.innerHTML, '<b>bold</b>');
 
-		result = <any> renderHtml({
+		result = <any>renderHtml({
 			formattedText: '__italics__'
 		});
 
 		assert.strictEqual(result.innerHTML, '<i>italics</i>');
 
-		result = <any> renderHtml({
+		result = <any>renderHtml({
 			formattedText: 'this string has **bold** and __italics__'
 		});
 
@@ -99,14 +99,14 @@ suite('HtmlContent', () => {
 	});
 
 	test('no formatting', () => {
-		var result:HTMLElement = <any> renderHtml({
+		var result: HTMLElement = <any>renderHtml({
 			formattedText: 'this is just a string'
 		});
 		assert.strictEqual(result.innerHTML, 'this is just a string');
 	});
 
 	test('preserve newlines', () => {
-		var result:HTMLElement = <any> renderHtml({
+		var result: HTMLElement = <any>renderHtml({
 			formattedText: 'line one\nline two'
 		});
 		assert.strictEqual(result.innerHTML, 'line one<br>line two');
@@ -114,17 +114,17 @@ suite('HtmlContent', () => {
 
 	test('action', () => {
 		var callbackCalled = false;
-		var result:HTMLElement = <any> renderHtml({
+		var result: HTMLElement = <any>renderHtml({
 			formattedText: '[[action]]'
 		}, {
-			actionCallback(content) {
-				assert.strictEqual(content, '0');
-				callbackCalled = true;
-			}
-		});
+				actionCallback(content) {
+					assert.strictEqual(content, '0');
+					callbackCalled = true;
+				}
+			});
 		assert.strictEqual(result.innerHTML, '<a href="#">action</a>');
 
-		var event:MouseEvent = <any>document.createEvent('MouseEvent');
+		var event: MouseEvent = <any>document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
 		result.firstChild.dispatchEvent(event);
 		assert.strictEqual(callbackCalled, true);
@@ -132,24 +132,24 @@ suite('HtmlContent', () => {
 
 	test('fancy action', () => {
 		var callbackCalled = false;
-		var result:HTMLElement = <any> renderHtml({
+		var result: HTMLElement = <any>renderHtml({
 			formattedText: '__**[[action]]**__'
 		}, {
-			actionCallback(content) {
-				assert.strictEqual(content, '0');
-				callbackCalled = true;
-			}
-		});
+				actionCallback(content) {
+					assert.strictEqual(content, '0');
+					callbackCalled = true;
+				}
+			});
 		assert.strictEqual(result.innerHTML, '<i><b><a href="#">action</a></b></i>');
 
-		var event:MouseEvent = <any>document.createEvent('MouseEvent');
+		var event: MouseEvent = <any>document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
 		result.firstChild.firstChild.firstChild.dispatchEvent(event);
 		assert.strictEqual(callbackCalled, true);
 	});
 
 	test('escaped formatting', () => {
-		var result:HTMLElement = <any> renderHtml({
+		var result: HTMLElement = <any>renderHtml({
 			formattedText: '\\*\\*bold\\*\\*'
 		});
 		assert.strictEqual(result.children.length, 0);

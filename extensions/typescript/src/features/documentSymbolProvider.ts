@@ -47,30 +47,66 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			return Promise.resolve<SymbolInformation[]>([]);
 		}
 
-		function convert(bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
+		function convertNavBar(indent: number, foldingMap: Map<SymbolInformation>, bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
+			let realIndent = indent + item.indent;
+			let key = `${realIndent}|${item.text}`;
+			if (realIndent !== 0 && !foldingMap[key]) {
+				let result = new SymbolInformation(item.text,
+					outlineTypeTable[item.kind] || SymbolKind.Variable,
+					containerLabel,
+					new Location(resource.uri, textSpan2Range(item.spans[0])));
+				foldingMap[key] = result;
+				bucket.push(result);
+			}
+			if (item.childItems && item.childItems.length > 0) {
+				for (let child of item.childItems) {
+					convertNavBar(realIndent + 1, foldingMap, bucket, child, item.text);
+				}
+			}
+		}
+
+		function convertNavTree(bucket: SymbolInformation[], item: Proto.NavigationTree, containerLabel?: string): void {
 			let result = new SymbolInformation(item.text,
 				outlineTypeTable[item.kind] || SymbolKind.Variable,
 				containerLabel,
-				new Location(resource.uri, textSpan2Range(item.spans[0])));
-
+				new Location(resource.uri, textSpan2Range(item.spans[0]))
+			);
 			if (item.childItems && item.childItems.length > 0) {
 				for (let child of item.childItems) {
-					convert(bucket, child, result.name);
+					convertNavTree(bucket, child, result.name);
 				}
 			}
-
 			bucket.push(result);
 		}
 
-		return this.client.execute('navbar', args, token).then((response) => {
-			if (response.body) {
+		if (this.client.apiVersion.has206Features()) {
+			return this.client.execute('navtree', args, token).then((response) => {
 				let result: SymbolInformation[] = [];
-				response.body.forEach(item => convert(result, item));
+				if (response.body) {
+					// The root represents the file. Ignore this when showing in the UI
+					let tree = response.body;
+					if (tree.childItems) {
+						tree.childItems.forEach(item => convertNavTree(result, item));
+					}
+				}
 				return result;
-			}
-		}, (err) => {
-			this.client.error(`'navbar' request failed with error.`, err);
-			return [];
-		});
+			}, (err) => {
+				this.client.error(`'navtree' request failed with error.`, err);
+				return [];
+			});
+		} else {
+			return this.client.execute('navbar', args, token).then((response) => {
+				let result: SymbolInformation[] = [];
+				if (response.body) {
+					let foldingMap: Map<SymbolInformation> = Object.create(null);
+					response.body.forEach(item => convertNavBar(0, foldingMap, result, item));
+				}
+				return result;
+			}, (err) => {
+				this.client.error(`'navbar' request failed with error.`, err);
+				return [];
+			});
+		}
+
 	}
 }

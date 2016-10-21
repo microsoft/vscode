@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import {Action} from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import lifecycle = require('vs/base/common/lifecycle');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {KeyMod, KeyChord, KeyCode} from 'vs/base/common/keyCodes';
-import {Range} from 'vs/editor/common/core/range';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
+import { Range } from 'vs/editor/common/core/range';
 import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import {ServicesAccessor, editorAction, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
-import {BreakpointWidget} from 'vs/workbench/parts/debug/browser/breakpointWidget';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {TogglePanelAction} from 'vs/workbench/browser/panel';
+import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import IDebugService = debug.IDebugService;
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -30,7 +30,6 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 export class AbstractDebugAction extends Action {
 
 	protected toDispose: lifecycle.IDisposable[];
-	private keybinding: string;
 
 	constructor(
 		id: string, label: string, cssClass: string,
@@ -42,11 +41,6 @@ export class AbstractDebugAction extends Action {
 		this.toDispose = [];
 		this.toDispose.push(this.debugService.onDidChangeState((state) => this.updateEnablement(state)));
 
-		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
-		if (keys && keys.length) {
-			this.keybinding = keys[0];
-		}
-
 		this.updateLabel(label);
 		this.updateEnablement(this.debugService.state);
 	}
@@ -56,11 +50,7 @@ export class AbstractDebugAction extends Action {
 	}
 
 	protected updateLabel(newLabel: string): void {
-		if (this.keybinding) {
-			this.label = nls.localize('debugActionLabelAndKeybinding', "{0} ({1})", newLabel, this.keybinding);
-		} else {
-			this.label = newLabel;
-		}
+		this.label = newLabel;
 	}
 
 	protected updateEnablement(state: debug.State): void {
@@ -236,7 +226,7 @@ export class StepBackAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: debug.State): boolean {
-		const activeSession = this.debugService.getActiveSession();
+		const activeSession = this.debugService.activeSession;
 		return super.isEnabled(state) && state === debug.State.Stopped &&
 			activeSession && activeSession.configuration.capabilities.supportsStepBack;
 	}
@@ -251,7 +241,7 @@ export class StopAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		var session = this.debugService.getActiveSession();
+		var session = this.debugService.activeSession;
 		return session ? session.disconnect(false, true) : TPromise.as(null);
 	}
 
@@ -269,7 +259,7 @@ export class DisconnectAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const session = this.debugService.getActiveSession();
+		const session = this.debugService.activeSession;
 		return session ? session.disconnect(false, true) : TPromise.as(null);
 	}
 
@@ -397,7 +387,7 @@ export class EnableAllBreakpointsAction extends AbstractDebugAction {
 
 	protected isEnabled(state: debug.State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled(state) && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => !bp.enabled);
+		return super.isEnabled(state) && (<debug.IEnablement[]>model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => !bp.enabled);
 	}
 }
 
@@ -416,7 +406,7 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 
 	protected isEnabled(state: debug.State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled(state) && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => bp.enabled);
+		return super.isEnabled(state) && (<debug.IEnablement[]>model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => bp.enabled);
 	}
 }
 
@@ -547,7 +537,7 @@ class ToggleBreakpointAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 		const debugService = accessor.get(IDebugService);
 
 		const lineNumber = editor.getPosition().lineNumber;
@@ -574,7 +564,7 @@ class EditorConditionalBreakpointAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		const debugService = accessor.get(IDebugService);
 		const instantiationService = accessor.get(IInstantiationService);
 
@@ -602,7 +592,7 @@ export class SetValueAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: debug.State): boolean {
-		const session = this.debugService.getActiveSession();
+		const session = this.debugService.activeSession;
 		return super.isEnabled(state) && state === debug.State.Stopped && session && session.configuration.capabilities.supportsSetVariable;
 	}
 }
@@ -623,7 +613,7 @@ class RunToCursorAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 		const debugService = accessor.get(IDebugService);
 
 		if (debugService.state !== debug.State.Stopped) {
@@ -632,7 +622,7 @@ class RunToCursorAction extends EditorAction {
 		const lineNumber = editor.getPosition().lineNumber;
 		const uri = editor.getModel().uri;
 
-		const oneTimeListener = debugService.getActiveSession().onDidEvent(event => {
+		const oneTimeListener = debugService.activeSession.onDidEvent(event => {
 			if (event.event === 'stopped' || event.event === 'exit') {
 				const toRemove = debugService.getModel().getBreakpoints()
 					.filter(bp => bp.desiredLineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
@@ -684,7 +674,7 @@ class SelectionToReplAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 		const debugService = accessor.get(IDebugService);
 		const panelService = accessor.get(IPanelService);
 
@@ -711,7 +701,7 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 		const debugService = accessor.get(IDebugService);
 		const viewletService = accessor.get(IViewletService);
 
@@ -736,7 +726,7 @@ class ShowDebugHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 		const position = editor.getPosition();
 		const word = editor.getModel().getWordAtPosition(position);
 		if (!word) {
@@ -757,7 +747,7 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, this.debugService.getActiveSession().configuration.type));
+		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, this.debugService.activeSession.configuration.type));
 	}
 }
 

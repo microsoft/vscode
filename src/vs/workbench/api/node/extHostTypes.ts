@@ -6,6 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { illegalArgument } from 'vs/base/common/errors';
+import * as vscode from 'vscode';
 
 export class Disposable {
 

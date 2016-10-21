@@ -34,6 +34,7 @@ import { IPath, IOpenFileRequest, IWindowConfiguration } from 'vs/workbench/elec
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import URI from 'vs/base/common/uri';
 
 import { ipcRenderer as ipc, webFrame, remote } from 'electron';
@@ -68,6 +69,7 @@ export class ElectronIntegration {
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 	}
@@ -192,6 +194,11 @@ export class ElectronIntegration {
 				}
 			}
 		});
+
+		this.extensionGalleryService.getRequestHeaders().done(headers => {
+			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+			ipc.send('vscode:setHeaders', this.windowService.getWindowId(), urls, headers);
+		});
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {
@@ -257,7 +264,7 @@ export class ElectronIntegration {
 			return this.editorService.openEditors(resources.map((r, index) => {
 				return {
 					input: r,
-					position: activeEditor ? activeEditor.position : Position.LEFT
+					position: activeEditor ? activeEditor.position : Position.ONE
 				};
 			}));
 		});

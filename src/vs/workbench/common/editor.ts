@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import Event, {Emitter} from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import Event, { Emitter } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import {IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions} from 'vs/editor/common/editorCommon';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position} from 'vs/platform/editor/common/editor';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Event as BaseEvent} from 'vs/base/common/events';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
-import {IModel} from 'vs/editor/common/editorCommon';
+import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/editorCommon';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position } from 'vs/platform/editor/common/editor';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IModel } from 'vs/editor/common/editorCommon';
 
 export enum ConfirmResult {
 	SAVE,
@@ -278,29 +277,6 @@ export abstract class EditorInput implements IEditorInput {
 	}
 }
 
-export class EditorInputEvent extends BaseEvent {
-	private _editorInput: IEditorInput;
-	private prevented: boolean;
-
-	constructor(editorInput: IEditorInput) {
-		super(null);
-
-		this._editorInput = editorInput;
-	}
-
-	public get editorInput(): IEditorInput {
-		return this._editorInput;
-	}
-
-	public prevent(): void {
-		this.prevented = true;
-	}
-
-	public isPrevented(): boolean {
-		return this.prevented;
-	}
-}
-
 export enum EncodingMode {
 
 	/**
@@ -342,6 +318,11 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 	 * Sets the absolute file resource URI this input is about.
 	 */
 	setResource(resource: URI): void;
+
+	/**
+	 * Sets whether to restore the resource from backup.
+	 */
+	setRestoreFromBackup(restore: boolean): void;
 
 	/**
 	 * Sets the preferred encodingt to use for this input.
@@ -473,12 +454,15 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Inherit all options from other EditorOptions instance.
 	 */
-	public mixin(other: EditorOptions): void {
-		this.preserveFocus = other.preserveFocus;
-		this.forceOpen = other.forceOpen;
-		this.revealIfVisible = other.revealIfVisible;
-		this.pinned = other.pinned;
-		this.index = other.index;
+	public mixin(other: IEditorOptions): void {
+		if (other) {
+			this.preserveFocus = other.preserveFocus;
+			this.forceOpen = other.forceOpen;
+			this.revealIfVisible = other.revealIfVisible;
+			this.pinned = other.pinned;
+			this.index = other.index;
+			this.inactive = other.inactive;
+		}
 	}
 
 	/**
@@ -881,7 +865,8 @@ export interface IWorkbenchEditorConfiguration {
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
-			openPositioning: string;
+			openPositioning: 'left' | 'right' | 'first' | 'last';
+			sideBySideLayout: 'vertical' | 'horizontal';
 		}
 	};
 }

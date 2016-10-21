@@ -7,9 +7,9 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {isMacintosh, isLinux} from 'vs/base/common/platform';
-import {OutputLinkComputer} from 'vs/workbench/parts/output/common/outputLinkComputer';
-import {TestContextService} from 'vs/test/utils/servicesTestUtils';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { OutputLinkComputer } from 'vs/workbench/parts/output/common/outputLinkComputer';
+import { TestContextService } from 'vs/test/utils/servicesTestUtils';
 
 function toOSPath(p: string): string {
 	if (isMacintosh || isLinux) {

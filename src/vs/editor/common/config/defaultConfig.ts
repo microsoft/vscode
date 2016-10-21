@@ -5,12 +5,12 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {IEditorOptions} from 'vs/editor/common/editorCommon';
+import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import * as platform from 'vs/base/common/platform';
-import {USUAL_WORD_SEPARATORS} from 'vs/editor/common/model/wordHelper';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 
 export interface IConfiguration {
-	editor:IEditorOptions;
+	editor: IEditorOptions;
 }
 
 export const DEFAULT_INDENTATION = {
@@ -43,7 +43,7 @@ class ConfigClass implements IConfiguration {
 			lineNumbers: 'on',
 			selectOnLineNumbers: true,
 			lineNumbersMinChars: 5,
-			glyphMargin: false,
+			glyphMargin: true,
 			lineDecorationsWidth: 10,
 			revealHorizontalRightPadding: 30,
 			roundedSelection: true,

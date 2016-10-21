@@ -5,25 +5,27 @@
 
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IAction, IActionRunner} from 'vs/base/common/actions';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
-import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
-import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup} from 'vs/workbench/common/editor';
-import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
-import {ITextFileService, IFilesConfiguration, VIEWLET_ID, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor, DragAndDrop} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
+import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { AdaptiveCollapsibleViewletView } from 'vs/workbench/browser/viewlet';
+import { IFilesConfiguration, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, OpenEditor, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 
 const $ = dom.$;
 
@@ -76,6 +78,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	public getActions(): IAction[] {
 		return [
+			this.instantiationService.createInstance(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL),
 			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
 			this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL)
 		];
@@ -100,10 +103,10 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			accessibilityProvider,
 			dnd
 		}, {
-			indentPixels: 0,
-			twistiePixels: 20,
-			ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors")
-		});
+				indentPixels: 0,
+				twistiePixels: 20,
+				ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors")
+			});
 
 		this.fullRefreshNeeded = true;
 		this.structuralTreeUpdate();
@@ -259,7 +262,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.structuralRefreshDelay = delay;
 	}
 
-	public getOptimalWidth():number {
+	public getOptimalWidth(): number {
 		let parentNode = this.tree.getHTMLElement();
 		let childNodes = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 

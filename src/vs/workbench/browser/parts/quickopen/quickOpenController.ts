@@ -6,44 +6,46 @@
 'use strict';
 
 import 'vs/css!./media/quickopen';
-import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
-import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
+import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {Dimension, withElementById} from 'vs/base/browser/builder';
+import { Dimension, withElementById } from 'vs/base/browser/builder';
 import strings = require('vs/base/common/strings');
 import filters = require('vs/base/common/filters');
 import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import types = require('vs/base/common/types');
-import {IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
-import {CancellationToken} from 'vs/base/common/cancellation';
-import {Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenWidget, HideReason} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
-import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
+import { Action } from 'vs/base/common/actions';
+import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
+import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
-import {Registry} from 'vs/platform/platform';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {getIconClasses} from 'vs/workbench/browser/labels';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
-import {WorkbenchComponent} from 'vs/workbench/common/component';
-import Event, {Emitter} from 'vs/base/common/event';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {KeyMod} from 'vs/base/common/keyCodes';
-import {QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
+import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { Registry } from 'vs/platform/platform';
+import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { getIconClasses } from 'vs/workbench/browser/labels';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { WorkbenchComponent } from 'vs/workbench/common/component';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { KeyMod } from 'vs/base/common/keyCodes';
+import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
 import errors = require('vs/base/common/errors');
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IContextKeyService, RawContextKey, IContextKey} from 'vs/platform/contextkey/common/contextkey';
-import {IHistoryService} from 'vs/workbench/services/history/common/history';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 const HELP_PREFIX = '?';
 const QUICK_OPEN_MODE = new RawContextKey<boolean>('inQuickOpen', false);
@@ -146,7 +148,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	public input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<string> {
-
 		if (this.pickOpenWidget && this.pickOpenWidget.isVisible()) {
 			this.pickOpenWidget.hide(HideReason.CANCELED);
 		}
@@ -179,6 +180,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						if (currentValidation) {
 							currentValidation.cancel();
 						}
+
 						currentValidation = TPromise.timeout(100).then(() => {
 							return options.validateInput(value).then(message => {
 								currentDecoration = !!message ? Severity.Error : void 0;
@@ -187,6 +189,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 									currentPick = newPick;
 									resolve(new TPromise(init));
 								}
+
 								return !message;
 							});
 						}, err => {
@@ -744,14 +747,28 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		const results: QuickOpenEntry[] = [];
 		history.forEach(input => {
-			const resource = getUntitledOrFileResource(input);
+			let resource: URI;
+			if (input instanceof EditorInput) {
+				resource = getUntitledOrFileResource(input);
+			} else {
+				resource = (input as IResourceInput).resource;
+			}
+
 			if (!resource) {
 				return; //For now, only support to match on inputs that provide resource information
 			}
 
+			let searchTargetToMatch: string;
+			if (searchInPath) {
+				searchTargetToMatch = labels.getPathLabel(resource, this.contextService);
+			} else if (input instanceof EditorInput) {
+				searchTargetToMatch = input.getName();
+			} else {
+				searchTargetToMatch = paths.basename((input as IResourceInput).resource.fsPath);
+			}
+
 			// Check if this entry is a match for the search value
-			const targetToMatch = searchInPath ? labels.getPathLabel(resource, this.contextService) : input.getName();
-			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
+			if (!filters.matchesFuzzy(searchValue, searchTargetToMatch)) {
 				return;
 			}
 
@@ -1018,28 +1035,49 @@ export class EditorHistoryEntryGroup extends QuickOpenEntryGroup {
 }
 
 export class EditorHistoryEntry extends EditorQuickOpenEntry {
-	private input: EditorInput;
+	private input: IEditorInput | IResourceInput;
 	private resource: URI;
+	private label: string;
+	private description: string;
+	private dirty: boolean;
 
 	constructor(
-		input: EditorInput,
+		input: IEditorInput | IResourceInput,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(editorService);
 
 		this.input = input;
-		this.resource = getUntitledOrFileResource(input);
+
+		if (input instanceof EditorInput) {
+			this.resource = getUntitledOrFileResource(input);
+			this.label = input.getName();
+			this.description = input.getDescription();
+			this.dirty = input.isDirty();
+		} else {
+			const resourceInput = input as IResourceInput;
+			this.resource = resourceInput.resource;
+			this.label = paths.basename(resourceInput.resource.fsPath);
+			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService);
+			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
+
+			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+				this.dirty = false; // no dirty decoration if auto save is on with a short timeout
+			}
+		}
 	}
 
 	public getIcon(): string {
-		return this.input.isDirty() ? 'dirty' : '';
+		return this.dirty ? 'dirty' : '';
 	}
 
 	public getLabel(): string {
-		return this.input.getName();
+		return this.label;
 	}
 
 	public getLabelOptions(): IIconLabelOptions {
@@ -1053,19 +1091,15 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	}
 
 	public getDescription(): string {
-		return this.input.getDescription();
+		return this.description;
 	}
 
 	public getResource(): URI {
 		return this.resource;
 	}
 
-	public getInput(): EditorInput {
+	public getInput(): IEditorInput | IResourceInput {
 		return this.input;
-	}
-
-	public matches(input: EditorInput): boolean {
-		return this.input.matches(input);
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
@@ -1073,11 +1107,55 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			const sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 			const pinned = !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
 
-			this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);
+			if (this.input instanceof EditorInput) {
+				this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);
+			} else {
+				this.editorService.openEditor({ resource: (this.input as IResourceInput).resource, options: { pinned } }, sideBySide);
+			}
 
 			return true;
 		}
 
-		return false;
+		return super.run(mode, context);
+	}
+}
+
+export class RemoveFromEditorHistoryAction extends Action {
+
+	public static ID = 'workbench.action.removeFromEditorHistory';
+	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From Editor History");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IHistoryService private historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		interface IHistoryPickEntry extends IFilePickOpenEntry {
+			input: IEditorInput | IResourceInput;
+		}
+
+		const history = this.historyService.getHistory();
+		const picks: IHistoryPickEntry[] = history.map(h => {
+			const entry = this.instantiationService.createInstance(EditorHistoryEntry, h);
+
+			return <IHistoryPickEntry>{
+				input: h,
+				resource: entry.getResource(),
+				label: entry.getLabel(),
+				description: entry.getDescription()
+			};
+		});
+
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select an editor entry to remove from history"), autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(pick => {
+			if (pick) {
+				this.historyService.remove(pick.input);
+			}
+		});
 	}
 }

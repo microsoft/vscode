@@ -6,8 +6,10 @@
 {
 	"debug": "Debug",
 	"debugCategory": "Debug",
+	"debugErrorEditor": "Esegui debug errore",
 	"debugPanel": "Console di debug",
 	"launchConfigDoesNotExist": "La configurazione di avvio '{0}' non esiste.",
+	"toggleDebugPanel": "Console di debug",
 	"toggleDebugViewlet": "Mostra debug",
 	"view": "Visualizza"
 }

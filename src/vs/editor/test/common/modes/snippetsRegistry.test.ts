@@ -6,13 +6,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import {getNonWhitespacePrefix} from 'vs/editor/common/modes/snippetsRegistry';
+import { getNonWhitespacePrefix } from 'vs/editor/common/modes/snippetsRegistry';
 
 suite('getNonWhitespacePrefix', () => {
 
-	function assertGetNonWhitespacePrefix(line:string, column:number, expected:string): void {
+	function assertGetNonWhitespacePrefix(line: string, column: number, expected: string): void {
 		let model = {
-			getLineContent: (lineNumber:number) => line
+			getLineContent: (lineNumber: number) => line
 		};
 		let actual = getNonWhitespacePrefix(model, { lineNumber: 1, column: column });
 		assert.equal(actual, expected);
@@ -23,28 +23,28 @@ suite('getNonWhitespacePrefix', () => {
 	});
 
 	test('singleWordLine', () => {
-		assertGetNonWhitespacePrefix('something',  1, '');
-		assertGetNonWhitespacePrefix('something',  2, 's');
-		assertGetNonWhitespacePrefix('something',  3, 'so');
-		assertGetNonWhitespacePrefix('something',  4, 'som');
-		assertGetNonWhitespacePrefix('something',  5, 'some');
-		assertGetNonWhitespacePrefix('something',  6, 'somet');
-		assertGetNonWhitespacePrefix('something',  7, 'someth');
-		assertGetNonWhitespacePrefix('something',  8, 'somethi');
-		assertGetNonWhitespacePrefix('something',  9, 'somethin');
+		assertGetNonWhitespacePrefix('something', 1, '');
+		assertGetNonWhitespacePrefix('something', 2, 's');
+		assertGetNonWhitespacePrefix('something', 3, 'so');
+		assertGetNonWhitespacePrefix('something', 4, 'som');
+		assertGetNonWhitespacePrefix('something', 5, 'some');
+		assertGetNonWhitespacePrefix('something', 6, 'somet');
+		assertGetNonWhitespacePrefix('something', 7, 'someth');
+		assertGetNonWhitespacePrefix('something', 8, 'somethi');
+		assertGetNonWhitespacePrefix('something', 9, 'somethin');
 		assertGetNonWhitespacePrefix('something', 10, 'something');
 	});
 
 	test('two word line', () => {
-		assertGetNonWhitespacePrefix('something interesting',  1, '');
-		assertGetNonWhitespacePrefix('something interesting',  2, 's');
-		assertGetNonWhitespacePrefix('something interesting',  3, 'so');
-		assertGetNonWhitespacePrefix('something interesting',  4, 'som');
-		assertGetNonWhitespacePrefix('something interesting',  5, 'some');
-		assertGetNonWhitespacePrefix('something interesting',  6, 'somet');
-		assertGetNonWhitespacePrefix('something interesting',  7, 'someth');
-		assertGetNonWhitespacePrefix('something interesting',  8, 'somethi');
-		assertGetNonWhitespacePrefix('something interesting',  9, 'somethin');
+		assertGetNonWhitespacePrefix('something interesting', 1, '');
+		assertGetNonWhitespacePrefix('something interesting', 2, 's');
+		assertGetNonWhitespacePrefix('something interesting', 3, 'so');
+		assertGetNonWhitespacePrefix('something interesting', 4, 'som');
+		assertGetNonWhitespacePrefix('something interesting', 5, 'some');
+		assertGetNonWhitespacePrefix('something interesting', 6, 'somet');
+		assertGetNonWhitespacePrefix('something interesting', 7, 'someth');
+		assertGetNonWhitespacePrefix('something interesting', 8, 'somethi');
+		assertGetNonWhitespacePrefix('something interesting', 9, 'somethin');
 		assertGetNonWhitespacePrefix('something interesting', 10, 'something');
 		assertGetNonWhitespacePrefix('something interesting', 11, '');
 		assertGetNonWhitespacePrefix('something interesting', 12, 'i');

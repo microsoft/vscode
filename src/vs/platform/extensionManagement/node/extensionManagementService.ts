@@ -11,12 +11,13 @@ import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, distinct } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
+import {
+	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 	IGalleryExtension, IExtensionIdentity, IExtensionManifest, IGalleryMetadata,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType
+	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -82,7 +83,7 @@ function readManifest(extensionPath: string): TPromise<{ manifest: IExtensionMan
 }
 
 function getExtensionId(extension: IExtensionIdentity, version: string): string {
-	return `${ extension.publisher }.${ extension.name }-${ version }`;
+	return `${extension.publisher}.${extension.name}-${version}`;
 }
 
 export class ExtensionManagementService implements IExtensionManagementService {
@@ -92,7 +93,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private extensionsPath: string;
 	private obsoletePath: string;
 	private obsoleteFileLimiter: Limiter<void>;
-	private disposables: IDisposable[];
+	private disposables: IDisposable[] = [];
 
 	private _onInstallExtension = new Emitter<InstallExtensionEvent>();
 	onInstallExtension: Event<InstallExtensionEvent> = this._onInstallExtension.event;
@@ -103,8 +104,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private _onUninstallExtension = new Emitter<string>();
 	onUninstallExtension: Event<string> = this._onUninstallExtension.event;
 
-	private _onDidUninstallExtension = new Emitter<string>();
-	onDidUninstallExtension: Event<string> = this._onDidUninstallExtension.event;
+	private _onDidUninstallExtension = new Emitter<DidUninstallExtensionEvent>();
+	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -131,8 +132,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 				return this.installExtension(zipPath, id)
 					.then(
-						local => this._onDidInstallExtension.fire({ id, zipPath, local }),
-						error => { this._onDidInstallExtension.fire({ id, zipPath, error }); return TPromise.wrapError(error); }
+					local => this._onDidInstallExtension.fire({ id, zipPath, local }),
+					error => { this._onDidInstallExtension.fire({ id, zipPath, error }); return TPromise.wrapError(error); }
 					);
 			});
 		});
@@ -148,11 +149,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			this._onInstallExtension.fire({ id, gallery: extension });
 			return this.installCompatibleVersion(extension, true, promptToInstallDependencies)
 				.then(
-					local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
-					error => {
-						this._onDidInstallExtension.fire({ id, gallery: extension, error });
-						return TPromise.wrapError(error);
-					}
+				local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
+				error => {
+					this._onDidInstallExtension.fire({ id, gallery: extension, error });
+					return TPromise.wrapError(error);
+				}
 				);
 		});
 	}
@@ -181,7 +182,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return this.installWithDependencies(compatibleVersion);
 					}
 				})
-		);
+			);
 	}
 
 	private getDependenciesToInstall(extension: IGalleryExtension, checkDependecies: boolean): TPromise<string[]> {
@@ -202,7 +203,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private installWithDependencies(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		return this.galleryService.getAllDependencies(extension)
-			.then(allDependencies => this.filterOutInstalled(allDependencies))
+			.then(allDependencies => this.filterDependenciesToInstall(extension, allDependencies))
 			.then(toInstall => this.filterObsolete(...toInstall.map(i => getExtensionId(i, i.version)))
 				.then((obsolete) => {
 					if (obsolete.length) {
@@ -248,11 +249,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => null);
 	}
 
-	private filterOutInstalled(extensions: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
+	private filterDependenciesToInstall(extension: IGalleryExtension, dependencies: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
 		return this.getInstalled()
 			.then(local => {
-				return extensions.filter(extension => {
-					const extensionId = getExtensionId(extension, extension.version);
+				return dependencies.filter(d => {
+					if (extension.id === d.id) {
+						return false;
+					}
+					const extensionId = getExtensionId(d, d.version);
 					return local.every(local => local.id !== extensionId);
 				});
 			});
@@ -311,23 +315,117 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			return this.scanUserExtensions().then<void>(installed => {
 				const promises = installed
 					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
-					.map(({ id }) => this.uninstallExtension(id));
-
+					.map(e => this.checkForDependenciesAndUninstall(e, installed));
 				return TPromise.join(promises);
 			});
 		});
 	}
 
-	private uninstallExtension(id: string): TPromise<void> {
-		const extensionPath = path.join(this.extensionsPath, id);
+	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
+		return this.preUninstallExtension(extension.id)
+			.then(() => this.hasDependencies(extension, installed) ? this.promptAndUninstall(extension, installed) : this.uninstallWithDependencies(extension, [], installed))
+			.then(() => this.postUninstallExtension(extension.id),
+			error => {
+				this.postUninstallExtension(extension.id, error);
+				return TPromise.wrapError(error);
+			});
+	}
 
+	private hasDependencies(extension: ILocalExtension, installed: ILocalExtension[]): boolean {
+		if (extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length) {
+			return installed.some(i => extension.manifest.extensionDependencies.indexOf(`${i.manifest.publisher}.${i.manifest.name}`) !== -1);
+		}
+		return false;
+	}
+
+	private promptAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
+		const message = nls.localize('uninstallDependeciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName || extension.manifest.name);
+		const options = [
+			nls.localize('uninstallOnly', "Only"),
+			nls.localize('uninstallAll', "All"),
+			nls.localize('cancel', "Cancel")
+		];
+		return this.choiceService.choose(Severity.Info, message, options)
+			.then<void>(value => {
+				if (value === 0) {
+					return this.uninstallWithDependencies(extension, [], installed);
+				}
+				if (value === 1) {
+					const dependencies = distinct(this.getDependenciesToUninstallRecursively(extension, installed, [])).filter(e => e !== extension);
+					return this.uninstallWithDependencies(extension, dependencies, installed);
+				}
+				return TPromise.wrapError(errors.canceled());
+			}, error => TPromise.wrapError(errors.canceled()));
+	}
+
+	private uninstallWithDependencies(extension: ILocalExtension, dependencies: ILocalExtension[], installed: ILocalExtension[]): TPromise<void> {
+		const dependenciesToUninstall = this.filterDependents(extension, dependencies, installed);
+		let dependents = this.getDependents(extension, installed).filter(dependent => dependenciesToUninstall.indexOf(dependent) === -1);
+		if (dependents.length) {
+			return TPromise.wrapError<void>(nls.localize('hasDependentsError', "Cannot uninstall extension '{0}'. Some of the installed extensions depends on this.", extension.manifest.displayName || extension.manifest.name));
+		}
+		return TPromise.join([this.uninstallExtension(extension.id), ...dependenciesToUninstall.map(d => this.doUninstall(d.id))]).then(() => null);
+	}
+
+	private getDependenciesToUninstallRecursively(extension: ILocalExtension, installed: ILocalExtension[], checked: ILocalExtension[]): ILocalExtension[] {
+		if (checked.indexOf(extension) !== -1) {
+			return [];
+		}
+		checked.push(extension);
+		if (!extension.manifest.extensionDependencies || extension.manifest.extensionDependencies.length === 0) {
+			return [];
+		}
+		const dependenciesToUninstall = installed.filter(i => extension.manifest.extensionDependencies.indexOf(`${i.manifest.publisher}.${i.manifest.name}`) !== -1);
+		const depsOfDeps = [];
+		for (const dep of dependenciesToUninstall) {
+			depsOfDeps.push(...this.getDependenciesToUninstallRecursively(dep, installed, checked));
+		}
+		return [...dependenciesToUninstall, ...depsOfDeps];
+	}
+
+	private filterDependents(extension: ILocalExtension, dependencies: ILocalExtension[], installed: ILocalExtension[]): ILocalExtension[] {
+		installed = installed.filter(i => i !== extension && i.manifest.extensionDependencies && i.manifest.extensionDependencies.length > 0);
+		let result = dependencies.slice(0);
+		for (let i = 0; i < dependencies.length; i++) {
+			const dep = dependencies[i];
+			const dependents = this.getDependents(dep, installed).filter(e => dependencies.indexOf(e) === -1);
+			if (dependents.length) {
+				result.splice(i - (dependencies.length - result.length), 1);
+			}
+		}
+		return result;
+	}
+
+	private getDependents(extension: ILocalExtension, installed: ILocalExtension[]): ILocalExtension[] {
+		return installed.filter(e => e.manifest.extensionDependencies && e.manifest.extensionDependencies.indexOf(`${extension.manifest.publisher}.${extension.manifest.name}`) !== -1);
+	}
+
+	private doUninstall(id: string): TPromise<void> {
+		return this.preUninstallExtension(id)
+			.then(() => this.uninstallExtension(id))
+			.then(() => this.postUninstallExtension(id),
+			error => {
+				this.postUninstallExtension(id, error);
+				return TPromise.wrapError(error);
+			});
+	}
+
+	private preUninstallExtension(id: string): TPromise<void> {
+		const extensionPath = path.join(this.extensionsPath, id);
 		return pfs.exists(extensionPath)
 			.then(exists => exists ? null : Promise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
-			.then(() => this._onUninstallExtension.fire(id))
-			.then(() => this.setObsolete(id))
+			.then(() => this._onUninstallExtension.fire(id));
+	}
+
+	private uninstallExtension(id: string): TPromise<void> {
+		const extensionPath = path.join(this.extensionsPath, id);
+		return this.setObsolete(id)
 			.then(() => pfs.rimraf(extensionPath))
-			.then(() => this.unsetObsolete(id))
-			.then(() => this._onDidUninstallExtension.fire(id));
+			.then(() => this.unsetObsolete(id));
+	}
+
+	private postUninstallExtension(id: string, error?: any): TPromise<void> {
+		return this._onDidUninstallExtension.fire({ id, error });
 	}
 
 	getInstalled(type: LocalExtensionType = null): TPromise<ILocalExtension[]> {
@@ -350,7 +448,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private scanUserExtensions(): TPromise<ILocalExtension[]> {
 		return this.scanExtensions(this.extensionsPath, LocalExtensionType.User).then(extensions => {
-			const byId = values(groupBy(extensions, p => `${ p.manifest.publisher }.${ p.manifest.name }`));
+			const byId = values(groupBy(extensions, p => `${p.manifest.publisher}.${p.manifest.name}`));
 			return byId.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
 		});
 	}
@@ -358,27 +456,28 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private scanExtensions(root: string, type: LocalExtensionType): TPromise<ILocalExtension[]> {
 		const limiter = new Limiter(10);
 
+		return this.scanExtensionFolders(root)
+			.then(extensionIds => Promise.join(extensionIds.map(id => {
+				const extensionPath = path.join(root, id);
+
+				const each = () => pfs.readdir(extensionPath).then(children => {
+					const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
+					const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
+
+					return readManifest(extensionPath)
+						.then<ILocalExtension>(({ manifest, metadata }) => ({ type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl }));
+				}).then(null, () => null);
+
+				return limiter.queue(each);
+			})))
+			.then(result => result.filter(a => !!a));
+	}
+
+	private scanExtensionFolders(root: string): TPromise<string[]> {
 		return this.getObsoleteExtensions()
-			.then(obsolete => {
-				return pfs.readdir(root)
-					.then(extensions => extensions.filter(id => !obsolete[id]))
-					.then<ILocalExtension[]>(extensionIds => Promise.join(extensionIds.map(id => {
-						const extensionPath = path.join(root, id);
-
-						const each = () => pfs.readdir(extensionPath).then(children => {
-							const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-							const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
-							const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-							const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
-
-							return readManifest(extensionPath)
-								.then<ILocalExtension>(({ manifest, metadata }) => ({ type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl }));
-						}).then(null, () => null);
-
-						return limiter.queue(each);
-					})))
-					.then(result => result.filter(a => !!a));
-			});
+			.then(obsolete => pfs.readdir(root).then(extensions => extensions.filter(id => !obsolete[id])));
 	}
 
 	removeDeprecatedExtensions(): TPromise<any> {
@@ -390,7 +489,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private removeOutdatedExtensions(): TPromise<any> {
 		return this.getOutdatedExtensionIds()
-			.then(extensions => extensions.map(e => getExtensionId(e.manifest, e.manifest.version)))
 			.then(extensionIds => this.removeExtensions(extensionIds));
 	}
 
@@ -407,10 +505,19 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		}));
 	}
 
-	private getOutdatedExtensionIds(): TPromise<ILocalExtension[]> {
-		return this.scanExtensions(this.extensionsPath, LocalExtensionType.User)
-			.then(extensions => values(groupBy(extensions, p => `${ p.manifest.publisher }.${ p.manifest.name }`)))
-			.then(versions => flatten(versions.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
+	private getOutdatedExtensionIds(): TPromise<string[]> {
+		return this.scanExtensionFolders(this.extensionsPath)
+			.then(folders => {
+				const galleryFolders = folders
+					.map(folder => ({ folder, match: /^([^.]+\..+)-(\d+\.\d+\.\d+)$/.exec(folder) }))
+					.filter(({ match }) => !!match)
+					.map(({ folder, match }) => ({ folder, id: match[1], version: match[2] }));
+
+				const byId = values(groupBy(galleryFolders, p => p.id));
+
+				return flatten(byId.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version)).slice(1)))
+					.map(a => a.folder);
+			});
 	}
 
 	private isObsolete(id: string): TPromise<boolean> {
@@ -437,16 +544,16 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.withObsoleteExtensions<void>(obsolete => delete obsolete[id]);
 	}
 
-	private getObsoleteExtensions(): TPromise<{ [id:string]: boolean; }> {
+	private getObsoleteExtensions(): TPromise<{ [id: string]: boolean; }> {
 		return this.withObsoleteExtensions(obsolete => obsolete);
 	}
 
-	private withObsoleteExtensions<T>(fn: (obsolete: { [id:string]: boolean; }) => T): TPromise<T> {
+	private withObsoleteExtensions<T>(fn: (obsolete: { [id: string]: boolean; }) => T): TPromise<T> {
 		return this.obsoleteFileLimiter.queue(() => {
 			let result: T = null;
 			return pfs.readFile(this.obsoletePath, 'utf8')
 				.then<string>(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
-				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; }})
+				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(obsolete => { result = fn(obsolete); return obsolete; })
 				.then(obsolete => {
 					if (Object.keys(obsolete).length === 0) {

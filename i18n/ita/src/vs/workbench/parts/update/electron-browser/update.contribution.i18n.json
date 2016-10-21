@@ -9,6 +9,7 @@
 	"license": "Leggi licenza",
 	"licenseChanged": "I termini della licenza sono cambiati. Leggerli con attenzione.",
 	"neverShowAgain": "Non visualizzare più",
+	"read the release notes": "Benvenuti in {0} versione {1}. Leggere le note sulla versione?",
 	"readmore": "Altre informazioni",
-	"releaseNotes": "Benvenuti in {0} versione {1}. Leggere le note sulla versione?"
+	"release notes": "Note sulla versione"
 }

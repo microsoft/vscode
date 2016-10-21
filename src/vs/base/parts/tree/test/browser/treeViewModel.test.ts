@@ -12,7 +12,7 @@ import Tree = require('vs/base/parts/tree/browser/treeImpl');
 import { ArrayIterator } from 'vs/base/common/iterator';
 import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 
-function makeItem(id, height):any {
+function makeItem(id, height): any {
 	return {
 		id: id,
 		getHeight: function () { return height; },
@@ -21,7 +21,7 @@ function makeItem(id, height):any {
 	};
 }
 
-function makeItems(...args:any[]) {
+function makeItems(...args: any[]) {
 	var r = [];
 
 	for (var i = 0; i < args.length; i += 2) {
@@ -31,7 +31,7 @@ function makeItems(...args:any[]) {
 	return r;
 }
 
-function makeNavigator(...args:any[]):any {
+function makeNavigator(...args: any[]): any {
 	var items = makeItems.apply(null, args);
 	var i = 0;
 

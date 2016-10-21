@@ -5,7 +5,7 @@
 
 import * as getmac from 'getmac';
 import * as crypto from 'crypto';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 

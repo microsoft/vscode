@@ -7,8 +7,8 @@
 
 import nls = require('vs/nls');
 
-import {Registry} from 'vs/platform/platform';
-import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 import './actions/expandAbbreviation';
 import './actions/balance';

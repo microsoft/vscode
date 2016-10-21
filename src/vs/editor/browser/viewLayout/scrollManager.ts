@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import {ScrollableElementCreationOptions, ScrollableElementChangeOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import {IOverviewRulerLayoutInfo, ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, INewScrollPosition} from 'vs/editor/common/editorCommon';
-import {ClassNames} from 'vs/editor/browser/editorBrowser';
-import {IViewEventBus} from 'vs/editor/common/view/viewContext';
+import { ScrollableElementCreationOptions, ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import { IOverviewRulerLayoutInfo, ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, INewScrollPosition } from 'vs/editor/common/editorCommon';
+import { ClassNames } from 'vs/editor/browser/editorBrowser';
+import { IViewEventBus } from 'vs/editor/common/view/viewContext';
 
-function addPropertyIfPresent(src:any, dst:any, prop:string): void {
+function addPropertyIfPresent(src: any, dst: any, prop: string): void {
 	if (src.hasOwnProperty(prop)) {
 		dst[prop] = src[prop];
 	}
@@ -21,13 +21,13 @@ function addPropertyIfPresent(src:any, dst:any, prop:string): void {
 export class ScrollManager implements IDisposable {
 
 	private configuration: IConfiguration;
-	private privateViewEventBus:IViewEventBus;
+	private privateViewEventBus: IViewEventBus;
 
-	private toDispose:IDisposable[];
+	private toDispose: IDisposable[];
 	private linesContent: HTMLElement;
 	private scrollbar: ScrollableElement;
 
-	constructor(configuration:IConfiguration, privateViewEventBus:IViewEventBus, linesContent:HTMLElement, viewDomNode:HTMLElement, overflowGuardDomNode:HTMLElement) {
+	constructor(configuration: IConfiguration, privateViewEventBus: IViewEventBus, linesContent: HTMLElement, viewDomNode: HTMLElement, overflowGuardDomNode: HTMLElement) {
 		this.toDispose = [];
 		this.configuration = configuration;
 		this.privateViewEventBus = privateViewEventBus;
@@ -35,7 +35,7 @@ export class ScrollManager implements IDisposable {
 
 		var configScrollbarOpts = this.configuration.editor.viewInfo.scrollbar;
 
-		var scrollbarOptions:ScrollableElementCreationOptions = {
+		var scrollbarOptions: ScrollableElementCreationOptions = {
 			canUseTranslate3d: this.configuration.editor.viewInfo.canUseTranslate3d,
 			listenOnDomNode: viewDomNode,
 			vertical: configScrollbarOpts.vertical,
@@ -58,14 +58,14 @@ export class ScrollManager implements IDisposable {
 		this.scrollbar = new ScrollableElement(linesContent, scrollbarOptions);
 		this.onLayoutInfoChanged();
 		this.toDispose.push(this.scrollbar);
-		this.toDispose.push(this.scrollbar.onScroll((e:IScrollEvent) => {
+		this.toDispose.push(this.scrollbar.onScroll((e: IScrollEvent) => {
 			this.privateViewEventBus.emit(EventType.ViewScrollChanged, e);
 		}));
 
-		this.toDispose.push(this.configuration.onDidChange((e:IConfigurationChangedEvent) => {
+		this.toDispose.push(this.configuration.onDidChange((e: IConfigurationChangedEvent) => {
 			this.scrollbar.updateClassName(ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.viewInfo.theme);
 			if (e.viewInfo.scrollbar || e.viewInfo.canUseTranslate3d) {
-				let newOpts:ScrollableElementChangeOptions = {
+				let newOpts: ScrollableElementChangeOptions = {
 					canUseTranslate3d: this.configuration.editor.viewInfo.canUseTranslate3d,
 					handleMouseWheel: this.configuration.editor.viewInfo.scrollbar.handleMouseWheel,
 					mouseWheelScrollSensitivity: this.configuration.editor.viewInfo.scrollbar.mouseWheelScrollSensitivity
@@ -78,8 +78,8 @@ export class ScrollManager implements IDisposable {
 		// the browser will try desperately to reveal that dom node, unexpectedly
 		// changing the .scrollTop of this.linesContent
 
-		var onBrowserDesperateReveal = (domNode:HTMLElement, lookAtScrollTop:boolean, lookAtScrollLeft:boolean) => {
-			let newScrollPosition:INewScrollPosition = {};
+		var onBrowserDesperateReveal = (domNode: HTMLElement, lookAtScrollTop: boolean, lookAtScrollLeft: boolean) => {
+			let newScrollPosition: INewScrollPosition = {};
 
 			if (lookAtScrollTop) {
 				var deltaTop = domNode.scrollTop;
@@ -101,9 +101,9 @@ export class ScrollManager implements IDisposable {
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.
-		this.toDispose.push(dom.addDisposableListener(viewDomNode, 'scroll', (e:Event) => onBrowserDesperateReveal(viewDomNode, true, true)));
-		this.toDispose.push(dom.addDisposableListener(linesContent, 'scroll', (e:Event) => onBrowserDesperateReveal(linesContent, true, false)));
-		this.toDispose.push(dom.addDisposableListener(overflowGuardDomNode, 'scroll', (e:Event) => onBrowserDesperateReveal(overflowGuardDomNode, true, false)));
+		this.toDispose.push(dom.addDisposableListener(viewDomNode, 'scroll', (e: Event) => onBrowserDesperateReveal(viewDomNode, true, true)));
+		this.toDispose.push(dom.addDisposableListener(linesContent, 'scroll', (e: Event) => onBrowserDesperateReveal(linesContent, true, false)));
+		this.toDispose.push(dom.addDisposableListener(overflowGuardDomNode, 'scroll', (e: Event) => onBrowserDesperateReveal(overflowGuardDomNode, true, false)));
 	}
 
 	public dispose(): void {
@@ -129,7 +129,7 @@ export class ScrollManager implements IDisposable {
 		return this.scrollbar.getDomNode();
 	}
 
-	public delegateVerticalScrollbarMouseDown(browserEvent:MouseEvent): void {
+	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
 		this.scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
@@ -153,16 +153,16 @@ export class ScrollManager implements IDisposable {
 		return this.scrollbar.getScrollTop();
 	}
 
-	public setScrollPosition(position:INewScrollPosition): void {
+	public setScrollPosition(position: INewScrollPosition): void {
 		this.scrollbar.updateState(position);
 	}
 
-	public setScrollHeight(scrollHeight:number): void {
+	public setScrollHeight(scrollHeight: number): void {
 		this.scrollbar.updateState({
 			scrollHeight: scrollHeight
 		});
 	}
-	public setScrollWidth(scrollWidth:number): void {
+	public setScrollWidth(scrollWidth: number): void {
 		this.scrollbar.updateState({
 			scrollWidth: scrollWidth
 		});

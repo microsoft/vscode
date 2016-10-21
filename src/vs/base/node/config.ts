@@ -8,8 +8,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
-import {IDisposable, dispose, toDisposable} from 'vs/base/common/lifecycle';
-import Event, {Emitter} from 'vs/base/common/event';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 
 export interface IConfigurationChangeEvent<T> {

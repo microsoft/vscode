@@ -14,13 +14,14 @@ import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quic
 import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Registry } from 'vs/platform/platform';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { TerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminalService';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import debugActions = require('vs/workbench/parts/debug/browser/debugActions');
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -59,6 +60,14 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. When using shells shipped with Windows (cmd, PowerShell or Bash on Ubuntu), prefer C:\\Windows\\sysnative over C:\\Windows\\System32 to use the 64-bit versions."),
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
+		},
+		'terminal.integrated.shellArgs.windows': {
+			'description': nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal."),
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': []
 		},
 		'terminal.integrated.fontFamily': {
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
@@ -110,9 +119,16 @@ configurationRegistry.registerConfiguration({
 				ToggleTerminalAction.ID,
 				ScrollDownTerminalAction.ID,
 				ScrollDownPageTerminalAction.ID,
+				ScrollToBottomTerminalAction.ID,
 				ScrollUpTerminalAction.ID,
 				ScrollUpPageTerminalAction.ID,
-				ClearTerminalAction.ID
+				ScrollToTopTerminalAction.ID,
+				ClearTerminalAction.ID,
+				debugActions.StartAction.ID,
+				debugActions.StopAction.ID,
+				debugActions.RunAction.ID,
+				debugActions.RestartAction.ID,
+				debugActions.ContinueAction.ID
 			].sort()
 		}
 	}
@@ -163,6 +179,11 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollDownPageTe
 	primary: KeyMod.Shift | KeyCode.PageDown,
 	mac: { primary: KeyCode.PageDown }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Down (Page)', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToBottomTerminalAction, ScrollToBottomTerminalAction.ID, ScrollToBottomTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.End,
+	linux: { primary: KeyMod.Shift | KeyCode.End },
+	mac: { primary: KeyCode.End }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Bottom', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpTerminalAction, ScrollUpTerminalAction.ID, ScrollUpTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
@@ -171,4 +192,9 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpPageTerm
 	primary: KeyMod.Shift | KeyCode.PageUp,
 	mac: { primary: KeyCode.PageUp }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Up (Page)', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToTopTerminalAction, ScrollToTopTerminalAction.ID, ScrollToTopTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.Home,
+	linux: { primary: KeyMod.Shift | KeyCode.Home },
+	mac: { primary: KeyCode.Home }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Bottom', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL), 'Terminal: Clear', category);

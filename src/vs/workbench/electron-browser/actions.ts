@@ -6,35 +6,35 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
-import {Action} from 'vs/base/common/actions';
-import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {EditorInput} from 'vs/workbench/common/editor';
-import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import { Action } from 'vs/base/common/actions';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorInput } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import errors = require('vs/base/common/errors');
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IWindowConfiguration} from 'vs/workbench/electron-browser/common';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {IExtensionManagementService, LocalExtensionType, ILocalExtension} from 'vs/platform/extensionManagement/common/extensionManagement';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
-import {isMacintosh} from 'vs/base/common/platform';
-import {IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {KeyMod} from 'vs/base/common/keyCodes';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry, ISeparator } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { KeyMod } from 'vs/base/common/keyCodes';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
-import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
+import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 
 import * as os from 'os';
-import {ipcRenderer as ipc, webFrame, remote, shell} from 'electron';
+import { ipcRenderer as ipc, webFrame, remote, shell } from 'electron';
 
 // --- actions
 
@@ -205,44 +205,79 @@ export class ToggleDevToolsAction extends Action {
 	}
 }
 
-export class ZoomInAction extends Action {
+export abstract class BaseZoomAction extends Action {
+	private static SETTING_KEY = 'window.zoomLevel';
+
+	constructor(
+		id: string,
+		label: string,
+		@IMessageService private messageService: IMessageService,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+	) {
+		super(id, label);
+	}
+
+	protected setConfiguredZoomLevel(level: number): void {
+		let target = ConfigurationTarget.USER;
+		if (typeof this.configurationService.lookup(BaseZoomAction.SETTING_KEY).workspace === 'number') {
+			target = ConfigurationTarget.WORKSPACE;
+		}
+
+		const applyZoom = () => {
+			webFrame.setZoomLevel(level);
+			browser.setZoomLevel(level); // Ensure others can listen to zoom level changes
+		};
+
+		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }).done(() => applyZoom(), error => applyZoom());
+	}
+}
+
+export class ZoomInAction extends BaseZoomAction {
 
 	public static ID = 'workbench.action.zoomIn';
 	public static LABEL = nls.localize('zoomIn', "Zoom In");
 
-	constructor(id: string, label: string) {
-		super(id, label);
+	constructor(
+		id: string,
+		label: string,
+		@IMessageService messageService: IMessageService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
+		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
+	) {
+		super(id, label, messageService, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
-		webFrame.setZoomLevel(webFrame.getZoomLevel() + 1);
-		browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+		this.setConfiguredZoomLevel(webFrame.getZoomLevel() + 1);
 
 		return TPromise.as(true);
 	}
 }
 
-export class ZoomOutAction extends Action {
+export class ZoomOutAction extends BaseZoomAction {
 
 	public static ID = 'workbench.action.zoomOut';
 	public static LABEL = nls.localize('zoomOut', "Zoom Out");
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@IMessageService messageService: IMessageService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
+		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
-		super(id, label);
+		super(id, label, messageService, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
-		webFrame.setZoomLevel(webFrame.getZoomLevel() - 1);
-		browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+		this.setConfiguredZoomLevel(webFrame.getZoomLevel() - 1);
 
 		return TPromise.as(true);
 	}
 }
 
-export class ZoomResetAction extends Action {
+export class ZoomResetAction extends BaseZoomAction {
 
 	public static ID = 'workbench.action.zoomReset';
 	public static LABEL = nls.localize('zoomReset', "Reset Zoom");
@@ -250,26 +285,17 @@ export class ZoomResetAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IMessageService messageService: IMessageService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
+		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
-		super(id, label);
+		super(id, label, messageService, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
-		const level = this.getConfiguredZoomLevel();
-		webFrame.setZoomLevel(level);
-		browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+		this.setConfiguredZoomLevel(0);
 
 		return TPromise.as(true);
-	}
-
-	private getConfiguredZoomLevel(): number {
-		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
-		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-			return windowConfig.window.zoomLevel;
-		}
-
-		return 0; // default
 	}
 }
 
@@ -529,14 +555,18 @@ export class ReportIssueAction extends Action {
 		});
 	}
 
-	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions:ILocalExtension[]): string {
+	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions: ILocalExtension[]): string {
 		// Avoid backticks, these can trigger XSS detectors. (https://github.com/Microsoft/vscode/issues/13098)
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
 			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
 - OS Version: ${osVersion}
-- Extensions: ${extensions.map(e => e.id).join(', ')}
+- Extensions:
+
+${this.generateExtensionTable(extensions)}
+
+---
 
 Steps to Reproduce:
 
@@ -545,6 +575,16 @@ Steps to Reproduce:
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}`;
+	}
+
+	private generateExtensionTable(extensions: ILocalExtension[]): string {
+		let tableHeader = `|Extension|Author|Version|
+|---|---|---|`;
+		const table = extensions.map(e => {
+			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
+		}).join('\n');
+
+		return tableHeader + '\n' + table;
 	}
 }
 
@@ -569,7 +609,7 @@ CommandsRegistry.registerCommand('_workbench.diff', function (accessor: Services
 	return TPromise.join([editorService.createInput({ resource: left }), editorService.createInput({ resource: right })]).then(inputs => {
 		const [left, right] = inputs;
 
-		const diff = new DiffEditorInput(label, undefined, <EditorInput>left, <EditorInput>right);
+		const diff = new DiffEditorInput(label, void 0, <EditorInput>left, <EditorInput>right);
 		return editorService.openEditor(diff);
 	}).then(() => {
 		return void 0;

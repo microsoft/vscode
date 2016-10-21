@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {Schemas} from 'vs/base/common/network';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {isEmptyObject} from 'vs/base/common/types';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { Schemas } from 'vs/base/common/network';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { isEmptyObject } from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
-import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import {IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics} from './markers';
+import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics } from './markers';
 
 interface MapMap<V> {
 	[key: string]: { [key: string]: V };
@@ -33,13 +33,14 @@ namespace MapMap {
 	}
 
 	export function remove(map: MapMap<any>, key1: string, key2: string): boolean {
-		if (map[key1]) {
-			const result = delete map[key1][key2];
+		if (map[key1] && map[key1][key2]) {
+			delete map[key1][key2];
 			if (isEmptyObject(map[key1])) {
 				delete map[key1];
 			}
-			return result;
+			return true;
 		}
+		return false;
 	}
 }
 

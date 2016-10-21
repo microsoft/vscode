@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {IEditorOptions, IEditorViewState} from 'vs/editor/common/editorCommon';
-import {TextEditorOptions, EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
-import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorOptions, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { TextEditorOptions, EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import URI from 'vs/base/common/uri';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 /**
  * An editor implementation that is capable of showing string inputs or promise inputs that resolve to a string.
@@ -118,16 +118,22 @@ export class StringEditor extends BaseTextEditor {
 			}
 
 			// Otherwise restore View State
-			if (!optionsGotApplied && input instanceof UntitledEditorInput) {
-				const viewState = this.mapResourceToEditorViewState[input.getResource().toString()];
-				if (viewState) {
-					textEditor.restoreViewState(viewState);
-				}
+			if (!optionsGotApplied) {
+				this.restoreViewState(input);
 			}
 
 			// Apply options again because input has changed
 			textEditor.updateOptions(this.getCodeEditorOptions());
 		});
+	}
+
+	protected restoreViewState(input: EditorInput) {
+		if (input instanceof UntitledEditorInput) {
+			const viewState = this.mapResourceToEditorViewState[input.getResource().toString()];
+			if (viewState) {
+				this.getControl().restoreViewState(viewState);
+			}
+		}
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {

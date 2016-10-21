@@ -7,13 +7,13 @@
 
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import {EditorModel} from 'vs/workbench/common/editor';
-import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
-import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
-import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IModeService} from 'vs/editor/common/services/modeService';
+import { EditorModel } from 'vs/workbench/common/editor';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 
 class MyEditorModel extends EditorModel { }
@@ -25,8 +25,8 @@ suite('Workbench - EditorModel', () => {
 	let modeService: IModeService;
 
 	setup(() => {
-		instantiationService= new TestInstantiationService();
-		modeService= instantiationService.stub(IModeService);
+		instantiationService = new TestInstantiationService();
+		modeService = instantiationService.stub(IModeService);
 	});
 
 	test('EditorModel', function (done) {
@@ -51,7 +51,7 @@ suite('Workbench - EditorModel', () => {
 		let modelService = createMockModelService(instantiationService);
 
 		let m = new MyTextEditorModel(modelService, modeService);
-		m.load().then((model:any) => {
+		m.load().then((model: any) => {
 			assert(model === m);
 			return model.createTextEditorModel('foo', null, 'text/plain').then(() => {
 				assert.strictEqual(m.isResolved(), true);

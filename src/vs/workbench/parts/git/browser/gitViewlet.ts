@@ -22,16 +22,15 @@ import notroot = require('vs/workbench/parts/git/browser/views/notroot/notrootVi
 import noworkspace = require('vs/workbench/parts/git/browser/views/noworkspace/noworkspaceView');
 import { DisabledView } from './views/disabled/disabledView';
 import { HugeView } from './views/huge/hugeView';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import IGitService = git.IGitService;
 
 export class GitViewlet
 	extends viewlet.Viewlet
-	implements view.IController
-{
+	implements view.IController {
 	private progressService: IProgressService;
 	private gitService: git.IGitService;
 	private instantiationService: IInstantiationService;
@@ -40,12 +39,12 @@ export class GitViewlet
 	private currentView: view.IView;
 	private progressRunner: IProgressRunner;
 
-	private currentDimension:$.Dimension;
-	private views: { [id:string]: view.IView; };
+	private currentDimension: $.Dimension;
+	private views: { [id: string]: view.IView; };
 
 	private toDispose: lifecycle.IDisposable[];
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService, @IProgressService progressService: IProgressService, @IInstantiationService instantiationService: IInstantiationService, @IGitService gitService: IGitService) {
+	constructor( @ITelemetryService telemetryService: ITelemetryService, @IProgressService progressService: IProgressService, @IInstantiationService instantiationService: IInstantiationService, @IGitService gitService: IGitService) {
 		super(contrib.VIEWLET_ID, telemetryService);
 
 		this.progressService = progressService;
@@ -53,7 +52,7 @@ export class GitViewlet
 		this.gitService = gitService;
 
 		this.progressRunner = null;
-		this.views = <any> {};
+		this.views = <any>{};
 		this.toDispose = [];
 
 		var views: view.IView[] = [
@@ -114,7 +113,7 @@ export class GitViewlet
 
 	// Viewlet
 
-	public create(parent:$.Builder): winjs.TPromise<void> {
+	public create(parent: $.Builder): winjs.TPromise<void> {
 		super.create(parent);
 
 		this.$el = parent.div().addClass('git-viewlet');
@@ -122,7 +121,7 @@ export class GitViewlet
 		return winjs.TPromise.as(null);
 	}
 
-	public setVisible(visible:boolean): winjs.TPromise<void> {
+	public setVisible(visible: boolean): winjs.TPromise<void> {
 		if (visible) {
 			this.onGitServiceChanges();
 
@@ -140,7 +139,7 @@ export class GitViewlet
 		}
 	}
 
-	public focus():void {
+	public focus(): void {
 		super.focus();
 
 		if (this.currentView) {
@@ -148,7 +147,7 @@ export class GitViewlet
 		}
 	}
 
-	public layout(dimension:$.Dimension = this.currentDimension):void {
+	public layout(dimension: $.Dimension = this.currentDimension): void {
 		this.currentDimension = dimension;
 
 		if (this.currentView) {

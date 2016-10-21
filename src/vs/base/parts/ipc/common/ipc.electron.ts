@@ -17,7 +17,7 @@ export interface Sender {
 	send(channel: string, ...args: any[]): void;
 }
 
-export interface IPC extends Sender, NodeJS.EventEmitter {}
+export interface IPC extends Sender, NodeJS.EventEmitter { }
 
 class Protocol implements IMessagePassingProtocol {
 

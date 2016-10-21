@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 import { ITaskService, TaskDescription } from 'vs/workbench/parts/tasks/common/taskService';
 
@@ -19,7 +19,7 @@ class TaskEntry extends Model.QuickOpenEntry {
 	private taskService: ITaskService;
 	private task: TaskDescription;
 
-	constructor(taskService: ITaskService, task: TaskDescription, highlights:Model.IHighlight[] = []) {
+	constructor(taskService: ITaskService, task: TaskDescription, highlights: Model.IHighlight[] = []) {
 		super(highlights);
 		this.taskService = taskService;
 		this.task = task;
@@ -33,7 +33,7 @@ class TaskEntry extends Model.QuickOpenEntry {
 		return nls.localize('entryAriaLabel', "{0}, tasks", this.getLabel());
 	}
 
-	public run(mode:QuickOpen.Mode, context:Model.IContext):boolean {
+	public run(mode: QuickOpen.Mode, context: Model.IContext): boolean {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
@@ -67,7 +67,7 @@ export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			.map(task => ({ task: task, highlights: Filters.matchesContiguousSubString(input, task.name) }))
 			.filter(({ highlights }) => !!highlights)
 			.map(({ task, highlights }) => new TaskEntry(this.taskService, task, highlights))
-		, _ => []).then(e => new Model.QuickOpenModel(e));
+			, _ => []).then(e => new Model.QuickOpenModel(e));
 	}
 
 	public getClass(): string {
@@ -78,13 +78,13 @@ export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		return true;
 	}
 
-	public getAutoFocus(input:string): QuickOpen.IAutoFocus {
+	public getAutoFocus(input: string): QuickOpen.IAutoFocus {
 		return {
 			autoFocusFirstEntry: !!input
 		};
 	}
 
-	public onClose(canceled:boolean): void {
+	public onClose(canceled: boolean): void {
 		return;
 	}
 

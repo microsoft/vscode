@@ -9,7 +9,7 @@ import { ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagem
 
 export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
 	return {
-		id: `${ extension.manifest.publisher }.${ extension.manifest.name }`,
+		id: `${extension.manifest.publisher}.${extension.manifest.name}`,
 		name: extension.manifest.name,
 		galleryId: extension.metadata ? extension.metadata.id : null,
 		publisherId: extension.metadata ? extension.metadata.publisherId : null,
@@ -20,7 +20,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 
 export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
 	return {
-		id: `${ extension.publisher }.${ extension.name }`,
+		id: `${extension.publisher}.${extension.name}`,
 		name: extension.name,
 		galleryId: extension.id,
 		publisherId: extension.publisherId,

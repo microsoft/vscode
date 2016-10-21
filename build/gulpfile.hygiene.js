@@ -9,6 +9,7 @@ const gulp = require('gulp');
 const filter = require('gulp-filter');
 const es = require('event-stream');
 const gulptslint = require('gulp-tslint');
+const tsfmt = require('typescript-formatter');
 const tslint = require('tslint');
 
 const all = [
@@ -47,9 +48,6 @@ const indentationFilter = [
 	'!**/package.json',
 	'!**/npm-shrinkwrap.json',
 	'!**/octicons/**',
-	'!**/vs/languages/sass/test/common/example.scss',
-	'!**/vs/languages/less/common/parser/less.grammar.txt',
-	'!**/vs/languages/css/common/buildscripts/css-schema.xml',
 	'!**/vs/base/common/marked/raw.marked.js',
 	'!**/vs/base/common/winjs.base.raw.js',
 	'!**/vs/base/node/terminateProcess.sh',
@@ -89,7 +87,6 @@ const tslintFilter = [
 	'!src/vs/base/**/*.test.ts',
 	'!extensions/typescript/test/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
-	'!src/vs/languages/**/*.test.ts',
 	'!src/vs/workbench/**/*.test.ts',
 	'!extensions/**/*.test.ts'
 ];
@@ -163,6 +160,24 @@ const hygiene = exports.hygiene = (some, options) => {
 		this.emit('data', file);
 	});
 
+	const formatting = es.map(function (file, cb) {
+
+		tsfmt.processString(file.path, file.contents.toString('utf8'), {
+			verify: true,
+			tsfmt: true,
+			// verbose: true
+		}).then(result => {
+			if (result.error) {
+				console.error(result.message);
+				errorCount++;
+			}
+			cb(null, file);
+
+		}, err => {
+			cb(err);
+		});
+	});
+
 	const tsl = es.through(function(file) {
 		const configuration = tslint.findConfiguration(null, '.');
 		const options = { configuration, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
@@ -187,6 +202,7 @@ const hygiene = exports.hygiene = (some, options) => {
 		.pipe(filter(copyrightFilter))
 		.pipe(copyrights)
 		.pipe(filter(tslintFilter))
+		.pipe(formatting)
 		.pipe(tsl)
 		.pipe(es.through(null, function () {
 			if (errorCount > 0) {

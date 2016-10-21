@@ -403,7 +403,7 @@ export function once<T extends Function>(fn: T): T {
 	let didCall = false;
 	let result: any;
 
-	return function() {
+	return function () {
 		if (didCall) {
 			return result;
 		}
@@ -468,6 +468,16 @@ export class Limiter<T> {
 	}
 }
 
+/**
+ * A queue is handles one promise at a time and guarantees that at any time only one promise is executing.
+ */
+export class Queue<T> extends Limiter<T> {
+
+	constructor() {
+		super(1);
+	}
+}
+
 export class TimeoutTimer extends Disposable {
 	private _token: platform.TimeoutToken;
 
@@ -488,7 +498,7 @@ export class TimeoutTimer extends Disposable {
 		}
 	}
 
-	cancelAndSet(runner: () => void, timeout:number): void {
+	cancelAndSet(runner: () => void, timeout: number): void {
 		this.cancel();
 		this._token = platform.setTimeout(() => {
 			this._token = -1;
@@ -529,7 +539,7 @@ export class IntervalTimer extends Disposable {
 		}
 	}
 
-	cancelAndSet(runner: () => void, interval:number): void {
+	cancelAndSet(runner: () => void, interval: number): void {
 		this.cancel();
 		this._token = platform.setInterval(() => {
 			runner();
@@ -609,4 +619,10 @@ export function ninvoke(thisArg: any, fn: Function, ...args: any[]): Promise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
 	return new Promise((c, e) => fn.call(thisArg, ...args, (err, result) => err ? e(err) : c(result)));
+}
+
+interface IQueuedPromise<T> {
+	t: ITask<TPromise<T>>;
+	c: ValueCallback;
+	e: ErrorCallback;
 }

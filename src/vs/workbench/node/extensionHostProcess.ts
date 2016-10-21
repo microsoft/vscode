@@ -5,12 +5,12 @@
 
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionHostMain, IInitData, exit } from 'vs/workbench/node/extensionHostMain';
-import { Client, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { create as createIPC, IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import marshalling = require('vs/base/common/marshalling');
+import { createQueuedSender } from 'vs/base/node/processes';
 
 interface IRendererConnection {
 	remoteCom: IMainProcessExtHostIPC;
@@ -19,9 +19,12 @@ interface IRendererConnection {
 
 // This calls exit directly in case the initialization is not finished and we need to exit
 // Otherwise, if initialization completed we go to extensionHostMain.terminate()
-let onTerminate = function() {
+let onTerminate = function () {
 	exit();
 };
+
+// Utility to not flood the process.send() with messages if it is busy catching up
+const queuedSender = createQueuedSender(process);
 
 function connectToRenderer(): TPromise<IRendererConnection> {
 	return new TPromise<IRendererConnection>((c, e) => {
@@ -33,7 +36,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			let msg = marshalling.parse(raw);
 
 			const remoteCom = createIPC(data => {
-				process.send(data);
+				queuedSender.send(data);
 				stats.push(data.length);
 			});
 
@@ -49,7 +52,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
 			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-			const unhandledPromises: Promise<any>[] = [];
+			const unhandledPromises: TPromise<any>[] = [];
 			process.on('unhandledRejection', (reason, promise) => {
 				unhandledPromises.push(promise);
 				setTimeout(() => {
@@ -69,7 +72,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			});
 
 			// Print a console message when an exception isn't handled.
-			process.on('uncaughtException', function(err) {
+			process.on('uncaughtException', function (err) {
 				onUnexpectedError(err);
 			});
 
@@ -83,7 +86,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			}, 5000);
 
 			// Check stats
-			setInterval(function() {
+			setInterval(function () {
 				if (stats.length >= 250) {
 					let total = stats.reduce((prev, current) => prev + current, 0);
 					console.warn(`MANY messages are being SEND FROM the extension host!`);
@@ -93,30 +96,18 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			}, 1000);
 
 			// Tell the outside that we are initialized
-			process.send('initialized');
+			queuedSender.send('initialized');
 
 			c({ remoteCom, initData: msg });
 		});
 
 		// Tell the outside that we are ready to receive messages
-		process.send('ready');
+		queuedSender.send('ready');
 	});
 }
 
-function connectToSharedProcess(): TPromise<Client> {
-	return connect(process.env['VSCODE_SHARED_IPC_HOOK'], `extensionHost:${ process.env['VSCODE_WINDOW_ID'] }`);
-}
-
-TPromise.join<any>([connectToRenderer(), connectToSharedProcess()])
-	.done(result => {
-		const renderer: IRendererConnection = result[0];
-		const sharedProcessClient: Client = result[1];
-		const extensionHostMain = new ExtensionHostMain(renderer.remoteCom, renderer.initData, sharedProcessClient);
-
-		onTerminate = () => {
-			extensionHostMain.terminate();
-		};
-
-		extensionHostMain.start()
-			.done(null, err => console.error(err));
-	});
+connectToRenderer().then(renderer => {
+	const extensionHostMain = new ExtensionHostMain(renderer.remoteCom, renderer.initData);
+	onTerminate = () => extensionHostMain.terminate();
+	return extensionHostMain.start();
+}).done(null, err => console.error(err));

@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import dom = require('vs/base/browser/dom');
 import builder = require('vs/base/browser/builder');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import events = require('vs/base/common/events');
 import actions = require('vs/base/common/actions');
@@ -17,19 +17,19 @@ import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
 import splitview = require('vs/base/browser/ui/splitview/splitview');
 import viewlet = require('vs/workbench/browser/viewlet');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {StackFrame, Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint} from 'vs/workbench/parts/debug/common/debugModel';
+import { StackFrame, Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 import IDebugService = debug.IDebugService;
 
 const debugTreeOptions = (ariaLabel: string) => {
-	return <tree.ITreeOptions> {
+	return <tree.ITreeOptions>{
 		twistiePixels: 20,
 		ariaLabel
 	};
@@ -95,7 +95,7 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
 			const isVariableType = (e.focus instanceof Variable);
 
-			if(isMouseClick && isVariableType) {
+			if (isMouseClick && isVariableType) {
 				this.telemetryService.publicLog('debug/variables/selected');
 			}
 		}));
@@ -175,7 +175,7 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
 			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider)
-		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel'}, "Debug Watch Expressions")));
+		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions")));
 
 		this.tree.setInput(this.debugService.getModel());
 
@@ -203,7 +203,7 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 	private onWatchExpressionsUpdated(expression: debug.IExpression): void {
 		this.tree.refresh().done(() => {
-			return expression instanceof Expression ? this.tree.reveal(expression): TPromise.as(true);
+			return expression instanceof Expression ? this.tree.reveal(expression) : TPromise.as(true);
 		}, errors.onUnexpectedError);
 	}
 
@@ -252,7 +252,7 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider),
 			controller: new viewer.CallStackController(this.debugService, this.contextMenuService, actionProvider)
-		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel'}, "Debug Call Stack")));
+		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack")));
 
 		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
 			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
@@ -348,8 +348,8 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 			controller: new viewer.BreakpointsController(this.debugService, this.contextMenuService, actionProvider),
 			sorter: {
 				compare(tree: tree.ITree, element: any, otherElement: any): number {
-					const first = <debug.IBreakpoint> element;
-					const second = <debug.IBreakpoint> otherElement;
+					const first = <debug.IBreakpoint>element;
+					const second = <debug.IBreakpoint>otherElement;
 					if (first instanceof ExceptionBreakpoint) {
 						return -1;
 					}
@@ -370,7 +370,7 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 					return first.desiredLineNumber - second.desiredLineNumber;
 				}
 			}
-		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'breakpointsAriaTreeLabel'}, "Debug Breakpoints")));
+		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'breakpointsAriaTreeLabel' }, "Debug Breakpoints")));
 
 		const debugModel = this.debugService.getModel();
 

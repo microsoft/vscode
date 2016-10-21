@@ -23,6 +23,7 @@ import 'vs/platform/actions/browser/menusExtensionPoint';
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarPosition';
+import 'vs/workbench/browser/actions/toggleEditorLayout';
 import 'vs/workbench/browser/actions/openSettings';
 import 'vs/workbench/browser/actions/configureLocale';
 
@@ -93,3 +94,5 @@ import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/electron-browser/main';
 
 import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution';
+
+import 'vs/workbench/parts/watermark/browser/watermark';

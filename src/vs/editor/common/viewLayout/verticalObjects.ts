@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorWhitespace, IViewWhitespaceViewportData} from 'vs/editor/common/editorCommon';
-import {WhitespaceComputer} from 'vs/editor/common/viewLayout/whitespaceComputer';
-import {IPartialViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { IEditorWhitespace, IViewWhitespaceViewportData } from 'vs/editor/common/editorCommon';
+import { WhitespaceComputer } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 /**
  * Layouting of objects that take vertical space (by having a height) and push down other objects.
@@ -21,12 +21,12 @@ export class VerticalObjects {
 	 * Keep track of the total number of lines.
 	 * This is useful for doing binary searches or for doing hit-testing.
 	 */
-	private linesCount:number;
+	private linesCount: number;
 
 	/**
 	 * Contains whitespace information in pixels
 	 */
-	private whitespaces:WhitespaceComputer;
+	private whitespaces: WhitespaceComputer;
 
 	constructor() {
 		this.linesCount = 0;
@@ -38,7 +38,7 @@ export class VerticalObjects {
 	 *
 	 * @param newLineCount New number of lines.
 	 */
-	public replaceLines(newLineCount:number): void {
+	public replaceLines(newLineCount: number): void {
 		this.linesCount = newLineCount;
 	}
 
@@ -51,11 +51,11 @@ export class VerticalObjects {
 	 * @param heightInPx The height of the whitespace, in pixels.
 	 * @return An id that can be used later to mutate or delete the whitespace
 	 */
-	public insertWhitespace(afterLineNumber:number, ordinal:number, heightInPx:number): number {
+	public insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number): number {
 		return this.whitespaces.insertWhitespace(afterLineNumber, ordinal, heightInPx);
 	}
 
-	public changeWhitespace(id:number, newAfterLineNumber:number, newHeight:number): boolean {
+	public changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean {
 		return this.whitespaces.changeWhitespace(id, newAfterLineNumber, newHeight);
 	}
 
@@ -65,7 +65,7 @@ export class VerticalObjects {
 	 * @param id The whitespace to remove
 	 * @return Returns true if the whitespace is found and it is removed.
 	 */
-	public removeWhitespace(id:number): boolean {
+	public removeWhitespace(id: number): boolean {
 		return this.whitespaces.removeWhitespace(id);
 	}
 
@@ -75,7 +75,7 @@ export class VerticalObjects {
 	 * @param fromLineNumber The line number at which the deletion started, inclusive
 	 * @param toLineNumber The line number at which the deletion ended, inclusive
 	 */
-	public onModelLinesDeleted(fromLineNumber:number, toLineNumber:number): void {
+	public onModelLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
 		this.linesCount -= (toLineNumber - fromLineNumber + 1);
 		this.whitespaces.onModelLinesDeleted(fromLineNumber, toLineNumber);
 	}
@@ -86,7 +86,7 @@ export class VerticalObjects {
 	 * @param fromLineNumber The line number at which the insertion started, inclusive
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
 	 */
-	public onModelLinesInserted(fromLineNumber:number, toLineNumber:number): void {
+	public onModelLinesInserted(fromLineNumber: number, toLineNumber: number): void {
 		this.linesCount += (toLineNumber - fromLineNumber + 1);
 		this.whitespaces.onModelLinesInserted(fromLineNumber, toLineNumber);
 	}
@@ -97,8 +97,8 @@ export class VerticalObjects {
 	 * @param deviceLineHeight The height, in pixels, for one rendered line.
 	 * @return The sum of heights for all objects.
 	 */
-	public getTotalHeight(deviceLineHeight:number): number {
-		deviceLineHeight = deviceLineHeight|0;
+	public getTotalHeight(deviceLineHeight: number): number {
+		deviceLineHeight = deviceLineHeight | 0;
 
 		let linesHeight = deviceLineHeight * this.linesCount;
 		let whitespacesHeight = this.whitespaces.getTotalHeight();
@@ -112,11 +112,11 @@ export class VerticalObjects {
 	 * @param deviceLineHeight The height, in pixels, for one rendered line.
 	 * @return The sum of heights for all objects above `lineNumber`.
 	 */
-	public getVerticalOffsetForLineNumber(lineNumber:number, deviceLineHeight:number): number {
-		lineNumber = lineNumber|0;
-		deviceLineHeight = deviceLineHeight|0;
+	public getVerticalOffsetForLineNumber(lineNumber: number, deviceLineHeight: number): number {
+		lineNumber = lineNumber | 0;
+		deviceLineHeight = deviceLineHeight | 0;
 
-		let previousLinesHeight:number;
+		let previousLinesHeight: number;
 		if (lineNumber > 1) {
 			previousLinesHeight = deviceLineHeight * (lineNumber - 1);
 		} else {
@@ -133,7 +133,7 @@ export class VerticalObjects {
 	 *
 	 * @param lineNumber The line number
 	 */
-	public getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber:number): number {
+	public getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber: number): number {
 		return this.whitespaces.getAccumulatedHeightBeforeLineNumber(lineNumber);
 	}
 
@@ -144,7 +144,7 @@ export class VerticalObjects {
 		return this.whitespaces.getCount() > 0;
 	}
 
-	public isAfterLines(verticalOffset:number, deviceLineHeight:number): boolean {
+	public isAfterLines(verticalOffset: number, deviceLineHeight: number): boolean {
 		let totalHeight = this.getTotalHeight(deviceLineHeight);
 		return verticalOffset > totalHeight;
 	}
@@ -158,22 +158,22 @@ export class VerticalObjects {
 	 * @param deviceLineHeight The height, in piexels, for one rendered line.
 	 * @return The line number at or after vertical offset `verticalOffset`.
 	 */
-	public getLineNumberAtOrAfterVerticalOffset(verticalOffset:number, deviceLineHeight:number): number {
-		verticalOffset = verticalOffset|0;
-		deviceLineHeight = deviceLineHeight|0;
+	public getLineNumberAtOrAfterVerticalOffset(verticalOffset: number, deviceLineHeight: number): number {
+		verticalOffset = verticalOffset | 0;
+		deviceLineHeight = deviceLineHeight | 0;
 
 		if (verticalOffset < 0) {
 			return 1;
 		}
 
 		let minLineNumber = 1;
-		let linesCount = this.linesCount|0;
+		let linesCount = this.linesCount | 0;
 		let maxLineNumber = linesCount;
 
 		while (minLineNumber < maxLineNumber) {
-			let midLineNumber = ((minLineNumber + maxLineNumber) / 2)|0;
+			let midLineNumber = ((minLineNumber + maxLineNumber) / 2) | 0;
 
-			let midLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(midLineNumber, deviceLineHeight)|0;
+			let midLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(midLineNumber, deviceLineHeight) | 0;
 
 			if (verticalOffset >= midLineNumberVerticalOffset + deviceLineHeight) {
 				// vertical offset is after mid line number
@@ -202,10 +202,10 @@ export class VerticalObjects {
 	 * @param deviceLineHeight The height, in pixels, for one rendered line.
 	 * @return The line number that is closest to the center between `verticalOffset1` and `verticalOffset2`.
 	 */
-	public getCenteredLineInViewport(verticalOffset1:number, verticalOffset2:number, deviceLineHeight:number): number {
-		verticalOffset1 = verticalOffset1|0;
-		verticalOffset2 = verticalOffset2|0;
-		deviceLineHeight = deviceLineHeight|0;
+	public getCenteredLineInViewport(verticalOffset1: number, verticalOffset2: number, deviceLineHeight: number): number {
+		verticalOffset1 = verticalOffset1 | 0;
+		verticalOffset2 = verticalOffset2 | 0;
+		deviceLineHeight = deviceLineHeight | 0;
 
 		let viewportData = this.getLinesViewportData(verticalOffset1, verticalOffset2, deviceLineHeight);
 
@@ -218,7 +218,7 @@ export class VerticalObjects {
 			currentLineActualTop = viewportData.visibleRangesDeltaTop + viewportData.relativeVerticalOffset[lineNumber - viewportData.startLineNumber];
 			currentLineActualBottom = currentLineActualTop + deviceLineHeight;
 
-			if ( (currentLineActualTop <= verticalCenter && verticalCenter < currentLineActualBottom) || currentLineActualTop > verticalCenter) {
+			if ((currentLineActualTop <= verticalCenter && verticalCenter < currentLineActualBottom) || currentLineActualTop > verticalCenter) {
 				return lineNumber;
 			}
 		}
@@ -234,21 +234,21 @@ export class VerticalObjects {
 	 * @param deviceLineHeight The height, in pixels, for one rendered line.
 	 * @return A structure describing the lines positioned between `verticalOffset1` and `verticalOffset2`.
 	 */
-	public getLinesViewportData(verticalOffset1:number, verticalOffset2:number, deviceLineHeight:number): IPartialViewLinesViewportData {
-		verticalOffset1 = verticalOffset1|0;
-		verticalOffset2 = verticalOffset2|0;
-		deviceLineHeight = deviceLineHeight|0;
+	public getLinesViewportData(verticalOffset1: number, verticalOffset2: number, deviceLineHeight: number): IPartialViewLinesViewportData {
+		verticalOffset1 = verticalOffset1 | 0;
+		verticalOffset2 = verticalOffset2 | 0;
+		deviceLineHeight = deviceLineHeight | 0;
 
 		// Find first line number
 		// We don't live in a perfect world, so the line number might start before or after verticalOffset1
-		let startLineNumber = this.getLineNumberAtOrAfterVerticalOffset(verticalOffset1, deviceLineHeight)|0;
+		let startLineNumber = this.getLineNumberAtOrAfterVerticalOffset(verticalOffset1, deviceLineHeight) | 0;
 
-		let endLineNumber = this.linesCount|0;
-		let startLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(startLineNumber, deviceLineHeight)|0;
+		let endLineNumber = this.linesCount | 0;
+		let startLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(startLineNumber, deviceLineHeight) | 0;
 
 		// Also keep track of what whitespace we've got
-		let whitespaceIndex = this.whitespaces.getFirstWhitespaceIndexAfterLineNumber(startLineNumber)|0;
-		let whitespaceCount = this.whitespaces.getCount()|0;
+		let whitespaceIndex = this.whitespaces.getFirstWhitespaceIndexAfterLineNumber(startLineNumber) | 0;
+		let whitespaceCount = this.whitespaces.getCount() | 0;
 		let currentWhitespaceHeight: number;
 		let currentWhitespaceAfterLineNumber: number;
 
@@ -257,8 +257,8 @@ export class VerticalObjects {
 			currentWhitespaceAfterLineNumber = endLineNumber + 1;
 			currentWhitespaceHeight = 0;
 		} else {
-			currentWhitespaceAfterLineNumber = this.whitespaces.getAfterLineNumberForWhitespaceIndex(whitespaceIndex)|0;
-			currentWhitespaceHeight = this.whitespaces.getHeightForWhitespaceIndex(whitespaceIndex)|0;
+			currentWhitespaceAfterLineNumber = this.whitespaces.getAfterLineNumberForWhitespaceIndex(whitespaceIndex) | 0;
+			currentWhitespaceHeight = this.whitespaces.getHeightForWhitespaceIndex(whitespaceIndex) | 0;
 		}
 
 		let currentVerticalOffset = startLineNumberVerticalOffset;
@@ -275,7 +275,7 @@ export class VerticalObjects {
 			currentLineRelativeOffset -= bigNumbersDelta;
 		}
 
-		let linesOffsets:number[] = [];
+		let linesOffsets: number[] = [];
 
 		// Figure out how far the lines go
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
@@ -297,8 +297,8 @@ export class VerticalObjects {
 				if (whitespaceIndex >= whitespaceCount) {
 					currentWhitespaceAfterLineNumber = endLineNumber + 1;
 				} else {
-					currentWhitespaceAfterLineNumber = this.whitespaces.getAfterLineNumberForWhitespaceIndex(whitespaceIndex)|0;
-					currentWhitespaceHeight = this.whitespaces.getHeightForWhitespaceIndex(whitespaceIndex)|0;
+					currentWhitespaceAfterLineNumber = this.whitespaces.getAfterLineNumberForWhitespaceIndex(whitespaceIndex) | 0;
+					currentWhitespaceHeight = this.whitespaces.getHeightForWhitespaceIndex(whitespaceIndex) | 0;
 				}
 			}
 
@@ -320,20 +320,20 @@ export class VerticalObjects {
 		};
 	}
 
-	public getVerticalOffsetForWhitespaceIndex(whitespaceIndex:number, deviceLineHeight:number): number {
-		whitespaceIndex = whitespaceIndex|0;
-		deviceLineHeight = deviceLineHeight|0;
+	public getVerticalOffsetForWhitespaceIndex(whitespaceIndex: number, deviceLineHeight: number): number {
+		whitespaceIndex = whitespaceIndex | 0;
+		deviceLineHeight = deviceLineHeight | 0;
 
 		let afterLineNumber = this.whitespaces.getAfterLineNumberForWhitespaceIndex(whitespaceIndex);
 
-		let previousLinesHeight:number;
+		let previousLinesHeight: number;
 		if (afterLineNumber >= 1) {
 			previousLinesHeight = deviceLineHeight * afterLineNumber;
 		} else {
 			previousLinesHeight = 0;
 		}
 
-		let previousWhitespacesHeight:number;
+		let previousWhitespacesHeight: number;
 		if (whitespaceIndex > 0) {
 			previousWhitespacesHeight = this.whitespaces.getAccumulatedHeight(whitespaceIndex - 1);
 		} else {
@@ -342,15 +342,15 @@ export class VerticalObjects {
 		return previousLinesHeight + previousWhitespacesHeight;
 	}
 
-	public getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset:number, deviceLineHeight:number): number {
-		verticalOffset = verticalOffset|0;
-		deviceLineHeight = deviceLineHeight|0;
+	public getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset: number, deviceLineHeight: number): number {
+		verticalOffset = verticalOffset | 0;
+		deviceLineHeight = deviceLineHeight | 0;
 
-		let midWhitespaceIndex:number,
+		let midWhitespaceIndex: number,
 			minWhitespaceIndex = 0,
 			maxWhitespaceIndex = this.whitespaces.getCount() - 1,
-			midWhitespaceVerticalOffset:number,
-			midWhitespaceHeight:number;
+			midWhitespaceVerticalOffset: number,
+			midWhitespaceHeight: number;
 
 		if (maxWhitespaceIndex < 0) {
 			return -1;
@@ -390,9 +390,9 @@ export class VerticalObjects {
 	 * @param deviceLineHeight The height, in pixels, for one rendered line.
 	 * @return Precisely the whitespace that is layouted at `verticaloffset` or null.
 	 */
-	public getWhitespaceAtVerticalOffset(verticalOffset:number, deviceLineHeight:number): IViewWhitespaceViewportData {
-		verticalOffset = verticalOffset|0;
-		deviceLineHeight = deviceLineHeight|0;
+	public getWhitespaceAtVerticalOffset(verticalOffset: number, deviceLineHeight: number): IViewWhitespaceViewportData {
+		verticalOffset = verticalOffset | 0;
+		deviceLineHeight = deviceLineHeight | 0;
 
 		let candidateIndex = this.getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset, deviceLineHeight);
 
@@ -430,10 +430,10 @@ export class VerticalObjects {
 	 * @param deviceLineHeight The height, in pixels, for one rendered line.
 	 * @return An array with all the whitespaces in the viewport. If no whitespace is in viewport, the array is empty.
 	 */
-	public getWhitespaceViewportData(verticalOffset1:number, verticalOffset2:number, deviceLineHeight:number): IViewWhitespaceViewportData[] {
-		verticalOffset1 = verticalOffset1|0;
-		verticalOffset2 = verticalOffset2|0;
-		deviceLineHeight = deviceLineHeight|0;
+	public getWhitespaceViewportData(verticalOffset1: number, verticalOffset2: number, deviceLineHeight: number): IViewWhitespaceViewportData[] {
+		verticalOffset1 = verticalOffset1 | 0;
+		verticalOffset2 = verticalOffset2 | 0;
+		deviceLineHeight = deviceLineHeight | 0;
 
 		let startIndex = this.getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset1, deviceLineHeight);
 		let endIndex = this.whitespaces.getCount() - 1;
@@ -443,9 +443,9 @@ export class VerticalObjects {
 		}
 
 		let result: IViewWhitespaceViewportData[] = [],
-			i:number,
-			top:number,
-			height:number;
+			i: number,
+			top: number,
+			height: number;
 
 		for (i = startIndex; i <= endIndex; i++) {
 			top = this.getVerticalOffsetForWhitespaceIndex(i, deviceLineHeight);
@@ -465,7 +465,7 @@ export class VerticalObjects {
 		return result;
 	}
 
-	public getWhitespaces(deviceLineHeight:number): IEditorWhitespace[] {
+	public getWhitespaces(deviceLineHeight: number): IEditorWhitespace[] {
 		return this.whitespaces.getWhitespaces(deviceLineHeight);
 	}
 }

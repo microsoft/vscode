@@ -6,9 +6,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, TextDocument, window, Position, Uri, EventEmitter, WorkspaceEdit} from 'vscode';
-import {createRandomFile, deleteFile, cleanUp, pathEquals} from './utils';
-import {join, basename} from 'path';
+import { workspace, TextDocument, window, Position, Uri, EventEmitter, WorkspaceEdit } from 'vscode';
+import { createRandomFile, deleteFile, cleanUp, pathEquals } from './utils';
+import { join, basename } from 'path';
 import * as fs from 'fs';
 
 suite('workspace-namespace', () => {
@@ -38,7 +38,7 @@ suite('workspace-namespace', () => {
 		assert.ok(config.has('get'));
 		assert.equal(config.get('get'), 'get-prop');
 		assert.deepEqual(config['get'], config.get);
-		assert.throws(() => config['get'] = <any> 'get-prop');
+		assert.throws(() => config['get'] = <any>'get-prop');
 	});
 
 	// test('configuration, getConfig/value', () => {

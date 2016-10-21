@@ -14,7 +14,7 @@ export class StopWatch {
 	private _startTime: number;
 	private _stopTime: number;
 
-	public static create(highResolution:boolean = true): StopWatch {
+	public static create(highResolution: boolean = true): StopWatch {
 		return new StopWatch(highResolution);
 	}
 

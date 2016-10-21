@@ -209,16 +209,16 @@ suite('EventEmitter', () => {
 		var emitter = new EventEmitter();
 		var actualCallOrder: string[] = [];
 
-		emitter.addListener2('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');
 			emitter.emit('bar');
 		});
 
 
-		emitter.addListener2('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener2-foo');
 		});
-		emitter.addListener2('bar', function() {
+		emitter.addListener2('bar', function () {
 			actualCallOrder.push('listener2-bar');
 		});
 
@@ -235,7 +235,7 @@ suite('EventEmitter', () => {
 		var emitter = new EventEmitter();
 		var actualCallOrder: string[] = [];
 
-		emitter.addListener2('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');
 			emitter.deferredEmit(() => {
 				emitter.emit('bar');
@@ -243,10 +243,10 @@ suite('EventEmitter', () => {
 		});
 
 
-		emitter.addListener2('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener2-foo');
 		});
-		emitter.addListener2('bar', function() {
+		emitter.addListener2('bar', function () {
 			actualCallOrder.push('listener2-bar');
 		});
 
@@ -265,16 +265,16 @@ suite('EventEmitter', () => {
 		var emitter = new OrderGuaranteeEventEmitter();
 		var actualCallOrder: string[] = [];
 
-		emitter.addListener2('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');
 			emitter.emit('bar');
 		});
 
 
-		emitter.addListener2('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener2-foo');
 		});
-		emitter.addListener2('bar', function() {
+		emitter.addListener2('bar', function () {
 			actualCallOrder.push('listener2-bar');
 		});
 
@@ -291,7 +291,7 @@ suite('EventEmitter', () => {
 		var emitter = new OrderGuaranteeEventEmitter();
 		var actualCallOrder: string[] = [];
 
-		emitter.addListener2('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');
 			emitter.deferredEmit(() => {
 				emitter.emit('bar');
@@ -299,10 +299,10 @@ suite('EventEmitter', () => {
 		});
 
 
-		emitter.addListener2('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener2-foo');
 		});
-		emitter.addListener2('bar', function() {
+		emitter.addListener2('bar', function () {
 			actualCallOrder.push('listener2-bar');
 		});
 

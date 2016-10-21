@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import lifecycle = require('vs/base/common/lifecycle');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {KeyCode} from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import dom = require('vs/base/browser/dom');
 import * as nls from 'vs/nls';
-import {ITree} from 'vs/base/parts/tree/browser/tree';
-import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {DefaultController, ICancelableEvent} from 'vs/base/parts/tree/browser/treeDefaults';
-import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
+import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {evaluateExpression, Expression} from 'vs/workbench/parts/debug/common/debugModel';
+import { evaluateExpression, Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 const $ = dom.$;
 const debugTreeOptions = {
@@ -103,7 +103,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		return this.domNode;
 	}
 
-	private getExactExpressionRange(lineContent: string, range: Range) : Range {
+	private getExactExpressionRange(lineContent: string, range: Range): Range {
 		let matchingExpression = undefined;
 		let startOffset = 0;
 
@@ -153,7 +153,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			return;
 		}
 
-		const session = this.debugService.getActiveSession();
+		const session = this.debugService.activeSession;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
 		const expressionRange = this.getExactExpressionRange(lineContent, range);
 		// use regex to extract the sub-expression #9821
@@ -203,8 +203,8 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			.then(scopes => scopes.filter(scope => !scope.expensive))
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
-			// only show if there are no duplicates across scopes
-			.then(expressions => expressions.length === 1 ? expressions[0] : null);
+			// only show if all expressions found have the same value
+			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);
 	}
 
 	private doShow(position: Position, expression: debug.IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
@@ -254,7 +254,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
 
 			if (this.treeContainer.clientHeight !== height) {
-				this.treeContainer.style.height = `${ height }px`;
+				this.treeContainer.style.height = `${height}px`;
 				this.tree.layout();
 			}
 		}

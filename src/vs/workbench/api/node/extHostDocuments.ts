@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import Event, {Emitter} from 'vs/base/common/event';
+import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import Event, { Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {Range, Position, Disposable} from 'vs/workbench/api/node/extHostTypes';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { Range, Position, Disposable } from 'vs/workbench/api/node/extHostTypes';
 import * as TypeConverters from './extHostTypeConverters';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
-import {asWinJsPromise} from 'vs/base/common/async';
-import {getWordAtText, ensureValidWordDefinition} from 'vs/editor/common/model/wordHelper';
-import {MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IModelAddedData} from './extHost.protocol';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
+import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IModelAddedData } from './extHost.protocol';
 
 const _modeId2WordDefinition: {
 	[modeId: string]: RegExp;

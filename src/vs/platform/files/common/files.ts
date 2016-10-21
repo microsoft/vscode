@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import events = require('vs/base/common/events');
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -103,6 +103,27 @@ export interface IFileService {
 	 * move the file to trash.
 	 */
 	del(resource: URI, useTrash?: boolean): TPromise<void>;
+
+	/**
+	 * Backs up the provided file to a temporary directory to be used by the hot
+	 * exit feature and crash recovery.
+	 */
+	backupFile(resource: URI, content: string): TPromise<IFileStat>;
+
+	/**
+	 * Discard the backup for the resource specified.
+	 */
+	discardBackup(resource: URI): TPromise<void>;
+
+	/**
+	 * Discards all backups associated with this session.
+	 */
+	discardBackups(): TPromise<void>;
+
+	/**
+	 * Whether hot exit is enabled.
+	 */
+	isHotExitEnabled(): boolean;
 
 	/**
 	 * Imports the file to the parent identified by the resource.
@@ -475,6 +496,7 @@ export interface IFilesConfiguration {
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
+		hotExit: boolean;
 	};
 }
 

@@ -5,10 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import {IPosition} from 'vs/editor/common/editorCommon';
-import {ISuggestion, ISuggestResult, ISuggestSupport} from 'vs/editor/common/modes';
-import {ISuggestionItem} from 'vs/editor/contrib/suggest/common/suggest';
-import {CompletionModel} from 'vs/editor/contrib/suggest/common/completionModel';
+import { IPosition } from 'vs/editor/common/editorCommon';
+import { ISuggestion, ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
+import { ISuggestionItem } from 'vs/editor/contrib/suggest/common/suggest';
+import { CompletionModel } from 'vs/editor/contrib/suggest/common/completionModel';
 
 suite('CompletionModel', function () {
 
@@ -26,7 +26,6 @@ suite('CompletionModel', function () {
 			};
 
 			container: ISuggestResult = {
-				currentWord: '',
 				incomplete,
 				suggestions: [this.suggestion]
 			};
@@ -53,9 +52,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('Foo', 3),
 			createSuggestItem('foo', 2),
 		], 1, {
-			leadingLineContent: 'foo',
-			characterCountDelta: 0
-		});
+				leadingLineContent: 'foo',
+				characterCountDelta: 0
+			});
 	});
 
 	test('filtering - cached', function () {
@@ -91,9 +90,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('foo', 3, true),
 			createSuggestItem('foo', 2),
 		], 1, {
-			leadingLineContent: 'foo',
-			characterCountDelta: 0
-		});
+				leadingLineContent: 'foo',
+				characterCountDelta: 0
+			});
 		assert.equal(incompleteModel.incomplete.length, 1);
 	});
 

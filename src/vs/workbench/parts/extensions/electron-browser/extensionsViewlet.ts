@@ -30,7 +30,11 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from './extensions';
-import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, InstallVSIXAction, ConfigureWorkspaceRecommendedExtensionsAction } from './extensionsActions';
+import {
+	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
+	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, InstallVSIXAction, ConfigureWorkspaceRecommendedExtensionsAction,
+	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction
+} from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { Query } from '../common/extensionQuery';
@@ -121,7 +125,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return TPromise.as(null);
 	}
 
-	setVisible(visible:boolean): TPromise<void> {
+	setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible).then(() => {
 			if (visible) {
 				this.searchBox.focus();
@@ -137,7 +141,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		this.searchBox.focus();
 	}
 
-	layout({ height, width }: Dimension):void {
+	layout({ height, width }: Dimension): void {
 		this.list.layout(height - 38);
 		toggleClass(this.root, 'narrow', width <= 300);
 	}
@@ -163,6 +167,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				new Separator(),
 				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, ShowWorkspaceRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
@@ -172,6 +177,12 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				new Separator(),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..asc', localize('ascending', "Sort Order: ↑"), this.onSearchChange, undefined, 'asc'),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc'),
+				new Separator(),
+				this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL),
+				this.instantiationService.createInstance(DisableAllWorkpsaceAction, DisableAllWorkpsaceAction.ID, DisableAllWorkpsaceAction.LABEL),
+				new Separator(),
+				this.instantiationService.createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL),
+				this.instantiationService.createInstance(EnableAllWorkpsaceAction, EnableAllWorkpsaceAction.ID, EnableAllWorkpsaceAction.LABEL),
 				new Separator(),
 				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL),
 				this.instantiationService.createInstance(ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction.ID, ConfigureWorkspaceRecommendedExtensionsAction.LABEL)
@@ -223,6 +234,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		if (!value) {
 			// Show installed extensions
 			return this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(result => result.filter(e => e.type === LocalExtensionType.User))
 				.then(result => new PagedModel(result));
 		}
@@ -233,10 +245,16 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				.then(result => new PagedModel(result));
 		}
 
+		if (/@disabled/i.test(value)) {
+			return this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.filter(e => e.state === ExtensionState.Disabled))
+				.then(result => new PagedModel(result));
+		}
+
 		const query = Query.parse(value);
 		let options: IQueryOptions = {};
 
-		switch(query.sortBy) {
+		switch (query.sortBy) {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
 			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
 		}
@@ -267,7 +285,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			.then(result => result.filter(e => e.type === LocalExtensionType.User))
 			.then(local => {
 				const names = this.tipsService.getRecommendations()
-					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name))
+					.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
 					.filter(name => name.toLowerCase().indexOf(value) > -1);
 
 				this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
@@ -297,8 +315,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private openExtension(extension: IExtension): void {
-		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
-			.done(null, err => this.onError(err));
+		this.extensionsWorkbenchService.open(extension).done(null, err => this.onError(err));
 	}
 
 	private onEnter(): void {
