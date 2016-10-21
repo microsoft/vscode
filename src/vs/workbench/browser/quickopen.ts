@@ -247,20 +247,26 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
-			let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+		let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 
-			let input = this.getInput();
-			if (input instanceof EditorInput) {
-				this.editorService.openEditor(input, this.getOptions(), sideBySide).done(null, errors.onUnexpectedError);
-			} else {
-				this.editorService.openEditor(<IResourceInput>input, sideBySide).done(null, errors.onUnexpectedError);
+		let input = this.getInput();
+		let options = this.getOptions();
+
+		const isPreview = mode === Mode.PREVIEW;
+
+		if (input instanceof EditorInput) {
+			if (isPreview) {
+				options.preserveFocus = true;
 			}
-
-			return true;
+			this.editorService.openEditor(input, options, sideBySide).done(null, errors.onUnexpectedError);
+		} else {
+			if (isPreview) {
+				(<IResourceInput>input).options.preserveFocus = true;
+			}
+			this.editorService.openEditor(<IResourceInput>input, sideBySide).done(null, errors.onUnexpectedError);
 		}
 
-		return false;
+		return !isPreview;
 	}
 }
 
