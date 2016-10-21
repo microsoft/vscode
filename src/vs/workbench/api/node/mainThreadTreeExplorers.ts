@@ -9,13 +9,15 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ExtHostContext, MainThreadTreeExplorersShape, ExtHostTreeExplorersShape } from './extHost.protocol';
 import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
 import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 	private _proxy: ExtHostTreeExplorersShape;
 
 	constructor(
 		@IThreadService threadService: IThreadService,
-		@ITreeExplorerViewletService private treeExplorerService: ITreeExplorerViewletService
+		@ITreeExplorerViewletService private treeExplorerService: ITreeExplorerViewletService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super();
 
@@ -34,5 +36,9 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 				return this._proxy.$executeCommand(providerId, node);
 			}
 		});
+	}
+
+	$showMessage(severity: Severity, message: string): void {
+		this.messageService.show(severity, message);
 	}
 }
