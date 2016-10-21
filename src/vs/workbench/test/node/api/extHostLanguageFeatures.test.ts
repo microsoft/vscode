@@ -21,6 +21,7 @@ import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFe
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/node/mainThreadLanguageFeatures';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainThreadCommands } from 'vs/workbench/api/node/mainThreadCommands';
+import { IHeapService } from 'vs/workbench/api/node/mainThreadHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { DocumentSymbolProviderRegistry, DocumentHighlightKind } from 'vs/editor/common/modes';
@@ -67,6 +68,13 @@ suite('ExtHostLanguageFeatures', function () {
 		let instantiationService = new TestInstantiationService();
 		instantiationService.stub(IThreadService, threadService);
 		instantiationService.stub(IMarkerService);
+		instantiationService.stub(IHeapService, {
+			_serviceBrand: undefined,
+			trackRecursive(args) {
+				// nothing
+				return args;
+			}
+		});
 
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
@@ -92,14 +100,16 @@ suite('ExtHostLanguageFeatures', function () {
 			},
 		});
 
-		const commands = new ExtHostCommands(threadService, null);
+		const heapService = new ExtHostHeapService();
+
+		const commands = new ExtHostCommands(threadService, null, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
 
 		const diagnostics = new ExtHostDiagnostics(threadService);
 		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, new ExtHostHeapService(), diagnostics);
+		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
