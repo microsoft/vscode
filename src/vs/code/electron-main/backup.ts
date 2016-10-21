@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import fs = require('fs');
 import Uri from 'vs/base/common/uri';
+import { readdirSync } from 'vs/base/node/extfs';
 import { IBackupFormat } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -97,7 +98,7 @@ export class BackupService implements IBackupService {
 
 		// Allow sync here as it's only used in workbench initialization's critical path
 		try {
-			return fs.readdirSync(untitledDir).map(file => path.join(untitledDir, file));
+			return readdirSync(untitledDir).map(file => path.join(untitledDir, file));
 		} catch (ex) {
 			return [];
 		}

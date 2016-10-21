@@ -166,12 +166,12 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 
 					// Select element on Enter
-					else if (keyboardEvent.keyCode === KeyCode.Enter) {
+					else if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.RightArrow) {
 						DOM.EventHelper.stop(e, true);
 
 						const focus = this.tree.getFocus();
 						if (focus) {
-							this.elementSelected(focus, e);
+							this.elementSelected(focus, e, keyboardEvent.keyCode === KeyCode.RightArrow ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
 						}
 					}
 
@@ -401,13 +401,16 @@ export class QuickOpenWidget implements IModelProvider {
 		this.model.runner.run(value, Mode.PREVIEW, context);
 	}
 
-	private elementSelected(value: any, event?: any): void {
+	private elementSelected(value: any, event?: any, preferredMode?: Mode): void {
 		let hide = true;
 
 		// Trigger open of element on selection
 		if (this.isVisible()) {
+			let mode = preferredMode || Mode.OPEN;
+
 			const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
-			hide = this.model.runner.run(value, Mode.OPEN, context);
+
+			hide = this.model.runner.run(value, mode, context);
 		}
 
 		// add telemetry when an item is accepted, logging the index of the item in the list and the length of the list

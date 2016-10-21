@@ -422,6 +422,20 @@ export class WindowsManager implements IWindowsService {
 			}
 		});
 
+		ipc.on('vscode:setHeaders', (event, windowId: number, urls: string[], headers: any) => {
+			this.logService.log('IPC#vscode:setHeaders');
+
+			const vscodeWindow = this.getWindowById(windowId);
+
+			if (!vscodeWindow || !urls || !urls.length || !headers) {
+				return;
+			}
+
+			vscodeWindow.win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+				cb({ cancel: false, requestHeaders: assign(details.requestHeaders, headers) });
+			});
+		});
+
 		ipc.on('vscode:broadcast', (event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
 			if (broadcast.channel && !types.isUndefinedOrNull(broadcast.payload)) {
 				this.logService.log('IPC#vscode:broadcast', target, broadcast.channel, broadcast.payload);
