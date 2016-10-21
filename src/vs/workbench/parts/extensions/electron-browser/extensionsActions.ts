@@ -399,7 +399,7 @@ export class EnableAction extends Action {
 			return;
 		}
 
-		this.enabled = !this.extension.reload && this.extension.state === ExtensionState.Disabled;
+		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && this.extension.state === ExtensionState.Disabled;
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
@@ -480,7 +480,7 @@ export class DisableAction extends Action {
 			return;
 		}
 
-		this.enabled = !this.extension.reload && this.extension.state === ExtensionState.Enabled;
+		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && this.extension.state === ExtensionState.Enabled;
 		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
 	}
 
