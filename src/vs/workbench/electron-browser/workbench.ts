@@ -16,8 +16,6 @@ import { Delayer } from 'vs/base/common/async';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
-import Uri from 'vs/base/common/uri';
-import { IBackupService } from 'vs/platform/backup/common/backup';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux } from 'vs/base/common/platform';
@@ -162,8 +160,7 @@ export class Workbench implements IPartService {
 		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IBackupService private backupService: IBackupService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.container = container;
 
@@ -173,22 +170,7 @@ export class Workbench implements IPartService {
 			serviceCollection
 		};
 
-		// Restore any backups if they exist for this workspace (empty workspaces are not supported yet)
-		if (workspace) {
-			options.filesToRestore = this.backupService.getWorkspaceTextFilesWithBackupsSync(workspace.resource).map(filePath => {
-				return { resource: Uri.file(filePath), options: { pinned: true } };
-			});
-			options.untitledFilesToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(workspace.resource).map(untitledFilePath => {
-				return { resource: Uri.file(untitledFilePath), options: { pinned: true } };
-			});
-		}
-
-		this.hasFilesToCreateOpenOrDiff =
-			(options.filesToCreate && options.filesToCreate.length > 0) ||
-			(options.filesToOpen && options.filesToOpen.length > 0) ||
-			(options.filesToDiff && options.filesToDiff.length > 0) ||
-			(options.filesToRestore && options.filesToRestore.length > 0) ||
-			(options.untitledFilesToRestore && options.untitledFilesToRestore.length > 0);
+		this.hasFilesToCreateOpenOrDiff = (options.filesToCreate && options.filesToCreate.length > 0) || (options.filesToOpen && options.filesToOpen.length > 0) || (options.filesToDiff && options.filesToDiff.length > 0);
 
 		this.toDispose = [];
 		this.toShutdown = [];
@@ -315,8 +297,6 @@ export class Workbench implements IPartService {
 			const wbopt = this.workbenchParams.options;
 			const filesToCreate = wbopt.filesToCreate || [];
 			const filesToOpen = wbopt.filesToOpen || [];
-			const filesToRestore = wbopt.filesToRestore || [];
-			const untitledFilesToRestore = wbopt.untitledFilesToRestore || [];
 			const filesToDiff = wbopt.filesToDiff;
 
 			// Files to diff is exclusive
@@ -335,17 +315,10 @@ export class Workbench implements IPartService {
 				inputs.push(...filesToCreate.map(resourceInput => this.untitledEditorService.createOrGet(resourceInput.resource)));
 				options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
 
-				// Files to restore
-				inputs.push(...untitledFilesToRestore.map(resourceInput => this.untitledEditorService.createOrGet(null, null, resourceInput.resource)));
-				options.push(...untitledFilesToRestore.map(r => null)); // fill empty options for files to create because we dont have options there
-
 				// Files to open
-				let filesToOpenInputPromise = filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput));
-				let filesToRestoreInputPromise = filesToRestore.map(resourceInput => this.editorService.createInput(resourceInput, true));
-
-				return TPromise.join<EditorInput>(filesToOpenInputPromise.concat(filesToRestoreInputPromise)).then((inputsToOpen) => {
+				return TPromise.join<EditorInput>(filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput))).then((inputsToOpen) => {
 					inputs.push(...inputsToOpen);
-					options.push(...filesToOpen.concat(filesToRestore).map(resourceInput => TextEditorOptions.from(resourceInput)));
+					options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
 
 					return inputs.map((input, index) => { return { input, options: options[index] }; });
 				});

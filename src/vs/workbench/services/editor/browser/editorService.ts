@@ -208,8 +208,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 
 	public createInput(input: EditorInput): TPromise<EditorInput>;
-	public createInput(input: IResourceInput, restoreFromBackup?: boolean): TPromise<EditorInput>;
-	public createInput(input: any, restoreFromBackup?: boolean): TPromise<IEditorInput> {
+	public createInput(input: IResourceInput): TPromise<EditorInput>;
+	public createInput(input: any): TPromise<IEditorInput> {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
@@ -263,7 +263,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Base Text Editor Support for file resources
 		else if (this.fileInputDescriptor && resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
-			return this.createFileInput(resourceInput.resource, resourceInput.encoding, restoreFromBackup);
+			return this.createFileInput(resourceInput.resource, resourceInput.encoding);
 		}
 
 		// Treat an URI as ResourceEditorInput
@@ -277,11 +277,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.as<EditorInput>(null);
 	}
 
-	private createFileInput(resource: URI, encoding?: string, restoreFromBackup?: boolean): TPromise<IFileEditorInput> {
+	private createFileInput(resource: URI, encoding?: string): TPromise<IFileEditorInput> {
 		return this.instantiationService.createInstance(this.fileInputDescriptor).then((typedFileInput) => {
 			typedFileInput.setResource(resource);
 			typedFileInput.setPreferredEncoding(encoding);
-			typedFileInput.setRestoreFromBackup(restoreFromBackup);
 
 			return typedFileInput;
 		});

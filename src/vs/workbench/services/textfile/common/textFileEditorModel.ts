@@ -40,7 +40,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private static saveParticipant: ISaveParticipant;
 
 	private resource: URI;
-	private restoreResource: URI;
 	private contentEncoding: string; 			// encoding as reported from disk
 	private preferredEncoding: string;			// encoding as chosen by the user
 	private dirty: boolean;
@@ -52,7 +51,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMillies: number;
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
-	private backupPromises: TPromise<void>[];
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
@@ -84,7 +82,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.preferredEncoding = preferredEncoding;
 		this.dirty = false;
 		this.autoSavePromises = [];
-		this.backupPromises = [];
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
 		this.mapPendingSaveToVersionId = {};
@@ -183,10 +180,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
-	public setRestoreResource(resource: URI): void {
-		this.restoreResource = resource;
-	}
-
 	public load(force?: boolean /* bypass any caches and really go to disk */): TPromise<EditorModel> {
 		diag('load() - enter', this.resource, new Date());
 
@@ -264,35 +257,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			else {
 				diag('load() - created text editor model', this.resource, new Date());
 
-				if (this.restoreResource) {
-					this.createTextEditorModelPromise = this.textFileService.resolveTextContent(this.restoreResource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then((restoreContent) => {
-						return this.createTextEditorModel(restoreContent.value, content.resource).then(() => {
-							this.createTextEditorModelPromise = null;
+				this.createTextEditorModelPromise = this.createTextEditorModel(content.value, content.resource).then(() => {
+					this.createTextEditorModelPromise = null;
 
-							this.setDirty(true);
-							this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
+					this.setDirty(false); // Ensure we are not tracking a stale state
+					this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
 
-							return this;
-						}, (error) => {
-							this.createTextEditorModelPromise = null;
+					return this;
+				}, (error) => {
+					this.createTextEditorModelPromise = null;
 
-							return TPromise.wrapError(error);
-						});
-					});
-				} else {
-					this.createTextEditorModelPromise = this.createTextEditorModel(content.value, content.resource).then(() => {
-						this.createTextEditorModelPromise = null;
-
-						this.setDirty(false); // Ensure we are not tracking a stale state
-						this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
-
-						return this;
-					}, (error) => {
-						this.createTextEditorModelPromise = null;
-
-						return TPromise.wrapError(error);
-					});
-				}
+					return TPromise.wrapError(error);
+				});
 
 				return this.createTextEditorModelPromise;
 			}
@@ -342,10 +318,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
 
-			if (this.fileService.isHotExitEnabled()) {
-				this.fileService.discardBackup(this.resource);
-			}
-
 			return;
 		}
 
@@ -361,10 +333,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			} else {
 				diag('makeDirty() - prevented save because we are in conflict resolution mode', this.resource, new Date());
 			}
-		}
-
-		if (this.fileService.isHotExitEnabled()) {
-			this.doBackup();
 		}
 	}
 
@@ -403,38 +371,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private cancelAutoSavePromises(): void {
 		while (this.autoSavePromises.length) {
 			this.autoSavePromises.pop().cancel();
-		}
-	}
-
-	public backup(): TPromise<void> {
-		if (!this.dirty) {
-			return TPromise.as<void>(null);
-		}
-
-		return this.doBackup(true);
-	}
-
-	private doBackup(immediate?: boolean): TPromise<void> {
-		// Cancel any currently running backups to make this the one that succeeds
-		this.cancelBackupPromises();
-
-		if (immediate) {
-			return this.fileService.backupFile(this.resource, this.getValue()).then(f => void 0);
-		}
-
-		// Create new backup promise and keep it
-		const promise = TPromise.timeout(1000).then(() => {
-			this.fileService.backupFile(this.resource, this.getValue()); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
-		});
-
-		this.backupPromises.push(promise);
-
-		return promise;
-	}
-
-	private cancelBackupPromises(): void {
-		while (this.backupPromises.length) {
-			this.backupPromises.pop().cancel();
 		}
 	}
 
@@ -786,9 +722,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.createTextEditorModelPromise = null;
 
 		this.cancelAutoSavePromises();
-		this.cancelBackupPromises();
-
-		this.fileService.discardBackup(this.resource);
 
 		super.dispose();
 	}

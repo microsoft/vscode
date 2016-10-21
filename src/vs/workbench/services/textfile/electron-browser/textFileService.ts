@@ -27,7 +27,6 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
 import product from 'vs/platform/product';
-import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -43,7 +42,6 @@ export class TextFileService extends AbstractTextFileService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IBackupService backupService: IBackupService,
 		@IModeService private modeService: IModeService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
@@ -51,7 +49,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IModelService private modelService: IModelService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService, backupService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
