@@ -27,11 +27,6 @@ export interface IMarkerService {
 	onMarkerChanged: Event<URI[]>;
 }
 
-export enum MarkerType {
-	transient = 1,
-	permanent = 2
-}
-
 /**
  * A structure defining a problem/warning/etc.
  */
