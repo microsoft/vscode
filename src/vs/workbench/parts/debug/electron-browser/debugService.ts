@@ -546,6 +546,9 @@ export class DebugService implements debug.IDebugService {
 							if (configuration.silentlyAbort) {
 								return;
 							}
+							if (configuration.configurationNames) {
+								return TPromise.join(configuration.configurationNames.map(name => this.createProcess(name)));
+							}
 
 							if (!this.configurationManager.getAdapter(configuration.type)) {
 								return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))

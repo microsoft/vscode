@@ -295,6 +295,7 @@ export interface IEnvConfig {
 	debugServer?: number;
 	noDebug?: boolean;
 	silentlyAbort?: boolean;
+	configurationNames?: string[];
 }
 
 export interface IExtHostConfig extends IEnvConfig {

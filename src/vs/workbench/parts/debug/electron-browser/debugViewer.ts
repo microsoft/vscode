@@ -487,7 +487,7 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
-		if (templateId === CallStackRenderer.PROCESS_TEMPLATE_ID {
+		if (templateId === CallStackRenderer.PROCESS_TEMPLATE_ID) {
 			this.renderProcess(element, templateData);
 		} else if (templateId === CallStackRenderer.THREAD_TEMPLATE_ID) {
 			this.renderThread(element, templateData);
