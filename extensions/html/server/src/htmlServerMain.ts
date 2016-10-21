@@ -18,6 +18,7 @@ nls.config(process.env['VSCODE_NLS_CONFIG']);
 
 interface EmbeddedCompletionParams {
 	uri: string;
+	version: number;
 	embeddedLanguageId: string;
 	position: Position;
 }
@@ -31,8 +32,13 @@ interface EmbeddedContentParams {
 	embeddedLanguageId: string;
 }
 
+interface EmbeddedContent {
+	content: string;
+	version: number;
+}
+
 namespace EmbeddedContentRequest {
-	export const type: RequestType<EmbeddedContentParams, string, any> = { get method() { return 'embedded/content'; } };
+	export const type: RequestType<EmbeddedContentParams, EmbeddedContent, any> = { get method() { return 'embedded/content'; } };
 }
 
 // Create a connection for the server
@@ -103,7 +109,7 @@ connection.onCompletion(textDocumentPosition => {
 	if (list.items.length === 0) {
 		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
 		if (embeddedLanguageId) {
-			return connection.sendRequest(EmbeddedCompletionRequest.type, { uri: document.uri, embeddedLanguageId, position: textDocumentPosition.position });
+			return connection.sendRequest(EmbeddedCompletionRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
 		}
 	}
 	return list;
@@ -113,7 +119,7 @@ connection.onRequest(EmbeddedContentRequest.type, parms => {
 	let document = documents.get(parms.uri);
 	if (document) {
 		let htmlDocument = htmlDocuments.get(document);
-		return getEmbeddedContent(languageService, document, htmlDocument, parms.embeddedLanguageId);
+		return { content: getEmbeddedContent(languageService, document, htmlDocument, parms.embeddedLanguageId), version: document.version };
 	}
 	return void 0;
 });
