@@ -257,9 +257,9 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 
 		let modeOverrideOptions: IEditorOptions;
 		if (mode === Mode.PREVIEW) {
-			modeOverrideOptions = { forcePreview: true };
+			modeOverrideOptions = { forcePreview: true, pinned: false, revealIfVisible: true, preserveFocus: true };
 		} else if (mode === Mode.OPEN_IN_BACKGROUND) {
-			modeOverrideOptions = { forcePreview: false, pinned: true, preserveFocus: true };
+			modeOverrideOptions = { pinned: true, preserveFocus: true };
 		}
 
 		let input = this.getInput();

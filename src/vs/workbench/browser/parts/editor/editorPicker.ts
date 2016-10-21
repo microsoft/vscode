@@ -82,7 +82,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 			return true;
 		} else if (mode === Mode.PREVIEW) {
-			this.runOpen(context, { forcePreview: true });
+			this.runOpen(context, { forcePreview: true, pinned: false, revealIfVisible: true, preserveFocus: true });
 
 			return false;
 		}
