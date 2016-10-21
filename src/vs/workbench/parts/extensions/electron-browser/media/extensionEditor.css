@@ -230,7 +230,6 @@
 	margin-left: 40px;
 	font-weight: bold;
 	font-size: 11px;
-	-webkit-user-select: none;
 }
 
 .extension-editor .subcontent .monaco-tree-row .unknown-dependency > .message {
