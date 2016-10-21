@@ -16,7 +16,10 @@ import { Delayer } from 'vs/base/common/async';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
-import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { BackupService } from 'vs/workbench/services/backup/node/backupService';
+import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
+import { BackupModelService } from 'vs/workbench/services/backup/node/backupModelService';
+import { IBackupService, IBackupFileService, IBackupModelService } from 'vs/workbench/services/backup/common/backup';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux } from 'vs/base/common/platform';
@@ -161,8 +164,7 @@ export class Workbench implements IPartService {
 		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IBackupService private backupService: IBackupService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.container = container;
 
@@ -408,8 +410,17 @@ export class Workbench implements IPartService {
 		// History
 		serviceCollection.set(IHistoryService, this.instantiationService.createInstance(HistoryService));
 
+		// Backup File Service
+		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, this.contextService.getWorkspace().resource));
+
+		// Backup Service
+		serviceCollection.set(IBackupService, this.instantiationService.createInstance(BackupService));
+
 		// Text File Service
 		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
+
+		// Backup Model Service
+		serviceCollection.set(IBackupModelService, this.instantiationService.createInstance(BackupModelService));
 
 		// Configuration Editing
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);

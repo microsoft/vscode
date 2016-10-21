@@ -22,7 +22,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, IFileStat, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -52,13 +52,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMillies: number;
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
-	private backupPromises: TPromise<void>[];
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
 	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
+	private _onDidContentChange: Emitter<void>;
 	private _onDidStateChange: Emitter<StateChange>;
 
 	constructor(
@@ -72,7 +72,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IBackupService private backupService: IBackupService
+		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		super(modelService, modeService);
 
@@ -80,12 +80,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.resource = resource;
 		this.toDispose = [];
+		this._onDidContentChange = new Emitter<void>();
 		this._onDidStateChange = new Emitter<StateChange>();
+		this.toDispose.push(this._onDidContentChange);
 		this.toDispose.push(this._onDidStateChange);
 		this.preferredEncoding = preferredEncoding;
 		this.dirty = false;
 		this.autoSavePromises = [];
-		this.backupPromises = [];
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
 		this.mapPendingSaveToVersionId = {};
@@ -112,6 +113,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private onFilesAssociationChange(): void {
 		this.updateTextEditorModelMode();
+	}
+
+	public get onDidContentChange(): Event<void> {
+		return this._onDidContentChange.event;
 	}
 
 	public get onDidStateChange(): Event<StateChange> {
@@ -261,10 +266,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			else {
 				diag('load() - created text editor model', this.resource, new Date());
 
-				return this.backupService.doesTextFileHaveBackup(this.resource).then(backupExists => {
+				return this.backupFileService.doesTextFileHaveBackup(this.resource).then(backupExists => {
 					let getContentPromise: TPromise<IRawText>;
 					if (backupExists) {
-						const restoreResource = this.backupService.getBackupResource(this.resource);
+						const restoreResource = this.backupFileService.getBackupResource(this.resource);
 						getContentPromise = this.textFileService.resolveTextContent(restoreResource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then(content => content.value);
 					} else {
 						getContentPromise = TPromise.as(content.value);
@@ -334,10 +339,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
 
-			if (this.fileService.isHotExitEnabled()) {
-				this.fileService.discardBackup(this.resource);
-			}
-
 			return;
 		}
 
@@ -355,9 +356,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}
 
-		if (this.fileService.isHotExitEnabled()) {
-			this.doBackup();
-		}
+		// Trigger listeners only if no auto save occurred and model changes were not blocked
+		this._onDidContentChange.fire();
 	}
 
 	private makeDirty(): void {
@@ -395,38 +395,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private cancelAutoSavePromises(): void {
 		while (this.autoSavePromises.length) {
 			this.autoSavePromises.pop().cancel();
-		}
-	}
-
-	public backup(): TPromise<void> {
-		if (!this.dirty) {
-			return TPromise.as<void>(null);
-		}
-
-		return this.doBackup(true);
-	}
-
-	private doBackup(immediate?: boolean): TPromise<void> {
-		// Cancel any currently running backups to make this the one that succeeds
-		this.cancelBackupPromises();
-
-		if (immediate) {
-			return this.fileService.backupFile(this.resource, this.getValue()).then(f => void 0);
-		}
-
-		// Create new backup promise and keep it
-		const promise = TPromise.timeout(1000).then(() => {
-			this.fileService.backupFile(this.resource, this.getValue()); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
-		});
-
-		this.backupPromises.push(promise);
-
-		return promise;
-	}
-
-	private cancelBackupPromises(): void {
-		while (this.backupPromises.length) {
-			this.backupPromises.pop().cancel();
 		}
 	}
 
@@ -778,9 +746,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.createTextEditorModelPromise = null;
 
 		this.cancelAutoSavePromises();
-		this.cancelBackupPromises();
 
-		this.fileService.discardBackup(this.resource);
+		// TODO: Can this be moved to BackupModelService?
+		this.backupFileService.discardAndDeregisterResource(this.resource);
 
 		super.dispose();
 	}
