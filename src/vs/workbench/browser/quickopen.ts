@@ -6,6 +6,7 @@
 
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+import * as objects from 'vs/base/common/objects';
 import filters = require('vs/base/common/filters');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
@@ -243,24 +244,38 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 	}
 
 	public getOptions(): EditorOptions {
-		return null;
+		return EditorOptions.create({});
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
+		const hideWidget = mode === Mode.OPEN;
+
+		if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
 			let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+			let opts = this.getOptions();
+
+			let backgroundOpts;
+			if (mode === Mode.OPEN_IN_BACKGROUND) {
+				backgroundOpts = { pinned: true, preserveFocus: true };
+				opts.mixin(backgroundOpts);
+			}
 
 			let input = this.getInput();
 			if (input instanceof EditorInput) {
-				this.editorService.openEditor(input, this.getOptions(), sideBySide).done(null, errors.onUnexpectedError);
-			} else {
+				this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
+			}
+			else {
+				if (backgroundOpts) {
+					(<IResourceInput>input).options = objects.assign(
+						(<IResourceInput>input).options || {},
+						backgroundOpts
+					);
+				}
 				this.editorService.openEditor(<IResourceInput>input, sideBySide).done(null, errors.onUnexpectedError);
 			}
-
-			return true;
 		}
 
-		return false;
+		return hideWidget;
 	}
 }
 
