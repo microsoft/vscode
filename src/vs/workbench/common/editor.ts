@@ -454,12 +454,15 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Inherit all options from other EditorOptions instance.
 	 */
-	public mixin(other: EditorOptions): void {
-		this.preserveFocus = other.preserveFocus;
-		this.forceOpen = other.forceOpen;
-		this.revealIfVisible = other.revealIfVisible;
-		this.pinned = other.pinned;
-		this.index = other.index;
+	public mixin(other: IEditorOptions): void {
+		if (other) {
+			this.preserveFocus = other.preserveFocus;
+			this.forceOpen = other.forceOpen;
+			this.revealIfVisible = other.revealIfVisible;
+			this.pinned = other.pinned;
+			this.index = other.index;
+			this.inactive = other.inactive;
+		}
 	}
 
 	/**

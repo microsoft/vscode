@@ -18,7 +18,7 @@ import { KeyMod } from 'vs/base/common/keyCodes';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -244,34 +244,38 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 	}
 
 	public getOptions(): EditorOptions {
-		return EditorOptions.create({});
+		return null;
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
-		const hideWidget = mode === Mode.OPEN;
+		const hideWidget = (mode === Mode.OPEN);
 
 		if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
 			let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-			let opts = this.getOptions();
 
-			let backgroundOpts;
+			let openInBackgroundOptions: IEditorOptions;
 			if (mode === Mode.OPEN_IN_BACKGROUND) {
-				backgroundOpts = { pinned: true, preserveFocus: true };
-				opts.mixin(backgroundOpts);
+				openInBackgroundOptions = { pinned: true, preserveFocus: true };
 			}
 
 			let input = this.getInput();
 			if (input instanceof EditorInput) {
-				this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
-			}
-			else {
-				if (backgroundOpts) {
-					(<IResourceInput>input).options = objects.assign(
-						(<IResourceInput>input).options || {},
-						backgroundOpts
-					);
+				let opts = this.getOptions();
+				if (opts) {
+					opts.mixin(openInBackgroundOptions);
+				} else if (openInBackgroundOptions) {
+					opts = EditorOptions.create(openInBackgroundOptions);
 				}
-				this.editorService.openEditor(<IResourceInput>input, sideBySide).done(null, errors.onUnexpectedError);
+
+				this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
+			} else {
+				const resourceInput = <IResourceInput>input;
+
+				if (openInBackgroundOptions) {
+					resourceInput.options = objects.assign(resourceInput.options || Object.create(null), openInBackgroundOptions);
+				}
+
+				this.editorService.openEditor(resourceInput, sideBySide).done(null, errors.onUnexpectedError);
 			}
 		}
 
