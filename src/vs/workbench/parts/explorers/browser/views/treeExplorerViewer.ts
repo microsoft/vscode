@@ -17,11 +17,13 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class TreeDataSource implements IDataSource {
 	constructor(
 		private treeNodeProviderId: string,
-		@ITreeExplorerViewletService private treeExplorerViewletService: ITreeExplorerViewletService
+		@ITreeExplorerViewletService private treeExplorerViewletService: ITreeExplorerViewletService,
+		@IProgressService private progressService: IProgressService
 	) {
 
 	}
@@ -35,7 +37,11 @@ export class TreeDataSource implements IDataSource {
 	}
 
 	getChildren(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
-		return this.treeExplorerViewletService.resolveChildren(this.treeNodeProviderId, node);
+		const promise = this.treeExplorerViewletService.resolveChildren(this.treeNodeProviderId, node);
+
+		this.progressService.showWhile(promise, 800);
+
+		return promise;
 	}
 
 	getParent(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode> {
