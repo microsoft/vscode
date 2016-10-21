@@ -63,7 +63,6 @@ export class QuickFixController implements IEditorContribution {
 
 	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
 		if (e.type === 'manual') {
-			this._lightBulbWidget.hide();
 			this._quickFixContextMenu.show(e.fixes, e.position);
 
 		} else if (e.fixes) {
@@ -85,7 +84,6 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		this._lightBulbWidget.hide();
 		this._quickFixContextMenu.show(this._lightBulbWidget.model.fixes, coords);
 	}
 
