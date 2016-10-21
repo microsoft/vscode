@@ -45,6 +45,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ShowLanguageExtensionsAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 
 function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 	if (editorWidget) {
@@ -681,7 +682,8 @@ export class ChangeModeAction extends Action {
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -740,12 +742,17 @@ export class ChangeModeAction extends Action {
 
 		// Offer action to configure via settings
 		let configureModeAssociations: IPickOpenEntry;
+		let galleryAction: Action;
 		if (fileinput) {
 			const resource = fileinput.getResource();
-			configureModeAssociations = {
-				label: nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", paths.extname(resource.fsPath) || paths.basename(resource.fsPath))
-			};
+			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
 
+			galleryAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
+			if (galleryAction.enabled) {
+				picks.unshift(galleryAction);
+			}
+
+			configureModeAssociations = { label: nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext) };
 			picks.unshift(configureModeAssociations);
 		}
 
@@ -757,45 +764,51 @@ export class ChangeModeAction extends Action {
 			picks.unshift(autoDetectMode);
 		}
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then(language => {
-			if (language) {
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then(pick => {
+			if (!pick) {
+				return;
+			}
 
-				// User decided to permanently configure associations, return right after
-				if (language === configureModeAssociations) {
-					this.configureFileAssociation(fileinput.getResource());
-					return;
+			if (pick === galleryAction) {
+				galleryAction.run();
+				return;
+			}
+
+			// User decided to permanently configure associations, return right after
+			if (pick === configureModeAssociations) {
+				this.configureFileAssociation(fileinput.getResource());
+				return;
+			}
+
+			// Change mode for active editor
+			activeEditor = this.editorService.getActiveEditor();
+			if (activeEditor instanceof BaseTextEditor) {
+				const editorWidget = activeEditor.getControl();
+				const models: IModel[] = [];
+
+				const textModel = getTextModel(editorWidget);
+				if (textModel) {
+					models.push(textModel);
 				}
 
-				// Change mode for active editor
-				activeEditor = this.editorService.getActiveEditor();
-				if (activeEditor instanceof BaseTextEditor) {
-					const editorWidget = activeEditor.getControl();
-					const models: IModel[] = [];
-
-					const textModel = getTextModel(editorWidget);
-					if (textModel) {
-						models.push(textModel);
-					}
-
-					// Support for original side of diff
-					const model = editorWidget.getModel();
-					if (model && !!(<IDiffEditorModel>model).original) {
-						models.push((<IDiffEditorModel>model).original);
-					}
-
-					// Find mode
-					let mode: TPromise<IMode>;
-					if (language === autoDetectMode) {
-						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(getUntitledOrFileResource(activeEditor.input, true).fsPath, textModel.getLineContent(1));
-					} else {
-						mode = this.modeService.getOrCreateModeByLanguageName(language.label);
-					}
-
-					// Change mode
-					models.forEach(textModel => {
-						this.modelService.setMode(textModel, mode);
-					});
+				// Support for original side of diff
+				const model = editorWidget.getModel();
+				if (model && !!(<IDiffEditorModel>model).original) {
+					models.push((<IDiffEditorModel>model).original);
 				}
+
+				// Find mode
+				let mode: TPromise<IMode>;
+				if (pick === autoDetectMode) {
+					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(getUntitledOrFileResource(activeEditor.input, true).fsPath, textModel.getLineContent(1));
+				} else {
+					mode = this.modeService.getOrCreateModeByLanguageName(pick.label);
+				}
+
+				// Change mode
+				models.forEach(textModel => {
+					this.modelService.setMode(textModel, mode);
+				});
 			}
 		});
 	}
