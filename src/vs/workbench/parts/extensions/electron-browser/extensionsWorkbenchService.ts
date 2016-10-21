@@ -302,11 +302,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private installing: IActiveExtension[] = [];
 	private uninstalling: IActiveExtension[] = [];
 	private installed: Extension[] = [];
-	private newlyInstalled: Extension[] = [];
-	private unInstalled: Extension[] = [];
 	private syncDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
+
+	// TODO: @sandy - Remove these when IExtensionsRuntimeService exposes sync API to get extensions.
+	private newlyInstalled: Extension[] = [];
+	private unInstalled: Extension[] = [];
 
 	private _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
@@ -596,7 +598,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private onUninstallExtension(id: string): void {
 		const extension = this.installed.filter(e => e.local.id === id)[0];
 		const newLength = this.installed.filter(e => e.local.id !== id).length;
-		// TODO: @Joao why is this?
+		// TODO: Ask @Joao why is this?
 		if (newLength === this.installed.length) {
 			return;
 		}
@@ -610,7 +612,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private onDidUninstallExtension({id, error}: DidUninstallExtensionEvent): void {
+		let newlyInstalled = false;
 		if (!error) {
+			newlyInstalled = this.newlyInstalled.filter(e => e.local.id === id).length > 0;
 			this.newlyInstalled = this.newlyInstalled.filter(e => e.local.id !== id);
 			this.installed = this.installed.filter(e => e.local.id !== id);
 		}
@@ -624,7 +628,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		if (!error) {
 			this.unInstalled.push(uninstalling.extension);
 			this.extensionsRuntimeService.setEnablement(uninstalling.extension.identifier, true);
-			uninstalling.extension.needsReload = true;
+			uninstalling.extension.needsReload = !newlyInstalled;
 			this.reportTelemetry(uninstalling, true);
 		}
 
