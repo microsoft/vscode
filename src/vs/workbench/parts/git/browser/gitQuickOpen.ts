@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
-import { IGitService, RefType, IRef, isValidBranchName, correctBranchName } from 'vs/workbench/parts/git/common/git';
+import { IGitService, RefType, IRef } from 'vs/workbench/parts/git/common/git';
 import { ICommand, CommandQuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, IHighlight, IContext, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -103,7 +103,9 @@ class BranchEntry extends QuickOpenEntry {
 
 		this.gitService = gitService;
 		this.messageService = messageService;
-		this.name = name;
+
+		// sanitize name
+		this.name = name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
 	}
 
 	getIcon(): string { return 'git'; }
@@ -191,9 +193,6 @@ class CheckoutCommand implements ICommand {
 			entries.unshift(new CurrentHeadEntry(this.gitService, this.messageService, currentHeadMatches[0].head, currentHeadMatches[0].highlights));
 
 		} else if (exactMatches.length === 0 && input) {
-			if (!isValidBranchName(input)) {
-				input = correctBranchName(input);
-			}
 			const branchEntry = new BranchEntry(this.gitService, this.messageService, input);
 			entries.push(new QuickOpenEntryGroup(branchEntry, 'branch', checkoutEntries.length > 0 || remoteHeadEntries.length > 0));
 		}
@@ -220,10 +219,6 @@ class BranchCommand implements ICommand {
 
 		if (!input) {
 			return TPromise.as([]);
-		}
-
-		if (!isValidBranchName(input)) {
-			input = correctBranchName(input);
 		}
 
 		const gitModel = this.gitService.getModel();

@@ -337,12 +337,3 @@ export interface IGitService extends IEventEmitter {
 export interface IAskpassService {
 	askpass(id: string, host: string, command: string): TPromise<ICredentials>;
 }
-
-// Utils
-const invalidBranchPatternName = /^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g;
-export function isValidBranchName(value: string): boolean {
-	return !invalidBranchPatternName.test(value);
-}
-export function correctBranchName(branchName: string): string {
-	return branchName.replace(invalidBranchPatternName, '-');
-}
