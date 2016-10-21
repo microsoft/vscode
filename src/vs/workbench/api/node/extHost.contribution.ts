@@ -32,7 +32,6 @@ import { MainThreadTerminalService } from './mainThreadTerminalService';
 import { MainThreadWorkspace } from './mainThreadWorkspace';
 import { MainProcessExtensionService } from './mainThreadExtensionService';
 import { MainThreadFileSystemEventService } from './mainThreadFileSystemEventService';
-import { MainThreadHeapService } from './mainThreadHeapService';
 
 // --- other interested parties
 import { MainProcessTextMateSyntax } from 'vs/editor/node/textMate/TMSyntax';
@@ -40,6 +39,9 @@ import { MainProcessTextMateSnippet } from 'vs/editor/node/textMate/TMSnippets';
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfiguration';
 import { SaveParticipant } from './mainThreadSaveParticipant';
+
+// --- registers itself as service
+import './mainThreadHeapService';
 
 export class ExtHostContribution implements IWorkbenchContribution {
 
@@ -89,7 +91,6 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		create(JSONValidationExtensionPoint);
 		create(LanguageConfigurationFileHandler);
 		create(MainThreadFileSystemEventService);
-		create(MainThreadHeapService);
 		create(SaveParticipant);
 	}
 }
