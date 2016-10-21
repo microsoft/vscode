@@ -24,15 +24,15 @@ and limitations under the License.
  * enables reusing existing code without migrating to a specific promise implementation. Still,
  * we recommand the use of native promises which are available in VS Code.
  */
-interface Thenable<R> {
+interface Thenable<T> {
     /**
     * Attaches callbacks for the resolution and/or rejection of the Promise.
     * @param onfulfilled The callback to execute when the Promise is resolved.
     * @param onrejected The callback to execute when the Promise is rejected.
     * @returns A Promise for the completion of which ever callback is executed.
     */
-	then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-	then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
+    then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
+    then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
 }
 
 /**
@@ -45,15 +45,15 @@ interface Promise<T> extends Thenable<T> {
     * @param onrejected The callback to execute when the Promise is rejected.
     * @returns A Promise for the completion of which ever callback is executed.
     */
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Promise<TResult>;
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Promise<TResult>;
+    then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Promise<TResult>;
+    then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Promise<TResult>;
 
     /**
      * Attaches a callback for only the rejection of the Promise.
      * @param onrejected The callback to execute when the Promise is rejected.
      * @returns A Promise for the completion of the callback.
      */
-	catch(onrejected?: (reason: any) => T | Thenable<T>): Promise<T>;
+    catch(onrejected?: (reason: any) => T | Thenable<T>): Promise<T>;
 }
 
 interface PromiseConstructor {
@@ -63,7 +63,7 @@ interface PromiseConstructor {
      * a resolve callback used resolve the promise with a value or the result of another promise,
      * and a reject callback used to reject the promise with a provided reason or error.
      */
-	new <T>(executor: (resolve: (value?: T | Thenable<T>) => void, reject: (reason?: any) => void) => void): Promise<T>;
+    new <T>(executor: (resolve: (value?: T | Thenable<T>) => void, reject: (reason?: any) => void) => void): Promise<T>;
 
     /**
      * Creates a Promise that is resolved with an array of results when all of the provided Promises
@@ -71,7 +71,7 @@ interface PromiseConstructor {
      * @param values An array of Promises.
      * @returns A new Promise.
      */
-	all<T>(values: Array<T | Thenable<T>>): Promise<T[]>;
+    all<T>(values: Array<T | Thenable<T>>): Promise<T[]>;
 
     /**
      * Creates a Promise that is resolved or rejected when any of the provided Promises are resolved
@@ -79,34 +79,34 @@ interface PromiseConstructor {
      * @param values An array of Promises.
      * @returns A new Promise.
      */
-	race<T>(values: Array<T | Thenable<T>>): Promise<T>;
+    race<T>(values: Array<T | Thenable<T>>): Promise<T>;
 
     /**
      * Creates a new rejected promise for the provided reason.
      * @param reason The reason the promise was rejected.
      * @returns A new rejected Promise.
      */
-	reject(reason: any): Promise<void>;
+    reject(reason: any): Promise<void>;
 
     /**
      * Creates a new rejected promise for the provided reason.
      * @param reason The reason the promise was rejected.
      * @returns A new rejected Promise.
      */
-	reject<T>(reason: any): Promise<T>;
+    reject<T>(reason: any): Promise<T>;
 
     /**
       * Creates a new resolved promise for the provided value.
       * @param value A promise.
       * @returns A promise whose internal state matches the provided promise.
       */
-	resolve<T>(value: T | Thenable<T>): Promise<T>;
+    resolve<T>(value: T | Thenable<T>): Promise<T>;
 
     /**
      * Creates a new resolved promise .
      * @returns A resolved promise.
      */
-	resolve(): Promise<void>;
+    resolve(): Promise<void>;
 }
 
 declare var Promise: PromiseConstructor;

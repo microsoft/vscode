@@ -1,32 +1,39 @@
 {
 	"name": "git",
+	"publisher": "vscode",
 	"displayName": "git",
 	"description": "Git",
 	"version": "0.0.1",
-	"publisher": "joaomoreno",
 	"engines": {
 		"vscode": "^1.5.0"
 	},
 	"categories": [
 		"Other"
 	],
-	"activationEvents": [
-		"*"
-	],
-	"main": "./out/extension",
 	"contributes": {
 		"commands": [],
 		"languages": [
 			{
 				"id": "git-commit",
-				"aliases": ["Git Commit Message", "git-commit"],
-				"filenames": ["COMMIT_EDITMSG", "MERGE_MSG"],
+				"aliases": [
+					"Git Commit Message",
+					"git-commit"
+				],
+				"filenames": [
+					"COMMIT_EDITMSG",
+					"MERGE_MSG"
+				],
 				"configuration": "./git-commit.language-configuration.json"
 			},
 			{
 				"id": "git-rebase",
-				"aliases": ["Git Rebase Message", "git-rebase"],
-				"filenames": ["git-rebase-todo"],
+				"aliases": [
+					"Git Rebase Message",
+					"git-rebase"
+				],
+				"filenames": [
+					"git-rebase-todo"
+				],
 				"configuration": "./git-rebase.language-configuration.json"
 			}
 		],
@@ -42,10 +49,5 @@
 				"path": "./syntaxes/git-rebase.tmLanguage"
 			}
 		]
-	},
-	"scripts": {
-		"vscode:prepublish": "tsc -p ./",
-		"compile": "tsc -watch -p ./",
-		"postinstall": "node ./node_modules/vscode/bin/install"
 	}
 }
