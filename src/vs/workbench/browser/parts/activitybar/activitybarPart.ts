@@ -80,6 +80,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 		});
 
 		this.viewletSwitcherBar.push(this.getAllEnabledExternalViewlets().map(d => this.toAction(d)), { label: true, icon: true });
+		if (this.externalViewletIdToOpen) {
+			this.compositeIdToActions[this.externalViewletIdToOpen].run().done();
+		}
 	}
 
 	private onActiveCompositeChanged(composite: IComposite): void {
@@ -199,6 +202,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		return action;
 	};
+
+	setExternalViewletIdToOpen(viewletId: string): void {
+		this.externalViewletIdToOpen = viewletId;
+	}
 
 	getExternalViewletIdToOpen(): string {
 		return this.externalViewletIdToOpen;

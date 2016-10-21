@@ -8,14 +8,19 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export const ITreeExplorerViewletService = createDecorator<ITreeExplorerViewletService>('customViewletService');
 
 export interface ITreeExplorerViewletService {
 	_serviceBrand: any;
 
+	onTreeExplorerNodeProviderRegistered: Event<String>;
+
 	registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void;
-	provideTreeContent(providerId: string): TPromise<InternalTreeExplorerNode>;
+	hasProvider(providerId: string): boolean;
+
+	provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode>;
 	resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]>;
 	executeCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void>;
 }
@@ -23,20 +28,28 @@ export interface ITreeExplorerViewletService {
 export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 	public _serviceBrand: any;
 
-	private _treeExplorerNodeProvider: { [providerId: string]: InternalTreeExplorerNodeProvider };
+	private _onTreeExplorerNodeProviderRegistered = new Emitter<String>();
+	get onTreeExplorerNodeProviderRegistered(): Event<string> { return this._onTreeExplorerNodeProviderRegistered.event; };
+
+	private _treeExplorerNodeProviders: { [providerId: string]: InternalTreeExplorerNodeProvider };
 
 	constructor(
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService,
 	) {
-		this._treeExplorerNodeProvider = Object.create(null);
+		this._treeExplorerNodeProviders = Object.create(null);
 	}
 
 	registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void {
-		this._treeExplorerNodeProvider[providerId] = provider;
+		this._treeExplorerNodeProviders[providerId] = provider;
+		this._onTreeExplorerNodeProviderRegistered.fire(providerId);
 	}
 
-	provideTreeContent(providerId: string): TPromise<InternalTreeExplorerNode> {
+	hasProvider(providerId: string): boolean {
+		return !!this._treeExplorerNodeProviders[providerId];
+	}
+
+	provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode> {
 		const provider = this.getProvider(providerId);
 		return TPromise.wrap(provider.provideRootNode());
 	}
@@ -52,7 +65,7 @@ export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 	}
 
 	private getProvider(providerId: string): InternalTreeExplorerNodeProvider {
-		const provider = this._treeExplorerNodeProvider[providerId];
+		const provider = this._treeExplorerNodeProviders[providerId];
 
 		if (!provider) {
 			this.messageService.show(Severity.Error, `No TreeExplorerNodeProvider with id '${providerId}' registered.`);

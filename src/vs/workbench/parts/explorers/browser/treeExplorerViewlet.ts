@@ -50,7 +50,7 @@ export class TreeExplorerViewlet extends Viewlet {
 		super.create(parent);
 
 		this.viewletContainer = parent.div().addClass('custom-tree-explorer-viewlet');
-		this.addTreeView(this.treeNodeProviderId);
+		this.addTreeView();
 
 		return TPromise.as(null);
 	}
@@ -69,11 +69,11 @@ export class TreeExplorerViewlet extends Viewlet {
 		return this.view.getActions();
 	}
 
-	private addTreeView(treeNodeProviderId: string): void {
+	private addTreeView(): void {
 		// Hide header (root node) by default
 		const headerSize = 0;
 
-		this.view = this.instantiationService.createInstance(TreeExplorerView, this.viewletState, treeNodeProviderId, this.getActionRunner(), headerSize);
+		this.view = this.instantiationService.createInstance(TreeExplorerView, this.viewletState, this.treeNodeProviderId, this.getActionRunner(), headerSize);
 		this.view.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
 	}
 

@@ -27,13 +27,9 @@ import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/
 export class TreeExplorerView extends CollapsibleViewletView {
 	private workspace: IWorkspace;
 
-	private viewletState: TreeExplorerViewletState;
-
-	private treeNodeProviderIdName: string;
-
 	constructor(
-		viewletState: TreeExplorerViewletState,
-		treeName: string,
+		private viewletState: TreeExplorerViewletState,
+		private treeNodeProviderId: string,
 		actionRunner: IActionRunner,
 		headerSize: number,
 		@IMessageService messageService: IMessageService,
@@ -46,9 +42,6 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		@ITreeExplorerViewletService private treeExplorerViewletService: ITreeExplorerViewletService
 	) {
 		super(actionRunner, false, nls.localize('treeExplorerViewletTree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
-
-		this.viewletState = viewletState;
-		this.treeNodeProviderIdName = treeName;
 
 		this.workspace = contextService.getWorkspace();
 
@@ -63,9 +56,9 @@ export class TreeExplorerView extends CollapsibleViewletView {
 	}
 
 	createViewer(container: Builder): ITree {
-		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.treeNodeProviderIdName);
+		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.treeNodeProviderId);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
-		const controller = this.instantiationService.createInstance(TreeController, this.treeNodeProviderIdName);
+		const controller = this.instantiationService.createInstance(TreeController, this.treeNodeProviderId);
 		const sorter = null;
 		const filter = null;
 		const dnd = null;
@@ -96,9 +89,21 @@ export class TreeExplorerView extends CollapsibleViewletView {
 	}
 
 	updateInput(): TPromise<void> {
-		return this.treeExplorerViewletService.provideTreeContent(this.treeNodeProviderIdName).then(tree => {
-			this.tree.setInput(tree);
-		});
+		if (this.treeExplorerViewletService.hasProvider(this.treeNodeProviderId)) {
+			return this.treeExplorerViewletService.provideRootNode(this.treeNodeProviderId).then(tree => {
+				this.tree.setInput(tree);
+			});
+		} else {
+			this.treeExplorerViewletService.onTreeExplorerNodeProviderRegistered(providerId => {
+				if (this.treeNodeProviderId === providerId) {
+					return this.treeExplorerViewletService.provideRootNode(this.treeNodeProviderId).then(tree => {
+						this.tree.setInput(tree);
+					});
+				}
+			});
+
+			return TPromise.as(null);
+		}
 	}
 
 	public getOptimalWidth(): number {
