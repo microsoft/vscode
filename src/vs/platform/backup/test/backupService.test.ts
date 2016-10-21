@@ -172,22 +172,4 @@ suite('BackupService', () => {
 			});
 		});
 	});
-
-	test('doesTextFileHaveBackup should return whether a backup resource exists', done => {
-		backupService.setCurrentWorkspace(fooFile);
-		backupService.doesTextFileHaveBackup(barFile).then(exists => {
-			assert.equal(exists, false);
-			backupService.registerResourceForBackup(barFile).then(() => {
-				backupService.doesTextFileHaveBackup(barFile).then(exists2 => {
-					assert.equal(exists2, true);
-					backupService.deregisterResourceForBackup(barFile).then(() => {
-						backupService.doesTextFileHaveBackup(barFile).then(exists3 => {
-							assert.equal(exists3, false);
-							done();
-						});
-					});
-				});
-			});
-		});
-	});
 });

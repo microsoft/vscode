@@ -115,12 +115,6 @@ export class BackupService implements IBackupService {
 		}
 	}
 
-	public doesTextFileHaveBackup(resource: Uri): TPromise<boolean> {
-		return this.load().then(() => {
-			return arrays.contains(this.fileContent.folderWorkspaces[this.workspaceResource.fsPath] || [], resource.fsPath);
-		});
-	}
-
 	public getBackupResource(resource: Uri): Uri {
 		// Hot exit is disabled for empty workspaces
 		if (!this.workspaceResource) {
