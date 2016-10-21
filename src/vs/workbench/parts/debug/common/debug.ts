@@ -355,7 +355,7 @@ export interface IDebugService {
 	/**
 	 * Allows to register on debug state changes.
 	 */
-	onDidChangeState: Event<State>;
+	onDidChangeState: Event<void>;
 
 	/**
 	 * Gets the current configuration manager.

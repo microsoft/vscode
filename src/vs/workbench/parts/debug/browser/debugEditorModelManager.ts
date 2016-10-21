@@ -83,8 +83,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.onFocusStackFrame()));
-		this.toDispose.push(this.debugService.onDidChangeState(state => {
-			if (state === State.Inactive) {
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
+			if (this.debugService.state === State.Inactive) {
 				Object.keys(this.modelData).forEach(key => this.modelData[key].dirty = false);
 			}
 		}));

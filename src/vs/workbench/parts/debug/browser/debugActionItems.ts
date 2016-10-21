@@ -26,8 +26,8 @@ export class DebugSelectActionItem extends SelectActionItem {
 		this.toDispose.push(this.debugService.getViewModel().onDidSelectConfigurationName(name => {
 			this.updateOptions(false).done(null, errors.onUnexpectedError);
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(state => {
-			this.enabled = state === State.Inactive;
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
+			this.enabled = this.debugService.state === State.Inactive;
 		}));
 	}
 

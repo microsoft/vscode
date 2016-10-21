@@ -18,7 +18,7 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public get onDidChangeState(): Event<debug.State> {
+	public get onDidChangeState(): Event<void> {
 		return null;
 	}
 
