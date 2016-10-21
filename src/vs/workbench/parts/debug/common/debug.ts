@@ -65,7 +65,14 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 	type?: string;
 }
 
+export enum SessionRequestType {
+	LAUNCH,
+	ATTACH,
+	LAUNCH_NO_DEBUG
+}
+
 export interface ISession {
+	requestType: SessionRequestType;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
@@ -226,9 +233,16 @@ export interface IViewModel extends ITreeElement {
 	setSelectedExpression(expression: IExpression);
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
 
+	selectedConfigurationName: string;
+	setSelectedConfigurationName(name: string): void;
+
 	onDidFocusStackFrame: Event<IStackFrame>;
 	onDidSelectExpression: Event<IExpression>;
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
+	/**
+	 * Allows to register on change of selected debug configuration.
+	 */
+	onDidSelectConfigurationName: Event<string>;
 }
 
 export interface IModel extends ITreeElement {
@@ -322,16 +336,10 @@ export interface IRawBreakpointContribution {
 }
 
 export interface IConfigurationManager {
-	configuration: IConfig;
-	setConfiguration(name: string): TPromise<void>;
+	getConfiguration(nameOrConfig: string | IConfig): TPromise<IConfig>;
 	openConfigFile(sideBySide: boolean): TPromise<boolean>;
 	loadLaunchConfig(): TPromise<IGlobalConfig>;
 	canSetBreakpointsIn(model: editor.IModel): boolean;
-
-	/**
-	 * Allows to register on change of debug configuration.
-	 */
-	onDidConfigurationChange: Event<IConfig>;
 }
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);

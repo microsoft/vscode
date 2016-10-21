@@ -14,12 +14,14 @@ export class ViewModel implements debug.IViewModel {
 	private _onDidFocusStackFrame: Emitter<debug.IStackFrame>;
 	private _onDidSelectExpression: Emitter<debug.IExpression>;
 	private _onDidSelectFunctionBreakpoint: Emitter<debug.IFunctionBreakpoint>;
+	private _onDidSelectConfigurationName: Emitter<string>;
 	public changedWorkbenchViewState: boolean;
 
-	constructor() {
+	constructor(private _selectedConfigurationName: string) {
 		this._onDidFocusStackFrame = new Emitter<debug.IStackFrame>();
 		this._onDidSelectExpression = new Emitter<debug.IExpression>();
 		this._onDidSelectFunctionBreakpoint = new Emitter<debug.IFunctionBreakpoint>();
+		this._onDidSelectConfigurationName = new Emitter<string>();
 		this.changedWorkbenchViewState = false;
 	}
 
@@ -72,5 +74,18 @@ export class ViewModel implements debug.IViewModel {
 
 	public get onDidSelectFunctionBreakpoint(): Event<debug.IFunctionBreakpoint> {
 		return this._onDidSelectFunctionBreakpoint.event;
+	}
+
+	public get selectedConfigurationName(): string {
+		return this._selectedConfigurationName;
+	}
+
+	public setSelectedConfigurationName(configurationName: string): void {
+		this._selectedConfigurationName = configurationName;
+		this._onDidSelectConfigurationName.fire(configurationName);
+	}
+
+	public get onDidSelectConfigurationName(): Event<string> {
+		return this._onDidSelectConfigurationName.event;
 	}
 }

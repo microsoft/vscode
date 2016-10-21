@@ -12,7 +12,7 @@ suite('Debug - View Model', () => {
 	var model: ViewModel;
 
 	setup(() => {
-		model = new ViewModel();
+		model = new ViewModel('mockconfiguration');
 	});
 
 	teardown(() => {

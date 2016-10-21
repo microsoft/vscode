@@ -137,19 +137,19 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(FocusReplAction, Focus
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: '_workbench.startDebug',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, configuration: any) {
+	handler(accessor: ServicesAccessor, configurationOrName: any) {
 		const debugService = accessor.get(debug.IDebugService);
-		if (typeof configuration === 'string') {
+		if (typeof configurationOrName === 'string') {
 			const configurationManager = debugService.getConfigurationManager();
-			return configurationManager.setConfiguration(configuration)
-				.then(() => {
-					return configurationManager.configuration ? debugService.createSession(false)
-						: TPromise.wrapError(new Error(nls.localize('launchConfigDoesNotExist', "Launch configuration '{0}' does not exist.", configuration)));
+			return configurationManager.getConfiguration(configurationOrName)
+				.then((configuration) => {
+					return configuration ? debugService.createSession(false, configuration)
+						: TPromise.wrapError(new Error(nls.localize('launchConfigDoesNotExist', "Launch configuration '{0}' does not exist.", configurationOrName)));
 				});
 		}
 
-		const noDebug = configuration && !!configuration.noDebug;
-		return debugService.createSession(noDebug, configuration);
+		const noDebug = configurationOrName && !!configurationOrName.noDebug;
+		return debugService.createSession(noDebug, configurationOrName);
 	},
 	when: debug.CONTEXT_NOT_IN_DEBUG_MODE,
 	primary: undefined

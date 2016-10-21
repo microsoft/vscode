@@ -53,6 +53,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	private socket: net.Socket = null;
 	private cachedInitServer: TPromise<void>;
 	private startTime: number;
+	public requestType: debug.SessionRequestType;
 	public disconnected: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
 	private capabilities: DebugProtocol.Capabilities;
@@ -240,10 +241,12 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
+		this.requestType = args.noDebug ? debug.SessionRequestType.LAUNCH_NO_DEBUG : debug.SessionRequestType.LAUNCH;
 		return this.send('launch', args).then(response => this.readCapabilities(response));
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
+		this.requestType = debug.SessionRequestType.ATTACH;
 		return this.send('attach', args).then(response => this.readCapabilities(response));
 	}
 
