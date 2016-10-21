@@ -194,7 +194,7 @@ export interface ITextFileEditorModelManager {
 
 	getAll(resource?: URI): ITextFileEditorModel[];
 
-	loadOrCreate(resource: URI, preferredEncoding: string, refresh?: boolean, restoreResource?: URI): TPromise<ITextEditorModel>;
+	loadOrCreate(resource: URI, preferredEncoding: string, refresh?: boolean): TPromise<ITextEditorModel>;
 }
 
 export interface IModelSaveOptions {
