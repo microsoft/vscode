@@ -16,21 +16,11 @@ import paths = require('path');
 
 const loop = flow.loop;
 
-export function readdirSync(path: string): string[] {
-	// Mac: uses NFD unicode form on disk, but we want NFC
-	// See also https://github.com/nodejs/node/issues/2165
-	if (platform.isMacintosh) {
-		return fs.readdirSync(path).map(c => strings.normalizeNFC(c));
-	}
-
-	return fs.readdirSync(path);
-}
-
 export function readdir(path: string, callback: (error: Error, files: string[]) => void): void {
 	// Mac: uses NFD unicode form on disk, but we want NFC
 	// See also https://github.com/nodejs/node/issues/2165
 	if (platform.isMacintosh) {
-		return fs.readdir(path, (error, children) => {
+		return readdirNormalize(path, (error, children) => {
 			if (error) {
 				return callback(error, null);
 			}
@@ -39,7 +29,22 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 		});
 	}
 
-	return fs.readdir(path, callback);
+	return readdirNormalize(path, callback);
+}
+
+function readdirNormalize(path: string, callback: (error: Error, files: string[]) => void): void {
+	fs.readdir(path, (error, children) => {
+		if (error) {
+			return callback(error, null);
+		}
+
+		// Bug in node: In some environments we get "." and ".." as entries from the call to readdir().
+		// For example Sharepoint via WebDav on Windows includes them. We never want those
+		// entries in the result set though because they are not valid children of the folder
+		// for our concerns.
+		// See https://github.com/nodejs/node/issues/4002
+		return callback(null, children.filter(c => c !== '.' && c !== '..'));
+	});
 }
 
 export function mkdirp(path: string, mode: number, callback: (error: Error) => void): void {
