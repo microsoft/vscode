@@ -116,9 +116,12 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 		if (!this._editor.getRawConfiguration().glyphMargin) {
 			return false;
 		}
-		for (const {options} of this._editor.getLineDecorations(line)) {
-			if (options.glyphMarginClassName) {
-				return false;
+		const decorations = this._editor.getLineDecorations(line);
+		if (decorations) {
+			for (const {options} of decorations) {
+				if (options.glyphMarginClassName) {
+					return false;
+				}
 			}
 		}
 		return true;
