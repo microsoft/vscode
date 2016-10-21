@@ -392,8 +392,9 @@ export class Model extends EventEmitter implements IModel {
 		if (!this.HEAD) {
 			return '';
 		}
-
-		var label = this.HEAD.name || this.HEAD.commit.substr(0, 8);
+		var head = this.HEAD.name || this.HEAD.commit.substr(0, 8);
+		const tags = this.getRefs().filter(iref => iref.commit === this.HEAD.commit);
+		const label = tags.length > 0 ? tags[0].name : head;
 		var statusSummary = this.getStatus().getSummary();
 
 		return format('{0}{1}{2}{3}',
