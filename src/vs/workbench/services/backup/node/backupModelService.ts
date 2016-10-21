@@ -40,9 +40,7 @@ export class BackupModelService implements IBackupModelService {
 	}
 
 	private onTextFileModelChanged(event: TextFileModelChangeEvent): void {
-		console.log('text file model change', event);
 		if (this.backupService.isHotExitEnabled) {
-			console.log('change: ' + event.resource.fsPath);
 			const model = this.textFileService.models.get(event.resource);
 			this.backupService.doBackup(model.getResource(), model.getValue());
 		}
@@ -60,7 +58,6 @@ export class BackupModelService implements IBackupModelService {
 	}
 
 	private onTextFileModelClean(event: TextFileModelChangeEvent): void {
-		console.log('discard backup for resource ' + event.resource.fsPath);
 		this.backupFileService.discardAndDeregisterResource(event.resource);
 	}
 

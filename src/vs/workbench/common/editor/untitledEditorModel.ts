@@ -175,15 +175,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		}
 
 		this._onDidChangeContent.fire();
-
-		// TODO: Move this to BackupModelService
-		if (this.backupService.isHotExitEnabled) {
-			if (this.dirty) {
-				this.backupService.doBackup(this.resource, this.getValue());
-			} else {
-				this.backupFileService.discardAndDeregisterResource(this.resource);
-			}
-		}
 	}
 
 	public dispose(): void {
