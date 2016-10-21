@@ -16,7 +16,6 @@ import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, L
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
@@ -44,8 +43,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IHistoryService private historyService: IHistoryService,
 		@IEventService private eventService: IEventService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IBackupFileService private backupFileService: IBackupFileService
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 

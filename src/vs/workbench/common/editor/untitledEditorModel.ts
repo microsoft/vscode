@@ -17,7 +17,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IMode } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
 	private textModelChangeListener: IDisposable;
@@ -44,7 +44,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		@IModelService modelService: IModelService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IBackupService private backupService: IBackupService,
 		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		super(value, modeId, resource, modeService, modelService);
