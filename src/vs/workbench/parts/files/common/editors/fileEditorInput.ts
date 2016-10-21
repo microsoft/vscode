@@ -16,7 +16,7 @@ import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, L
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
@@ -46,7 +46,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		@IHistoryService private historyService: IHistoryService,
 		@IEventService private eventService: IEventService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IBackupService private backupService: IBackupService
+		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		super();
 
@@ -202,7 +202,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
-		const backupResource = this.restoreFromBackup ? this.backupService.getBackupResource(this.resource) : null;
+		const backupResource = this.restoreFromBackup ? this.backupFileService.getBackupResource(this.resource) : null;
 		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh, backupResource).then(null, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model

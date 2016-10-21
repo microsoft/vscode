@@ -33,7 +33,6 @@ import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/n
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IEventService } from 'vs/platform/event/common/event';
-import { IBackupService } from 'vs/workbench/services/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
@@ -95,8 +94,7 @@ export class FileService implements IFileService {
 		options: IFileServiceOptions,
 		private eventEmitter: IEventService,
 		private environmentService: IEnvironmentService,
-		private configurationService: IConfigurationService,
-		private backupService: IBackupService
+		private configurationService: IConfigurationService
 	) {
 		this.basePath = basePath ? paths.normalize(basePath) : void 0;
 
@@ -453,76 +451,6 @@ export class FileService implements IFileService {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		return nfcall(extfs.del, absolutePath, this.tmpPath);
-	}
-
-	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
-		let registerResourcePromise: TPromise<void>;
-		if (resource.scheme === 'file') {
-			registerResourcePromise = this.backupService.registerResourceForBackup(resource);
-		} else {
-			registerResourcePromise = TPromise.as(void 0);
-		}
-		return registerResourcePromise.then(() => {
-			const backupResource = this.getBackupPath(resource);
-
-			// Hot exit is disabled for empty workspaces
-			if (!backupResource) {
-				return TPromise.as(null);
-			}
-
-			return this.updateContent(backupResource, content);
-		});
-	}
-
-	public discardBackup(resource: uri): TPromise<void> {
-		return this.backupService.deregisterResourceForBackup(resource).then(() => {
-			const backupResource = this.getBackupPath(resource);
-
-			// Hot exit is disabled for empty workspaces
-			if (!backupResource) {
-				return TPromise.as(null);
-			}
-
-			return this.del(backupResource);
-		});
-	}
-
-	public discardBackups(): TPromise<void> {
-		// Hot exit is disabled for empty workspaces
-		const backupRootPath = this.getBackupRootPath();
-		if (!backupRootPath) {
-			return TPromise.as(void 0);
-		}
-
-		return this.del(uri.file(backupRootPath));
-	}
-
-	public isHotExitEnabled(): boolean {
-		return this.configuredHotExit;
-	}
-
-	// Helpers
-
-	private getBackupPath(resource: uri): uri {
-		// Hot exit is disabled for empty workspaces
-		const backupRootPath = this.getBackupRootPath();
-		if (!backupRootPath) {
-			return null;
-		}
-
-		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
-		const backupPath = paths.join(backupRootPath, resource.scheme, backupName);
-		return uri.file(backupPath);
-	}
-
-	private getBackupRootPath(): string {
-		// Hot exit is disabled for empty workspaces
-		if (!this.basePath) {
-			return null;
-		}
-
-		const workspaceHash = crypto.createHash('md5').update(this.basePath).digest('hex');
-		return paths.join(this.environmentService.userDataPath, 'Backups', workspaceHash);
 	}
 
 	private toAbsolutePath(arg1: uri | IFileStat): string {

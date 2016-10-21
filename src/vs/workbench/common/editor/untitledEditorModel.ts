@@ -17,6 +17,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IMode } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
 	private textModelChangeListener: IDisposable;
@@ -41,7 +42,9 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IFileService private fileService: IFileService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IBackupService private backupService: IBackupService,
+		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		super(value, modeId, resource, modeService, modelService);
 
@@ -165,11 +168,12 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 		}
 
-		if (this.fileService.isHotExitEnabled()) {
+		// TODO: Move this to BackupModelService
+		if (this.backupService.isHotExitEnabled) {
 			if (this.dirty) {
-				this.doBackup();
+				this.backupService.doBackup(this.resource, this.getValue());
 			} else {
-				this.fileService.discardBackup(this.resource);
+				this.backupFileService.discardAndDeregisterResource(this.resource);
 			}
 		}
 	}
@@ -191,29 +195,9 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this._onDidChangeEncoding.dispose();
 
 		this.cancelBackupPromises();
-		this.fileService.discardBackup(this.resource);
-	}
 
-	public backup(): TPromise<void> {
-		return this.doBackup(true);
-	}
-
-	private doBackup(immediate?: boolean): TPromise<void> {
-		// Cancel any currently running backups to make this the one that succeeds
-		this.cancelBackupPromises();
-
-		if (immediate) {
-			return this.fileService.backupFile(this.resource, this.getValue()).then(f => void 0);
-		}
-
-		// Create new backup promise and keep it
-		const promise = TPromise.timeout(1000).then(() => {
-			this.fileService.backupFile(this.resource, this.getValue()); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
-		});
-
-		this.backupPromises.push(promise);
-
-		return promise;
+		// TODO: Can this be moved to BackupModelService?
+		this.backupFileService.discardAndDeregisterResource(this.resource);
 	}
 
 	private cancelBackupPromises(): void {

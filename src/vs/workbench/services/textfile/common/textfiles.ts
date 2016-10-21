@@ -106,7 +106,8 @@ export enum StateChange {
 	SAVE_ERROR,
 	SAVED,
 	REVERTED,
-	ENCODING
+	ENCODING,
+	CONTENT_CHANGE
 }
 
 export class TextFileModelChangeEvent {
@@ -182,6 +183,7 @@ export interface IRawTextContent extends IBaseStat {
 
 export interface ITextFileEditorModelManager {
 
+	onModelContentChanged: Event<TextFileModelChangeEvent>;
 	onModelDirty: Event<TextFileModelChangeEvent>;
 	onModelSaveError: Event<TextFileModelChangeEvent>;
 	onModelSaved: Event<TextFileModelChangeEvent>;
@@ -203,6 +205,7 @@ export interface IModelSaveOptions {
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
+	onDidContentChange: Event<void>;
 	onDidStateChange: Event<StateChange>;
 
 	getResource(): URI;
@@ -216,8 +219,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	updatePreferredEncoding(encoding: string): void;
 
 	save(options?: IModelSaveOptions): TPromise<void>;
-
-	backup(): TPromise<void>;
 
 	revert(): TPromise<void>;
 
@@ -319,14 +320,6 @@ export interface ITextFileService extends IDisposable {
 	 * confirming for all dirty resources.
 	 */
 	confirmSave(resources?: URI[]): ConfirmResult;
-
-	/**
-	 * Backs up the provided file to a temporary directory to be used by the hot
-	 * exit feature and crash recovery.
-	 *
-	 * @param resource The resource to backup.
-	 */
-	backup(resource: URI): void;
 
 	/**
 	 * Convinient fast access to the current auto save mode.

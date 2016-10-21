@@ -17,7 +17,7 @@ import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import {IBackupService} from 'vs/workbench/services/backup/common/backup';
+import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService, getConfigurationValue, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -175,6 +175,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHistoryService, 'getHistory', []);
 	instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	instantiationService.stub(IFileService, TestFileService);
+	instantiationService.stub(IBackupFileService, new TestBackupFileService());
 	instantiationService.stub(IBackupService, new TestBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
@@ -594,9 +595,23 @@ export const TestFileService = {
 export class TestBackupService implements IBackupService {
 	public _serviceBrand: any;
 
-	// Lists used for verification in tests
-	public registeredResources: URI[] = [];
-	public deregisteredResources: URI[] = [];
+	public isHotExitEnabled: boolean = false;
+
+	public backupBeforeShutdown(): boolean | TPromise<boolean> {
+		return false;
+	}
+
+	public cleanupBackupsBeforeShutdown(): boolean | TPromise<boolean> {
+		return false;
+	}
+
+	public doBackup(resource: URI, content: string, immediate?: boolean): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+}
+
+export class TestBackupFileService implements IBackupFileService {
+	public _serviceBrand: any;
 
 	public getWorkspaceBackupPaths(): TPromise<string[]> {
 		return TPromise.as([]);
@@ -627,17 +642,27 @@ export class TestBackupService implements IBackupService {
 	}
 
 	public registerResourceForBackup(resource: URI): TPromise<void> {
-		this.registeredResources.push(resource);
 		return TPromise.as(void 0);
 	}
 
 	public deregisterResourceForBackup(resource: URI): TPromise<void> {
-		this.deregisteredResources.push(resource);
 		return TPromise.as(void 0);
 	}
 
 	public getBackupResource(resource: URI): URI {
 		return null;
+	}
+
+	public backupAndRegisterResource(resource: URI, content: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	public discardAndDeregisterResource(resource: URI): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	public discardBackups(): TPromise<void> {
+		return TPromise.as(void 0);
 	}
 };
 
