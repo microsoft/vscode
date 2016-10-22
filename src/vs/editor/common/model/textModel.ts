@@ -35,7 +35,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	protected _EOL: string;
 	protected _isDisposed: boolean;
 	protected _isDisposing: boolean;
-	protected _options: editorCommon.ITextModelResolvedOptions;
+	protected _options: editorCommon.TextModelResolvedOptions;
 	protected _lineStarts: PrefixSumComputer;
 	private _indentRanges: IndentRange[];
 
@@ -56,7 +56,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._shouldSimplifyMode = (rawText.length > TextModel.MODEL_SYNC_LIMIT);
 		this._shouldDenyMode = (rawText.length > TextModel.MODEL_TOKENIZATION_LIMIT);
 
-		this._options = rawText.options;
+		this._options = new editorCommon.TextModelResolvedOptions(rawText.options);
 		this._constructLines(rawText);
 		this._setVersionId(1);
 		this._isDisposed = false;
@@ -71,48 +71,37 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._shouldSimplifyMode;
 	}
 
-	public getOptions(): editorCommon.ITextModelResolvedOptions {
+	public getOptions(): editorCommon.TextModelResolvedOptions {
 		return this._options;
 	}
 
-	public updateOptions(newOpts: editorCommon.ITextModelUpdateOptions): void {
-		let somethingChanged = false;
-		let changed: editorCommon.IModelOptionsChangedEvent = {
-			tabSize: false,
-			insertSpaces: false,
-			trimAutoWhitespace: false
-		};
+	public updateOptions(_newOpts: editorCommon.ITextModelUpdateOptions): void {
+		let tabSize = (typeof _newOpts.tabSize !== 'undefined') ? _newOpts.tabSize : this._options.tabSize;
+		let insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
+		let trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
 
-		if (typeof newOpts.insertSpaces !== 'undefined') {
-			if (this._options.insertSpaces !== newOpts.insertSpaces) {
-				somethingChanged = true;
-				changed.insertSpaces = true;
-				this._options.insertSpaces = newOpts.insertSpaces;
-			}
-		}
-		if (typeof newOpts.tabSize !== 'undefined') {
-			let newTabSize = newOpts.tabSize | 0;
-			if (this._options.tabSize !== newTabSize) {
-				somethingChanged = true;
-				changed.tabSize = true;
-				this._options.tabSize = newTabSize;
+		let newOpts = new editorCommon.TextModelResolvedOptions({
+			tabSize: tabSize,
+			insertSpaces: insertSpaces,
+			defaultEOL: this._options.defaultEOL,
+			trimAutoWhitespace: trimAutoWhitespace
+		});
 
-				for (let i = 0, len = this._lines.length; i < len; i++) {
-					this._lines[i].updateTabSize(newTabSize);
-				}
-			}
+		if (this._options.equals(newOpts)) {
+			return;
 		}
-		if (typeof newOpts.trimAutoWhitespace !== 'undefined') {
-			if (this._options.trimAutoWhitespace !== newOpts.trimAutoWhitespace) {
-				somethingChanged = true;
-				changed.trimAutoWhitespace = true;
-				this._options.trimAutoWhitespace = newOpts.trimAutoWhitespace;
+
+		let e = this._options.createChangeEvent(newOpts);
+		this._options = newOpts;
+
+		if (e.tabSize) {
+			let newTabSize = this._options.tabSize;
+			for (let i = 0, len = this._lines.length; i < len; i++) {
+				this._lines[i].updateTabSize(newTabSize);
 			}
 		}
 
-		if (somethingChanged) {
-			this.emit(editorCommon.EventType.ModelOptionsChanged, changed);
-		}
+		this.emit(editorCommon.EventType.ModelOptionsChanged, e);
 	}
 
 	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
@@ -244,9 +233,9 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	protected _createContentChangedFlushEvent(): editorCommon.IModelContentChangedFlushEvent {
 		return {
 			changeType: editorCommon.EventType.ModelRawContentChangedFlush,
-			detail: null,
+			detail: this.toRawText(),
+			versionId: this._versionId,
 			// TODO@Alex -> remove these fields from here
-			versionId: -1,
 			isUndoing: false,
 			isRedoing: false
 		};
@@ -267,13 +256,9 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	protected _resetValue(e: editorCommon.IModelContentChangedFlushEvent, newValue: editorCommon.IRawText): void {
+	protected _resetValue(newValue: editorCommon.IRawText): void {
 		this._constructLines(newValue);
-
 		this._increaseVersionId();
-
-		e.detail = this.toRawText();
-		e.versionId = this._versionId;
 	}
 
 	public toRawText(): editorCommon.IRawText {
@@ -329,10 +314,11 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		var oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
 		var endLineNumber = this.getLineCount();
 		var endColumn = this.getLineMaxColumn(endLineNumber);
-		var e = this._createContentChangedFlushEvent();
 
-		this._resetValue(e, newValue);
-		this._emitModelContentChangedFlushEvent(e);
+		this._resetValue(newValue);
+
+		this._emitModelContentChangedFlushEvent(this._createContentChangedFlushEvent());
+
 		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false);
 	}
 
@@ -557,11 +543,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._lineStarts = null;
 		this._increaseVersionId();
 
-		var e = this._createContentChangedFlushEvent();
-		e.detail = this.toRawText();
-		e.versionId = this._versionId;
+		this._emitModelContentChangedFlushEvent(this._createContentChangedFlushEvent());
 
-		this._emitModelContentChangedFlushEvent(e);
 		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false);
 	}
 
@@ -739,22 +722,22 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			EOL = '\n';
 		}
 
-		let resolvedOpts: editorCommon.ITextModelResolvedOptions;
+		let resolvedOpts: editorCommon.TextModelResolvedOptions;
 		if (opts.detectIndentation) {
 			let guessedIndentation = guessIndentation(lines, opts.tabSize, opts.insertSpaces);
-			resolvedOpts = {
+			resolvedOpts = new editorCommon.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
-			};
+			});
 		} else {
-			resolvedOpts = {
+			resolvedOpts = new editorCommon.TextModelResolvedOptions({
 				tabSize: opts.tabSize,
 				insertSpaces: opts.insertSpaces,
 				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
-			};
+			});
 		}
 
 		return {

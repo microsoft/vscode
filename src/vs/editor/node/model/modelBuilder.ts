@@ -6,7 +6,7 @@
 
 import { IStringStream } from 'vs/platform/files/common/files';
 import * as crypto from 'crypto';
-import { DefaultEndOfLine, ITextModelCreationOptions, ITextModelResolvedOptions, IRawText } from 'vs/editor/common/editorCommon';
+import { DefaultEndOfLine, ITextModelCreationOptions, TextModelResolvedOptions, IRawText } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -61,22 +61,22 @@ class ModelLineBasedBuilder {
 			EOL = '\n';
 		}
 
-		let resolvedOpts: ITextModelResolvedOptions;
+		let resolvedOpts: TextModelResolvedOptions;
 		if (opts.detectIndentation) {
 			let guessedIndentation = guessIndentation(this.lines, opts.tabSize, opts.insertSpaces);
-			resolvedOpts = {
+			resolvedOpts = new TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
-			};
+			});
 		} else {
-			resolvedOpts = {
+			resolvedOpts = new TextModelResolvedOptions({
 				tabSize: opts.tabSize,
 				insertSpaces: opts.insertSpaces,
 				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
-			};
+			});
 		}
 
 		return {

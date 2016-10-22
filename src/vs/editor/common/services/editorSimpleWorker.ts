@@ -22,8 +22,8 @@ import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 
 export interface IMirrorModel {
-	uri: URI;
-	version: number;
+	readonly uri: URI;
+	readonly version: number;
 	getValue(): string;
 }
 
@@ -283,7 +283,12 @@ export abstract class BaseEditorSimpleWorker {
 		let wordDefRegExp = new RegExp(wordDef, wordDefFlags);
 
 		if (range.startColumn === range.endColumn) {
-			range.endColumn += 1;
+			range = {
+				startLineNumber: range.startLineNumber,
+				startColumn: range.startColumn,
+				endLineNumber: range.endLineNumber,
+				endColumn: range.endColumn + 1
+			};
 		}
 
 		let selectionText = model.getValueInRange(range);

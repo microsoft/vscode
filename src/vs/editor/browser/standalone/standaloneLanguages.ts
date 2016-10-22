@@ -222,7 +222,7 @@ export interface CodeActionContext {
 	 *
 	 * @readonly
 	 */
-	markers: IMarkerData[];
+	readonly markers: IMarkerData[];
 }
 
 /**

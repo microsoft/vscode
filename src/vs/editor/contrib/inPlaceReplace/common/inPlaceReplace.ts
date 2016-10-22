@@ -96,7 +96,12 @@ class InPlaceReplaceController implements IEditorContribution {
 				diff = result.value.length - (selection.endColumn - selection.startColumn);
 
 			// highlight
-			highlightRange.endColumn = highlightRange.startColumn + result.value.length;
+			highlightRange = {
+				startLineNumber: highlightRange.startLineNumber,
+				startColumn: highlightRange.startColumn,
+				endLineNumber: highlightRange.endLineNumber,
+				endColumn: highlightRange.startColumn + result.value.length
+			};
 			if (diff > 1) {
 				selection = new Selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn + diff - 1);
 			}
