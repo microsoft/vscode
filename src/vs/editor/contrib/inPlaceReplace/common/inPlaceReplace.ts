@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { EditorContextKeys, IEditorContribution, CodeEditorStateFlag, ICommonCodeEditor, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
@@ -96,7 +97,9 @@ class InPlaceReplaceController implements IEditorContribution {
 
 			// highlight
 			highlightRange.endColumn = highlightRange.startColumn + result.value.length;
-			selection.endColumn += diff > 1 ? (diff - 1) : 0;
+			if (diff > 1) {
+				selection = new Selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn + diff - 1);
+			}
 
 			// Insert new text
 			var command = new InPlaceReplaceCommand(editRange, selection, result.value);

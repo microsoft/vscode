@@ -471,11 +471,11 @@ declare module monaco {
         /**
          * line number (starts at 1)
          */
-        lineNumber: number;
+        readonly lineNumber: number;
         /**
          * column (the first character in a line is between column 1 and column 2)
          */
-        column: number;
+        readonly column: number;
         constructor(lineNumber: number, column: number);
         /**
          * Test if this position equals other position
@@ -530,19 +530,19 @@ declare module monaco {
         /**
          * Line number on which the range starts (starts at 1).
          */
-        startLineNumber: number;
+        readonly startLineNumber: number;
         /**
          * Column on which the range starts in line `startLineNumber` (starts at 1).
          */
-        startColumn: number;
+        readonly startColumn: number;
         /**
          * Line number on which the range ends.
          */
-        endLineNumber: number;
+        readonly endLineNumber: number;
         /**
          * Column on which the range ends in line `endLineNumber`.
          */
-        endColumn: number;
+        readonly endColumn: number;
         constructor(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number);
         /**
          * Test if this range is empty.
@@ -662,19 +662,19 @@ declare module monaco {
         /**
          * The line number on which the selection has started.
          */
-        selectionStartLineNumber: number;
+        readonly selectionStartLineNumber: number;
         /**
          * The column on `selectionStartLineNumber` where the selection has started.
          */
-        selectionStartColumn: number;
+        readonly selectionStartColumn: number;
         /**
          * The line number on which the selection has ended.
          */
-        positionLineNumber: number;
+        readonly positionLineNumber: number;
         /**
          * The column on `positionLineNumber` where the selection has ended.
          */
-        positionColumn: number;
+        readonly positionColumn: number;
         constructor(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number);
         /**
          * Clone this selection.
