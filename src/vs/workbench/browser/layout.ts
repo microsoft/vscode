@@ -17,6 +17,9 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWindowConfiguration } from 'vs/workbench/electron-browser/common';
+import * as browser from 'vs/base/browser/browser';
 
 const DEFAULT_MIN_PART_WIDTH = 170;
 const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;
@@ -39,7 +42,7 @@ export class LayoutOptions {
 }
 
 interface ComputedStyles {
-	activitybar: { minWidth: number; };
+	activitybar: { minWidth: number; width: number };
 	sidebar: { minWidth: number; };
 	panel: { minHeight: number; };
 	editor: { minWidth: number; };
@@ -100,7 +103,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService,
+
 	) {
 		this.parent = parent;
 		this.workbenchContainer = workbenchContainer;
@@ -281,7 +286,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		this.computedStyles = {
 			activitybar: {
-				minWidth: parseInt(activitybarStyle.getPropertyValue('min-width'), 10) || 0
+				minWidth: parseInt(activitybarStyle.getPropertyValue('min-width'), 10) || 0,
+				width: parseInt(activitybarStyle.getPropertyValue('width'), 10) || 0
+
 			},
 
 			sidebar: {
@@ -339,6 +346,16 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Activity Bar
 		let activityBarMinWidth = this.computedStyles.activitybar.minWidth;
+
+		// For inline titles, we want to ignore the minWidth on the activity bar
+		// and generate a zoom-dependent width, to ensure all other parts lay out correctly
+		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+		if (windowConfig && windowConfig.window.macOSUseInlineToolbar) {
+			const zoom = browser.getZoomFactor();
+			const originalWidth = this.computedStyles.activitybar.width;
+			activityBarMinWidth = originalWidth/zoom;
+		}
+
 		let activityBarSize = new Dimension(activityBarMinWidth, sidebarSize.height);
 
 		// Panel part
@@ -434,7 +451,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		// Activity Bar Part
-		this.activitybar.getContainer().size(null, activityBarSize.height);
+		this.activitybar.getContainer().size(activityBarSize.width, activityBarSize.height);
 		if (sidebarPosition === Position.LEFT) {
 			this.activitybar.getContainer().getHTMLElement().style.right = '';
 			this.activitybar.getContainer().position(0, null, 0, 0);

@@ -17,9 +17,10 @@
 
 /* Allow dragging on the wider activitybar */
 .monaco-workbench.mac.use-inline-toolbar > .part.activitybar {
-	min-width: 76px;
+	min-width: unset;
 	width: 76px;
 	-webkit-app-region: drag;
+	-webkit-transition: none;
 }
 
 .monaco-workbench > .activitybar.help {
@@ -30,9 +31,10 @@
 	height: 100%;
 }
 
-/* Spacing above the activitybar icons to fit the traffic lights */
+/* Spacing above the activitybar icons to fit the traffic lights, zooming doesn't affect icons */
 .monaco-workbench.mac.use-inline-toolbar > .activitybar > .content {
 	padding-top: 28px;
+	zoom: reset;
 }
 
 /* Remove spacing above the activitybar icons to as there are no traffic lights fullscreen */

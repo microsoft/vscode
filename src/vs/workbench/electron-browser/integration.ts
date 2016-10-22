@@ -155,6 +155,7 @@ export class ElectronIntegration {
 
 		// Ensure others can listen to zoom level changes
 		browser.setZoomLevel(webFrame.getZoomLevel());
+		browser.setZoomFactor(webFrame.getZoomFactor());
 
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
@@ -176,6 +177,7 @@ export class ElectronIntegration {
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
 				webFrame.setZoomLevel(newZoomLevel);
 				browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+				browser.setZoomFactor(webFrame.getZoomFactor());
 			}
 		});
 
