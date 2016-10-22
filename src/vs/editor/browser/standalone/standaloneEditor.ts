@@ -174,6 +174,7 @@ export function getModels(): IModel[] {
 
 /**
  * Emitted when a model is created.
+ * @event
  */
 export function onDidCreateModel(listener: (model: IModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelAdded(listener);
@@ -181,6 +182,7 @@ export function onDidCreateModel(listener: (model: IModel) => void): IDisposable
 
 /**
  * Emitted right before a model is disposed.
+ * @event
  */
 export function onWillDisposeModel(listener: (model: IModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelRemoved(listener);
@@ -188,6 +190,7 @@ export function onWillDisposeModel(listener: (model: IModel) => void): IDisposab
 
 /**
  * Emitted when a different language is set to a model.
+ * @event
  */
 export function onDidChangeModelLanguage(listener: (e: { model: IModel; oldLanguage: string; }) => void): IDisposable {
 	return StaticServices.modelService.get().onModelModeChanged((e) => {

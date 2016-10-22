@@ -9,6 +9,10 @@ import Event, { Emitter } from 'vs/base/common/event';
 
 export interface CancellationToken {
 	isCancellationRequested: boolean;
+	/**
+	 * An event emitted when cancellation is requested
+	 * @event
+	 */
 	onCancellationRequested: Event<any>;
 }
 
