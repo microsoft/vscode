@@ -78,8 +78,6 @@
 }
 
 .monaco-workbench.mac.use-inline-toolbar > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
-	margin-top: 9px;
-	height: 26px;
 	-webkit-app-region: no-drag;
 }
 

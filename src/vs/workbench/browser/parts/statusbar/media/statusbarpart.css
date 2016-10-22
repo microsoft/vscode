@@ -15,6 +15,10 @@
 	overflow: hidden;
 }
 
+.monaco-workbench.mac.use-inline-toolbar > .part.statusbar {
+	-webkit-app-region: drag;
+}
+
 .monaco-workbench.no-workspace > .part.statusbar {
 	background: #68217A;
 }

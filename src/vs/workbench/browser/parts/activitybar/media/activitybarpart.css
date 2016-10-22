@@ -7,13 +7,15 @@
 	transform: rotate(180deg);
 }
 
-.monaco-workbench > .part.activitybar, .monaco-workbench.mac.fullscreen.use-inline-toolbar > .part.activitybar {
+/* The duplicate part is for resetting to the smaller width activty bar when full screen */
+.monaco-workbench > .part.activitybar, .monaco-workbench > .part.activitybar, .monaco-workbench.mac.fullscreen.use-inline-toolbar > .part.activitybar {
 	z-index: 20;
 	min-width: 50px;
 	width: 50px;
 	transition: width 0.2s ease-out;
 }
 
+/* Allow dragging on the wider activitybar */
 .monaco-workbench.mac.use-inline-toolbar > .part.activitybar {
 	min-width: 76px;
 	width: 76px;
@@ -28,10 +30,12 @@
 	height: 100%;
 }
 
+/* Spacing above the activitybar icons to fit the traffic lights */
 .monaco-workbench.mac.use-inline-toolbar > .activitybar > .content {
 	padding-top: 28px;
 }
 
+/* Remove spacing above the activitybar icons to as there are no traffic lights fullscreen */
 .monaco-workbench.mac.fullscreen.use-inline-toolbar > .activitybar > .content {
 	padding-top: 0px;
 }

@@ -17,11 +17,6 @@
 	overflow: hidden;
 }
 
-.monaco-workbench.mac.use-inline-toolbar > .part > .title,
-.monaco-workbench.mac.use-inline-toolbar > .part.editor > .content > .one-editor-silo > .container > .title {
-	height: 36px;
-}
-
 .monaco-workbench > .part > .title {
 	padding-left: 8px;
 	padding-right: 8px;
@@ -32,10 +27,6 @@
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-}
-
-.monaco-workbench.mac.use-inline-toolbar > .part > .title > .title-label {
-	line-height: 36px;
 }
 
 .monaco-workbench > .part > .title > .title-label {
@@ -59,10 +50,6 @@
 	padding-left: 5px;
 }
 
-.monaco-workbench.mac.use-inline-toolbar > .part > .title > .title-actions {
-	height: 36px;
-}
-
 .monaco-workbench > .part > .title > .title-actions .action-label {
 	display: block;
 	height: 35px;
@@ -70,10 +57,6 @@
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
-}
-
-.monaco-workbench.mac.use-inline-toolbar > .part > .title > .title-actions .action-label {
-	height: 36px;
 }
 
 .monaco-workbench > .part > .title > .title-actions .action-label .label {
@@ -90,10 +73,6 @@
 	top: 33px; /* at the bottom of the 35px height title container */
 	z-index: 5; /* on top of things */
 	height: 2px;
-}
-
-.monaco-workbench.mac.use-inline-toolbar > .part > .content  .progress-container {
-	top: 34px
 }
 
 .monaco-workbench > .part > .content  .progress-container .progress-bit {
