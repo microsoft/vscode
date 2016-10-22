@@ -6,6 +6,7 @@
 'use strict';
 
 import cp = require('child_process');
+import path = require('path');
 import processes = require('vs/base/node/processes');
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
@@ -17,6 +18,11 @@ import uri from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
+
+enum WinSpawnType {
+	CMD,
+	CMDER
+}
 
 export class WinTerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -69,14 +75,23 @@ export class WinTerminalService implements ITerminalService {
 	private spawnTerminal(spawner, configuration: ITerminalConfiguration, command: string, path?: string): TPromise<void> {
 		let terminalConfig = configuration.terminal.external;
 		let exec = terminalConfig.windowsExec || DEFAULT_TERMINAL_WINDOWS;
-		// The '""' argument is the window title. Without this, exec doesn't work when the path
-		// contains spaces
-		let cmdArgs = ['/c', 'start', '/wait', '""', exec];
+		const spawnType = this.getSpawnType(exec);
 
 		// Make the drive letter uppercase on Windows (see #9448)
 		if (path && path[1] === ':') {
 			path = path[0].toUpperCase() + path.substr(1);
 		}
+
+		// cmder ignores the environment cwd and instead opts to always open in %USERPROFILE%
+		// unless otherwise specified
+		if (spawnType === WinSpawnType.CMDER) {
+			spawner.spawn(exec, [path]);
+			return TPromise.as(void 0);
+		}
+
+		// The '""' argument is the window title. Without this, exec doesn't work when the path
+		// contains spaces
+		let cmdArgs = ['/c', 'start', '/wait', '""', exec];
 
 		return new TPromise<void>((c, e) => {
 			let env = path ? { cwd: path } : void 0;
@@ -84,6 +99,14 @@ export class WinTerminalService implements ITerminalService {
 			child.on('error', e);
 			child.on('exit', () => c(null));
 		});
+	}
+
+	private getSpawnType(exec: string): WinSpawnType {
+		const basename = path.basename(exec).toLowerCase();
+		if (basename === 'cmder' || basename === 'cmder.exe') {
+			return WinSpawnType.CMDER;
+		}
+		return WinSpawnType.CMD;
 	}
 }
 

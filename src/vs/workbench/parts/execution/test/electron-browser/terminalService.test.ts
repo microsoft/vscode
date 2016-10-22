@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { equal } from 'assert';
+import { deepEqual, equal } from 'assert';
 import { WinTerminalService, LinuxTerminalService, MacTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
 import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 
@@ -90,6 +90,30 @@ suite('Execution - TerminalService', () => {
 				return {
 					on: (evt) => evt
 				}
+			}
+		};
+		let testService = new WinTerminalService(mockConfig);
+		(<any>testService).spawnTerminal(
+			mockSpawner,
+			mockConfig,
+			testShell,
+			testCwd,
+			mockOnExit,
+			mockOnError
+		);
+	});
+
+	test("WinTerminalService - cmder should be spawned differently", done => {
+		let testShell = 'cmd';
+		mockConfig.terminal.external.windowsExec = 'cmder';
+		let testCwd = 'c:/foo';
+		let mockSpawner = {
+			spawn: (command, args, opts) => {
+				// assert
+				deepEqual(args, ['C:/foo']);
+				equal(opts, undefined);
+				done();
+				return { on: (evt) => evt };
 			}
 		};
 		let testService = new WinTerminalService(mockConfig);
