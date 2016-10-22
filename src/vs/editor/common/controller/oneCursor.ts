@@ -6,7 +6,7 @@
 
 import { onUnexpectedError, illegalArgument } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { CursorMoveHelper, ICursorMoveHelperModel, IMoveResult, IColumnSelectResult, IViewColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
@@ -1808,6 +1808,23 @@ export class OneCursorOp {
 		}
 		ctx.executeCommand = new ReplaceCommand(selection, text);
 		return true;
+	}
+
+	public static changeCase(cursor: OneCursor, toUpperCase: boolean, ctx: IOneCursorOperationContext): boolean {
+		let selection: Selection = cursor.getSelection();
+		if (selection.isEmpty()) {
+			return false;
+		}
+
+		let selectionText = cursor.model.getValueInRange(selection);
+		if (selectionText) {
+			ctx.shouldPushStackElementBefore = true;
+			let replacementText = toUpperCase ? selectionText.toUpperCase() : selectionText.toLowerCase();
+			ctx.executeCommand = new ReplaceCommandThatPreservesSelection(selection, replacementText, selection);
+			return true;
+		}
+
+		return false;
 	}
 
 	// -------------------- END type interceptors & co.

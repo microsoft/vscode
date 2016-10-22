@@ -1009,6 +1009,9 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.ScrollPageUp] = (ctx) => this._scrollUp(true, ctx);
 		this._handlers[H.ScrollPageDown] = (ctx) => this._scrollDown(true, ctx);
 
+		this._handlers[H.TextUpperCase] = (ctx) => this._textUpperCase(ctx);
+		this._handlers[H.TextLowerCase] = (ctx) => this._textLowerCase(ctx);
+
 		this._handlers[H.DeleteLeft] = (ctx) => this._deleteLeft(ctx);
 
 		this._handlers[H.DeleteWordLeft] = (ctx) => this._deleteWordLeft(true, WordNavigationType.WordStart, ctx);
@@ -1539,6 +1542,28 @@ export class Cursor extends EventEmitter {
 		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Down, value: 1 };
 		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.WrappedLine;
 		return this._editorScroll(ctx);
+	}
+
+	private _textUpperCase(ctx: IMultipleCursorOperationContext): boolean {
+		if (this.configuration.editor.readOnly || this.model.hasEditableRange()) {
+			return false;
+		}
+
+		const toUpperCase = true;
+		return this._invokeForAllSorted(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
+			return OneCursorOp.changeCase(oneCursor, toUpperCase, oneCtx)
+		});
+	}
+
+	private _textLowerCase(ctx: IMultipleCursorOperationContext): boolean {
+		if (this.configuration.editor.readOnly || this.model.hasEditableRange()) {
+			return false;
+		}
+
+		const toUpperCase = false;
+		return this._invokeForAllSorted(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
+			return OneCursorOp.changeCase(oneCursor, toUpperCase, oneCtx)
+		});
 	}
 
 	private _distributePasteToCursors(ctx: IMultipleCursorOperationContext): string[] {
