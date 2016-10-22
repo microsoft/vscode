@@ -5,7 +5,7 @@
 'use strict';
 
 import vscode = require('vscode');
-import { TPromise } from 'vs/base/common/winjs.base';
+import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape } from './extHost.protocol';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -14,15 +14,19 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 	private _name: string;
 	private _id: number;
-	private _processId: number;
 	private _proxy: MainThreadTerminalServiceShape;
 	private _disposed: boolean;
 	private _queuedRequests: ApiRequest[];
+	private _pidPromise: TPromise<number>;
+	private _pidPromiseComplete: TValueCallback<number>;
 
 	constructor(proxy: MainThreadTerminalServiceShape, name?: string, shellPath?: string, shellArgs?: string[]) {
 		this._name = name;
 		this._queuedRequests = [];
 		this._proxy = proxy;
+		this._pidPromise = new TPromise<number>(c => {
+			this._pidPromiseComplete = c;
+		});
 		this._proxy.$createTerminal(name, shellPath, shellArgs).then((id) => {
 			this._id = id;
 			this._queuedRequests.forEach((r) => {
@@ -38,14 +42,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 	public get processId(): Thenable<number> {
 		this._checkDisposed();
-		if (this._processId) {
-			return TPromise.as<number>(this._processId);
-		}
-		return new TPromise<number>((resolve) => {
-			setTimeout(() => {
-				this.processId.then(resolve);
-			}, 200);
-		});
+		return this._pidPromise;
 	}
 
 	public sendText(text: string, addNewLine: boolean = true): void {
@@ -71,7 +68,8 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	public setProcessId(processId: number): void {
-		this._processId = processId;
+		this._pidPromiseComplete(processId);
+		this._pidPromiseComplete = null;
 	}
 
 	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {

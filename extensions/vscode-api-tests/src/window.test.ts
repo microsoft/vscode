@@ -333,4 +333,11 @@ suite('window namespace tests', () => {
 		});
 		terminal.dispose();
 	});
+
+	test('createTerminal, immediate Terminal.processId', (done) => {
+		window.createTerminal().processId.then(id => {
+			assert.ok(id > 0);
+			done();
+		});
+	});
 });
