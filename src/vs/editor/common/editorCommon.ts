@@ -9,7 +9,7 @@ import { MarkedString } from 'vs/base/common/htmlContent';
 import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ServicesAccessor, IConstructorSignature1, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { ILineContext, IMode } from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -38,11 +38,11 @@ export interface IPosition {
 	/**
 	 * line number (starts at 1)
 	 */
-	lineNumber: number;
+	readonly lineNumber: number;
 	/**
 	 * column (the first character in a line is between column 1 and column 2)
 	 */
-	column: number;
+	readonly column: number;
 }
 
 /**
@@ -52,19 +52,19 @@ export interface IRange {
 	/**
 	 * Line number on which the range starts (starts at 1).
 	 */
-	startLineNumber: number;
+	readonly startLineNumber: number;
 	/**
 	 * Column on which the range starts in line `startLineNumber` (starts at 1).
 	 */
-	startColumn: number;
+	readonly startColumn: number;
 	/**
 	 * Line number on which the range ends.
 	 */
-	endLineNumber: number;
+	readonly endLineNumber: number;
 	/**
 	 * Column on which the range ends in line `endLineNumber`.
 	 */
-	endColumn: number;
+	readonly endColumn: number;
 }
 
 /**
@@ -75,19 +75,19 @@ export interface ISelection {
 	/**
 	 * The line number on which the selection has started.
 	 */
-	selectionStartLineNumber: number;
+	readonly selectionStartLineNumber: number;
 	/**
 	 * The column on `selectionStartLineNumber` where the selection has started.
 	 */
-	selectionStartColumn: number;
+	readonly selectionStartColumn: number;
 	/**
 	 * The line number on which the selection has ended.
 	 */
-	positionLineNumber: number;
+	readonly positionLineNumber: number;
 	/**
 	 * The column on `positionLineNumber` where the selection has ended.
 	 */
-	positionColumn: number;
+	readonly positionColumn: number;
 }
 
 /**
@@ -509,20 +509,20 @@ export interface IDiffEditorOptions extends IEditorOptions {
 }
 
 export class InternalEditorScrollbarOptions {
-	_internalEditorScrollbarOptionsBrand: void;
+	readonly _internalEditorScrollbarOptionsBrand: void;
 
-	arrowSize: number;
-	vertical: ScrollbarVisibility;
-	horizontal: ScrollbarVisibility;
-	useShadows: boolean;
-	verticalHasArrows: boolean;
-	horizontalHasArrows: boolean;
-	handleMouseWheel: boolean;
-	horizontalScrollbarSize: number;
-	horizontalSliderSize: number;
-	verticalScrollbarSize: number;
-	verticalSliderSize: number;
-	mouseWheelScrollSensitivity: number;
+	readonly arrowSize: number;
+	readonly vertical: ScrollbarVisibility;
+	readonly horizontal: ScrollbarVisibility;
+	readonly useShadows: boolean;
+	readonly verticalHasArrows: boolean;
+	readonly horizontalHasArrows: boolean;
+	readonly handleMouseWheel: boolean;
+	readonly horizontalScrollbarSize: number;
+	readonly horizontalSliderSize: number;
+	readonly verticalScrollbarSize: number;
+	readonly verticalSliderSize: number;
+	readonly mouseWheelScrollSensitivity: number;
 
 	/**
 	 * @internal
@@ -584,14 +584,14 @@ export class InternalEditorScrollbarOptions {
 }
 
 export class EditorWrappingInfo {
-	_editorWrappingInfoBrand: void;
+	readonly _editorWrappingInfoBrand: void;
 
-	isViewportWrapping: boolean;
-	wrappingColumn: number;
-	wrappingIndent: WrappingIndent;
-	wordWrapBreakBeforeCharacters: string;
-	wordWrapBreakAfterCharacters: string;
-	wordWrapBreakObtrusiveCharacters: string;
+	readonly isViewportWrapping: boolean;
+	readonly wrappingColumn: number;
+	readonly wrappingIndent: WrappingIndent;
+	readonly wordWrapBreakBeforeCharacters: string;
+	readonly wordWrapBreakAfterCharacters: string;
+	readonly wordWrapBreakObtrusiveCharacters: string;
 
 	/**
 	 * @internal
@@ -635,33 +635,33 @@ export class EditorWrappingInfo {
 }
 
 export class InternalEditorViewOptions {
-	_internalEditorViewOptionsBrand: void;
+	readonly _internalEditorViewOptionsBrand: void;
 
-	theme: string;
-	canUseTranslate3d: boolean;
-	experimentalScreenReader: boolean;
-	rulers: number[];
-	ariaLabel: string;
-	renderLineNumbers: boolean;
-	renderCustomLineNumbers: (lineNumber: number) => string;
-	renderRelativeLineNumbers: boolean;
-	selectOnLineNumbers: boolean;
-	glyphMargin: boolean;
-	revealHorizontalRightPadding: number;
-	roundedSelection: boolean;
-	overviewRulerLanes: number;
-	cursorBlinking: TextEditorCursorBlinkingStyle;
-	mouseWheelZoom: boolean;
-	cursorStyle: TextEditorCursorStyle;
-	hideCursorInOverviewRuler: boolean;
-	scrollBeyondLastLine: boolean;
-	editorClassName: string;
-	stopRenderingLineAfter: number;
-	renderWhitespace: 'none' | 'boundary' | 'all';
-	renderControlCharacters: boolean;
-	renderIndentGuides: boolean;
-	renderLineHighlight: boolean;
-	scrollbar: InternalEditorScrollbarOptions;
+	readonly theme: string;
+	readonly canUseTranslate3d: boolean;
+	readonly experimentalScreenReader: boolean;
+	readonly rulers: number[];
+	readonly ariaLabel: string;
+	readonly renderLineNumbers: boolean;
+	readonly renderCustomLineNumbers: (lineNumber: number) => string;
+	readonly renderRelativeLineNumbers: boolean;
+	readonly selectOnLineNumbers: boolean;
+	readonly glyphMargin: boolean;
+	readonly revealHorizontalRightPadding: number;
+	readonly roundedSelection: boolean;
+	readonly overviewRulerLanes: number;
+	readonly cursorBlinking: TextEditorCursorBlinkingStyle;
+	readonly mouseWheelZoom: boolean;
+	readonly cursorStyle: TextEditorCursorStyle;
+	readonly hideCursorInOverviewRuler: boolean;
+	readonly scrollBeyondLastLine: boolean;
+	readonly editorClassName: string;
+	readonly stopRenderingLineAfter: number;
+	readonly renderWhitespace: 'none' | 'boundary' | 'all';
+	readonly renderControlCharacters: boolean;
+	readonly renderIndentGuides: boolean;
+	readonly renderLineHighlight: boolean;
+	readonly scrollbar: InternalEditorScrollbarOptions;
 
 	/**
 	 * @internal
@@ -823,52 +823,52 @@ export class InternalEditorViewOptions {
 }
 
 export interface IViewConfigurationChangedEvent {
-	theme: boolean;
-	canUseTranslate3d: boolean;
-	experimentalScreenReader: boolean;
-	rulers: boolean;
-	ariaLabel: boolean;
-	renderLineNumbers: boolean;
-	renderCustomLineNumbers: boolean;
-	renderRelativeLineNumbers: boolean;
-	selectOnLineNumbers: boolean;
-	glyphMargin: boolean;
-	revealHorizontalRightPadding: boolean;
-	roundedSelection: boolean;
-	overviewRulerLanes: boolean;
-	cursorBlinking: boolean;
-	mouseWheelZoom: boolean;
-	cursorStyle: boolean;
-	hideCursorInOverviewRuler: boolean;
-	scrollBeyondLastLine: boolean;
-	editorClassName: boolean;
-	stopRenderingLineAfter: boolean;
-	renderWhitespace: boolean;
-	renderControlCharacters: boolean;
-	renderIndentGuides: boolean;
-	renderLineHighlight: boolean;
-	scrollbar: boolean;
+	readonly theme: boolean;
+	readonly canUseTranslate3d: boolean;
+	readonly experimentalScreenReader: boolean;
+	readonly rulers: boolean;
+	readonly ariaLabel: boolean;
+	readonly renderLineNumbers: boolean;
+	readonly renderCustomLineNumbers: boolean;
+	readonly renderRelativeLineNumbers: boolean;
+	readonly selectOnLineNumbers: boolean;
+	readonly glyphMargin: boolean;
+	readonly revealHorizontalRightPadding: boolean;
+	readonly roundedSelection: boolean;
+	readonly overviewRulerLanes: boolean;
+	readonly cursorBlinking: boolean;
+	readonly mouseWheelZoom: boolean;
+	readonly cursorStyle: boolean;
+	readonly hideCursorInOverviewRuler: boolean;
+	readonly scrollBeyondLastLine: boolean;
+	readonly editorClassName: boolean;
+	readonly stopRenderingLineAfter: boolean;
+	readonly renderWhitespace: boolean;
+	readonly renderControlCharacters: boolean;
+	readonly renderIndentGuides: boolean;
+	readonly renderLineHighlight: boolean;
+	readonly scrollbar: boolean;
 }
 
 export class EditorContribOptions {
-	selectionClipboard: boolean;
-	hover: boolean;
-	contextmenu: boolean;
-	quickSuggestions: boolean;
-	quickSuggestionsDelay: number;
-	parameterHints: boolean;
-	iconsInSuggestions: boolean;
-	formatOnType: boolean;
-	suggestOnTriggerCharacters: boolean;
-	acceptSuggestionOnEnter: boolean;
-	snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
-	tabCompletion: boolean;
-	wordBasedSuggestions: boolean;
-	suggestFontSize: number;
-	suggestLineHeight: number;
-	selectionHighlight: boolean;
-	codeLens: boolean;
-	folding: boolean;
+	readonly selectionClipboard: boolean;
+	readonly hover: boolean;
+	readonly contextmenu: boolean;
+	readonly quickSuggestions: boolean;
+	readonly quickSuggestionsDelay: number;
+	readonly parameterHints: boolean;
+	readonly iconsInSuggestions: boolean;
+	readonly formatOnType: boolean;
+	readonly suggestOnTriggerCharacters: boolean;
+	readonly acceptSuggestionOnEnter: boolean;
+	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+	readonly tabCompletion: boolean;
+	readonly wordBasedSuggestions: boolean;
+	readonly suggestFontSize: number;
+	readonly suggestLineHeight: number;
+	readonly selectionHighlight: boolean;
+	readonly codeLens: boolean;
+	readonly folding: boolean;
 
 	/**
 	 * @internal
@@ -951,22 +951,22 @@ export class EditorContribOptions {
  * Internal configuration options (transformed or computed) for the editor.
  */
 export class InternalEditorOptions {
-	_internalEditorOptionsBrand: void;
+	readonly _internalEditorOptionsBrand: void;
 
-	lineHeight: number; // todo: move to fontInfo
+	readonly lineHeight: number; // todo: move to fontInfo
 
-	readOnly: boolean;
+	readonly readOnly: boolean;
 	// ---- cursor options
-	wordSeparators: string;
-	autoClosingBrackets: boolean;
-	useTabStops: boolean;
-	tabFocusMode: boolean;
+	readonly wordSeparators: string;
+	readonly autoClosingBrackets: boolean;
+	readonly useTabStops: boolean;
+	readonly tabFocusMode: boolean;
 	// ---- grouped options
-	layoutInfo: EditorLayoutInfo;
-	fontInfo: FontInfo;
-	viewInfo: InternalEditorViewOptions;
-	wrappingInfo: EditorWrappingInfo;
-	contribInfo: EditorContribOptions;
+	readonly layoutInfo: EditorLayoutInfo;
+	readonly fontInfo: FontInfo;
+	readonly viewInfo: InternalEditorViewOptions;
+	readonly wrappingInfo: EditorWrappingInfo;
+	readonly contribInfo: EditorContribOptions;
 
 	/**
 	 * @internal
@@ -1047,17 +1047,17 @@ export class InternalEditorOptions {
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
-	lineHeight: boolean;
-	readOnly: boolean;
-	wordSeparators: boolean;
-	autoClosingBrackets: boolean;
-	useTabStops: boolean;
-	tabFocusMode: boolean;
-	layoutInfo: boolean;
-	fontInfo: boolean;
-	viewInfo: IViewConfigurationChangedEvent;
-	wrappingInfo: boolean;
-	contribInfo: boolean;
+	readonly lineHeight: boolean;
+	readonly readOnly: boolean;
+	readonly wordSeparators: boolean;
+	readonly autoClosingBrackets: boolean;
+	readonly useTabStops: boolean;
+	readonly tabFocusMode: boolean;
+	readonly layoutInfo: boolean;
+	readonly fontInfo: boolean;
+	readonly viewInfo: IViewConfigurationChangedEvent;
+	readonly wrappingInfo: boolean;
+	readonly contribInfo: boolean;
 }
 
 /**
@@ -1184,19 +1184,19 @@ export interface IModelDecoration {
 	/**
 	 * Identifier for a decoration.
 	 */
-	id: string;
+	readonly id: string;
 	/**
 	 * Identifier for a decoration's owener.
 	 */
-	ownerId: number;
+	readonly ownerId: number;
 	/**
 	 * Range that this decoration covers.
 	 */
-	range: Range;
+	readonly range: Range;
 	/**
 	 * Options associated with this decoration.
 	 */
-	options: IModelDecorationOptions;
+	readonly options: IModelDecorationOptions;
 }
 
 /**
@@ -1247,15 +1247,15 @@ export interface IWordAtPosition {
 	/**
 	 * The word.
 	 */
-	word: string;
+	readonly word: string;
 	/**
 	 * The column where the word starts.
 	 */
-	startColumn: number;
+	readonly startColumn: number;
 	/**
 	 * The column where the word ends.
 	 */
-	endColumn: number;
+	readonly endColumn: number;
 }
 
 /**
@@ -1266,21 +1266,21 @@ export interface IWordRange {
 	/**
 	 * The index where the word starts.
 	 */
-	start: number;
+	readonly start: number;
 	/**
 	 * The index where the word ends.
 	 */
-	end: number;
+	readonly end: number;
 }
 
 /**
  * @internal
  */
 export interface ITokenInfo {
-	type: string;
-	lineNumber: number;
-	startColumn: number;
-	endColumn: number;
+	readonly type: string;
+	readonly lineNumber: number;
+	readonly startColumn: number;
+	readonly endColumn: number;
 }
 
 /**
@@ -1344,8 +1344,8 @@ export enum EndOfLineSequence {
  * @internal
  */
 export interface IReadOnlyLineMarker {
-	id: string;
-	column: number;
+	readonly id: string;
+	readonly column: number;
 }
 
 /**
@@ -1478,11 +1478,51 @@ export interface ICursorStateComputer {
 	(inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[];
 }
 
-export interface ITextModelResolvedOptions {
-	tabSize: number;
-	insertSpaces: boolean;
-	defaultEOL: DefaultEndOfLine;
-	trimAutoWhitespace: boolean;
+export class TextModelResolvedOptions {
+	_textModelResolvedOptionsBrand: void;
+
+	readonly tabSize: number;
+	readonly insertSpaces: boolean;
+	readonly defaultEOL: DefaultEndOfLine;
+	readonly trimAutoWhitespace: boolean;
+
+	/**
+	 * @internal
+	 */
+	constructor(src: {
+		tabSize: number;
+		insertSpaces: boolean;
+		defaultEOL: DefaultEndOfLine;
+		trimAutoWhitespace: boolean;
+	}) {
+		this.tabSize = src.tabSize | 0;
+		this.insertSpaces = Boolean(src.insertSpaces);
+		this.defaultEOL = src.defaultEOL | 0;
+		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
+	}
+
+	/**
+	 * @internal
+	 */
+	public equals(other: TextModelResolvedOptions): boolean {
+		return (
+			this.tabSize === other.tabSize
+			&& this.insertSpaces === other.insertSpaces
+			&& this.defaultEOL === other.defaultEOL
+			&& this.trimAutoWhitespace === other.trimAutoWhitespace
+		);
+	}
+
+	/**
+	 * @internal
+	 */
+	public createChangeEvent(newOpts: TextModelResolvedOptions): IModelOptionsChangedEvent {
+		return {
+			tabSize: this.tabSize !== newOpts.tabSize,
+			insertSpaces: this.insertSpaces !== newOpts.insertSpaces,
+			trimAutoWhitespace: this.trimAutoWhitespace !== newOpts.trimAutoWhitespace,
+		};
+	}
 }
 
 /**
@@ -1503,9 +1543,9 @@ export interface ITextModelUpdateOptions {
 }
 
 export interface IModelOptionsChangedEvent {
-	tabSize: boolean;
-	insertSpaces: boolean;
-	trimAutoWhitespace: boolean;
+	readonly tabSize: boolean;
+	readonly insertSpaces: boolean;
+	readonly trimAutoWhitespace: boolean;
 }
 
 /**
@@ -1513,7 +1553,7 @@ export interface IModelOptionsChangedEvent {
  */
 export interface ITextModel {
 
-	getOptions(): ITextModelResolvedOptions;
+	getOptions(): TextModelResolvedOptions;
 
 	/**
 	 * Get the current version id of the model.
@@ -1761,7 +1801,7 @@ export interface IReadOnlyModel extends ITextModel {
 	/**
 	 * Gets the resource associated with this editor model.
 	 */
-	uri: URI;
+	readonly uri: URI;
 
 	/**
 	 * Get the language associated with this model.
@@ -2222,7 +2262,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	/**
 	 * A unique identifier associated with this model.
 	 */
-	id: string;
+	readonly id: string;
 
 	/**
 	 * Destroy this model. This will unbind the model from the mode
@@ -2255,25 +2295,17 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 }
 
 /**
- * @internal
- */
-export interface IRangeWithText {
-	text: string;
-	range: IRange;
-}
-
-/**
  * An event describing that the current mode associated with a model has changed.
  */
 export interface IModelModeChangedEvent {
 	/**
 	 * Previous mode
 	 */
-	oldMode: IMode;
+	readonly oldMode: IMode;
 	/**
 	 * New mode
 	 */
-	newMode: IMode;
+	readonly newMode: IMode;
 }
 
 /**
@@ -2283,19 +2315,19 @@ export interface IModelContentChangedEvent2 {
 	/**
 	 * The range that got replaced.
 	 */
-	range: IRange;
+	readonly range: IRange;
 	/**
 	 * The length of the range that got replaced.
 	 */
-	rangeLength: number;
+	readonly rangeLength: number;
 	/**
 	 * The new text for the range.
 	 */
-	text: string;
+	readonly text: string;
 	/**
 	 * The (new) end-of-line character.
 	 */
-	eol: string;
+	readonly eol: string;
 	/**
 	 * The new version id the model has transitioned to.
 	 */
@@ -2303,11 +2335,11 @@ export interface IModelContentChangedEvent2 {
 	/**
 	 * Flag that indicates that this event was generated while undoing.
 	 */
-	isUndoing: boolean;
+	readonly isUndoing: boolean;
 	/**
 	 * Flag that indicates that this event was generated while redoing.
 	 */
-	isRedoing: boolean;
+	readonly isRedoing: boolean;
 }
 /**
  * An event describing a change in the text of a model.
@@ -2321,7 +2353,7 @@ export interface IModelContentChangedEvent {
 	 * 		EditorCommon.EventType.ModelContentChangedLinesInserted => IModelContentChangedLinesDeletedEvent
 	 * 		EditorCommon.EventType.ModelContentChangedLineChanged => IModelContentChangedLinesInsertedEvent
 	 */
-	changeType: string;
+	readonly changeType: string;
 	/**
 	 * The new version id the model has transitioned to.
 	 */
@@ -2329,11 +2361,11 @@ export interface IModelContentChangedEvent {
 	/**
 	 * Flag that indicates that this event was generated while undoing.
 	 */
-	isUndoing: boolean;
+	readonly isUndoing: boolean;
 	/**
 	 * Flag that indicates that this event was generated while redoing.
 	 */
-	isRedoing: boolean;
+	readonly isRedoing: boolean;
 }
 
 /**
@@ -2343,23 +2375,28 @@ export interface IRawText {
 	/**
 	 * The entire text length.
 	 */
-	length: number;
+	readonly length: number;
 	/**
 	 * The text split into lines.
 	 */
-	lines: string[];
+	readonly lines: string[];
 	/**
 	 * The BOM (leading character sequence of the file).
 	 */
-	BOM: string;
+	readonly BOM: string;
 	/**
 	 * The end of line sequence.
 	 */
-	EOL: string;
+	readonly EOL: string;
 	/**
 	 * The options associated with this text.
 	 */
-	options: ITextModelResolvedOptions;
+	readonly options: {
+		readonly tabSize: number;
+		readonly insertSpaces: boolean;
+		readonly defaultEOL: DefaultEndOfLine;
+		readonly trimAutoWhitespace: boolean;
+	};
 }
 
 /**
@@ -2370,7 +2407,7 @@ export interface IModelContentChangedFlushEvent extends IModelContentChangedEven
 	/**
 	 * The new text content of the model.
 	 */
-	detail: IRawText;
+	readonly detail: IRawText;
 }
 /**
  * An event describing that a line has changed in a model.
@@ -2380,11 +2417,11 @@ export interface IModelContentChangedLineChangedEvent extends IModelContentChang
 	/**
 	 * The line that has changed.
 	 */
-	lineNumber: number;
+	readonly lineNumber: number;
 	/**
 	 * The new value of the line.
 	 */
-	detail: string;
+	readonly detail: string;
 }
 /**
  * An event describing that line(s) have been deleted in a model.
@@ -2394,11 +2431,11 @@ export interface IModelContentChangedLinesDeletedEvent extends IModelContentChan
 	/**
 	 * At what line the deletion began (inclusive).
 	 */
-	fromLineNumber: number;
+	readonly fromLineNumber: number;
 	/**
 	 * At what line the deletion stopped (inclusive).
 	 */
-	toLineNumber: number;
+	readonly toLineNumber: number;
 }
 /**
  * An event describing that line(s) have been inserted in a model.
@@ -2408,15 +2445,15 @@ export interface IModelContentChangedLinesInsertedEvent extends IModelContentCha
 	/**
 	 * Before what line did the insertion begin
 	 */
-	fromLineNumber: number;
+	readonly fromLineNumber: number;
 	/**
 	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
 	 */
-	toLineNumber: number;
+	readonly toLineNumber: number;
 	/**
 	 * The text that was inserted
 	 */
-	detail: string;
+	readonly detail: string;
 }
 /**
  * Decoration data associated with a model decorations changed event.
@@ -2425,23 +2462,23 @@ export interface IModelDecorationsChangedEventDecorationData {
 	/**
 	 * The id of the decoration.
 	 */
-	id: string;
+	readonly id: string;
 	/**
 	 * The owner id of the decoration.
 	 */
-	ownerId: number;
+	readonly ownerId: number;
 	/**
 	 * The range of the decoration.
 	 */
-	range: IRange;
+	readonly range: IRange;
 	/**
 	 * A flag describing if this is a problem decoration (e.g. warning/error).
 	 */
-	isForValidation: boolean;
+	readonly isForValidation: boolean;
 	/**
 	 * The options for this decoration.
 	 */
-	options: IModelDecorationOptions;
+	readonly options: IModelDecorationOptions;
 }
 /**
  * An event describing that model decorations have changed.
@@ -2450,23 +2487,23 @@ export interface IModelDecorationsChangedEvent {
 	/**
 	 * A summary with ids of decorations that have changed.
 	 */
-	ids: string[];
+	readonly ids: string[];
 	/**
 	 * Lists of details for added or changed decorations.
 	 */
-	addedOrChangedDecorations: IModelDecorationsChangedEventDecorationData[];
+	readonly addedOrChangedDecorations: IModelDecorationsChangedEventDecorationData[];
 	/**
 	 * List of ids for removed decorations.
 	 */
-	removedDecorations: string[];
+	readonly removedDecorations: string[];
 	/**
 	 * Details regarding old options.
 	 */
-	oldOptions: { [decorationId: string]: IModelDecorationOptions; };
+	readonly oldOptions: { [decorationId: string]: IModelDecorationOptions; };
 	/**
 	 * Details regarding old ranges.
 	 */
-	oldRanges: { [decorationId: string]: IRange; };
+	readonly oldRanges: { [decorationId: string]: IRange; };
 }
 /**
  * An event describing that a range of lines has been tokenized
@@ -2475,11 +2512,11 @@ export interface IModelTokensChangedEvent {
 	/**
 	 * The start of the range (inclusive)
 	 */
-	fromLineNumber: number;
+	readonly fromLineNumber: number;
 	/**
 	 * The end of the range (inclusive)
 	 */
-	toLineNumber: number;
+	readonly toLineNumber: number;
 }
 
 /**
@@ -2522,31 +2559,31 @@ export interface ICursorPositionChangedEvent {
 	/**
 	 * Primary cursor's position.
 	 */
-	position: Position;
+	readonly position: Position;
 	/**
 	 * Primary cursor's view position
 	 */
-	viewPosition: Position;
+	readonly viewPosition: Position;
 	/**
 	 * Secondary cursors' position.
 	 */
-	secondaryPositions: Position[];
+	readonly secondaryPositions: Position[];
 	/**
 	 * Secondary cursors' view position.
 	 */
-	secondaryViewPositions: Position[];
+	readonly secondaryViewPositions: Position[];
 	/**
 	 * Reason.
 	 */
-	reason: CursorChangeReason;
+	readonly reason: CursorChangeReason;
 	/**
 	 * Source of the call that caused the event.
 	 */
-	source: string;
+	readonly source: string;
 	/**
 	 * Is the primary cursor in the editable range?
 	 */
-	isInEditableRange: boolean;
+	readonly isInEditableRange: boolean;
 }
 /**
  * An event describing that the cursor selection has changed.
@@ -2555,27 +2592,27 @@ export interface ICursorSelectionChangedEvent {
 	/**
 	 * The primary selection.
 	 */
-	selection: Selection;
+	readonly selection: Selection;
 	/**
 	 * The primary selection in view coordinates.
 	 */
-	viewSelection: Selection;
+	readonly viewSelection: Selection;
 	/**
 	 * The secondary selections.
 	 */
-	secondarySelections: Selection[];
+	readonly secondarySelections: Selection[];
 	/**
 	 * The secondary selections in view coordinates.
 	 */
-	secondaryViewSelections: Selection[];
+	readonly secondaryViewSelections: Selection[];
 	/**
 	 * Source of the call that caused the event.
 	 */
-	source: string;
+	readonly source: string;
 	/**
 	 * Reason.
 	 */
-	reason: CursorChangeReason;
+	readonly reason: CursorChangeReason;
 }
 /**
  * @internal
@@ -2595,30 +2632,30 @@ export interface ICursorRevealRangeEvent {
 	/**
 	 * Range to be reavealed.
 	 */
-	range: Range;
+	readonly range: Range;
 	/**
 	 * View range to be reavealed.
 	 */
-	viewRange: Range;
+	readonly viewRange: Range;
 
-	verticalType: VerticalRevealType;
+	readonly verticalType: VerticalRevealType;
 	/**
 	 * If true: there should be a horizontal & vertical revealing
 	 * If false: there should be just a vertical revealing
 	 */
-	revealHorizontal: boolean;
+	readonly revealHorizontal: boolean;
 	/**
 	 * If true: cursor is revealed if outside viewport
 	 */
-	revealCursor: boolean;
+	readonly revealCursor: boolean;
 }
 
 /**
  * @internal
  */
 export interface ICursorScrollRequestEvent {
-	deltaLines: number;
-	revealCursor: boolean;
+	readonly deltaLines: number;
+	readonly revealCursor: boolean;
 }
 
 /**
@@ -2628,44 +2665,44 @@ export interface IModelChangedEvent {
 	/**
 	 * The `uri` of the previous model or null.
 	 */
-	oldModelUrl: URI;
+	readonly oldModelUrl: URI;
 	/**
 	 * The `uri` of the new model or null.
 	 */
-	newModelUrl: URI;
+	readonly newModelUrl: URI;
 }
 
 /**
  * @internal
  */
 export interface IEditorWhitespace {
-	id: number;
-	afterLineNumber: number;
-	heightInLines: number;
+	readonly id: number;
+	readonly afterLineNumber: number;
+	readonly heightInLines: number;
 }
 
 /**
  * A description for the overview ruler position.
  */
 export class OverviewRulerPosition {
-	_overviewRulerPositionBrand: void;
+	readonly _overviewRulerPositionBrand: void;
 
 	/**
 	 * Width of the overview ruler
 	 */
-	width: number;
+	readonly width: number;
 	/**
 	 * Height of the overview ruler
 	 */
-	height: number;
+	readonly height: number;
 	/**
 	 * Top position for the overview ruler
 	 */
-	top: number;
+	readonly top: number;
 	/**
 	 * Right position for the overview ruler
 	 */
-	right: number;
+	readonly right: number;
 
 	/**
 	 * @internal
@@ -2706,82 +2743,82 @@ export class OverviewRulerPosition {
  * The internal layout details of the editor.
  */
 export class EditorLayoutInfo {
-	_editorLayoutInfoBrand: void;
+	readonly _editorLayoutInfoBrand: void;
 
 	/**
 	 * Full editor width.
 	 */
-	width: number;
+	readonly width: number;
 	/**
 	 * Full editor height.
 	 */
-	height: number;
+	readonly height: number;
 
 	/**
 	 * Left position for the glyph margin.
 	 */
-	glyphMarginLeft: number;
+	readonly glyphMarginLeft: number;
 	/**
 	 * The width of the glyph margin.
 	 */
-	glyphMarginWidth: number;
+	readonly glyphMarginWidth: number;
 	/**
 	 * The height of the glyph margin.
 	 */
-	glyphMarginHeight: number;
+	readonly glyphMarginHeight: number;
 
 	/**
 	 * Left position for the line numbers.
 	 */
-	lineNumbersLeft: number;
+	readonly lineNumbersLeft: number;
 	/**
 	 * The width of the line numbers.
 	 */
-	lineNumbersWidth: number;
+	readonly lineNumbersWidth: number;
 	/**
 	 * The height of the line numbers.
 	 */
-	lineNumbersHeight: number;
+	readonly lineNumbersHeight: number;
 
 	/**
 	 * Left position for the line decorations.
 	 */
-	decorationsLeft: number;
+	readonly decorationsLeft: number;
 	/**
 	 * The width of the line decorations.
 	 */
-	decorationsWidth: number;
+	readonly decorationsWidth: number;
 	/**
 	 * The height of the line decorations.
 	 */
-	decorationsHeight: number;
+	readonly decorationsHeight: number;
 
 	/**
 	 * Left position for the content (actual text)
 	 */
-	contentLeft: number;
+	readonly contentLeft: number;
 	/**
 	 * The width of the content (actual text)
 	 */
-	contentWidth: number;
+	readonly contentWidth: number;
 	/**
 	 * The height of the content (actual height)
 	 */
-	contentHeight: number;
+	readonly contentHeight: number;
 
 	/**
 	 * The width of the vertical scrollbar.
 	 */
-	verticalScrollbarWidth: number;
+	readonly verticalScrollbarWidth: number;
 	/**
 	 * The height of the horizontal scrollbar.
 	 */
-	horizontalScrollbarHeight: number;
+	readonly horizontalScrollbarHeight: number;
 
 	/**
 	 * The position of the overview ruler.
 	 */
-	overviewRuler: OverviewRulerPosition;
+	readonly overviewRuler: OverviewRulerPosition;
 
 	/**
 	 * @internal
@@ -2989,32 +3026,32 @@ export interface IDiffEditorViewState extends IEditorViewState {
  * A change
  */
 export interface IChange {
-	originalStartLineNumber: number;
-	originalEndLineNumber: number;
-	modifiedStartLineNumber: number;
-	modifiedEndLineNumber: number;
+	readonly originalStartLineNumber: number;
+	readonly originalEndLineNumber: number;
+	readonly modifiedStartLineNumber: number;
+	readonly modifiedEndLineNumber: number;
 }
 /**
  * A character level change.
  */
 export interface ICharChange extends IChange {
-	originalStartColumn: number;
-	originalEndColumn: number;
-	modifiedStartColumn: number;
-	modifiedEndColumn: number;
+	readonly originalStartColumn: number;
+	readonly originalEndColumn: number;
+	readonly modifiedStartColumn: number;
+	readonly modifiedEndColumn: number;
 }
 /**
  * A line change
  */
 export interface ILineChange extends IChange {
-	charChanges: ICharChange[];
+	readonly charChanges: ICharChange[];
 }
 /**
  * Information about a line in the diff editor
  * @internal
  */
 export interface IDiffLineInformation {
-	equivalentLineNumber: number;
+	readonly equivalentLineNumber: number;
 }
 
 /**
@@ -3136,12 +3173,12 @@ export namespace ModeContextKeys {
 }
 
 export class BareFontInfo {
-	_bareFontInfoBrand: void;
+	readonly _bareFontInfoBrand: void;
 
-	fontFamily: string;
-	fontWeight: string;
-	fontSize: number;
-	lineHeight: number;
+	readonly fontFamily: string;
+	readonly fontWeight: string;
+	readonly fontSize: number;
+	readonly lineHeight: number;
 
 	/**
 	 * @internal
@@ -3167,12 +3204,12 @@ export class BareFontInfo {
 }
 
 export class FontInfo extends BareFontInfo {
-	_editorStylingBrand: void;
+	readonly _editorStylingBrand: void;
 
-	typicalHalfwidthCharacterWidth: number;
-	typicalFullwidthCharacterWidth: number;
-	spaceWidth: number;
-	maxDigitWidth: number;
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly typicalFullwidthCharacterWidth: number;
+	readonly spaceWidth: number;
+	readonly maxDigitWidth: number;
 
 	/**
 	 * @internal
@@ -3222,30 +3259,14 @@ export class FontInfo extends BareFontInfo {
  * @internal
  */
 export interface IConfiguration {
-	onDidChange: Event<IConfigurationChangedEvent>;
+	readonly onDidChange: Event<IConfigurationChangedEvent>;
 
-	editor: InternalEditorOptions;
+	readonly editor: InternalEditorOptions;
 
 	setMaxLineNumber(maxLineNumber: number): void;
 }
 
 // --- view
-
-/**
- * @internal
- */
-export interface IViewEventNames {
-	ModelFlushedEvent: string;
-	LinesDeletedEvent: string;
-	LinesInsertedEvent: string;
-	LineChangedEvent: string;
-	TokensChangedEvent: string;
-	DecorationsChangedEvent: string;
-	CursorPositionChangedEvent: string;
-	CursorSelectionChangedEvent: string;
-	RevealRangeEvent: string;
-	LineMappingChangedEvent: string;
-}
 
 /**
  * @internal
@@ -3265,15 +3286,15 @@ export var ViewEventNames = {
 };
 
 export interface IScrollEvent {
-	scrollTop: number;
-	scrollLeft: number;
-	scrollWidth: number;
-	scrollHeight: number;
+	readonly scrollTop: number;
+	readonly scrollLeft: number;
+	readonly scrollWidth: number;
+	readonly scrollHeight: number;
 
-	scrollTopChanged: boolean;
-	scrollLeftChanged: boolean;
-	scrollWidthChanged: boolean;
-	scrollHeightChanged: boolean;
+	readonly scrollTopChanged: boolean;
+	readonly scrollLeftChanged: boolean;
+	readonly scrollWidthChanged: boolean;
+	readonly scrollHeightChanged: boolean;
 }
 
 export interface INewScrollPosition {
@@ -3288,11 +3309,11 @@ export interface IViewLinesDeletedEvent {
 	/**
 	 * At what line the deletion began (inclusive).
 	 */
-	fromLineNumber: number;
+	readonly fromLineNumber: number;
 	/**
 	 * At what line the deletion stopped (inclusive).
 	 */
-	toLineNumber: number;
+	readonly toLineNumber: number;
 }
 
 /**
@@ -3302,11 +3323,11 @@ export interface IViewLinesInsertedEvent {
 	/**
 	 * Before what line did the insertion begin
 	 */
-	fromLineNumber: number;
+	readonly fromLineNumber: number;
 	/**
 	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
 	 */
-	toLineNumber: number;
+	readonly toLineNumber: number;
 }
 
 /**
@@ -3316,7 +3337,7 @@ export interface IViewLineChangedEvent {
 	/**
 	 * The line that has changed.
 	 */
-	lineNumber: number;
+	readonly lineNumber: number;
 }
 
 /**
@@ -3326,11 +3347,11 @@ export interface IViewTokensChangedEvent {
 	/**
 	 * Start line number of range
 	 */
-	fromLineNumber: number;
+	readonly fromLineNumber: number;
 	/**
 	 * End line number of range
 	 */
-	toLineNumber: number;
+	readonly toLineNumber: number;
 }
 
 /**
@@ -3340,7 +3361,7 @@ export interface IViewDecorationsChangedEvent {
 	/**
 	 * signals that at least one inline decoration has changed
 	 */
-	inlineDecorationsChanged: boolean;
+	readonly inlineDecorationsChanged: boolean;
 }
 
 /**
@@ -3350,15 +3371,15 @@ export interface IViewCursorPositionChangedEvent {
 	/**
 	 * Primary cursor's position.
 	 */
-	position: Position;
+	readonly position: Position;
 	/**
 	 * Secondary cursors' position.
 	 */
-	secondaryPositions: Position[];
+	readonly secondaryPositions: Position[];
 	/**
 	 * Is the primary cursor in the editable range?
 	 */
-	isInEditableRange: boolean;
+	readonly isInEditableRange: boolean;
 }
 
 /**
@@ -3368,11 +3389,11 @@ export interface IViewCursorSelectionChangedEvent {
 	/**
 	 * The primary selection.
 	 */
-	selection: Selection;
+	readonly selection: Selection;
 	/**
 	 * The secondary selections.
 	 */
-	secondarySelections: Selection[];
+	readonly secondarySelections: Selection[];
 }
 
 /**
@@ -3382,48 +3403,48 @@ export interface IViewRevealRangeEvent {
 	/**
 	 * Range to be reavealed.
 	 */
-	range: Range;
+	readonly range: Range;
 
-	verticalType: VerticalRevealType;
+	readonly verticalType: VerticalRevealType;
 	/**
 	 * If true: there should be a horizontal & vertical revealing
 	 * If false: there should be just a vertical revealing
 	 */
-	revealHorizontal: boolean;
+	readonly revealHorizontal: boolean;
 	/**
 	 * If true: cursor is revealed if outside viewport
 	 */
-	revealCursor: boolean;
+	readonly revealCursor: boolean;
 }
 
 /**
  * @internal
  */
 export interface IViewScrollRequestEvent {
-	deltaLines: number;
-	revealCursor: boolean;
+	readonly deltaLines: number;
+	readonly revealCursor: boolean;
 }
 
 /**
  * @internal
  */
 export interface IViewWhitespaceViewportData {
-	id: number;
-	afterLineNumber: number;
-	verticalOffset: number;
-	height: number;
+	readonly id: number;
+	readonly afterLineNumber: number;
+	readonly verticalOffset: number;
+	readonly height: number;
 }
 
 /**
  * @internal
  */
 export class Viewport {
-	_viewportBrand: void;
+	readonly _viewportBrand: void;
 
-	top: number;
-	left: number;
-	width: number;
-	height: number;
+	readonly top: number;
+	readonly left: number;
+	readonly width: number;
+	readonly height: number;
 
 	constructor(top: number, left: number, width: number, height: number) {
 		this.top = top | 0;
@@ -3471,23 +3492,8 @@ export interface IActionDescriptor {
 	 * Method that will be executed when the action is triggered.
 	 * @param editor The editor instance is passed in as a convinience
 	 */
-	run: (editor: ICommonCodeEditor) => TPromise<void>;
+	run(editor: ICommonCodeEditor): void | TPromise<void>;
 }
-
-/**
- * Data associated with an editor action contribution
- * @internal
- */
-export interface IEditorActionDescriptorData {
-	id: string;
-	label: string;
-	alias?: string;
-}
-
-/**
- * @internal
- */
-export type IEditorActionContributionCtor = IConstructorSignature2<IEditorActionDescriptorData, ICommonCodeEditor, IEditorContribution>;
 
 /**
  * @internal
@@ -3495,9 +3501,9 @@ export type IEditorActionContributionCtor = IConstructorSignature2<IEditorAction
 export type ICommonEditorContributionCtor = IConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
 
 export interface IEditorAction {
-	id: string;
-	label: string;
-	alias: string;
+	readonly id: string;
+	readonly label: string;
+	readonly alias: string;
 	isSupported(): boolean;
 	run(): TPromise<void>;
 }
@@ -4135,13 +4141,13 @@ export interface ICommonDiffEditor extends IEditor {
 	 * Returns whether the diff editor is ignoring trim whitespace or not.
 	 * @internal
 	 */
-	ignoreTrimWhitespace: boolean;
+	readonly ignoreTrimWhitespace: boolean;
 
 	/**
 	 * Returns whether the diff editor is rendering side by side or not.
 	 * @internal
 	 */
-	renderSideBySide: boolean;
+	readonly renderSideBySide: boolean;
 }
 
 /**

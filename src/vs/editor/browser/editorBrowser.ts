@@ -352,34 +352,34 @@ export interface IMouseTarget {
 	/**
 	 * The target element
 	 */
-	element: Element;
+	readonly element: Element;
 	/**
 	 * The target type
 	 */
-	type: editorCommon.MouseTargetType;
+	readonly type: editorCommon.MouseTargetType;
 	/**
 	 * The 'approximate' editor position
 	 */
-	position: Position;
+	readonly position: Position;
 	/**
 	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
 	 */
-	mouseColumn: number;
+	readonly mouseColumn: number;
 	/**
 	 * The 'approximate' editor range
 	 */
-	range: Range;
+	readonly range: Range;
 	/**
 	 * Some extra detail.
 	 */
-	detail: any;
+	readonly detail: any;
 }
 /**
  * A mouse event originating from the editor.
  */
 export interface IEditorMouseEvent {
-	event: IMouseEvent;
-	target: IMouseTarget;
+	readonly event: IMouseEvent;
+	readonly target: IMouseTarget;
 }
 
 /**
