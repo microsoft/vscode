@@ -407,10 +407,10 @@ class SuggestAdapter {
 			};
 
 			// default text edit start
-			let wordStartPos = position.clone();
+			let wordStartPos = position;
 			const word = model.getWordUntilPosition(position);
 			if (word) {
-				wordStartPos.column = word.startColumn;
+				wordStartPos = new Position(wordStartPos.lineNumber, word.startColumn);
 			}
 
 			let list: CompletionList;
