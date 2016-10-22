@@ -65,7 +65,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get userHome(): string { return path.join(os.homedir(), product.dataFolderName); }
 
 	@memoize
-	get userDataPath(): string { return path.resolve(this._args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform)); }
+	get userDataPath(): string { return parseUserDataDir(this._args, process); }
 
 	@memoize
 	get appSettingsHome(): string { return path.join(this.userDataPath, 'User'); }
@@ -110,4 +110,19 @@ export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { po
 	const port = Number(portStr) || (!isBuild ? 5870 : null);
 	const brk = port ? Boolean(!!args.debugBrkPluginHost) : false;
 	return { port, break: brk };
+}
+
+export function parseUserDataDir(args: ParsedArgs, process: NodeJS.Process) {
+	const arg = args['user-data-dir'];
+	if (arg) {
+		// Determine if the arg is relative or absolute, if relative use the original CWD
+		// (VSCODE_CWD), not the potentially overridden one (process.cwd()).
+		const resolved = path.resolve(arg);
+		if (path.normalize(arg) === resolved) {
+			return resolved;
+		} else {
+			return path.resolve(process.env['VSCODE_CWD'] || process.cwd(), arg);
+		}
+	}
+	return path.resolve(paths.getDefaultUserDataPath(process.platform));
 }
