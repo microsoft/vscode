@@ -34,10 +34,10 @@ export class WinTerminalService implements ITerminalService {
 	) {
 	}
 
-	public openTerminal(path?: string): void {
+	public openTerminal(cwd?: string): void {
 		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
 
-		this.spawnTerminal(cp, configuration, processes.getWindowsShell(), path)
+		this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd)
 			.done(null, errors.onUnexpectedError);
 	}
 
@@ -72,30 +72,30 @@ export class WinTerminalService implements ITerminalService {
 		});
 	}
 
-	private spawnTerminal(spawner, configuration: ITerminalConfiguration, command: string, path?: string): TPromise<void> {
-		let terminalConfig = configuration.terminal.external;
-		let exec = terminalConfig.windowsExec || DEFAULT_TERMINAL_WINDOWS;
+	private spawnTerminal(spawner, configuration: ITerminalConfiguration, command: string, cwd?: string): TPromise<void> {
+		const terminalConfig = configuration.terminal.external;
+		const exec = terminalConfig.windowsExec || DEFAULT_TERMINAL_WINDOWS;
 		const spawnType = this.getSpawnType(exec);
 
 		// Make the drive letter uppercase on Windows (see #9448)
-		if (path && path[1] === ':') {
-			path = path[0].toUpperCase() + path.substr(1);
+		if (cwd && cwd[1] === ':') {
+			cwd = cwd[0].toUpperCase() + cwd.substr(1);
 		}
 
 		// cmder ignores the environment cwd and instead opts to always open in %USERPROFILE%
 		// unless otherwise specified
 		if (spawnType === WinSpawnType.CMDER) {
-			spawner.spawn(exec, [path]);
+			spawner.spawn(exec, [cwd]);
 			return TPromise.as(void 0);
 		}
 
 		// The '""' argument is the window title. Without this, exec doesn't work when the path
 		// contains spaces
-		let cmdArgs = ['/c', 'start', '/wait', '""', exec];
+		const cmdArgs = ['/c', 'start', '/wait', '""', exec];
 
 		return new TPromise<void>((c, e) => {
-			let env = path ? { cwd: path } : void 0;
-			let child = spawner.spawn(command, cmdArgs, env);
+			const env = cwd ? { cwd: cwd } : void 0;
+			const child = spawner.spawn(command, cmdArgs, env);
 			child.on('error', e);
 			child.on('exit', () => c(null));
 		});
@@ -119,10 +119,10 @@ export class MacTerminalService implements ITerminalService {
 		@IConfigurationService private _configurationService: IConfigurationService
 	) { }
 
-	public openTerminal(path?: string): void {
+	public openTerminal(cwd?: string): void {
 		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
 
-		this.spawnTerminal(cp, configuration, path).done(null, errors.onUnexpectedError);
+		this.spawnTerminal(cp, configuration, cwd).done(null, errors.onUnexpectedError);
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
@@ -183,12 +183,12 @@ export class MacTerminalService implements ITerminalService {
 		});
 	}
 
-	private spawnTerminal(spawner, configuration: ITerminalConfiguration, path?: string): TPromise<void> {
-		let terminalConfig = configuration.terminal.external;
-		let terminalApp = terminalConfig.osxExec || DEFAULT_TERMINAL_OSX;
+	private spawnTerminal(spawner, configuration: ITerminalConfiguration, cwd?: string): TPromise<void> {
+		const terminalConfig = configuration.terminal.external;
+		const terminalApp = terminalConfig.osxExec || DEFAULT_TERMINAL_OSX;
 
 		return new TPromise<void>((c, e) => {
-			let child = spawner.spawn('/usr/bin/open', ['-a', terminalApp, path]);
+			const child = spawner.spawn('/usr/bin/open', ['-a', terminalApp, cwd]);
 			child.on('error', e);
 			child.on('exit', () => c(null));
 		});
@@ -205,10 +205,10 @@ export class LinuxTerminalService implements ITerminalService {
 	) { }
 
 
-	public openTerminal(path?: string): void {
+	public openTerminal(cwd?: string): void {
 		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
 
-		this.spawnTerminal(cp, configuration, path)
+		this.spawnTerminal(cp, configuration, cwd)
 			.done(null, errors.onUnexpectedError);
 	}
 
@@ -263,10 +263,10 @@ export class LinuxTerminalService implements ITerminalService {
 		});
 	}
 
-	private spawnTerminal(spawner, configuration: ITerminalConfiguration, path?: string): TPromise<void> {
-		let terminalConfig = configuration.terminal.external;
-		let exec = terminalConfig.linuxExec || DEFAULT_TERMINAL_LINUX;
-		let env = path ? { cwd: path } : void 0;
+	private spawnTerminal(spawner, configuration: ITerminalConfiguration, cwd?: string): TPromise<void> {
+		const terminalConfig = configuration.terminal.external;
+		const exec = terminalConfig.linuxExec || DEFAULT_TERMINAL_LINUX;
+		const env = cwd ? { cwd: cwd } : void 0;
 
 		return new TPromise<void>((c, e) => {
 			const child = spawner.spawn(exec, [], env);
