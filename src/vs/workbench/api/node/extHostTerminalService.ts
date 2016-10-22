@@ -32,6 +32,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 			this._queuedRequests.forEach((r) => {
 				r.run(this._proxy, this._id);
 			});
+			this._queuedRequests = [];
 		});
 	}
 
