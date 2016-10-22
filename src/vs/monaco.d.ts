@@ -96,6 +96,10 @@ declare module monaco {
 
     export interface CancellationToken {
         isCancellationRequested: boolean;
+        /**
+         * An event emitted when cancellation is requested
+         * @event
+         */
         onCancellationRequested: IEvent<any>;
     }
     /**
@@ -797,16 +801,19 @@ declare module monaco.editor {
 
     /**
      * Emitted when a model is created.
+     * @event
      */
     export function onDidCreateModel(listener: (model: IModel) => void): IDisposable;
 
     /**
      * Emitted right before a model is disposed.
+     * @event
      */
     export function onWillDisposeModel(listener: (model: IModel) => void): IDisposable;
 
     /**
      * Emitted when a different language is set to a model.
+     * @event
      */
     export function onDidChangeModelLanguage(listener: (e: {
         model: IModel;
@@ -2205,22 +2212,27 @@ declare module monaco.editor {
     export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
         /**
          * An event emitted when the contents of the model have changed.
+         * @event
          */
         onDidChangeContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
         /**
          * An event emitted when decorations of the model have changed.
+         * @event
          */
         onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the model options have changed.
+         * @event
          */
         onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the language associated with the model has changed.
+         * @event
          */
         onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
         /**
          * An event emitted right before disposing the model.
+         * @event
          */
         onWillDispose(listener: () => void): IDisposable;
         /**
@@ -2827,30 +2839,37 @@ declare module monaco.editor {
     export interface IEditor {
         /**
          * An event emitted when the content of the current model has changed.
+         * @event
          */
         onDidChangeModelContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
         /**
          * An event emitted when the language of the current model has changed.
+         * @event
          */
         onDidChangeModelMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the options of the current model has changed.
+         * @event
          */
         onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
+         * @event
          */
         onDidChangeConfiguration(listener: (e: IConfigurationChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the cursor position has changed.
+         * @event
          */
         onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the cursor selection has changed.
+         * @event
          */
         onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the editor has been disposed.
+         * @event
          */
         onDidDispose(listener: () => void): IDisposable;
         /**
@@ -3044,26 +3063,32 @@ declare module monaco.editor {
     export interface ICommonCodeEditor extends IEditor {
         /**
          * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
+         * @event
          */
         onDidChangeModel(listener: (e: IModelChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the decorations of the current model have changed.
+         * @event
          */
         onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the text inside this editor gained focus (i.e. cursor blinking).
+         * @event
          */
         onDidFocusEditorText(listener: () => void): IDisposable;
         /**
          * An event emitted when the text inside this editor lost focus.
+         * @event
          */
         onDidBlurEditorText(listener: () => void): IDisposable;
         /**
          * An event emitted when the text inside this editor or an editor widget gained focus.
+         * @event
          */
         onDidFocusEditor(listener: () => void): IDisposable;
         /**
          * An event emitted when the text inside this editor or an editor widget lost focus.
+         * @event
          */
         onDidBlurEditor(listener: () => void): IDisposable;
         /**
@@ -3171,6 +3196,7 @@ declare module monaco.editor {
     export interface ICommonDiffEditor extends IEditor {
         /**
          * An event emitted when the diff information computed by this diff editor has been updated.
+         * @event
          */
         onDidUpdateDiff(listener: () => void): IDisposable;
         /**
@@ -3652,38 +3678,47 @@ declare module monaco.editor {
     export interface ICodeEditor extends ICommonCodeEditor {
         /**
          * An event emitted on a "mouseup".
+         * @event
          */
         onMouseUp(listener: (e: IEditorMouseEvent) => void): IDisposable;
         /**
          * An event emitted on a "mousedown".
+         * @event
          */
         onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
         /**
          * An event emitted on a "contextmenu".
+         * @event
          */
         onContextMenu(listener: (e: IEditorMouseEvent) => void): IDisposable;
         /**
          * An event emitted on a "mousemove".
+         * @event
          */
         onMouseMove(listener: (e: IEditorMouseEvent) => void): IDisposable;
         /**
          * An event emitted on a "mouseleave".
+         * @event
          */
         onMouseLeave(listener: (e: IEditorMouseEvent) => void): IDisposable;
         /**
          * An event emitted on a "keyup".
+         * @event
          */
         onKeyUp(listener: (e: IKeyboardEvent) => void): IDisposable;
         /**
          * An event emitted on a "keydown".
+         * @event
          */
         onKeyDown(listener: (e: IKeyboardEvent) => void): IDisposable;
         /**
          * An event emitted when the layout of the editor has changed.
+         * @event
          */
         onDidLayoutChange(listener: (e: EditorLayoutInfo) => void): IDisposable;
         /**
          * An event emitted when the scroll in the editor has changed.
+         * @event
          */
         onDidScrollChange(listener: (e: IScrollEvent) => void): IDisposable;
         /**
@@ -3786,6 +3821,7 @@ declare module monaco.languages {
 
     /**
      * An event emitted when a language is first time needed (e.g. a model has it set).
+     * @event
      */
     export function onLanguage(languageId: string, callback: () => void): IDisposable;
 

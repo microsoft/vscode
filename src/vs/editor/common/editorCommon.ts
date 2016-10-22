@@ -2185,26 +2185,32 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
 	 * @internal
+	 * @event
 	 */
 	onDidChangeRawContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the contents of the model have changed.
+	 * @event
 	 */
 	onDidChangeContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
 	/**
 	 * An event emitted when decorations of the model have changed.
+	 * @event
 	 */
 	onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the model options have changed.
+	 * @event
 	 */
 	onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the language associated with the model has changed.
+	 * @event
 	 */
 	onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted right before disposing the model.
+	 * @event
 	 */
 	onWillDispose(listener: () => void): IDisposable;
 
@@ -3504,34 +3510,42 @@ export interface IEditor {
 	 * @deprecated. Please use `onDidChangeModelContent` instead.
 	 * An event emitted when the content of the current model has changed.
 	 * @internal
+	 * @event
 	 */
 	onDidChangeModelRawContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the content of the current model has changed.
+	 * @event
 	 */
 	onDidChangeModelContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
 	/**
 	 * An event emitted when the language of the current model has changed.
+	 * @event
 	 */
 	onDidChangeModelMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the options of the current model has changed.
+	 * @event
 	 */
 	onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
+	 * @event
 	 */
 	onDidChangeConfiguration(listener: (e: IConfigurationChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the cursor position has changed.
+	 * @event
 	 */
 	onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the cursor selection has changed.
+	 * @event
 	 */
 	onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the editor has been disposed.
+	 * @event
 	 */
 	onDidDispose(listener: () => void): IDisposable;
 
@@ -3890,26 +3904,32 @@ export interface IDecorationOptions {
 export interface ICommonCodeEditor extends IEditor {
 	/**
 	 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
+	 * @event
 	 */
 	onDidChangeModel(listener: (e: IModelChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the decorations of the current model have changed.
+	 * @event
 	 */
 	onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the text inside this editor gained focus (i.e. cursor blinking).
+	 * @event
 	 */
 	onDidFocusEditorText(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when the text inside this editor lost focus.
+	 * @event
 	 */
 	onDidBlurEditorText(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when the text inside this editor or an editor widget gained focus.
+	 * @event
 	 */
 	onDidFocusEditor(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when the text inside this editor or an editor widget lost focus.
+	 * @event
 	 */
 	onDidBlurEditor(listener: () => void): IDisposable;
 
@@ -4068,6 +4088,7 @@ export interface ICommonCodeEditor extends IEditor {
 export interface ICommonDiffEditor extends IEditor {
 	/**
 	 * An event emitted when the diff information computed by this diff editor has been updated.
+	 * @event
 	 */
 	onDidUpdateDiff(listener: () => void): IDisposable;
 

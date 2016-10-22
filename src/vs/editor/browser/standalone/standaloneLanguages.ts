@@ -42,6 +42,7 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 
 /**
  * An event emitted when a language is first time needed (e.g. a model has it set).
+ * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
 	let isDisposed = false;
