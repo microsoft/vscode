@@ -34,6 +34,7 @@ export class ViewLine implements IVisibleLineData {
 
 	protected _charOffsetInPart: number[];
 	private _lastRenderedPartIndex: number;
+	private _isWhitespaceOnly: boolean;
 	private _cachedWidth: number;
 
 	constructor(context: ViewContext) {
@@ -50,6 +51,7 @@ export class ViewLine implements IVisibleLineData {
 		this._lineParts = null;
 		this._charOffsetInPart = [];
 		this._lastRenderedPartIndex = 0;
+		this._isWhitespaceOnly = false;
 	}
 
 	// --- begin IVisibleLineData
@@ -177,6 +179,7 @@ export class ViewLine implements IVisibleLineData {
 
 		this._charOffsetInPart = r.charOffsetInPart;
 		this._lastRenderedPartIndex = r.lastRenderedPartIndex;
+		this._isWhitespaceOnly = r.isWhitespaceOnly;
 
 		return r.output;
 	}
@@ -235,6 +238,11 @@ export class ViewLine implements IVisibleLineData {
 		if (this._charOffsetInPart.length === 0) {
 			// This line is empty
 			return [new HorizontalRange(0, 0)];
+		}
+
+		if (column === this._charOffsetInPart.length && this._isWhitespaceOnly) {
+			// This branch helps in the case of whitespace only lines which have a width set
+			return [new HorizontalRange(this.getWidth(), 0)];
 		}
 
 		let partIndex = findIndexInArrayWithMax(this._lineParts, column - 1, this._lastRenderedPartIndex);
