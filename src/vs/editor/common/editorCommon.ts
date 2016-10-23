@@ -1553,6 +1553,11 @@ export interface IModelOptionsChangedEvent {
  */
 export interface ITextModel {
 
+	/**
+	 * @internal
+	 */
+	mightContainRTL(): boolean;
+
 	getOptions(): TextModelResolvedOptions;
 
 	/**
