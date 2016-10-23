@@ -63,6 +63,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._isDisposing = false;
 	}
 
+	protected _assertNotDisposed(): void {
+		if (this._isDisposed) {
+			throw new Error('Model is disposed!');
+		}
+	}
+
 	public isTooLargeForHavingAMode(): boolean {
 		return this._shouldDenyMode;
 	}
