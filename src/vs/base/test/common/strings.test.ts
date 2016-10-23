@@ -163,9 +163,11 @@ suite('Strings', () => {
 	test('containsRTL', () => {
 		assert.equal(strings.containsRTL('a'), false);
 		assert.equal(strings.containsRTL(''), false);
+		assert.equal(strings.containsRTL(strings.UTF8_BOM_CHARACTER + 'a'), false);
 		assert.equal(strings.containsRTL('hello world!'), false);
 		assert.equal(strings.containsRTL('a📚📚b'), false);
 		assert.equal(strings.containsRTL('هناك حقيقة مثبتة منذ زمن طويل'), true);
+		assert.equal(strings.containsRTL('זוהי עובדה מבוססת שדעתו'), true);
 	});
 
 	// test('containsRTL speed', () => {
