@@ -1850,7 +1850,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			config.viewInfo.stopRenderingLineAfter,
 			config.viewInfo.renderWhitespace,
 			config.viewInfo.renderControlCharacters,
-			parts.getParts()
+			parts
 		));
 
 		let myResult: string[] = [];

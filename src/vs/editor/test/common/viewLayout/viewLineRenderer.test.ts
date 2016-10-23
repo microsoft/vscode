@@ -8,6 +8,7 @@ import * as assert from 'assert';
 import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
+import { LineParts } from 'vs/editor/common/core/lineParts';
 
 suite('viewLineRenderer.renderLine', () => {
 
@@ -23,7 +24,7 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			[createPart(0, '')]
+			new LineParts([createPart(0, '')], lineContent.length + 1)
 		));
 
 		assert.equal(_actual.output, '<span><span class="token ">' + expected + '</span></span>');
@@ -65,7 +66,7 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			parts
+			new LineParts(parts, lineContent.length + 1)
 		));
 
 		assert.equal(_actual.output, '<span>' + expected + '</span>');
@@ -96,20 +97,23 @@ suite('viewLineRenderer.renderLine', () => {
 			6,
 			'boundary',
 			false,
-			[
-				createPart(0, '0'),
-				createPart(1, '1'),
-				createPart(2, '2'),
-				createPart(3, '3'),
-				createPart(4, '4'),
-				createPart(5, '5'),
-				createPart(6, '6'),
-				createPart(7, '7'),
-				createPart(8, '8'),
-				createPart(9, '9'),
-				createPart(10, '10'),
-				createPart(11, '11'),
-			]
+			new LineParts(
+				[
+					createPart(0, '0'),
+					createPart(1, '1'),
+					createPart(2, '2'),
+					createPart(3, '3'),
+					createPart(4, '4'),
+					createPart(5, '5'),
+					createPart(6, '6'),
+					createPart(7, '7'),
+					createPart(8, '8'),
+					createPart(9, '9'),
+					createPart(10, '10'),
+					createPart(11, '11'),
+				],
+				'Hello world!'.length + 1
+			)
 		));
 
 		let expectedOutput = [
@@ -185,7 +189,7 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'boundary',
 			false,
-			lineParts
+			new LineParts(lineParts, lineText.length + 1)
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
@@ -240,7 +244,7 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			lineParts
+			new LineParts(lineParts, lineText.length + 1)
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
@@ -295,7 +299,7 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			lineParts
+			new LineParts(lineParts, lineText.length + 1)
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');

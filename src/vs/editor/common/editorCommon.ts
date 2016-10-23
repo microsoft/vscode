@@ -2506,17 +2506,19 @@ export interface IModelDecorationsChangedEvent {
 	readonly oldRanges: { [decorationId: string]: IRange; };
 }
 /**
- * An event describing that a range of lines has been tokenized
+ * An event describing that some ranges of lines have been tokenized (their tokens have changed).
  */
 export interface IModelTokensChangedEvent {
-	/**
-	 * The start of the range (inclusive)
-	 */
-	readonly fromLineNumber: number;
-	/**
-	 * The end of the range (inclusive)
-	 */
-	readonly toLineNumber: number;
+	readonly ranges: {
+		/**
+		 * The start of the range (inclusive)
+		 */
+		readonly fromLineNumber: number;
+		/**
+		 * The end of the range (inclusive)
+		 */
+		readonly toLineNumber: number;
+	}[];
 }
 
 /**
@@ -3344,14 +3346,16 @@ export interface IViewLineChangedEvent {
  * @internal
  */
 export interface IViewTokensChangedEvent {
-	/**
-	 * Start line number of range
-	 */
-	readonly fromLineNumber: number;
-	/**
-	 * End line number of range
-	 */
-	readonly toLineNumber: number;
+	readonly ranges: {
+		/**
+		 * Start line number of range
+		 */
+		readonly fromLineNumber: number;
+		/**
+		 * End line number of range
+		 */
+		readonly toLineNumber: number;
+	}[];
 }
 
 /**

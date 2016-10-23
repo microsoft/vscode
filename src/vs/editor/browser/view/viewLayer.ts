@@ -228,7 +228,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return deletedLines;
 	}
 
-	public onModelTokensChanged(changedFromLineNumber: number, changedToLineNumber: number): boolean {
+	public onModelTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
 		if (this.getCount() === 0) {
 			// no lines
 			return false;
@@ -237,12 +237,20 @@ export class RenderedLinesCollection<T extends ILine> {
 		let startLineNumber = this.getStartLineNumber();
 		let endLineNumber = this.getEndLineNumber();
 
-		// Notify lines after the change
 		let notifiedSomeone = false;
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let lineIndex = lineNumber - this._rendLineNumberStart;
+		for (let i = 0, len = ranges.length; i < len; i++) {
+			let rng = ranges[i];
 
-			if (changedFromLineNumber <= lineNumber && lineNumber <= changedToLineNumber) {
+			if (rng.toLineNumber < startLineNumber || rng.fromLineNumber > endLineNumber) {
+				// range outside viewport
+				continue;
+			}
+
+			let from = Math.max(startLineNumber, rng.fromLineNumber);
+			let to = Math.min(endLineNumber, rng.toLineNumber);
+
+			for (let lineNumber = from; lineNumber <= to; lineNumber++) {
+				let lineIndex = lineNumber - this._rendLineNumberStart;
 				this._lines[lineIndex].onTokensChanged();
 				notifiedSomeone = true;
 			}
@@ -351,7 +359,7 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 	}
 
 	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
-		return this._linesCollection.onModelTokensChanged(e.fromLineNumber, e.toLineNumber);
+		return this._linesCollection.onModelTokensChanged(e.ranges);
 	}
 
 
