@@ -396,6 +396,10 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.lines.getOutputLineCount();
 	}
 
+	public mightContainRTL(): boolean {
+		return this.model.mightContainRTL();
+	}
+
 	public getLineContent(lineNumber: number): string {
 		return this.lines.getOutputLineContent(lineNumber);
 	}

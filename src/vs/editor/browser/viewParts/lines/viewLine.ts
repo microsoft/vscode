@@ -123,7 +123,12 @@ export class ViewLine implements IVisibleLineData {
 			return false;
 		}
 
-		this._renderedViewLine = createRenderedLine(this._renderedViewLine ? this._renderedViewLine.domNode : null, renderLineInput, renderLine(renderLineInput));
+		this._renderedViewLine = createRenderedLine(
+			this._renderedViewLine ? this._renderedViewLine.domNode : null,
+			renderLineInput,
+			this._context.model.mightContainRTL(),
+			renderLine(renderLineInput)
+		);
 		return true;
 	}
 
@@ -180,7 +185,12 @@ class RenderedViewLine {
 	private readonly _isWhitespaceOnly: boolean;
 	private _cachedWidth: number;
 
-	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, renderLineOutput: RenderLineOutput) {
+	/**
+	 * This is a map that is used only when the line is guaranteed to have no RTL text.
+	 */
+	private _pixelOffsetCache: number[];
+
+	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, renderLineOutput: RenderLineOutput) {
 		this.domNode = domNode;
 		this.input = renderLineInput;
 		this.html = renderLineOutput.output;
@@ -188,6 +198,14 @@ class RenderedViewLine {
 		this._lastRenderedPartIndex = renderLineOutput.lastRenderedPartIndex;
 		this._isWhitespaceOnly = renderLineOutput.isWhitespaceOnly;
 		this._cachedWidth = -1;
+
+		this._pixelOffsetCache = null;
+		if (!modelContainsRTL) {
+			this._pixelOffsetCache = [];
+			for (let column = 0, maxLineColumn = this.input.lineParts.maxLineColumn; column <= maxLineColumn; column++) {
+				this._pixelOffsetCache[column] = -1;
+			}
+		}
 	}
 
 	// --- Reading from the DOM methods
@@ -228,33 +246,74 @@ class RenderedViewLine {
 			endColumn = stopRenderingLineAfter;
 		}
 
+		if (this._pixelOffsetCache !== null) {
+			// the text is LTR
+			let startOffset = this._readPixelOffset(startColumn, clientRectDeltaLeft, endNode);
+			if (startOffset === -1) {
+				return null;
+			}
+
+			let endOffset = this._readPixelOffset(endColumn, clientRectDeltaLeft, endNode);
+			if (endOffset === -1) {
+				return null;
+			}
+
+			return [new HorizontalRange(startOffset, endOffset - startOffset)];
+		}
+
 		return this._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 	}
 
 	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
 		if (startColumn === endColumn) {
-			return this._readRawVisibleRangesForPosition(startColumn, clientRectDeltaLeft, endNode);
+			let pixelOffset = this._readPixelOffset(startColumn, clientRectDeltaLeft, endNode);
+			if (pixelOffset === -1) {
+				return null;
+			} else {
+				return [new HorizontalRange(pixelOffset, 0)];
+			}
 		} else {
 			return this._readRawVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 		}
 	}
 
-	protected _readRawVisibleRangesForPosition(column: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
+	protected _readPixelOffset(column: number, clientRectDeltaLeft: number, endNode: HTMLElement): number {
+		if (this._pixelOffsetCache !== null) {
+			// the text is LTR
+
+			let cachedPixelOffset = this._pixelOffsetCache[column];
+			if (cachedPixelOffset !== -1) {
+				return cachedPixelOffset;
+			}
+
+			let result = this._actualReadPixelOffset(column, clientRectDeltaLeft, endNode);
+			this._pixelOffsetCache[column] = result;
+			return result;
+		}
+
+		return this._actualReadPixelOffset(column, clientRectDeltaLeft, endNode);
+	}
+
+	private _actualReadPixelOffset(column: number, clientRectDeltaLeft: number, endNode: HTMLElement): number {
 
 		if (this._charOffsetInPart.length === 0) {
 			// This line is empty
-			return [new HorizontalRange(0, 0)];
+			return 0;
 		}
 
 		if (column === this._charOffsetInPart.length && this._isWhitespaceOnly) {
 			// This branch helps in the case of whitespace only lines which have a width set
-			return [new HorizontalRange(this.getWidth(), 0)];
+			return this.getWidth();
 		}
 
 		let partIndex = findIndexInArrayWithMax(this.input.lineParts, column - 1, this._lastRenderedPartIndex);
 		let charOffsetInPart = this._charOffsetInPart[column - 1];
 
-		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, this._getScaleRatio(), endNode);
+		let r = RangeUtil.readHorizontalRanges(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, this._getScaleRatio(), endNode);
+		if (!r || r.length === 0) {
+			return -1;
+		}
+		return r[0].left;
 	}
 
 	private _readRawVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
@@ -321,19 +380,17 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 
 		// This is an attempt to patch things up
 		// Find position of previous column
-		let beforeEndVisibleRanges = this._readRawVisibleRangesForPosition(endColumn - 1, clientRectDeltaLeft, endNode);
+		let beforeEndPixelOffset = this._readPixelOffset(endColumn - 1, clientRectDeltaLeft, endNode);
 		// Find position of last column
-		let endVisibleRanges = this._readRawVisibleRangesForPosition(endColumn, clientRectDeltaLeft, endNode);
+		let endPixelOffset = this._readPixelOffset(endColumn, clientRectDeltaLeft, endNode);
 
-		if (beforeEndVisibleRanges && beforeEndVisibleRanges.length > 0 && endVisibleRanges && endVisibleRanges.length > 0) {
-			let beforeEndVisibleRange = beforeEndVisibleRanges[0];
-			let endVisibleRange = endVisibleRanges[0];
-			let isLTR = (beforeEndVisibleRange.left <= endVisibleRange.left);
+		if (beforeEndPixelOffset !== -1 && endPixelOffset !== -1) {
+			let isLTR = (beforeEndPixelOffset <= endPixelOffset);
 			let lastRange = output[output.length - 1];
 
-			if (isLTR && lastRange.left < endVisibleRange.left) {
+			if (isLTR && lastRange.left < endPixelOffset) {
 				// Trim down the width of the last visible range to not go after the last column's position
-				lastRange.width = endVisibleRange.left - lastRange.left;
+				lastRange.width = endPixelOffset - lastRange.left;
 			}
 		}
 
@@ -346,7 +403,7 @@ function findIndexInArrayWithMax(lineParts: LineParts, desiredIndex: number, max
 	return r <= maxResult ? r : maxResult;
 }
 
-const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInput, renderLineOutput: RenderLineOutput) => RenderedViewLine = (function () {
+const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, renderLineOutput: RenderLineOutput) => RenderedViewLine = (function () {
 	if (window.screen && window.screen.deviceXDPI && (navigator.userAgent.indexOf('Trident/6.0') >= 0 || navigator.userAgent.indexOf('Trident/5.0') >= 0)) {
 		// IE11 doesn't need the screen.logicalXDPI / screen.deviceXDPI ratio multiplication
 		// for TextRange.getClientRects() anymore
@@ -357,14 +414,14 @@ const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInpu
 	return createNormalRenderedLine;
 })();
 
-function createIERenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, renderLineOutput: RenderLineOutput): RenderedViewLine {
-	return new IERenderedViewLine(domNode, renderLineInput, renderLineOutput);
+function createIERenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
+	return new IERenderedViewLine(domNode, renderLineInput, modelContainsRTL, renderLineOutput);
 }
 
-function createWebKitRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, renderLineOutput: RenderLineOutput): RenderedViewLine {
-	return new WebKitRenderedViewLine(domNode, renderLineInput, renderLineOutput);
+function createWebKitRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
+	return new WebKitRenderedViewLine(domNode, renderLineInput, modelContainsRTL, renderLineOutput);
 }
 
-function createNormalRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, renderLineOutput: RenderLineOutput): RenderedViewLine {
-	return new RenderedViewLine(domNode, renderLineInput, renderLineOutput);
+function createNormalRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, modelContainsRTL: boolean, renderLineOutput: RenderLineOutput): RenderedViewLine {
+	return new RenderedViewLine(domNode, renderLineInput, modelContainsRTL, renderLineOutput);
 }
