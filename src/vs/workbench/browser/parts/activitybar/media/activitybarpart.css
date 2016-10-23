@@ -32,23 +32,26 @@
 	height: 100%;
 }
 
-/* Spacing above the activitybar icons to fit the traffic lights, and zooming doesn't affect icons offset */
-.monaco-workbench.mac.use-inline-toolbar > .activitybar > .content {
-	padding-top: 28px;
-	zoom: reset;
-}
-
-/* Remove spacing above the activitybar icons to as there are no traffic lights fullscreen */
-.monaco-workbench.mac.fullscreen.use-inline-toolbar > .activitybar > .content {
-	padding-top: 0px;
-}
-
 .monaco-workbench > .activitybar > .content .monaco-action-bar {
 	text-align: left;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar.position-top {
 	background-color: inherit;
+}
+
+/* Spacing above the activitybar icons to fit the traffic lights, and zooming doesn't affect icons offset */
+.monaco-workbench.mac.use-inline-toolbar > .activitybar > .content .monaco-action-bar.position-top {
+	top: 28px;
+	position: absolute;
+	zoom: reset;
+	width:100%;
+}
+
+/* Remove spacing above the activitybar icons to as there are no traffic lights fullscreen */
+.monaco-workbench.mac.fullscreen.use-inline-toolbar > .activitybar > .content .monaco-action-bar.position-top {
+	top: 0px;
+	width:100%;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom {
