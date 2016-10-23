@@ -14,11 +14,11 @@ import path = require('path');
 import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
 import { Dimension } from 'vs/base/browser/builder';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -44,6 +44,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _wrapperElement: HTMLDivElement;
 	private _xterm: any;
 	private _xtermElement: HTMLDivElement;
+	private _terminalHasTextContextKey: IContextKey<boolean>;
 
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
@@ -59,6 +60,7 @@ export class TerminalInstance implements ITerminalInstance {
 		workspace: IWorkspace,
 		name: string,
 		shell: IShell,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService private _messageService: IMessageService
 	) {
@@ -67,6 +69,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isExiting = false;
 		this._isVisible = false;
 		this._id = TerminalInstance._idCounter++;
+		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 
 		this._onDisposed = new Emitter<TerminalInstance>();
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
@@ -112,7 +115,12 @@ export class TerminalInstance implements ITerminalInstance {
 			// Allow the toggle tab mode keybinding to pass through the terminal so that focus can
 			// be escaped
 			let standardKeyboardEvent = new StandardKeyboardEvent(event);
-			if (this._skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
+
+			// TODO: Use this._contextKeyService.contextMatchesRules(rules); to check the context as
+			// well to ensure that only commands that are relevant given the context are skipped
+			// (eg. ctrl+c to copy when text selected or kill the process (don't skip) when not)
+
+			if (this._skipTerminalKeybindings.some(k => standardKeyboardEvent.equals(k.value))) {
 				event.preventDefault();
 				return false;
 			}
@@ -121,6 +129,14 @@ export class TerminalInstance implements ITerminalInstance {
 			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 				return false;
 			}
+		});
+		(<HTMLElement>this._xterm.element).addEventListener('mouseup', event => {
+			// Wait until mouseup has propogated through the DOM before evaluating the new selection
+			// state.
+			setTimeout(() => {
+				this._terminalHasTextContextKey.set(!window.getSelection().isCollapsed);
+				console.log('Has text: ' + !window.getSelection().isCollapsed);
+			}, 0);
 		});
 
 		let xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
