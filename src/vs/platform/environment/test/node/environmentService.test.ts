@@ -5,8 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
+import * as path from 'path';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { parseExtensionHostPort } from 'vs/platform/environment/node/environmentService';
+import { parseExtensionHostPort, parseUserDataDir } from 'vs/platform/environment/node/environmentService';
 
 suite('EnvironmentService', () => {
 
@@ -30,5 +31,14 @@ suite('EnvironmentService', () => {
 		assert.deepEqual(parse(['--debugBrkPluginHost']), { port: 5870, break: false });
 		assert.deepEqual(parse(['--debugBrkPluginHost=5678']), { port: 5678, break: true });
 		assert.deepEqual(parse(['--debugPluginHost=1234', '--debugBrkPluginHost=5678']), { port: 5678, break: true });
+	});
+
+	test('userDataPath', () => {
+		const parse = (a, b: { cwd: () => string, env: { [key: string]: string }}) => parseUserDataDir(parseArgs(a), <any>b);
+
+		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: {} }), path.resolve('/foo/dir'),
+			'should use cwd when --user-data-dir is specified');
+		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: {'VSCODE_CWD': '/bar'} }), path.resolve('/bar/dir'),
+			'should use VSCODE_CWD as the cwd when --user-data-dir is specified');
 	});
 });

@@ -14,21 +14,20 @@ import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { IQuickFix2 } from 'vs/editor/contrib/quickFix/common/quickFix';
 import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
 
-export function registerApiCommands(commands: ExtHostCommands) {
-	new ExtHostApiCommands(commands).registerCommands();
-}
+export class ExtHostApiCommands {
 
-class ExtHostApiCommands {
+	static register(commands: ExtHostCommands) {
+		return new ExtHostApiCommands(commands).registerCommands();
+	}
 
 	private _commands: ExtHostCommands;
 	private _disposables: IDisposable[] = [];
 
-	constructor(commands: ExtHostCommands) {
+	private constructor(commands: ExtHostCommands) {
 		this._commands = commands;
 	}
 
@@ -366,11 +365,11 @@ class ExtHostApiCommands {
 			resource,
 			range: typeConverters.fromRange(range)
 		};
-		return this._commands.executeCommand<IQuickFix2[]>('_executeCodeActionProvider', args).then(value => {
+		return this._commands.executeCommand<modes.CodeAction[]>('_executeCodeActionProvider', args).then(value => {
 			if (!Array.isArray(value)) {
 				return;
 			}
-			return value.map(quickFix => typeConverters.Command.to(quickFix.command));
+			return value.map(quickFix => this._commands.converter.fromInternal(quickFix.command));
 		});
 	}
 
@@ -381,7 +380,7 @@ class ExtHostApiCommands {
 				return value.map(item => {
 					return new types.CodeLens(
 						typeConverters.toRange(item.symbol.range),
-						typeConverters.Command.to(item.symbol.command));
+						this._commands.converter.fromInternal(item.symbol.command));
 				});
 			}
 		});

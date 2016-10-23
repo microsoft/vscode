@@ -44,7 +44,7 @@ export interface IExtension {
 	ratingCount: number;
 	outdated: boolean;
 	reload: boolean;
-	hasDependencies: boolean;
+	dependencies: string[];
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
@@ -55,6 +55,7 @@ export interface IExtension {
 export interface IExtensionDependencies {
 	dependencies: IExtensionDependencies[];
 	hasDependencies: boolean;
+	identifier: string;
 	extension: IExtension;
 	dependent: IExtensionDependencies;
 }

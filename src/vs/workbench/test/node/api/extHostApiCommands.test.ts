@@ -21,12 +21,12 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/node/mainThreadLanguageFeatures';
-import { registerApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
+import { IHeapService } from 'vs/workbench/api/node/mainThreadHeapService';
+import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { MainThreadCommands } from 'vs/workbench/api/node/mainThreadCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
-import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
@@ -58,7 +58,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		let instantiationService = new TestInstantiationService();
 		threadService = new TestThreadService();
-
+		instantiationService.stub(IHeapService, {
+			_serviceBrand: undefined,
+			trackRecursive(args) {
+				// nothing
+				return args;
+			}
+		});
 		instantiationService.stub(ICommandService, {
 			_serviceBrand: undefined,
 			executeCommand(id, args): any {
@@ -102,16 +108,17 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			},
 		});
 
-		commands = new ExtHostCommands(threadService, null);
+		const heapService = new ExtHostHeapService();
+
+		commands = new ExtHostCommands(threadService, null, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
-		ExtHostTypeConverters.Command.initialize(commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
-		registerApiCommands(commands);
+		ExtHostApiCommands.register(commands);
 
 		const diagnostics = new ExtHostDiagnostics(threadService);
 		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, new ExtHostHeapService(), diagnostics);
+		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
