@@ -19,7 +19,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowConfiguration } from 'vs/workbench/electron-browser/common';
-import * as browser from 'vs/base/browser/browser';
+import { getZoomFactor } from 'vs/base/browser/browser';
 
 const DEFAULT_MIN_PART_WIDTH = 170;
 const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;
@@ -42,7 +42,7 @@ export class LayoutOptions {
 }
 
 interface ComputedStyles {
-	activitybar: { minWidth: number; width: number };
+	activitybar: { minWidth: number; };
 	sidebar: { minWidth: number; };
 	panel: { minHeight: number; };
 	editor: { minWidth: number; };
@@ -65,6 +65,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private parent: Builder;
 	private workbenchContainer: Builder;
 	private activitybar: Part;
+	private initialActivitybarWidth: number;
 	private editor: Part;
 	private sidebar: Part;
 	private panel: Part;
@@ -104,8 +105,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService,
-
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.parent = parent;
 		this.workbenchContainer = workbenchContainer;
@@ -284,11 +284,18 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		const activitybarStyle = this.activitybar.getContainer().getComputedStyle();
 		const statusbarStyle = this.statusbar.getContainer().getComputedStyle();
 
+		// By making the activity bar exempt from zooming, we cannot use min-width, nor max-width
+		// on the activitybar part, due to those attributes constraining the zoom-dependent width.
+		// However, as the width is different at runtime ( it's multiplied by the zoom factor )
+		// we need to keep an original reference value to work with from the CSS.
+		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+		if (windowConfig && windowConfig.window.macOSUseInlineToolbar && !this.initialActivitybarWidth) {
+			this.initialActivitybarWidth = parseInt(activitybarStyle.getPropertyValue('width'), 10) || 0;
+		}
+
 		this.computedStyles = {
 			activitybar: {
-				minWidth: parseInt(activitybarStyle.getPropertyValue('min-width'), 10) || 0,
-				width: parseInt(activitybarStyle.getPropertyValue('width'), 10) || 0
-
+				minWidth: this.initialActivitybarWidth || parseInt(activitybarStyle.getPropertyValue('min-width'), 10) || 0
 			},
 
 			sidebar: {
@@ -351,9 +358,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		// and generate a zoom-dependent width, to ensure all other parts lay out correctly
 		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
 		if (windowConfig && windowConfig.window.macOSUseInlineToolbar) {
-			const zoom = browser.getZoomFactor();
-			const originalWidth = this.computedStyles.activitybar.width;
-			activityBarMinWidth = originalWidth/zoom;
+			const zoom = getZoomFactor();
+			const originalWidth = this.computedStyles.activitybar.minWidth;
+			activityBarMinWidth = originalWidth / zoom;
 		}
 
 		let activityBarSize = new Dimension(activityBarMinWidth, sidebarSize.height);
@@ -451,7 +458,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		// Activity Bar Part
-		this.activitybar.getContainer().size(activityBarSize.width, activityBarSize.height);
+		if (windowConfig && windowConfig.window.macOSUseInlineToolbar) {
+			this.activitybar.getContainer().size(activityBarSize.width, activityBarSize.height);
+		} else {
+			this.activitybar.getContainer().size(null, activityBarSize.height);
+		}
 		if (sidebarPosition === Position.LEFT) {
 			this.activitybar.getContainer().getHTMLElement().style.right = '';
 			this.activitybar.getContainer().position(0, null, 0, 0);

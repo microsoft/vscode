@@ -18,9 +18,10 @@
 /* Allow dragging on the wider activitybar */
 .monaco-workbench.mac.use-inline-toolbar > .part.activitybar {
 	min-width: unset;
+	max-width: unset;
 	width: 76px;
 	-webkit-app-region: drag;
-	-webkit-transition: none;
+	transition: none;
 }
 
 .monaco-workbench > .activitybar.help {
