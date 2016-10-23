@@ -120,6 +120,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public changeDecorations(callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => any, ownerId: number = 0): any {
+		this._assertNotDisposed();
 		return this._withDeferredEvents((deferredEventsBuilder: DeferredEventsBuilder) => {
 			var changeAccessor: editorCommon.IModelDecorationsChangeAccessor = {
 				addDecoration: (range: editorCommon.IRange, options: editorCommon.IModelDecorationOptions): string => {
@@ -154,6 +155,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public deltaDecorations(oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[], ownerId: number = 0): string[] {
+		this._assertNotDisposed();
 		if (!oldDecorations) {
 			oldDecorations = [];
 		}
