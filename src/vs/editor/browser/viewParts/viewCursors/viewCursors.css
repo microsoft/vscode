@@ -15,9 +15,37 @@
 	opacity: 0.6;
 }
 
-/* -- under-line-style -- */
+/* -- line-style -- */
+.monaco-editor .cursors-layer.cursor-line-style > .cursor { width: 2px; }
+.monaco-editor .cursors-layer.cursor-line-style > .cursor.secondary { width: 1px; }
+
+/* -- line-thin-style -- */
+.monaco-editor .cursors-layer.cursor-line-thin-style > .cursor { width: 1px;}
+
+/* -- block-style -- */
+.monaco-editor .cursors-layer.cursor-block-style > .cursor { width: 1ch; }
+
+/* -- block-outline-style -- */
+.monaco-editor .cursors-layer.cursor-block-outline-style > .cursor {
+	width: 1ch;
+	box-sizing: border-box;
+	background: transparent;
+	border-style: solid;
+	border-width: 1px;
+}
+
+/* -- underline-style -- */
 .monaco-editor .cursors-layer.cursor-underline-style > .cursor {
 	border-bottom-width: 2px;
+	border-bottom-style: solid;
+	background: transparent !important;
+	box-sizing: border-box;
+}
+
+/* -- underline-thin-style -- */
+.monaco-editor .cursors-layer.cursor-underline-thin-style > .cursor {
+	width: 1ch;
+	border-bottom-width: 1px;
 	border-bottom-style: solid;
 	background: transparent !important;
 	box-sizing: border-box;
