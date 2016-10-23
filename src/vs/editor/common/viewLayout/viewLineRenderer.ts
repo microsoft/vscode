@@ -42,11 +42,13 @@ export class RenderLineOutput {
 	charOffsetInPart: number[];
 	lastRenderedPartIndex: number;
 	output: string;
+	isWhitespaceOnly: boolean;
 
-	constructor(charOffsetInPart: number[], lastRenderedPartIndex: number, output: string) {
+	constructor(charOffsetInPart: number[], lastRenderedPartIndex: number, output: string, isWhitespaceOnly: boolean) {
 		this.charOffsetInPart = charOffsetInPart;
 		this.lastRenderedPartIndex = lastRenderedPartIndex;
 		this.output = output;
+		this.isWhitespaceOnly = isWhitespaceOnly;
 	}
 }
 
@@ -65,7 +67,8 @@ export function renderLine(input: RenderLineInput): RenderLineOutput {
 			[],
 			0,
 			// This is basically for IE's hit test to work
-			'<span><span>&nbsp;</span></span>'
+			'<span><span>&nbsp;</span></span>',
+			true
 		);
 	}
 
@@ -99,6 +102,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 	let charOffsetInPartArr: number[] = [];
 	let charOffsetInPart = 0;
 	let tabsCharDelta = 0;
+	let isWhitespaceOnly = /^\s*$/.test(lineText);
 
 	out += '<span>';
 	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
@@ -151,7 +155,8 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 					return new RenderLineOutput(
 						charOffsetInPartArr,
 						partIndex,
-						out
+						out,
+						isWhitespaceOnly
 					);
 				}
 			}
@@ -224,7 +229,8 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 					return new RenderLineOutput(
 						charOffsetInPartArr,
 						partIndex,
-						out
+						out,
+						isWhitespaceOnly
 					);
 				}
 			}
@@ -242,6 +248,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 	return new RenderLineOutput(
 		charOffsetInPartArr,
 		actualLineParts.length - 1,
-		out
+		out,
+		isWhitespaceOnly
 	);
 }
