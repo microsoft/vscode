@@ -233,11 +233,20 @@ export class ViewCursors extends ViewPart {
 			case editorCommon.TextEditorCursorStyle.Line:
 				result += ' cursor-line-style';
 				break;
+			case editorCommon.TextEditorCursorStyle.LineThin:
+				result += ' cursor-line-thin-style';
+				break;
 			case editorCommon.TextEditorCursorStyle.Block:
 				result += ' cursor-block-style';
 				break;
+			case editorCommon.TextEditorCursorStyle.BlockOutline:
+				result += ' cursor-block-outline-style';
+				break;
 			case editorCommon.TextEditorCursorStyle.Underline:
 				result += ' cursor-underline-style';
+				break;
+			case editorCommon.TextEditorCursorStyle.UnderlineThin:
+				result += ' cursor-underline-thin-style';
 				break;
 			default:
 				result += ' cursor-line-style';

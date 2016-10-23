@@ -577,17 +577,29 @@ declare module 'vscode' {
 	 */
 	export enum TextEditorCursorStyle {
 		/**
-		 * Render the cursor as a vertical line.
+		 * Render the cursor as a vertical thick line.
 		 */
 		Line = 1,
 		/**
-		 * Render the cursor as a block.
+		 * Render the cursor as a vertical thin line.
 		 */
-		Block = 2,
+		LineThin = 2,
 		/**
-		 * Render the cursor as a horizontal line under the character.
+		 * Render the cursor as a block filled.
 		 */
-		Underline = 3
+		Block = 3,
+		/**
+		 * Render the cursor as a block outlined.
+		 */
+		BlockOutline = 4,
+		/**
+		 * Render the cursor as a thick horizontal line.
+		 */
+		Underline = 5,
+		/**
+		 * Render the cursor as a thin horizontal line.
+		 */
+		UnderlineThin = 6
 	}
 
 	/**
