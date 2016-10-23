@@ -2389,6 +2389,10 @@ export interface IRawText {
 	 */
 	readonly EOL: string;
 	/**
+	 * The text contains Unicode characters classified as "R" or "AL".
+	 */
+	readonly containsRTL: boolean;
+	/**
 	 * The options associated with this text.
 	 */
 	readonly options: {
