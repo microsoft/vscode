@@ -35,10 +35,6 @@
 
 /** Custom Mac Cursor */
 
-.monaco-workbench.mac.use-inline-toolbar > .monaco-sash.mac {
-	-webkit-app-region: no-drag;
-}
-
 .monaco-sash.mac.vertical,
 .vertical-cursor-container-mac * {
 	cursor: col-resize;

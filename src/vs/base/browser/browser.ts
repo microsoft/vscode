@@ -60,7 +60,6 @@ class ZoomManager {
 	}
 
 	public setZoomFactor(zoomFactor: number): void {
-		console.log(zoomFactor);
 		this._zoomFactor = zoomFactor;
 	}
 }

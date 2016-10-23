@@ -32,7 +32,7 @@
 	height: 100%;
 }
 
-/* Spacing above the activitybar icons to fit the traffic lights, zooming doesn't affect icons */
+/* Spacing above the activitybar icons to fit the traffic lights, and zooming doesn't affect icons offset */
 .monaco-workbench.mac.use-inline-toolbar > .activitybar > .content {
 	padding-top: 28px;
 	zoom: reset;

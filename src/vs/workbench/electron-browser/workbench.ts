@@ -741,7 +741,6 @@ export class Workbench implements IPartService {
 		this.workbenchContainer = $('.monaco-workbench-container');
 		this.workbench = $().div({ 'class': 'monaco-workbench ' + (isWindows ? 'windows' : isLinux ? 'linux' : 'mac'), id: Identifiers.WORKBENCH_CONTAINER }).appendTo(this.workbenchContainer);
 
-
 		// Mac specific UI changes
 		if (isMacintosh) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();

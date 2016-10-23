@@ -11,10 +11,6 @@
 	display: flex;
 }
 
-.monaco-workbench.mac.use-inline-toolbar > .part > .composite.title {
-	-webkit-app-region: drag;
-}
-
 .monaco-workbench > .part > .composite.title > .title-actions {
 	flex: 1;
 	padding-left: 5px;

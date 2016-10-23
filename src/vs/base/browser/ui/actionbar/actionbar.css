@@ -17,6 +17,10 @@
 	justify-content: flex-end;
 }
 
+.monaco-workbench.mac.use-inline-toolbar .monaco-action-bar .actions-container {
+	zoom: 1;
+}
+
 .monaco-action-bar.vertical .actions-container {
 	display: inline-block;
 }
