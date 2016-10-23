@@ -2373,17 +2373,19 @@ declare module monaco.editor {
     }
 
     /**
-     * An event describing that a range of lines has been tokenized
+     * An event describing that some ranges of lines have been tokenized (their tokens have changed).
      */
     export interface IModelTokensChangedEvent {
-        /**
-         * The start of the range (inclusive)
-         */
-        readonly fromLineNumber: number;
-        /**
-         * The end of the range (inclusive)
-         */
-        readonly toLineNumber: number;
+        readonly ranges: {
+            /**
+             * The start of the range (inclusive)
+             */
+            readonly fromLineNumber: number;
+            /**
+             * The end of the range (inclusive)
+             */
+            readonly toLineNumber: number;
+        }[];
     }
 
     /**
