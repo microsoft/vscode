@@ -16,9 +16,6 @@ export interface IVisibleLineData {
 	setDomNode(domNode: HTMLElement): void;
 
 	onContentChanged(): void;
-	onLinesInsertedAbove(): void;
-	onLinesDeletedAbove(): void;
-	onLineChangedAbove(): void;
 	onTokensChanged(): void;
 	onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): void;
 
@@ -43,9 +40,6 @@ interface IRendererContext<T extends IVisibleLineData> {
 
 export interface ILine {
 	onContentChanged(): void;
-	onLinesInsertedAbove(): void;
-	onLinesDeletedAbove(): void;
-	onLineChangedAbove(): void;
 	onTokensChanged(): void;
 }
 
@@ -125,9 +119,6 @@ export class RenderedLinesCollection<T extends ILine> {
 				} else {
 					deleteCount++;
 				}
-			} else if (lineNumber > deleteToLineNumber) {
-				// this is a line after the deletion
-				this._lines[lineIndex].onLinesDeletedAbove();
 			}
 		}
 
@@ -167,10 +158,6 @@ export class RenderedLinesCollection<T extends ILine> {
 			if (lineNumber === changedLineNumber) {
 				this._lines[lineIndex].onContentChanged();
 				notifiedSomeone = true;
-			} else if (lineNumber > changedLineNumber) {
-				// this is a line after the changed one
-				this._lines[lineIndex].onLineChangedAbove();
-				notifiedSomeone = true;
 			}
 		}
 
@@ -186,15 +173,6 @@ export class RenderedLinesCollection<T extends ILine> {
 		let insertCnt = insertToLineNumber - insertFromLineNumber + 1;
 		let startLineNumber = this.getStartLineNumber();
 		let endLineNumber = this.getEndLineNumber();
-
-		// Notify lines that survive after insertion
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let lineIndex = lineNumber - this._rendLineNumberStart;
-
-			if (insertFromLineNumber <= lineNumber) {
-				this._lines[lineIndex].onLinesInsertedAbove();
-			}
-		}
 
 		if (insertFromLineNumber <= startLineNumber) {
 			// inserting above the viewport

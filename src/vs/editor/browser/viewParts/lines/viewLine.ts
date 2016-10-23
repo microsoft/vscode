@@ -62,15 +62,6 @@ export class ViewLine implements IVisibleLineData {
 	public onContentChanged(): void {
 		this._isMaybeInvalid = true;
 	}
-	public onLinesInsertedAbove(): void {
-		// Nothing
-	}
-	public onLinesDeletedAbove(): void {
-		// Nothing
-	}
-	public onLineChangedAbove(): void {
-		// Nothing
-	}
 	public onTokensChanged(): void {
 		this._isMaybeInvalid = true;
 	}
