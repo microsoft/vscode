@@ -296,8 +296,7 @@ export class DropDownMenuActionItem extends ActionItem {
 		}
 	}
 
-	public onClick(event: any): void {
-		DOM.EventHelper.stop(event, true);
+	public showMenu(): void {
 		let elementPosition = DOM.getDomNodePagePosition(this.builder.getHTMLElement());
 		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 		this.contextMenuService.showContextMenu({
@@ -402,6 +401,11 @@ export class EnableAction extends Action {
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
+	public run(): TPromise<any> {
+		this._actionItem.showMenu();
+		return TPromise.wrap(null);
+	}
+
 	dispose(): void {
 		super.dispose();
 		this.disposables = dispose(this.disposables);
@@ -481,6 +485,11 @@ export class DisableAction extends Action {
 
 		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && this.extension.state === ExtensionState.Enabled;
 		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
+	}
+
+	public run(): TPromise<any> {
+		this._actionItem.showMenu();
+		return TPromise.wrap(null);
 	}
 
 	dispose(): void {

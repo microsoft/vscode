@@ -81,7 +81,7 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 			return TPromise.wrap(false);
 		}
 
-		if (enable && this.canEnable(identifier)) {
+		if (enable && !this.canEnable(identifier)) {
 			return TPromise.wrap(false);
 		}
 
