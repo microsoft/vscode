@@ -75,11 +75,19 @@ export interface IExtensionsRuntimeService {
 	getExtensions(includeDisabled?: boolean): TPromise<IExtensionDescription[]>;
 
 	/**
-	 * if `true` returns extensions disabled for workspace
-	 * if `false` returns extensions disabled globally
-	 * if `undefined` returns all disabled extensions
+	 * Returns `true` if given extension is disabled, otherwise `false`.
 	 */
-	getDisabledExtensions(workspace?: boolean): string[];
+	isDisabled(identifier: string): boolean;
+
+	/**
+	 * Returns `true` if given extension is disabled always, otherwise `false`.
+	 */
+	isDisabledAlways(identifier: string): boolean;
+
+	/**
+	 * Returns `true` if given extension can be enabled by calling `setEnablement`, otherwise false`.
+	 */
+	canEnable(identifier: string): boolean;
 
 	/**
 	 * Enable or disable the given extension.
