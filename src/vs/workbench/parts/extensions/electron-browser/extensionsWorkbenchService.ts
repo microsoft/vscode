@@ -538,7 +538,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return;
 		}
 
-		let extension = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === gallery.id)[0];
+		let extension = this.installed.filter(e => (e.local && e.local.metadata && e.local.metadata.id) === gallery.id)[0];
 
 		if (!extension) {
 			extension = new Extension(this.galleryService, this.stateProvider, null, gallery);
@@ -581,7 +581,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			extension.needsReload = true;
 
 			const galleryId = local.metadata && local.metadata.id;
-			const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
+			const installed = this.installed.filter(e => (e.local && e.local.metadata && e.local.metadata.id) === galleryId)[0];
 
 			if (galleryId && installed) {
 				installing.operation = Operation.Updating;
