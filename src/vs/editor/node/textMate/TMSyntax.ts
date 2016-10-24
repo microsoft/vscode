@@ -13,7 +13,7 @@ import { ILineTokens, ITokenizationSupport, TokenizationRegistry } from 'vs/edit
 import { TMState } from 'vs/editor/common/modes/TMState';
 import { LineTokens } from 'vs/editor/common/modes/supports';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IGrammar, Registry, StackElement } from 'vscode-textmate';
+import { IGrammar, Registry, StackElement, IToken } from 'vscode-textmate';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
 
@@ -360,29 +360,33 @@ class Tokenizer {
 		let textMateResult = this._grammar.tokenizeLine(line, freshState.getRuleStack());
 		freshState.setRuleStack(textMateResult.ruleStack);
 
-		// Create the result early and fill in the tokens later
-		let tokens: Token[] = [];
-
-		let lastTokenType: string = null;
-		for (let tokenIndex = 0, len = textMateResult.tokens.length; tokenIndex < len; tokenIndex++) {
-			let token = textMateResult.tokens[tokenIndex];
-			let tokenStartIndex = token.startIndex;
-			let tokenType = decodeTextMateToken(this._decodeMap, token.scopes);
-
-			// do not push a new token if the type is exactly the same (also helps with ligatures)
-			if (tokenType !== lastTokenType) {
-				tokens.push(new Token(tokenStartIndex + offsetDelta, tokenType));
-				lastTokenType = tokenType;
-			}
-		}
-
-		return new LineTokens(
-			tokens,
-			[new ModeTransition(offsetDelta, freshState.getModeId())],
-			offsetDelta + line.length,
-			freshState
-		);
+		return decodeTextMateTokens(line, offsetDelta, this._decodeMap, textMateResult.tokens, freshState);
 	}
+}
+
+export function decodeTextMateTokens(line: string, offsetDelta: number, decodeMap: DecodeMap, resultTokens: IToken[], resultState: TMState): LineTokens {
+	// Create the result early and fill in the tokens later
+	let tokens: Token[] = [];
+
+	let lastTokenType: string = null;
+	for (let tokenIndex = 0, len = resultTokens.length; tokenIndex < len; tokenIndex++) {
+		let token = resultTokens[tokenIndex];
+		let tokenStartIndex = token.startIndex;
+		let tokenType = decodeTextMateToken(decodeMap, token.scopes);
+
+		// do not push a new token if the type is exactly the same (also helps with ligatures)
+		if (tokenType !== lastTokenType) {
+			tokens.push(new Token(tokenStartIndex + offsetDelta, tokenType));
+			lastTokenType = tokenType;
+		}
+	}
+
+	return new LineTokens(
+		tokens,
+		[new ModeTransition(offsetDelta, resultState.getModeId())],
+		offsetDelta + line.length,
+		resultState
+	);
 }
 
 export function decodeTextMateToken(decodeMap: DecodeMap, scopes: string[]): string {
