@@ -296,15 +296,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		var lineNumber = validPosition.lineNumber;
 		var column = validPosition.column;
 
-		if (column === 1) {
-			return this.getStateBeforeLine(lineNumber).getModeId();
-		} else if (column === this.getLineMaxColumn(lineNumber)) {
-			return this.getStateAfterLine(lineNumber).getModeId();
-		} else {
-			var modeTransitions = this._getLineModeTransitions(lineNumber);
-			var modeTransitionIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, column - 1);
-			return modeTransitions[modeTransitionIndex].modeId;
-		}
+		var modeTransitions = this._getLineModeTransitions(lineNumber);
+		var modeTransitionIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, column - 1);
+		return modeTransitions[modeTransitionIndex].modeId;
 	}
 
 	protected _invalidateLine(lineIndex: number): void {
@@ -398,20 +392,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 			t1.stop();
 		});
-	}
-
-	private getStateBeforeLine(lineNumber: number): IState {
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber - 1, true);
-		});
-		return this._lines[lineNumber - 1].getState();
-	}
-
-	private getStateAfterLine(lineNumber: number): IState {
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
-		});
-		return lineNumber < this._lines.length ? this._lines[lineNumber].getState() : this._lastState;
 	}
 
 	_getLineModeTransitions(lineNumber: number): ModeTransition[] {

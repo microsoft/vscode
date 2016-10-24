@@ -266,7 +266,7 @@ export class TMScopesDecodeData {
 	/**
 	 * The resolved language.
 	 */
-	private readonly language: string;
+	public readonly language: string;
 
 	constructor(parent: TMScopesDecodeData, scope: TMScopeDecodeData) {
 		// 1) Inherit data from `parent`.
@@ -345,7 +345,7 @@ export class DecodeMap {
 	public getToken(tokenMap: boolean[]): string {
 		let result = '';
 		let isFirst = true;
-		for (let i = 1; i <= this.lastAssignedTokenId; i++) {
+		for (let i = 1, len = tokenMap.length; i < len; i++) {
 			if (tokenMap[i]) {
 				if (isFirst) {
 					isFirst = false;
@@ -400,34 +400,53 @@ class Tokenizer {
 }
 
 export function decodeTextMateTokens(line: string, offsetDelta: number, decodeMap: DecodeMap, resultTokens: IToken[], resultState: TMState): LineTokens {
+	const topLevelModeId = resultState.getModeId();
+
 	// Create the result early and fill in the tokens later
 	let tokens: Token[] = [];
+	let modeTransitions: ModeTransition[] = [];
 
 	let lastTokenType: string = null;
+	let lastModeId: string = null;
+
 	for (let tokenIndex = 0, len = resultTokens.length; tokenIndex < len; tokenIndex++) {
 		let token = resultTokens[tokenIndex];
 		let tokenStartIndex = token.startIndex;
-		let tokenType = decodeTextMateToken(decodeMap, token.scopes);
+
+		let tokenType = '';
+		let tokenModeId = topLevelModeId;
+		let decodedToken = decodeTextMateToken(decodeMap, token.scopes);
+		if (decodedToken) {
+			tokenType = decodeMap.getToken(decodedToken.tokensMask);
+			if (decodedToken.language) {
+				tokenModeId = decodedToken.language;
+			}
+		}
 
 		// do not push a new token if the type is exactly the same (also helps with ligatures)
 		if (tokenType !== lastTokenType) {
 			tokens.push(new Token(tokenStartIndex + offsetDelta, tokenType));
 			lastTokenType = tokenType;
 		}
+
+		if (tokenModeId !== lastModeId) {
+			modeTransitions.push(new ModeTransition(tokenStartIndex + offsetDelta, tokenModeId));
+			lastModeId = tokenModeId;
+		}
 	}
 
 	return new LineTokens(
 		tokens,
-		[new ModeTransition(offsetDelta, resultState.getModeId())],
+		modeTransitions,
 		offsetDelta + line.length,
 		resultState
 	);
 }
 
-export function decodeTextMateToken(decodeMap: DecodeMap, scopes: string[]): string {
+export function decodeTextMateToken(decodeMap: DecodeMap, scopes: string[]): TMScopesDecodeData {
 	if (scopes.length <= 1) {
 		// fast case
-		return '';
+		return null;
 	}
 
 	const prevTokenScopes = decodeMap.prevTokenScopes;
@@ -456,5 +475,5 @@ export function decodeTextMateToken(decodeMap: DecodeMap, scopes: string[]): str
 	}
 
 	decodeMap.prevTokenScopes = resultScopes;
-	return decodeMap.getToken(lastResultScope.tokensMask);
+	return lastResultScope;
 }

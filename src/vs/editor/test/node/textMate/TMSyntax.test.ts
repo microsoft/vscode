@@ -11,69 +11,109 @@ import { TMState } from 'vs/editor/common/modes/TMState';
 suite('TextMate.TMScopeRegistry', () => {
 
 	test('getFilePath', () => {
-		let manager = new TMScopeRegistry();
+		let registry = new TMScopeRegistry();
 
-		manager.register('a', 'source.a', './grammar/a.tmLanguage');
-		assert.equal(manager.getFilePath('source.a'), './grammar/a.tmLanguage');
-		assert.equal(manager.getFilePath('a'), null);
-		assert.equal(manager.getFilePath('source.b'), null);
-		assert.equal(manager.getFilePath('b'), null);
+		registry.register('a', 'source.a', './grammar/a.tmLanguage');
+		assert.equal(registry.getFilePath('source.a'), './grammar/a.tmLanguage');
+		assert.equal(registry.getFilePath('a'), null);
+		assert.equal(registry.getFilePath('source.b'), null);
+		assert.equal(registry.getFilePath('b'), null);
 
-		manager.register('b', 'source.b', './grammar/b.tmLanguage');
-		assert.equal(manager.getFilePath('source.a'), './grammar/a.tmLanguage');
-		assert.equal(manager.getFilePath('a'), null);
-		assert.equal(manager.getFilePath('source.b'), './grammar/b.tmLanguage');
-		assert.equal(manager.getFilePath('b'), null);
+		registry.register('b', 'source.b', './grammar/b.tmLanguage');
+		assert.equal(registry.getFilePath('source.a'), './grammar/a.tmLanguage');
+		assert.equal(registry.getFilePath('a'), null);
+		assert.equal(registry.getFilePath('source.b'), './grammar/b.tmLanguage');
+		assert.equal(registry.getFilePath('b'), null);
 
-		manager.register('a', 'source.a', './grammar/ax.tmLanguage');
-		assert.equal(manager.getFilePath('source.a'), './grammar/ax.tmLanguage');
-		assert.equal(manager.getFilePath('a'), null);
-		assert.equal(manager.getFilePath('source.b'), './grammar/b.tmLanguage');
-		assert.equal(manager.getFilePath('b'), null);
+		registry.register('a', 'source.a', './grammar/ax.tmLanguage');
+		assert.equal(registry.getFilePath('source.a'), './grammar/ax.tmLanguage');
+		assert.equal(registry.getFilePath('a'), null);
+		assert.equal(registry.getFilePath('source.b'), './grammar/b.tmLanguage');
+		assert.equal(registry.getFilePath('b'), null);
 	});
 
 	test('scopeToLanguage', () => {
-		let manager = new TMScopeRegistry();
+		let registry = new TMScopeRegistry();
 
-		assert.equal(manager.scopeToLanguage('source.html'), null);
+		assert.equal(registry.scopeToLanguage('source.html'), null);
 
-		manager.register('html', 'source.html', null);
-		manager.register('c', 'source.c', null);
-		manager.register('css', 'source.css', null);
-		manager.register('javascript', 'source.js', null);
-		manager.register('python', 'source.python', null);
-		manager.register('smarty', 'source.smarty', null);
-		manager.register(null, 'source.baz', null);
+		registry.register('html', 'source.html', null);
+		registry.register('c', 'source.c', null);
+		registry.register('css', 'source.css', null);
+		registry.register('javascript', 'source.js', null);
+		registry.register('python', 'source.python', null);
+		registry.register('smarty', 'source.smarty', null);
+		registry.register(null, 'source.baz', null);
 
 		// exact matches
-		assert.equal(manager.scopeToLanguage('source.html'), 'html');
-		assert.equal(manager.scopeToLanguage('source.css'), 'css');
-		assert.equal(manager.scopeToLanguage('source.c'), 'c');
-		assert.equal(manager.scopeToLanguage('source.js'), 'javascript');
-		assert.equal(manager.scopeToLanguage('source.python'), 'python');
-		assert.equal(manager.scopeToLanguage('source.smarty'), 'smarty');
+		assert.equal(registry.scopeToLanguage('source.html'), 'html');
+		assert.equal(registry.scopeToLanguage('source.css'), 'css');
+		assert.equal(registry.scopeToLanguage('source.c'), 'c');
+		assert.equal(registry.scopeToLanguage('source.js'), 'javascript');
+		assert.equal(registry.scopeToLanguage('source.python'), 'python');
+		assert.equal(registry.scopeToLanguage('source.smarty'), 'smarty');
 
 		// prefix matches
-		assert.equal(manager.scopeToLanguage('source.css.embedded.html'), 'css');
-		assert.equal(manager.scopeToLanguage('source.js.embedded.html'), 'javascript');
-		assert.equal(manager.scopeToLanguage('source.python.embedded.html'), 'python');
-		assert.equal(manager.scopeToLanguage('source.smarty.embedded.html'), 'smarty');
+		assert.equal(registry.scopeToLanguage('source.css.embedded.html'), 'css');
+		assert.equal(registry.scopeToLanguage('source.js.embedded.html'), 'javascript');
+		assert.equal(registry.scopeToLanguage('source.python.embedded.html'), 'python');
+		assert.equal(registry.scopeToLanguage('source.smarty.embedded.html'), 'smarty');
 
 		// misses
-		assert.equal(manager.scopeToLanguage('source.ts'), null);
-		assert.equal(manager.scopeToLanguage('source.csss'), null);
-		assert.equal(manager.scopeToLanguage('source.baz'), null);
-		assert.equal(manager.scopeToLanguage('asource.css'), null);
-		assert.equal(manager.scopeToLanguage('a.source.css'), null);
-		assert.equal(manager.scopeToLanguage('source_css'), null);
-		assert.equal(manager.scopeToLanguage('punctuation.definition.tag.html'), null);
+		assert.equal(registry.scopeToLanguage('source.ts'), null);
+		assert.equal(registry.scopeToLanguage('source.csss'), null);
+		assert.equal(registry.scopeToLanguage('source.baz'), null);
+		assert.equal(registry.scopeToLanguage('asource.css'), null);
+		assert.equal(registry.scopeToLanguage('a.source.css'), null);
+		assert.equal(registry.scopeToLanguage('source_css'), null);
+		assert.equal(registry.scopeToLanguage('punctuation.definition.tag.html'), null);
 	});
 
 });
 
 suite('TextMate.decodeTextMateTokens', () => {
 
-	test('html and embedded modes', () => {
+	test('embedded modes', () => {
+		let registry = new TMScopeRegistry();
+
+		registry.register('html', 'source.html', null);
+		registry.register('c', 'source.c', null);
+		registry.register('css', 'source.css', null);
+		registry.register('javascript', 'source.js', null);
+		registry.register('python', 'source.python', null);
+		registry.register('smarty', 'source.smarty', null);
+		registry.register(null, 'source.baz', null);
+
+		let decodeMap = new DecodeMap(registry);
+		let actual = decodeTextMateTokens(
+			'text<style>body{}</style><script>var x=3;</script>text',
+			0,
+			decodeMap,
+			[
+				{ startIndex: 0, endIndex: 4, scopes: ['source.html'] },
+				{ startIndex: 4, endIndex: 11, scopes: ['source.html', 'style.tag.open'] },
+				{ startIndex: 11, endIndex: 17, scopes: ['source.html', 'source.css'] },
+				{ startIndex: 17, endIndex: 25, scopes: ['source.html', 'style.tag.close'] },
+				{ startIndex: 25, endIndex: 33, scopes: ['source.html', 'script.tag.open'] },
+				{ startIndex: 33, endIndex: 41, scopes: ['source.html', 'source.js'] },
+				{ startIndex: 41, endIndex: 50, scopes: ['source.html', 'script.tag.close'] },
+				{ startIndex: 50, endIndex: 54, scopes: ['source.html'] },
+			],
+			new TMState('html', null, null)
+		);
+
+		let actualModeTransitions = actual.modeTransitions.map((t) => { return { startIndex: t.startIndex, modeId: t.modeId }; });
+
+		assert.deepEqual(actualModeTransitions, [
+			{ startIndex: 0, modeId: 'html' },
+			{ startIndex: 11, modeId: 'css' },
+			{ startIndex: 17, modeId: 'html' },
+			{ startIndex: 33, modeId: 'javascript' },
+			{ startIndex: 41, modeId: 'html' },
+		]);
+	});
+
+	test('html and embedded', () => {
 
 		var tests = [
 			{
@@ -233,7 +273,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 					{ startIndex: 22, type: 'html.punctuation.definition.end.string.quoted.double.source.css.embedded' },
 					{ startIndex: 23, type: 'tag.html.punctuation.definition.source.css.embedded' },
 				],
-				modeTransitions: [{ startIndex: 0, modeId: 'html' }]
+				modeTransitions: [{ startIndex: 0, modeId: 'css' }]
 			}, {
 				line: '\t\th1 {',
 				tmTokens: [
@@ -248,7 +288,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 					{ startIndex: 4, type: 'meta.html.source.css.embedded.selector' },
 					{ startIndex: 5, type: 'meta.html.punctuation.begin.source.css.embedded.property-list.section' },
 				],
-				modeTransitions: [{ startIndex: 0, modeId: 'html' }]
+				modeTransitions: [{ startIndex: 0, modeId: 'css' }]
 			}, {
 				line: '\t\t\tcolor: #CCA3A3;',
 				tmTokens: [
@@ -269,7 +309,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 					{ startIndex: 11, type: 'meta.html.other.source.css.embedded.property-list.property-value.constant.color.rgb-value' },
 					{ startIndex: 17, type: 'meta.html.punctuation.source.css.embedded.property-list.property-value.terminator.rule' },
 				],
-				modeTransitions: [{ startIndex: 0, modeId: 'html' }]
+				modeTransitions: [{ startIndex: 0, modeId: 'css' }]
 			}, {
 				line: '\t\t}',
 				tmTokens: [
@@ -280,7 +320,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 					{ startIndex: 0, type: 'meta.html.source.css.embedded.property-list' },
 					{ startIndex: 2, type: 'meta.html.punctuation.end.source.css.embedded.property-list.section' },
 				],
-				modeTransitions: [{ startIndex: 0, modeId: 'html' }]
+				modeTransitions: [{ startIndex: 0, modeId: 'css' }]
 			}, {
 				line: '\t</style>',
 				tmTokens: [
@@ -295,7 +335,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 					{ startIndex: 3, type: 'tag.html.entity.name.source.css.embedded.style' },
 					{ startIndex: 8, type: 'tag.html.punctuation.definition.source.css.embedded' },
 				],
-				modeTransitions: [{ startIndex: 0, modeId: 'html' }]
+				modeTransitions: [{ startIndex: 0, modeId: 'css' }]
 			}, {
 				line: '\t<script type=\"text/javascript\">',
 				tmTokens: [
@@ -322,7 +362,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 					{ startIndex: 30, type: 'html.punctuation.definition.end.string.quoted.double.source.embedded.js' },
 					{ startIndex: 31, type: 'tag.html.punctuation.definition.source.embedded.js' },
 				],
-				modeTransitions: [{ startIndex: 0, modeId: 'html' }]
+				modeTransitions: [{ startIndex: 0, modeId: 'javascript' }]
 			}, {
 				line: '\t\twindow.alert(\"I am a sample...\");',
 				tmTokens: [
@@ -349,22 +389,24 @@ suite('TextMate.decodeTextMateTokens', () => {
 					{ startIndex: 33, type: 'meta.html.source.embedded.js.brace.round' },
 					{ startIndex: 34, type: 'html.punctuation.source.embedded.terminator.js.statement' },
 				],
-				modeTransitions: [{ startIndex: 0, modeId: 'html' }]
+				modeTransitions: [{ startIndex: 0, modeId: 'javascript' }]
 			}, {
-				line: '\t</script>',
+				line: '\t</script>After',
 				tmTokens: [
 					{ startIndex: 0, endIndex: 1, scopes: ['text.html.basic', 'source.js.embedded.html'] },
 					{ startIndex: 1, endIndex: 3, scopes: ['text.html.basic', 'source.js.embedded.html', 'punctuation.definition.tag.html'] },
 					{ startIndex: 3, endIndex: 9, scopes: ['text.html.basic', 'source.js.embedded.html', 'entity.name.tag.script.html'] },
-					{ startIndex: 9, endIndex: 10, scopes: ['text.html.basic', 'source.js.embedded.html', 'punctuation.definition.tag.html'] }
+					{ startIndex: 9, endIndex: 10, scopes: ['text.html.basic', 'source.js.embedded.html', 'punctuation.definition.tag.html'] },
+					{ startIndex: 10, endIndex: 15, scopes: ['text.html.basic'] }
 				],
 				tokens: [
 					{ startIndex: 0, type: 'html.source.embedded.js' },
 					{ startIndex: 1, type: 'tag.html.punctuation.definition.source.embedded.js' },
 					{ startIndex: 3, type: 'tag.html.entity.name.source.embedded.js.script' },
 					{ startIndex: 9, type: 'tag.html.punctuation.definition.source.embedded.js' },
+					{ startIndex: 10, type: '' },
 				],
-				modeTransitions: [{ startIndex: 0, modeId: 'html' }]
+				modeTransitions: [{ startIndex: 0, modeId: 'javascript' }, { startIndex: 10, modeId: 'html' }]
 			}, {
 				line: '</head>',
 				tmTokens: [
@@ -486,15 +528,23 @@ suite('TextMate.decodeTextMateTokens', () => {
 			}
 		];
 
-		let decodeMap = new DecodeMap(new TMScopeRegistry());
+		let registry = new TMScopeRegistry();
 
-		let state = new TMState('html', null, null);
+		registry.register('html', 'source.html', null);
+		registry.register('c', 'source.c', null);
+		registry.register('css', 'source.css', null);
+		registry.register('javascript', 'source.js', null);
+		registry.register('python', 'source.python', null);
+		registry.register('smarty', 'source.smarty', null);
+		registry.register(null, 'source.baz', null);
+
+		let decodeMap = new DecodeMap(registry);
 
 		for (let i = 0, len = tests.length; i < len; i++) {
 			let test = tests[i];
-			let actual = decodeTextMateTokens(test.line, 0, decodeMap, test.tmTokens, state);
+			let actual = decodeTextMateTokens(test.line, 0, decodeMap, test.tmTokens, new TMState('html', null, null));
 
-			let actualTokens = actual.tokens.map((t) => { return { startIndex: t.startIndex, type: t.type}; });
+			let actualTokens = actual.tokens.map((t) => { return { startIndex: t.startIndex, type: t.type }; });
 			let actualModeTransitions = actual.modeTransitions.map((t) => { return { startIndex: t.startIndex, modeId: t.modeId }; });
 
 			assert.deepEqual(actualTokens, test.tokens, 'test ' + test.line);
@@ -526,7 +576,8 @@ suite('textMate', () => {
 	}
 
 	function testOneDecodeTextMateToken(decodeMap: DecodeMap, scopes: string[], expected: string): void {
-		let actual = decodeTextMateToken(decodeMap, scopes);
+		let actualDecodedToken = decodeTextMateToken(decodeMap, scopes);
+		let actual = actualDecodedToken ? decodeMap.getToken(actualDecodedToken.tokensMask) : '';
 		assert.equal(actual, expected);
 
 		// Sanity-check
