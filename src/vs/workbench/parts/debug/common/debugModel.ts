@@ -354,7 +354,7 @@ export class StackFrame implements debug.IStackFrame {
 		return this.thread.process.session.restartFrame({ frameId: this.frameId });
 	}
 
-	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
+	public completions(text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
 		if (!this.thread.process.session.configuration.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);
 		}
@@ -365,10 +365,11 @@ export class StackFrame implements debug.IStackFrame {
 			column: position.column,
 			line: position.lineNumber
 		}).then(response => {
-			return response && response.body && response.body.targets ? response.body.targets.map(item => ({
+			return response && response.body && response.body.targets ? response.body.targets.map(item => (<ISuggestion>{
 				label: item.label,
 				insertText: item.text || item.label,
-				type: item.type
+				type: item.type,
+				overwriteBefore: item.length || overwriteBefore
 			})) : [];
 		}, err => []);
 	}

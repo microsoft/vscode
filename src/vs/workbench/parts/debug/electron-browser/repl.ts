@@ -172,12 +172,12 @@ export class Repl extends Panel implements IPrivateReplService {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
+				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
 				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				const completions = focusedStackFrame ? focusedStackFrame.completions(text, position) : TPromise.as([]);
+				const completions = focusedStackFrame ? focusedStackFrame.completions(text, position, overwriteBefore) : TPromise.as([]);
 				return wireCancellationToken(token, completions.then(suggestions => ({
-					currentWord: word ? word.word : '',
-					suggestions
+					suggestions: suggestions
 				})));
 			}
 		},
