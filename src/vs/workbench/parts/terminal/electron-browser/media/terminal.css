@@ -30,6 +30,11 @@
 	display: block;
 	position: absolute;
 	bottom: 0;
+	top: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .terminal-wrapper > div {
+	height: 100%;
 }
 
 /* Terminal actions */

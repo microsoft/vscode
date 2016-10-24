@@ -24,7 +24,7 @@ declare module monaco {
      */
     export class Emitter<T> {
         constructor();
-        event: Event<T>;
+        readonly event: Event<T>;
         fire(event?: T): void;
         dispose(): void;
     }
@@ -43,8 +43,7 @@ declare module monaco {
 #include(vs/base/common/htmlContent): MarkedString
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent
 #include(vs/base/browser/mouseEvent): IMouseEvent
-#include(vs/editor/common/editorCommon): IScrollEvent
-#include(vs/editor/common/editorCommon): IPosition, IRange, ISelection
+#include(vs/editor/common/editorCommon): IScrollEvent, IPosition, IRange, ISelection
 #include(vs/editor/common/core/position): Position
 #include(vs/editor/common/core/range): Range
 #include(vs/editor/common/core/selection): Selection, SelectionDirection
@@ -63,7 +62,6 @@ export interface ICommandHandler {
 #include(vs/platform/markers/common/markers): IMarkerData
 #include(vs/editor/browser/standalone/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/common/scrollable): ScrollbarVisibility
-#include(vs/base/common/actions): IAction
 #includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode): IPosition, IRange, ISelection, SelectionDirection, IScrollEvent
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):
 }

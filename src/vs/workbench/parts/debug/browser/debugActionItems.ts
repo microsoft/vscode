@@ -8,8 +8,8 @@ import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 
 export class DebugSelectActionItem extends SelectActionItem {
 
@@ -23,11 +23,11 @@ export class DebugSelectActionItem extends SelectActionItem {
 		this.toDispose.push(configurationService.onDidUpdateConfiguration(e => {
 			this.updateOptions(true).done(null, errors.onUnexpectedError);
 		}));
-		this.toDispose.push(this.debugService.getConfigurationManager().onDidConfigurationChange(name => {
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectConfigurationName(name => {
 			this.updateOptions(false).done(null, errors.onUnexpectedError);
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(state => {
-			this.enabled = state === State.Inactive;
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
+			this.enabled = this.debugService.state === State.Inactive;
 		}));
 	}
 
@@ -46,10 +46,9 @@ export class DebugSelectActionItem extends SelectActionItem {
 			}
 
 			const configurationNames = config.configurations.filter(cfg => !!cfg.name).map(cfg => cfg.name);
-			const configurationName = configurationManager.configuration ? configurationManager.configuration.name : null;
-			let selected = configurationNames.indexOf(configurationName);
-
+			const selected = configurationNames.indexOf(this.debugService.getViewModel().selectedConfigurationName);
 			this.setOptions(configurationNames, selected);
+
 			if (changeDebugConfiguration) {
 				return this.actionRunner.run(this._action, this.getSelected());
 			}

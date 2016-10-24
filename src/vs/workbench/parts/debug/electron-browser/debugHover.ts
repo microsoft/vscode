@@ -55,7 +55,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
 		this.tree = new Tree(this.treeContainer, {
-			dataSource: new viewer.VariablesDataSource(this.debugService),
+			dataSource: new viewer.VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: new DebugHoverController(editor)
 		}, debugTreeOptions);
@@ -148,19 +148,19 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 	public showAt(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
-		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
+		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== this.editor.getModel().uri.toString())) {
 			return;
 		}
 
-		const session = this.debugService.activeSession;
+		const process = this.debugService.getViewModel().focusedProcess;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
 		const expressionRange = this.getExactExpressionRange(lineContent, range);
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 
-		const evaluatedExpression = session.configuration.capabilities.supportsEvaluateForHovers ?
-			evaluateExpression(session, focusedStackFrame, new Expression(matchingExpression, true), 'hover') :
+		const evaluatedExpression = process.session.configuration.capabilities.supportsEvaluateForHovers ?
+			evaluateExpression(focusedStackFrame, new Expression(matchingExpression, true), 'hover') :
 			this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
 
 		return evaluatedExpression.then(expression => {
@@ -198,7 +198,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	}
 
 	private findExpressionInStackFrame(namesToFind: string[]): TPromise<debug.IExpression> {
-		return this.debugService.getViewModel().getFocusedStackFrame().getScopes(this.debugService)
+		return this.debugService.getViewModel().focusedStackFrame.getScopes()
 			// no expensive scopes
 			.then(scopes => scopes.filter(scope => !scope.expensive))
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))

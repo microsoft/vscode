@@ -86,7 +86,7 @@
 			],
 			"explorer/context": [
 				{
-					"when": "editorLangId == markdown",
+					"when": "resourceLangId == markdown",
 					"command": "markdown.showPreview",
 					"group": "navigation"
 				}

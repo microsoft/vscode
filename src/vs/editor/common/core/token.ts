@@ -9,8 +9,8 @@ import { Arrays } from 'vs/editor/common/core/arrays';
 export class Token {
 	_tokenBrand: void;
 
-	public startIndex: number;
-	public type: string;
+	public readonly startIndex: number;
+	public readonly type: string;
 
 	constructor(startIndex: number, type: string) {
 		this.startIndex = startIndex | 0;// @perf

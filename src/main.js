@@ -111,6 +111,10 @@ function getNLSConfiguration() {
 	return resolvedLocale ? resolvedLocale : { locale: initialLocale, availableLanguages: {} };
 }
 
+// Set userData path before app 'ready' event and call to process.chdir
+var userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
+app.setPath('userData', userData);
+
 // Update cwd based on environment and platform
 try {
 	if (process.platform === 'win32') {
@@ -122,10 +126,6 @@ try {
 } catch (err) {
 	console.error(err);
 }
-
-// Set userData path before app 'ready' event
-var userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
-app.setPath('userData', userData);
 
 // Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
 // the app-ready event. We listen very early for open-file and remember this upon startup as path to open.

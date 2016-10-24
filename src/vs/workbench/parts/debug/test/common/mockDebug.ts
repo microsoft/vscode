@@ -12,18 +12,13 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export class MockDebugService implements debug.IDebugService {
-	private session: MockRawSession;
 	public _serviceBrand: any;
-
-	constructor() {
-		this.session = new MockRawSession();
-	}
 
 	public get state(): debug.State {
 		return null;
 	}
 
-	public get onDidChangeState(): Event<debug.State> {
+	public get onDidChangeState(): Event<void> {
 		return null;
 	}
 
@@ -81,16 +76,12 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public createSession(noDebug: boolean): TPromise<any> {
+	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
 		return TPromise.as(null);
 	}
 
-	public restartSession(): TPromise<any> {
+	public restartProcess(): TPromise<any> {
 		return TPromise.as(null);
-	}
-
-	public get activeSession(): debug.IRawDebugSession {
-		return this.session;
 	}
 
 	public getModel(): debug.IModel {
@@ -142,8 +133,45 @@ export class MockDebugService implements debug.IDebugService {
 	}
 }
 
+export class MockSession implements debug.ISession {
+	public readyForBreakpoints = true;
+	public emittedStopped = true;
 
-class MockRawSession implements debug.IRawDebugSession {
+	public getId() {
+		return 'mockrawsession';
+	}
+
+	public get requestType() {
+		return debug.SessionRequestType.LAUNCH;
+	}
+
+	public getLengthInSeconds(): number {
+		return 100;
+	}
+
+	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
+		return TPromise.as({
+			body: {
+				stackFrames: []
+			}
+		});
+	}
+
+	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
+		return TPromise.as(null);
+	}
+
+	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
+		return TPromise.as(null);
+	}
+
+	public variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse> {
+		return TPromise.as(null);
+	}
+
+	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
+		return TPromise.as(null);
+	}
 
 	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
 		return {
@@ -164,23 +192,61 @@ class MockRawSession implements debug.IRawDebugSession {
 		return TPromise.as(null);
 	}
 
-	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
-		return TPromise.as({
-			body: {
-				stackFrames: []
-			}
-		});
-	}
-
-	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
+	public threads(): TPromise<DebugProtocol.ThreadsResponse> {
 		return TPromise.as(null);
 	}
 
-	public variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse> {
+	public stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse> {
 		return TPromise.as(null);
 	}
 
-	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
+	public stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse> {
 		return TPromise.as(null);
 	}
+
+	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
+		return TPromise.as(null);
+	}
+
+	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
+		return TPromise.as(null);
+	}
+
+	public pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse> {
+		return TPromise.as(null);
+	}
+
+	public setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse> {
+		return TPromise.as(null);
+	}
+
+	public restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse> {
+		return TPromise.as(null);
+	}
+
+	public completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse> {
+		return TPromise.as(null);
+	}
+
+	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
+		return TPromise.as(null);
+	}
+
+	public source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse> {
+		return TPromise.as(null);
+	}
+
+	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse> {
+		return TPromise.as(null);
+	}
+
+	public setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): TPromise<DebugProtocol.SetFunctionBreakpointsResponse> {
+		return TPromise.as(null);
+	}
+
+	public setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse> {
+		return TPromise.as(null);
+	}
+
+	public onDidStop: Event<DebugProtocol.StoppedEvent> = null;
 }

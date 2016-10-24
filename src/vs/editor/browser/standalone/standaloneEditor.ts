@@ -110,9 +110,9 @@ export interface IDiffNavigator {
 }
 
 export interface IDiffNavigatorOptions {
-	followsCaret?: boolean;
-	ignoreCharChanges?: boolean;
-	alwaysRevealFirst?: boolean;
+	readonly followsCaret?: boolean;
+	readonly ignoreCharChanges?: boolean;
+	readonly alwaysRevealFirst?: boolean;
 }
 
 export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator {
@@ -155,7 +155,9 @@ export function setModelLanguage(model: IModel, language: string): void {
  * Set the markers for a model.
  */
 export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void {
-	StaticServices.markerService.get().changeOne(owner, model.uri, markers);
+	if (model) {
+		StaticServices.markerService.get().changeOne(owner, model.uri, markers);
+	}
 }
 
 /**
@@ -174,6 +176,7 @@ export function getModels(): IModel[] {
 
 /**
  * Emitted when a model is created.
+ * @event
  */
 export function onDidCreateModel(listener: (model: IModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelAdded(listener);
@@ -181,6 +184,7 @@ export function onDidCreateModel(listener: (model: IModel) => void): IDisposable
 
 /**
  * Emitted right before a model is disposed.
+ * @event
  */
 export function onWillDisposeModel(listener: (model: IModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelRemoved(listener);
@@ -188,8 +192,9 @@ export function onWillDisposeModel(listener: (model: IModel) => void): IDisposab
 
 /**
  * Emitted when a different language is set to a model.
+ * @event
  */
-export function onDidChangeModelLanguage(listener: (e: { model: IModel; oldLanguage: string; }) => void): IDisposable {
+export function onDidChangeModelLanguage(listener: (e: { readonly model: IModel; readonly oldLanguage: string; }) => void): IDisposable {
 	return StaticServices.modelService.get().onModelModeChanged((e) => {
 		listener({
 			model: e.model,
@@ -287,6 +292,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		EditorLayoutInfo: <any>editorCommon.EditorLayoutInfo,
 		BareFontInfo: <any>editorCommon.BareFontInfo,
 		FontInfo: <any>editorCommon.FontInfo,
+		TextModelResolvedOptions: <any>editorCommon.TextModelResolvedOptions,
 
 		// vars
 		EditorType: editorCommon.EditorType,

@@ -111,8 +111,8 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		super.dispose();
 	}
 
-	protected _resetValue(e: editorCommon.IModelContentChangedFlushEvent, newValue: editorCommon.IRawText): void {
-		super._resetValue(e, newValue);
+	protected _resetValue(newValue: editorCommon.IRawText): void {
+		super._resetValue(newValue);
 
 		// Destroy all my decorations
 		this.decorations = {};
@@ -120,6 +120,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public changeDecorations(callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => any, ownerId: number = 0): any {
+		this._assertNotDisposed();
 		return this._withDeferredEvents((deferredEventsBuilder: DeferredEventsBuilder) => {
 			var changeAccessor: editorCommon.IModelDecorationsChangeAccessor = {
 				addDecoration: (range: editorCommon.IRange, options: editorCommon.IModelDecorationOptions): string => {
@@ -154,6 +155,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public deltaDecorations(oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[], ownerId: number = 0): string[] {
+		this._assertNotDisposed();
 		if (!oldDecorations) {
 			oldDecorations = [];
 		}
@@ -354,14 +356,15 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 
 			decorationIds.push(decorationId);
 			decorationData = this._getDecorationData(decorationId);
-			decorationData.isForValidation = (decorationData.options.className === editorCommon.ClassName.EditorErrorDecoration || decorationData.options.className === editorCommon.ClassName.EditorWarningDecoration);
 			addedOrChangedDecorations.push(decorationData);
 			if (b.oldDecorationRange.hasOwnProperty(decorationId)) {
 				oldRange = b.oldDecorationRange[decorationId];
-				oldRange.startLineNumber = oldRange.startLineNumber || decorationData.range.startLineNumber;
-				oldRange.startColumn = oldRange.startColumn || decorationData.range.startColumn;
-				oldRange.endLineNumber = oldRange.endLineNumber || decorationData.range.endLineNumber;
-				oldRange.endColumn = oldRange.endColumn || decorationData.range.endColumn;
+				b.oldDecorationRange[decorationId] = {
+					startLineNumber: oldRange.startLineNumber || decorationData.range.startLineNumber,
+					startColumn: oldRange.startColumn || decorationData.range.startColumn,
+					endLineNumber: oldRange.endLineNumber || decorationData.range.endLineNumber,
+					endColumn: oldRange.endColumn || decorationData.range.endColumn
+				};
 			}
 		}
 
@@ -390,7 +393,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 			id: decoration.id,
 			ownerId: decoration.ownerId,
 			range: this.getTrackedRange(decoration.rangeId),
-			isForValidation: false,
+			isForValidation: (decoration.options.className === editorCommon.ClassName.EditorErrorDecoration || decoration.options.className === editorCommon.ClassName.EditorWarningDecoration),
 			options: decoration.options
 		};
 	}

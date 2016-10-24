@@ -8,7 +8,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionsConfiguration, ConfigurationKey } from './extensions';
+import { IExtensionsConfiguration, ConfigurationKey } from '../common/extensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -26,7 +26,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	private _recommendations: { [id: string]: boolean; } = Object.create(null);
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
-	private importantRecommendations: { [pattern: string]: string[] };
+	private importantRecommendations: { [id: string]: { name: string; pattern: string; } };
 	private importantRecommendationsIgnoreList: string[];
 	private _disposables: IDisposable[] = [];
 
@@ -127,13 +127,13 @@ export class ExtensionTipsService implements IExtensionTipsService {
 					.filter(id => this.importantRecommendationsIgnoreList.indexOf(id) === -1)
 					.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id))
 					.forEach(id => {
-						const pattern = this.importantRecommendations[id];
+						const { pattern, name } = this.importantRecommendations[id];
 
 						if (!match(pattern, uri.fsPath)) {
 							return;
 						}
 
-						const message = localize('reallyRecommended', "It is recommended to install the '{0}' extension.", id);
+						const message = localize('reallyRecommended', "It is recommended to install the '{0}' extension.", name);
 						const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 						const options = [
 							recommendationsAction.label,

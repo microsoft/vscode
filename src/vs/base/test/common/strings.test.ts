@@ -159,4 +159,38 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lastNonWhitespaceIndex('abc  \t \t abc \t \t ', 8), 2);
 		assert.strictEqual(strings.lastNonWhitespaceIndex('  \t \t '), -1);
 	});
+
+	test('containsRTL', () => {
+		assert.equal(strings.containsRTL('a'), false);
+		assert.equal(strings.containsRTL(''), false);
+		assert.equal(strings.containsRTL(strings.UTF8_BOM_CHARACTER + 'a'), false);
+		assert.equal(strings.containsRTL('hello world!'), false);
+		assert.equal(strings.containsRTL('a📚📚b'), false);
+		assert.equal(strings.containsRTL('هناك حقيقة مثبتة منذ زمن طويل'), true);
+		assert.equal(strings.containsRTL('זוהי עובדה מבוססת שדעתו'), true);
+	});
+
+	// test('containsRTL speed', () => {
+	// 	var SIZE = 1000000;
+	// 	var REPEAT = 10;
+	// 	function generateASCIIStr(len:number): string {
+	// 		let r = '';
+	// 		for (var i = 0; i < len; i++) {
+	// 			var res = Math.floor(Math.random() * 256);
+	// 			r += String.fromCharCode(res);
+	// 		}
+	// 		return r;
+	// 	}
+	// 	function testContainsRTLSpeed(): number {
+	// 		var str = generateASCIIStr(SIZE);
+	// 		var start = Date.now();
+	// 		assert.equal(strings.containsRTL(str), false);
+	// 		return (Date.now() - start);
+	// 	}
+	// 	var allTime = 0;
+	// 	for (var i = 0; i < REPEAT; i++) {
+	// 		allTime += testContainsRTLSpeed();
+	// 	}
+	// 	console.log('TOOK: ' + (allTime)/10 + 'ms for size of ' + SIZE/1000000 + 'Mb');
+	// });
 });

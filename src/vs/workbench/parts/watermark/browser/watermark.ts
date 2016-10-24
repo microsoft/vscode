@@ -34,7 +34,7 @@ const entries = [
 		ids: ['editor.action.insertCursorAbove', 'editor.action.insertCursorBelow']
 	},
 	{
-		text: nls.localize('watermark.toggleTerminal', "Toggle Terminal"),
+		text: nls.localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"),
 		ids: ['workbench.action.terminal.toggleTerminal']
 	},
 ];
@@ -65,6 +65,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 	private create(): void {
 		const container = this.partService.getContainer(Parts.EDITOR_PART);
+		$(container).addClass('has-watermark');
 		const watermark = $()
 			.div({ 'class': 'watermark' });
 		const box = $(watermark)

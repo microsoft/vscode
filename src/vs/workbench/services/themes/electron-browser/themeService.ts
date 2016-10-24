@@ -534,7 +534,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 	}
 	collectSelectors(iconThemeDocument);
 	collectSelectors(iconThemeDocument.light, '.vs');
-	collectSelectors(iconThemeDocument.highContrast, '.hc_black');
+	collectSelectors(iconThemeDocument.highContrast, '.hc-black');
 
 	let cssRules: string[] = [];
 
