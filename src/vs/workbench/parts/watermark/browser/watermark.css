@@ -52,7 +52,7 @@
 	.monaco-workbench > .part.editor.empty > .watermark {
 		opacity: 0;
 	}
-	.monaco-workbench .part.editor.empty {
+	.monaco-workbench .part.editor.empty.has-watermark {
 		background-position-y: 50%;
 	}
 }
