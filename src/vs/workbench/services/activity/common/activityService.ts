@@ -72,9 +72,14 @@ export interface IActivityService {
 	clearActivity(compositeId: string): void;
 
 	/**
-	 * Get all registered external viewlets and whether they are enabled/disabled.
+	 * Get registered external viewlets' info for populating 'Toggle Custom Explorer' command picks.
 	 */
-	getIsEnabledForRegisteredViewlets(): { [viewletId: string]: boolean };
+	getInfoForRegisteredViewlets(): {
+		[viewletId: string]: {
+			isEnabled: boolean;
+			treeLabel: string;
+		}
+	};
 
 	/**
 	 * Enable/disable an external viewlet.

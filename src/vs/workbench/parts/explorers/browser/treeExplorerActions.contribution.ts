@@ -29,13 +29,14 @@ export class ToggleExternalViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const isEnabledForRegisteredViewlets = this.activityService.getIsEnabledForRegisteredViewlets();
+		const infoForRegisteredViewlets = this.activityService.getInfoForRegisteredViewlets();
 
 		const picks: IPickOpenEntry[] = [];
-		for (let viewletId in isEnabledForRegisteredViewlets) {
+		for (let viewletId in infoForRegisteredViewlets) {
+			const { isEnabled, treeLabel } = infoForRegisteredViewlets[viewletId];
 			picks.push({
 				id: viewletId,
-				label: (isEnabledForRegisteredViewlets[viewletId] ? 'Disable ' : 'Enable ') + this.getShortViewletId(viewletId)
+				label: (isEnabled ? 'Disable ' : 'Enable ') + treeLabel
 			});
 		}
 
@@ -46,10 +47,6 @@ export class ToggleExternalViewletAction extends Action {
 				}
 			});
 		});
-	}
-
-	private getShortViewletId(viewletId: string): string {
-		return viewletId.split('.').pop();
 	}
 }
 
