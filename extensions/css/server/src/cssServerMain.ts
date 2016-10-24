@@ -11,6 +11,8 @@ import {
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
+import Uri from 'vscode-uri';
+import { isEmbeddedContentUri, getHostDocumentUri } from './embeddedContentUri';
 
 namespace ColorSymbolRequest {
 	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
@@ -125,7 +127,9 @@ function validateTextDocument(textDocument: TextDocument): void {
 	let stylesheet = stylesheets.get(textDocument);
 	let diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet);
 	// Send the computed diagnostics to VSCode.
-	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+	let uri = Uri.parse(textDocument.uri);
+	let diagnosticsTarget = isEmbeddedContentUri(uri) ? getHostDocumentUri(uri) : textDocument.uri;
+	connection.sendDiagnostics({ uri: diagnosticsTarget, diagnostics });
 }
 
 connection.onCompletion(textDocumentPosition => {
