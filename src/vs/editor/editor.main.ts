@@ -18,6 +18,7 @@ import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 // Set defaults for standalone editor
 DefaultConfig.editor.wrappingIndent = 'none';
 DefaultConfig.editor.folding = false;
+DefaultConfig.editor.glyphMargin = false;
 
 var global: any = self;
 global.monaco = createMonacoBaseAPI();
