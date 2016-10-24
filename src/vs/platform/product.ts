@@ -39,6 +39,10 @@ export interface IProductConfiguration {
 	};
 	documentationUrl: string;
 	releaseNotesUrl: string;
+	keyboardShortcutsUrlMac: string;
+	keyboardShortcutsUrlLinux: string;
+	keyboardShortcutsUrlWin: string;
+	introductoryVideosUrl: string;
 	twitterUrl: string;
 	requestFeatureUrl: string;
 	reportIssueUrl: string;
