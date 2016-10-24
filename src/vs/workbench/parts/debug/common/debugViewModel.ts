@@ -8,19 +8,20 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 
 export class ViewModel implements debug.IViewModel {
 
-	private focusedStackFrame: debug.IStackFrame;
-	private focusedThread: debug.IThread;
+	private _focusedStackFrame: debug.IStackFrame;
 	private selectedExpression: debug.IExpression;
 	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
 	private _onDidFocusStackFrame: Emitter<debug.IStackFrame>;
 	private _onDidSelectExpression: Emitter<debug.IExpression>;
 	private _onDidSelectFunctionBreakpoint: Emitter<debug.IFunctionBreakpoint>;
+	private _onDidSelectConfigurationName: Emitter<string>;
 	public changedWorkbenchViewState: boolean;
 
-	constructor() {
+	constructor(private _selectedConfigurationName: string) {
 		this._onDidFocusStackFrame = new Emitter<debug.IStackFrame>();
 		this._onDidSelectExpression = new Emitter<debug.IExpression>();
 		this._onDidSelectFunctionBreakpoint = new Emitter<debug.IFunctionBreakpoint>();
+		this._onDidSelectConfigurationName = new Emitter<string>();
 		this.changedWorkbenchViewState = false;
 	}
 
@@ -28,22 +29,25 @@ export class ViewModel implements debug.IViewModel {
 		return 'root';
 	}
 
-	public getFocusedStackFrame(): debug.IStackFrame {
-		return this.focusedStackFrame;
+	public get focusedProcess(): debug.IProcess {
+		return this._focusedStackFrame ? this._focusedStackFrame.thread.process : null;
 	}
 
-	public setFocusedStackFrame(focusedStackFrame: debug.IStackFrame, focusedThread: debug.IThread): void {
-		this.focusedStackFrame = focusedStackFrame;
-		this.focusedThread = focusedThread;
+	public get focusedThread(): debug.IThread {
+		return this._focusedStackFrame ? this._focusedStackFrame.thread : null;
+	}
+
+	public get focusedStackFrame(): debug.IStackFrame {
+		return this._focusedStackFrame;
+	}
+
+	public setFocusedStackFrame(focusedStackFrame: debug.IStackFrame): void {
+		this._focusedStackFrame = focusedStackFrame;
 		this._onDidFocusStackFrame.fire(focusedStackFrame);
 	}
 
 	public get onDidFocusStackFrame(): Event<debug.IStackFrame> {
 		return this._onDidFocusStackFrame.event;
-	}
-
-	public getFocusedThreadId(): number {
-		return this.focusedThread ? this.focusedThread.threadId : 0;
 	}
 
 	public getSelectedExpression(): debug.IExpression {
@@ -70,5 +74,18 @@ export class ViewModel implements debug.IViewModel {
 
 	public get onDidSelectFunctionBreakpoint(): Event<debug.IFunctionBreakpoint> {
 		return this._onDidSelectFunctionBreakpoint.event;
+	}
+
+	public get selectedConfigurationName(): string {
+		return this._selectedConfigurationName;
+	}
+
+	public setSelectedConfigurationName(configurationName: string): void {
+		this._selectedConfigurationName = configurationName;
+		this._onDidSelectConfigurationName.fire(configurationName);
+	}
+
+	public get onDidSelectConfigurationName(): Event<string> {
+		return this._onDidSelectConfigurationName.event;
 	}
 }
