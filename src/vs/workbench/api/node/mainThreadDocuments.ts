@@ -137,23 +137,18 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	}
 
 	private _onModelEvents(modelUrl: URI, events: EmitterEvent[]): void {
-		// delay event-forwarding to the next tick and hope
-		// that isDirty-returns up-to-date information then.
-		// https://github.com/Microsoft/vscode/issues/11339
-		setImmediate(() => {
-			let changedEvents: editorCommon.IModelContentChangedEvent2[] = [];
-			for (let i = 0, len = events.length; i < len; i++) {
-				let e = events[i];
-				switch (e.getType()) {
-					case editorCommon.EventType.ModelContentChanged2:
-						changedEvents.push(<editorCommon.IModelContentChangedEvent2>e.getData());
-						break;
-				}
+		let changedEvents: editorCommon.IModelContentChangedEvent2[] = [];
+		for (let i = 0, len = events.length; i < len; i++) {
+			let e = events[i];
+			switch (e.getType()) {
+				case editorCommon.EventType.ModelContentChanged2:
+					changedEvents.push(<editorCommon.IModelContentChangedEvent2>e.getData());
+					break;
 			}
-			if (changedEvents.length > 0) {
-				this._proxy.$acceptModelChanged(modelUrl.toString(), changedEvents, this._textFileService.isDirty(modelUrl));
-			}
-		});
+		}
+		if (changedEvents.length > 0) {
+			this._proxy.$acceptModelChanged(modelUrl.toString(), changedEvents, this._textFileService.isDirty(modelUrl));
+		}
 	}
 
 	// --- from extension host process
