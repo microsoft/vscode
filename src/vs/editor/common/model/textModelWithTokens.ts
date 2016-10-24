@@ -500,16 +500,21 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	// Having tokens allows implementing additional helper methods
 
-	_lineIsTokenized(lineNumber: number): boolean {
-		return this._invalidLineStartIndex > lineNumber - 1;
-	}
-
 	protected _getWordDefinition(): RegExp {
 		return WordHelper.massageWordDefinitionOf(this.getModeId());
 	}
 
-	public getWordAtPosition(position: editorCommon.IPosition): editorCommon.IWordAtPosition {
-		return WordHelper.getWordAtPosition(this, this.validatePosition(position));
+	public getWordAtPosition(_position: editorCommon.IPosition): editorCommon.IWordAtPosition {
+		let position = this.validatePosition(_position);
+		let lineContent = this.getLineContent(position.lineNumber);
+
+		if (this._invalidLineStartIndex <= position.lineNumber) {
+			// this line is not tokenized
+			return WordHelper.getWordAtPosition(lineContent, position.column, this.getModeId(), null);
+		}
+
+		let modeTransitions = this._getLineModeTransitions(position.lineNumber);
+		return WordHelper.getWordAtPosition(lineContent, position.column, this.getModeId(), modeTransitions);
 	}
 
 	public getWordUntilPosition(position: editorCommon.IPosition): editorCommon.IWordAtPosition {

@@ -17,7 +17,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { IndentRange } from 'vs/editor/common/model/indentRanges';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -1869,11 +1868,6 @@ export interface ITokenizedModel extends ITextModel {
 	 * @internal
 	 */
 	getLineContext(lineNumber: number): ILineContext;
-
-	/**
-	 * @internal
-	 */
-	_getLineModeTransitions(lineNumber: number): ModeTransition[];
 
 	/**
 	 * Get the current language mode associated with the model.
