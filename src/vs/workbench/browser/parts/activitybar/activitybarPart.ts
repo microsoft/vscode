@@ -97,10 +97,18 @@ export class ActivitybarPart extends Part implements IActivityService {
 		}
 	}
 
-	public getIsEnabledForRegisteredViewlets(): { [viewletId: string]: boolean } {
+	public getInfoForRegisteredViewlets(): {
+		[viewletId: string]: {
+			isEnabled: boolean;
+			treeLabel: string;
+		}
+	} {
 		const result = {};
 		for (let viewletId in this.registeredViewlets) {
-			result[viewletId] = (this.enabledExternalViewlets.indexOf(viewletId) !== -1);
+			result[viewletId] = {
+				isEnabled: (this.enabledExternalViewlets.indexOf(viewletId) !== -1),
+				treeLabel: this.registeredViewlets[viewletId].name
+			};
 		}
 		return result;
 	}
