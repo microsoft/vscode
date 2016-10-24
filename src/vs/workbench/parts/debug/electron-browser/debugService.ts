@@ -7,6 +7,7 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import { guessMimeTypes } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
+import * as strings from 'vs/base/common/strings';
 import uuid = require('vs/base/common/uuid');
 import uri from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -546,7 +547,7 @@ export class DebugService implements debug.IDebugService {
 							if (configuration.silentlyAbort) {
 								return;
 							}
-							if (configuration.configurationNames) {
+							if (strings.equalsIgnoreCase(configuration.type, 'composite') && configuration.configurationNames) {
 								return TPromise.join(configuration.configurationNames.map(name => this.createProcess(name)));
 							}
 

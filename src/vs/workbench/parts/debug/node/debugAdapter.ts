@@ -130,7 +130,7 @@ export class Adapter {
 				}
 				const properties = attributes.properties;
 				properties.type = {
-					enum: [this.type],
+					enum: [this.type, 'composite'],
 					description: nls.localize('debugType', "Type of configuration.")
 				};
 				properties.name = {
@@ -141,6 +141,11 @@ export class Adapter {
 				properties.request = {
 					enum: [request],
 					description: nls.localize('debugRequest', "Request type of configuration. Can be \"launch\" or \"attach\"."),
+				};
+				properties.configurationNames = {
+					type: 'array',
+					default: [],
+					description: nls.localize('debugConfigurationNames', "Configurations that will be launched as part of this \"composite\" configuration. Only respected if type of this configuration is \"composite\".")
 				};
 				properties.preLaunchTask = {
 					type: ['string', 'null'],
