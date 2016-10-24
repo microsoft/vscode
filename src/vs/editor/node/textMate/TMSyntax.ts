@@ -7,6 +7,7 @@
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
+import * as strings from 'vs/base/common/strings';
 import { IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ILineTokens, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { TMState } from 'vs/editor/common/modes/TMState';
@@ -55,6 +56,60 @@ let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtens
 		require: ['scopeName', 'path']
 	}
 });
+
+export class TMScopeRegistry {
+
+	private _scopeNameToFilePath: { [scopeName: string]: string; };
+	private _scopeNameToLanguage: { [scopeName: string]: string; };
+	private _cachedScopeRegex: RegExp;
+
+	constructor() {
+		this._scopeNameToFilePath = Object.create(null);
+		this._scopeNameToLanguage = Object.create(null);
+		this._cachedScopeRegex = null;
+	}
+
+	public register(language: string, scopeName: string, filePath: string): void {
+		this._scopeNameToFilePath[scopeName] = filePath;
+		this._scopeNameToLanguage[scopeName] = language;
+		this._cachedScopeRegex = null;
+	}
+
+	public getFilePath(scopeName: string): string {
+		return this._scopeNameToFilePath[scopeName] || null;
+	}
+
+	private _getScopeRegex(): RegExp {
+		if (!this._cachedScopeRegex) {
+			let escapedScopes = Object.keys(this._scopeNameToLanguage).map((scopeName) => strings.escapeRegExpCharacters(scopeName));
+			if (escapedScopes.length === 0) {
+				// no scopes registered
+				return null;
+			}
+			this._cachedScopeRegex = new RegExp(`^((${escapedScopes.join(')|(')}))`, '');
+		}
+		return this._cachedScopeRegex;
+	}
+
+	/**
+	 * Given a produced TM scope, return the language that token describes or null if unknown.
+	 * e.g. source.html => html, source.css.embedded.html => css, punctuation.definition.tag.html => null
+	 */
+	public scopeToLanguage(scope: string): string {
+		let regex = this._getScopeRegex();
+		if (!regex) {
+			// no scopes registered
+			return null;
+		}
+		let m = scope.match(regex);
+		if (!m) {
+			// no scopes matched
+			return null;
+		}
+
+		return this._scopeNameToLanguage[m[1]] || null;
+	}
+}
 
 export class MainProcessTextMateSyntax {
 	private _grammarRegistry: Registry;
