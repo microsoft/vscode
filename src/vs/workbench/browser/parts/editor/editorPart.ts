@@ -55,6 +55,7 @@ class ProgressMonitor {
 
 interface IEditorPartUIState {
 	ratio: number[];
+	groupOrientation: GroupOrientation;
 }
 
 interface IEditorReplacement extends EditorIdentifier {
@@ -821,13 +822,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			.div()
 			.addClass('content');
 
-		// Side by Side Control
-		this.sideBySideControl = this.instantiationService.createInstance(SideBySideEditorControl, contentArea);
-
-		this.toUnbind.push(this.sideBySideControl.onGroupFocusChanged(() => this.onGroupFocusChanged()));
-
 		// get settings
 		this.memento = this.getMemento(this.storageService, MementoScope.WORKSPACE);
+
+		// Side by Side Control
+		const editorPartState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+		this.sideBySideControl = this.instantiationService.createInstance(SideBySideEditorControl, contentArea, editorPartState && editorPartState.groupOrientation);
+		this.toUnbind.push(this.sideBySideControl.onGroupFocusChanged(() => this.onGroupFocusChanged()));
 
 		return contentArea;
 	}
@@ -1134,7 +1135,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	public shutdown(): void {
 
 		// Persist UI State
-		const editorState: IEditorPartUIState = { ratio: this.sideBySideControl.getRatio() };
+		const editorState: IEditorPartUIState = { ratio: this.sideBySideControl.getRatio(), groupOrientation: this.sideBySideControl.getGroupOrientation() };
 		this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = editorState;
 
 		// Unload all Instantiated Editors
