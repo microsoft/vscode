@@ -213,12 +213,6 @@ configurationRegistry.registerConfiguration({
 			'default': (platform.isLinux || platform.isMacintosh) ? { '**/.git/objects/**': true, '**/node_modules/**': true } : { '**/.git/objects/**': true },
 			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
 		},
-		'files.hotExit': {
-			'type': 'boolean',
-			// TODO: Switch to true once sufficiently stable
-			'default': false,
-			'description': nls.localize('hotExit', "Controls whether unsaved files are restored after relaunching. If this is enabled there will be no prompt to save when exiting the editor.")
-		},
 		'editor.formatOnSave': {
 			'type': 'boolean',
 			'default': false,

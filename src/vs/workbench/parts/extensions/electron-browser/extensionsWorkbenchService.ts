@@ -229,25 +229,32 @@ class Extension implements IExtension {
 		return TPromise.wrapError('not available');
 	}
 
-	get hasDependencies(): boolean {
+	get dependencies(): string[] {
 		const { local, gallery } = this;
 		if (gallery) {
-			return !!gallery.properties.dependencies.length;
+			return gallery.properties.dependencies;
 		}
-		return false;
+		if (local) {
+			return local.manifest.extensionDependencies && local.manifest.extensionDependencies;
+		}
+		return [];
 	}
 }
 
 class ExtensionDependencies implements IExtensionDependencies {
 
-	constructor(private _extension: Extension, private _map: Map<string, Extension>, private _dependent: IExtensionDependencies = null) { }
+	constructor(private _extension: IExtension, private _identifier: string, private _map: Map<string, Extension>, private _dependent: IExtensionDependencies = null) { }
 
 	get hasDependencies(): boolean {
-		return this._extension.gallery.properties.dependencies.length > 0;
+		return this._extension ? this._extension.dependencies.length > 0 : false;
 	}
 
 	get extension(): IExtension {
 		return this._extension;
+	}
+
+	get identifier(): string {
+		return this._identifier;
 	}
 
 	get dependent(): IExtensionDependencies {
@@ -255,7 +262,7 @@ class ExtensionDependencies implements IExtensionDependencies {
 	}
 
 	get dependencies(): IExtensionDependencies[] {
-		return this._extension.gallery.properties.dependencies.map(d => new ExtensionDependencies(this._map.get(d), this._map, this));
+		return this._extension.dependencies.map(d => new ExtensionDependencies(this._map.get(d), d, this._map, this));
 	}
 }
 
@@ -295,11 +302,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private installing: IActiveExtension[] = [];
 	private uninstalling: IActiveExtension[] = [];
 	private installed: Extension[] = [];
-	private newlyInstalled: Extension[] = [];
-	private unInstalled: Extension[] = [];
 	private syncDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
+
+	// TODO: @sandy - Remove these when IExtensionsRuntimeService exposes sync API to get extensions.
+	private newlyInstalled: Extension[] = [];
+	private unInstalled: Extension[] = [];
 
 	private _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
@@ -369,7 +378,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies> {
-		if (!extension.hasDependencies) {
+		if (!extension.dependencies.length) {
 			return TPromise.wrap(null);
 		}
 
@@ -380,7 +389,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				for (const extension of extensions) {
 					map.set(`${extension.publisher}.${extension.name}`, extension);
 				}
-				return new ExtensionDependencies(<Extension>extension, map);
+				return new ExtensionDependencies(extension, extension.identifier, map);
 			});
 	}
 
@@ -589,7 +598,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private onUninstallExtension(id: string): void {
 		const extension = this.installed.filter(e => e.local.id === id)[0];
 		const newLength = this.installed.filter(e => e.local.id !== id).length;
-		// TODO: @Joao why is this?
+		// TODO: Ask @Joao why is this?
 		if (newLength === this.installed.length) {
 			return;
 		}
@@ -603,7 +612,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private onDidUninstallExtension({id, error}: DidUninstallExtensionEvent): void {
+		let newlyInstalled = false;
 		if (!error) {
+			newlyInstalled = this.newlyInstalled.filter(e => e.local.id === id).length > 0;
 			this.newlyInstalled = this.newlyInstalled.filter(e => e.local.id !== id);
 			this.installed = this.installed.filter(e => e.local.id !== id);
 		}
@@ -617,7 +628,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		if (!error) {
 			this.unInstalled.push(uninstalling.extension);
 			this.extensionsRuntimeService.setEnablement(uninstalling.extension.identifier, true);
-			uninstalling.extension.needsReload = true;
+			uninstalling.extension.needsReload = !newlyInstalled;
 			this.reportTelemetry(uninstalling, true);
 		}
 

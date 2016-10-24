@@ -584,8 +584,13 @@ export class EditorStatus implements IStatusbarItem {
 			if (info.selections.length === 1) {
 				const visibleColumn = editorWidget.getVisibleColumnFromPosition(editorWidget.getPosition());
 
-				const selectionClone = info.selections[0].clone(); // do not modify the original position we got from the editor
-				selectionClone.positionColumn = visibleColumn;
+				let selectionClone = info.selections[0].clone(); // do not modify the original position we got from the editor
+				selectionClone = new Selection(
+					selectionClone.selectionStartLineNumber,
+					selectionClone.selectionStartColumn,
+					selectionClone.positionLineNumber,
+					visibleColumn
+				);
 
 				info.selections[0] = selectionClone;
 			}

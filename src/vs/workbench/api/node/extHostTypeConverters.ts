@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import Severity from 'vs/base/common/severity';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { stringDiff } from 'vs/base/common/diff/diff';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
@@ -314,7 +311,7 @@ export const CompletionItemKind = {
 
 export const Suggest = {
 
-	from(item: vscode.CompletionItem, disposables: IDisposable[]): modes.ISuggestion {
+	from(item: vscode.CompletionItem): modes.ISuggestion {
 		const suggestion: modes.ISuggestion = {
 			label: item.label || '<missing label>',
 			insertText: item.insertText || item.label,
@@ -323,7 +320,6 @@ export const Suggest = {
 			documentation: item.documentation,
 			sortText: item.sortText,
 			filterText: item.filterText,
-			command: Command.from(item.command, disposables),
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(TextEdit.from)
 		};
 		return suggestion;
@@ -372,69 +368,6 @@ export namespace DocumentLink {
 
 	export function to(link: modes.ILink): vscode.DocumentLink {
 		return new types.DocumentLink(toRange(link.range), link.url && URI.parse(link.url));
-	}
-}
-
-export namespace Command {
-
-	const _delegateId = '_internal_delegate_command';
-	const _cache: { [id: string]: vscode.Command } = Object.create(null);
-	let _idPool = 1;
-
-	export function initialize(commands: ExtHostCommands) {
-		return commands.registerCommand(_delegateId, (id: string) => {
-			const command = _cache[id];
-			if (!command) {
-				// handle already disposed delegations graceful
-				return;
-			}
-			return commands.executeCommand(command.command, ...command.arguments);
-		});
-	}
-
-	export function from(command: vscode.Command, disposables: IDisposable[]): modes.Command {
-
-		if (!command) {
-			return;
-		}
-
-		const result = <modes.Command>{
-			id: command.command,
-			title: command.title
-		};
-
-		if (!isFalsyOrEmpty(command.arguments)) {
-
-			// redirect to delegate command and store actual command
-			const id = `delegate/${_idPool++}/for/${command.command}`;
-
-			result.id = _delegateId;
-			result.arguments = [id];
-			_cache[id] = command;
-
-			disposables.push({
-				dispose() {
-					delete _cache[id];
-				}
-			});
-		}
-
-		return result;
-	}
-
-	export function to(command: modes.Command): vscode.Command {
-		let result: vscode.Command;
-		if (command.id === _delegateId) {
-			let [key] = command.arguments;
-			result = _cache[key];
-		}
-		if (!result) {
-			result = {
-				command: command.id,
-				title: command.title
-			};
-		}
-		return result;
 	}
 }
 

@@ -9,8 +9,8 @@ import { Arrays } from 'vs/editor/common/core/arrays';
 export class ModeTransition {
 	_modeTransitionBrand: void;
 
-	public startIndex: number;
-	public modeId: string;
+	public readonly startIndex: number;
+	public readonly modeId: string;
 
 	constructor(startIndex: number, modeId: string) {
 		this.startIndex = startIndex | 0;

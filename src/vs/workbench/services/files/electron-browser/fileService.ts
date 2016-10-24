@@ -26,7 +26,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IBackupService } from 'vs/platform/backup/common/backup';
 
 import { shell } from 'electron';
 
@@ -48,12 +47,11 @@ export class FileService implements IFileService {
 		@IEventService private eventService: IEventService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IStorageService private storageService: IStorageService,
-		@IBackupService private backupService: IBackupService
+		@IStorageService private storageService: IStorageService
 	) {
 		this.toUnbind = [];
 		this.activeOutOfWorkspaceWatchers = Object.create(null);
@@ -83,7 +81,7 @@ export class FileService implements IFileService {
 
 		// create service
 		const workspace = this.contextService.getWorkspace();
-		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService, this.environmentService, this.configurationService, this.backupService);
+		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService);
 
 		// Listeners
 		this.registerListeners();
@@ -241,22 +239,6 @@ export class FileService implements IFileService {
 		}
 
 		return this.raw.del(resource);
-	}
-
-	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
-		return this.raw.backupFile(resource, content);
-	}
-
-	public discardBackup(resource: uri): TPromise<void> {
-		return this.raw.discardBackup(resource);
-	}
-
-	public discardBackups(): TPromise<void> {
-		return this.raw.discardBackups();
-	}
-
-	public isHotExitEnabled(): boolean {
-		return this.raw.isHotExitEnabled();
 	}
 
 	private doMoveItemToTrash(resource: uri): TPromise<void> {

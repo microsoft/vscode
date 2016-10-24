@@ -28,15 +28,10 @@ import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
 import mime = require('vs/base/node/mime');
 import flow = require('vs/base/node/flow');
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IEventService } from 'vs/platform/event/common/event';
-import { IBackupService } from 'vs/platform/backup/common/backup';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -77,7 +72,6 @@ export class FileService implements IFileService {
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
-	private toUnbind: IDisposable[];
 	private basePath: string;
 	private tmpPath: string;
 	private options: IFileServiceOptions;
@@ -88,16 +82,7 @@ export class FileService implements IFileService {
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
-	private configuredHotExit: boolean;
-
-	constructor(
-		basePath: string,
-		options: IFileServiceOptions,
-		private eventEmitter: IEventService,
-		private environmentService: IEnvironmentService,
-		private configurationService: IConfigurationService,
-		private backupService: IBackupService
-	) {
+	constructor(basePath: string, options: IFileServiceOptions, private eventEmitter: IEventService) {
 		this.basePath = basePath ? paths.normalize(basePath) : void 0;
 
 		if (this.basePath && this.basePath.indexOf('\\\\') === 0 && strings.endsWith(this.basePath, paths.sep)) {
@@ -130,19 +115,6 @@ export class FileService implements IFileService {
 		this.activeFileChangesWatchers = Object.create(null);
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
-
-		// Configuration changes
-		this.toUnbind = [];
-		if (this.configurationService) {
-			this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
-
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
-			this.onConfigurationChange(configuration);
-		}
-	}
-
-	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		this.configuredHotExit = configuration && configuration.files && configuration.files.hotExit;
 	}
 
 	public updateOptions(options: IFileServiceOptions): void {
@@ -455,75 +427,7 @@ export class FileService implements IFileService {
 		return nfcall(extfs.del, absolutePath, this.tmpPath);
 	}
 
-	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
-		let registerResourcePromise: TPromise<void>;
-		if (resource.scheme === 'file') {
-			registerResourcePromise = this.backupService.registerResourceForBackup(resource);
-		} else {
-			registerResourcePromise = TPromise.as(void 0);
-		}
-		return registerResourcePromise.then(() => {
-			const backupResource = this.getBackupPath(resource);
-
-			// Hot exit is disabled for empty workspaces
-			if (!backupResource) {
-				return TPromise.as(null);
-			}
-
-			return this.updateContent(backupResource, content);
-		});
-	}
-
-	public discardBackup(resource: uri): TPromise<void> {
-		return this.backupService.deregisterResourceForBackup(resource).then(() => {
-			const backupResource = this.getBackupPath(resource);
-
-			// Hot exit is disabled for empty workspaces
-			if (!backupResource) {
-				return TPromise.as(null);
-			}
-
-			return this.del(backupResource);
-		});
-	}
-
-	public discardBackups(): TPromise<void> {
-		// Hot exit is disabled for empty workspaces
-		const backupRootPath = this.getBackupRootPath();
-		if (!backupRootPath) {
-			return TPromise.as(void 0);
-		}
-
-		return this.del(uri.file(backupRootPath));
-	}
-
-	public isHotExitEnabled(): boolean {
-		return this.configuredHotExit;
-	}
-
 	// Helpers
-
-	private getBackupPath(resource: uri): uri {
-		// Hot exit is disabled for empty workspaces
-		const backupRootPath = this.getBackupRootPath();
-		if (!backupRootPath) {
-			return null;
-		}
-
-		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
-		const backupPath = paths.join(backupRootPath, resource.scheme, backupName);
-		return uri.file(backupPath);
-	}
-
-	private getBackupRootPath(): string {
-		// Hot exit is disabled for empty workspaces
-		if (!this.basePath) {
-			return null;
-		}
-
-		const workspaceHash = crypto.createHash('md5').update(this.basePath).digest('hex');
-		return paths.join(this.environmentService.userDataPath, 'Backups', workspaceHash);
-	}
 
 	private toAbsolutePath(arg1: uri | IFileStat): string {
 		let resource: uri;
@@ -760,8 +664,6 @@ export class FileService implements IFileService {
 			watcher.close();
 		}
 		this.activeFileChangesWatchers = Object.create(null);
-
-		this.toUnbind = dispose(this.toUnbind);
 	}
 }
 
