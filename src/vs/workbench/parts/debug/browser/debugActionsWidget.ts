@@ -70,8 +70,8 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.onDidChangeState(state => {
-			this.onDebugStateChange(state);
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
+			this.onDebugStateChange();
 		}));
 		this.toDispose.push(this.actionBar.actionRunner.addListener2(events.EventType.RUN, (e: any) => {
 			// check for error
@@ -131,7 +131,8 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		return DebugActionsWidget.ID;
 	}
 
-	private onDebugStateChange(state: debug.State): void {
+	private onDebugStateChange(): void {
+		const state = this.debugService.state;
 		if (state === debug.State.Disabled || state === debug.State.Inactive) {
 			return this.hide();
 		}
@@ -183,11 +184,10 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		}
 
 		this.actions[0] = state === debug.State.Running ? this.pauseAction : this.continueAction;
-		const session = this.debugService.activeSession;
-		const configuration = this.debugService.getConfigurationManager().configuration;
-		this.actions[5] = configuration && configuration.request === 'attach' ? this.disconnectAction : this.stopAction;
+		const process = this.debugService.getViewModel().focusedProcess;
+		this.actions[5] = process && process.session.requestType === debug.SessionRequestType.ATTACH ? this.disconnectAction : this.stopAction;
 
-		if (session && session.configuration.capabilities.supportsStepBack) {
+		if (process && process.session.configuration.capabilities.supportsStepBack) {
 			if (!this.stepBackAction) {
 				this.stepBackAction = instantiationService.createInstance(StepBackAction, StepBackAction.ID, StepBackAction.LABEL);
 				this.toDispose.push(this.stepBackAction);

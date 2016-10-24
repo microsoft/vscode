@@ -30,9 +30,8 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 
 	private installedExtensions: TPromise<IExtensionDescription[]>;
 
-	private allDisabledExtensions: string[];
-	private globalDisabledExtensions: string[];
-	private workspaceDisabledExtensions: string[];
+	private _globalDisabledExtensions: string[];
+	private _workspaceDisabledExtensions: string[];
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -56,11 +55,34 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 		});
 	}
 
-	public setEnablement(identifier: string, enable: boolean, workspace: boolean = false): TPromise<boolean> {
-		const disabled = this.getDisabledExtensionsFromStorage().indexOf(identifier) !== -1;
+	public canEnable(identifier: string): boolean {
+		if (this.environmentService.disableExtensions) {
+			return false;
+		}
 
+		return this.getDisabledExtensions().indexOf(identifier) !== -1;
+	}
+
+	public isDisabled(identifier: string): boolean {
+		if (this.environmentService.disableExtensions) {
+			return true;
+		}
+
+		return this.getDisabledExtensions().indexOf(identifier) !== -1;
+	}
+
+	public isDisabledAlways(identifier: string): boolean {
+		return this.globalDisabledExtensions.indexOf(identifier) !== -1;
+	}
+
+	public setEnablement(identifier: string, enable: boolean, workspace: boolean = false): TPromise<boolean> {
+		const disabled = this.environmentService.disableExtensions || this.getDisabledExtensionsFromStorage().indexOf(identifier) !== -1;
 		if (!enable === disabled) {
-			return TPromise.wrap(true);
+			return TPromise.wrap(false);
+		}
+
+		if (enable && !this.canEnable(identifier)) {
+			return TPromise.wrap(false);
 		}
 
 		if (workspace && !this.workspace) {
@@ -80,22 +102,22 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 		}
 	}
 
-	public getDisabledExtensions(workspace?: boolean): string[] {
-		if (!this.allDisabledExtensions) {
-			this.globalDisabledExtensions = this.getDisabledExtensionsFromStorage(StorageScope.GLOBAL);
-			this.workspaceDisabledExtensions = this.getDisabledExtensionsFromStorage(StorageScope.WORKSPACE);
-			this.allDisabledExtensions = distinct([...this.globalDisabledExtensions, ...this.workspaceDisabledExtensions]);
-		}
+	private getDisabledExtensions(): string[] {
+		return [...this.globalDisabledExtensions, ...this.workspaceDisabledExtensions];
+	}
 
-		if (workspace === void 0) {
-			return this.allDisabledExtensions;
+	private get workspaceDisabledExtensions(): string[] {
+		if (!this._workspaceDisabledExtensions) {
+			this._workspaceDisabledExtensions = this.getDisabledExtensionsFromStorage(StorageScope.WORKSPACE);
 		}
+		return this._workspaceDisabledExtensions;
+	}
 
-		if (workspace) {
-			return this.workspaceDisabledExtensions;
+	private get globalDisabledExtensions(): string[] {
+		if (!this._globalDisabledExtensions) {
+			this._globalDisabledExtensions = this.getDisabledExtensionsFromStorage(StorageScope.GLOBAL);
 		}
-
-		return this.globalDisabledExtensions;
+		return this._globalDisabledExtensions;
 	}
 
 	private getDisabledExtensionsFromStorage(scope?: StorageScope): string[] {

@@ -27,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from './extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from './extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from '../common/extensions';
 import { Renderer, DataSource, Controller } from './dependenciesViewer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';

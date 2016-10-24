@@ -15,6 +15,7 @@ import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue,
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export class ConfigurationService<T> implements IConfigurationService, IDisposable {
 
@@ -24,6 +25,8 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 
 	private rawConfig: ConfigWatcher<T>;
 	private cache: T;
+
+	private onConfigurationChangeDelayer: RunOnceScheduler;
 
 	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent>;
 
@@ -40,14 +43,26 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 		this.rawConfig = new ConfigWatcher(environmentService.appSettingsPath, { changeBufferDelay: 300, defaultConfig: Object.create(null) });
 		this.disposables.push(toDisposable(() => this.rawConfig.dispose()));
 
-		// Listeners
+		this.onConfigurationChangeDelayer = new RunOnceScheduler(() => this.onConfigurationChange(), 0);
+		this.disposables.push(this.onConfigurationChangeDelayer);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Emit config change event when the raw config notifies us about a change
 		this.disposables.push(this.rawConfig.onDidUpdateConfiguration(event => {
 			this.onConfigurationChange();
 			if (this._telemetryService) {
 				this._telemetryService.publicLog('updateUserConfiguration', { userConfigurationKeys: Object.keys(event.config) });
 			}
 		}));
-		this.disposables.push(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onConfigurationChange()));
+
+		// Expect many calls to the registry (e.g. from extensions). So we buffer this event to not
+		// spam listeners with too many configuration change events
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		this.disposables.push(configurationRegistry.onDidRegisterConfiguration(() => this.onConfigurationChangeDelayer.schedule()));
 	}
 
 	private onConfigurationChange(): void {

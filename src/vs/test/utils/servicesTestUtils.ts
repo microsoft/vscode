@@ -17,7 +17,6 @@ import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -31,7 +30,7 @@ import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/l
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { IFileService, IResolveContentOptions, IFileOperationResult } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -112,10 +111,9 @@ export class TestTextFileService extends TextFileService {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IBackupService backupService: IBackupService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService, backupService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -176,7 +174,6 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHistoryService, 'getHistory', []);
 	instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	instantiationService.stub(IFileService, TestFileService);
-	instantiationService.stub(IBackupService, new TestBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
@@ -318,10 +315,12 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
+	private _onGroupOrientationChanged: Emitter<void>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
+		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
 
 		let services = new ServiceCollection();
@@ -353,6 +352,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this._onEditorsMoved.event;
 	}
 
+	public get onGroupOrientationChanged(): Event<void> {
+		return this._onGroupOrientationChanged.event;
+	}
+
 	public focusGroup(group: IEditorGroup): void;
 	public focusGroup(position: Position): void;
 	public focusGroup(arg1: any): void {
@@ -373,6 +376,14 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
 
+	}
+
+	public setGroupOrientation(orientation: GroupOrientation): void {
+
+	}
+
+	public getGroupOrientation(): GroupOrientation {
+		return 'vertical';
 	}
 
 	public pinEditor(group: IEditorGroup, input: IEditorInput): void;
@@ -573,72 +584,6 @@ export const TestFileService = {
 				name: paths.basename(res.fsPath)
 			};
 		});
-	},
-
-	backupFile: function (resource: URI, content: string) {
-		return TPromise.as(void 0);
-	},
-
-	discardBackup: function (resource: URI) {
-		return TPromise.as(void 0);
-	},
-
-	discardBackups: function () {
-		return TPromise.as(void 0);
-	},
-
-	isHotExitEnabled: function () {
-		return false;
-	}
-};
-
-export class TestBackupService implements IBackupService {
-	public _serviceBrand: any;
-
-	// Lists used for verification in tests
-	public registeredResources: URI[] = [];
-	public deregisteredResources: URI[] = [];
-
-	public getWorkspaceBackupPaths(): TPromise<string[]> {
-		return TPromise.as([]);
-	}
-
-	public getWorkspaceBackupPathsSync(): string[] {
-		return [];
-	}
-
-	public pushWorkspaceBackupPathsSync(workspaces: URI[]): void {
-		return null;
-	}
-
-	public removeWorkspaceBackupPath(workspace: URI): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	public getWorkspaceTextFilesWithBackupsSync(workspace: URI): string[] {
-		return [];
-	}
-
-	public getWorkspaceUntitledFileBackupsSync(workspace: URI): string[] {
-		return [];
-	}
-
-	public doesTextFileHaveBackup(resource: URI): TPromise<boolean> {
-		return TPromise.as(false);
-	}
-
-	public registerResourceForBackup(resource: URI): TPromise<void> {
-		this.registeredResources.push(resource);
-		return TPromise.as(void 0);
-	}
-
-	public deregisterResourceForBackup(resource: URI): TPromise<void> {
-		this.deregisteredResources.push(resource);
-		return TPromise.as(void 0);
-	}
-
-	public getBackupResource(resource: URI): URI {
-		return null;
 	}
 };
 

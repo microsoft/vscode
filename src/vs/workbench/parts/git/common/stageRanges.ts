@@ -43,8 +43,8 @@ function isDeletion(change: IChange): boolean {
  * Returns an intersection between a change and a selection.
  * Returns null if intersection does not exist.
  */
-export function intersectChangeAndSelection(change: IChange, selection: Selection): IChange {
-	var result: IChange = {
+export function intersectChangeAndSelection(change: IChange, selection: Selection) {
+	var result = {
 		modifiedStartLineNumber: Math.max(change.modifiedStartLineNumber, selection.startLineNumber),
 		modifiedEndLineNumber: Math.min(change.modifiedEndLineNumber, selection.endLineNumber),
 		originalStartLineNumber: change.originalStartLineNumber,

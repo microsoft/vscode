@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
+import { DefaultEndOfLine, IRawText } from 'vs/editor/common/editorCommon';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	var m = new TextModel([], TextModel.toRawText(text.join('\n'), {
@@ -50,6 +50,93 @@ function assertGuess(expectedInsertSpaces: boolean, expectedTabSize: number, tex
 		}
 	}
 }
+
+suite('TextModel.toRawText', () => {
+
+	function testToRawText(text:string, expected:IRawText): void {
+		let actual = TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS);
+		assert.deepEqual(actual, expected);
+	}
+
+	test('one line text', () => {
+		testToRawText('Hello world!', {
+			BOM: '',
+			EOL: '\n',
+			length: 12,
+			'lines': [
+				'Hello world!'
+			],
+			containsRTL: false,
+			options: {
+				defaultEOL: DefaultEndOfLine.LF,
+				insertSpaces: true,
+				tabSize: 4,
+				trimAutoWhitespace: true,
+			}
+		});
+	});
+
+	test('multiline text', () => {
+		testToRawText('Hello,\r\ndear friend\nHow\rare\r\nyou?', {
+			BOM: '',
+			EOL: '\r\n',
+			length: 33,
+			'lines': [
+				'Hello,',
+				'dear friend',
+				'How',
+				'are',
+				'you?'
+			],
+			containsRTL: false,
+			options: {
+				defaultEOL: DefaultEndOfLine.LF,
+				insertSpaces: true,
+				tabSize: 4,
+				trimAutoWhitespace: true,
+			}
+		});
+	});
+
+	test('containsRTL 1', () => {
+		testToRawText('Hello,\nזוהי עובדה מבוססת שדעתו', {
+			BOM: '',
+			EOL: '\n',
+			length: 30,
+			'lines': [
+				'Hello,',
+				'זוהי עובדה מבוססת שדעתו'
+			],
+			containsRTL: true,
+			options: {
+				defaultEOL: DefaultEndOfLine.LF,
+				insertSpaces: true,
+				tabSize: 4,
+				trimAutoWhitespace: true,
+			}
+		});
+	});
+
+	test('containsRTL 2', () => {
+		testToRawText('Hello,\nهناك حقيقة مثبتة منذ زمن طويل', {
+			BOM: '',
+			EOL: '\n',
+			length: 36,
+			'lines': [
+				'Hello,',
+				'هناك حقيقة مثبتة منذ زمن طويل'
+			],
+			containsRTL: true,
+			options: {
+				defaultEOL: DefaultEndOfLine.LF,
+				insertSpaces: true,
+				tabSize: 4,
+				trimAutoWhitespace: true,
+			}
+		});
+	});
+
+});
 
 suite('Editor Model - TextModel', () => {
 
@@ -612,6 +699,7 @@ suite('Editor Model - TextModel', () => {
 			lines: [],
 			BOM: '',
 			EOL: '\n',
+			containsRTL: false,
 			options: {
 				tabSize: 4,
 				insertSpaces: false,
@@ -651,6 +739,7 @@ suite('Editor Model - TextModel', () => {
 			lines: [],
 			BOM: '',
 			EOL: '\n',
+			containsRTL: false,
 			options: {
 				tabSize: 4,
 				insertSpaces: true,
@@ -672,6 +761,34 @@ suite('Editor Model - TextModel', () => {
 
 		model.dispose();
 	});
+});
+
+suite('TextModel.mightContainRTL', () => {
+
+	test('nope', () => {
+		let model = new TextModel([], TextModel.toRawText('hello world!', TextModel.DEFAULT_CREATION_OPTIONS));
+		assert.equal(model.mightContainRTL(), false);
+	});
+
+	test('yes', () => {
+		let model = new TextModel([], TextModel.toRawText('Hello,\nזוהי עובדה מבוססת שדעתו', TextModel.DEFAULT_CREATION_OPTIONS));
+		assert.equal(model.mightContainRTL(), true);
+	});
+
+	test('setValue resets 1', () => {
+		let model = new TextModel([], TextModel.toRawText('hello world!', TextModel.DEFAULT_CREATION_OPTIONS));
+		assert.equal(model.mightContainRTL(), false);
+		model.setValue('Hello,\nזוהי עובדה מבוססת שדעתו');
+		assert.equal(model.mightContainRTL(), true);
+	});
+
+	test('setValue resets 2', () => {
+		let model = new TextModel([], TextModel.toRawText('Hello,\nهناك حقيقة مثبتة منذ زمن طويل', TextModel.DEFAULT_CREATION_OPTIONS));
+		assert.equal(model.mightContainRTL(), true);
+		model.setValue('hello world!');
+		assert.equal(model.mightContainRTL(), false);
+	});
+
 });
 
 suite('TextModel.getLineIndentGuide', () => {

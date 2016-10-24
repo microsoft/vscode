@@ -121,8 +121,14 @@ export class ViewContentWidgets extends ViewPart {
 			// below can read out the adjusted width/height of widgets
 			let keys = Object.keys(this._widgets);
 			for (let i = 0, len = keys.length; i < len; i++) {
-				let widgetId = keys[i];
-				StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
+				const widgetId = keys[i];
+				const widgetData = this._widgets[widgetId];
+				const widget = widgetData.widget;
+				const maxWidth = widgetData.allowEditorOverflow
+					? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
+					: this._contentWidth;
+
+				StyleMutator.setMaxWidth(widget.getDomNode(), maxWidth);
 			}
 		}
 
@@ -148,7 +154,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._widgets[widget.getId()] = widgetData;
 
 		let domNode = widget.getDomNode();
-		domNode.style.position = 'absolute';
+		domNode.style.position = 'fixed';
 		StyleMutator.setMaxWidth(domNode, this._contentWidth);
 		StyleMutator.setVisibility(domNode, 'hidden');
 		domNode.setAttribute('widgetId', widget.getId());
@@ -274,20 +280,18 @@ export class ViewContentWidgets extends ViewPart {
 		if (absoluteLeft + width + 20 > INNER_WIDTH) {
 			let delta = absoluteLeft - (INNER_WIDTH - width - 20);
 			absoluteLeft -= delta;
-			left -= delta;
 		}
 		if (absoluteLeft < 0) {
 			let delta = absoluteLeft;
 			absoluteLeft -= delta;
-			left -= delta;
 		}
 
 		return {
-			aboveTop: aboveTop,
+			aboveTop: absoluteAboveTop,
 			fitsAbove: fitsAbove,
-			belowTop: belowTop,
+			belowTop: absoluteBelowTop,
 			fitsBelow: fitsBelow,
-			left: left
+			left: absoluteLeft
 		};
 	}
 

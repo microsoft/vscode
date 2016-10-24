@@ -655,7 +655,7 @@ let editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['off', 'on', 'relative'],
 			'default': DefaultConfig.editor.lineNumbers,
-			'description': nls.localize('lineNumbers', "Controls visibility of line numbers")
+			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', and 'relative'. 'relative' shows the line count from the current cursor position.")
 		},
 		'editor.rulers': {
 			'type': 'array',

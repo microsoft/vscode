@@ -37,6 +37,14 @@
 			"outDir": "${workspaceRoot}/out"
 		},
 		{
+			"name": "Attach to CLI Process",
+			"type": "node",
+			"request": "attach",
+			"port": 5874,
+			"sourceMaps": true,
+			"outDir": "${workspaceRoot}/out"
+		},
+		{
 			"name": "VSCode API Tests",
 			"type": "extensionHost",
 			"request": "launch",
@@ -92,11 +100,9 @@
 			"request": "launch",
 			"program": "${workspaceRoot}/build/lib/monaco.js",
 			"stopOnEntry": false,
-			"args": [
-			],
+			"args": [],
 			"cwd": "${workspaceRoot}/build/lib"
 			// ,
-
 			// "port": 5870,
 			// "sourceMaps": true,
 			// "outDir": "${workspaceRoot}/out"

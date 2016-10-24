@@ -5,6 +5,7 @@
 'use strict';
 
 import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, TextEditor } from 'vscode';
+import { isEmbeddedContentUri, getHostDocumentUri } from './embeddedContentUri';
 
 const MAX_DECORATORS = 500;
 
@@ -49,51 +50,47 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 	workspace.onDidOpenTextDocument(triggerUpdateDecorations, null, disposables);
 	workspace.onDidCloseTextDocument(triggerUpdateDecorations, null, disposables);
 
+	workspace.textDocuments.forEach(triggerUpdateDecorations);
+
 	function triggerUpdateDecorations(document: TextDocument) {
 		let triggerUpdate = supportedLanguages[document.languageId];
-		let uri = document.uri.toString();
-		let timeout = pendingUpdateRequests[uri];
+		let documentUri = document.uri;
+		let documentUriStr = documentUri.toString();
+		let timeout = pendingUpdateRequests[documentUriStr];
 		if (typeof timeout !== 'undefined') {
 			clearTimeout(timeout);
 			triggerUpdate = true; // force update, even if languageId is not supported (anymore)
 		}
 		if (triggerUpdate) {
-			pendingUpdateRequests[uri] = setTimeout(() => {
-				updateDecorations(uri);
-				delete pendingUpdateRequests[uri];
+			pendingUpdateRequests[documentUriStr] = setTimeout(() => {
+				// check if the document is in use by an active editor
+				let contentHostUri = isEmbeddedContentUri(documentUri) ? getHostDocumentUri(documentUri) : documentUriStr;
+				window.visibleTextEditors.forEach(editor => {
+					if (editor.document && contentHostUri === editor.document.uri.toString()) {
+						updateDecorationForEditor(editor, documentUriStr);
+					}
+				});
+				delete pendingUpdateRequests[documentUriStr];
 			}, 500);
 		}
 	}
 
-	function updateDecorations(uri: string) {
-		window.visibleTextEditors.forEach(editor => {
-			let document = editor.document;
-			if (document && document.uri.toString() === uri) {
-				updateDecorationForEditor(editor);
-			}
-		});
-	}
-
-	function updateDecorationForEditor(editor: TextEditor) {
+	function updateDecorationForEditor(editor: TextEditor, contentUri: string) {
 		let document = editor.document;
-		if (supportedLanguages[document.languageId]) {
-			decoratorProvider(document.uri.toString()).then(ranges => {
-				let decorations = ranges.slice(0, MAX_DECORATORS).map(range => {
-					let color = document.getText(range);
-					return <DecorationOptions>{
-						range: range,
-						renderOptions: {
-							before: {
-								backgroundColor: color
-							}
+		decoratorProvider(contentUri).then(ranges => {
+			let decorations = ranges.slice(0, MAX_DECORATORS).map(range => {
+				let color = document.getText(range);
+				return <DecorationOptions>{
+					range: range,
+					renderOptions: {
+						before: {
+							backgroundColor: color
 						}
-					};
-				});
-				editor.setDecorations(colorsDecorationType, decorations);
+					}
+				};
 			});
-		} else {
-			editor.setDecorations(colorsDecorationType, []);
-		}
+			editor.setDecorations(colorsDecorationType, decorations);
+		});
 	}
 
 	return Disposable.from(...disposables);

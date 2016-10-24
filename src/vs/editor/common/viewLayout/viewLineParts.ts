@@ -5,11 +5,11 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { Arrays } from 'vs/editor/common/core/arrays';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { CharCode } from 'vs/base/common/charCode';
+import { LineParts } from 'vs/editor/common/core/lineParts';
 
 function cmpLineDecorations(a: InlineDecoration, b: InlineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);
@@ -211,31 +211,10 @@ function insertCustomLineDecorationsWithStateMachine(lineNumber: number, lineCon
 	return result;
 }
 
-export class LineParts {
-	_linePartsBrand: void;
-	private _parts: ViewLineToken[];
-
-	constructor(parts: ViewLineToken[]) {
-		this._parts = parts;
-	}
-
-	public getParts(): ViewLineToken[] {
-		return this._parts;
-	}
-
-	public equals(other: LineParts): boolean {
-		return ViewLineToken.equalsArray(this._parts, other._parts);
-	}
-
-	public findIndexOfOffset(offset: number): number {
-		return Arrays.findIndexInSegmentsArray(this._parts, offset);
-	}
-}
-
 function createFastViewLineParts(lineTokens: ViewLineTokens, lineContent: string): LineParts {
 	let parts = lineTokens.getTokens();
 	parts = trimEmptyTrailingPart(parts, lineContent);
-	return new LineParts(parts);
+	return new LineParts(parts, lineContent.length + 1);
 }
 
 function createViewLineParts(lineNumber: number, minLineColumn: number, lineTokens: ViewLineTokens, lineContent: string, rawLineDecorations: InlineDecoration[]): LineParts {
@@ -281,7 +260,7 @@ function createViewLineParts(lineNumber: number, minLineColumn: number, lineToke
 		}
 	}
 
-	return new LineParts(parts);
+	return new LineParts(parts, lineContent.length + 1);
 }
 
 export class DecorationSegment {
