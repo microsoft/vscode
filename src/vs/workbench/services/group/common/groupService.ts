@@ -42,6 +42,11 @@ export interface IEditorGroupService {
 	onEditorsMoved: Event<void>;
 
 	/**
+	 * Emitted when the editor group orientation was changed.
+	 */
+	onGroupOrientationChanged: Event<void>;
+
+	/**
 	 * Keyboard focus the editor group at the provided position.
 	 */
 	focusGroup(group: IEditorGroup): void;

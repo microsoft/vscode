@@ -18,7 +18,6 @@ import { IThemeService } from 'vs/workbench/services/themes/common/themeService'
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 
 const DEFAULT_MIN_SIDEBAR_PART_WIDTH = 170;
 const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;
@@ -82,7 +81,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private startPanelHeight: number;
 	private panelHeight: number;
 	private panelWidth: number;
-	private layoutEditorsVertically: boolean;
+	private layoutEditorGroupsVertically: boolean;
 
 	// Take parts as an object bag since instatation service does not have typings for constructors with 9+ arguments
 	constructor(
@@ -101,7 +100,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IEventService eventService: IEventService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewletService private viewletService: IViewletService,
@@ -131,11 +130,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.sidebarWidth = this.storageService.getInteger(WorkbenchLayout.sashXWidthSettingsKey, StorageScope.GLOBAL, -1);
 		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
 
-		this.onDidUpdateConfiguration(configurationService.getConfiguration<IWorkbenchEditorConfiguration>(), false);
+		this.layoutEditorGroupsVertically = (this.editorGroupService.getGroupOrientation() !== 'horizontal');
 
 		this.toUnbind.push(themeService.onDidColorThemeChange(_ => this.relayout()));
 		this.toUnbind.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
-		this.toUnbind.push(configurationService.onDidUpdateConfiguration(e => this.onDidUpdateConfiguration(e.config, true)));
+		this.toUnbind.push(editorGroupService.onGroupOrientationChanged(e => this.onGroupOrientationChanged()));
 
 		this.registerSashListeners();
 	}
@@ -264,8 +263,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		if (this.workbenchSize && (this.sidebarWidth || this.panelHeight)) {
 			let visibleEditors = this.editorService.getVisibleEditors().length;
 			if (visibleEditors > 1) {
-				const sidebarOverflow = this.layoutEditorsVertically && (this.workbenchSize.width - this.sidebarWidth < visibleEditors * DEFAULT_MIN_EDITOR_PART_WIDTH);
-				const panelOverflow = !this.layoutEditorsVertically && (this.workbenchSize.height - this.panelHeight < visibleEditors * DEFAULT_MIN_EDITOR_PART_HEIGHT);
+				const sidebarOverflow = this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.sidebarWidth < visibleEditors * DEFAULT_MIN_EDITOR_PART_WIDTH);
+				const panelOverflow = !this.layoutEditorGroupsVertically && (this.workbenchSize.height - this.panelHeight < visibleEditors * DEFAULT_MIN_EDITOR_PART_HEIGHT);
 
 				if (sidebarOverflow || panelOverflow) {
 					this.layout();
@@ -274,16 +273,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 	}
 
-	private onDidUpdateConfiguration(config: IWorkbenchEditorConfiguration, relayout: boolean): void {
-		let newLayoutEditorsVertically: boolean;
-		if (config.workbench && config.workbench.editor) {
-			newLayoutEditorsVertically = (config.workbench.editor.sideBySideLayout !== 'horizontal');
-		} else {
-			newLayoutEditorsVertically = true;
-		}
+	private onGroupOrientationChanged(): void {
+		const newLayoutEditorGroupsVertically = (this.editorGroupService.getGroupOrientation() !== 'horizontal');
 
-		const doLayout = relayout && (this.layoutEditorsVertically !== newLayoutEditorsVertically);
-		this.layoutEditorsVertically = newLayoutEditorsVertically;
+		const doLayout = this.layoutEditorGroupsVertically !== newLayoutEditorGroupsVertically;
+		this.layoutEditorGroupsVertically = newLayoutEditorGroupsVertically;
 
 		if (doLayout) {
 			this.layout();
@@ -417,7 +411,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let editorMinHeight = this.computedStyles.editor.minHeight;
 		let visibleEditorCount = this.editorService.getVisibleEditors().length;
 		if (visibleEditorCount > 1) {
-			if (this.layoutEditorsVertically) {
+			if (this.layoutEditorGroupsVertically) {
 				editorMinWidth *= visibleEditorCount; // when editors layout vertically, multiply the min editor width by number of visible editors
 			} else {
 				editorMinHeight *= visibleEditorCount; // when editors layout horizontally, multiply the min editor height by number of visible editors
