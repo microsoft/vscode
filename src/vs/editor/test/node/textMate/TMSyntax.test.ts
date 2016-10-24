@@ -98,7 +98,7 @@ suite('textMate', () => {
 	}
 
 	function testDecodeTextMateToken(input: string[][], expected: string[]): void {
-		let decodeMap = new DecodeMap();
+		let decodeMap = new DecodeMap(new TMScopeRegistry());
 
 		for (let i = 0; i < input.length; i++) {
 			testOneDecodeTextMateToken(decodeMap, input[i], expected[i]);

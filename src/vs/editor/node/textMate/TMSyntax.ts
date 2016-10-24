@@ -72,9 +72,9 @@ export class TMScopeRegistry {
 	public register(language: string, scopeName: string, filePath: string): void {
 		this._scopeNameToFilePath[scopeName] = filePath;
 		if (language) {
-		this._scopeNameToLanguage[scopeName] = language;
+			this._scopeNameToLanguage[scopeName] = language;
 			this._cachedScopesRegex = null;
-	}
+		}
 	}
 
 	public getFilePath(scopeName: string): string {
@@ -199,71 +199,104 @@ export class MainProcessTextMateSyntax {
 				return;
 			}
 
-			TokenizationRegistry.register(modeId, createTokenizationSupport(modeId, grammar));
+			TokenizationRegistry.register(modeId, createTokenizationSupport(this._scopeRegistry, modeId, grammar));
 		});
-	}
-
-	/**
-	 * Given a produced TM scope, return the language that token describes or null if unknown.
-	 * e.g. source.html => html, source.css.embedded.html => css, punctuation.definition.tag.html => null
-	 */
-	public scopeToLanguage(scope: string): string {
-		return this._scopeRegistry.scopeToLanguage(scope);
 	}
 }
 
-function createTokenizationSupport(modeId: string, grammar: IGrammar): ITokenizationSupport {
-	var tokenizer = new Tokenizer(modeId, grammar);
+function createTokenizationSupport(scopeRegistry: TMScopeRegistry, modeId: string, grammar: IGrammar): ITokenizationSupport {
+	var tokenizer = new Tokenizer(scopeRegistry, modeId, grammar);
 	return {
 		getInitialState: () => new TMState(modeId, null, null),
 		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState>state, offsetDelta, stopAtOffset)
 	};
 }
 
+/**
+ * Data associated with a text mate scope as part of decoding.
+ *
+ * e.g.
+ * For a scope "punctuation.definition.string.end.html", the tokens are: punctuation, definition, string, end, html.
+ * Each of those tokens receive a unique numeric id, so instead of storing the token strings, we store the token ids.
+ * Ultimately this means we store something like [23, 21, 12, 13, 1], considering those numbers to be the ids of the tokens.
+ */
+export class TMScopeDecodeData {
+	_tmScopeDecodeDataBrand: void;
+
+	/**
+	 * The original text mate scope.
+	 */
+	public readonly scope: string;
+
+	/**
+	 * The language this scope belongs to.
+	 * e.g. source.html => html, source.css.embedded.html => css, punctuation.definition.tag.html => null
+	 */
+	public readonly language: string;
+
+	/**
+	 * The token ids this scope consists of.
+	 */
+	public readonly tokenIds: number[];
+
+	constructor(scope: string, language: string, tokenIds: number[]) {
+		this.scope = scope;
+		this.language = language;
+		this.tokenIds = tokenIds;
+	}
+}
+
 export class DecodeMap {
 	_decodeMapBrand: void;
 
-	lastAssignedId: number;
-	scopeToTokenIds: { [scope: string]: number[]; };
-	tokenToTokenId: { [token: string]: number; };
-	tokenIdToToken: string[];
+	private lastAssignedTokenId: number;
+	private scopeRegistry: TMScopeRegistry;
+	private readonly scopeToTokenIds: { [scope: string]: TMScopeDecodeData; };
+	private readonly tokenToTokenId: { [token: string]: number; };
+	private readonly tokenIdToToken: string[];
 	prevToken: TMTokenDecodeData;
 
-	constructor() {
-		this.lastAssignedId = 0;
+	constructor(scopeRegistry: TMScopeRegistry) {
+		this.lastAssignedTokenId = 0;
+		this.scopeRegistry = scopeRegistry;
 		this.scopeToTokenIds = Object.create(null);
 		this.tokenToTokenId = Object.create(null);
 		this.tokenIdToToken = [null];
 		this.prevToken = new TMTokenDecodeData([], []);
 	}
 
-	public getTokenIds(scope: string): number[] {
-		let tokens = this.scopeToTokenIds[scope];
-		if (tokens) {
-			return tokens;
+	private _getTokenId(token: string): number {
+		let tokenId = this.tokenToTokenId[token];
+		if (!tokenId) {
+			tokenId = (++this.lastAssignedTokenId);
+			this.tokenToTokenId[token] = tokenId;
+			this.tokenIdToToken[tokenId] = token;
 		}
-		let tmpTokens = scope.split('.');
+		return tokenId;
+	}
 
-		tokens = [];
-		for (let i = 0; i < tmpTokens.length; i++) {
-			let token = tmpTokens[i];
-			let tokenId = this.tokenToTokenId[token];
-			if (!tokenId) {
-				tokenId = (++this.lastAssignedId);
-				this.tokenToTokenId[token] = tokenId;
-				this.tokenIdToToken[tokenId] = token;
-			}
-			tokens.push(tokenId);
+	public decodeTMScope(scope: string): TMScopeDecodeData {
+		let result = this.scopeToTokenIds[scope];
+		if (result) {
+			return result;
 		}
 
-		this.scopeToTokenIds[scope] = tokens;
-		return tokens;
+		let scopePieces = scope.split('.');
+
+		let tokenIds: number[] = [];
+		for (let i = 0; i < scopePieces.length; i++) {
+			tokenIds[i] = this._getTokenId(scopePieces[i]);
+		}
+
+		result = new TMScopeDecodeData(scope, this.scopeRegistry.scopeToLanguage(scope), tokenIds);
+		this.scopeToTokenIds[scope] = result;
+		return result;
 	}
 
 	public getToken(tokenMap: boolean[]): string {
 		let result = '';
 		let isFirst = true;
-		for (let i = 1; i <= this.lastAssignedId; i++) {
+		for (let i = 1; i <= this.lastAssignedTokenId; i++) {
 			if (tokenMap[i]) {
 				if (isFirst) {
 					isFirst = false;
@@ -281,8 +314,8 @@ export class DecodeMap {
 export class TMTokenDecodeData {
 	_tmTokenDecodeDataBrand: void;
 
-	public scopes: string[];
-	public scopeTokensMaps: boolean[][];
+	public readonly scopes: string[];
+	public readonly scopeTokensMaps: boolean[][];
 
 	constructor(scopes: string[], scopeTokensMaps: boolean[][]) {
 		this.scopes = scopes;
@@ -304,10 +337,10 @@ class Tokenizer {
 	private _modeId: string;
 	private _decodeMap: DecodeMap;
 
-	constructor(modeId: string, grammar: IGrammar) {
+	constructor(scopeRegistry: TMScopeRegistry, modeId: string, grammar: IGrammar) {
 		this._modeId = modeId;
 		this._grammar = grammar;
-		this._decodeMap = new DecodeMap();
+		this._decodeMap = new DecodeMap(scopeRegistry);
 	}
 
 	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
@@ -358,7 +391,7 @@ export function decodeTextMateToken(decodeMap: DecodeMap, scopes: string[]): str
 	let scopeTokensMaps: boolean[][] = [];
 	let prevScopeTokensMaps: boolean[] = [];
 	let sameAsPrev = true;
-	for (let level = 1/* deliberately skip scope 0*/; level < scopes.length; level++) {
+	for (let level = 1/* deliberately skip scope 0*/, scopesLength = scopes.length; level < scopesLength; level++) {
 		let scope = scopes[level];
 
 		if (sameAsPrev) {
@@ -370,10 +403,11 @@ export function decodeTextMateToken(decodeMap: DecodeMap, scopes: string[]): str
 			sameAsPrev = false;
 		}
 
-		let tokens = decodeMap.getTokenIds(scope);
+		let decodedScope = decodeMap.decodeTMScope(scope);
+		let decodedScopeTokens = decodedScope.tokenIds;
 		prevScopeTokensMaps = prevScopeTokensMaps.slice(0);
-		for (let i = 0; i < tokens.length; i++) {
-			prevScopeTokensMaps[tokens[i]] = true;
+		for (let i = 0, len = decodedScopeTokens.length; i < len; i++) {
+			prevScopeTokensMaps[decodedScopeTokens[i]] = true;
 		}
 		scopeTokensMaps[level] = prevScopeTokensMaps;
 	}
