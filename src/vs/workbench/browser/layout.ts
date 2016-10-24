@@ -23,6 +23,7 @@ const DEFAULT_MIN_SIDEBAR_PART_WIDTH = 170;
 const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;
 const DEFAULT_MIN_EDITOR_PART_HEIGHT = 70;
 const DEFAULT_MIN_EDITOR_PART_WIDTH = 220;
+const DEFAULT_PANEL_HEIGHT_COEFFICIENT = 0.4;
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
 
@@ -239,7 +240,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		});
 
 		this.sashY.addListener2('reset', () => {
-			this.panelHeight = DEFAULT_MIN_PANEL_PART_HEIGHT;
+			this.panelHeight = this.sidebarHeight * DEFAULT_PANEL_HEIGHT_COEFFICIENT;
 			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 			this.partService.setPanelHidden(false);
 			this.layout();
@@ -374,10 +375,10 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		} else if (this.panelHeight > 0) {
 			panelHeight = Math.min(maxPanelHeight, Math.max(this.computedStyles.panel.minHeight, this.panelHeight));
 		} else {
-			panelHeight = sidebarSize.height * 0.4;
+			panelHeight = sidebarSize.height * DEFAULT_PANEL_HEIGHT_COEFFICIENT;
 		}
 		if (options && options.toggleMaximizedPanel) {
-			panelHeight = panelHeight === maxPanelHeight ? sidebarSize.height * 0.4 : maxPanelHeight;
+			panelHeight = panelHeight === maxPanelHeight ? sidebarSize.height * DEFAULT_PANEL_HEIGHT_COEFFICIENT : maxPanelHeight;
 		}
 		const panelDimension = new Dimension(this.workbenchSize.width - sidebarSize.width - activityBarSize.width, panelHeight);
 		this.panelWidth = panelDimension.width;
