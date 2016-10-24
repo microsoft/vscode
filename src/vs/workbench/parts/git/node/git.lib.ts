@@ -239,7 +239,6 @@ export class Git {
 		options.env = assign({}, options.env || {});
 		options.env = assign(options.env, this.env);
 		options.env = assign(options.env, {
-			MONACO_REQUEST_GUID: UUIDv4().asHex(),
 			VSCODE_GIT_REQUEST_ID: UUIDv4().asHex(),
 			MONACO_GIT_COMMAND: args[0]
 		});
