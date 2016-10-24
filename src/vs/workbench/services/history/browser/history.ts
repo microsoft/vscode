@@ -390,7 +390,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		const input = editor ? editor.input : void 0;
 
 		// Ensure we have at least a name to show
-		if (this.blockEditorHistoryChanges || this.isEditorEagerlyPreviewing(editor) || !input || !input.getName()) {
+		if (this.blockEditorHistoryChanges || !input || !input.getName()) {
 			return;
 		}
 
@@ -435,10 +435,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private isEditorEagerlyPreviewing(editor: IBaseEditor): boolean {
-		return !!(editor && editor.options && editor.options.forcePreview);
-	}
-
 	private indexOf(input: IEditorInput | IResourceInput): number {
 		for (let i = 0; i < this.history.length; i++) {
 			const entry = this.history[i];
@@ -451,7 +447,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private handleEditorEventInStack(editor: IBaseEditor, storeSelection: boolean): void {
-		if (this.blockStackChanges || this.isEditorEagerlyPreviewing(editor)) {
+		if (this.blockStackChanges) {
 			return; // while we open an editor due to a navigation, we do not want to update our stack
 		}
 
