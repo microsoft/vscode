@@ -8,7 +8,7 @@
 import { localize } from 'vs/nls';
 import 'vs/css!./media/extensionsWidgets';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, ExtensionState } from './extensions';
+import { IExtension, IExtensionsWorkbenchService, ExtensionState } from '../common/extensions';
 import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
 import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 

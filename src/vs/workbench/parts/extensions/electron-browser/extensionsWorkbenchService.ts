@@ -32,7 +32,7 @@ import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { readFile } from 'vs/base/node/pfs';
 import { asText } from 'vs/base/node/request';
-import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from './extensions';
+import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from '../common/extensions';
 import { UpdateAllAction } from './extensionsActions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
