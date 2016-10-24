@@ -29,7 +29,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
-import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from './extensions';
+import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
 import {
 	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, InstallVSIXAction, ConfigureWorkspaceRecommendedExtensionsAction,

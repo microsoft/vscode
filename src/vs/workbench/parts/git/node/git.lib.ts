@@ -236,10 +236,8 @@ export class Git {
 			options.stdio = ['ignore', null, null]; // Unless provided, ignore stdin and leave default streams for stdout and stderr
 		}
 
-		options.env = assign({}, options.env || {});
-		options.env = assign(options.env, this.env);
-		options.env = assign(options.env, {
-			MONACO_REQUEST_GUID: UUIDv4().asHex(),
+		options.env = assign({}, options.env || {}, this.env, {
+			LANG: 'en_US.UTF-8',
 			VSCODE_GIT_REQUEST_ID: UUIDv4().asHex(),
 			MONACO_GIT_COMMAND: args[0]
 		});
@@ -335,6 +333,10 @@ export class Repository {
 
 	buffer(object: string): TPromise<string> {
 		const child = this.show(object);
+
+		if (!child.stdout) {
+			return TPromise.wrapError(localize('errorBuffer', "Can't open file from git"));
+		}
 
 		return new Promise((c, e) => {
 			detectMimesFromStream(child.stdout, null, (err, result) => {

@@ -14,6 +14,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { MainProcessTextMateSyntax } from 'vs/editor/node/textMate/TMSyntax';
 
 type CharacterPair = [string, string];
 
@@ -32,31 +33,28 @@ interface ILanguageConfiguration {
 export class LanguageConfigurationFileHandler {
 
 	private _modeService: IModeService;
+	private _done: { [modeId: string]: boolean; };
 
 	constructor(
+		tmSyntax: MainProcessTextMateSyntax,
 		@IModeService modeService: IModeService
 	) {
 		this._modeService = modeService;
+		this._done = Object.create(null);
 
-		this._handleModes(this._modeService.getRegisteredModes());
-		this._modeService.onDidAddModes((modes) => this._handleModes(modes));
+		// Listen for hints that a language configuration is needed/usefull and then load it once
+		this._modeService.onDidCreateMode((mode) => this._loadConfigurationsForMode(mode.getId()));
+		tmSyntax.onDidEncounterLanguage((language) => this._loadConfigurationsForMode(language));
 	}
 
-	private _handleModes(modes: string[]): void {
-		modes.forEach(modeId => this._handleMode(modeId));
-	}
+	private _loadConfigurationsForMode(modeId: string): void {
+		if (this._done[modeId]) {
+			return;
+		}
+		this._done[modeId] = true;
 
-	private _handleMode(modeId: string): void {
-		let disposable = this._modeService.onDidCreateMode((mode) => {
-			if (mode.getId() !== modeId) {
-				return;
-			}
-
-			let configurationFiles = this._modeService.getConfigurationFiles(modeId);
-			configurationFiles.forEach((configFilePath) => this._handleConfigFile(modeId, configFilePath));
-
-			disposable.dispose();
-		});
+		let configurationFiles = this._modeService.getConfigurationFiles(modeId);
+		configurationFiles.forEach((configFilePath) => this._handleConfigFile(modeId, configFilePath));
 	}
 
 	private _handleConfigFile(modeId: string, configFilePath: string): void {

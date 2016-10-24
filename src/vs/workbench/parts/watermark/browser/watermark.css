@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.editor.empty {
+.monaco-workbench .part.editor.empty.has-watermark {
 	background-position-y: calc(50% - 100px);
 	transition: background-position-y 1s;
 }
@@ -79,6 +79,7 @@
 
 .monaco-workbench.mac > .part.editor.empty > .watermark dd > .shortcuts {
 	letter-spacing: 0.15em;
+	font-family: "Lucida Grande", sans-serif;
 }
 
 .monaco-workbench > .part.editor.empty > .watermark dt,

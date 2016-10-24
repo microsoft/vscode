@@ -117,7 +117,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		this.toDispose.push(this.editor.onMouseLeave((e: editorbrowser.IEditorMouseEvent) => {
 			this.ensureBreakpointHintDecoration(-1);
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(state => this.onDebugStateUpdate(state)));
+		this.toDispose.push(this.debugService.onDidChangeState(() => this.onDebugStateUpdate()));
 
 		// hover listeners & hover widget
 		this.toDispose.push(this.editor.onMouseDown((e: editorbrowser.IEditorMouseEvent) => this.onEditorMouseDown(e)));
@@ -159,7 +159,8 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		this.breakpointHintDecoration = this.editor.deltaDecorations(this.breakpointHintDecoration, newDecoration);
 	}
 
-	private onDebugStateUpdate(state: debug.State): void {
+	private onDebugStateUpdate(): void {
+		const state = this.debugService.state;
 		if (state !== debug.State.Stopped) {
 			this.hideHoverWidget();
 		}

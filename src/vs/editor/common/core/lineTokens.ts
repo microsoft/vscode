@@ -15,12 +15,12 @@ export class LineToken {
 	private _tokenIndex: number;
 	private _modeIndex: number;
 
-	public startOffset: number;
-	public endOffset: number;
-	public type: string;
-	public modeId: string;
-	public hasPrev: boolean;
-	public hasNext: boolean;
+	public readonly startOffset: number;
+	public readonly endOffset: number;
+	public readonly type: string;
+	public readonly modeId: string;
+	public readonly hasPrev: boolean;
+	public readonly hasNext: boolean;
 
 	constructor(source: LineTokens, tokenIndex: number, modeIndex: number) {
 		this._source = source;
@@ -79,7 +79,7 @@ export class LineTokens {
 	private _tokens: number[];
 	private _textLength: number;
 
-	modeTransitions: ModeTransition[];
+	readonly modeTransitions: ModeTransition[];
 
 	constructor(map: TokensInflatorMap, tokens: number[], modeTransitions: ModeTransition[], textLength: number) {
 		this._map = map;

@@ -516,6 +516,80 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 	});
 });
 
+suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
+
+	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before:boolean, after:boolean): void {
+		let model = new EditableTextModel([], TextModel.toRawText(original.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), null);
+		model.setEOL(EndOfLineSequence.LF);
+
+		assert.equal(model.mightContainRTL(), before);
+
+		model.applyEdits(edits);
+		assert.equal(model.mightContainRTL(), after);
+		model.dispose();
+	}
+
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
+		return {
+			identifier: null,
+			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+			text: text.join('\n'),
+			forceMoveMarkers: false
+		};
+	}
+		// model.setValue('Hello,\nזוהי עובדה מבוססת שדעתו');
+
+		// let model = new TextModel([], TextModel.toRawText('Hello,\nهناك حقيقة مثبتة منذ زمن طويل', TextModel.DEFAULT_CREATION_OPTIONS));
+
+	test('start with RTL, insert LTR', () => {
+		testApplyEdits([
+			'Hello,\nזוהי עובדה מבוססת שדעתו'
+		], [
+			editOp(1,1,1,1, ['hello'])
+		], true, true);
+	});
+
+	test('start with RTL, delete RTL', () => {
+		testApplyEdits([
+			'Hello,\nזוהי עובדה מבוססת שדעתו'
+		], [
+			editOp(1,1,10,10, [''])
+		], true, true);
+	});
+
+	test('start with RTL, insert RTL', () => {
+		testApplyEdits([
+			'Hello,\nזוהי עובדה מבוססת שדעתו'
+		], [
+			editOp(1,1,1,1, ['هناك حقيقة مثبتة منذ زمن طويل'])
+		], true, true);
+	});
+
+	test('start with LTR, insert LTR', () => {
+		testApplyEdits([
+			'Hello,\nworld!'
+		], [
+			editOp(1,1,1,1, ['hello'])
+		], false, false);
+	});
+
+	test('start with LTR, insert RTL 1', () => {
+		testApplyEdits([
+			'Hello,\nworld!'
+		], [
+			editOp(1,1,1,1, ['هناك حقيقة مثبتة منذ زمن طويل'])
+		], false, true);
+	});
+
+	test('start with LTR, insert RTL 2', () => {
+		testApplyEdits([
+			'Hello,\nworld!'
+		], [
+			editOp(1,1,1,1, ['זוהי עובדה מבוססת שדעתו'])
+		], false, true);
+	});
+});
+
 suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {

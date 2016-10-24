@@ -105,7 +105,7 @@ export interface IExtensionManifest {
 	icon?: string;
 	categories?: string[];
 	activationEvents?: string[];
-	extensionDependencies: string[];
+	extensionDependencies?: string[];
 	contributes?: IExtensionContributions;
 }
 

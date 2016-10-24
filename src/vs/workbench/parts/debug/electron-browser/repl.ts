@@ -32,7 +32,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
 import { ReplEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
 import { Panel } from 'vs/workbench/browser/panel';
@@ -119,15 +118,6 @@ export class Repl extends Panel implements IPrivateReplService {
 						// Only scroll if we were scrolled all the way down before tree refreshed #10486
 						this.tree.setScrollPosition(1);
 					}
-
-					// If the last repl element has children - auto expand it #6019
-					const elements = this.debugService.getModel().getReplElements();
-					const lastElement = elements.length > 0 ? elements[elements.length - 1] : null;
-					if (lastElement instanceof Expression && lastElement.reference > 0) {
-						return this.tree.expand(elements[elements.length - 1]).then(() =>
-							this.tree.reveal(elements[elements.length - 1], 0)
-						);
-					}
 				}, errors.onUnexpectedError);
 			}, delay);
 		}
@@ -182,10 +172,12 @@ export class Repl extends Panel implements IPrivateReplService {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
+				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
-				return wireCancellationToken(token, this.debugService.completions(text, position).then(suggestions => ({
-					currentWord: word ? word.word : '',
-					suggestions
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				const completions = focusedStackFrame ? focusedStackFrame.completions(text, position, overwriteBefore) : TPromise.as([]);
+				return wireCancellationToken(token, completions.then(suggestions => ({
+					suggestions: suggestions
 				})));
 			}
 		},

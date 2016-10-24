@@ -51,7 +51,12 @@ class MergeDecoratorBoundToModel extends Disposable {
 	}
 
 	private redecorate(): void {
+		if (this.model.isDisposed()) {
+			return;
+		}
+
 		const gitModel = this.gitService.getModel();
+
 		if (!gitModel) {
 			return;
 		}

@@ -11,7 +11,7 @@ import URI from 'vs/base/common/uri';
 import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -318,11 +318,6 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 	 * Sets the absolute file resource URI this input is about.
 	 */
 	setResource(resource: URI): void;
-
-	/**
-	 * Sets whether to restore the resource from backup.
-	 */
-	setRestoreFromBackup(restore: boolean): void;
 
 	/**
 	 * Sets the preferred encodingt to use for this input.
@@ -866,7 +861,7 @@ export interface IWorkbenchEditorConfiguration {
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
-			sideBySideLayout: 'vertical' | 'horizontal';
+			defaultSideBySideLayout: GroupOrientation;
 		}
 	};
 }
