@@ -147,7 +147,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			}
 		}
 		if (changedEvents.length > 0) {
-			this._proxy.$acceptModelChanged(modelUrl.toString(), changedEvents);
+			this._proxy.$acceptModelChanged(modelUrl.toString(), changedEvents, this._textFileService.isDirty(modelUrl));
 		}
 	}
 
