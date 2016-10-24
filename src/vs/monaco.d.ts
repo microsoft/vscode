@@ -1082,7 +1082,7 @@ declare module monaco.editor {
         lineNumbersMinChars?: number;
         /**
          * Enable the rendering of the glyph margin.
-         * Defaults to true in vscode and to false in monaco-editor.
+         * Defaults to true.
          */
         glyphMargin?: boolean;
         /**
@@ -1180,7 +1180,7 @@ declare module monaco.editor {
         wordWrap?: boolean;
         /**
          * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
-         * Defaults to 'same' in vscode and to 'none' in monaco-editor.
+         * Defaults to 'none'.
          */
         wrappingIndent?: string;
         /**
@@ -1292,7 +1292,7 @@ declare module monaco.editor {
         codeLens?: boolean;
         /**
          * Enable code folding
-         * Defaults to true in vscode and to false in monaco-editor.
+         * Defaults to true.
          */
         folding?: boolean;
         /**
