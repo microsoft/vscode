@@ -231,7 +231,7 @@ export abstract class ExtHostDocumentsShape {
 	$acceptModelDirty(strURL: string): void { throw ni(); }
 	$acceptModelReverted(strURL: string): void { throw ni(); }
 	$acceptModelRemoved(strURL: string): void { throw ni(); }
-	$acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void { throw ni(); }
+	$acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[], isDirty: boolean): void { throw ni(); }
 }
 
 export abstract class ExtHostDocumentSaveParticipantShape {

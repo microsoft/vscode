@@ -31,9 +31,6 @@ interface IConfiguration extends IFilesConfiguration {
 		},
 		statusBar: {
 			visible: boolean;
-		},
-		editor: {
-			sideBySideLayout: 'vertical' | 'horizontal'
 		}
 	};
 }
@@ -46,7 +43,6 @@ export class VSCodeMenu {
 
 	private currentAutoSaveSetting: string;
 	private currentSidebarLocation: 'left' | 'right';
-	private currentEditorLayout: 'vertical' | 'horizontal';
 	private currentStatusbarVisible: boolean;
 
 	private isQuitting: boolean;
@@ -153,12 +149,6 @@ export class VSCodeMenu {
 			}
 			if (newStatusbarVisible !== this.currentStatusbarVisible) {
 				this.currentStatusbarVisible = newStatusbarVisible;
-				updateMenu = true;
-			}
-
-			const newEditorLayout = config.workbench.editor && config.workbench.editor.sideBySideLayout || 'vertical';
-			if (newEditorLayout !== this.currentEditorLayout) {
-				this.currentEditorLayout = newEditorLayout;
 				updateMenu = true;
 			}
 		}
@@ -531,15 +521,7 @@ export class VSCodeMenu {
 		const fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 });
 		const toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
 		const splitEditor = this.createMenuItem(nls.localize({ key: 'miSplitEditor', comment: ['&& denotes a mnemonic'] }, "Split &&Editor"), 'workbench.action.splitEditor');
-
-		let editorLayoutLabel: string;
-		if (this.currentEditorLayout !== 'horizontal') {
-			editorLayoutLabel = nls.localize({ key: 'miHorizontalEditorLayout', comment: ['&& denotes a mnemonic'] }, "Horizontal Editor &&Layout");
-		} else {
-			editorLayoutLabel = nls.localize({ key: 'miVerticalEditorLayout', comment: ['&& denotes a mnemonic'] }, "Vertical Editor &&Layout");
-		}
-		const toggleEditorLayout = this.createMenuItem(editorLayoutLabel, 'workbench.action.toggleEditorLayout');
-
+		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Editor Group &&Layout"), 'workbench.action.toggleEditorGroupLayout');
 		const toggleSidebar = this.createMenuItem(nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar"), 'workbench.action.toggleSidebarVisibility');
 
 		let moveSideBarLabel: string;
@@ -711,16 +693,19 @@ export class VSCodeMenu {
 			}
 		}
 
+		const keyboardShortcutsUrl = platform.isLinux ? product.keyboardShortcutsUrlLinux : platform.isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
 		arrays.coalesce([
 			product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.openUrl(product.documentationUrl, 'openDocumentationUrl') }) : null,
 			product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'update.showCurrentReleaseNotes') }) : null,
 			(product.documentationUrl || product.releaseNotesUrl) ? __separator__() : null,
+			keyboardShortcutsUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")), click: () => this.openUrl(keyboardShortcutsUrl, 'openKeyboardShortcutsUrl') }) : null,
+			product.introductoryVideosUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")), click: () => this.openUrl(product.introductoryVideosUrl, 'openIntroductoryVideosUrl') }) : null,
 			product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => this.openUrl(product.twitterUrl, 'openTwitterUrl') }) : null,
 			product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")), click: () => this.openUrl(product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
 			reportIssuesItem,
 			(product.twitterUrl || product.requestFeatureUrl || product.reportIssueUrl) ? __separator__() : null,
 			product.licenseUrl ? new MenuItem({
-				label: mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "&&View License")), click: () => {
+				label: mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")), click: () => {
 					if (platform.language) {
 						const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
 						this.openUrl(`${product.licenseUrl}${queryArgChar}lang=${platform.language}`, 'openLicenseUrl');

@@ -51,17 +51,17 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
+	let documentSelector = ['html', 'handlebars', 'razor'];
+	let embeddedLanguages = { 'css': true };
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
-		// Register the server for json documents
-		documentSelector: ['html', 'handlebars', 'razor'],
+		documentSelector,
 		synchronize: {
-			// Synchronize the setting section 'html' to the server
-			configurationSection: ['html'],
+			configurationSection: ['html'], // Synchronize the setting section 'html' to the server
 		},
-
 		initializationOptions: {
-			embeddedLanguages: { 'css': true },
+			embeddedLanguages,
 			['format.enable']: workspace.getConfiguration('html').get('format.enable')
 		}
 	};
@@ -69,14 +69,14 @@ export function activate(context: ExtensionContext) {
 	// Create the language client and start the client.
 	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
 
-	let embeddedDocuments = initializeEmbeddedContentDocuments('html-embedded', client);
+	let embeddedDocuments = initializeEmbeddedContentDocuments(documentSelector, embeddedLanguages, client);
 	context.subscriptions.push(embeddedDocuments);
 
 	client.onRequest(EmbeddedCompletionRequest.type, params => {
 		let position = Protocol2Code.asPosition(params.position);
-		let virtualDocumentURI = embeddedDocuments.getVirtualDocumentUri(params.uri, params.embeddedLanguageId);
+		let virtualDocumentURI = embeddedDocuments.getEmbeddedContentUri(params.uri, params.embeddedLanguageId);
 
-		return embeddedDocuments.openVirtualDocument(virtualDocumentURI, params.version).then(document => {
+		return embeddedDocuments.openEmbeddedContentDocument(virtualDocumentURI, params.version).then(document => {
 			if (document) {
 				return commands.executeCommand<CompletionList>('vscode.executeCompletionItemProvider', virtualDocumentURI, position).then(completionList => {
 					if (completionList) {
@@ -94,8 +94,8 @@ export function activate(context: ExtensionContext) {
 
 	client.onRequest(EmbeddedHoverRequest.type, params => {
 		let position = Protocol2Code.asPosition(params.position);
-		let virtualDocumentURI = embeddedDocuments.getVirtualDocumentUri(params.uri, params.embeddedLanguageId);
-		return embeddedDocuments.openVirtualDocument(virtualDocumentURI, params.version).then(document => {
+		let virtualDocumentURI = embeddedDocuments.getEmbeddedContentUri(params.uri, params.embeddedLanguageId);
+		return embeddedDocuments.openEmbeddedContentDocument(virtualDocumentURI, params.version).then(document => {
 			if (document) {
 				return commands.executeCommand<Hover[]>('vscode.executeHoverProvider', virtualDocumentURI, position).then(hover => {
 					if (hover && hover.length > 0) {

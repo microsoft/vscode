@@ -99,6 +99,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				lines: model.getValue().split(model.getEOL()),
 				BOM: '',
 				length: -1,
+				containsRTL: false,
 				options: {
 					tabSize: 4,
 					insertSpaces: true,

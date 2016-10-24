@@ -85,6 +85,7 @@ class ConfigClass implements IConfiguration {
 			suggestOnTriggerCharacters: true,
 			acceptSuggestionOnEnter: true,
 			snippetSuggestions: 'bottom',
+			emptySelectionClipboard: true,
 			tabCompletion: false,
 			wordBasedSuggestions: true,
 			suggestFontSize: 0,

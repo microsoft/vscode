@@ -19,6 +19,20 @@ export function getEmbeddedLanguageAtPosition(languageService: LanguageService, 
 	return null;
 }
 
+export function hasEmbeddedContent(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, embeddedLanguages: { [languageId: string]: boolean }): string[] {
+	let embeddedLanguageIds: { [languageId: string]: boolean } = {};
+	function collectEmbeddedLanguages(node: Node): void {
+		let c = getEmbeddedContentForNode(languageService, document, node);
+		if (c && embeddedLanguages[c.languageId] && !isWhitespace(document.getText().substring(c.start, c.end))) {
+			embeddedLanguageIds[c.languageId] = true;
+		}
+		node.children.forEach(collectEmbeddedLanguages);
+	}
+
+	htmlDocument.roots.forEach(collectEmbeddedLanguages);
+	return Object.keys(embeddedLanguageIds);
+}
+
 export function getEmbeddedContent(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, languageId: string): string {
 	let contents = [];
 	function collectEmbeddedNodes(node: Node): void {
@@ -104,4 +118,8 @@ function getEmbeddedContentForNode(languageService: LanguageService, document: T
 		}
 	}
 	return void 0;
+}
+
+function isWhitespace(str: string) {
+	return str.match(/^\s*$/);
 }

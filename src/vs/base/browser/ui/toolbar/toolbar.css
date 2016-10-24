@@ -10,19 +10,6 @@
 .monaco-toolbar .toolbar-toggle-more {
 	display: inline-block;
 	padding: 0;
-	-ms-transition: -ms-transform 100ms ease;
-	-webkit-transition: -webkit-transform 100ms ease;
-	-moz-transition: -moz-transform 100ms ease;
-	-o-transition: -o-transform 100ms ease;
-	transition: transform 100ms ease;
-}
-
-.vs .monaco-toolbar .toolbar-toggle-more.active {
-	-ms-transform: translate(0, -3px);
-	-webkit-transform: translate(0, -3px);
-	-moz-transform: translate(0, -3px);
-	-o-transform: translate(0, -3px);
-	transform: translate(0, -3px);
 }
 
 .vs .monaco-toolbar .action-label.toolbar-toggle-more {

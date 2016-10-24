@@ -21,7 +21,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
-import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -77,6 +77,9 @@ export interface ISideBySideEditorControl {
 
 	arrangeGroups(arrangement: GroupArrangement): void;
 
+	setGroupOrientation(orientation: GroupOrientation): void;
+	getGroupOrientation(): GroupOrientation;
+
 	getRatio(): number[];
 	dispose(): void;
 }
@@ -105,6 +108,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private dragging: boolean;
 
 	private layoutVertically: boolean;
+	private defaultEditorGroupOrientation: GroupOrientation;
+
 	private showTabs: boolean;
 	private showIcons: boolean;
 
@@ -135,6 +140,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	constructor(
 		parent: Builder,
+		groupOrientation: GroupOrientation,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -163,6 +169,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.stacksChangedBuffer = [];
 
 		this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+
+		const editorGroupOrientation = groupOrientation || this.defaultEditorGroupOrientation;
+		this.layoutVertically = (editorGroupOrientation !== 'horizontal');
 
 		this.create();
 
@@ -203,28 +212,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		if (config.workbench && config.workbench.editor) {
 			this.showTabs = config.workbench.editor.showTabs;
 			this.showIcons = config.workbench.editor.showIcons;
-			this.layoutVertically = (config.workbench.editor.sideBySideLayout !== 'horizontal');
+			this.defaultEditorGroupOrientation = (config.workbench.editor.defaultSideBySideLayout === 'horizontal') ? 'horizontal' : 'vertical';
 		} else {
 			this.showTabs = true;
 			this.showIcons = false;
-			this.layoutVertically = true;
+			this.defaultEditorGroupOrientation = 'vertical';
 		}
 
 		if (!refresh) {
 			return; // return early if no refresh is needed
-		}
-
-		// Editor Layout
-		const verticalLayouting = this.parent.hasClass('vertical-layout');
-		if (verticalLayouting !== this.layoutVertically) {
-			this.parent.removeClass('vertical-layout', 'horizontal-layout');
-			this.parent.addClass(this.layoutVertically ? 'vertical-layout' : 'horizontal-layout');
-
-			this.sashOne.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
-			this.sashTwo.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
-
-			// Trigger layout
-			this.arrangeGroups(GroupArrangement.EVEN);
 		}
 
 		// Editor Containers
@@ -656,6 +652,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.visibleEditorFocusTrackers[to] = listeners;
 		this.visibleEditorFocusTrackers[from] = null;
 
+		const minimizedState = this.silosMinimized[from];
+		this.silosMinimized[to] = minimizedState;
+		this.silosMinimized[from] = null;
+
 		this.visibleEditors[to] = editor;
 		this.visibleEditors[from] = null;
 
@@ -736,6 +736,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		arrays.move(this.visibleEditors, from, to);
 		arrays.move(this.visibleEditorFocusTrackers, from, to);
 		arrays.move(this.silosSize, from, to);
+		arrays.move(this.silosMinimized, from, to);
 
 		// Layout
 		if (!this.sashOne.isHidden()) {
@@ -747,6 +748,27 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		this.layoutContainers();
+	}
+
+	public setGroupOrientation(orientation: GroupOrientation): void {
+		this.layoutVertically = (orientation !== 'horizontal');
+
+		// Editor Layout
+		const verticalLayouting = this.parent.hasClass('vertical-layout');
+		if (verticalLayouting !== this.layoutVertically) {
+			this.parent.removeClass('vertical-layout', 'horizontal-layout');
+			this.parent.addClass(this.layoutVertically ? 'vertical-layout' : 'horizontal-layout');
+
+			this.sashOne.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
+			this.sashTwo.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
+
+			// Trigger layout
+			this.arrangeGroups(GroupArrangement.EVEN);
+		}
+	}
+
+	public getGroupOrientation(): GroupOrientation {
+		return this.layoutVertically ? 'vertical' : 'horizontal';
 	}
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
@@ -1773,9 +1795,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						this.silosSize[position] -= overflow;
 						overflow = 0;
 					} else if (maxCompensation > 0) {
-						const compensation = overflow - maxCompensation;
-						this.silosSize[position] -= compensation;
-						overflow -= compensation;
+						this.silosSize[position] -= maxCompensation;
+						overflow -= maxCompensation;
 					}
 				});
 			}

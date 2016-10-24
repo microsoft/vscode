@@ -166,14 +166,14 @@ export function setExtractKeyCode(newExtractKeyCode: (e: KeyboardEvent) => KeyCo
 }
 
 export interface IKeyboardEvent {
-	browserEvent: KeyboardEvent;
-	target: HTMLElement;
+	readonly browserEvent: KeyboardEvent;
+	readonly target: HTMLElement;
 
-	ctrlKey: boolean;
-	shiftKey: boolean;
-	altKey: boolean;
-	metaKey: boolean;
-	keyCode: KeyCode;
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly keyCode: KeyCode;
 
 	asKeybinding(): number;
 	equals(keybinding: number): boolean;
@@ -189,14 +189,14 @@ const metaKeyMod = (platform.isMacintosh ? KeyMod.CtrlCmd : KeyMod.WinCtrl);
 
 export class StandardKeyboardEvent implements IKeyboardEvent {
 
-	public browserEvent: KeyboardEvent;
-	public target: HTMLElement;
+	public readonly browserEvent: KeyboardEvent;
+	public readonly target: HTMLElement;
 
-	public ctrlKey: boolean;
-	public shiftKey: boolean;
-	public altKey: boolean;
-	public metaKey: boolean;
-	public keyCode: KeyCode;
+	public readonly ctrlKey: boolean;
+	public readonly shiftKey: boolean;
+	public readonly altKey: boolean;
+	public readonly metaKey: boolean;
+	public readonly keyCode: KeyCode;
 
 	private _asKeybinding: number;
 

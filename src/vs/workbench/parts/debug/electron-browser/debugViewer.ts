@@ -118,9 +118,9 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 			} else if (element instanceof model.FunctionBreakpoint && !element.name) {
 				debugService.removeFunctionBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
 			} else if (element instanceof model.Variable) {
-				(<model.Variable>element).errorMessage = null;
+				element.errorMessage = null;
 				if (renamed && element.value !== inputBox.value) {
-					debugService.setVariable(element, inputBox.value)
+					element.setVariable(inputBox.value)
 						// if everything went fine we need to refresh that tree element since his value updated
 						.done(() => tree.refresh(element, false), errors.onUnexpectedError);
 				}
@@ -212,10 +212,14 @@ export class BaseDebugController extends treedefaults.DefaultController {
 
 // call stack
 
+class ThreadAndProcessIds {
+	constructor(public processId: string, public threadId: number) { }
+}
+
 export class CallStackController extends BaseDebugController {
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
-		if (typeof element === 'number') {
+		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
 		if (element instanceof model.StackFrame) {
@@ -227,7 +231,7 @@ export class CallStackController extends BaseDebugController {
 
 	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
-		if (typeof element === 'number') {
+		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
 		if (element instanceof model.StackFrame) {
@@ -266,10 +270,11 @@ export class CallStackController extends BaseDebugController {
 	}
 
 	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
-	private showMoreStackFrames(tree: tree.ITree, threadId: number): boolean {
-		const thread = this.debugService.getModel().getThreads()[threadId];
+	private showMoreStackFrames(tree: tree.ITree, threadAndProcessIds: ThreadAndProcessIds): boolean {
+		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === threadAndProcessIds.processId).pop();
+		const thread = process && process.getThread(threadAndProcessIds.threadId);
 		if (thread) {
-			thread.getCallStack(this.debugService, true)
+			thread.getCallStack(true)
 				.done(() => tree.refresh(), errors.onUnexpectedError);
 		}
 
@@ -318,7 +323,7 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 				actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
 			}
 		} else if (element instanceof model.StackFrame) {
-			const capabilities = this.debugService.activeSession.configuration.capabilities;
+			const capabilities = this.debugService.getViewModel().focusedProcess.session.configuration.capabilities;
 			if (typeof capabilities.supportsRestartFrame === 'boolean' && capabilities.supportsRestartFrame) {
 				actions.push(this.instantiationService.createInstance(debugactions.RestartFrameAction, debugactions.RestartFrameAction.ID, debugactions.RestartFrameAction.LABEL));
 			}
@@ -334,10 +339,6 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 
 export class CallStackDataSource implements tree.IDataSource {
 
-	constructor( @debug.IDebugService private debugService: debug.IDebugService) {
-		// noop
-	}
-
 	public getId(tree: tree.ITree, element: any): string {
 		if (typeof element === 'number') {
 			return element.toString();
@@ -350,25 +351,28 @@ export class CallStackDataSource implements tree.IDataSource {
 	}
 
 	public hasChildren(tree: tree.ITree, element: any): boolean {
-		return element instanceof model.Model || (element instanceof model.Thread && (<model.Thread>element).stopped);
+		return element instanceof model.Model || element instanceof model.Process || (element instanceof model.Thread && (<model.Thread>element).stopped);
 	}
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof model.Thread) {
 			return this.getThreadChildren(element);
 		}
+		if (element instanceof model.Model) {
+			return TPromise.as(element.getProcesses());
+		}
 
-		const threads = (<model.Model>element).getThreads();
-		return TPromise.as(Object.keys(threads).map(ref => threads[ref]));
+		const process = <debug.IProcess>element;
+		return TPromise.as(process.getAllThreads());
 	}
 
 	private getThreadChildren(thread: debug.IThread): TPromise<any> {
-		return thread.getCallStack(this.debugService).then((callStack: any[]) => {
+		return thread.getCallStack().then((callStack: any[]) => {
 			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
 				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 			}
 			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
-				return callStack.concat([thread.threadId]);
+				return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
 			}
 
 			return callStack;
@@ -385,6 +389,11 @@ interface IThreadTemplateData {
 	name: HTMLElement;
 	state: HTMLElement;
 	stateLabel: HTMLSpanElement;
+}
+
+interface IProcessTemplateData {
+	process: HTMLElement;
+	name: HTMLElement;
 }
 
 interface IErrorTemplateData {
@@ -409,6 +418,7 @@ export class CallStackRenderer implements tree.IRenderer {
 	private static STACK_FRAME_TEMPLATE_ID = 'stackFrame';
 	private static ERROR_TEMPLATE_ID = 'error';
 	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
+	private static PROCESS_TEMPLATE_ID = 'process';
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
@@ -419,6 +429,9 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {
+		if (element instanceof model.Process) {
+			return CallStackRenderer.PROCESS_TEMPLATE_ID;
+		}
 		if (element instanceof model.Thread) {
 			return CallStackRenderer.THREAD_TEMPLATE_ID;
 		}
@@ -433,6 +446,14 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 
 	public renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement): any {
+		if (templateId === CallStackRenderer.PROCESS_TEMPLATE_ID) {
+			let data: IProcessTemplateData = Object.create(null);
+			data.process = dom.append(container, $('.process'));
+			data.name = dom.append(data.process, $('.name'));
+
+			return data;
+		}
+
 		if (templateId === CallStackRenderer.LOAD_MORE_TEMPLATE_ID) {
 			let data: ILoadMoreTemplateData = Object.create(null);
 			data.label = dom.append(container, $('.load-more'));
@@ -466,15 +487,22 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
-		if (templateId === CallStackRenderer.THREAD_TEMPLATE_ID) {
+		if (templateId === CallStackRenderer.PROCESS_TEMPLATE_ID) {
+			this.renderProcess(element, templateData);
+		} else if (templateId === CallStackRenderer.THREAD_TEMPLATE_ID) {
 			this.renderThread(element, templateData);
 		} else if (templateId === CallStackRenderer.STACK_FRAME_TEMPLATE_ID) {
 			this.renderStackFrame(element, templateData);
 		} else if (templateId === CallStackRenderer.ERROR_TEMPLATE_ID) {
 			this.renderError(element, templateData);
-		} else {
+		} else if (templateId === CallStackRenderer.LOAD_MORE_TEMPLATE_ID) {
 			this.renderLoadMore(element, templateData);
 		}
+	}
+
+	private renderProcess(process: debug.IProcess, data: IProcessTemplateData): void {
+		data.process.title = nls.localize('process', "Process");
+		data.name.textContent = process.name;
 	}
 
 	private renderThread(thread: debug.IThread, data: IThreadTemplateData): void {
@@ -570,10 +598,6 @@ export class VariablesActionProvider implements renderer.IActionProvider {
 
 export class VariablesDataSource implements tree.IDataSource {
 
-	constructor(private debugService: debug.IDebugService) {
-		// noop
-	}
-
 	public getId(tree: tree.ITree, element: any): string {
 		return element.getId();
 	}
@@ -589,12 +613,12 @@ export class VariablesDataSource implements tree.IDataSource {
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof viewmodel.ViewModel) {
-			let focusedStackFrame = (<viewmodel.ViewModel>element).getFocusedStackFrame();
-			return focusedStackFrame ? focusedStackFrame.getScopes(this.debugService) : TPromise.as([]);
+			const focusedStackFrame = (<viewmodel.ViewModel>element).focusedStackFrame;
+			return focusedStackFrame ? focusedStackFrame.getScopes() : TPromise.as([]);
 		}
 
 		let scope = <model.Scope>element;
-		return scope.getChildren(this.debugService);
+		return scope.getChildren();
 	}
 
 	public getParent(tree: tree.ITree, element: any): TPromise<any> {
@@ -759,7 +783,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 		if (element instanceof model.Expression) {
 			const expression = <model.Expression>element;
 			actions.push(this.instantiationService.createInstance(debugactions.AddWatchExpressionAction, debugactions.AddWatchExpressionAction.ID, debugactions.AddWatchExpressionAction.LABEL));
-			actions.push(this.instantiationService.createInstance(debugactions.RenameWatchExpressionAction, debugactions.RenameWatchExpressionAction.ID, debugactions.RenameWatchExpressionAction.LABEL, expression));
+			actions.push(this.instantiationService.createInstance(debugactions.EditWatchExpressionAction, debugactions.EditWatchExpressionAction.ID, debugactions.EditWatchExpressionAction.LABEL, expression));
 			if (expression.reference === 0) {
 				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value));
 			}
@@ -789,10 +813,6 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 
 export class WatchExpressionsDataSource implements tree.IDataSource {
 
-	constructor(private debugService: debug.IDebugService) {
-		// noop
-	}
-
 	public getId(tree: tree.ITree, element: any): string {
 		return element.getId();
 	}
@@ -812,7 +832,7 @@ export class WatchExpressionsDataSource implements tree.IDataSource {
 		}
 
 		let expression = <model.Expression>element;
-		return expression.getChildren(this.debugService);
+		return expression.getChildren();
 	}
 
 	public getParent(tree: tree.ITree, element: any): TPromise<any> {
@@ -1164,10 +1184,10 @@ export class BreakpointsRenderer implements tree.IRenderer {
 			data.breakpoint.title = functionBreakpoint.name;
 
 			// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
-			const session = this.debugService.activeSession;
-			if ((session && !session.configuration.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
+			const process = this.debugService.getViewModel().focusedProcess;
+			if ((process && !process.session.configuration.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
 				tree.addTraits('disabled', [functionBreakpoint]);
-				if (session && !session.configuration.capabilities.supportsFunctionBreakpoints) {
+				if (process && !process.session.configuration.capabilities.supportsFunctionBreakpoints) {
 					data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 				}
 			} else {

@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewLayer } from 'vs/editor/browser/view/viewLayer';
-import { ViewLine, createLine } from 'vs/editor/browser/viewParts/lines/viewLine';
+import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -146,10 +146,12 @@ export class ViewLines extends ViewLayer<ViewLine> {
 
 	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
 		let shouldRender = super.onModelDecorationsChanged(e);
-		let rendStartLineNumber = this._linesCollection.getStartLineNumber();
-		let rendEndLineNumber = this._linesCollection.getEndLineNumber();
-		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-			this._linesCollection.getLine(lineNumber).onModelDecorationsChanged();
+		if (e.inlineDecorationsChanged) {
+			let rendStartLineNumber = this._linesCollection.getStartLineNumber();
+			let rendEndLineNumber = this._linesCollection.getEndLineNumber();
+			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+				this._linesCollection.getLine(lineNumber).onModelDecorationsChanged();
+			}
 		}
 		return shouldRender || true;
 	}
@@ -351,7 +353,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 	// --- implementation
 
 	_createLine(): ViewLine {
-		return createLine(this._context);
+		return new ViewLine(this._context);
 	}
 
 	private _updateLineWidths(): void {

@@ -33,6 +33,11 @@
       "version": "1.0.7",
       "from": "vscode-nls@>=1.0.4 <2.0.0",
       "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
+    },
+    "vscode-uri": {
+      "version": "1.0.0",
+      "from": "vscode-uri@>=1.0.0 <2.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-uri/-/vscode-uri-1.0.0.tgz"
     }
   }
 }

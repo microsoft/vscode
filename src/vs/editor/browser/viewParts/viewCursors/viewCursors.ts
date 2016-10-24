@@ -100,7 +100,12 @@ export class ViewCursors extends ViewPart {
 	}
 	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
 		var shouldRender = (position: editorCommon.IPosition) => {
-			return e.fromLineNumber <= position.lineNumber && position.lineNumber <= e.toLineNumber;
+			for (let i = 0, len = e.ranges.length; i < len; i++) {
+				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
+					return true;
+				}
+			}
+			return false;
 		};
 		if (shouldRender(this._primaryCursor.getPosition())) {
 			return true;
