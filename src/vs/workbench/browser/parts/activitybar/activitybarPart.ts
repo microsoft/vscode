@@ -97,7 +97,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
 		});
-		this.viewletSwitcherBar.getContainer().addClass('position-top');
 
 		// Build Viewlet Actions in correct order
 		const allViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
