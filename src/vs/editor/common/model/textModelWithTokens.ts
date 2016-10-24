@@ -288,16 +288,15 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (!this._tokenizationSupport) {
 			return this.getModeId();
 		}
-		var validPosition = this.validatePosition({
-			lineNumber: _lineNumber,
-			column: _column
+		let { lineNumber, column } = this.validatePosition({ lineNumber: _lineNumber, column: _column });
+
+		this._withModelTokensChangedEventBuilder((eventBuilder) => {
+			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
 		});
 
-		var lineNumber = validPosition.lineNumber;
-		var column = validPosition.column;
+		let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this.getModeId());
+		let modeTransitionIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, column - 1);
 
-		var modeTransitions = this._getLineModeTransitions(lineNumber);
-		var modeTransitionIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, column - 1);
 		return modeTransitions[modeTransitionIndex].modeId;
 	}
 
@@ -392,16 +391,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 			t1.stop();
 		});
-	}
-
-	_getLineModeTransitions(lineNumber: number): ModeTransition[] {
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
-		}
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
-		});
-		return this._lines[lineNumber - 1].getModeTransitions(this.getModeId());
 	}
 
 	private _updateTokensUntilLine(eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number, emitEvents: boolean): void {
@@ -513,7 +502,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			return WordHelper.getWordAtPosition(lineContent, position.column, this.getModeId(), null);
 		}
 
-		let modeTransitions = this._getLineModeTransitions(position.lineNumber);
+		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this.getModeId());
 		return WordHelper.getWordAtPosition(lineContent, position.column, this.getModeId(), modeTransitions);
 	}
 
