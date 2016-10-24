@@ -1391,7 +1391,7 @@ declare module 'vscode' {
 		getLabel?(node: T): string;
 
 		/**
-		 * Determine if `node` has children and is expandable. Default to return `true` if not provided.
+		 * Determine if `node` has children and is expandable. Default to `true` if not provided.
 		 *
 		 * @param node The node to determine if it has children and is expandable.
 		 * @return A boolean that determines if `node` has children and is expandable.

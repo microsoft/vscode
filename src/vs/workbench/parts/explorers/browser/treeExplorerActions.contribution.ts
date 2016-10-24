@@ -29,13 +29,13 @@ export class ToggleExternalViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const viewletsToggleStataus = this.activityService.getIsEnabledForRegisteredViewlets();
+		const isEnabledForRegisteredViewlets = this.activityService.getIsEnabledForRegisteredViewlets();
 
 		const picks: IPickOpenEntry[] = [];
-		for (let viewletId in viewletsToggleStataus) {
+		for (let viewletId in isEnabledForRegisteredViewlets) {
 			picks.push({
 				id: viewletId,
-				label: (viewletsToggleStataus[viewletId] ? 'Disable ' : 'Enable ') + this.getShortViewletId(viewletId)
+				label: (isEnabledForRegisteredViewlets[viewletId] ? 'Disable ' : 'Enable ') + this.getShortViewletId(viewletId)
 			});
 		}
 

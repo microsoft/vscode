@@ -97,7 +97,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		}
 	}
 
-	getIsEnabledForRegisteredViewlets(): { [viewletId: string]: boolean } {
+	public getIsEnabledForRegisteredViewlets(): { [viewletId: string]: boolean } {
 		const result = {};
 		for (let viewletId in this.registeredViewlets) {
 			result[viewletId] = (this.enabledExternalViewlets.indexOf(viewletId) !== -1);
@@ -105,7 +105,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		return result;
 	}
 
-	toggleViewlet(viewletId: string): void {
+	public toggleViewlet(viewletId: string): void {
 		const index = this.enabledExternalViewlets.indexOf(viewletId);
 		if (index === -1) {
 			this.enabledExternalViewlets.push(viewletId);
@@ -140,7 +140,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		const $result = $('.content').appendTo($el);
 
 		// Top Actionbar with action items for each viewlet action
-		this.createViewletSwitcher($result.clone().addClass('position-top'));
+		this.createViewletSwitcher($result.clone());
 
 		return $result;
 	}
@@ -235,7 +235,7 @@ class ViewletActivityAction extends ActivityAction {
 	private lastRun: number = 0;
 
 	private _onOpenExternalViewlet = new Emitter<string>();
-	get onOpenExternalViewlet(): Event<string> { return this._onOpenExternalViewlet.event; };
+	public get onOpenExternalViewlet(): Event<string> { return this._onOpenExternalViewlet.event; };
 
 	constructor(
 		id: string,

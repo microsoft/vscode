@@ -8,26 +8,20 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TreeExplorerNodeProvider } from 'vscode';
 
 export class InternalTreeExplorerNode implements TreeExplorerNodeContent {
-	static idCounter = 1;
+	private static idCounter = 1;
 
 	id: number;
 
-	label: string = 'label';
-	hasChildren: boolean = true;
-	clickCommand: string = null;
+	label: string;
+	hasChildren: boolean;
+	clickCommand: string;
 
 	constructor(node: any, provider: TreeExplorerNodeProvider<any>) {
 		this.id = InternalTreeExplorerNode.idCounter++;
 
-		if (provider.getLabel) {
-			this.label = provider.getLabel(node);
-		}
-		if (provider.getHasChildren) {
-			this.hasChildren = provider.getHasChildren(node);
-		}
-		if (provider.getClickCommand) {
-			this.clickCommand = provider.getClickCommand(node);
-		}
+		this.label = provider.getLabel ? provider.getLabel(node) : node.toString();
+		this.hasChildren = provider.getHasChildren ? provider.getHasChildren(node) : true;
+		this.clickCommand = provider.getClickCommand ? provider.getClickCommand(node) : null;
 	}
 }
 

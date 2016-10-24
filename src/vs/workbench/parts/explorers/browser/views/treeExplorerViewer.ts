@@ -29,15 +29,15 @@ export class TreeDataSource implements IDataSource {
 
 	}
 
-	getId(tree: ITree, node: InternalTreeExplorerNode): string {
+	public getId(tree: ITree, node: InternalTreeExplorerNode): string {
 		return node.id.toString();
 	}
 
-	hasChildren(tree: ITree, node: InternalTreeExplorerNode): boolean {
+	public hasChildren(tree: ITree, node: InternalTreeExplorerNode): boolean {
 		return node.hasChildren;
 	}
 
-	getChildren(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
+	public getChildren(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
 		const promise = this.treeExplorerViewletService.resolveChildren(this.treeNodeProviderId, node);
 
 		this.progressService.showWhile(promise, 800);
@@ -45,7 +45,7 @@ export class TreeDataSource implements IDataSource {
 		return promise;
 	}
 
-	getParent(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode> {
+	public getParent(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode> {
 		return TPromise.as(null);
 	}
 }
@@ -66,11 +66,11 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 		});
 	}
 
-	getContentHeight(tree: ITree, element: any): number {
+	public getContentHeight(tree: ITree, element: any): number {
 		return 22;
 	}
 
-	renderContents(tree: ITree, node: InternalTreeExplorerNode, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
+	public renderContents(tree: ITree, node: InternalTreeExplorerNode, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
 		const el = $(domElement).clearChildren();
 		const item = $('.custom-viewlet-tree-node-item');
 		item.appendTo(el);
@@ -94,7 +94,7 @@ export class TreeController extends DefaultController {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 	}
 
-	onLeftClick(tree: ITree, node: InternalTreeExplorerNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	public onLeftClick(tree: ITree, node: InternalTreeExplorerNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		super.onLeftClick(tree, node, event, origin);
 
 		if (node.clickCommand) {
@@ -126,5 +126,5 @@ export class TreeExplorerViewletState implements ITreeExplorerViewletState {
 		this._actionProvider = new TreeExplorerActionProvider(this);
 	}
 
-	get actionProvider() { return this._actionProvider; }
+	public get actionProvider() { return this._actionProvider; }
 }
