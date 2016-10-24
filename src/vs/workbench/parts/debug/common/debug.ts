@@ -173,7 +173,7 @@ export interface IStackFrame extends ITreeElement {
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
 	restart(): TPromise<any>;
-	completions(text: string, position: Position): TPromise<ISuggestion[]>;
+	completions(text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
 }
 
 export interface IEnablement extends ITreeElement {
