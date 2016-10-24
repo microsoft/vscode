@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "vscode-css-languageservice": "^1.1.0",
-    "vscode-languageserver": "^2.4.0-next.12"
+    "vscode-languageserver": "^2.4.0-next.12",
+    "vscode-uri": "^1.0.0"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-server",
