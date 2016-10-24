@@ -167,13 +167,11 @@ const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platfor
 jsonRegistry.registerSchema(schemaId, schema);
 
 export class ConfigurationManager implements debug.IConfigurationManager {
-	public configuration: debug.IConfig;
 	private adapters: Adapter[];
 	private allModeIdsForBreakpoints: { [key: string]: boolean };
 	private _onDidConfigurationChange: Emitter<debug.IConfig>;
 
 	constructor(
-		configName: string,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -184,7 +182,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this._onDidConfigurationChange = new Emitter<debug.IConfig>();
-		this.setConfiguration(configName);
 		this.adapters = [];
 		this.registerListeners();
 		this.allModeIdsForBreakpoints = {};
@@ -250,60 +247,58 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return this._onDidConfigurationChange.event;
 	}
 
-	public get configurationName(): string {
-		return this.configuration ? this.configuration.name : null;
+	public getAdapter(type: string): Adapter {
+		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, type)).pop();
 	}
 
-	public get adapter(): Adapter {
-		if (!this.configuration || !this.configuration.type) {
-			return null;
-		}
-
-		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, this.configuration.type)).pop();
-	}
-
-	public setConfiguration(nameOrConfig: string | debug.IConfig): TPromise<void> {
+	public getConfiguration(nameOrConfig: string | debug.IConfig): TPromise<debug.IConfig> {
 		return this.loadLaunchConfig().then(config => {
+			let result: debug.IConfig = null;
 			if (types.isObject(nameOrConfig)) {
-				this.configuration = objects.deepClone(nameOrConfig) as debug.IConfig;
+				result = objects.deepClone(nameOrConfig) as debug.IConfig;
 			} else {
 				if (!config || !config.configurations) {
-					this.configuration = null;
-					return;
+					return result;
 				}
 				// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
 				const filtered = nameOrConfig ? config.configurations.filter(cfg => cfg.name === nameOrConfig) : [config.configurations[0]];
 
-				this.configuration = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
-				if (config && this.configuration) {
-					this.configuration.debugServer = config.debugServer;
+				result = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
+				if (config && result) {
+					result.debugServer = config.debugServer;
 				}
 			}
 
-			if (this.configuration) {
+			if (result) {
 				// Set operating system specific properties #1873
-				if (isWindows && this.configuration.windows) {
-					Object.keys(this.configuration.windows).forEach(key => {
-						this.configuration[key] = this.configuration.windows[key];
+				if (isWindows && result.windows) {
+					Object.keys(result.windows).forEach(key => {
+						result[key] = result.windows[key];
 					});
 				}
-				if (isMacintosh && this.configuration.osx) {
-					Object.keys(this.configuration.osx).forEach(key => {
-						this.configuration[key] = this.configuration.osx[key];
+				if (isMacintosh && result.osx) {
+					Object.keys(result.osx).forEach(key => {
+						result[key] = result.osx[key];
 					});
 				}
-				if (isLinux && this.configuration.linux) {
-					Object.keys(this.configuration.linux).forEach(key => {
-						this.configuration[key] = this.configuration.linux[key];
+				if (isLinux && result.linux) {
+					Object.keys(result.linux).forEach(key => {
+						result[key] = result.linux[key];
 					});
 				}
 
 				// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-				Object.keys(this.configuration).forEach(key => {
-					this.configuration[key] = this.configurationResolverService.resolveAny(this.configuration[key]);
+				Object.keys(result).forEach(key => {
+					result[key] = this.configurationResolverService.resolveAny(result[key]);
 				});
+
+				const adapter = this.getAdapter(result.type);
+				return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 			}
-		}).then(() => this._onDidConfigurationChange.fire(this.configuration));
+		}).then(result => {
+			this._onDidConfigurationChange.fire(result);
+			return result;
+		});
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
@@ -355,9 +350,5 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {
 		return TPromise.as(this.configurationService.getConfiguration<debug.IGlobalConfig>('launch'));
-	}
-
-	public resolveInteractiveVariables(): TPromise<any> {
-		return this.configurationResolverService.resolveInteractiveVariables(this.configuration, this.adapter ? this.adapter.variables : null);
 	}
 }
