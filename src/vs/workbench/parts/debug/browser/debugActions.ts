@@ -768,9 +768,8 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const process = this.debugService.getViewModel().focusedProcess;
-		const type = process ? process.session.configuration.type : null;
-		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, type));
+		const name = this.expression instanceof model.Variable ? this.expression.evaluateName : this.expression.name;
+		return this.debugService.addWatchExpression(name);
 	}
 }
 
