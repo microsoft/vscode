@@ -86,11 +86,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private memento: any;
 	private stacks: EditorStacksModel;
 	private previewEditors: boolean;
-	private layoutVertically: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
+	private _onGroupOrientationChanged: Emitter<void>;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
@@ -115,6 +115,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorsChanged = new Emitter<void>();
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
+		this._onGroupOrientationChanged = new Emitter<void>();
 
 		this.visibleEditors = [];
 
@@ -134,7 +135,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			const editorConfig = config.workbench.editor;
 
 			this.previewEditors = editorConfig.enablePreview;
-			this.layoutVertically = editorConfig.sideBySideLayout !== 'horizontal';
 
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 		}
@@ -161,14 +161,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					}
 				});
 			}
-			this.previewEditors = newPreviewEditors;
 
-			// Rename groups when layout changes
-			const newLayoutVertically = editorConfig.sideBySideLayout !== 'horizontal';
-			if (newLayoutVertically !== this.layoutVertically) {
-				this.layoutVertically = newLayoutVertically;
-				this.renameGroups();
-			}
+			this.previewEditors = newPreviewEditors;
 		}
 	}
 
@@ -193,6 +187,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public get onEditorOpenFail(): Event<EditorInput> {
 		return this._onEditorOpenFail.event;
+	}
+
+	public get onGroupOrientationChanged(): Event<void> {
+		return this._onGroupOrientationChanged.event;
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -806,6 +804,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public setGroupOrientation(orientation: GroupOrientation): void {
 		this.sideBySideControl.setGroupOrientation(orientation);
+		this._onGroupOrientationChanged.fire();
+
+		// Rename groups when layout changes
+		this.renameGroups();
 	}
 
 	public getGroupOrientation(): GroupOrientation {
@@ -1352,23 +1354,24 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private renameGroups(): void {
 		const groups = this.stacks.groups;
 		if (groups.length > 0) {
+			const layoutVertically = (this.sideBySideControl.getGroupOrientation() !== 'horizontal');
 
 			// ONE | TWO | THREE
 			if (groups.length > 2) {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), this.layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), this.layoutVertically ? EditorPart.GROUP_CENTER : EditorPart.GROUP_MIDDLE);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.THREE), this.layoutVertically ? EditorPart.GROUP_RIGHT : EditorPart.GROUP_BOTTOM);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), layoutVertically ? EditorPart.GROUP_CENTER : EditorPart.GROUP_MIDDLE);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.THREE), layoutVertically ? EditorPart.GROUP_RIGHT : EditorPart.GROUP_BOTTOM);
 			}
 
 			// ONE | TWO
 			else if (groups.length > 1) {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), this.layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), this.layoutVertically ? EditorPart.GROUP_RIGHT : EditorPart.GROUP_BOTTOM);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), layoutVertically ? EditorPart.GROUP_RIGHT : EditorPart.GROUP_BOTTOM);
 			}
 
 			// ONE
 			else {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), this.layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
 			}
 		}
 	}

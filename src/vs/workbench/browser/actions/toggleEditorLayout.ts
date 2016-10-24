@@ -33,12 +33,19 @@ export class ToggleEditorLayoutAction extends Action {
 
 		this.class = 'toggle-editor-layout';
 		this.updateEnablement();
+		this.updateLabel();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		this.toDispose.push(this.editorGroupService.onEditorsChanged(() => this.updateEnablement()));
+		this.toDispose.push(this.editorGroupService.onGroupOrientationChanged(() => this.updateLabel()));
+	}
+
+	private updateLabel(): void {
+		const editorGroupLayoutVertical = (this.editorGroupService.getGroupOrientation() !== 'horizontal');
+		this.label = editorGroupLayoutVertical ? nls.localize('horizontalLayout', "Horizontal Editor Group Layout") : nls.localize('verticalLayout', "Vertical Editor Group Layout");
 	}
 
 	private updateEnablement(): void {

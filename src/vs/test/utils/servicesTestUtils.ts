@@ -315,10 +315,12 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
+	private _onGroupOrientationChanged: Emitter<void>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
+		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
 
 		let services = new ServiceCollection();
@@ -348,6 +350,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public get onEditorsMoved(): Event<void> {
 		return this._onEditorsMoved.event;
+	}
+
+	public get onGroupOrientationChanged(): Event<void> {
+		return this._onGroupOrientationChanged.event;
 	}
 
 	public focusGroup(group: IEditorGroup): void;
