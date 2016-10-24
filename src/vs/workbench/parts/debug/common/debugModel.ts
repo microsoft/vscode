@@ -182,7 +182,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 
 						const start = this.getChildrenInChunks ? this.startOfVariables : undefined;
 						const count = this.getChildrenInChunks ? this.indexedVariables : undefined;
-						return this.fetchVariables(start, count, 'indexed')
+						return this.fetchVariables(start, count, this.getChildrenInChunks ? 'indexed' : undefined)
 							.then(variables => childrenArray.concat(variables));
 					});
 			}
