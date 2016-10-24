@@ -30,7 +30,7 @@ import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/l
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { IFileService, IResolveContentOptions, IFileOperationResult } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -370,6 +370,14 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
 
+	}
+
+	public setGroupOrientation(orientation: GroupOrientation): void {
+
+	}
+
+	public getGroupOrientation(): GroupOrientation {
+		return 'vertical';
 	}
 
 	public pinEditor(group: IEditorGroup, input: IEditorInput): void;
