@@ -1024,7 +1024,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "css.embedded.html.markdown.meta.paragraph.source",
+		"t": "markdown.meta.paragraph",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1035,7 +1035,7 @@
 	},
 	{
 		"c": "<",
-		"t": "css.definition.embedded.html.markdown.meta.paragraph.punctuation.source.tag",
+		"t": "definition.html.markdown.meta.paragraph.punctuation.tag",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.tag rgb(128, 128, 128)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.tag rgb(128, 0, 0)",
@@ -1046,7 +1046,7 @@
 	},
 	{
 		"c": "style",
-		"t": "css.embedded.entity.html.markdown.meta.name.paragraph.source.style.tag",
+		"t": "entity.html.markdown.meta.name.paragraph.style.tag",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag rgb(128, 0, 0)",
@@ -1222,7 +1222,7 @@
 	},
 	{
 		"c": "</",
-		"t": "css.definition.embedded.html.markdown.meta.paragraph.punctuation.source.tag",
+		"t": "definition.html.markdown.meta.paragraph.punctuation.tag",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.tag rgb(128, 128, 128)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.tag rgb(128, 0, 0)",
@@ -1233,7 +1233,7 @@
 	},
 	{
 		"c": "style",
-		"t": "css.embedded.entity.html.markdown.meta.name.paragraph.source.style.tag",
+		"t": "entity.html.markdown.meta.name.paragraph.style.tag",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag rgb(128, 0, 0)",
@@ -1244,7 +1244,7 @@
 	},
 	{
 		"c": ">",
-		"t": "css.definition.embedded.html.markdown.meta.paragraph.punctuation.source.tag",
+		"t": "definition.html.markdown.meta.paragraph.punctuation.tag",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.tag rgb(128, 128, 128)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.tag rgb(128, 0, 0)",
