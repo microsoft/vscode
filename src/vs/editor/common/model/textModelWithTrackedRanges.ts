@@ -61,8 +61,8 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		super.dispose();
 	}
 
-	protected _resetValue(e: editorCommon.IModelContentChangedFlushEvent, newValue: editorCommon.IRawText): void {
-		super._resetValue(e, newValue);
+	protected _resetValue(newValue: editorCommon.IRawText): void {
+		super._resetValue(newValue);
 
 		// Destroy all my tracked ranges
 		this._ranges = {};
@@ -312,41 +312,42 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 	}
 
 	protected _onChangedMarkers(changedMarkers: ILineMarker[]): editorCommon.IChangedTrackedRanges {
-		var changedRanges: editorCommon.IChangedTrackedRanges = {},
-			changedRange: editorCommon.IRange,
-			range: ITrackedRange,
-			rangeId: string,
-			marker: ILineMarker,
-			i: number,
-			len: number;
+		let changedRanges: editorCommon.IChangedTrackedRanges = {};
 
-		for (i = 0, len = changedMarkers.length; i < len; i++) {
-			marker = changedMarkers[i];
+		for (let i = 0, len = changedMarkers.length; i < len; i++) {
+			let marker = changedMarkers[i];
 
 			if (this._markerIdToRangeId.hasOwnProperty(marker.id)) {
-				rangeId = this._markerIdToRangeId[marker.id];
+				let rangeId = this._markerIdToRangeId[marker.id];
+				let range = this._ranges[rangeId];
 
-				range = this._ranges[rangeId];
+				let startLineNumber = 0;
+				let startColumn = 0;
+				let endLineNumber = 0;
+				let endColumn = 0;
 
 				if (changedRanges.hasOwnProperty(range.id)) {
-					changedRange = changedRanges[range.id];
-				} else {
-					changedRange = {
-						startLineNumber: 0,
-						startColumn: 0,
-						endLineNumber: 0,
-						endColumn: 0
-					};
-					changedRanges[range.id] = changedRange;
+					let changedRange = changedRanges[range.id];
+					startLineNumber = changedRange.startLineNumber;
+					startColumn = changedRange.startColumn;
+					endLineNumber = changedRange.endLineNumber;
+					endColumn = changedRange.endColumn;
 				}
 
 				if (marker.id === range.startMarkerId) {
-					changedRange.startLineNumber = marker.oldLineNumber;
-					changedRange.startColumn = marker.oldColumn;
+					startLineNumber = marker.oldLineNumber;
+					startColumn = marker.oldColumn;
 				} else {
-					changedRange.endLineNumber = marker.oldLineNumber;
-					changedRange.endColumn = marker.oldColumn;
+					endLineNumber = marker.oldLineNumber;
+					endColumn = marker.oldColumn;
 				}
+
+				changedRanges[range.id] = {
+					startLineNumber: startLineNumber,
+					startColumn: startColumn,
+					endLineNumber: endLineNumber,
+					endColumn: endColumn
+				};
 
 				this._setRangeIsMultiLine(range.id, (this._getMarker(range.startMarkerId).lineNumber !== this._getMarker(range.endMarkerId).lineNumber));
 			}

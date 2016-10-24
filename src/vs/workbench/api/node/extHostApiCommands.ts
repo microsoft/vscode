@@ -18,16 +18,16 @@ import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
 
-export function registerApiCommands(commands: ExtHostCommands) {
-	new ExtHostApiCommands(commands).registerCommands();
-}
+export class ExtHostApiCommands {
 
-class ExtHostApiCommands {
+	static register(commands: ExtHostCommands) {
+		return new ExtHostApiCommands(commands).registerCommands();
+	}
 
 	private _commands: ExtHostCommands;
 	private _disposables: IDisposable[] = [];
 
-	constructor(commands: ExtHostCommands) {
+	private constructor(commands: ExtHostCommands) {
 		this._commands = commands;
 	}
 
@@ -369,7 +369,7 @@ class ExtHostApiCommands {
 			if (!Array.isArray(value)) {
 				return;
 			}
-			return value.map(quickFix => typeConverters.Command.to(quickFix.command));
+			return value.map(quickFix => this._commands.converter.fromInternal(quickFix.command));
 		});
 	}
 
@@ -380,7 +380,7 @@ class ExtHostApiCommands {
 				return value.map(item => {
 					return new types.CodeLens(
 						typeConverters.toRange(item.symbol.range),
-						typeConverters.Command.to(item.symbol.command));
+						this._commands.converter.fromInternal(item.symbol.command));
 				});
 			}
 		});

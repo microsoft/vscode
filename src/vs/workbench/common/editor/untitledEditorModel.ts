@@ -11,7 +11,7 @@ import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel'
 import URI from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -31,8 +31,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 	private hasAssociatedFilePath: boolean;
 
-	private backupPromises: TPromise<void>[];
-
 	constructor(
 		value: string,
 		modeId: string,
@@ -40,18 +38,15 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		hasAssociatedFilePath: boolean,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(value, modeId, resource, modeService, modelService);
 
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
-		this.dirty = hasAssociatedFilePath || value !== ''; // untitled associated to file path are dirty right away
+		this.dirty = hasAssociatedFilePath; // untitled associated to file path are dirty right away
 
 		this._onDidChangeDirty = new Emitter<void>();
 		this._onDidChangeEncoding = new Emitter<void>();
-
-		this.backupPromises = [];
 
 		this.registerListeners();
 	}
@@ -116,10 +111,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		return this.dirty;
 	}
 
-	public getResource(): URI {
-		return this.resource;
-	}
-
 	public revert(): void {
 		this.dirty = false;
 
@@ -162,15 +153,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		else if (!this.dirty) {
 			this.dirty = true;
 			this._onDidChangeDirty.fire();
-
-		}
-
-		if (this.fileService.isHotExitEnabled()) {
-			if (this.dirty) {
-				this.doBackup();
-			} else {
-				this.fileService.discardBackup(this.resource);
-			}
 		}
 	}
 
@@ -189,36 +171,5 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 		this._onDidChangeDirty.dispose();
 		this._onDidChangeEncoding.dispose();
-
-		this.cancelBackupPromises();
-		this.fileService.discardBackup(this.resource);
-	}
-
-	public backup(): TPromise<void> {
-		return this.doBackup(true);
-	}
-
-	private doBackup(immediate?: boolean): TPromise<void> {
-		// Cancel any currently running backups to make this the one that succeeds
-		this.cancelBackupPromises();
-
-		if (immediate) {
-			return this.fileService.backupFile(this.resource, this.getValue()).then(f => void 0);
-		}
-
-		// Create new backup promise and keep it
-		const promise = TPromise.timeout(1000).then(() => {
-			this.fileService.backupFile(this.resource, this.getValue()); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
-		});
-
-		this.backupPromises.push(promise);
-
-		return promise;
-	}
-
-	private cancelBackupPromises(): void {
-		while (this.backupPromises.length) {
-			this.backupPromises.pop().cancel();
-		}
 	}
 }
