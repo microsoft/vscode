@@ -5,7 +5,64 @@
 'use strict';
 
 import * as assert from 'assert';
-import { decodeTextMateToken, DecodeMap } from 'vs/editor/node/textMate/TMSyntax';
+import { decodeTextMateToken, DecodeMap, TMScopeRegistry } from 'vs/editor/node/textMate/TMSyntax';
+
+suite('TextMate.TMScopeRegistry', () => {
+
+	test('getFilePath', () => {
+		let manager = new TMScopeRegistry();
+
+		manager.register('a', 'source.a', './grammar/a.tmLanguage');
+		assert.equal(manager.getFilePath('source.a'), './grammar/a.tmLanguage');
+		assert.equal(manager.getFilePath('a'), null);
+		assert.equal(manager.getFilePath('source.b'), null);
+		assert.equal(manager.getFilePath('b'), null);
+
+		manager.register('b', 'source.b', './grammar/b.tmLanguage');
+		assert.equal(manager.getFilePath('source.a'), './grammar/a.tmLanguage');
+		assert.equal(manager.getFilePath('a'), null);
+		assert.equal(manager.getFilePath('source.b'), './grammar/b.tmLanguage');
+		assert.equal(manager.getFilePath('b'), null);
+
+		manager.register('a', 'source.a', './grammar/ax.tmLanguage');
+		assert.equal(manager.getFilePath('source.a'), './grammar/ax.tmLanguage');
+		assert.equal(manager.getFilePath('a'), null);
+		assert.equal(manager.getFilePath('source.b'), './grammar/b.tmLanguage');
+		assert.equal(manager.getFilePath('b'), null);
+	});
+
+	test('scopeToLanguage', () => {
+		let manager = new TMScopeRegistry();
+
+		assert.equal(manager.scopeToLanguage('source.html'), null);
+
+		manager.register('html', 'source.html', null);
+		manager.register('css', 'source.css', null);
+		manager.register('javascript', 'source.js', null);
+		manager.register('python', 'source.python', null);
+		manager.register('smarty', 'source.smarty', null);
+
+		// exact matches
+		assert.equal(manager.scopeToLanguage('source.html'), 'html');
+		assert.equal(manager.scopeToLanguage('source.css'), 'css');
+		assert.equal(manager.scopeToLanguage('source.js'), 'javascript');
+		assert.equal(manager.scopeToLanguage('source.python'), 'python');
+		assert.equal(manager.scopeToLanguage('source.smarty'), 'smarty');
+
+		// prefix matches
+		assert.equal(manager.scopeToLanguage('source.css.embedded.html'), 'css');
+		assert.equal(manager.scopeToLanguage('source.js.embedded.html'), 'javascript');
+		assert.equal(manager.scopeToLanguage('source.python.embedded.html'), 'python');
+		assert.equal(manager.scopeToLanguage('source.smarty.embedded.html'), 'smarty');
+
+		// misses
+		assert.equal(manager.scopeToLanguage('source.ts'), null);
+		assert.equal(manager.scopeToLanguage('asource.css'), null);
+		assert.equal(manager.scopeToLanguage('a.source.css'), null);
+		assert.equal(manager.scopeToLanguage('source_css'), null);
+	});
+
+});
 
 suite('textMate', () => {
 
