@@ -61,34 +61,36 @@ export class TMScopeRegistry {
 
 	private _scopeNameToFilePath: { [scopeName: string]: string; };
 	private _scopeNameToLanguage: { [scopeName: string]: string; };
-	private _cachedScopeRegex: RegExp;
+	private _cachedScopesRegex: RegExp;
 
 	constructor() {
 		this._scopeNameToFilePath = Object.create(null);
 		this._scopeNameToLanguage = Object.create(null);
-		this._cachedScopeRegex = null;
+		this._cachedScopesRegex = null;
 	}
 
 	public register(language: string, scopeName: string, filePath: string): void {
 		this._scopeNameToFilePath[scopeName] = filePath;
+		if (language) {
 		this._scopeNameToLanguage[scopeName] = language;
-		this._cachedScopeRegex = null;
+			this._cachedScopesRegex = null;
+	}
 	}
 
 	public getFilePath(scopeName: string): string {
 		return this._scopeNameToFilePath[scopeName] || null;
 	}
 
-	private _getScopeRegex(): RegExp {
-		if (!this._cachedScopeRegex) {
+	private _getScopesRegex(): RegExp {
+		if (!this._cachedScopesRegex) {
 			let escapedScopes = Object.keys(this._scopeNameToLanguage).map((scopeName) => strings.escapeRegExpCharacters(scopeName));
 			if (escapedScopes.length === 0) {
 				// no scopes registered
 				return null;
 			}
-			this._cachedScopeRegex = new RegExp(`^((${escapedScopes.join(')|(')}))`, '');
+			this._cachedScopesRegex = new RegExp(`^((${escapedScopes.join(')|(')}))`, '');
 		}
-		return this._cachedScopeRegex;
+		return this._cachedScopesRegex;
 	}
 
 	/**
@@ -96,7 +98,7 @@ export class TMScopeRegistry {
 	 * e.g. source.html => html, source.css.embedded.html => css, punctuation.definition.tag.html => null
 	 */
 	public scopeToLanguage(scope: string): string {
-		let regex = this._getScopeRegex();
+		let regex = this._getScopesRegex();
 		if (!regex) {
 			// no scopes registered
 			return null;
@@ -114,19 +116,19 @@ export class TMScopeRegistry {
 export class MainProcessTextMateSyntax {
 	private _grammarRegistry: Registry;
 	private _modeService: IModeService;
-	private _scopeNameToFilePath: { [scopeName: string]: string; };
+	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
 
 	constructor(
 		@IModeService modeService: IModeService
 	) {
 		this._modeService = modeService;
-		this._scopeNameToFilePath = {};
+		this._scopeRegistry = new TMScopeRegistry();
 		this._injections = {};
 
 		this._grammarRegistry = new Registry({
 			getFilePath: (scopeName: string) => {
-				return this._scopeNameToFilePath[scopeName];
+				return this._scopeRegistry.getFilePath(scopeName);
 			},
 			getInjections: (scopeName: string) => {
 				return this._injections[scopeName];
@@ -166,7 +168,7 @@ export class MainProcessTextMateSyntax {
 			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 		}
 
-		this._scopeNameToFilePath[syntax.scopeName] = normalizedAbsolutePath;
+		this._scopeRegistry.register(syntax.language, syntax.scopeName, normalizedAbsolutePath);
 
 		if (syntax.injectTo) {
 			for (let injectScope of syntax.injectTo) {
@@ -190,7 +192,7 @@ export class MainProcessTextMateSyntax {
 		}
 	}
 
-	public registerDefinition(modeId: string, scopeName: string): void {
+	private registerDefinition(modeId: string, scopeName: string): void {
 		this._grammarRegistry.loadGrammar(scopeName, (err, grammar) => {
 			if (err) {
 				onUnexpectedError(err);
@@ -199,6 +201,14 @@ export class MainProcessTextMateSyntax {
 
 			TokenizationRegistry.register(modeId, createTokenizationSupport(modeId, grammar));
 		});
+	}
+
+	/**
+	 * Given a produced TM scope, return the language that token describes or null if unknown.
+	 * e.g. source.html => html, source.css.embedded.html => css, punctuation.definition.tag.html => null
+	 */
+	public scopeToLanguage(scope: string): string {
+		return this._scopeRegistry.scopeToLanguage(scope);
 	}
 }
 
