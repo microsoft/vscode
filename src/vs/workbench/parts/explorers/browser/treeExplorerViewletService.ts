@@ -29,7 +29,7 @@ export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 	public _serviceBrand: any;
 
 	private _onTreeExplorerNodeProviderRegistered = new Emitter<String>();
-	get onTreeExplorerNodeProviderRegistered(): Event<string> { return this._onTreeExplorerNodeProviderRegistered.event; };
+	public get onTreeExplorerNodeProviderRegistered(): Event<string> { return this._onTreeExplorerNodeProviderRegistered.event; };
 
 	private _treeExplorerNodeProviders: { [providerId: string]: InternalTreeExplorerNodeProvider };
 
@@ -40,26 +40,26 @@ export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 		this._treeExplorerNodeProviders = Object.create(null);
 	}
 
-	registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void {
+	public registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void {
 		this._treeExplorerNodeProviders[providerId] = provider;
 		this._onTreeExplorerNodeProviderRegistered.fire(providerId);
 	}
 
-	hasProvider(providerId: string): boolean {
+	public hasProvider(providerId: string): boolean {
 		return !!this._treeExplorerNodeProviders[providerId];
 	}
 
-	provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode> {
+	public provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode> {
 		const provider = this.getProvider(providerId);
 		return TPromise.wrap(provider.provideRootNode());
 	}
 
-	resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
+	public resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
 		const provider = this.getProvider(providerId);
 		return TPromise.wrap(provider.resolveChildren(node));
 	}
 
-	executeCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void> {
+	public executeCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void> {
 		const provider = this.getProvider(providerId);
 		return TPromise.wrap(provider.executeCommand(node));
 	}

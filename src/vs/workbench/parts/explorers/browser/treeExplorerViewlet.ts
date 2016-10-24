@@ -42,30 +42,30 @@ export class TreeExplorerViewlet extends Viewlet {
 		TreeExplorerViewlet._idCounter++;
 	}
 
-	getId(): string {
+	public getId(): string {
 		return this.externalViewletId;
 	}
 
-	create(parent: Builder): TPromise<void> {
+	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
-		this.viewletContainer = parent.div().addClass('custom-tree-explorer-viewlet');
+		this.viewletContainer = parent.div();
 		this.addTreeView();
 
 		return TPromise.as(null);
 	}
 
-	layout(dimension: Dimension): void {
+	public layout(dimension: Dimension): void {
 		this.view.layout(dimension.height, Orientation.VERTICAL);
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible).then(() => {
 			this.view.setVisible(visible).done();
 		});
 	}
 
-	getActions(): IAction[] {
+	public getActions(): IAction[] {
 		return this.view.getActions();
 	}
 
@@ -82,7 +82,7 @@ export class TreeExplorerViewlet extends Viewlet {
 		return tokens[tokens.length - 1];
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		this.view = null;
 	}
 }

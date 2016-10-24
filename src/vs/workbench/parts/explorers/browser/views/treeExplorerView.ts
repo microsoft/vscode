@@ -93,7 +93,12 @@ export class TreeExplorerView extends CollapsibleViewletView {
 			return this.treeExplorerViewletService.provideRootNode(this.treeNodeProviderId).then(tree => {
 				this.tree.setInput(tree);
 			});
-		} else {
+		}
+		// Provider registration happens independently of the reading of extension's contribution,
+		// which constructs the viewlet, so it's possible the viewlet is constructed before a provider
+		// is registered.
+		// This renders the viewlet first and wait for a corresponding provider is registered.
+		else {
 			this.treeExplorerViewletService.onTreeExplorerNodeProviderRegistered(providerId => {
 				if (this.treeNodeProviderId === providerId) {
 					return this.treeExplorerViewletService.provideRootNode(this.treeNodeProviderId).then(tree => {
