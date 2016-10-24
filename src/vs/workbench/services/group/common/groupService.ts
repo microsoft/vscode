@@ -15,6 +15,8 @@ export enum GroupArrangement {
 	EVEN
 }
 
+export type GroupOrientation = 'vertical' | 'horizontal';
+
 export const IEditorGroupService = createDecorator<IEditorGroupService>('editorGroupService');
 
 /**
@@ -61,6 +63,17 @@ export interface IEditorGroupService {
 	 * Allows to arrange editor groups according to the GroupArrangement enumeration.
 	 */
 	arrangeGroups(arrangement: GroupArrangement): void;
+
+	/**
+	 * Changes the editor group layout between vertical and horizontal orientation. Only applies
+	 * if more than one editor is opened.
+	 */
+	setGroupOrientation(orientation: GroupOrientation): void;
+
+	/**
+	 * Returns the current editor group layout.
+	 */
+	getGroupOrientation(): GroupOrientation;
 
 	/**
 	 * Adds the pinned state to an editor, removing it from being a preview editor.

@@ -34,7 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorStacksModel, EditorGroup, EditorIdentifier } from 'vs/workbench/common/editor/editorStacksModel';
@@ -802,6 +802,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
 		this.sideBySideControl.arrangeGroups(arrangement);
+	}
+
+	public setGroupOrientation(orientation: GroupOrientation): void {
+		this.sideBySideControl.setGroupOrientation(orientation);
+	}
+
+	public getGroupOrientation(): GroupOrientation {
+		return this.sideBySideControl.getGroupOrientation();
 	}
 
 	public createContentArea(parent: Builder): Builder {

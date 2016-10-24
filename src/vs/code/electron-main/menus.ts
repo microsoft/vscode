@@ -31,9 +31,6 @@ interface IConfiguration extends IFilesConfiguration {
 		},
 		statusBar: {
 			visible: boolean;
-		},
-		editor: {
-			sideBySideLayout: 'vertical' | 'horizontal'
 		}
 	};
 }
@@ -46,7 +43,6 @@ export class VSCodeMenu {
 
 	private currentAutoSaveSetting: string;
 	private currentSidebarLocation: 'left' | 'right';
-	private currentEditorLayout: 'vertical' | 'horizontal';
 	private currentStatusbarVisible: boolean;
 
 	private isQuitting: boolean;
@@ -153,12 +149,6 @@ export class VSCodeMenu {
 			}
 			if (newStatusbarVisible !== this.currentStatusbarVisible) {
 				this.currentStatusbarVisible = newStatusbarVisible;
-				updateMenu = true;
-			}
-
-			const newEditorLayout = config.workbench.editor && config.workbench.editor.sideBySideLayout || 'vertical';
-			if (newEditorLayout !== this.currentEditorLayout) {
-				this.currentEditorLayout = newEditorLayout;
 				updateMenu = true;
 			}
 		}
@@ -531,15 +521,7 @@ export class VSCodeMenu {
 		const fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 });
 		const toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
 		const splitEditor = this.createMenuItem(nls.localize({ key: 'miSplitEditor', comment: ['&& denotes a mnemonic'] }, "Split &&Editor"), 'workbench.action.splitEditor');
-
-		let editorLayoutLabel: string;
-		if (this.currentEditorLayout !== 'horizontal') {
-			editorLayoutLabel = nls.localize({ key: 'miHorizontalEditorLayout', comment: ['&& denotes a mnemonic'] }, "Horizontal Editor &&Layout");
-		} else {
-			editorLayoutLabel = nls.localize({ key: 'miVerticalEditorLayout', comment: ['&& denotes a mnemonic'] }, "Vertical Editor &&Layout");
-		}
-		const toggleEditorLayout = this.createMenuItem(editorLayoutLabel, 'workbench.action.toggleEditorLayout');
-
+		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Editor Group &&Layout"), 'workbench.action.toggleEditorGroupLayout');
 		const toggleSidebar = this.createMenuItem(nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar"), 'workbench.action.toggleSidebarVisibility');
 
 		let moveSideBarLabel: string;
