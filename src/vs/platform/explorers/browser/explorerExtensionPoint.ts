@@ -48,8 +48,6 @@ ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', schema.expl
 			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
 			const iconPath = join(extension.description.extensionFolderPath, icon);
 			createCSSRule(iconClass, getIconRule(iconPath));
-			// Coerce the icon into a style similar to stock icons
-			createCSSRule(iconClass, '-webkit-filter: grayscale(1) invert(1)');
 		}
 
 		descriptors.push(new ViewletDescriptor(
