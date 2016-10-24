@@ -65,6 +65,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 	private create(): void {
 		const container = this.partService.getContainer(Parts.EDITOR_PART);
+		$(container).addClass('has-watermark');
 		const watermark = $()
 			.div({ 'class': 'watermark' });
 		const box = $(watermark)
