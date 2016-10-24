@@ -36,6 +36,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				lines: ['foo'],
 				BOM: '',
 				length: -1,
+				containsRTL: false,
 				options: {
 					tabSize: 4,
 					insertSpaces: true,

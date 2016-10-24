@@ -106,10 +106,16 @@ class CSSBasedConfiguration extends Disposable {
 
 			if (readConfig.typicalHalfwidthCharacterWidth <= 2 || readConfig.typicalFullwidthCharacterWidth <= 2 || readConfig.spaceWidth <= 2 || readConfig.maxDigitWidth <= 2) {
 				// Hey, it's Bug 14341 ... we couldn't read
-				readConfig.typicalHalfwidthCharacterWidth = Math.max(readConfig.typicalHalfwidthCharacterWidth, 5);
-				readConfig.typicalFullwidthCharacterWidth = Math.max(readConfig.typicalFullwidthCharacterWidth, 5);
-				readConfig.spaceWidth = Math.max(readConfig.spaceWidth, 5);
-				readConfig.maxDigitWidth = Math.max(readConfig.maxDigitWidth, 5);
+				readConfig = new FontInfo({
+					fontFamily: readConfig.fontFamily,
+					fontWeight: readConfig.fontWeight,
+					fontSize: readConfig.fontSize,
+					lineHeight: readConfig.lineHeight,
+					typicalHalfwidthCharacterWidth: Math.max(readConfig.typicalHalfwidthCharacterWidth, 5),
+					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
+					spaceWidth: Math.max(readConfig.spaceWidth, 5),
+					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
+				});
 				this._installChangeMonitor();
 			}
 

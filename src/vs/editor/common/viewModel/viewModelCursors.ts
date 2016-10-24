@@ -52,16 +52,14 @@ export class ViewModelCursors {
 
 		// Limit position to be somewhere where it can actually be rendered
 		if (stopRenderingLineAfter !== -1 && position.column > stopRenderingLineAfter) {
-			position = position.clone();
-			position.column = stopRenderingLineAfter;
+			position = new Position(position.lineNumber, stopRenderingLineAfter);
 		}
 		var secondaryPositions: Position[] = [];
 		for (var i = 0, len = e.secondaryPositions.length; i < len; i++) {
 			secondaryPositions[i] = this.converter.validateViewPosition(e.secondaryViewPositions[i].lineNumber, e.secondaryViewPositions[i].column, e.secondaryPositions[i]);
 			// Limit position to be somewhere where it can actually be rendered
 			if (stopRenderingLineAfter !== -1 && secondaryPositions[i].column > stopRenderingLineAfter) {
-				secondaryPositions[i] = secondaryPositions[i].clone();
-				secondaryPositions[i].column = stopRenderingLineAfter;
+				secondaryPositions[i] = new Position(secondaryPositions[i].lineNumber, stopRenderingLineAfter);
 			}
 		}
 

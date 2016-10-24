@@ -39,6 +39,41 @@ class Mode implements IMode {
 	}
 }
 
+class ModelTokensChangedEventBuilder {
+
+	private _ranges: { fromLineNumber: number; toLineNumber: number; }[];
+
+	constructor() {
+		this._ranges = [];
+	}
+
+	public registerChangedTokens(lineNumber: number): void {
+		const ranges = this._ranges;
+		const rangesLength = ranges.length;
+		const previousRange = rangesLength > 0 ? ranges[rangesLength - 1] : null;
+
+		if (previousRange && previousRange.toLineNumber === lineNumber - 1) {
+			// extend previous range
+			previousRange.toLineNumber++;
+		} else {
+			// insert new range
+			ranges[rangesLength] = {
+				fromLineNumber: lineNumber,
+				toLineNumber: lineNumber
+			};
+		}
+	}
+
+	public build(): editorCommon.IModelTokensChangedEvent {
+		if (this._ranges.length === 0) {
+			return null;
+		}
+		return {
+			ranges: this._ranges
+		};
+	}
+}
+
 /**
  * TODO@Alex: remove this wrapper
  */
@@ -101,7 +136,12 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 
 			this._resetTokenizationState();
-			this.emitModelTokensChangedEvent(1, this.getLineCount());
+			this.emitModelTokensChangedEvent({
+				ranges: [{
+					fromLineNumber: 1,
+					toLineNumber: this.getLineCount()
+				}]
+			});
 		});
 		this._tokensInflatorMap = null;
 
@@ -126,8 +166,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return false;
 	}
 
-	protected _resetValue(e: editorCommon.IModelContentChangedFlushEvent, newValue: editorCommon.IRawText): void {
-		super._resetValue(e, newValue);
+	protected _resetValue(newValue: editorCommon.IRawText): void {
+		super._resetValue(newValue);
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();
 	}
@@ -171,13 +211,30 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
+	private _withModelTokensChangedEventBuilder<T>(callback: (eventBuilder: ModelTokensChangedEventBuilder) => T): T {
+		let eventBuilder = new ModelTokensChangedEventBuilder();
+
+		let result = callback(eventBuilder);
+
+		if (!this._isDisposing) {
+			let e = eventBuilder.build();
+			if (e) {
+				this.emit(editorCommon.EventType.ModelTokensChanged, e);
+			}
+		}
+
+		return result;
+	}
+
 	public getLineTokens(lineNumber: number, inaccurateTokensAcceptable: boolean = false): LineTokens {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
 
 		if (!inaccurateTokensAcceptable) {
-			this._updateTokensUntilLine(lineNumber, true);
+			this._withModelTokensChangedEventBuilder((eventBuilder) => {
+				this._updateTokensUntilLine(eventBuilder, lineNumber, true);
+			});
 		}
 		return this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 	}
@@ -187,7 +244,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
 
-		this._updateTokensUntilLine(lineNumber, true);
+		this._withModelTokensChangedEventBuilder((eventBuilder) => {
+			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
+		});
 
 		return new LineContext(this.getModeId(), this._lines[lineNumber - 1], this._tokensInflatorMap);
 	}
@@ -216,7 +275,12 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();
 
-		this.emitModelTokensChangedEvent(1, this.getLineCount());
+		this.emitModelTokensChangedEvent({
+			ranges: [{
+				fromLineNumber: 1,
+				toLineNumber: this.getLineCount()
+			}]
+		});
 		this._emitModelModeChangedEvent(e);
 	}
 
@@ -284,66 +348,69 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private _revalidateTokensNow(toLineNumber: number = this._invalidLineStartIndex + 1000000): void {
 
-		var t1 = timer.start(timer.Topic.EDITOR, 'backgroundTokenization');
-		toLineNumber = Math.min(this._lines.length, toLineNumber);
+		this._withModelTokensChangedEventBuilder((eventBuilder) => {
 
-		var MAX_ALLOWED_TIME = 20,
-			fromLineNumber = this._invalidLineStartIndex + 1,
-			tokenizedChars = 0,
-			currentCharsToTokenize = 0,
-			currentEstimatedTimeToTokenize = 0,
-			sw = StopWatch.create(false),
-			elapsedTime: number;
+			var t1 = timer.start(timer.Topic.EDITOR, 'backgroundTokenization');
+			toLineNumber = Math.min(this._lines.length, toLineNumber);
 
-		// Tokenize at most 1000 lines. Estimate the tokenization speed per character and stop when:
-		// - MAX_ALLOWED_TIME is reached
-		// - tokenizing the next line would go above MAX_ALLOWED_TIME
+			var MAX_ALLOWED_TIME = 20,
+				fromLineNumber = this._invalidLineStartIndex + 1,
+				tokenizedChars = 0,
+				currentCharsToTokenize = 0,
+				currentEstimatedTimeToTokenize = 0,
+				sw = StopWatch.create(false),
+				elapsedTime: number;
 
-		for (var lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
-			elapsedTime = sw.elapsed();
-			if (elapsedTime > MAX_ALLOWED_TIME) {
-				// Stop if MAX_ALLOWED_TIME is reached
-				toLineNumber = lineNumber - 1;
-				break;
-			}
+			// Tokenize at most 1000 lines. Estimate the tokenization speed per character and stop when:
+			// - MAX_ALLOWED_TIME is reached
+			// - tokenizing the next line would go above MAX_ALLOWED_TIME
 
-			// Compute how many characters will be tokenized for this line
-			currentCharsToTokenize = this._lines[lineNumber - 1].text.length;
-
-			if (tokenizedChars > 0) {
-				// If we have enough history, estimate how long tokenizing this line would take
-				currentEstimatedTimeToTokenize = (elapsedTime / tokenizedChars) * currentCharsToTokenize;
-				if (elapsedTime + currentEstimatedTimeToTokenize > MAX_ALLOWED_TIME) {
-					// Tokenizing this line will go above MAX_ALLOWED_TIME
+			for (var lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
+				elapsedTime = sw.elapsed();
+				if (elapsedTime > MAX_ALLOWED_TIME) {
+					// Stop if MAX_ALLOWED_TIME is reached
 					toLineNumber = lineNumber - 1;
 					break;
 				}
+
+				// Compute how many characters will be tokenized for this line
+				currentCharsToTokenize = this._lines[lineNumber - 1].text.length;
+
+				if (tokenizedChars > 0) {
+					// If we have enough history, estimate how long tokenizing this line would take
+					currentEstimatedTimeToTokenize = (elapsedTime / tokenizedChars) * currentCharsToTokenize;
+					if (elapsedTime + currentEstimatedTimeToTokenize > MAX_ALLOWED_TIME) {
+						// Tokenizing this line will go above MAX_ALLOWED_TIME
+						toLineNumber = lineNumber - 1;
+						break;
+					}
+				}
+
+				this._updateTokensUntilLine(eventBuilder, lineNumber, false);
+				tokenizedChars += currentCharsToTokenize;
 			}
 
-			this._updateTokensUntilLine(lineNumber, false);
-			tokenizedChars += currentCharsToTokenize;
-		}
+			elapsedTime = sw.elapsed();
 
-		elapsedTime = sw.elapsed();
+			if (this._invalidLineStartIndex < this._lines.length) {
+				this._beginBackgroundTokenization();
+			}
 
-		if (fromLineNumber <= toLineNumber) {
-			this.emitModelTokensChangedEvent(fromLineNumber, toLineNumber);
-		}
-
-		if (this._invalidLineStartIndex < this._lines.length) {
-			this._beginBackgroundTokenization();
-		}
-
-		t1.stop();
+			t1.stop();
+		});
 	}
 
 	private getStateBeforeLine(lineNumber: number): IState {
-		this._updateTokensUntilLine(lineNumber - 1, true);
+		this._withModelTokensChangedEventBuilder((eventBuilder) => {
+			this._updateTokensUntilLine(eventBuilder, lineNumber - 1, true);
+		});
 		return this._lines[lineNumber - 1].getState();
 	}
 
 	private getStateAfterLine(lineNumber: number): IState {
-		this._updateTokensUntilLine(lineNumber, true);
+		this._withModelTokensChangedEventBuilder((eventBuilder) => {
+			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
+		});
 		return lineNumber < this._lines.length ? this._lines[lineNumber].getState() : this._lastState;
 	}
 
@@ -351,11 +418,13 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
-		this._updateTokensUntilLine(lineNumber, true);
+		this._withModelTokensChangedEventBuilder((eventBuilder) => {
+			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
+		});
 		return this._lines[lineNumber - 1].getModeTransitions(this.getModeId());
 	}
 
-	private _updateTokensUntilLine(lineNumber: number, emitEvents: boolean): void {
+	private _updateTokensUntilLine(eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number, emitEvents: boolean): void {
 		if (!this._tokenizationSupport) {
 			this._invalidLineStartIndex = this._lines.length;
 			return;
@@ -364,8 +433,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		var linesLength = this._lines.length;
 		var endLineIndex = lineNumber - 1;
 		var stopLineTokenizationAfter = 1000000000; // 1 billion, if a line is so long, you have other trouble :).
-
-		var fromLineNumber = this._invalidLineStartIndex + 1, toLineNumber = lineNumber;
 
 		// Validate all states up to and including endLineIndex
 		for (var lineIndex = this._invalidLineStartIndex; lineIndex <= endLineIndex; lineIndex++) {
@@ -405,6 +472,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				r.modeTransitions.push(new ModeTransition(0, this.getModeId()));
 			}
 			this._lines[lineIndex].setTokens(this._tokensInflatorMap, r.tokens, r.modeTransitions);
+			eventBuilder.registerChangedTokens(lineIndex + 1);
 			this._lines[lineIndex].isInvalid = false;
 
 			if (endStateIndex < linesLength) {
@@ -436,17 +504,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 		}
 		this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, endLineIndex + 1);
-
-		if (emitEvents && fromLineNumber <= toLineNumber) {
-			this.emitModelTokensChangedEvent(fromLineNumber, toLineNumber);
-		}
 	}
 
-	private emitModelTokensChangedEvent(fromLineNumber: number, toLineNumber: number): void {
-		var e: editorCommon.IModelTokensChangedEvent = {
-			fromLineNumber: fromLineNumber,
-			toLineNumber: toLineNumber
-		};
+	private emitModelTokensChangedEvent(e: editorCommon.IModelTokensChangedEvent): void {
 		if (!this._isDisposing) {
 			this.emit(editorCommon.EventType.ModelTokensChanged, e);
 		}

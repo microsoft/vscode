@@ -599,7 +599,7 @@ export class Hover {
 
 	constructor(contents: vscode.MarkedString | vscode.MarkedString[], range?: Range) {
 		if (!contents) {
-			throw new Error('Illegal argument');
+			throw new Error('Illegal argument, contents must be defined');
 		}
 
 		if (Array.isArray(contents)) {

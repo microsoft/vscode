@@ -24,22 +24,31 @@ function extractCharChangeRepresentation(change, expectedChange): ICharChange {
 	};
 }
 
-function extractLineChangeRepresentation(change, expectedChange): ILineChange {
-	var result: ILineChange = <any>{
+function extractLineChangeRepresentation(change, expectedChange): IChange|ILineChange {
+	if (change.charChanges) {
+		let charChanges: ICharChange[] = [];
+		for (let i = 0; i < change.charChanges.length; i++) {
+			charChanges.push(
+				extractCharChangeRepresentation(
+					change.charChanges[i],
+					expectedChange && expectedChange.charChanges && i < expectedChange.charChanges.length ? expectedChange.charChanges[i] : null
+				)
+			);
+		}
+		return {
+			originalStartLineNumber: change.originalStartLineNumber,
+			originalEndLineNumber: change.originalEndLineNumber,
+			modifiedStartLineNumber: change.modifiedStartLineNumber,
+			modifiedEndLineNumber: change.modifiedEndLineNumber,
+			charChanges: charChanges
+		};
+	}
+	return {
 		originalStartLineNumber: change.originalStartLineNumber,
 		originalEndLineNumber: change.originalEndLineNumber,
 		modifiedStartLineNumber: change.modifiedStartLineNumber,
 		modifiedEndLineNumber: change.modifiedEndLineNumber
 	};
-	if (change.charChanges) {
-		var charChanges = [];
-		for (var i = 0; i < change.charChanges.length; i++) {
-			charChanges.push(extractCharChangeRepresentation(change.charChanges[i],
-				expectedChange && expectedChange.charChanges && i < expectedChange.charChanges.length ? expectedChange.charChanges[i] : null));
-		}
-		result.charChanges = charChanges;
-	}
-	return result;
 }
 
 function assertDiff(originalLines: string[], modifiedLines: string[], expectedChanges: IChange[], shouldPostProcessCharChanges: boolean = false, shouldIgnoreTrimWhitespace: boolean = false) {

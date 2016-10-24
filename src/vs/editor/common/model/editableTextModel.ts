@@ -50,7 +50,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText, languageId: string) {
 		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged);
-		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged2);
 		super(allowedEventTypes, rawText, languageId);
 
 		this._commandManager = new EditStack(this);
@@ -68,8 +67,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		super.dispose();
 	}
 
-	protected _resetValue(e: editorCommon.IModelContentChangedFlushEvent, newValue: editorCommon.IRawText): void {
-		super._resetValue(e, newValue);
+	protected _resetValue(newValue: editorCommon.IRawText): void {
+		super._resetValue(newValue);
 
 		// Destroy my edit history and settings
 		this._commandManager = new EditStack(this);
@@ -262,10 +261,16 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			return [];
 		}
 
+		let mightContainRTL = this._mightContainRTL;
+
 		let operations: IValidatedEditOperation[] = [];
 		for (let i = 0; i < rawOperations.length; i++) {
 			let op = rawOperations[i];
 			let validatedRange = this.validateRange(op.range);
+			if (!mightContainRTL && op.text) {
+				// check if the new inserted text contains RTL
+				mightContainRTL = strings.containsRTL(op.text);
+			}
 			operations[i] = {
 				sortIndex: i,
 				identifier: op.identifier,
@@ -334,6 +339,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			}
 		}
 
+		this._mightContainRTL = mightContainRTL;
 		this._applyEdits(operations);
 
 		this._trimAutoWhitespaceLines = null;
