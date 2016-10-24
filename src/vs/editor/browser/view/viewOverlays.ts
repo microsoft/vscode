@@ -134,15 +134,6 @@ export class ViewOverlayLine implements IVisibleLineData {
 	onContentChanged(): void {
 		// Nothing
 	}
-	onLinesInsertedAbove(): void {
-		// Nothing
-	}
-	onLinesDeletedAbove(): void {
-		// Nothing
-	}
-	onLineChangedAbove(): void {
-		// Nothing
-	}
 	onTokensChanged(): void {
 		// Nothing
 	}

@@ -156,6 +156,10 @@
 	height: 100%;
 }
 
+.extension-editor > .body > .content > .nocontent {
+	margin-left: 20px;
+}
+
 .extension-editor > .body > .content > .monaco-scrollable-element > .subcontent {
 	height: 100%;
 	padding: 20px;

@@ -880,6 +880,12 @@ declare module DebugProtocol {
 		supportsStepInTargetsRequest?: boolean;
 		/** The debug adapter supports the completionsRequest. */
 		supportsCompletionsRequest?: boolean;
+		/** The debug adapter supports the modules request. */
+		supportsModulesRequest?: boolean;
+		/** The set of additional module information exposed by the debug adapter. */
+		additionalModuleColumns?: ColumnDescriptor[];
+		/** Checksum algorithms supported by the debug adapter. */
+		supportedChecksumAlgorithms?: ChecksumAlgorithm[];
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -957,9 +963,11 @@ declare module DebugProtocol {
 		/** Header UI label of column. */
 		label: string;
 		/** Format to use for the rendered values in this column. TBD how the format strings looks like. */
-		format: string;
+		format?: string;
+		/** Datatype of values in this column.  Defaults to 'string' if not specified. */
+		type?: 'string' | 'number' | 'boolean' | 'unixTimestampUTC';
 		/** Width of this column in characters (hint only). */
-		width: number;
+		width?: number;
 	}
 
 	/** The ModulesViewDescriptor is the container for all declarative configuration options of a ModuleView.
@@ -989,6 +997,8 @@ declare module DebugProtocol {
 		origin?: string;
 		/** Optional data that a debug adapter might want to loop through the client. The client should leave the data intact and persist it across sessions. The client should not interpret the data. */
 		adapterData?: any;
+		/** The checksums associated with this file. */
+		checksums?: Checksum[];
 	}
 
 	/** A Stackframe contains the source location. */
@@ -1007,9 +1017,11 @@ declare module DebugProtocol {
 		endLine?: number;
 		/** An optional end column of the range covered by the stack frame. */
 		endColumn?: number;
+		/** The module associated with this frame, if any. */
+		moduleId?: number | string;
 	}
 
-	/** A Scope is a named container for variables. */
+	/** A Scope is a named container for variables. Optionally a scope can map to a source or a range within a source. */
 	export interface Scope {
 		/** Name of the scope such as 'Arguments', 'Locals'. */
 		name: string;
@@ -1025,13 +1037,23 @@ declare module DebugProtocol {
 		indexedVariables?: number;
 		/** If true, the number of variables in this scope is large or expensive to retrieve. */
 		expensive: boolean;
+		/** Optional source for this scope. */
+		source?: Source;
+		/** Optional start line of the range covered by this scope. */
+		line?: number;
+		/** Optional start column of the range covered by this scope. */
+		column?: number;
+		/** Optional end line of the range covered by this scope. */
+		endLine?: number;
+		/** Optional end column of the range covered by this scope. */
+		endColumn?: number;
 	}
 
 	/** A Variable is a name/value pair.
 		Optionally a variable can have a 'type' that is shown if space permits or when hovering over the variable's name.
 		An optional 'kind' is used to render additional properties of the variable, e.g. different icons can be used to indicate that a variable is public or private.
 		If the value is structured (has children), a handle is provided to retrieve the children with the VariablesRequest.
-		If the number of children is large, the number should be returned via the optional 'totalVariables' attribute.
+		If the number of named or indexed children is large, the numbers should be returned via the optional 'namedVariables' and 'indexedVariables' attributes.
 		The client can use this optional information to present the children in a paged UI and fetch them in chunks.
 	*/
 	export interface Variable {
@@ -1043,6 +1065,8 @@ declare module DebugProtocol {
 		type?: string;
 		/** Properties of a variable that can be used to determine how to render the variable in the UI. Format of the string value: TBD. */
 		kind?: string;
+		/** Optional evaluatable name of this variable which can be passed to the 'EvaluateRequest' to fetch the variable's value. */
+		evaluateName?: string;
 		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
 		variablesReference: number;
 		/** The number of named child variables.
@@ -1140,5 +1164,16 @@ declare module DebugProtocol {
 
 	/** Some predefined types for the CompletionItem. Please note that not all clients have specific icons for all of them. */
 	export type CompletionItemType = 'method' | 'function' | 'constructor' | 'field' | 'variable' | 'class' | 'interface' | 'module' | 'property' | 'unit' | 'value' | 'enum' | 'keyword' | 'snippet' | 'text' | 'color' | 'file' | 'reference' | 'customcolor';
+
+	/** Names of checksum algorithms that may be supported by a debug adapter. */
+	export type ChecksumAlgorithm = 'MD5' | 'SHA1' | 'SHA256' | 'SHA1Normalized' | 'SHA256Normalized' | 'timestamp';
+
+	/** The checksum of an item calculated by the specified algorithm. */
+	export interface Checksum {
+		/** The algorithm used to calculate this checksum. */
+		algorithm: ChecksumAlgorithm;
+		/** Value of the checksum. */
+		checksum: string;
+	}
 }
 

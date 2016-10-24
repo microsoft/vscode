@@ -10,7 +10,7 @@ import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { ipcRenderer as ipc, shell } from 'electron';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import URI from 'vs/base/common/uri';
@@ -23,6 +23,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import * as semver from 'semver';
 
 interface IUpdate {
 	releaseNotes: string;
@@ -178,32 +181,95 @@ export const DownloadAction = (url: string) => new Action(
 	() => { shell.openExternal(url); return TPromise.as(true); }
 );
 
-export class Update {
+const LinkAction = (id: string, message: string, licenseUrl: string) => new Action(
+	id, message, null, true,
+	() => { shell.openExternal(licenseUrl); return TPromise.as(null); }
+);
+
+export class UpdateContribution implements IWorkbenchContribution {
+
+	private static KEY = 'releaseNotes/lastVersion';
+	private static INSIDER_KEY = 'releaseNotes/shouldShowInsiderDisclaimer';
+	getId() { return 'vs.update'; }
 
 	constructor(
-		@IMessageService private messageService: IMessageService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IMessageService messageService: IMessageService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
-		ipc.on('vscode:update-downloaded', (event, update: IUpdate) => {
-			const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, false, update.version);
+		const lastVersion = storageService.get(UpdateContribution.KEY, StorageScope.GLOBAL, '');
 
-			this.messageService.show(severity.Info, {
+		// was there an update?
+		if (product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
+			instantiationService.invokeFunction(loadReleaseNotes, pkg.version)
+				.then(
+				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text)),
+				() => {
+					messageService.show(Severity.Info, {
+						message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
+						actions: [
+							instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction),
+							CloseAction
+						]
+					});
+				});
+		}
+
+		// should we show the new license?
+		if (product.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(pkg.version, '>=1.0.0')) {
+			messageService.show(Severity.Info, {
+				message: nls.localize('licenseChanged', "Our license terms have changed, please go through them.", product.nameLong, pkg.version),
+				actions: [
+					LinkAction('update.showLicense', nls.localize('license', "Read License"), product.licenseUrl),
+					CloseAction
+				]
+			});
+		}
+
+		const shouldShowInsiderDisclaimer = storageService.getBoolean(UpdateContribution.INSIDER_KEY, StorageScope.GLOBAL, true);
+
+		// is this a build which releases often?
+		if (shouldShowInsiderDisclaimer && /-alpha$|-insider$/.test(pkg.version)) {
+			messageService.show(Severity.Info, {
+				message: nls.localize('insiderBuilds', "Insider builds and releases everyday!", product.nameLong, pkg.version),
+				actions: [
+					new Action('update.insiderBuilds', nls.localize('readmore', "Read More"), '', true, () => {
+						shell.openExternal('http://go.microsoft.com/fwlink/?LinkID=798816');
+						storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
+						return TPromise.as(null);
+					}),
+					new Action('update.neverAgain', nls.localize('neverShowAgain', "Don't Show Again"), '', true, () => {
+						storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
+						return TPromise.as(null);
+					}),
+					CloseAction
+				]
+			});
+		}
+
+		storageService.store(UpdateContribution.KEY, pkg.version, StorageScope.GLOBAL);
+
+		ipc.on('vscode:update-downloaded', (event, update: IUpdate) => {
+			const releaseNotesAction = instantiationService.createInstance(ShowReleaseNotesAction, false, update.version);
+
+			messageService.show(severity.Info, {
 				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", product.nameLong),
 				actions: [ApplyUpdateAction, NotNowAction, releaseNotesAction]
 			});
 		});
 
 		ipc.on('vscode:update-available', (event, url: string, version: string) => {
-			const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, false, version);
+			const releaseNotesAction = instantiationService.createInstance(ShowReleaseNotesAction, false, version);
 
-			this.messageService.show(severity.Info, {
+			messageService.show(severity.Info, {
 				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
 				actions: [DownloadAction(url), NotNowAction, releaseNotesAction]
 			});
 		});
 
 		ipc.on('vscode:update-not-available', () => {
-			this.messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
+			messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
 		});
 	}
 }

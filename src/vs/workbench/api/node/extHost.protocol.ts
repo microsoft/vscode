@@ -276,12 +276,13 @@ export interface ObjectIdentifier {
 }
 
 export namespace ObjectIdentifier {
+	export const name = '$ident';
 	export function mixin<T>(obj: T, id: number): T & ObjectIdentifier {
-		Object.defineProperty(obj, '$ident', { value: id, enumerable: true });
+		Object.defineProperty(obj, name, { value: id, enumerable: true });
 		return <T & ObjectIdentifier>obj;
 	}
-	export function get(obj: any): number {
-		return obj['$ident'];
+	export function of(obj: any): number {
+		return obj[name];
 	}
 }
 

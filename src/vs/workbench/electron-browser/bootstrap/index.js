@@ -138,10 +138,7 @@ function main() {
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
-			recordStats: !!configuration.performance,
-			ignoreDuplicateModules: [
-				'vs/workbench/parts/search/common/searchQuery'
-			]
+			recordStats: !!configuration.performance
 		});
 
 		if (nlsConfig.pseudo) {

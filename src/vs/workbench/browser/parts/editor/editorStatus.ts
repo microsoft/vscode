@@ -45,7 +45,9 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ShowLanguageExtensionsAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IExtensionsViewlet, VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 
 function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 	if (editorWidget) {
@@ -585,8 +587,13 @@ export class EditorStatus implements IStatusbarItem {
 			if (info.selections.length === 1) {
 				const visibleColumn = editorWidget.getVisibleColumnFromPosition(editorWidget.getPosition());
 
-				const selectionClone = info.selections[0].clone(); // do not modify the original position we got from the editor
-				selectionClone.positionColumn = visibleColumn;
+				let selectionClone = info.selections[0].clone(); // do not modify the original position we got from the editor
+				selectionClone = new Selection(
+					selectionClone.selectionStartLineNumber,
+					selectionClone.selectionStartColumn,
+					selectionClone.positionLineNumber,
+					visibleColumn
+				);
 
 				info.selections[0] = selectionClone;
 			}
@@ -664,6 +671,29 @@ function isWritableCodeEditor(e: BaseTextEditor): boolean {
 
 	return (editorWidget.getEditorType() === EditorType.ICodeEditor &&
 		!(<ICodeEditor>editorWidget).getConfiguration().readOnly);
+}
+
+export class ShowLanguageExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showLanguageExtensions';
+
+	constructor(
+		private extension: string,
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionGalleryService galleryService: IExtensionGalleryService
+	) {
+		super(ShowLanguageExtensionsAction.ID, nls.localize('showLanguageExtensions', "Search Gallery Extensions for '{0}'...", extension), null, true);
+		this.enabled = galleryService.isEnabled();
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search(`tag:__ext_${this.extension.replace(/^\./, '')}`);
+				viewlet.focus();
+			});
+	}
 }
 
 export class ChangeModeAction extends Action {

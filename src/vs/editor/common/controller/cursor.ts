@@ -1454,13 +1454,13 @@ export class Cursor extends EventEmitter {
 	private _revealLine(ctx: IMultipleCursorOperationContext): boolean {
 		const revealLineArg: editorCommon.RevealLineArguments = ctx.eventData;
 		const lineNumber = revealLineArg.lineNumber + 1;
-		const range = this.model.validateRange({
+		let range = this.model.validateRange({
 			startLineNumber: lineNumber,
 			startColumn: 1,
 			endLineNumber: lineNumber,
 			endColumn: 1
 		});
-		range.endColumn = this.model.getLineMaxColumn(range.endLineNumber);
+		range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, this.model.getLineMaxColumn(range.endLineNumber));
 
 		let revealAt = editorCommon.VerticalRevealType.Simple;
 		if (revealLineArg.at) {

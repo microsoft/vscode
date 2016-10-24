@@ -15,7 +15,7 @@ import { ActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar'
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey } from './extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey } from '../common/extensions';
 import { LocalExtensionType, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -399,7 +399,7 @@ export class EnableAction extends Action {
 			return;
 		}
 
-		this.enabled = !this.extension.reload && this.extension.state === ExtensionState.Disabled;
+		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && this.extension.state === ExtensionState.Disabled;
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
@@ -480,7 +480,7 @@ export class DisableAction extends Action {
 			return;
 		}
 
-		this.enabled = !this.extension.reload && this.extension.state === ExtensionState.Enabled;
+		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && this.extension.state === ExtensionState.Enabled;
 		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
 	}
 

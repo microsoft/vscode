@@ -18,7 +18,7 @@ import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workb
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService } from './extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService } from '../common/extensions';
 import { ExtensionsWorkbenchService } from './extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction,

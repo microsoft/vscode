@@ -16,8 +16,6 @@ import { Delayer } from 'vs/base/common/async';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
-import Uri from 'vs/base/common/uri';
-import { IBackupService } from 'vs/platform/backup/common/backup';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux } from 'vs/base/common/platform';
@@ -162,8 +160,7 @@ export class Workbench implements IPartService {
 		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IBackupService private backupService: IBackupService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.container = container;
 
@@ -173,17 +170,7 @@ export class Workbench implements IPartService {
 			serviceCollection
 		};
 
-		// Restore any backups if they exist for this workspace (empty workspaces are not supported yet)
-		if (workspace) {
-			options.untitledFilesToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(workspace.resource).map(untitledFilePath => {
-				return { resource: Uri.file(untitledFilePath), options: { pinned: true } };
-			});
-		}
-
-		this.hasFilesToCreateOpenOrDiff =
-			(options.filesToCreate && options.filesToCreate.length > 0) ||
-			(options.filesToOpen && options.filesToOpen.length > 0) ||
-			(options.filesToDiff && options.filesToDiff.length > 0);
+		this.hasFilesToCreateOpenOrDiff = (options.filesToCreate && options.filesToCreate.length > 0) || (options.filesToOpen && options.filesToOpen.length > 0) || (options.filesToDiff && options.filesToDiff.length > 0);
 
 		this.toDispose = [];
 		this.toShutdown = [];
@@ -238,7 +225,7 @@ export class Workbench implements IPartService {
 			const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 			let viewletId = viewletRegistry.getDefaultViewletId();
 			if (this.shouldRestoreSidebar()) {
-				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId()); // help developers and restore last view
+				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletId); // help developers and restore last view
 			}
 
 			if (!this.sideBarHidden && !!viewletId) {
@@ -268,14 +255,7 @@ export class Workbench implements IPartService {
 
 					editorOpenPromise = this.editorPart.openEditors(editors);
 				} else {
-					if (this.workbenchParams.options.untitledFilesToRestore && this.workbenchParams.options.untitledFilesToRestore.length) {
-						const untitledToRestoreInputs = this.workbenchParams.options.untitledFilesToRestore.map(resourceInput => {
-							return this.untitledEditorService.createOrGet(null, null, resourceInput.resource);
-						});
-						editorOpenPromise = this.editorPart.restoreEditors(untitledToRestoreInputs);
-					} else {
-						editorOpenPromise = this.editorPart.restoreEditors();
-					}
+					editorOpenPromise = this.editorPart.restoreEditors();
 				}
 
 				return editorOpenPromise.then(() => {
@@ -336,9 +316,7 @@ export class Workbench implements IPartService {
 				options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
 
 				// Files to open
-				let filesToOpenInputPromise = filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput));
-
-				return TPromise.join<EditorInput>(filesToOpenInputPromise).then((inputsToOpen) => {
+				return TPromise.join<EditorInput>(filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput))).then((inputsToOpen) => {
 					inputs.push(...inputsToOpen);
 					options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
 
@@ -825,7 +803,7 @@ export class Workbench implements IPartService {
 	private createEditorPart(): void {
 		const editorContainer = $(this.workbench)
 			.div({
-				'class': ['part', 'editor', 'monaco-editor-background'],
+				'class': ['part', 'editor', 'monaco-editor-background', 'empty'],
 				id: Identifiers.EDITOR_PART,
 				role: 'main'
 			});
