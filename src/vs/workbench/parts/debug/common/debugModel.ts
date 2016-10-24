@@ -258,7 +258,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		public available = true,
 		startOfVariables = 0
 	) {
-		super(stackFrame, reference, `variable:${stackFrame.getId()}:${parent.getId()}:${name}:${reference}`, true, namedVariables, indexedVariables, startOfVariables);
+		super(stackFrame, reference, `variable:${parent.getId()}:${name}:${reference}`, true, namedVariables, indexedVariables, startOfVariables);
 		this.value = massageValue(value);
 	}
 
