@@ -364,22 +364,4 @@ suite('Debug - Model', () => {
 		model.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
 	});
-
-	// Utils
-
-	test('full expression name', () => {
-		const type = 'node';
-		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression(null, false), type), null);
-		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression('son', false), type), 'son');
-
-		const process = new debugmodel.Process('mockProcess', rawSession);
-		const thread = new debugmodel.Thread(process, 'mockthread', 1);
-		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
-		const scope = new debugmodel.Scope(stackFrame, 'myscope', 1, false, 1, 0);
-		const son = new debugmodel.Variable(stackFrame, new debugmodel.Variable(stackFrame, new debugmodel.Variable(stackFrame, scope, 0, 'grandfather', '75', 1, 0), 0, 'father', '45', 1, 0), 0, 'son', '20', 1, 0);
-		assert.equal(debugmodel.getFullExpressionName(son, type), 'grandfather.father.son');
-
-		const grandson = new debugmodel.Variable(stackFrame, son, 0, '/weird_name', '1', 0, 0);
-		assert.equal(debugmodel.getFullExpressionName(grandson, type), 'grandfather.father.son[\'/weird_name\']');
-	});
 });

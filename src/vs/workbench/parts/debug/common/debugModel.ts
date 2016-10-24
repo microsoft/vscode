@@ -57,35 +57,6 @@ export function evaluateExpression(stackFrame: debug.IStackFrame, expression: Ex
 	});
 }
 
-const notPropertySyntax = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-const arrayElementSyntax = /\[.*\]$/;
-
-export function getFullExpressionName(expression: debug.IExpression, sessionType: string): string {
-	let names = [expression.name];
-	if (expression instanceof Variable) {
-		let v = (<Variable>expression).parent;
-		while (v instanceof Variable || v instanceof Expression) {
-			names.push((<Variable>v).name);
-			v = (<Variable>v).parent;
-		}
-	}
-	names = names.reverse();
-
-	let result = null;
-	names.forEach(name => {
-		if (!result) {
-			result = name;
-		} else if (arrayElementSyntax.test(name) || (sessionType === 'node' && !notPropertySyntax.test(name))) {
-			// use safe way to access node properties a['property_name']. Also handles array elements.
-			result = name && name.indexOf('[') === 0 ? `${result}${name}` : `${result}['${name}']`;
-		} else {
-			result = `${result}.${name}`;
-		}
-	});
-
-	return result;
-}
-
 export class OutputElement implements debug.ITreeElement {
 	private static ID_COUNTER = 0;
 
@@ -203,7 +174,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 							for (let i = 0; i < numberOfChunks; i++) {
 								const start = this.startOfVariables + i * chunkSize;
 								const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
-								childrenArray.push(new Variable(this.stackFrame, this, this.reference, `[${start}..${start + count - 1}]`, '', null, count, null, true, start));
+								childrenArray.push(new Variable(this.stackFrame, this, this.reference, `[${start}..${start + count - 1}]`, '', '', null, count, null, true, start));
 							}
 
 							return childrenArray;
@@ -236,9 +207,9 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 			filter
 		}).then(response => {
 			return response && response.body && response.body.variables ? arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
-				v => new Variable(this.stackFrame, this, v.variablesReference, v.name, v.value, v.namedVariables, v.indexedVariables, v.type)
+				v => new Variable(this.stackFrame, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.type)
 			) : [];
-		}, (e: Error) => [new Variable(this.stackFrame, this, 0, null, e.message, 0, 0, null, false)]);
+		}, (e: Error) => [new Variable(this.stackFrame, this, 0, null, e.message, '', 0, 0, null, false)]);
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
@@ -271,12 +242,15 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 
 	// Used to show the error message coming from the adapter when setting the value #7807
 	public errorMessage: string;
+	private static NOT_PROPERTY_SYNTAX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+	private static ARRAY_ELEMENT_SYNTAX = /\[.*\]$/;
 
 	constructor(
 		stackFrame: debug.IStackFrame,
 		public parent: debug.IExpressionContainer,
 		reference: number,
 		public name: string,
+		private _evaluateName: string,
 		value: string,
 		namedVariables: number,
 		indexedVariables: number,
@@ -286,6 +260,34 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 	) {
 		super(stackFrame, reference, `variable:${stackFrame.getId()}:${parent.getId()}:${name}:${reference}`, true, namedVariables, indexedVariables, startOfVariables);
 		this.value = massageValue(value);
+	}
+
+	public get evaluateName(): string {
+		if (this._evaluateName) {
+			return this._evaluateName;
+		}
+
+		let names = [this.name];
+		let v = this.parent;
+		while (v instanceof Variable || v instanceof Expression) {
+			names.push((<Variable>v).name);
+			v = (<Variable>v).parent;
+		}
+		names = names.reverse();
+
+		let result = null;
+		names.forEach(name => {
+			if (!result) {
+				result = name;
+			} else if (Variable.ARRAY_ELEMENT_SYNTAX.test(name) || (this.stackFrame.thread.process.session.configuration.type === 'node' && !Variable.NOT_PROPERTY_SYNTAX.test(name))) {
+				// use safe way to access node properties a['property_name']. Also handles array elements.
+				result = name && name.indexOf('[') === 0 ? `${result}${name}` : `${result}['${name}']`;
+			} else {
+				result = `${result}.${name}`;
+			}
+		});
+
+		return result;
 	}
 
 	public setVariable(value: string): TPromise<any> {
