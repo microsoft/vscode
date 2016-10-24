@@ -108,7 +108,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private dragging: boolean;
 
 	private layoutVertically: boolean;
-	private configuredGroupOrientation: GroupOrientation;
+	private defaultEditorGroupOrientation: GroupOrientation;
 
 	private showTabs: boolean;
 	private showIcons: boolean;
@@ -140,6 +140,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	constructor(
 		parent: Builder,
+		groupOrientation: GroupOrientation,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -168,6 +169,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.stacksChangedBuffer = [];
 
 		this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+
+		const editorGroupOrientation = groupOrientation || this.defaultEditorGroupOrientation;
+		this.layoutVertically = (editorGroupOrientation !== 'horizontal');
 
 		this.create();
 
@@ -205,31 +209,18 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration, refresh?: boolean): void {
-		let configuredGroupOrientation: GroupOrientation;
 		if (config.workbench && config.workbench.editor) {
 			this.showTabs = config.workbench.editor.showTabs;
 			this.showIcons = config.workbench.editor.showIcons;
-			configuredGroupOrientation = (config.workbench.editor.sideBySideLayout === 'horizontal') ? 'horizontal' : 'vertical';
+			this.defaultEditorGroupOrientation = (config.workbench.editor.defaultSideBySideLayout === 'horizontal') ? 'horizontal' : 'vertical';
 		} else {
 			this.showTabs = true;
 			this.showIcons = false;
-			configuredGroupOrientation = 'vertical';
-		}
-
-		// Only once on startup
-		if (types.isUndefined(this.layoutVertically)) {
-			this.layoutVertically = (configuredGroupOrientation !== 'horizontal');
-			this.configuredGroupOrientation = configuredGroupOrientation;
+			this.defaultEditorGroupOrientation = 'vertical';
 		}
 
 		if (!refresh) {
 			return; // return early if no refresh is needed
-		}
-
-		// Find out if editor layout changed in configuration
-		if (this.configuredGroupOrientation !== configuredGroupOrientation) {
-			this.configuredGroupOrientation = configuredGroupOrientation;
-			this.setGroupOrientation(this.configuredGroupOrientation);
 		}
 
 		// Editor Containers
