@@ -327,9 +327,8 @@ export class EnableForWorkspaceAction extends Action {
 	}
 
 	private update(): void {
-		if (this.extension && !this.workspaceContextService.getWorkspace()) {
-			const globalDisabled = this.extensionsRuntimeService.getDisabledExtensions(false);
-			this.enabled = globalDisabled.indexOf(this.extension.identifier) === -1;
+		if (this.extension && this.workspaceContextService.getWorkspace()) {
+			this.enabled = !this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier);
 		}
 	}
 
@@ -353,8 +352,7 @@ export class EnableGloballyAction extends Action {
 
 	private update(): void {
 		if (this.extension) {
-			const globalDisabled = this.extensionsRuntimeService.getDisabledExtensions(false);
-			this.enabled = globalDisabled.indexOf(this.extension.identifier) !== -1;
+			this.enabled = this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier);
 		}
 	}
 
@@ -381,7 +379,8 @@ export class EnableAction extends Action {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
 	) {
 		super(EnableAction.ID, localize('enableAction', "Enable"), EnableAction.DisabledClass, false);
 
@@ -399,7 +398,7 @@ export class EnableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && this.extension.state === ExtensionState.Disabled;
+		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && this.extensionsRuntimeService.canEnable(this.extension.identifier);
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
