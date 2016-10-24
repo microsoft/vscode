@@ -25,7 +25,7 @@ export interface IProductConfiguration {
 		itemUrl: string;
 	};
 	extensionTips: { [id: string]: string; };
-	extensionImportantTips: { [id: string]: string; };
+	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
 	crashReporter: Electron.CrashReporterStartOptions;
 	welcomePage: string;
 	enableTelemetry: boolean;
