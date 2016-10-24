@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
+import Event, { Emitter } from 'vs/base/common/event';
 import { IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ILineTokens, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { TMState } from 'vs/editor/common/modes/TMState';
@@ -24,7 +25,7 @@ export interface ITMSyntaxExtensionPoint {
 	injectTo: string[];
 }
 
-// @martin TS(2.0.2) - Type IJsonSchema has no defined property require. Keeping semantic using any cast
+// TODO@Martin TS(2.0.2) - Type IJsonSchema has no defined property require. Keeping semantic using any cast
 let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', <any>{
 	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
 	type: 'array',
@@ -61,11 +62,16 @@ export class TMScopeRegistry {
 
 	private _scopeNameToFilePath: { [scopeName: string]: string; };
 	private _scopeNameToLanguage: { [scopeName: string]: string; };
+	private _encounteredLanguages: { [language: string]: boolean; };
 	private _cachedScopesRegex: RegExp;
+
+	private _onDidEncounterLanguage: Emitter<string> = new Emitter<string>();
+	public onDidEncounterLanguage: Event<string> = this._onDidEncounterLanguage.event;
 
 	constructor() {
 		this._scopeNameToFilePath = Object.create(null);
 		this._scopeNameToLanguage = Object.create(null);
+		this._encounteredLanguages = Object.create(null);
 		this._cachedScopesRegex = null;
 	}
 
@@ -111,7 +117,13 @@ export class TMScopeRegistry {
 			return null;
 		}
 
-		return this._scopeNameToLanguage[m[1]] || null;
+		let language = this._scopeNameToLanguage[m[1]] || null;
+		if (language && !this._encounteredLanguages[language]) {
+			this._encounteredLanguages[language] = true;
+			this._onDidEncounterLanguage.fire(language);
+		}
+
+		return language;
 	}
 }
 
@@ -121,11 +133,14 @@ export class MainProcessTextMateSyntax {
 	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
 
+	public onDidEncounterLanguage: Event<string>;
+
 	constructor(
 		@IModeService modeService: IModeService
 	) {
 		this._modeService = modeService;
 		this._scopeRegistry = new TMScopeRegistry();
+		this.onDidEncounterLanguage = this._scopeRegistry.onDidEncounterLanguage;
 		this._injections = {};
 
 		this._grammarRegistry = new Registry({
