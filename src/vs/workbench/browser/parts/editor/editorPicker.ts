@@ -16,6 +16,7 @@ import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration } from 
 import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import scorer = require('vs/base/common/scorer');
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
@@ -36,6 +37,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
+		@IHistoryService protected historyService: IHistoryService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
 		super();
@@ -91,8 +93,14 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	private runOpen(context: IEntryRunContext, options?: IEditorOptions | ITextEditorOptions) {
+		if (options.forcePreview) {
+			this.historyService.block(true);
+		}
 		this.editorService.openEditor(this.editor, options, this.stacks.positionOfGroup(this.group))
-			.done(null, errors.onUnexpectedError);
+			.done(() => this.historyService.block(false), err => {
+				this.historyService.block(false);
+				errors.onUnexpectedError(err);
+			});
 	}
 }
 
