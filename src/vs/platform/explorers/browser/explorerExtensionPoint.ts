@@ -12,14 +12,9 @@ import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegi
 import { Registry } from 'vs/platform/platform';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { VIEWLET_ID_ROOT } from 'vs/workbench/parts/explorers/common/treeExplorer';
+import { ITreeExplorer } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 namespace schema {
-
-	export interface IExplorer {
-		treeExplorerNodeProviderId: string;
-		treeLabel: string;
-		icon: string;
-	}
 
 	export const explorerContribtion: IJSONSchema = {
 		description: localize('vscode.extension.contributes.explorer', "Contributes custom tree explorer viewlet to the sidebar"),
@@ -41,7 +36,7 @@ namespace schema {
 	};
 }
 
-ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.explorerContribtion).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', schema.explorerContribtion).setHandler(extensions => {
 	let baseOrder = 200; // Stock viewlet order goes up to 100
 	let descriptors = [];
 
