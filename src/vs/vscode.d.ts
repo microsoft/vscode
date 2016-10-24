@@ -1349,7 +1349,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A node provider for the tree explorer contributed by extension.
+	 * A node provider for a tree explorer contribution.
 	 *
 	 * Providers are registered through (#workspace.registerTreeExplorerNodeProvider) with a
 	 * `providerId` that corresponds to the `treeExplorerNodeProviderId` in the extension's
@@ -1366,8 +1366,7 @@ declare module 'vscode' {
 
 		/**
 		 * Provide the root node. This function will be called when the tree explorer is activated
-		 * for the first time.
-		 * The root node is hidden and its direct children will be displayed on the first level of
+		 * for the first time. The root node is hidden and its direct children will be displayed on the first level of
 		 * the tree explorer.
 		 *
 		 * @return The root node.
@@ -1383,9 +1382,8 @@ declare module 'vscode' {
 		resolveChildren(node: T): T[] | Thenable<T[]>;
 
 		/**
-		 * Provide a human-readable string that will be used for rendering the node.
-		 *
-		 * Default to use `node.toString()` if not provided.
+		 * Provide a human-readable string that will be used for rendering the node. Default to use
+		 * `node.toString()` if not provided.
 		 *
 		 * @param node The node from which the provider computes label.
 		 * @return A human-readable label.
@@ -1393,9 +1391,7 @@ declare module 'vscode' {
 		getLabel?(node: T): string;
 
 		/**
-		 * Determine if `node` has children and is expandable.
-		 *
-		 * Default to return `true` if not provided.
+		 * Determine if `node` has children and is expandable. Default to return `true` if not provided.
 		 *
 		 * @param node The node to determine if it has children and is expandable.
 		 * @return A boolean that determines if `node` has children and is expandable.
@@ -1405,7 +1401,7 @@ declare module 'vscode' {
 		/**
 		 * Get the command to execute when `node` is clicked.
 		 *
-		 * Commands can be registered through (#commands.registerCommand). `node` will be provided
+		 * Commands can be registered through [registerCommand](#commands.registerCommand). `node` will be provided
 		 * as the first argument to the command's callback function.
 		 *
 		 * @param node The node that the command is associated with.
@@ -3870,7 +3866,7 @@ declare module 'vscode' {
 		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
 
 		/**
-		 * Register a [tree explorer node provider](#TreeExplorerNodeProvider).
+		 * Register a [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
 		 *
 		 * @param providerId A unique id that identifies the provider.
 		 * @param provider A [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
