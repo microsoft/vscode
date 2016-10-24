@@ -248,6 +248,53 @@ export class TMScopeDecodeData {
 	}
 }
 
+/**
+ * Data associated with a stack of text mate scopes as part of decoding.
+ */
+export class TMScopesDecodeData {
+	_tmScopesDecodeDataBrand: void;
+
+	/**
+	 * The last scope in the stack.
+	 */
+	public readonly scope: string;
+	/**
+	 * The resolved tokens mask.
+	 * tokens[i] === true ===> token with id i is present.
+	 */
+	public readonly tokensMask: boolean[];
+	/**
+	 * The resolved language.
+	 */
+	private readonly language: string;
+
+	constructor(parent: TMScopesDecodeData, scope: TMScopeDecodeData) {
+		// 1) Inherit data from `parent`.
+		let tokensMask: boolean[];
+		let language: string;
+		if (parent) {
+			tokensMask = parent.tokensMask.slice(0);
+			language = parent.language;
+		} else {
+			tokensMask = [];
+			language = null;
+		}
+
+		// 2) Overwrite with data from `scope`.
+		let scopeTokenIds = scope.tokenIds;
+		for (let i = 0, len = scopeTokenIds.length; i < len; i++) {
+			tokensMask[scopeTokenIds[i]] = true;
+		}
+		if (scope.language) {
+			language = scope.language;
+		}
+
+		this.scope = scope.scope;
+		this.tokensMask = tokensMask;
+		this.language = language;
+	}
+}
+
 export class DecodeMap {
 	_decodeMapBrand: void;
 
@@ -256,7 +303,7 @@ export class DecodeMap {
 	private readonly scopeToTokenIds: { [scope: string]: TMScopeDecodeData; };
 	private readonly tokenToTokenId: { [token: string]: number; };
 	private readonly tokenIdToToken: string[];
-	prevToken: TMTokenDecodeData;
+	prevTokenScopes: TMScopesDecodeData[];
 
 	constructor(scopeRegistry: TMScopeRegistry) {
 		this.lastAssignedTokenId = 0;
@@ -264,7 +311,7 @@ export class DecodeMap {
 		this.scopeToTokenIds = Object.create(null);
 		this.tokenToTokenId = Object.create(null);
 		this.tokenIdToToken = [null];
-		this.prevToken = new TMTokenDecodeData([], []);
+		this.prevTokenScopes = [];
 	}
 
 	private _getTokenId(token: string): number {
@@ -310,18 +357,6 @@ export class DecodeMap {
 			}
 		}
 		return result;
-	}
-}
-
-export class TMTokenDecodeData {
-	_tmTokenDecodeDataBrand: void;
-
-	public readonly scopes: string[];
-	public readonly scopeTokensMaps: boolean[][];
-
-	constructor(scopes: string[], scopeTokensMaps: boolean[][]) {
-		this.scopes = scopes;
-		this.scopeTokensMaps = scopeTokensMaps;
 	}
 }
 
@@ -390,34 +425,36 @@ export function decodeTextMateTokens(line: string, offsetDelta: number, decodeMa
 }
 
 export function decodeTextMateToken(decodeMap: DecodeMap, scopes: string[]): string {
-	const prevTokenScopes = decodeMap.prevToken.scopes;
-	const prevTokenScopesLength = prevTokenScopes.length;
-	const prevTokenScopeTokensMaps = decodeMap.prevToken.scopeTokensMaps;
+	if (scopes.length <= 1) {
+		// fast case
+		return '';
+	}
 
-	let scopeTokensMaps: boolean[][] = [];
-	let prevScopeTokensMaps: boolean[] = [];
+	const prevTokenScopes = decodeMap.prevTokenScopes;
+	const prevTokenScopesLength = prevTokenScopes.length;
+
+	let resultScopes: TMScopesDecodeData[] = [null];
+	let lastResultScope: TMScopesDecodeData = null;
+
 	let sameAsPrev = true;
 	for (let level = 1/* deliberately skip scope 0*/, scopesLength = scopes.length; level < scopesLength; level++) {
 		let scope = scopes[level];
 
-		if (sameAsPrev) {
-			if (level < prevTokenScopesLength && prevTokenScopes[level] === scope) {
-				prevScopeTokensMaps = prevTokenScopeTokensMaps[level];
-				scopeTokensMaps[level] = prevScopeTokensMaps;
+		if (sameAsPrev && level < prevTokenScopesLength) {
+			let prevTokenScope = prevTokenScopes[level];
+			if (prevTokenScope.scope === scope) {
+				// continue reusing the results of the previous token's computation
+				lastResultScope = prevTokenScope;
+				resultScopes[level] = lastResultScope;
 				continue;
 			}
-			sameAsPrev = false;
 		}
+		sameAsPrev = false;
 
-		let decodedScope = decodeMap.decodeTMScope(scope);
-		let decodedScopeTokens = decodedScope.tokenIds;
-		prevScopeTokensMaps = prevScopeTokensMaps.slice(0);
-		for (let i = 0, len = decodedScopeTokens.length; i < len; i++) {
-			prevScopeTokensMaps[decodedScopeTokens[i]] = true;
-		}
-		scopeTokensMaps[level] = prevScopeTokensMaps;
+		lastResultScope = new TMScopesDecodeData(lastResultScope, decodeMap.decodeTMScope(scope));
+		resultScopes[level] = lastResultScope;
 	}
 
-	decodeMap.prevToken = new TMTokenDecodeData(scopes, scopeTokensMaps);
-	return decodeMap.getToken(prevScopeTokensMaps);
+	decodeMap.prevTokenScopes = resultScopes;
+	return decodeMap.getToken(lastResultScope.tokensMask);
 }
