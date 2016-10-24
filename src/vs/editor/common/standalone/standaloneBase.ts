@@ -27,10 +27,10 @@ export enum Severity {
 // This is repeated here so it can be exported
 // --------------------------------------------
 export class KeyMod {
-	public static CtrlCmd: number = ConstKeyMod.CtrlCmd;
-	public static Shift: number = ConstKeyMod.Shift;
-	public static Alt: number = ConstKeyMod.Alt;
-	public static WinCtrl: number = ConstKeyMod.WinCtrl;
+	public static readonly CtrlCmd: number = ConstKeyMod.CtrlCmd;
+	public static readonly Shift: number = ConstKeyMod.Shift;
+	public static readonly Alt: number = ConstKeyMod.Alt;
+	public static readonly WinCtrl: number = ConstKeyMod.WinCtrl;
 
 	public static chord(firstPart: number, secondPart: number): number {
 		return KeyChord(firstPart, secondPart);

@@ -10,6 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { RenderLineInput, renderLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { LineParts } from 'vs/editor/common/core/lineParts';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 
@@ -57,7 +58,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: ViewLineToken[]): void {
 		let lineParts = createLineParts(1, 1, lineContent, 4, new ViewLineTokens(tokens, fauxIndentLength, lineContent.length), [], renderWhitespace);
-		let actual = lineParts.getParts();
+		let actual = lineParts.parts;
 
 		assert.deepEqual(actual, expected);
 	}
@@ -330,7 +331,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
-		let renderLineOutput = renderLine(new RenderLineInput(lineContent, tabSize, 10, -1, 'none', false, parts));
+		let renderLineOutput = renderLine(new RenderLineInput(lineContent, tabSize, 10, -1, 'none', false, new LineParts(parts, lineContent.length + 1)));
 
 		return (partIndex: number, partLength: number, offset: number, expected: number) => {
 			let actual = getColumnOfLinePartOffset(-1, parts, lineContent.length + 1, renderLineOutput.charOffsetInPart, partIndex, partLength, offset);

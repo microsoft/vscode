@@ -82,28 +82,26 @@ class ModelMarkerHandler {
 		if (ret.isEmpty()) {
 			let word = model.getWordAtPosition(ret.getStartPosition());
 			if (word) {
-				ret.startColumn = word.startColumn;
-				ret.endColumn = word.endColumn;
+				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
 			} else {
 				let maxColumn = model.getLineLastNonWhitespaceColumn(marker.startLineNumber) ||
 					model.getLineMaxColumn(marker.startLineNumber);
 
 				if (maxColumn === 1) {
 					// empty line
-					//					console.warn('marker on empty line:', marker);
+					// console.warn('marker on empty line:', marker);
 				} else if (ret.endColumn >= maxColumn) {
 					// behind eol
-					ret.endColumn = maxColumn;
-					ret.startColumn = maxColumn - 1;
+					ret = new Range(ret.startLineNumber, maxColumn - 1, ret.endLineNumber, maxColumn);
 				} else {
 					// extend marker to width = 1
-					ret.endColumn += 1;
+					ret = new Range(ret.startLineNumber, ret.startColumn, ret.endLineNumber, ret.endColumn + 1);
 				}
 			}
 		} else if (rawMarker.endColumn === Number.MAX_VALUE && rawMarker.startColumn === 1 && ret.startLineNumber === ret.endLineNumber) {
 			let minColumn = model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
 			if (minColumn < ret.endColumn) {
-				ret.startColumn = minColumn;
+				ret = new Range(ret.startLineNumber, minColumn, ret.endLineNumber, ret.endColumn);
 				rawMarker.startColumn = minColumn;
 			}
 		}

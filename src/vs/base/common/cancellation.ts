@@ -8,8 +8,12 @@
 import Event, { Emitter } from 'vs/base/common/event';
 
 export interface CancellationToken {
-	isCancellationRequested: boolean;
-	onCancellationRequested: Event<any>;
+	readonly isCancellationRequested: boolean;
+	/**
+	 * An event emitted when cancellation is requested
+	 * @event
+	 */
+	readonly onCancellationRequested: Event<any>;
 }
 
 const shortcutEvent: Event<any> = Object.freeze(function (callback, context?) {

@@ -34,6 +34,7 @@ function toRawText(lines: string[]): IRawText {
 		lines: lines,
 		EOL: '\n',
 		length: 0,
+		containsRTL: false,
 		options: null
 	};
 }
@@ -100,23 +101,39 @@ suite('ModelBuilder', () => {
 		testModelBuilder(['Hello world\n', 'How are you', '?\nIs everything good today?', '\nDo you enjoy the weather?']);
 	});
 
-	test('carriage return detection (1 \r\n 2 \n)', () => {
+	test('carriage return detection (1 \\r\\n 2 \\n)', () => {
 		testModelBuilder(['Hello world\r\n', 'How are you', '?\nIs everything good today?', '\nDo you enjoy the weather?']);
 	});
 
-	test('carriage return detection (2 \r\n 1 \n)', () => {
+	test('carriage return detection (2 \\r\\n 1 \\n)', () => {
 		testModelBuilder(['Hello world\r\n', 'How are you', '?\r\nIs everything good today?', '\nDo you enjoy the weather?']);
 	});
 
-	test('carriage return detection (3 \r\n 0 \n)', () => {
+	test('carriage return detection (3 \\r\\n 0 \\n)', () => {
 		testModelBuilder(['Hello world\r\n', 'How are you', '?\r\nIs everything good today?', '\r\nDo you enjoy the weather?']);
 	});
 
-	test('carriage return detection (isolated \r)', () => {
+	test('carriage return detection (isolated \\r)', () => {
 		testModelBuilder(['Hello world', '\r', '\n', 'How are you', '?', '\r', '\n', 'Is everything good today?', '\r', '\n', 'Do you enjoy the weather?']);
 	});
 
 	test('BOM handling', () => {
 		testModelBuilder([strings.UTF8_BOM_CHARACTER + 'Hello world!']);
+	});
+
+	test('BOM handling', () => {
+		testModelBuilder([strings.UTF8_BOM_CHARACTER, 'Hello world!']);
+	});
+
+	test('RTL handling 1', () => {
+		testModelBuilder(['Hello world!', 'זוהי עובדה מבוססת שדעתו']);
+	});
+
+	test('RTL handling 2', () => {
+		testModelBuilder(['Hello world!זוהי עובדה מבוססת שדעתו']);
+	});
+
+	test('RTL handling 3', () => {
+		testModelBuilder(['Hello world!זוהי \nעובדה מבוססת שדעתו']);
 	});
 });

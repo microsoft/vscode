@@ -352,34 +352,34 @@ export interface IMouseTarget {
 	/**
 	 * The target element
 	 */
-	element: Element;
+	readonly element: Element;
 	/**
 	 * The target type
 	 */
-	type: editorCommon.MouseTargetType;
+	readonly type: editorCommon.MouseTargetType;
 	/**
 	 * The 'approximate' editor position
 	 */
-	position: Position;
+	readonly position: Position;
 	/**
 	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
 	 */
-	mouseColumn: number;
+	readonly mouseColumn: number;
 	/**
 	 * The 'approximate' editor range
 	 */
-	range: Range;
+	readonly range: Range;
 	/**
 	 * Some extra detail.
 	 */
-	detail: any;
+	readonly detail: any;
 }
 /**
  * A mouse event originating from the editor.
  */
 export interface IEditorMouseEvent {
-	event: IMouseEvent;
-	target: IMouseTarget;
+	readonly event: IMouseEvent;
+	readonly target: IMouseTarget;
 }
 
 /**
@@ -403,38 +403,47 @@ export interface IOverviewRuler {
 export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	/**
 	 * An event emitted on a "mouseup".
+	 * @event
 	 */
 	onMouseUp(listener: (e: IEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "mousedown".
+	 * @event
 	 */
 	onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "contextmenu".
+	 * @event
 	 */
 	onContextMenu(listener: (e: IEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "mousemove".
+	 * @event
 	 */
 	onMouseMove(listener: (e: IEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "mouseleave".
+	 * @event
 	 */
 	onMouseLeave(listener: (e: IEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "keyup".
+	 * @event
 	 */
 	onKeyUp(listener: (e: IKeyboardEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "keydown".
+	 * @event
 	 */
 	onKeyDown(listener: (e: IKeyboardEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the layout of the editor has changed.
+	 * @event
 	 */
 	onDidLayoutChange(listener: (e: editorCommon.EditorLayoutInfo) => void): IDisposable;
 	/**
 	 * An event emitted when the scroll in the editor has changed.
+	 * @event
 	 */
 	onDidScrollChange(listener: (e: editorCommon.IScrollEvent) => void): IDisposable;
 

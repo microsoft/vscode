@@ -31,6 +31,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { mkdirp } from 'vs/base/node/pfs';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import { ChoiceCliService } from 'vs/platform/message/common/messageCli';
 
 const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -167,6 +169,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+			services.set(IChoiceService, new SyncDescriptor(ChoiceCliService));
 
 			if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
 				const appenders: AppInsightsAppender[] = [];

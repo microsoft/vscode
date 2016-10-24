@@ -23,6 +23,7 @@ import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
 import * as url from 'url';
+import { getMachineId } from 'vs/base/node/id';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -262,18 +263,11 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	@memoize
 	private get commonHeaders(): TPromise<{ [key: string]: string; }> {
-		return this.telemetryService.getTelemetryInfo().then(({ machineId }) => {
-			const result: { [key: string]: string; } = {
-				'X-Market-Client-Id': `VSCode ${pkg.version}`,
-				'User-Agent': `VSCode ${pkg.version}`
-			};
-
-			if (machineId) {
-				result['X-Market-User-Id'] = machineId;
-			}
-
-			return result;
-		});
+		return getMachineId().then(machineId => ({
+			'X-Market-Client-Id': `VSCode ${pkg.version}`,
+			'User-Agent': `VSCode ${pkg.version}`,
+			'X-Market-User-Id': machineId
+		}));
 	}
 
 	constructor(

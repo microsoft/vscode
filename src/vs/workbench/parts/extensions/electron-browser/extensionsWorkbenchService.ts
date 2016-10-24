@@ -32,7 +32,7 @@ import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { readFile } from 'vs/base/node/pfs';
 import { asText } from 'vs/base/node/request';
-import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from './extensions';
+import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from '../common/extensions';
 import { UpdateAllAction } from './extensionsActions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
@@ -538,7 +538,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return;
 		}
 
-		let extension = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === gallery.id)[0];
+		let extension = this.installed.filter(e => (e.local && e.local.metadata && e.local.metadata.id) === gallery.id)[0];
 
 		if (!extension) {
 			extension = new Extension(this.galleryService, this.stateProvider, null, gallery);
@@ -581,7 +581,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			extension.needsReload = true;
 
 			const galleryId = local.metadata && local.metadata.id;
-			const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
+			const installed = this.installed.filter(e => (e.local && e.local.metadata && e.local.metadata.id) === galleryId)[0];
 
 			if (galleryId && installed) {
 				installing.operation = Operation.Updating;
@@ -644,14 +644,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return ExtensionState.Uninstalling;
 		}
 
-		const disabledExtensions = this.extensionsRuntimeService.getDisabledExtensions();
 		const local = this.installed.filter(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))[0];
 
 		if (local) {
 			if (this.newlyInstalled.some(e => e.gallery && extension.gallery && e.gallery.id === extension.gallery.id)) {
 				return ExtensionState.Installed;
 			}
-			return disabledExtensions.indexOf(`${local.publisher}.${local.name}`) === -1 ? ExtensionState.Enabled : ExtensionState.Disabled;
+			return this.extensionsRuntimeService.isDisabled(extension.identifier) ? ExtensionState.Disabled : ExtensionState.Enabled;
 		}
 
 		return ExtensionState.Uninstalled;

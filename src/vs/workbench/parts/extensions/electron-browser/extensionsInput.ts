@@ -8,7 +8,7 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
-import { IExtension } from './extensions';
+import { IExtension } from '../common/extensions';
 
 export class ExtensionsInput extends EditorInput {
 

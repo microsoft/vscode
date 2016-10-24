@@ -66,7 +66,7 @@
         "html.format.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Enable/disable default HTML formatter"
+          "description": "Enable/disable default HTML formatter (requires restart)"
         },
         "html.format.wrapLineLength": {
           "type": "integer",

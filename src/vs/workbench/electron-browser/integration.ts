@@ -205,8 +205,10 @@ export class ElectronIntegration {
 			}
 		});
 
+		// Extra request headers
 		this.extensionGalleryService.getRequestHeaders().done(headers => {
 			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+
 			ipc.send('vscode:setHeaders', this.windowService.getWindowId(), urls, headers);
 		});
 	}

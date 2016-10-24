@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import actions = require('vs/base/common/actions');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { clipboard } from 'electron';
-import { Variable, getFullExpressionName } from 'vs/workbench/parts/debug/common/debugModel';
+import { Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 
 export class CopyValueAction extends actions.Action {
@@ -20,9 +20,9 @@ export class CopyValueAction extends actions.Action {
 
 	public run(): TPromise<any> {
 		if (this.value instanceof Variable) {
-			const frameId = this.debugService.getViewModel().getFocusedStackFrame().frameId;
-			const session = this.debugService.activeSession;
-			return session.evaluate({ expression: getFullExpressionName(this.value, session.configuration.type), frameId }).then(result => {
+			const frameId = this.debugService.getViewModel().focusedStackFrame.frameId;
+			const process = this.debugService.getViewModel().focusedProcess;
+			return process.session.evaluate({ expression: this.value.evaluateName, frameId }).then(result => {
 				clipboard.writeText(result.body.result);
 			}, err => clipboard.writeText(this.value.value));
 		}

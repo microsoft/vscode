@@ -14,26 +14,6 @@ suite('CancellationToken', function () {
 		assert.equal(typeof CancellationToken.None.onCancellationRequested, 'function');
 	});
 
-	test('defaults cannot be messed with', function () {
-
-		assert.throws(function () {
-			CancellationToken.Cancelled.isCancellationRequested = false;
-		});
-
-		assert.throws(function () {
-			CancellationToken.Cancelled.onCancellationRequested = null;
-		});
-
-		assert.throws(function () {
-			CancellationToken.None.isCancellationRequested = false;
-		});
-
-		assert.throws(function () {
-			CancellationToken.None.onCancellationRequested = null;
-		});
-	});
-
-
 	test('cancel before token', function (done) {
 
 		var source = new CancellationTokenSource();
