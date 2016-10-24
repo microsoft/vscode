@@ -773,12 +773,12 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	}
 }
 
-export class RenameWatchExpressionAction extends AbstractDebugAction {
-	static ID = 'workbench.debug.viewlet.action.renameWatchExpression';
-	static LABEL = nls.localize('renameWatchExpression', "Rename Expression");
+export class EditWatchExpressionAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.editWatchExpression';
+	static LABEL = nls.localize('editWatchExpression', "Edit Expression");
 
 	constructor(id: string, label: string, private expression: model.Expression, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action rename', debugService, keybindingService);
+		super(id, label, 'debug-action editWatchExpression', debugService, keybindingService);
 	}
 
 	public run(): TPromise<any> {
