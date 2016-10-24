@@ -32,7 +32,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
 import { ReplEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
 import { Panel } from 'vs/workbench/browser/panel';
@@ -118,15 +117,6 @@ export class Repl extends Panel implements IPrivateReplService {
 					if (previousScrollPosition === 1 || previousScrollPosition === 0) {
 						// Only scroll if we were scrolled all the way down before tree refreshed #10486
 						this.tree.setScrollPosition(1);
-					}
-
-					// If the last repl element has children - auto expand it #6019
-					const elements = this.debugService.getModel().getReplElements();
-					const lastElement = elements.length > 0 ? elements[elements.length - 1] : null;
-					if (lastElement instanceof Expression && lastElement.reference > 0) {
-						return this.tree.expand(elements[elements.length - 1]).then(() =>
-							this.tree.reveal(elements[elements.length - 1], 0)
-						);
 					}
 				}, errors.onUnexpectedError);
 			}, delay);
