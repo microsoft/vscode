@@ -346,7 +346,7 @@ export class EnableGloballyAction extends Action {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
 	) {
-		super('extensions.enableGlobally', localize('enableGloballyAction', "Global"), '', false);
+		super('extensions.enableGlobally', localize('enableGloballyAction', "Always"), '', false);
 	}
 
 	private update(): void {
@@ -440,7 +440,7 @@ export class DisableGloballyAction extends Action {
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensions.disableGlobally', localize('disableGloballyAction', "Global"), '', true);
+		super('extensions.disableGlobally', localize('disableGloballyAction', "Always"), '', true);
 	}
 
 	run(): TPromise<any> {
