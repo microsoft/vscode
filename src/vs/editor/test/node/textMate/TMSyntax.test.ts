@@ -41,6 +41,7 @@ suite('TextMate.TMScopeRegistry', () => {
 		manager.register('javascript', 'source.js', null);
 		manager.register('python', 'source.python', null);
 		manager.register('smarty', 'source.smarty', null);
+		manager.register(null, 'source.baz', null);
 
 		// exact matches
 		assert.equal(manager.scopeToLanguage('source.html'), 'html');
@@ -57,6 +58,7 @@ suite('TextMate.TMScopeRegistry', () => {
 
 		// misses
 		assert.equal(manager.scopeToLanguage('source.ts'), null);
+		assert.equal(manager.scopeToLanguage('source.baz'), null);
 		assert.equal(manager.scopeToLanguage('asource.css'), null);
 		assert.equal(manager.scopeToLanguage('a.source.css'), null);
 		assert.equal(manager.scopeToLanguage('source_css'), null);
