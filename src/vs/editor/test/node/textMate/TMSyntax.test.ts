@@ -37,6 +37,7 @@ suite('TextMate.TMScopeRegistry', () => {
 		assert.equal(manager.scopeToLanguage('source.html'), null);
 
 		manager.register('html', 'source.html', null);
+		manager.register('c', 'source.c', null);
 		manager.register('css', 'source.css', null);
 		manager.register('javascript', 'source.js', null);
 		manager.register('python', 'source.python', null);
@@ -46,6 +47,7 @@ suite('TextMate.TMScopeRegistry', () => {
 		// exact matches
 		assert.equal(manager.scopeToLanguage('source.html'), 'html');
 		assert.equal(manager.scopeToLanguage('source.css'), 'css');
+		assert.equal(manager.scopeToLanguage('source.c'), 'c');
 		assert.equal(manager.scopeToLanguage('source.js'), 'javascript');
 		assert.equal(manager.scopeToLanguage('source.python'), 'python');
 		assert.equal(manager.scopeToLanguage('source.smarty'), 'smarty');
@@ -58,10 +60,12 @@ suite('TextMate.TMScopeRegistry', () => {
 
 		// misses
 		assert.equal(manager.scopeToLanguage('source.ts'), null);
+		assert.equal(manager.scopeToLanguage('source.csss'), null);
 		assert.equal(manager.scopeToLanguage('source.baz'), null);
 		assert.equal(manager.scopeToLanguage('asource.css'), null);
 		assert.equal(manager.scopeToLanguage('a.source.css'), null);
 		assert.equal(manager.scopeToLanguage('source_css'), null);
+		assert.equal(manager.scopeToLanguage('punctuation.definition.tag.html'), null);
 	});
 
 });

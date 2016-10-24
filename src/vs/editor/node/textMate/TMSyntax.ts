@@ -88,7 +88,9 @@ export class TMScopeRegistry {
 				// no scopes registered
 				return null;
 			}
-			this._cachedScopesRegex = new RegExp(`^((${escapedScopes.join(')|(')}))`, '');
+			escapedScopes.sort();
+			escapedScopes.reverse();
+			this._cachedScopesRegex = new RegExp(`^((${escapedScopes.join(')|(')}))($|\\.)`, '');
 		}
 		return this._cachedScopesRegex;
 	}
