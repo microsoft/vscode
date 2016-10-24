@@ -398,7 +398,7 @@ export class EnableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && this.extensionsRuntimeService.canEnable(this.extension.identifier);
+		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && ExtensionState.Disabled === this.extension.state && this.extensionsRuntimeService.canEnable(this.extension.identifier);
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
