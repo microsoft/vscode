@@ -656,6 +656,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.visibleEditorFocusTrackers[to] = listeners;
 		this.visibleEditorFocusTrackers[from] = null;
 
+		const minimizedState = this.silosMinimized[from];
+		this.silosMinimized[to] = minimizedState;
+		this.silosMinimized[from] = null;
+
 		this.visibleEditors[to] = editor;
 		this.visibleEditors[from] = null;
 
@@ -736,6 +740,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		arrays.move(this.visibleEditors, from, to);
 		arrays.move(this.visibleEditorFocusTrackers, from, to);
 		arrays.move(this.silosSize, from, to);
+		arrays.move(this.silosMinimized, from, to);
 
 		// Layout
 		if (!this.sashOne.isHidden()) {
@@ -1773,9 +1778,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						this.silosSize[position] -= overflow;
 						overflow = 0;
 					} else if (maxCompensation > 0) {
-						const compensation = overflow - maxCompensation;
-						this.silosSize[position] -= compensation;
-						overflow -= compensation;
+						this.silosSize[position] -= maxCompensation;
+						overflow -= maxCompensation;
 					}
 				});
 			}
