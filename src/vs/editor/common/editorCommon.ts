@@ -220,7 +220,7 @@ export interface IEditorOptions {
 	lineNumbersMinChars?: number;
 	/**
 	 * Enable the rendering of the glyph margin.
-	 * Defaults to true.
+	 * Defaults to true in vscode and to false in monaco-editor.
 	 */
 	glyphMargin?: boolean;
 	/**
@@ -318,7 +318,7 @@ export interface IEditorOptions {
 	wordWrap?: boolean;
 	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
-	 * Defaults to 'none'.
+	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 	 */
 	wrappingIndent?: string;
 	/**
@@ -436,7 +436,7 @@ export interface IEditorOptions {
 	referenceInfos?: boolean;
 	/**
 	 * Enable code folding
-	 * Defaults to true.
+	 * Defaults to true in vscode and to false in monaco-editor.
 	 */
 	folding?: boolean;
 	/**
