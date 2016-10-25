@@ -26,9 +26,9 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 const $ = dom.$;
 const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 const CLOSE_BREAKPOINT_WIDGET_COMMAND_ID = 'closeBreakpointWidget';
-const EXPRESSION_PLACEHOLDER = nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true");
+const EXPRESSION_PLACEHOLDER = nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. 'Enter' to accept, 'esc' to cancel.");
 const EXPRESSION_ARIA_LABEL = nls.localize('breakpointWidgetAriaLabel', "The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.");
-const HIT_COUNT_PLACEHOLDER = nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met");
+const HIT_COUNT_PLACEHOLDER = nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met. 'Enter' to accept, 'esc' to cancel.");
 const HIT_COUNT_ARIA_LABEL = nls.localize('breakpointWidgetHitCountAriaLabel', "The program will only stop here if the hit count is met. Press Enter to accept or Escape to cancel.");
 
 export class BreakpointWidget extends ZoneWidget {
