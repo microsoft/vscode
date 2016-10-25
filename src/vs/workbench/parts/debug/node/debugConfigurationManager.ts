@@ -261,9 +261,10 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					return result;
 				}
 				// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
-				const filtered = nameOrConfig ? config.configurations.filter(cfg => cfg.name === nameOrConfig) : [config.configurations[0]];
+				const filtered = config.configurations.filter(cfg => cfg.name === nameOrConfig);
 
-				result = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
+				result = filtered.length === 1 ? filtered[0] : config.configurations[0];
+				result = objects.deepClone(result);
 				if (config && result) {
 					result.debugServer = config.debugServer;
 				}

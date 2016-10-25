@@ -338,9 +338,24 @@ export interface IRawBreakpointContribution {
 }
 
 export interface IConfigurationManager {
+
+	/**
+	 * Returns a resolved debug configuration.
+	 * If nameOrConfig is null resolves the first configuration and returns it.
+	 */
 	getConfiguration(nameOrConfig: string | IConfig): TPromise<IConfig>;
+
+	/**
+	 * Opens the launch.json file
+	 */
 	openConfigFile(sideBySide: boolean): TPromise<boolean>;
+
+	// TODO@Isidor remove this from the interface
 	loadLaunchConfig(): TPromise<IGlobalConfig>;
+
+	/**
+	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
+	 */
 	canSetBreakpointsIn(model: editor.IModel): boolean;
 }
 
