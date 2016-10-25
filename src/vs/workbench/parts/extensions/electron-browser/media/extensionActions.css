@@ -82,6 +82,12 @@
 	background: url('clear-inverse.svg') center center no-repeat;
 }
 
+.monaco-action-bar .action-item .action-label.extension-action.enable:after,
+.monaco-action-bar .action-item .action-label.extension-action.disable:after {
+	content: '▼';
+	padding-left: 2px;
+	font-size: 80%;
+}
 
 .monaco-action-bar .action-item.disabled .action-label.extension-action.install:not(.installing),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.uninstall:not(.uninstalling),
