@@ -81,10 +81,10 @@
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
 				},
-				"typescript.experimentalAutomaticTypeAcquisition": {
+				"typescript.disableAutomaticTypeAcquisition": {
 					"type": "boolean",
-					"default": true,
-					"description": "%typescript.experimentalAutomaticTypeAcquisition%"
+					"default": false,
+					"description": "%typescript.disableAutomaticTypeAcquisition%"
 				},
 				"typescript.check.workspaceVersion": {
 					"type": "boolean",
