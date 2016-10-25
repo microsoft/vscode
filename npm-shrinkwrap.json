@@ -334,8 +334,8 @@
     },
     "pty.js": {
       "version": "0.3.0",
-      "from": "https://github.com/Tyriar/pty.js/tarball/901d42fe43c37f38bf0375fb1e99279a16eb2738",
-      "resolved": "https://github.com/Tyriar/pty.js/tarball/901d42fe43c37f38bf0375fb1e99279a16eb2738",
+      "from": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
+      "resolved": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
       "dependencies": {
         "extend": {
           "version": "1.2.1",
