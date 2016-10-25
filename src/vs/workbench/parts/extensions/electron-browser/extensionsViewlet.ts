@@ -270,8 +270,12 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			return this.getRecommendationsModel(query, options);
 		}
 
-		if (query.value) {
-			options = assign(options, { text: query.value.substr(0, 200) });
+		const text = value = query.value
+			.replace(/\bext:([^\s]+)\b/g, 'tag:"__ext_$1"')
+			.substr(0, 200);
+
+		if (text) {
+			options = assign(options, { text });
 		}
 
 		return this.extensionsWorkbenchService.queryGallery(options)
