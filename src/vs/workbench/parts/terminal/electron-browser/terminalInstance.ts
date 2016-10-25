@@ -97,6 +97,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.open(this._xtermElement);
 
 		this._process.on('message', (message) => {
+			if (!this._xterm) {
+				return;
+			}
 			if (message.type === 'data') {
 				this._xterm.write(message.content);
 			}

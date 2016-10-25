@@ -152,7 +152,7 @@
 				}
 			},
 			"end": "(</)((?i:style))(>)(?:\\s*\\n)?",
-			"name": "source.css.embedded.html",
+			"contentName": "source.css.embedded.html",
 			"patterns": [
 				{
 					"include": "#tag-stuff"
@@ -192,7 +192,7 @@
 					"name": "punctuation.definition.tag.html"
 				}
 			},
-			"name": "source.js.embedded.html",
+			"contentName": "source.js.embedded.html",
 			"patterns": [
 				{
 					"include": "#tag-stuff"
@@ -364,7 +364,7 @@
 		"python": {
 			"begin": "(?:^\\s*)<\\?python(?!.*\\?>)",
 			"end": "\\?>(?:\\s*$\\n)?",
-			"name": "source.python.embedded.html",
+			"contentName": "source.python.embedded.html",
 			"patterns": [
 				{
 					"include": "source.python"
@@ -389,7 +389,7 @@
 					"begin": "{{|{",
 					"disabled": 1,
 					"end": "}}|}",
-					"name": "source.smarty.embedded.html",
+					"contentName": "source.smarty.embedded.html",
 					"patterns": [
 						{
 							"include": "source.smarty"

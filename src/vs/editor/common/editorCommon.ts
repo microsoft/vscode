@@ -17,7 +17,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { IndentRange } from 'vs/editor/common/model/indentRanges';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -221,7 +220,7 @@ export interface IEditorOptions {
 	lineNumbersMinChars?: number;
 	/**
 	 * Enable the rendering of the glyph margin.
-	 * Defaults to true.
+	 * Defaults to true in vscode and to false in monaco-editor.
 	 */
 	glyphMargin?: boolean;
 	/**
@@ -257,6 +256,11 @@ export interface IEditorOptions {
 	 * Control the behavior and rendering of the scrollbars.
 	 */
 	scrollbar?: IEditorScrollbarOptions;
+	/**
+	 * Display overflow widgets as `fixed`.
+	 * Defaults to `false`.
+	 */
+	fixedOverflowWidgets?: boolean;
 	/**
 	 * The number of vertical lanes the overview ruler should render.
 	 * Defaults to 2.
@@ -319,7 +323,7 @@ export interface IEditorOptions {
 	wordWrap?: boolean;
 	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
-	 * Defaults to 'none'.
+	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 	 */
 	wrappingIndent?: string;
 	/**
@@ -403,6 +407,10 @@ export interface IEditorOptions {
 	 */
 	snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
 	/**
+	 * Copying without a selection copies the current line.
+	 */
+	emptySelectionClipboard?: boolean;
+	/**
 	 * Enable tab completion. Defaults to 'false'
 	 */
 	tabCompletion?: boolean;
@@ -437,7 +445,7 @@ export interface IEditorOptions {
 	referenceInfos?: boolean;
 	/**
 	 * Enable code folding
-	 * Defaults to true.
+	 * Defaults to true in vscode and to false in monaco-editor.
 	 */
 	folding?: boolean;
 	/**
@@ -662,6 +670,7 @@ export class InternalEditorViewOptions {
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: boolean;
 	readonly scrollbar: InternalEditorScrollbarOptions;
+	readonly fixedOverflowWidgets: boolean;
 
 	/**
 	 * @internal
@@ -692,6 +701,7 @@ export class InternalEditorViewOptions {
 		renderIndentGuides: boolean;
 		renderLineHighlight: boolean;
 		scrollbar: InternalEditorScrollbarOptions;
+		fixedOverflowWidgets: boolean;
 	}) {
 		this.theme = String(source.theme);
 		this.canUseTranslate3d = Boolean(source.canUseTranslate3d);
@@ -718,6 +728,7 @@ export class InternalEditorViewOptions {
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
 		this.renderLineHighlight = Boolean(source.renderLineHighlight);
 		this.scrollbar = source.scrollbar.clone();
+		this.fixedOverflowWidgets = Boolean(source.fixedOverflowWidgets);
 	}
 
 	private static _toSortedIntegerArray(source: any): number[] {
@@ -778,6 +789,7 @@ export class InternalEditorViewOptions {
 			&& this.renderIndentGuides === other.renderIndentGuides
 			&& this.renderLineHighlight === other.renderLineHighlight
 			&& this.scrollbar.equals(other.scrollbar)
+			&& this.fixedOverflowWidgets === other.fixedOverflowWidgets
 		);
 	}
 
@@ -811,6 +823,7 @@ export class InternalEditorViewOptions {
 			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
 			renderLineHighlight: this.renderLineHighlight !== newOpts.renderLineHighlight,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
+			fixedOverflowWidgets: this.fixedOverflowWidgets !== newOpts.fixedOverflowWidgets
 		};
 	}
 
@@ -848,6 +861,7 @@ export interface IViewConfigurationChangedEvent {
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: boolean;
 	readonly scrollbar: boolean;
+	readonly fixedOverflowWidgets: boolean;
 }
 
 export class EditorContribOptions {
@@ -862,6 +876,7 @@ export class EditorContribOptions {
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+	readonly emptySelectionClipboard: boolean;
 	readonly tabCompletion: boolean;
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestFontSize: number;
@@ -885,6 +900,7 @@ export class EditorContribOptions {
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+		emptySelectionClipboard: boolean;
 		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
 		suggestFontSize: number;
@@ -904,6 +920,7 @@ export class EditorContribOptions {
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.snippetSuggestions = source.snippetSuggestions;
+		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.suggestFontSize = source.suggestFontSize;
@@ -929,6 +946,7 @@ export class EditorContribOptions {
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.snippetSuggestions === other.snippetSuggestions
+			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.suggestFontSize === other.suggestFontSize
@@ -1869,11 +1887,6 @@ export interface ITokenizedModel extends ITextModel {
 	 * @internal
 	 */
 	getLineContext(lineNumber: number): ILineContext;
-
-	/**
-	 * @internal
-	 */
-	_getLineModeTransitions(lineNumber: number): ModeTransition[];
 
 	/**
 	 * Get the current language mode associated with the model.

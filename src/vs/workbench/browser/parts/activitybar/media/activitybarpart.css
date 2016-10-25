@@ -3,16 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.panel.expanded {
-	transform: rotate(180deg);
-}
 
-/* The duplicate part is for resetting to the smaller width activty bar when full screen */
-.monaco-workbench > .part.activitybar, .monaco-workbench > .part.activitybar, .monaco-workbench.mac.fullscreen.use-inline-toolbar > .part.activitybar {
+.monaco-workbench > .part.activitybar {
 	z-index: 20;
 	min-width: 50px;
 	width: 50px;
-	transition: width 0.2s ease-out;
+}
+
+.monaco-workbench > .activitybar > .content {
+	height: 100%;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar {
+	text-align: left;
+	background-color: inherit;
+}
+
+.vs .monaco-workbench > .activitybar > .content {
+	background-color: #2C2C2C;
+}
+
+.vs-dark .monaco-workbench > .activitybar > .content {
+	background-color: #333;
+}
+
+/* High Contrast Theming */
+.hc-black .monaco-workbench > .part.activitybar.left {
+	border-right: 1px solid #6FC3DF;
+}
+
+.hc-black .monaco-workbench > .part.activitybar.right {
+	border-left: 1px solid #6FC3DF;
+}
+
+.hc-black .monaco-workbench > .activitybar > .content {
+	background-color: #000;
 }
 
 /* Allow dragging on the wider activitybar */
@@ -22,22 +47,6 @@
 	width: 68px;
 	-webkit-app-region: drag;
 	transition: none;
-}
-
-.monaco-workbench > .activitybar.help {
-	width: 280px;
-}
-
-.monaco-workbench > .activitybar > .content {
-	height: 100%;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar {
-	text-align: left;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-top {
-	background-color: inherit;
 }
 
 /* Spacing above the activitybar icons to fit the traffic lights, and zooming doesn't affect icons offset */
@@ -52,44 +61,4 @@
 .monaco-workbench.mac.fullscreen.use-inline-toolbar > .activitybar > .content .monaco-action-bar.position-top {
 	top: 0px;
 	width:100%;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom {
-	position: absolute;
-	bottom: 0;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom .action-item {
-	padding-bottom: 0;
-}
-
-.vs .monaco-workbench > .activitybar > .content {
-	background-color: #2C2C2C;
-}
-
-.vs-dark .monaco-workbench > .activitybar > .content {
-	background-color: #333;
-}
-
-/* Global Toolbar */
-.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-label.toolbar-toggle-more {
-	background-image: url('ellipsis-global.svg');
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item > .dropdown,
-.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item > .dropdown > .dropdown-label {
-	width: 100%;
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-workbench > .part.activitybar.left {
-	border-right: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .part.activitybar.right {
-	border-left: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .activitybar > .content {
-	background-color: #000;
 }

@@ -783,7 +783,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 		if (element instanceof model.Expression) {
 			const expression = <model.Expression>element;
 			actions.push(this.instantiationService.createInstance(debugactions.AddWatchExpressionAction, debugactions.AddWatchExpressionAction.ID, debugactions.AddWatchExpressionAction.LABEL));
-			actions.push(this.instantiationService.createInstance(debugactions.RenameWatchExpressionAction, debugactions.RenameWatchExpressionAction.ID, debugactions.RenameWatchExpressionAction.LABEL, expression));
+			actions.push(this.instantiationService.createInstance(debugactions.EditWatchExpressionAction, debugactions.EditWatchExpressionAction.ID, debugactions.EditWatchExpressionAction.LABEL, expression));
 			if (expression.reference === 0) {
 				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value));
 			}

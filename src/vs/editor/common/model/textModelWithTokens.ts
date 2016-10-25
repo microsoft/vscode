@@ -288,23 +288,16 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (!this._tokenizationSupport) {
 			return this.getModeId();
 		}
-		var validPosition = this.validatePosition({
-			lineNumber: _lineNumber,
-			column: _column
+		let { lineNumber, column } = this.validatePosition({ lineNumber: _lineNumber, column: _column });
+
+		this._withModelTokensChangedEventBuilder((eventBuilder) => {
+			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
 		});
 
-		var lineNumber = validPosition.lineNumber;
-		var column = validPosition.column;
+		let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this.getModeId());
+		let modeTransitionIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, column - 1);
 
-		if (column === 1) {
-			return this.getStateBeforeLine(lineNumber).getModeId();
-		} else if (column === this.getLineMaxColumn(lineNumber)) {
-			return this.getStateAfterLine(lineNumber).getModeId();
-		} else {
-			var modeTransitions = this._getLineModeTransitions(lineNumber);
-			var modeTransitionIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, column - 1);
-			return modeTransitions[modeTransitionIndex].modeId;
-		}
+		return modeTransitions[modeTransitionIndex].modeId;
 	}
 
 	protected _invalidateLine(lineIndex: number): void {
@@ -398,30 +391,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 			t1.stop();
 		});
-	}
-
-	private getStateBeforeLine(lineNumber: number): IState {
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber - 1, true);
-		});
-		return this._lines[lineNumber - 1].getState();
-	}
-
-	private getStateAfterLine(lineNumber: number): IState {
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
-		});
-		return lineNumber < this._lines.length ? this._lines[lineNumber].getState() : this._lastState;
-	}
-
-	_getLineModeTransitions(lineNumber: number): ModeTransition[] {
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
-		}
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
-		});
-		return this._lines[lineNumber - 1].getModeTransitions(this.getModeId());
 	}
 
 	private _updateTokensUntilLine(eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number, emitEvents: boolean): void {
@@ -520,16 +489,21 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	// Having tokens allows implementing additional helper methods
 
-	_lineIsTokenized(lineNumber: number): boolean {
-		return this._invalidLineStartIndex > lineNumber - 1;
-	}
-
 	protected _getWordDefinition(): RegExp {
 		return WordHelper.massageWordDefinitionOf(this.getModeId());
 	}
 
-	public getWordAtPosition(position: editorCommon.IPosition): editorCommon.IWordAtPosition {
-		return WordHelper.getWordAtPosition(this, this.validatePosition(position));
+	public getWordAtPosition(_position: editorCommon.IPosition): editorCommon.IWordAtPosition {
+		let position = this.validatePosition(_position);
+		let lineContent = this.getLineContent(position.lineNumber);
+
+		if (this._invalidLineStartIndex <= position.lineNumber) {
+			// this line is not tokenized
+			return WordHelper.getWordAtPosition(lineContent, position.column, this.getModeId(), null);
+		}
+
+		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this.getModeId());
+		return WordHelper.getWordAtPosition(lineContent, position.column, this.getModeId(), modeTransitions);
 	}
 
 	public getWordUntilPosition(position: editorCommon.IPosition): editorCommon.IWordAtPosition {

@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.7.0",
   "electronVersion": "1.3.8",
-  "distro": "b1e023235579beebbb3cc127676cc91cc7f3e823",
+  "distro": "13c73e321237db10a15f0c09e17738aa32aec45f",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -29,7 +29,7 @@
     "iconv-lite": "0.4.13",
     "minimist": "1.2.0",
     "native-keymap": "0.3.0",
-    "pty.js": "https://github.com/Tyriar/pty.js/tarball/e42781661143541fa08309adc9b0091e7b8674d3",
+    "pty.js": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
     "semver": "4.3.6",
     "vscode-debugprotocol": "1.13.0",
     "vscode-textmate": "2.2.0",

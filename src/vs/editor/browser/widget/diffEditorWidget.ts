@@ -849,6 +849,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		clonedOptions.scrollbar.vertical = 'visible';
 		clonedOptions.folding = false;
 		clonedOptions.codeLens = false;
+		clonedOptions.fixedOverflowWidgets = true;
 		return clonedOptions;
 	}
 
