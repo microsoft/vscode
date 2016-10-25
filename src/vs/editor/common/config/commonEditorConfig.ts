@@ -296,6 +296,7 @@ class InternalEditorOptionsHelper {
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			renderLineHighlight: toBoolean(opts.renderLineHighlight),
 			scrollbar: scrollbar,
+			fixedOverflowWidgets: toBoolean(opts.fixedOverflowWidgets)
 		});
 
 		let contribInfo = new editorCommon.EditorContribOptions({

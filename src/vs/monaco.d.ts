@@ -1119,6 +1119,11 @@ declare module monaco.editor {
          */
         scrollbar?: IEditorScrollbarOptions;
         /**
+         * Display overflow widgets as `fixed`.
+         * Defaults to `false`.
+         */
+        fixedOverflowWidgets?: boolean;
+        /**
          * The number of vertical lanes the overview ruler should render.
          * Defaults to 2.
          */
@@ -1420,6 +1425,7 @@ declare module monaco.editor {
         readonly renderIndentGuides: boolean;
         readonly renderLineHighlight: boolean;
         readonly scrollbar: InternalEditorScrollbarOptions;
+        readonly fixedOverflowWidgets: boolean;
     }
 
     export interface IViewConfigurationChangedEvent {
@@ -1448,6 +1454,7 @@ declare module monaco.editor {
         readonly renderIndentGuides: boolean;
         readonly renderLineHighlight: boolean;
         readonly scrollbar: boolean;
+        readonly fixedOverflowWidgets: boolean;
     }
 
     export class EditorContribOptions {
