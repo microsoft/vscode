@@ -397,7 +397,8 @@ export class EnableForWorkspaceAction extends Action {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension && this.workspaceContextService.getWorkspace()) {
-			this.enabled = ExtensionState.Disabled === this.extension.state && !this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier);
+			this.enabled = this.extension.type !== LocalExtensionType.System && ExtensionState.Disabled === this.extension.state
+				&& !this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier) && this.extensionsRuntimeService.canEnable(this.extension.identifier);
 		}
 	}
 
@@ -436,7 +437,7 @@ export class EnableGloballyAction extends Action {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier);
+			this.enabled = this.extension.type !== LocalExtensionType.System && this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier) && this.extensionsRuntimeService.canEnable(this.extension.identifier);
 		}
 	}
 
@@ -528,7 +529,7 @@ export class DisableForWorkspaceAction extends Action {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension && this.workspaceContextService.getWorkspace()) {
-			this.enabled = ExtensionState.Enabled === this.extension.state;
+			this.enabled = this.extension.type !== LocalExtensionType.System && ExtensionState.Enabled === this.extension.state;
 		}
 	}
 
@@ -566,7 +567,7 @@ export class DisableGloballyAction extends Action {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = ExtensionState.Enabled === this.extension.state;
+			this.enabled = this.extension.type !== LocalExtensionType.System && ExtensionState.Enabled === this.extension.state;
 		}
 	}
 
