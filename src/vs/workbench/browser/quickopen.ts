@@ -232,7 +232,11 @@ export interface IEditorQuickOpenEntry {
  */
 export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuickOpenEntry {
 
-	constructor(private _editorService: IWorkbenchEditorService, private _historyService: IHistoryService) {
+	constructor(
+		private _editorService: IWorkbenchEditorService,
+		private _historyService: IHistoryService,
+		private _configurationService: IConfigurationService
+	) {
 		super();
 	}
 

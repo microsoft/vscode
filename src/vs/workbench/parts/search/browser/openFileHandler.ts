@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -50,9 +51,10 @@ export class FileEntry extends EditorQuickOpenEntry {
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IHistoryService historyService: IHistoryService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		super(editorService);
+		super(editorService, historyService, configurationService);
 	}
 
 	public getLabel(): string {

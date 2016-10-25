@@ -31,12 +31,12 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	constructor(
 		private _bearing: IWorkspaceSymbol,
 		private _provider: IWorkspaceSymbolProvider,
-		@IConfigurationService private _configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IHistoryService private historyService: IHistoryService
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(editorService, historyService);
+		super(editorService, historyService, configurationService);
 	}
 
 	public getLabel(): string {
