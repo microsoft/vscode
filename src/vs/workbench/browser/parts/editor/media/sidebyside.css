@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.vs .monaco-workbench > .editor:not(.empty) > .content {
+.vs .monaco-workbench > .editor > .content.drag {
 	background-color: #ECECEC;
 }
 
-.vs-dark .monaco-workbench > .editor:not(.empty) > .content {
+.vs-dark .monaco-workbench > .editor > .content.drag {
 	background-color: #2D2D2D;
 }
 
