@@ -50,10 +50,6 @@
 	height: 35px;
 }
 
-.monaco-workbench.mac.use-inline-toolbar > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container {
-	-webkit-app-region: drag;
-}
-
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.scroll {
 	overflow: scroll !important;
 }
@@ -75,10 +71,6 @@
 	box-sizing: border-box;
 	border: 1px solid transparent;
 	padding-left: 10px;
-}
-
-.monaco-workbench.mac.use-inline-toolbar > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
-	-webkit-app-region: no-drag;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active {
@@ -231,8 +223,4 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
 	flex: initial;
 	padding-left: 4px;
-}
-
-.monaco-workbench.mac.use-inline-toolbar > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
-	-webkit-app-region: drag;
 }

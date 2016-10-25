@@ -9,11 +9,6 @@
 	margin: 10px 0;
 }
 
-.monaco-workbench.mac.use-inline-toolbar > .activitybar > .content .monaco-action-bar .action-item {
-	zoom: document;
-}
-
-
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
 	display: flex;
 	overflow: hidden;
