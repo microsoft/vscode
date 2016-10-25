@@ -138,10 +138,6 @@ export class UninstallAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		if (!window.confirm(localize('deleteSure', "Are you sure you want to uninstall '{0}'?", this.extension.displayName))) {
-			return TPromise.as(null);
-		}
-
 		return this.extensionsWorkbenchService.uninstall(this.extension);
 	}
 
