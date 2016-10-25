@@ -85,7 +85,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
 
-		actionbar.push([updateAction, reloadAction, installAction, builtinStatusAction, manageAction], actionOptions);
+		actionbar.push([reloadAction, updateAction, installAction, builtinStatusAction, manageAction], actionOptions);
 		const disposables = [versionWidget, installCountWidget, ratingsWidget, builtinStatusAction, updateAction, reloadAction, manageAction, actionbar];
 
 		return {
