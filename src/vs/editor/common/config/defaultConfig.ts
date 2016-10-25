@@ -56,6 +56,7 @@ class ConfigClass implements IConfiguration {
 				verticalHasArrows: false,
 				horizontalHasArrows: false
 			},
+			fixedOverflowWidgets: false,
 			overviewRulerLanes: 2,
 			cursorBlinking: 'blink',
 			mouseWheelZoom: false,
