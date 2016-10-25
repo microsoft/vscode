@@ -17,8 +17,9 @@ import { Action } from 'vs/base/common/actions';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorOptions, EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IEditor, IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -257,16 +258,24 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 
 		let sideBySide;
 		if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
-			sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+			sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 		}
 
+		let pinned;
 		let modeOverrideOptions: IEditorOptions;
-		if (mode === Mode.PREVIEW) {
-			modeOverrideOptions = { forcePreview: true, pinned: false, revealIfVisible: true, preserveFocus: true };
+		if (mode === Mode.OPEN) {
+			pinned = !this._configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
+		} else if (mode === Mode.PREVIEW) {
+			pinned = false;
+			modeOverrideOptions = { forcePreview: true, pinned, revealIfVisible: true, preserveFocus: true };
+
+			this._historyService.block(true);
 		} else if (mode === Mode.OPEN_IN_BACKGROUND) {
-			modeOverrideOptions = { pinned: true, preserveFocus: true };
+			pinned = true;
+			modeOverrideOptions = { pinned, preserveFocus: true };
 		}
 
+		let openEditorPromise: TPromise<IEditor>;
 		let input = this.getInput();
 		if (input instanceof EditorInput) {
 			let opts = this.getOptions();
@@ -276,7 +285,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 				opts = EditorOptions.create(modeOverrideOptions);
 			}
 
-			this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
+			openEditorPromise = this.editorService.openEditor(input, opts, sideBySide);
 		} else {
 			const resourceInput = <IResourceInput>input;
 
@@ -284,8 +293,15 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 				resourceInput.options = objects.assign(resourceInput.options || Object.create(null), modeOverrideOptions);
 			}
 
-			this.editorService.openEditor(resourceInput, sideBySide).done(null, errors.onUnexpectedError);
+			openEditorPromise = this.editorService.openEditor(resourceInput, sideBySide);
 		}
+
+		openEditorPromise.done(
+			() => this._historyService.block(false),
+			err => {
+				this._historyService.block(false);
+				errors.onUnexpectedError(err);
+			});
 
 		return hideWidget;
 	}
