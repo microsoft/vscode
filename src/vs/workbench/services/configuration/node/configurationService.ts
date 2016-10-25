@@ -212,7 +212,10 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 			}
 
 			// outside my folder or not a *.json file
-			if (paths.extname(workspacePath) !== '.json' || !paths.isEqualOrParent(workspacePath, this.workspaceSettingsRootFolder)) {
+			if (
+				paths.extname(workspacePath) !== '.json' ||							// we only care about *.json files
+				paths.dirname(workspacePath) !== this.workspaceSettingsRootFolder	// which are top level in .vscode
+			) {
 				continue;
 			}
 
