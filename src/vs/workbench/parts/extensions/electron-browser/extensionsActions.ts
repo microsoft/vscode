@@ -681,31 +681,28 @@ export class ReloadAction extends Action {
 		const state = this.extension.state;
 		this.enabled = state !== ExtensionState.Installing && state !== ExtensionState.Uninstalling && (this.extension.reload || /* Following is needed due to extension is stale */this.extension.state === ExtensionState.Installed);
 		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
+		this.tooltip = this.getMessage(true);
 	}
 
 	run(): TPromise<any> {
-		return this.getReloadMessage().then(message => {
-			if (window.confirm(message)) {
-				this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Reload Now")).run();
-			}
-			return null;
-		});
+		if (window.confirm(this.getMessage(false))) {
+			this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Reload Now")).run();
+		}
+		return TPromise.wrap(null);
 	}
 
-	private getReloadMessage(): TPromise<string> {
-		return this.extensionsRuntimeService.getExtensions(true).then(extensionDescriptions => {
-			const state = this.extension.state;
-			if (state === ExtensionState.Installed) {
-				return localize('postInstallMessage', "Reload this window to activate '{0}' extension?", this.extension.displayName);
-			}
-			if (state === ExtensionState.Disabled) {
-				return localize('postEnableMessage', "Reload this window to enable '{0}' extension?", this.extension.displayName);
-			}
-			if (state === ExtensionState.Enabled) {
-				return localize('postDisableMessage', "Reload this window to disable '{0}' extension?", this.extension.displayName);
-			}
-			return localize('postUninstallMessage', "Reload this window to deactivate '{0}' extension?", this.extension.displayName);
-		});
+	private getMessage(tooltip: boolean): string {
+		const state = this.extension.state;
+		if (state === ExtensionState.Installed) {
+			return tooltip ? localize('postInstallTooltip', "Reload to activate") : localize('postInstallMessage', "Reload this window to activate '{0}' extension?", this.extension.displayName);
+		}
+		if (state === ExtensionState.Disabled) {
+			return tooltip ? localize('postEnableTooltip', "Reload to enable") : localize('postEnableMessage', "Reload this window to enable '{0}' extension?", this.extension.displayName);
+		}
+		if (state === ExtensionState.Enabled) {
+			return tooltip ? localize('postDisableTooltip', "Reload to disable") : localize('postDisableMessage', "Reload this window to disable '{0}' extension?", this.extension.displayName);
+		}
+		return tooltip ? localize('postUninstallTooltip', "Reload to deactivate") : localize('postUninstallMessage', "Reload this window to deactivate '{0}' extension?", this.extension.displayName);
 	}
 }
 
