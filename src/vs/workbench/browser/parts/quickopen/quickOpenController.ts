@@ -30,11 +30,12 @@ import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+// import { EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { EditorInput, getUntitledOrFileResource } from 'vs/workbench/common/editor';
 import { WorkbenchComponent } from 'vs/workbench/common/component';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { KeyMod } from 'vs/base/common/keyCodes';
+// import { KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
 import errors = require('vs/base/common/errors');
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -1144,22 +1145,6 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
-			const sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-			const pinned = !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
-
-			if (this.input instanceof EditorInput) {
-				this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);
-			} else {
-				this.editorService.openEditor({ resource: (this.input as IResourceInput).resource, options: { pinned } }, sideBySide);
-			}
-
-			return true;
-		}
-		else if (mode === Mode.PREVIEW) {
-			return super.run(mode, context);
-		}
-
 		return super.run(mode, context);
 	}
 }
