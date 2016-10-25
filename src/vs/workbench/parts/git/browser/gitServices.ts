@@ -351,7 +351,8 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 	private loop(): void {
 		this._state = AutoFetcherState.Fetching;
 
-		const remotes = this.gitService.getModel().getRemotes();
+		const model = this.gitService.getModel();
+		const remotes = model ? model.getRemotes() : [];
 
 		if (remotes.length === 0) {
 			this.timeout = AutoFetcher.MIN_TIMEOUT;
