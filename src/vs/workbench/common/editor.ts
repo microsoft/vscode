@@ -861,7 +861,7 @@ export interface IWorkbenchEditorConfiguration {
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
-			defaultSideBySideLayout: GroupOrientation;
+			defaultEditorGroupLayout: GroupOrientation;
 		}
 	};
 }
