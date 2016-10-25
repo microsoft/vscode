@@ -212,7 +212,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		if (config.workbench && config.workbench.editor) {
 			this.showTabs = config.workbench.editor.showTabs;
 			this.showIcons = config.workbench.editor.showIcons;
-			this.defaultEditorGroupOrientation = (config.workbench.editor.defaultSideBySideLayout === 'horizontal') ? 'horizontal' : 'vertical';
+			this.defaultEditorGroupOrientation = (config.workbench.editor.defaultEditorGroupLayout === 'horizontal') ? 'horizontal' : 'vertical';
 		} else {
 			this.showTabs = true;
 			this.showIcons = false;
