@@ -199,8 +199,9 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 		data.dispose();
 	}
 
-	public $acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void {
+	public $acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[], isDirty: boolean): void {
 		let data = this._documentData[strURL];
+		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
 		this._onDidChangeDocumentEventEmitter.fire({
 			document: data.document,

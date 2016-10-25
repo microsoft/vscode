@@ -8,7 +8,7 @@
 import { localize } from 'vs/nls';
 import 'vs/css!./media/extensionsWidgets';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, ExtensionState } from './extensions';
+import { IExtension, IExtensionsWorkbenchService, ExtensionState } from '../common/extensions';
 import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
 import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 
@@ -73,11 +73,9 @@ export class StatusWidget implements IDisposable {
 			toggleClass(status, 'disabled', disabled || installed);
 			toggleClass(status, 'active', enabled);
 
-			const disabledInWorkspace = this.extensionsRuntimeService.getDisabledExtensions(true).indexOf(this.extension.identifier) !== -1;
-			status.title = disabledInWorkspace ? localize('disabledWorkspace', "Disabled (Workspace)")
-				: disabled ? localize('disabled', "Disabled")
-					: installed ? localize('installed', "Installed")
-						: enabled ? localize('enabled', "Enabled") : '';
+			status.title = disabled ? this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier) ? localize('disabled', "Disabled") : localize('disabledWorkspace', "Disabled (Workspace)")
+				: installed ? localize('installed', "Installed")
+					: enabled ? localize('enabled', "Enabled") : '';
 		});
 	}
 

@@ -236,10 +236,8 @@ export class Git {
 			options.stdio = ['ignore', null, null]; // Unless provided, ignore stdin and leave default streams for stdout and stderr
 		}
 
-		options.env = assign({}, options.env || {});
-		options.env = assign(options.env, this.env);
-		options.env = assign(options.env, {
-			MONACO_REQUEST_GUID: UUIDv4().asHex(),
+		options.env = assign({}, options.env || {}, this.env, {
+			LANG: 'en_US.UTF-8',
 			VSCODE_GIT_REQUEST_ID: UUIDv4().asHex(),
 			MONACO_GIT_COMMAND: args[0]
 		});

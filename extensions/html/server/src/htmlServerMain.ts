@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, FormattingOptions, RequestType, CompletionList, Position, Hover } from 'vscode-languageserver';
+import {
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, FormattingOptions, RequestType, NotificationType,
+	CompletionList, Position, Hover
+} from 'vscode-languageserver';
 
-import { HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration, DocumentContext } from 'vscode-html-languageservice';
+import { HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration, DocumentContext, TextDocument } from 'vscode-html-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { getEmbeddedContent, getEmbeddedLanguageAtPosition } from './embeddedSupport';
+import { getEmbeddedContent, getEmbeddedLanguageAtPosition, hasEmbeddedContent } from './embeddedSupport';
 import * as url from 'url';
 import * as path from 'path';
 import uri from 'vscode-uri';
@@ -50,6 +53,16 @@ interface EmbeddedContent {
 
 namespace EmbeddedContentRequest {
 	export const type: RequestType<EmbeddedContentParams, EmbeddedContent, any> = { get method() { return 'embedded/content'; } };
+}
+
+interface EmbeddedContentChangedParams {
+	uri: string;
+	version: number;
+	embeddedLanguageIds: string[];
+}
+
+namespace EmbeddedContentChangedNotification {
+	export const type: NotificationType<EmbeddedContentChangedParams> = { get method() { return 'embedded/contentchanged'; } };
 }
 
 // Create a connection for the server
@@ -114,6 +127,53 @@ connection.onDidChangeConfiguration((change) => {
 	var settings = <Settings>change.settings;
 	languageSettings = settings.html;
 });
+
+let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
+const validationDelayMs = 200;
+
+// The content of a text document has changed. This event is emitted
+// when the text document first opened or when its content has changed.
+documents.onDidChangeContent(change => {
+	triggerValidation(change.document);
+});
+
+// a document has closed: clear all diagnostics
+documents.onDidClose(event => {
+	cleanPendingValidation(event.document);
+	//connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+	if (embeddedLanguages) {
+		connection.sendNotification(EmbeddedContentChangedNotification.type, { uri: event.document.uri, version: event.document.version, embeddedLanguageIds: [] });
+	}
+});
+
+function cleanPendingValidation(textDocument: TextDocument): void {
+	let request = pendingValidationRequests[textDocument.uri];
+	if (request) {
+		clearTimeout(request);
+		delete pendingValidationRequests[textDocument.uri];
+	}
+}
+
+function triggerValidation(textDocument: TextDocument): void {
+	cleanPendingValidation(textDocument);
+	pendingValidationRequests[textDocument.uri] = setTimeout(() => {
+		delete pendingValidationRequests[textDocument.uri];
+		validateTextDocument(textDocument);
+	}, validationDelayMs);
+}
+
+function validateTextDocument(textDocument: TextDocument): void {
+	let htmlDocument = htmlDocuments.get(textDocument);
+	//let diagnostics = languageService.doValidation(textDocument, htmlDocument);
+	// Send the computed diagnostics to VSCode.
+	//connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+	if (embeddedLanguages) {
+		let embeddedLanguageIds = hasEmbeddedContent(languageService, textDocument, htmlDocument, embeddedLanguages);
+		let p = { uri: textDocument.uri, version: textDocument.version, embeddedLanguageIds };
+		console.log(JSON.stringify(p));
+		connection.sendNotification(EmbeddedContentChangedNotification.type, p);
+	}
+}
 
 connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);

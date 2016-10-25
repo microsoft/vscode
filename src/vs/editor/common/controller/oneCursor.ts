@@ -602,8 +602,12 @@ export class OneCursor {
 	public getRevealViewLinesRangeInViewport(): Range {
 		let visibleRange = this.getCompletelyVisibleViewLinesRangeInViewport().cloneRange();
 		if (!this.isLastLineVisibleInViewPort() && visibleRange.endLineNumber > visibleRange.startLineNumber) {
-			visibleRange.endLineNumber = visibleRange.endLineNumber - 1;
-			visibleRange.endColumn = this.viewModelHelper.viewModel.getLineLastNonWhitespaceColumn(visibleRange.endLineNumber);
+			visibleRange = new Range(
+				visibleRange.startLineNumber,
+				visibleRange.startColumn,
+				visibleRange.endLineNumber - 1,
+				this.viewModelHelper.viewModel.getLineLastNonWhitespaceColumn(visibleRange.endLineNumber - 1)
+			);
 		}
 		return visibleRange;
 	}

@@ -15,8 +15,8 @@ import { ActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar'
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey } from './extensions';
-import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey } from '../common/extensions';
+import { LocalExtensionType, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -296,8 +296,7 @@ export class DropDownMenuActionItem extends ActionItem {
 		}
 	}
 
-	public onClick(event: any): void {
-		DOM.EventHelper.stop(event, true);
+	public showMenu(): void {
 		let elementPosition = DOM.getDomNodePagePosition(this.builder.getHTMLElement());
 		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 		this.contextMenuService.showContextMenu({
@@ -327,9 +326,8 @@ export class EnableForWorkspaceAction extends Action {
 	}
 
 	private update(): void {
-		if (this.extension && !this.workspaceContextService.getWorkspace()) {
-			const globalDisabled = this.extensionsRuntimeService.getDisabledExtensions(false);
-			this.enabled = globalDisabled.indexOf(this.extension.identifier) === -1;
+		if (this.extension && this.workspaceContextService.getWorkspace()) {
+			this.enabled = !this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier);
 		}
 	}
 
@@ -353,8 +351,7 @@ export class EnableGloballyAction extends Action {
 
 	private update(): void {
 		if (this.extension) {
-			const globalDisabled = this.extensionsRuntimeService.getDisabledExtensions(false);
-			this.enabled = globalDisabled.indexOf(this.extension.identifier) !== -1;
+			this.enabled = this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier);
 		}
 	}
 
@@ -381,7 +378,8 @@ export class EnableAction extends Action {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
 	) {
 		super(EnableAction.ID, localize('enableAction', "Enable"), EnableAction.DisabledClass, false);
 
@@ -399,8 +397,13 @@ export class EnableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && this.extension.state === ExtensionState.Disabled;
+		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && ExtensionState.Disabled === this.extension.state && this.extensionsRuntimeService.canEnable(this.extension.identifier);
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
+	}
+
+	public run(): TPromise<any> {
+		this._actionItem.showMenu();
+		return TPromise.wrap(null);
 	}
 
 	dispose(): void {
@@ -482,6 +485,11 @@ export class DisableAction extends Action {
 
 		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && this.extension.state === ExtensionState.Enabled;
 		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
+	}
+
+	public run(): TPromise<any> {
+		this._actionItem.showMenu();
+		return TPromise.wrap(null);
 	}
 
 	dispose(): void {
@@ -672,6 +680,29 @@ export class ShowDisabledExtensionsAction extends Action {
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
 				viewlet.search('@disabled ');
+				viewlet.focus();
+			});
+	}
+}
+
+export class ShowLanguageExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showLanguageExtensions';
+
+	constructor(
+		private extension: string,
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionGalleryService galleryService: IExtensionGalleryService
+	) {
+		super(ShowLanguageExtensionsAction.ID, localize('showLanguageExtensions', "Search Gallery Extensions for '{0}'...", extension), null, true);
+		this.enabled = galleryService.isEnabled();
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search(`tag:__ext_${this.extension.replace(/^\./, '')}`);
 				viewlet.focus();
 			});
 	}

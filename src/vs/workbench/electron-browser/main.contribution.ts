@@ -26,7 +26,7 @@ const viewCategory = nls.localize('view', "View");
 const helpCategory = nls.localize('help', "Help");
 const developerCategory = nls.localize('developer', "Developer");
 const fileCategory = nls.localize('file', "File");
-const workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
+const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWindowAction, NewWindowAction.ID, NewWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWindowAction, CloseWindowAction.ID, CloseWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL), 'Switch Window');
@@ -67,18 +67,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 // Configuration: Workbench
-const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'workbench',
 	'order': 7,
 	'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
 	'type': 'object',
 	'properties': {
-		'workbench.editor.sideBySideLayout': {
+		'workbench.editor.defaultSideBySideLayout': {
 			'type': 'string',
 			'enum': ['vertical', 'horizontal'],
 			'default': 'vertical',
-			'description': nls.localize('sideBySideLayout', "Controls if side by side editors should layout horizontally or vertically.")
+			'description': nls.localize('defaultSideBySideLayout', "Controls how multiple side by side editors should layout by default if no other user choice has been made.")
 		},
 		'workbench.editor.showTabs': {
 			'type': 'boolean',
@@ -163,22 +163,6 @@ configurationRegistry.registerConfiguration({
 			'enum': ['default', 'inline'],
 			'default': 'default',
 			'description': nls.localize('macOSTitlebarStyle', "Adjust the styles of the window toolbar. Currently the options are default, and an inline style that is only applied on macOS. Note changes require a full restart to apply.")
-		}
-	}
-});
-
-// Configuration: Update
-configurationRegistry.registerConfiguration({
-	'id': 'update',
-	'order': 15,
-	'title': nls.localize('updateConfigurationTitle', "Update"),
-	'type': 'object',
-	'properties': {
-		'update.channel': {
-			'type': 'string',
-			'enum': ['none', 'default'],
-			'default': 'default',
-			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change.")
 		}
 	}
 });

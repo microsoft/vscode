@@ -42,6 +42,7 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 
 /**
  * An event emitted when a language is first time needed (e.g. a model has it set).
+ * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
 	let isDisposed = false;
@@ -221,7 +222,7 @@ export interface CodeActionContext {
 	 *
 	 * @readonly
 	 */
-	markers: IMarkerData[];
+	readonly markers: IMarkerData[];
 }
 
 /**
@@ -407,10 +408,10 @@ class SuggestAdapter {
 			};
 
 			// default text edit start
-			let wordStartPos = position.clone();
+			let wordStartPos = position;
 			const word = model.getWordUntilPosition(position);
 			if (word) {
-				wordStartPos.column = word.startColumn;
+				wordStartPos = new Position(wordStartPos.lineNumber, word.startColumn);
 			}
 
 			let list: CompletionList;

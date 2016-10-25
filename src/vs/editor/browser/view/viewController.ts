@@ -8,7 +8,7 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IEditorMouseEvent, IViewController, IMouseDispatchData } from 'vs/editor/browser/editorBrowser';
+import { IEditorMouseEvent, IMouseTarget, IViewController, IMouseDispatchData } from 'vs/editor/browser/editorBrowser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { Range } from 'vs/editor/common/core/range';
@@ -251,15 +251,25 @@ export class ViewController implements IViewController {
 		return this.viewModel.convertViewRangeToModelRange(viewRange);
 	}
 
-	private convertViewToModelMouseEvent(e: IEditorMouseEvent): void {
+	private _convertViewToModelMouseTarget(target: IMouseTarget): IMouseTarget {
+		return {
+			element: target.element,
+			type: target.type,
+			position: target.position ? this.convertViewToModelPosition(target.position) : null,
+			mouseColumn: target.mouseColumn,
+			range: target.range ? this.convertViewToModelRange(target.range) : null,
+			detail: target.detail
+		};
+	}
+
+	private _convertViewToModelMouseEvent(e: IEditorMouseEvent): IEditorMouseEvent {
 		if (e.target) {
-			if (e.target.position) {
-				e.target.position = this.convertViewToModelPosition(e.target.position);
-			}
-			if (e.target.range) {
-				e.target.range = this.convertViewToModelRange(e.target.range);
-			}
+			return {
+				event: e.event,
+				target: this._convertViewToModelMouseTarget(e.target)
+			};
 		}
+		return e;
 	}
 
 	public emitKeyDown(e: IKeyboardEvent): void {
@@ -271,28 +281,23 @@ export class ViewController implements IViewController {
 	}
 
 	public emitContextMenu(e: IEditorMouseEvent): void {
-		this.convertViewToModelMouseEvent(e);
-		this.outgoingEventBus.emit(editorCommon.EventType.ContextMenu, e);
+		this.outgoingEventBus.emit(editorCommon.EventType.ContextMenu, this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseMove(e: IEditorMouseEvent): void {
-		this.convertViewToModelMouseEvent(e);
-		this.outgoingEventBus.emit(editorCommon.EventType.MouseMove, e);
+		this.outgoingEventBus.emit(editorCommon.EventType.MouseMove, this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseLeave(e: IEditorMouseEvent): void {
-		this.convertViewToModelMouseEvent(e);
-		this.outgoingEventBus.emit(editorCommon.EventType.MouseLeave, e);
+		this.outgoingEventBus.emit(editorCommon.EventType.MouseLeave, this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseUp(e: IEditorMouseEvent): void {
-		this.convertViewToModelMouseEvent(e);
-		this.outgoingEventBus.emit(editorCommon.EventType.MouseUp, e);
+		this.outgoingEventBus.emit(editorCommon.EventType.MouseUp, this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseDown(e: IEditorMouseEvent): void {
-		this.convertViewToModelMouseEvent(e);
-		this.outgoingEventBus.emit(editorCommon.EventType.MouseDown, e);
+		this.outgoingEventBus.emit(editorCommon.EventType.MouseDown, this._convertViewToModelMouseEvent(e));
 	}
 
 }

@@ -6,7 +6,7 @@
 
 import { IStringStream } from 'vs/platform/files/common/files';
 import * as crypto from 'crypto';
-import { DefaultEndOfLine, ITextModelCreationOptions, ITextModelResolvedOptions, IRawText } from 'vs/editor/common/editorCommon';
+import { DefaultEndOfLine, ITextModelCreationOptions, TextModelResolvedOptions, IRawText } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -46,7 +46,7 @@ class ModelLineBasedBuilder {
 		this.hash.update(lines.join('\n') + '\n');
 	}
 
-	public finish(totalLength: number, carriageReturnCnt: number, opts: ITextModelCreationOptions): ModelBuilderResult {
+	public finish(totalLength: number, carriageReturnCnt: number, containsRTL: boolean, opts: ITextModelCreationOptions): ModelBuilderResult {
 
 		let lineFeedCnt = this.lines.length - 1;
 		let EOL = '';
@@ -61,22 +61,22 @@ class ModelLineBasedBuilder {
 			EOL = '\n';
 		}
 
-		let resolvedOpts: ITextModelResolvedOptions;
+		let resolvedOpts: TextModelResolvedOptions;
 		if (opts.detectIndentation) {
 			let guessedIndentation = guessIndentation(this.lines, opts.tabSize, opts.insertSpaces);
-			resolvedOpts = {
+			resolvedOpts = new TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
-			};
+			});
 		} else {
-			resolvedOpts = {
+			resolvedOpts = new TextModelResolvedOptions({
 				tabSize: opts.tabSize,
 				insertSpaces: opts.insertSpaces,
 				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
-			};
+			});
 		}
 
 		return {
@@ -85,6 +85,7 @@ class ModelLineBasedBuilder {
 				EOL: EOL,
 				lines: this.lines,
 				length: totalLength,
+				containsRTL: containsRTL,
 				options: resolvedOpts
 			},
 			hash: this.hash.digest('hex')
@@ -107,6 +108,7 @@ export class ModelBuilder {
 	private totalCRCount: number;
 	private lineBasedBuilder: ModelLineBasedBuilder;
 	private totalLength: number;
+	private containsRTL: boolean;
 
 	public static fromStringStream(stream: IStringStream, options: ITextModelCreationOptions): TPromise<ModelBuilderResult> {
 		return new TPromise<ModelBuilderResult>((c, e, p) => {
@@ -139,6 +141,7 @@ export class ModelBuilder {
 		this.totalCRCount = 0;
 		this.lineBasedBuilder = new ModelLineBasedBuilder();
 		this.totalLength = 0;
+		this.containsRTL = false;
 	}
 
 	private _updateCRCount(chunk: string): void {
@@ -158,6 +161,10 @@ export class ModelBuilder {
 		this.totalLength += chunk.length;
 
 		this._updateCRCount(chunk);
+
+		if (!this.containsRTL) {
+			this.containsRTL = strings.containsRTL(chunk);
+		}
 
 		// Avoid dealing with a chunk that ends in \r (push the \r to the next chunk)
 		if (this.leftoverEndsInCR) {
@@ -189,6 +196,6 @@ export class ModelBuilder {
 			finalLines.push('');
 		}
 		this.lineBasedBuilder.acceptLines(finalLines);
-		return this.lineBasedBuilder.finish(this.totalLength, this.totalCRCount, opts);
+		return this.lineBasedBuilder.finish(this.totalLength, this.totalCRCount, this.containsRTL, opts);
 	}
 }
