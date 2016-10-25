@@ -23,6 +23,6 @@ export interface IWindowConfiguration {
 		reopenFolders: string;
 		restoreFullscreen: boolean;
 		zoomLevel: number;
-		macOSUseInlineToolbar: boolean;
+		macOSTitlebarStyle: string;
 	};
 }

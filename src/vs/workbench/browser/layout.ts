@@ -289,7 +289,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		// However, as the width is different at runtime ( it's multiplied by the zoom factor )
 		// we need to keep an original reference value to work with from the CSS.
 		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
-		if (windowConfig && windowConfig.window.macOSUseInlineToolbar && !this.initialActivitybarWidth) {
+		if (windowConfig && windowConfig.window.macOSTitlebarStyle === 'inline' && !this.initialActivitybarWidth) {
 			this.initialActivitybarWidth = parseInt(activitybarStyle.getPropertyValue('width'), 10) || 0;
 		}
 
@@ -357,7 +357,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		// For inline titles, we want to ignore the minWidth on the activity bar
 		// and generate a zoom-dependent width, to ensure all other parts lay out correctly
 		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
-		if (windowConfig && windowConfig.window.macOSUseInlineToolbar) {
+		if (windowConfig && windowConfig.window.macOSTitlebarStyle === 'inline') {
 			const zoom = getZoomFactor();
 			const originalWidth = this.computedStyles.activitybar.minWidth;
 			activityBarMinWidth = originalWidth / zoom;
@@ -458,11 +458,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		// Activity Bar Part
-		if (windowConfig && windowConfig.window.macOSUseInlineToolbar) {
-			this.activitybar.getContainer().size(activityBarSize.width, activityBarSize.height);
-		} else {
-			this.activitybar.getContainer().size(null, activityBarSize.height);
-		}
+		this.activitybar.getContainer().size(activityBarSize.width, activityBarSize.height);
+
 		if (sidebarPosition === Position.LEFT) {
 			this.activitybar.getContainer().getHTMLElement().style.right = '';
 			this.activitybar.getContainer().position(0, null, 0, 0);

@@ -29,7 +29,7 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	allowFullscreen?: boolean;
-	macOSUseInlineToolbar: boolean;
+	macOSTitlebarStyle?: string;
 }
 
 export enum WindowMode {
@@ -108,7 +108,7 @@ export interface IWindowSettings {
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
 	zoomLevel: number;
-	macOSUseInlineToolbar: boolean;
+	macOSTitlebarStyle: 'default' | 'inline';
 }
 
 export class VSCodeWindow {
@@ -178,8 +178,8 @@ export class VSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
-		if (platform.isMacintosh && this.options.macOSUseInlineToolbar) {
-			options.titleBarStyle = 'hidden-inset';
+		if (platform.isMacintosh && this.options.macOSTitlebarStyle === 'inline') {
+			options.titleBarStyle = 'hidden';
 		}
 
 		// Create the browser window.

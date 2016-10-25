@@ -15,8 +15,6 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a {
 	text-decoration: none;
 	font-size: 13px;
-	height:35px;
-	line-height: 35px;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .monaco-icon-label::before,

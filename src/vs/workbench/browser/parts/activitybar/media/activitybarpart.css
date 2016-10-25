@@ -19,7 +19,7 @@
 .monaco-workbench.mac.use-inline-toolbar > .part.activitybar {
 	min-width: unset;
 	max-width: unset;
-	width: 76px;
+	width: 68px;
 	-webkit-app-region: drag;
 	transition: none;
 }

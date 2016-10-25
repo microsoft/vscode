@@ -988,7 +988,7 @@ export class WindowsManager implements IWindowsService {
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen),
-				macOSUseInlineToolbar: windowConfig && windowConfig.macOSUseInlineToolbar
+				macOSTitlebarStyle: windowConfig && windowConfig.macOSTitlebarStyle
 			});
 
 			WindowsManager.WINDOWS.push(vscodeWindow);

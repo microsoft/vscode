@@ -744,7 +744,7 @@ export class Workbench implements IPartService {
 		// Mac specific UI changes
 		if (isMacintosh) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
-			if (windowConfig && windowConfig.window.macOSUseInlineToolbar) {
+			if (windowConfig && windowConfig.window.macOSTitlebarStyle === 'inline') {
 				this.workbench.addClass('use-inline-toolbar');
 			}
 		}

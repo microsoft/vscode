@@ -137,7 +137,8 @@ export class ElectronIntegration {
 			this.partService.joinCreation().then(() => {
 				this.partService.addClass('fullscreen');
 				const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
-				if (windowConfig && windowConfig.window.macOSUseInlineToolbar) {
+				// Use the original width activity-bar when in full screen
+				if (windowConfig && windowConfig.window.macOSTitlebarStyle === 'inline') {
 					this.partService.layout();
 				}
 			});
@@ -147,7 +148,8 @@ export class ElectronIntegration {
 			this.partService.joinCreation().then(() => {
 				this.partService.removeClass('fullscreen');
 				const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
-				if (windowConfig && windowConfig.window.macOSUseInlineToolbar) {
+				// To revert back to wider activity-bar width used in window'd mode
+				if (windowConfig && windowConfig.window.macOSTitlebarStyle === 'inline') {
 					this.partService.layout();
 				}
 			});
