@@ -750,7 +750,6 @@ export class DebugService implements debug.IDebugService {
 			return session.attach({ port });
 		}
 
-		this.setStateAndEmit(session.getId(), debug.State.Initializing);
 		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then((configuration: debug.IExtHostConfig) =>
 			this.doCreateProcess({
 				type: configuration.type,
