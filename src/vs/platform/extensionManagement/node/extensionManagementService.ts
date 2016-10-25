@@ -243,9 +243,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private rollback(localExtension: ILocalExtension, dependecies: IGalleryExtension[]): TPromise<void> {
-		return this.uninstall(localExtension)
+		return this.doUninstall(localExtension.id)
 			.then(() => this.filterOutUninstalled(dependecies))
-			.then(installed => TPromise.join(installed.map((i) => this.uninstall(i))))
+			.then(installed => TPromise.join(installed.map((i) => this.doUninstall(i.id))))
 			.then(() => null);
 	}
 
