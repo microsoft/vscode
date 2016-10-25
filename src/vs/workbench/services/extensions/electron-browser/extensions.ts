@@ -76,30 +76,33 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 	}
 
 	public setEnablement(identifier: string, enable: boolean, workspace: boolean = false): TPromise<boolean> {
-		const disabled = this.environmentService.disableExtensions || this.getDisabledExtensionsFromStorage().indexOf(identifier) !== -1;
-		if (!enable === disabled) {
-			return TPromise.wrap(false);
-		}
-
-		if (enable && !this.canEnable(identifier)) {
-			return TPromise.wrap(false);
-		}
-
 		if (workspace && !this.workspace) {
 			return TPromise.wrapError(localize('noWorkspace', "No workspace."));
 		}
 
+		if (this.environmentService.disableExtensions) {
+			return TPromise.wrap(false);
+		}
+
+		if (this.isDisabled(identifier) === !enable) {
+			return TPromise.wrap(false);
+		}
+
 		if (enable) {
 			if (workspace) {
-				return this.enableExtension(identifier, StorageScope.WORKSPACE);
+				this.enableExtension(identifier, StorageScope.WORKSPACE);
+			} else {
+				this.enableExtension(identifier, StorageScope.GLOBAL);
 			}
-			return this.enableExtension(identifier, StorageScope.GLOBAL);
 		} else {
 			if (workspace) {
-				return this.disableExtension(identifier, StorageScope.WORKSPACE);
+				this.disableExtension(identifier, StorageScope.WORKSPACE);
+			} else {
+				this.disableExtension(identifier, StorageScope.GLOBAL);
 			}
-			return this.disableExtension(identifier, StorageScope.GLOBAL);
 		}
+
+		return TPromise.wrap(true);
 	}
 
 	private getDisabledExtensions(): string[] {
