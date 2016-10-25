@@ -627,7 +627,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		if (!error) {
 			this.unInstalled.push(uninstalling.extension);
-			this.extensionsRuntimeService.setEnablement(uninstalling.extension.identifier, true);
 			uninstalling.extension.needsReload = !newlyInstalled;
 			this.reportTelemetry(uninstalling, true);
 		}
