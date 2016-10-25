@@ -261,29 +261,32 @@ export class DebugService implements debug.IDebugService {
 					return;
 				}
 
-				const thread = response.body.threads.filter(t => t.id === threadId).pop();
+				const rawThread = response.body.threads.filter(t => t.id === threadId).pop();
 				this.model.rawUpdate({
 					sessionId: session.getId(),
-					thread,
+					thread: rawThread,
 					threadId,
 					stoppedDetails: event.body,
 					allThreadsStopped: event.body.allThreadsStopped
 				});
 
 				const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
-				process.getThread(threadId).getCallStack().then(callStack => {
-					if (callStack.length > 0) {
-						// focus first stack frame from top that has source location
-						const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
-						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
-						this.windowService.getWindow().focus();
-						aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
+				const thread = process && process.getThread(threadId);
+				if (thread) {
+					thread.getCallStack().then(callStack => {
+						if (callStack.length > 0) {
+							// focus first stack frame from top that has source location
+							const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
+							this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+							this.windowService.getWindow().focus();
+							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
-						return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
-					} else {
-						this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
-					}
-				});
+							return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
+						} else {
+							this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+						}
+					});
+				}
 			}, errors.onUnexpectedError);
 		}));
 
