@@ -16,9 +16,10 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionState } from '../common/extensions';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from './extensionsActions';
+import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ReloadAction, ManageExtensionAction } from './extensionsActions';
 import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export interface ITemplateData {
 	element: HTMLElement;
@@ -44,6 +45,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMessageService private messageService: IMessageService
 	) { }
 
@@ -65,16 +67,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const actionbar = new ActionBar(footer, {
 			animated: false,
 			actionItemProvider: (action: Action) => {
-				if (action.id === EnableAction.ID) {
-					return (<EnableAction>action).actionItem;
-				}
-				if (action.id === DisableAction.ID) {
-					return (<DisableAction>action).actionItem;
+				if (action.id === ManageExtensionAction.ID) {
+					return (<ManageExtensionAction>action).actionItem;
 				}
 				return null;
 			}
 		});
-
 		actionbar.addListener2(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
 
 		const versionWidget = this.instantiationService.createInstance(Label, version, e => e.version);
@@ -82,14 +80,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
 
 		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
-		const combinedInstallAction = this.instantiationService.createInstance(CombinedInstallAction);
+		const installAction = this.instantiationService.createInstance(InstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
-		const enableAction = this.instantiationService.createInstance(EnableAction);
-		const disableAction = this.instantiationService.createInstance(DisableAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
+		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
 
-		actionbar.push([enableAction, updateAction, disableAction, reloadAction, combinedInstallAction, builtinStatusAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, combinedInstallAction, builtinStatusAction, updateAction, enableAction, disableAction, reloadAction, actionbar];
+		actionbar.push([updateAction, reloadAction, installAction, builtinStatusAction, manageAction], actionOptions);
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, builtinStatusAction, updateAction, reloadAction, manageAction, actionbar];
 
 		return {
 			element, icon, name, installCount, ratings, author, description, disposables,
@@ -99,11 +96,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				installCountWidget.extension = extension;
 				ratingsWidget.extension = extension;
 				builtinStatusAction.extension = extension;
-				combinedInstallAction.extension = extension;
+				installAction.extension = extension;
 				updateAction.extension = extension;
-				enableAction.extension = extension;
-				disableAction.extension = extension;
 				reloadAction.extension = extension;
+				manageAction.extension = extension;
 			}
 		};
 	}

@@ -105,3 +105,18 @@
 .extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.extension-action.built-in-status {
 	font-weight: normal;
 }
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage.no-extension {
+	display: none;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage {
+	height: 18px;
+	width: 10px;
+	border: none;
+	background: url('manage.svg') center center no-repeat;
+}
+
+.vs-dark .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage {
+	background: url('manage-inverse.svg') center center no-repeat;
+}
