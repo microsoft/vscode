@@ -6,10 +6,11 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { SignatureHelp, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asWinJsPromise, sequence } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
@@ -19,13 +20,22 @@ export const Context = {
 };
 
 export function provideSignatureHelp(model: IReadOnlyModel, position: Position): TPromise<SignatureHelp> {
-	const support = SignatureHelpProviderRegistry.ordered(model)[0];
 
-	if (!support) {
-		return TPromise.as(undefined);
-	}
+	const supports = SignatureHelpProviderRegistry.ordered(model);
+	let result: SignatureHelp;
 
-	return asWinJsPromise(token => support.provideSignatureHelp(model, position, token));
+	return sequence(supports.map(support => () => {
+
+		if (result) {
+			// stop when there is a result
+			return;
+		}
+
+		return asWinJsPromise(token => support.provideSignatureHelp(model, position, token)).then(thisResult => {
+			result = thisResult;
+		}, onUnexpectedError);
+
+	})).then(() => result);
 }
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeSignatureHelpProvider', provideSignatureHelp);
