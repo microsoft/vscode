@@ -265,7 +265,8 @@ export abstract class BaseEditorSimpleWorker {
 				type: 'text',
 				label: word,
 				insertText: word,
-				noAutoAccept: true
+				noAutoAccept: true,
+				overwriteBefore: currentWord.length
 			};
 		});
 
