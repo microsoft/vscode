@@ -20,6 +20,7 @@ import { QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
@@ -231,7 +232,7 @@ export interface IEditorQuickOpenEntry {
  */
 export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuickOpenEntry {
 
-	constructor(private _editorService: IWorkbenchEditorService) {
+	constructor(private _editorService: IWorkbenchEditorService, private _historyService: IHistoryService) {
 		super();
 	}
 

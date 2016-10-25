@@ -1088,9 +1088,10 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@IModelService private modelService: IModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IHistoryService private historyService: IHistoryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(editorService);
+		super(editorService, historyService);
 
 		this.input = input;
 
