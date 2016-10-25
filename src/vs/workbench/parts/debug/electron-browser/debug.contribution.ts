@@ -165,12 +165,12 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'debug.allowBreakpointsEverywhere': {
 			type: 'boolean',
-			description: nls.localize('allowBreakpointsEverywhere', "Allows setting breakpoint in any file"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "Allows setting breakpoint in any file"),
 			default: false
 		},
 		'debug.openExplorerOnEnd': {
 			type: 'boolean',
-			description: nls.localize('openExplorerOnEnd', "Automatically open explorer viewlet on the end of a debug session"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open explorer viewlet on the end of a debug session"),
 			default: false
 		}
 	}
