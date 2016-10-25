@@ -72,6 +72,7 @@ export enum SessionRequestType {
 }
 
 export interface ISession {
+	// TODO@Isidor consider removing this - feels ugly
 	requestType: SessionRequestType;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
