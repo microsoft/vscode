@@ -377,9 +377,22 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		const dependenciesToUninstall = this.filterDependents(extension, dependencies, installed);
 		let dependents = this.getDependents(extension, installed).filter(dependent => extension !== dependent && dependenciesToUninstall.indexOf(dependent) === -1);
 		if (dependents.length) {
-			return TPromise.wrapError<void>(nls.localize('hasDependentsError', "Cannot uninstall extension '{0}'. Some of the installed extensions depends on this.", extension.manifest.displayName || extension.manifest.name));
+			return TPromise.wrapError<void>(this.getDependentsErrorMessage(extension, dependents));
 		}
 		return TPromise.join([this.uninstallExtension(extension.id), ...dependenciesToUninstall.map(d => this.doUninstall(d.id))]).then(() => null);
+	}
+
+	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
+		if (dependents.length === 1) {
+			return nls.localize('singleDependentError', "Cannot uninstall extension '{0}'. Extension '{1}' depends on this.",
+				extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name);
+		}
+		if (dependents.length === 2) {
+			return nls.localize('twoDependentsError', "Cannot uninstall extension '{0}'. Extensions '{1}' and '{2}' depend on this.",
+				extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name, dependents[1].manifest.displayName || dependents[1].manifest.name);
+		}
+		return nls.localize('multipleDependentsError', "Cannot uninstall extension '{0}'. Extensions '{1}', '{2}' and others depend on this.",
+			extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name, dependents[1].manifest.displayName || dependents[1].manifest.name);
 	}
 
 	private getDependenciesToUninstallRecursively(extension: ILocalExtension, installed: ILocalExtension[], checked: ILocalExtension[]): ILocalExtension[] {
