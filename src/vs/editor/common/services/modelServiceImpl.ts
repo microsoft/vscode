@@ -61,10 +61,10 @@ class ModelData implements IDisposable {
 
 class ModelMarkerHandler {
 
-	public static setMarkers(modelData: ModelData, markers: IMarker[]): void {
+	public static setMarkers(modelData: ModelData, markerService: IMarkerService): void {
 
 		// Limit to the first 500 errors/warnings
-		markers = markers.slice(0, 500);
+		const markers = markerService.read({ resource: modelData.model.uri, take: 500 });
 
 		let newModelDecorations: editorCommon.IModelDeltaDecoration[] = markers.map((marker) => {
 			return {
@@ -327,7 +327,7 @@ export class ModelServiceImpl implements IModelService {
 			if (!modelData) {
 				return;
 			}
-			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: resource, take: 500 }));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService);
 		});
 	}
 
@@ -377,7 +377,7 @@ export class ModelServiceImpl implements IModelService {
 
 		// handle markers (marker service => model)
 		if (this._markerService) {
-			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: modelData.model.uri }));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService);
 		}
 
 		this._onModelAdded.fire(modelData.model);
@@ -448,11 +448,10 @@ export class ModelServiceImpl implements IModelService {
 		let modelId = MODEL_ID(model.uri);
 		let modelData = this._models[modelId];
 
-		this._cleanUp(model);
-
 		delete this._models[modelId];
 		modelData.dispose();
 
+		this._cleanUp(model);
 		this._onModelRemoved.fire(model);
 	}
 
