@@ -241,12 +241,14 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		if (/@outdated/i.test(value)) {
 			return this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(extensions => extensions.filter(extension => extension.outdated))
 				.then(result => new PagedModel(result));
 		}
 
 		if (/@disabled/i.test(value)) {
 			return this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(result => result.filter(e => e.state === ExtensionState.Disabled))
 				.then(result => new PagedModel(result));
 		}
