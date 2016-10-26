@@ -70,6 +70,7 @@ export interface IExtensionsRuntimeService {
 
 	/**
 	 * Scans and returns only enabled extensions.
+	 * **NOTE**: This call returns different results based on `setEnablement` calls!
 	 */
 	getExtensions(): TPromise<IExtensionDescription[]>;
 
