@@ -125,9 +125,9 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	// -- called by extension host
 
 	public $onExtensionHostReady(extensionDescriptions: IExtensionDescription[]): TPromise<void> {
-		ExtensionsRegistry.registerExtensions(extensionDescriptions);
+		this._registry.registerExtensions(extensionDescriptions);
 
-		let availableExtensions = ExtensionsRegistry.getAllExtensionDescriptions();
+		let availableExtensions = this._registry.getAllExtensionDescriptions();
 		let extensionPoints = ExtensionsRegistry.getExtensionPoints();
 
 		for (let i = 0, len = extensionPoints.length; i < len; i++) {

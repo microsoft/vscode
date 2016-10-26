@@ -22,6 +22,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
@@ -33,6 +34,23 @@ import { IPickOpenEntry, IPickOptions } from 'vs/workbench/services/quickopen/co
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditorsTracker';
+
+export interface IEnvironment {
+	appSettingsHome: string;
+	disableExtensions: boolean;
+	userExtensionsHome: string;
+	extensionDevelopmentPath: string;
+	extensionTestsPath: string;
+}
+
+export interface IInitData {
+	parentPid: number;
+	environment: IEnvironment;
+	contextService: {
+		workspace: IWorkspace;
+	};
+	extensions: IExtensionDescription[];
+}
 
 export interface InstanceSetter<T> {
 	set<R extends T>(instance: T): R;

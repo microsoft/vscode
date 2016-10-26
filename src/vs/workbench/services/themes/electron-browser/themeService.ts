@@ -10,7 +10,7 @@ import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
 import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoint';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry, IExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IThemeService, IThemeData, IThemeSetting, IThemeDocument } from 'vs/workbench/services/themes/common/themeService';
 import { TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import { getBaseThemeId } from 'vs/platform/theme/common/themes';
@@ -299,7 +299,7 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	private onThemes(extensionFolderPath: string, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
+	private onThemes(extensionFolderPath: string, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(themes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -338,7 +338,7 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	private onIconThemes(extensionFolderPath: string, extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
+	private onIconThemes(extensionFolderPath: string, extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(iconThemes)) {
 			collector.error(nls.localize(
 				'reqarray',

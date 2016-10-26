@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IExtensionPoint, IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
@@ -94,7 +94,7 @@ function isUndefinedOrStringArray(value: string[]): boolean {
 	return value.every(item => typeof item === 'string');
 }
 
-function isValidLanguageExtensionPoint(value: ILanguageExtensionPoint, collector: IExtensionMessageCollector): boolean {
+function isValidLanguageExtensionPoint(value: ILanguageExtensionPoint, collector: ExtensionMessageCollector): boolean {
 	if (!value) {
 		collector.error(nls.localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
 		return false;
