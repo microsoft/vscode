@@ -13,15 +13,12 @@ import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/c
 import { Registry } from 'vs/platform/platform';
 import { Emitter } from 'vs/base/common/event';
 
+const hasOwnProperty = Object.hasOwnProperty;
+const schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
+
 export const onWillActivate: Emitter<string> = new Emitter<string>();
 
-export interface IExtensionMessageCollector {
-	error(message: string): void;
-	warn(message: string): void;
-	info(message: string): void;
-}
-
-export class ExtensionMessageCollector implements IExtensionMessageCollector {
+export class ExtensionMessageCollector {
 
 	private _messageHandler: (msg: IMessage) => void;
 	private _source: string;
@@ -50,21 +47,12 @@ export class ExtensionMessageCollector implements IExtensionMessageCollector {
 	public info(message: string): void {
 		this._msg(Severity.Info, message);
 	}
-
 }
-
-
-
-interface IExtensionDescriptionMap {
-	[extensionId: string]: IExtensionDescription;
-}
-const hasOwnProperty = Object.hasOwnProperty;
-let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 
 export interface IExtensionPointUser<T> {
 	description: IExtensionDescription;
 	value: T;
-	collector: IExtensionMessageCollector;
+	collector: ExtensionMessageCollector;
 }
 
 export interface IExtensionPointHandler<T> {
@@ -74,17 +62,6 @@ export interface IExtensionPointHandler<T> {
 export interface IExtensionPoint<T> {
 	name: string;
 	setHandler(handler: IExtensionPointHandler<T>): void;
-}
-
-export interface IExtensionsRegistry {
-	registerExtensions(extensionDescriptions: IExtensionDescription[]): void;
-
-	getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[];
-	getAllExtensionDescriptions(): IExtensionDescription[];
-	getExtensionDescription(extensionId: string): IExtensionDescription;
-
-	registerExtensionPoint<T>(extensionPoint: string, deps: IExtensionPoint<any>[], jsonSchema: IJSONSchema): IExtensionPoint<T>;
-	getExtensionPoints(): ExtensionPoint<any>[];
 }
 
 export class ExtensionPoint<T> implements IExtensionPoint<T> {
@@ -136,8 +113,6 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 		}
 	}
 }
-
-
 
 const schemaId = 'vscode://schemas/vscode-extensions';
 const schema: IJSONSchema = {
@@ -257,17 +232,11 @@ const schema: IJSONSchema = {
 	}
 };
 
-class ExtensionsRegistryImpl implements IExtensionsRegistry {
+export class ExtensionsRegistryImpl {
 
-	private _extensionsMap: IExtensionDescriptionMap;
-	private _extensionsArr: IExtensionDescription[];
-	private _activationMap: { [activationEvent: string]: IExtensionDescription[]; };
 	private _extensionPoints: { [extPoint: string]: ExtensionPoint<any>; };
 
 	constructor() {
-		this._extensionsMap = {};
-		this._extensionsArr = [];
-		this._activationMap = {};
 		this._extensionPoints = {};
 	}
 
@@ -287,54 +256,12 @@ class ExtensionsRegistryImpl implements IExtensionsRegistry {
 	public getExtensionPoints(): ExtensionPoint<any>[] {
 		return Object.keys(this._extensionPoints).map(point => this._extensionPoints[point]);
 	}
-
-	public registerExtensions(extensionDescriptions: IExtensionDescription[]): void {
-		for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
-			let extensionDescription = extensionDescriptions[i];
-
-			if (hasOwnProperty.call(this._extensionsMap, extensionDescription.id)) {
-				// No overwriting allowed!
-				console.error('Extension `' + extensionDescription.id + '` is already registered');
-				continue;
-			}
-
-			this._extensionsMap[extensionDescription.id] = extensionDescription;
-			this._extensionsArr.push(extensionDescription);
-
-			if (Array.isArray(extensionDescription.activationEvents)) {
-				for (let j = 0, lenJ = extensionDescription.activationEvents.length; j < lenJ; j++) {
-					let activationEvent = extensionDescription.activationEvents[j];
-					this._activationMap[activationEvent] = this._activationMap[activationEvent] || [];
-					this._activationMap[activationEvent].push(extensionDescription);
-				}
-			}
-		}
-	}
-
-	public getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {
-		if (!hasOwnProperty.call(this._activationMap, activationEvent)) {
-			return [];
-		}
-		return this._activationMap[activationEvent].slice(0);
-	}
-
-	public getAllExtensionDescriptions(): IExtensionDescription[] {
-		return this._extensionsArr.slice(0);
-	}
-
-	public getExtensionDescription(extensionId: string): IExtensionDescription {
-		if (!hasOwnProperty.call(this._extensionsMap, extensionId)) {
-			return null;
-		}
-		return this._extensionsMap[extensionId];
-	}
 }
-
 
 const PRExtensions = {
 	ExtensionsRegistry: 'ExtensionsRegistry'
 };
 Registry.add(PRExtensions.ExtensionsRegistry, new ExtensionsRegistryImpl());
-export const ExtensionsRegistry: IExtensionsRegistry = Registry.as(PRExtensions.ExtensionsRegistry);
+export const ExtensionsRegistry: ExtensionsRegistryImpl = Registry.as(PRExtensions.ExtensionsRegistry);
 
 schemaRegistry.registerSchema(schemaId, schema);

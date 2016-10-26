@@ -26,6 +26,7 @@ import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensi
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import Event, { Emitter } from 'vs/base/common/event';
 import { createQueuedSender, IQueuedSender } from 'vs/base/node/processes';
+import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -200,7 +201,7 @@ export class ExtensionHostProcessWorker {
 			window.clearTimeout(this.initializeTimer);
 		}
 		this.extensionsRuntimeService.getExtensions().then(extensionDescriptors => {
-			let initPayload = stringify({
+			let initData: IInitData = {
 				parentPid: process.pid,
 				environment: {
 					appSettingsHome: this.environmentService.appSettingsHome,
@@ -213,8 +214,8 @@ export class ExtensionHostProcessWorker {
 					workspace: this.contextService.getWorkspace()
 				},
 				extensions: extensionDescriptors
-			});
-			this.extensionHostProcessQueuedSender.send(initPayload);
+			};
+			this.extensionHostProcessQueuedSender.send(stringify(initData));
 		});
 	}
 

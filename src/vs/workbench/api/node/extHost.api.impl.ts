@@ -36,7 +36,6 @@ import Severity from 'vs/base/common/severity';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -143,13 +142,13 @@ export function createApiFactory(threadService: IThreadService, extensionService
 		// namespace: extensions
 		const extensions: typeof vscode.extensions = {
 			getExtension(extensionId: string): Extension<any> {
-				let desc = ExtensionsRegistry.getExtensionDescription(extensionId);
+				let desc = extensionService.getExtensionDescription(extensionId);
 				if (desc) {
 					return new Extension(extensionService, desc);
 				}
 			},
 			get all(): Extension<any>[] {
-				return ExtensionsRegistry.getAllExtensionDescriptions().map((desc) => new Extension(extensionService, desc));
+				return extensionService.getAllExtensionDescriptions().map((desc) => new Extension(extensionService, desc));
 			}
 		};
 
@@ -417,7 +416,7 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 }
 
-export function defineAPI(factory: IExtensionApiFactory, extensions: IExtensionDescription[]): void {
+export function defineAPI(factory: IExtensionApiFactory, extensionService: ExtHostExtensionService): void {
 
 	// each extension is meant to get its own api implementation
 	const extApiImpl: { [id: string]: typeof vscode } = Object.create(null);
@@ -425,6 +424,7 @@ export function defineAPI(factory: IExtensionApiFactory, extensions: IExtensionD
 
 	// create trie to enable fast 'filename -> extension id' look up
 	const trie = new TrieMap<IExtensionDescription>(TrieMap.PathSplitter);
+	const extensions = extensionService.getAllExtensionDescriptions();
 	for (const ext of extensions) {
 		if (ext.name) {
 			const path = realpathSync(ext.extensionFolderPath);
