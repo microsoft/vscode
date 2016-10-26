@@ -165,7 +165,7 @@ export class ExtensionHostMain {
 
 	private registerExtensions(): TPromise<void> {
 		ExtensionsRegistry.registerExtensions(this._extensions);
-		this._extensionService.registrationDone([]);
+		this._extensionService.registrationDone();
 		return this.handleEagerExtensions().then(() => this.handleExtensionTests());
 	}
 

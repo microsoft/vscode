@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionPoint, IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
@@ -24,7 +24,7 @@ import { AbstractState } from 'vs/editor/common/modes/abstractState';
 import { Token } from 'vs/editor/common/core/token';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 
-let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
+export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', [], {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
 	type: 'array',
 	items: {

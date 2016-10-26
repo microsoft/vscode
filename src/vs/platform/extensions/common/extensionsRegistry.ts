@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Severity from 'vs/base/common/severity';
-import { IActivationEventListener, IMessage, IExtensionDescription, IPointListener } from 'vs/platform/extensions/common/extensions';
+import { IActivationEventListener, IMessage, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/platform';
 
@@ -18,7 +18,7 @@ export interface IExtensionMessageCollector {
 	info(message: string): void;
 }
 
-class ExtensionMessageCollector implements IExtensionMessageCollector {
+export class ExtensionMessageCollector implements IExtensionMessageCollector {
 
 	private _messageHandler: (msg: IMessage) => void;
 	private _source: string;
@@ -83,52 +83,57 @@ export interface IExtensionsRegistry {
 	registerOneTimeActivationEventListener(activationEvent: string, listener: IActivationEventListener): void;
 	triggerActivationEventListeners(activationEvent: string): void;
 
-	registerExtensionPoint<T>(extensionPoint: string, jsonSchema: IJSONSchema): IExtensionPoint<T>;
-	handleExtensionPoints(messageHandler: (msg: IMessage) => void): void;
+	registerExtensionPoint<T>(extensionPoint: string, deps: IExtensionPoint<any>[], jsonSchema: IJSONSchema): IExtensionPoint<T>;
+	getExtensionPoints(): ExtensionPoint<any>[];
 }
 
-class ExtensionPoint<T> implements IExtensionPoint<T> {
+export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
-	public name: string;
-	private _registry: ExtensionsRegistryImpl;
+	public readonly name: string;
 	private _handler: IExtensionPointHandler<T>;
-	private _messageHandler: (msg: IMessage) => void;
+	private _users: IExtensionPointUser<T>[];
+	private _done: boolean;
 
-	constructor(name: string, registry: ExtensionsRegistryImpl) {
+	constructor(name: string) {
 		this.name = name;
-		this._registry = registry;
 		this._handler = null;
-		this._messageHandler = null;
+		this._users = null;
+		this._done = false;
 	}
 
 	setHandler(handler: IExtensionPointHandler<T>): void {
-		if (this._handler) {
+		if (this._handler !== null || this._done) {
 			throw new Error('Handler already set!');
 		}
 		this._handler = handler;
 		this._handle();
 	}
 
-	handle(messageHandler: (msg: IMessage) => void): void {
-		this._messageHandler = messageHandler;
+	acceptUsers(users: IExtensionPointUser<T>[]): void {
+		if (this._users !== null || this._done) {
+			throw new Error('Users already set!');
+		}
+		this._users = users;
 		this._handle();
 	}
 
 	private _handle(): void {
-		if (!this._handler || !this._messageHandler) {
+		if (this._handler === null || this._users === null) {
 			return;
 		}
+		this._done = true;
 
-		this._registry.registerPointListener(this.name, (descriptions: IExtensionDescription[]) => {
-			let users = descriptions.map((desc) => {
-				return {
-					description: desc,
-					value: desc.contributes[this.name],
-					collector: new ExtensionMessageCollector(this._messageHandler, desc.extensionFolderPath)
-				};
-			});
-			this._handler(users);
-		});
+		let handler = this._handler;
+		this._handler = null;
+
+		let users = this._users;
+		this._users = null;
+
+		try {
+			handler(users);
+		} catch (err) {
+			onUnexpectedError(err);
+		}
 	}
 }
 
@@ -252,17 +257,11 @@ const schema: IJSONSchema = {
 	}
 };
 
-interface IPointListenerEntry {
-	extensionPoint: string;
-	listener: IPointListener;
-}
-
 class ExtensionsRegistryImpl implements IExtensionsRegistry {
 
 	private _extensionsMap: IExtensionDescriptionMap;
 	private _extensionsArr: IExtensionDescription[];
 	private _activationMap: { [activationEvent: string]: IExtensionDescription[]; };
-	private _pointListeners: IPointListenerEntry[];
 	private _oneTimeActivationEventListeners: { [activationEvent: string]: IActivationEventListener[]; };
 	private _extensionPoints: { [extPoint: string]: ExtensionPoint<any>; };
 
@@ -270,25 +269,15 @@ class ExtensionsRegistryImpl implements IExtensionsRegistry {
 		this._extensionsMap = {};
 		this._extensionsArr = [];
 		this._activationMap = {};
-		this._pointListeners = [];
 		this._extensionPoints = {};
 		this._oneTimeActivationEventListeners = {};
 	}
 
-	public registerPointListener(point: string, handler: IPointListener): void {
-		let entry = {
-			extensionPoint: point,
-			listener: handler
-		};
-		this._pointListeners.push(entry);
-		this._triggerPointListener(entry, ExtensionsRegistryImpl._filterWithExtPoint(this.getAllExtensionDescriptions(), point));
-	}
-
-	public registerExtensionPoint<T>(extensionPoint: string, jsonSchema: IJSONSchema): IExtensionPoint<T> {
+	public registerExtensionPoint<T>(extensionPoint: string, deps: IExtensionPoint<any>[], jsonSchema: IJSONSchema): IExtensionPoint<T> {
 		if (hasOwnProperty.call(this._extensionPoints, extensionPoint)) {
 			throw new Error('Duplicate extension point: ' + extensionPoint);
 		}
-		let result = new ExtensionPoint<T>(extensionPoint, this);
+		let result = new ExtensionPoint<T>(extensionPoint);
 		this._extensionPoints[extensionPoint] = result;
 
 		schema.properties['contributes'].properties[extensionPoint] = jsonSchema;
@@ -297,22 +286,8 @@ class ExtensionsRegistryImpl implements IExtensionsRegistry {
 		return result;
 	}
 
-	public handleExtensionPoints(messageHandler: (msg: IMessage) => void): void {
-		Object.keys(this._extensionPoints).forEach((extensionPointName) => {
-			this._extensionPoints[extensionPointName].handle(messageHandler);
-		});
-	}
-
-	private _triggerPointListener(handler: IPointListenerEntry, desc: IExtensionDescription[]): void {
-		// console.log('_triggerPointListeners: ' + desc.length + ' OF ' + handler.extensionPoint);
-		if (!desc || desc.length === 0) {
-			return;
-		}
-		try {
-			handler.listener(desc);
-		} catch (e) {
-			onUnexpectedError(e);
-		}
+	public getExtensionPoints(): ExtensionPoint<any>[] {
+		return Object.keys(this._extensionPoints).map(point => this._extensionPoints[point]);
 	}
 
 	public registerExtensions(extensionDescriptions: IExtensionDescription[]): void {
@@ -336,18 +311,6 @@ class ExtensionsRegistryImpl implements IExtensionsRegistry {
 				}
 			}
 		}
-
-		for (let i = 0, len = this._pointListeners.length; i < len; i++) {
-			let listenerEntry = this._pointListeners[i];
-			let descriptions = ExtensionsRegistryImpl._filterWithExtPoint(extensionDescriptions, listenerEntry.extensionPoint);
-			this._triggerPointListener(listenerEntry, descriptions);
-		}
-	}
-
-	private static _filterWithExtPoint(input: IExtensionDescription[], point: string): IExtensionDescription[] {
-		return input.filter((desc) => {
-			return (desc.contributes && hasOwnProperty.call(desc.contributes, point));
-		});
 	}
 
 	public getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {

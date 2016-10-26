@@ -10,7 +10,7 @@ import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
-import { IMessage, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -178,8 +178,8 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 		return result;
 	}
 
-	public registrationDone(messages: IMessage[]): void {
-		this._proxy.$onExtensionHostReady(ExtensionsRegistry.getAllExtensionDescriptions(), messages).then(() => {
+	public registrationDone(): void {
+		this._proxy.$onExtensionHostReady(ExtensionsRegistry.getAllExtensionDescriptions()).then(() => {
 			// Wait for the main process to acknowledge its receival of the extensions descriptions
 			// before allowing extensions to be activated
 			this._triggerOnReady();

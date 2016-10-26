@@ -102,7 +102,7 @@ let keybindingType: IJSONSchema = {
 	}
 };
 
-let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>('keybindings', {
+let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>('keybindings', [], {
 	description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
 	oneOf: [
 		keybindingType,
