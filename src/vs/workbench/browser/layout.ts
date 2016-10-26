@@ -81,6 +81,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private sidebarHeight: number;
 	private startPanelHeight: number;
 	private panelHeight: number;
+	private panelHeightBeforeMaximized: number;
 	private panelWidth: number;
 	private layoutEditorGroupsVertically: boolean;
 
@@ -378,7 +379,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			panelHeight = sidebarSize.height * DEFAULT_PANEL_HEIGHT_COEFFICIENT;
 		}
 		if (options && options.toggleMaximizedPanel) {
-			panelHeight = panelHeight === maxPanelHeight ? sidebarSize.height * DEFAULT_PANEL_HEIGHT_COEFFICIENT : maxPanelHeight;
+			const heightToSwap = panelHeight;
+			panelHeight = panelHeight === maxPanelHeight ? Math.max(this.computedStyles.panel.minHeight, Math.min(this.panelHeightBeforeMaximized, maxPanelHeight)) : maxPanelHeight;
+			this.panelHeightBeforeMaximized = heightToSwap;
 		}
 		const panelDimension = new Dimension(this.workbenchSize.width - sidebarSize.width - activityBarSize.width, panelHeight);
 		this.panelWidth = panelDimension.width;
