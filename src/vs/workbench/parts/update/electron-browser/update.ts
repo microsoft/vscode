@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import { ipcRenderer as ipc, shell } from 'electron';
+import { ipcRenderer as ipc } from 'electron';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
@@ -178,12 +178,12 @@ export const DownloadAction = (url: string) => new Action(
 	nls.localize('downloadNow', "Download Now"),
 	null,
 	true,
-	() => { shell.openExternal(url); return TPromise.as(true); }
+	() => { window.open(url); return TPromise.as(true); }
 );
 
 const LinkAction = (id: string, message: string, licenseUrl: string) => new Action(
 	id, message, null, true,
-	() => { shell.openExternal(licenseUrl); return TPromise.as(null); }
+	() => { window.open(licenseUrl); return TPromise.as(null); }
 );
 
 export class UpdateContribution implements IWorkbenchContribution {
@@ -235,7 +235,7 @@ export class UpdateContribution implements IWorkbenchContribution {
 				message: nls.localize('insiderBuilds', "Insider builds and releases everyday!", product.nameLong, pkg.version),
 				actions: [
 					new Action('update.insiderBuilds', nls.localize('readmore', "Read More"), '', true, () => {
-						shell.openExternal('http://go.microsoft.com/fwlink/?LinkID=798816');
+						window.open('http://go.microsoft.com/fwlink/?LinkID=798816');
 						storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
 						return TPromise.as(null);
 					}),
