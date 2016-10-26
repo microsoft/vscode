@@ -427,7 +427,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
 
 		this.syncDelayer.trigger(loop, delay)
-			.done(null, err => this.onError(err));
+			.done(null, err => null);
 	}
 
 	private syncWithGallery(): TPromise<void> {
@@ -445,7 +445,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private eventuallyAutoUpdateExtensions(): void {
 		this.autoUpdateDelayer.trigger(() => this.autoUpdateExtensions())
-			.done(null, err => this.onError(err));
+			.done(null, err => null);
 	}
 
 	private autoUpdateExtensions(): TPromise<void> {
