@@ -217,14 +217,14 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.overloads = dom.append(wrapper, $('.overloads'));
 
-		const body = dom.append(wrapper, $('.body'));
+		const body = $('.body');
+		this.scrollbar = new DomScrollableElement(body, { canUseTranslate3d: false });
+		this.disposables.push(this.scrollbar);
+		wrapper.appendChild(this.scrollbar.getDomNode());
 
 		this.signature = dom.append(body, $('.signature'));
 
-		this.docs = $('.docs');
-		this.scrollbar = new DomScrollableElement(this.docs, { canUseTranslate3d: false });
-		this.disposables.push(this.scrollbar);
-		body.appendChild(this.scrollbar.getDomNode());
+		this.docs = dom.append(body, $('.docs'));
 
 		this.currentSignature = 0;
 
