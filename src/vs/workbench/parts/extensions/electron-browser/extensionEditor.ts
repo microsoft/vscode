@@ -519,6 +519,11 @@ export class ExtensionEditor extends BaseEditor {
 
 		rawKeybindings.forEach(rawKeybinding => {
 			const keyLabel = this.keybindingToLabel(rawKeybinding);
+
+			if (!keyLabel) {
+				return;
+			}
+
 			let command = byId[rawKeybinding.command];
 
 			if (!command) {
@@ -635,7 +640,8 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const keyBinding = new Keybinding(Keybinding.fromUserSettingsLabel(key || rawKeyBinding.key));
-		return this.keybindingService.getLabelFor(keyBinding);
+		const result = this.keybindingService.getLabelFor(keyBinding);
+		return result === 'unknown' ? null : result;
 	}
 
 	private loadContents(loadingTask: () => TPromise<any>): void {
