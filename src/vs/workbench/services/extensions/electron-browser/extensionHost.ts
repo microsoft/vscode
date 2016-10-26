@@ -22,11 +22,12 @@ import { ipcRenderer as ipc } from 'electron';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import Event, { Emitter } from 'vs/base/common/event';
 import { createQueuedSender, IQueuedSender } from 'vs/base/node/processes';
-import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData, IInitConfiguration } from 'vs/workbench/api/node/extHost.protocol';
+import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -58,6 +59,8 @@ export class ExtensionHostProcessWorker {
 		return this._onMessage.event;
 	}
 
+	private extensionService: MainProcessExtensionService;
+
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService,
@@ -65,7 +68,7 @@ export class ExtensionHostProcessWorker {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
@@ -78,7 +81,8 @@ export class ExtensionHostProcessWorker {
 		lifecycleService.onShutdown(() => this.terminate());
 	}
 
-	public start(): void {
+	public start(extensionService: MainProcessExtensionService): void {
+		this.extensionService = extensionService;
 		let opts: any = {
 			env: objects.mixin(objects.clone(process.env), {
 				AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
@@ -200,7 +204,7 @@ export class ExtensionHostProcessWorker {
 		if (this.initializeTimer) {
 			window.clearTimeout(this.initializeTimer);
 		}
-		this.extensionsRuntimeService.getExtensions().then(extensionDescriptors => {
+		this.extensionService.readExtensions().then((extensionDescriptions) => {
 			let initData: IInitData = {
 				parentPid: process.pid,
 				environment: {
@@ -213,7 +217,8 @@ export class ExtensionHostProcessWorker {
 				contextService: {
 					workspace: this.contextService.getWorkspace()
 				},
-				extensions: extensionDescriptors
+				extensions: extensionDescriptions,
+				configuration: this.configurationService.getConfiguration<IInitConfiguration>()
 			};
 			this.extensionHostProcessQueuedSender.send(stringify(initData));
 		});

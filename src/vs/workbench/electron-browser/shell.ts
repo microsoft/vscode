@@ -296,12 +296,13 @@ export class WorkbenchShell {
 		serviceCollection.set(IExtensionsRuntimeService, extensionsRuntimeService);
 		disposables.add(extensionsRuntimeService);
 
-		const extensionHostProcessWorker = this.startExtensionHost(instantiationService);
+		const extensionHostProcessWorker = instantiationService.createInstance(ExtensionHostProcessWorker);
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
 		serviceCollection.set(IThreadService, this.threadService);
 
 		const extensionService = instantiationService.createInstance(MainProcessExtensionService);
 		serviceCollection.set(IExtensionService, extensionService);
+		extensionHostProcessWorker.start(extensionService);
 
 		serviceCollection.set(ICommandService, new CommandService(instantiationService, extensionService));
 
@@ -452,12 +453,6 @@ export class WorkbenchShell {
 
 		this.contextViewService.layout();
 		this.workbench.layout();
-	}
-
-	private startExtensionHost(instantiationService: InstantiationService): ExtensionHostProcessWorker {
-		const extensionHostProcessWorker: ExtensionHostProcessWorker = <ExtensionHostProcessWorker>instantiationService.createInstance(ExtensionHostProcessWorker);
-		extensionHostProcessWorker.start();
-		return extensionHostProcessWorker;
 	}
 
 	public joinCreation(): TPromise<boolean> {

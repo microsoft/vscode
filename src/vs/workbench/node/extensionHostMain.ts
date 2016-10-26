@@ -55,7 +55,7 @@ export class ExtensionHostMain {
 		this._extensionService = new ExtHostExtensionService(initData.extensions, threadService, telemetryService, { _serviceBrand: 'optionalArgs', workspaceStoragePath });
 
 		// Create the ext host API
-		const factory = createApiFactory(threadService, this._extensionService, this._contextService, telemetryService);
+		const factory = createApiFactory(initData.configuration, threadService, this._extensionService, this._contextService, telemetryService);
 		defineAPI(factory, this._extensionService);
 	}
 
@@ -107,7 +107,7 @@ export class ExtensionHostMain {
 	}
 
 	public start(): TPromise<void> {
-		return this.registerExtensions();
+		return this.handleEagerExtensions().then(() => this.handleExtensionTests());
 	}
 
 	public terminate(): void {
@@ -140,11 +140,6 @@ export class ExtensionHostMain {
 		setTimeout(() => {
 			TPromise.any<void>([TPromise.timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
 		}, 1000);
-	}
-
-	private registerExtensions(): TPromise<void> {
-		this._extensionService.registrationDone();
-		return this.handleEagerExtensions().then(() => this.handleExtensionTests());
 	}
 
 	// Handle "eager" activation extensions

@@ -119,7 +119,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(availableExtensions: IExtensionDescription[], threadService: IThreadService, telemetryService: ITelemetryService, args: { _serviceBrand: any; workspaceStoragePath: string; }) {
-		super(false);
+		super(true);
 		this._registry.registerExtensions(availableExtensions);
 		this._threadService = threadService;
 		this._storage = new ExtHostStorage(threadService);
@@ -184,14 +184,6 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 		}
 
 		return result;
-	}
-
-	public registrationDone(): void {
-		this._proxy.$onExtensionHostReady(this._registry.getAllExtensionDescriptions()).then(() => {
-			// Wait for the main process to acknowledge its receival of the extensions descriptions
-			// before allowing extensions to be activated
-			this._triggerOnReady();
-		});
 	}
 
 	// -- overwriting AbstractExtensionService

@@ -43,7 +43,7 @@ import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
 import { realpathSync } from 'fs';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { MainContext, ExtHostContext, InstanceCollection } from './extHost.protocol';
+import { MainContext, ExtHostContext, InstanceCollection, IInitConfiguration } from './extHost.protocol';
 
 
 export interface IExtensionApiFactory {
@@ -53,7 +53,7 @@ export interface IExtensionApiFactory {
 /**
  * This method instantiates and returns the extension API surface
  */
-export function createApiFactory(threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService, telemetryService: ITelemetryService): IExtensionApiFactory {
+export function createApiFactory(initDataConfiguration: IInitConfiguration, threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService, telemetryService: ITelemetryService): IExtensionApiFactory {
 
 
 
@@ -64,7 +64,7 @@ export function createApiFactory(threadService: IThreadService, extensionService
 	const extHostDocumentSaveParticipant = col.define(ExtHostContext.ExtHostDocumentSaveParticipant).set<ExtHostDocumentSaveParticipant>(new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
 	const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocuments));
 	const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostEditors, extHostHeapService));
-	const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration)));
+	const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), initDataConfiguration));
 	const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set<ExtHostDiagnostics>(new ExtHostDiagnostics(threadService));
 	const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set<ExtHostLanguageFeatures>(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
 	const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
