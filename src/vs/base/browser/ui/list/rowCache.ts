@@ -14,7 +14,7 @@ export interface IRow {
 }
 
 function getLastScrollTime(element: HTMLElement): number {
-	var value = element.getAttribute('last-scroll-time');
+	const value = element.getAttribute('last-scroll-time');
 	return value ? parseInt(value, 10) : 0;
 }
 
@@ -64,32 +64,37 @@ export class RowCache<T> implements IDisposable {
 			return;
 		}
 
-		var lastScrollTime = getLastScrollTime(row.domNode);
+		const lastScrollTime = getLastScrollTime(row.domNode);
 
 		if (!lastScrollTime) {
-			removeFromParent(row.domNode);
-			this.getTemplateCache(row.templateId).push(row);
+			this.releaseRow(row);
 			return;
 		}
 
 		if (this.scrollingRow) {
-			var lastKnownScrollTime = getLastScrollTime(this.scrollingRow.domNode);
+			const lastKnownScrollTime = getLastScrollTime(this.scrollingRow.domNode);
 
 			if (lastKnownScrollTime > lastScrollTime) {
-				removeFromParent(row.domNode);
-				this.getTemplateCache(row.templateId).push(row);
+				this.releaseRow(row);
 				return;
 			}
 
 			if (this.scrollingRow.domNode.parentElement) {
-				removeFromParent(this.scrollingRow.domNode);
-				removeClass(this.scrollingRow.domNode, 'scrolling');
-				this.getTemplateCache(this.scrollingRow.templateId).push(this.scrollingRow);
+				this.releaseRow(this.scrollingRow);
 			}
 		}
 
 		this.scrollingRow = row;
 		addClass(this.scrollingRow.domNode, 'scrolling');
+	}
+
+	private releaseRow(row: IRow): void {
+		const {domNode, templateId} = row;
+		removeClass(domNode, 'scrolling');
+		removeFromParent(domNode);
+
+		const cache = this.getTemplateCache(templateId);
+		cache.push(row);
 	}
 
 	private getTemplateCache(templateId: string): IRow[] {
