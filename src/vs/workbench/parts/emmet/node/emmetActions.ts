@@ -14,6 +14,7 @@ import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegi
 
 import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import * as emmet from 'emmet';
 
 interface IEmmetConfiguration {
@@ -134,29 +135,46 @@ export abstract class EmmetEditorAction extends EditorAction {
 		// default do nothing
 	}
 
+	private _lastGrammarContributions: TPromise<GrammarContributions> = null;
+	private _lastExtensionService: IExtensionService = null;
+	private _withGrammarContributions(extensionService: IExtensionService): TPromise<GrammarContributions> {
+		if (this._lastExtensionService !== extensionService) {
+			this._lastExtensionService = extensionService;
+			this._lastGrammarContributions = extensionService.onReady().then(() => {
+				return new GrammarContributions();
+			});
+		}
+		return this._lastGrammarContributions;
+	}
+
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const extensionService = accessor.get(IExtensionService);
 
-		let editorAccessor = new EditorAccessor(
-			editor,
-			configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles,
-			configurationService.getConfiguration<IEmmetConfiguration>().emmet.excludeLanguages,
-			new GrammarContributions()
-		);
+		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
-		if (!editorAccessor.isEmmetEnabledMode()) {
-			this.noExpansionOccurred(editor);
-			return;
-		}
+			let editorAccessor = new EditorAccessor(
+				editor,
+				configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles,
+				configurationService.getConfiguration<IEmmetConfiguration>().emmet.excludeLanguages,
+				grammarContributions
+			);
 
-		return LazyEmmet.withConfiguredEmmet(configurationService, (_emmet) => {
-			editorAccessor.onBeforeEmmetAction();
-			instantiationService.invokeFunction((accessor) => {
-				this.runEmmetAction(accessor, new EmmetActionContext(editor, _emmet, editorAccessor));
+			if (!editorAccessor.isEmmetEnabledMode()) {
+				this.noExpansionOccurred(editor);
+				return;
+			}
+
+			return LazyEmmet.withConfiguredEmmet(configurationService, (_emmet) => {
+				editorAccessor.onBeforeEmmetAction();
+				instantiationService.invokeFunction((accessor) => {
+					this.runEmmetAction(accessor, new EmmetActionContext(editor, _emmet, editorAccessor));
+				});
+				editorAccessor.onAfterEmmetAction();
 			});
-			editorAccessor.onAfterEmmetAction();
 		});
+
 	}
 }
 
