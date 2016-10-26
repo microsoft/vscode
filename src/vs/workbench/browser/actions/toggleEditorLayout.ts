@@ -51,7 +51,7 @@ export class ToggleEditorLayoutAction extends Action {
 	}
 
 	private updateEnablement(): void {
-		this.enabled = this.editorGroupService.getStacksModel().groups.length > 1;
+		this.enabled = this.editorGroupService.getStacksModel().groups.length > 0;
 	}
 
 	public run(): TPromise<any> {
