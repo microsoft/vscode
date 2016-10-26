@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionDescription, IExtensionService, IExtensionsStatus, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
-import { IExtensionPoint, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionPoint, ExtensionsRegistry, onWillActivate } from 'vs/platform/extensions/common/extensionsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -86,7 +86,7 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
 		return this._onReady.then(() => {
-			ExtensionsRegistry.triggerActivationEventListeners(activationEvent);
+			onWillActivate.fire(activationEvent);
 			let activateExtensions = ExtensionsRegistry.getExtensionDescriptionsForActivationEvent(activationEvent);
 			return this._activateExtensions(activateExtensions, 0);
 		});

@@ -25,10 +25,6 @@ export interface IExtensionDescription {
 	readonly contributes?: { [point: string]: any; };
 }
 
-export interface IActivationEventListener {
-	(): void;
-}
-
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
 
 export interface IMessage {
