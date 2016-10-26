@@ -159,6 +159,10 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 			if (this.reference <= 0) {
 				this.children = TPromise.as([]);
 			} else {
+				if (!this.getChildrenInChunks) {
+					return this.fetchVariables(undefined, undefined, undefined);
+				}
+
 				// Check if object has named variables, fetch them independent from indexed variables #9670
 				this.children = (!!this.namedVariables ? this.fetchVariables(undefined, undefined, 'named')
 					: TPromise.as([])).then(childrenArray => {
@@ -180,9 +184,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 							return childrenArray;
 						}
 
-						const start = this.getChildrenInChunks ? this.startOfVariables : undefined;
-						const count = this.getChildrenInChunks ? this.indexedVariables : undefined;
-						return this.fetchVariables(start, count, this.getChildrenInChunks ? 'indexed' : undefined)
+						return this.fetchVariables(this.startOfVariables, this.indexedVariables, 'indexed')
 							.then(variables => childrenArray.concat(variables));
 					});
 			}
