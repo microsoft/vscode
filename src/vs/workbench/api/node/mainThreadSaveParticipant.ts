@@ -11,6 +11,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPosition, IModel, ICommonCodeEditor, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -97,7 +98,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 		const {tabSize, insertSpaces} = model.getOptions();
 
 		return new TPromise<ISingleEditOperation[]>((resolve, reject) => {
-			setTimeout(resolve, 750);
+			setTimeout(reject, 750);
 			getDocumentFormattingEdits(model, { tabSize, insertSpaces }).then(resolve, reject);
 
 		}).then(edits => {
@@ -167,7 +168,13 @@ class ExtHostSaveParticipant implements ISaveParticipant {
 	}
 
 	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
-		return this._proxy.$participateInSave(editorModel.getResource(), env.reason);
+		return this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
+			for (const success of values) {
+				if (!success) {
+					return TPromise.wrapError('listener failed');
+				}
+			}
+		});
 	}
 }
 
@@ -177,6 +184,7 @@ export class SaveParticipant implements ISaveParticipant {
 	private _saveParticipants: ISaveParticipant[];
 
 	constructor(
+		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService
 	) {
@@ -191,11 +199,24 @@ export class SaveParticipant implements ISaveParticipant {
 		TextFileEditorModel.setSaveParticipant(this);
 	}
 	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
+
+		const stats: { [name: string]: number } = Object.create(null);
+
 		const promiseFactory = this._saveParticipants.map(p => () => {
-			return TPromise.as(p.participate(model, env)).then(undefined, err => {
+
+			const {name} = Object.getPrototypeOf(p).constructor;
+			const t1 = Date.now();
+
+			return TPromise.as(p.participate(model, env)).then(() => {
+				stats[`Success-${name}`] = Date.now() - t1;
+			}, err => {
+				stats[`Failure-${name}`] = Date.now() - t1;
 				// console.error(err);
 			});
 		});
-		return sequence(promiseFactory);
+
+		return sequence(promiseFactory).then(() => {
+			this._telemetryService.publicLog('saveParticipantTimes', stats);
+		});
 	}
 }
