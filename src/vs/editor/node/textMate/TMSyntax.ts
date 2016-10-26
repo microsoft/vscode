@@ -17,6 +17,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IGrammar, Registry, StackElement, IToken } from 'vscode-textmate';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
+import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
@@ -26,7 +27,7 @@ export interface ITMSyntaxExtensionPoint {
 }
 
 // TODO@Martin TS(2.0.2) - Type IJsonSchema has no defined property require. Keeping semantic using any cast
-export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', <any>{
+export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', [languagesExtPoint], <any>{
 	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.' }] }],

@@ -13,13 +13,14 @@ import { IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/exte
 import { ISnippetsRegistry, Extensions, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import platform = require('vs/platform/platform');
+import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
 
 export interface ISnippetsExtensionPoint {
 	language: string;
 	path: string;
 }
 
-let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISnippetsExtensionPoint[]>('snippets', {
+let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISnippetsExtensionPoint[]>('snippets', [languagesExtPoint], {
 	description: nls.localize('vscode.extension.contributes.snippets', 'Contributes snippets.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ language: '', path: '' }] }],
@@ -56,7 +57,7 @@ export class MainProcessTextMateSnippet {
 	}
 
 	private _withSnippetContribution(extensionName: string, extensionFolderPath: string, snippet: ISnippetsExtensionPoint, collector: IExtensionMessageCollector): void {
-		if (!snippet.language || (typeof snippet.language !== 'string')) {
+		if (!snippet.language || (typeof snippet.language !== 'string') || !this._modeService.isRegisteredMode(snippet.language)) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", snippetsExtensionPoint.name, String(snippet.language)));
 			return;
 		}

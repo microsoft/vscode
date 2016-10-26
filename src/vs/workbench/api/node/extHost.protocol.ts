@@ -18,7 +18,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { IMessage, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
@@ -195,7 +195,7 @@ export abstract class MainThreadWorkspaceShape {
 }
 
 export abstract class MainProcessExtensionServiceShape {
-	$onExtensionHostReady(extensionDescriptions: IExtensionDescription[], messages: IMessage[]): TPromise<void> { throw ni(); }
+	$onExtensionHostReady(extensionDescriptions: IExtensionDescription[]): TPromise<void> { throw ni(); }
 	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
 	$onExtensionActivated(extensionId: string): void { throw ni(); }
 	$onExtensionActivationFailed(extensionId: string): void { throw ni(); }

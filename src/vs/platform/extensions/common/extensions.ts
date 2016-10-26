@@ -29,10 +29,6 @@ export interface IActivationEventListener {
 	(): void;
 }
 
-export interface IPointListener {
-	(desc: IExtensionDescription[]): void;
-}
-
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
 
 export interface IMessage {
