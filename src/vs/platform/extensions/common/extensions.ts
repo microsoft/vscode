@@ -9,19 +9,19 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IExtensionDescription {
-	id: string;
-	name: string;
-	version: string;
-	publisher: string;
-	isBuiltin: boolean;
-	extensionFolderPath: string;
-	extensionDependencies?: string[];
-	activationEvents?: string[];
-	engines: {
+	readonly id: string;
+	readonly name: string;
+	readonly version: string;
+	readonly publisher: string;
+	readonly isBuiltin: boolean;
+	readonly extensionFolderPath: string;
+	readonly extensionDependencies?: string[];
+	readonly activationEvents?: string[];
+	readonly engines: {
 		vscode: string;
 	};
-	main?: string;
-	contributes?: { [point: string]: any; };
+	readonly main?: string;
+	readonly contributes?: { [point: string]: any; };
 }
 
 export interface IActivationEventListener {
@@ -69,10 +69,9 @@ export interface IExtensionsRuntimeService {
 	_serviceBrand: any;
 
 	/**
-	 * if `includeDisabled` is `true` returns all extensions otherwise
-	 * returns only enabled extensions
+	 * Scans and returns only enabled extensions.
 	 */
-	getExtensions(includeDisabled?: boolean): TPromise<IExtensionDescription[]>;
+	getExtensions(): TPromise<IExtensionDescription[]>;
 
 	/**
 	 * Returns `true` if given extension is disabled, otherwise `false`.

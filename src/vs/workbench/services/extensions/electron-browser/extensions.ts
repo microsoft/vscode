@@ -47,12 +47,9 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 		extensionManagementService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 	}
 
-	public getExtensions(includeDisabled: boolean = false): TPromise<IExtensionDescription[]> {
+	public getExtensions(): TPromise<IExtensionDescription[]> {
 		if (!this.installedExtensions) {
 			this.installedExtensions = this.scanExtensions();
-		}
-		if (includeDisabled) {
-			return this.installedExtensions;
 		}
 		return this.installedExtensions.then(extensionDescriptions => {
 			const disabledExtensions = this.getDisabledExtensions();
