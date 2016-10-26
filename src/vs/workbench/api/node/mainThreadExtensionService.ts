@@ -7,7 +7,7 @@
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
-import { IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
+import { IExtensionsRuntimeService, IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -53,7 +53,8 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	constructor(
 		@IThreadService threadService: IThreadService,
 		@IMessageService messageService: IMessageService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IExtensionsRuntimeService extensionsRuntimeService: IExtensionsRuntimeService
 	) {
 		super(false);
 		this._isDev = !environmentService.isBuilt || !!environmentService.extensionDevelopmentPath;
@@ -62,6 +63,8 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		this._threadService = threadService;
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
+
+		extensionsRuntimeService.getExtensions().then((extensionDescriptions) => this._onExtensionDescriptions(extensionDescriptions));
 	}
 
 	private _handleMessage(msg: IMessage) {
@@ -124,7 +127,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 
 	// -- called by extension host
 
-	public $onExtensionHostReady(extensionDescriptions: IExtensionDescription[]): TPromise<void> {
+	private _onExtensionDescriptions(extensionDescriptions: IExtensionDescription[]): void {
 		this._registry.registerExtensions(extensionDescriptions);
 
 		let availableExtensions = this._registry.getAllExtensionDescriptions();
@@ -135,7 +138,6 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		}
 
 		this._triggerOnReady();
-		return;
 	}
 
 	private _handleExtensionPoint<T>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[]): void {

@@ -78,6 +78,12 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 		});
 	}
 
+	public readExtensions(): TPromise<IExtensionDescription[]> {
+		return this.onReady().then(() => {
+			return this._registry.getAllExtensionDescriptions();
+		});
+	}
+
 	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
 		return null;
 	}

@@ -43,6 +43,10 @@ export interface IEnvironment {
 	extensionTestsPath: string;
 }
 
+export interface IInitConfiguration {
+	_initConfigurationBrand: void;
+}
+
 export interface IInitData {
 	parentPid: number;
 	environment: IEnvironment;
@@ -50,6 +54,7 @@ export interface IInitData {
 		workspace: IWorkspace;
 	};
 	extensions: IExtensionDescription[];
+	configuration: IInitConfiguration;
 }
 
 export interface InstanceSetter<T> {
@@ -213,7 +218,6 @@ export abstract class MainThreadWorkspaceShape {
 }
 
 export abstract class MainProcessExtensionServiceShape {
-	$onExtensionHostReady(extensionDescriptions: IExtensionDescription[]): TPromise<void> { throw ni(); }
 	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
 	$onExtensionActivated(extensionId: string): void { throw ni(); }
 	$onExtensionActivationFailed(extensionId: string): void { throw ni(); }
