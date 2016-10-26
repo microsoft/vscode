@@ -223,7 +223,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return this.progress(this.query(value))
 			.then(model => {
 				if (!value && model.length === 0 && suggestPopular) {
-					return this.search('@sort:installs');
+					return this.search('@sort:installs ');
 				}
 
 				this.setModel(model);
