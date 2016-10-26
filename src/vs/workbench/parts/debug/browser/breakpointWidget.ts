@@ -39,6 +39,7 @@ export class BreakpointWidget extends ZoneWidget {
 	private toDispose: lifecycle.IDisposable[];
 	private breakpointWidgetVisible: IContextKey<boolean>;
 	private hitCountContext: boolean;
+	private static lastSelected = 0;
 
 	constructor(editor: editorbrowser.ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -65,33 +66,54 @@ export class BreakpointWidget extends ZoneWidget {
 		BreakpointWidget.INSTANCE.show({ lineNumber, column: 1 }, 2);
 	}
 
+	private get placeholder(): string {
+		return this.hitCountContext ? HIT_COUNT_PLACEHOLDER : EXPRESSION_PLACEHOLDER;
+	}
+
+	private get ariaLabel(): string {
+		return this.hitCountContext ? HIT_COUNT_ARIA_LABEL : EXPRESSION_ARIA_LABEL;
+	}
+
+	private getInputBoxValue(breakpoint: debug.IBreakpoint): string {
+		if (this.hitCountContext) {
+			return breakpoint && breakpoint.hitCondition ? breakpoint.hitCondition : '';
+		}
+
+		return breakpoint && breakpoint.condition ? breakpoint.condition : '';
+	}
+
 	protected _fillContainer(container: HTMLElement): void {
 		dom.addClass(container, 'breakpoint-widget monaco-editor-background');
 		const uri = this.editor.getModel().uri;
 		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
 
-		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count")], 0);
+		let selected = BreakpointWidget.lastSelected;
+		if (breakpoint && breakpoint.condition) {
+			selected = 0;
+		} else if (breakpoint && breakpoint.hitCondition) {
+			selected = 1;
+		}
+		BreakpointWidget.lastSelected = selected;
+		this.hitCountContext = selected === 1;
+		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count")], selected);
 		selectBox.render(dom.append(container, $('.breakpoint-select-container')));
 		selectBox.onDidSelect(e => {
 			this.hitCountContext = e === 'Hit Count';
-			this.inputBox.setAriaLabel(this.hitCountContext ? HIT_COUNT_ARIA_LABEL : EXPRESSION_ARIA_LABEL);
-			this.inputBox.setPlaceHolder(this.hitCountContext ? HIT_COUNT_PLACEHOLDER : EXPRESSION_PLACEHOLDER);
-			if (this.hitCountContext) {
-				this.inputBox.value = breakpoint && breakpoint.hitCondition ? breakpoint.hitCondition : '';
-			} else {
-				this.inputBox.value = breakpoint && breakpoint.condition ? breakpoint.condition : '';
-			}
+			BreakpointWidget.lastSelected = this.hitCountContext ? 1 : 0;
+			this.inputBox.setAriaLabel(this.ariaLabel);
+			this.inputBox.setPlaceHolder(this.placeholder);
+			this.inputBox.value = this.getInputBoxValue(breakpoint);
 		});
 
 		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 		this.inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
-			placeholder: EXPRESSION_PLACEHOLDER,
-			ariaLabel: EXPRESSION_ARIA_LABEL
+			placeholder: this.placeholder,
+			ariaLabel: this.ariaLabel
 		});
 		this.toDispose.push(this.inputBox);
 
 		dom.addClass(this.inputBox.inputElement, platform.isWindows ? 'windows' : platform.isMacintosh ? 'mac' : 'linux');
-		this.inputBox.value = (breakpoint && breakpoint.condition) ? breakpoint.condition : '';
+		this.inputBox.value = this.getInputBoxValue(breakpoint);
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.inputBox.focus(), 0);
 
