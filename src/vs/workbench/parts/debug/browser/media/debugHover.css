@@ -36,6 +36,7 @@
 
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-row > .content {
 	-webkit-user-select: text;
+	white-space: pre;
 }
 
 /* Disable tree highlight in debug hover tree. */
@@ -61,7 +62,7 @@
 }
 
 .monaco-editor .debug-hover-widget .value {
-	word-wrap: break-word;
+	white-space: pre-wrap;
 	color: rgba(108, 108, 108, 0.8);
 }
 
