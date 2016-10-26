@@ -490,6 +490,12 @@ export class WindowsManager implements IWindowsService {
 			shell.showItemInFolder(path);
 		});
 
+		ipc.on('vscode:openExternal', (event, url: string) => {
+			this.logService.log('IPC#vscode-openExternal');
+
+			shell.openExternal(url);
+		});
+
 		this.updateService.on('update-downloaded', (update: IUpdate) => {
 			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
 

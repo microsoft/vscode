@@ -33,7 +33,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITemplateData } from './extensionsList';
 import { RatingsWidget, InstallWidget } from './extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { shell } from 'electron';
 import product from 'vs/platform/product';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, BuiltinStatusLabelAction } from './extensionsActions';
@@ -236,8 +235,8 @@ export class ExtensionEditor extends BaseEditor {
 		if (product.extensionsGallery) {
 			const extensionUrl = `${product.extensionsGallery.itemUrl}?itemName=${extension.publisher}.${extension.name}`;
 
-			this.name.onclick = finalHandler(() => shell.openExternal(extensionUrl));
-			this.rating.onclick = finalHandler(() => shell.openExternal(`${extensionUrl}#review-details`));
+			this.name.onclick = finalHandler(() => window.open(extensionUrl));
+			this.rating.onclick = finalHandler(() => window.open(`${extensionUrl}#review-details`));
 			this.publisher.onclick = finalHandler(() => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
@@ -245,7 +244,7 @@ export class ExtensionEditor extends BaseEditor {
 			});
 
 			if (extension.licenseUrl) {
-				this.license.onclick = finalHandler(() => shell.openExternal(extension.licenseUrl));
+				this.license.onclick = finalHandler(() => window.open(extension.licenseUrl));
 				this.license.style.display = 'initial';
 			} else {
 				this.license.onclick = null;
