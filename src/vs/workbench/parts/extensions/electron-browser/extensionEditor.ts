@@ -385,6 +385,11 @@ export class ExtensionEditor extends BaseEditor {
 
 			this.contentDisposables.push(tree);
 			scrollableContent.scanDomNode();
+		}, error => {
+			removeClass(this.content, 'loading');
+			append(this.content, $('p.nocontent')).textContent = error;
+			this.messageService.show(Severity.Error, error);
+			return;
 		});
 	}
 
