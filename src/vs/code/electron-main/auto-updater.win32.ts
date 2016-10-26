@@ -23,8 +23,9 @@ export interface IUpdate {
 	url: string;
 	name: string;
 	releaseNotes?: string;
-	version?: string;
-	hash?: string;
+	version: string;
+	productVersion: string;
+	hash: string;
 }
 
 export class Win32AutoUpdaterImpl extends EventEmitter {
@@ -93,7 +94,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 						this.emit('update-downloaded',
 							{},
 							update.releaseNotes,
-							update.version,
+							update.productVersion,
 							new Date(),
 							this.url,
 							() => this.quitAndUpdate(updatePackagePath)
