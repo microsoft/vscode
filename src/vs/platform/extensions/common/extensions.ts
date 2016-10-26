@@ -7,6 +7,7 @@
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 
 export interface IExtensionDescription {
 	readonly id: string;
@@ -44,6 +45,16 @@ export interface IExtensionsStatus {
 	messages: IMessage[];
 }
 
+export class ExtensionPointContribution<T> {
+	readonly description: IExtensionDescription;
+	readonly value: T;
+
+	constructor(description: IExtensionDescription, value: T) {
+		this.description = description;
+		this.value = value;
+	}
+}
+
 export interface IExtensionService {
 	_serviceBrand: any;
 
@@ -56,6 +67,11 @@ export interface IExtensionService {
 	 * Block on this signal any interactions with extensions.
 	 */
 	onReady(): TPromise<boolean>;
+
+	/**
+	 * Read all contributions to an extension point.
+	 */
+	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]>;
 
 	/**
 	 * Get information about extensions status.

@@ -7,8 +7,8 @@
 import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionDescription, IExtensionService, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionDescription, IExtensionService, IExtensionsStatus, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
+import { IExtensionPoint, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -57,6 +57,23 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 
 	public onReady(): TPromise<boolean> {
 		return this._onReady;
+	}
+
+	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
+		return this.onReady().then(() => {
+			let availableExtensions = ExtensionsRegistry.getAllExtensionDescriptions();
+
+			let result: ExtensionPointContribution<T>[] = [], resultLen = 0;
+			for (let i = 0, len = availableExtensions.length; i < len; i++) {
+				let desc = availableExtensions[i];
+
+				if (desc.contributes && hasOwnProperty.call(desc.contributes, extPoint.name)) {
+					result[resultLen++] = new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name]);
+				}
+			}
+
+			return result;
+		});
 	}
 
 	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
