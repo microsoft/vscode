@@ -9,7 +9,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionPoint, IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ILineTokens, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { TMState } from 'vs/editor/common/modes/TMState';
 import { LineTokens } from 'vs/editor/common/modes/supports';
@@ -26,7 +26,7 @@ export interface ITMSyntaxExtensionPoint {
 }
 
 // TODO@Martin TS(2.0.2) - Type IJsonSchema has no defined property require. Keeping semantic using any cast
-let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', <any>{
+export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', <any>{
 	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.' }] }],
