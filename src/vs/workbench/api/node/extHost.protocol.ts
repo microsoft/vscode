@@ -235,7 +235,7 @@ export abstract class ExtHostDocumentsShape {
 }
 
 export abstract class ExtHostDocumentSaveParticipantShape {
-	$participateInSave(resource: URI, reason: SaveReason): TPromise<any[]> { throw ni(); }
+	$participateInSave(resource: URI, reason: SaveReason): TPromise<boolean[]> { throw ni(); }
 }
 
 export interface ITextEditorAddData {
