@@ -372,9 +372,9 @@ export class ManageExtensionAction extends Action {
 		this.class = ManageExtensionAction.NoExtensionClass;
 		this.enabled = false;
 		if (this.extension) {
-			this.class = ManageExtensionAction.Class;
 			const state = this.extension.state;
 			this.enabled = ExtensionState.Uninstalled !== state && ExtensionState.Installing !== state && ExtensionState.Uninstalling !== state;
+			this.class = ExtensionState.Uninstalled === state || ExtensionState.Installing === state ? ManageExtensionAction.NoExtensionClass : ManageExtensionAction.Class;
 		}
 	}
 
