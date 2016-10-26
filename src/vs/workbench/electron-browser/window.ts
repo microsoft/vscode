@@ -183,4 +183,8 @@ export class ElectronWindow {
 	public flashFrame(): void {
 		ipc.send('vscode:flashFrame', this.windowId); // handled from browser process
 	}
+
+	public showItemInFolder(path: string): void {
+		ipc.send('vscode:showItemInFolder', path); // handled from browser process to prevent foreground ordering issues on Windows
+	}
 }

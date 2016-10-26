@@ -18,7 +18,7 @@ import { EventEmitter } from 'events';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
+import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog, shell } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -482,6 +482,12 @@ export class WindowsManager implements IWindowsService {
 			window.send('vscode:switchWindow', windows.map(w => {
 				return { path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id };
 			}));
+		});
+
+		ipc.on('vscode:showItemInFolder', (event, path: string) => {
+			this.logService.log('IPC#vscode-showItemInFolder');
+
+			shell.showItemInFolder(path);
 		});
 
 		this.updateService.on('update-downloaded', (update: IUpdate) => {

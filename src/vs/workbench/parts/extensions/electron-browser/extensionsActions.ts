@@ -24,12 +24,13 @@ import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from '../common/extensionQuery';
-import { shell, remote } from 'electron';
+import { remote } from 'electron';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/electron-browser/extensionsFileTemplate';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
 
 const dialog = remote.dialog;
 
@@ -1022,6 +1023,7 @@ export class OpenExtensionsFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		@IWindowService private windowService: IWindowService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label, null, true);
@@ -1029,7 +1031,7 @@ export class OpenExtensionsFolderAction extends Action {
 
 	run(): TPromise<any> {
 		const extensionsHome = this.environmentService.extensionsPath;
-		shell.showItemInFolder(paths.normalize(extensionsHome, true));
+		this.windowService.getWindow().showItemInFolder(paths.normalize(extensionsHome, true));
 
 		return TPromise.as(true);
 	}
