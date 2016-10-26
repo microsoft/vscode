@@ -104,6 +104,9 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 interface IInternalThemeData extends IThemeData {
 	styleSheetContent?: string;
 	extensionId: string;
+	extensionPublisher: string;
+	extensionName: string;
+	extensionIsBuiltin: boolean;
 }
 
 interface IconDefinition {
@@ -140,6 +143,13 @@ interface IconThemeDocument extends IconsAssociation {
 	highContrast?: IconsAssociation;
 }
 
+interface ExtensionData {
+	extensionId: string;
+	extensionPublisher: string;
+	extensionName: string;
+	extensionIsBuiltin: boolean;
+}
+
 export class ThemeService implements IThemeService {
 	_serviceBrand: any;
 
@@ -164,7 +174,13 @@ export class ThemeService implements IThemeService {
 
 		themesExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
-				this.onThemes(ext.description.extensionFolderPath, ext.description.id, ext.value, ext.collector);
+				let extensionData = {
+					extensionId: ext.description.id,
+					extensionPublisher: ext.description.publisher,
+					extensionName: ext.description.name,
+					extensionIsBuiltin: ext.description.isBuiltin
+				};
+				this.onThemes(ext.description.extensionFolderPath, extensionData, ext.value, ext.collector);
 			}
 		});
 
@@ -176,7 +192,13 @@ export class ThemeService implements IThemeService {
 
 		iconThemeExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
-				this.onIconThemes(ext.description.extensionFolderPath, ext.description.id, ext.value, ext.collector);
+				let extensionData = {
+					extensionId: ext.description.id,
+					extensionPublisher: ext.description.publisher,
+					extensionName: ext.description.name,
+					extensionIsBuiltin: ext.description.isBuiltin
+				};
+				this.onIconThemes(ext.description.extensionFolderPath, extensionData, ext.value, ext.collector);
 			}
 		});
 
@@ -277,7 +299,7 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	private onThemes(extensionFolderPath: string, extensionId: string, themes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
+	private onThemes(extensionFolderPath: string, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
 		if (!Array.isArray(themes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -302,18 +324,21 @@ export class ThemeService implements IThemeService {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
 
-			let themeSelector = toCSSSelector(extensionId + '-' + Paths.normalize(theme.path));
+			let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
 			this.knownColorThemes.push({
 				id: `${theme.uiTheme || defaultBaseTheme} ${themeSelector}`,
 				label: theme.label || Paths.basename(theme.path),
 				description: theme.description,
 				path: normalizedAbsolutePath,
-				extensionId: extensionId
+				extensionId: extensionData.extensionId,
+				extensionPublisher: extensionData.extensionPublisher,
+				extensionName: extensionData.extensionName,
+				extensionIsBuiltin: extensionData.extensionIsBuiltin
 			});
 		});
 	}
 
-	private onIconThemes(extensionFolderPath: string, extensionId: string, iconThemes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
+	private onIconThemes(extensionFolderPath: string, extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
 		if (!Array.isArray(iconThemes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -348,11 +373,14 @@ export class ThemeService implements IThemeService {
 			}
 
 			this.knownIconThemes.push({
-				id: extensionId + '-' + iconTheme.id,
+				id: extensionData.extensionId + '-' + iconTheme.id,
 				label: iconTheme.label || Paths.basename(iconTheme.path),
 				description: iconTheme.description,
 				path: normalizedAbsolutePath,
-				extensionId: extensionId
+				extensionId: extensionData.extensionId,
+				extensionPublisher: extensionData.extensionPublisher,
+				extensionName: extensionData.extensionName,
+				extensionIsBuiltin: extensionData.extensionIsBuiltin
 			});
 		});
 	}
@@ -360,17 +388,14 @@ export class ThemeService implements IThemeService {
 	private themeExtensionsActivated = {};
 	private sendTelemetry(themeData: IInternalThemeData) {
 		if (!this.themeExtensionsActivated[themeData.extensionId]) {
-			let description = ExtensionsRegistry.getExtensionDescription(themeData.extensionId);
-			if (description) {
-				this.telemetryService.publicLog('activatePlugin', {
-					id: description.id,
-					name: description.name,
-					isBuiltin: description.isBuiltin,
-					publisherDisplayName: description.publisher,
-					themeId: themeData.id
-				});
-				this.themeExtensionsActivated[themeData.extensionId] = true;
-			}
+			this.telemetryService.publicLog('activatePlugin', {
+				id: themeData.extensionId,
+				name: themeData.extensionName,
+				isBuiltin: themeData.extensionIsBuiltin,
+				publisherDisplayName: themeData.extensionPublisher,
+				themeId: themeData.id
+			});
+			this.themeExtensionsActivated[themeData.extensionId] = true;
 		}
 	}
 
