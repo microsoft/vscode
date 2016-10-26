@@ -375,7 +375,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private uninstallWithDependencies(extension: ILocalExtension, dependencies: ILocalExtension[], installed: ILocalExtension[]): TPromise<void> {
 		const dependenciesToUninstall = this.filterDependents(extension, dependencies, installed);
-		let dependents = this.getDependents(extension, installed).filter(dependent => dependenciesToUninstall.indexOf(dependent) === -1);
+		let dependents = this.getDependents(extension, installed).filter(dependent => extension !== dependent && dependenciesToUninstall.indexOf(dependent) === -1);
 		if (dependents.length) {
 			return TPromise.wrapError<void>(nls.localize('hasDependentsError', "Cannot uninstall extension '{0}'. Some of the installed extensions depends on this.", extension.manifest.displayName || extension.manifest.name));
 		}
