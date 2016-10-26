@@ -250,7 +250,8 @@ export class UpdateContribution implements IWorkbenchContribution {
 
 		storageService.store(UpdateContribution.KEY, pkg.version, StorageScope.GLOBAL);
 
-		ipc.on('vscode:update-downloaded', (event, update: IUpdate) => {
+		ipc.on('vscode:update-downloaded', (event, data: string) => {
+			const update = JSON.parse(data) as IUpdate;
 			const releaseNotesAction = instantiationService.createInstance(ShowReleaseNotesAction, false, update.version);
 
 			messageService.show(severity.Info, {
