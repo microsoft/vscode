@@ -6,6 +6,7 @@
 'use strict';
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { IMatch, fuzzyContiguousFilter } from 'vs/base/common/filters';
 import { ISuggestSupport } from 'vs/editor/common/modes';
 import { ISuggestionItem } from './suggest';
@@ -154,8 +155,7 @@ export class CompletionModel {
 			this._filteredItems.push(item);
 
 			// compute score against word
-			const wordLowerCase = word.toLowerCase();
-			const score = CompletionModel._scoreByHighlight(item, word, wordLowerCase);
+			const score = CompletionModel._scoreByHighlight(item, word);
 			if (score > topScore) {
 				topScore = score;
 				this._topScoreIdx = this._filteredItems.length - 1;
@@ -176,19 +176,30 @@ export class CompletionModel {
 		}
 	}
 
-	private static _scoreByHighlight(item: ICompletionItem, currentWord: string, currentWordLowerCase: string): number {
+	private static _scoreByHighlight(item: ICompletionItem, currentWord: string): number {
 		const {highlights, suggestion} = item;
 		let score = 0;
 		if (!isFalsyOrEmpty(highlights)) {
 			for (const {start, end} of highlights) {
-				// find the highlight in the current word and
-				// score it based on case-match and start index
-				const part = suggestion.label.substring(start, end);
-				if (currentWord.indexOf(part) >= 0) {
-					score += (2 * part.length) / (start + 1);
+				// scoring logic:
+				// First find the highlighted portion from the label in the current
+				// word and second score a case-senstive match with 2pts and everything
+				// else with 1pt.
 
-				} else if (currentWordLowerCase.indexOf(part) >= 0) {
-					score += part.length / (start + 1);
+				// this is a case-insensitive String#indexOf
+				const part = suggestion.label.substring(start, end);
+				const regexp = new RegExp(escapeRegExpCharacters(part), 'i');
+				const idx = currentWord.search(regexp);
+
+				// case senstive match score 2, the rest 1
+				if (idx >= 0) {
+					for (let i = 0; i < part.length; i++) {
+						if (part[i] === currentWord[idx + i]) {
+							score += 2;
+						} else {
+							score += 1;
+						}
+					}
 				}
 			}
 		}

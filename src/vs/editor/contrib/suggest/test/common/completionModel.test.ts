@@ -82,6 +82,44 @@ suite('CompletionModel', function () {
 		assert.equal(model.topScoreIdx, 1);
 	});
 
+	test('top score, issue #14446', function () {
+
+		const model = new CompletionModel([
+			createSuggestItem('workbench.editor.defaultSideBySideLayout', 15),
+			createSuggestItem('workbench.sideBar.location', 15),
+		], 15, {
+				leadingLineContent: 'workbench.sideb',
+				characterCountDelta: 0
+			}
+		)
+
+		assert.equal(model.topScoreIdx, 1);
+		assert.equal(model.items[model.topScoreIdx].suggestion.label, 'workbench.sideBar.location')
+	});
+
+	test('top score, issue #11423', function () {
+
+		const model = new CompletionModel([
+			createSuggestItem('diffEditor.renderSideBySide', 8),
+			createSuggestItem('editor.overviewRulerlanes', 8),
+			createSuggestItem('editor.renderControlCharacter', 8),
+			createSuggestItem('editor.renderWhitespace', 8),
+		], 15, {
+				leadingLineContent: 'editor.r',
+				characterCountDelta: 0
+			}
+		)
+
+		assert.equal(model.topScoreIdx, 2);
+		assert.equal(model.items[model.topScoreIdx].suggestion.label, 'editor.renderControlCharacter')
+
+		model.lineContext = { leadingLineContent: 'editor.R', characterCountDelta: 0 };
+		assert.equal(model.topScoreIdx, 1);
+
+		model.lineContext = { leadingLineContent: 'Editor.r', characterCountDelta: 0 };
+		assert.equal(model.topScoreIdx, 0);
+	});
+
 	test('complete/incomplete', function () {
 
 		assert.equal(model.incomplete.length, 0);
