@@ -146,6 +146,7 @@ export class SuggestModel implements IDisposable {
 	private quickSuggestDelay: number;
 	private triggerCharacterListeners: IDisposable[] = [];
 
+	private triggerFromIncompletePromise: TPromise<void>;
 	private triggerAutoSuggestPromise: TPromise<void>;
 	private state: State;
 
@@ -248,6 +249,11 @@ export class SuggestModel implements IDisposable {
 	// --- trigger/retrigger/cancel suggest
 
 	cancel(retrigger: boolean = false): void {
+
+		if (this.triggerFromIncompletePromise) {
+			this.triggerFromIncompletePromise.cancel();
+			this.triggerFromIncompletePromise = null;
+		}
 
 		if (this.triggerAutoSuggestPromise) {
 			this.triggerAutoSuggestPromise.cancel();
@@ -373,12 +379,16 @@ export class SuggestModel implements IDisposable {
 
 	private triggerFromIncomplete(auto: boolean): void {
 
-		this.requestPromise = provideSuggestionItems(this.editor.getModel(), this.editor.getPosition(),
+		if (this.triggerFromIncompletePromise) {
+			this.triggerFromIncompletePromise.cancel();
+		}
+
+		this.triggerFromIncompletePromise = provideSuggestionItems(this.editor.getModel(), this.editor.getPosition(),
 			this.editor.getConfiguration().contribInfo.snippetSuggestions,
 			this.completionModel.incomplete
 		).then(items => {
 
-			this.requestPromise = null;
+			this.triggerFromIncompletePromise = null;
 			if (this.state === State.Idle) {
 				return;
 			}
