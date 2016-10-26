@@ -440,7 +440,16 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
-		this.viewModel.setFocusedStackFrame(focusedStackFrame);
+		const processes = this.model.getProcesses();
+		const process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
+		if (process && !focusedStackFrame) {
+			const thread = process.getAllThreads().pop();
+			const callStack = thread ? thread.getCachedCallStack() : null;
+			focusedStackFrame = callStack && callStack.length ? callStack[0] : null;
+		}
+
+		this.viewModel.setFocusedStackFrame(focusedStackFrame, process);
+		this._onDidChangeState.fire();
 		if (focusedStackFrame) {
 			return this.model.evaluateWatchExpressions(focusedStackFrame);
 		} else {
@@ -895,6 +904,7 @@ export class DebugService implements debug.IDebugService {
 	private transitionToRunningState(session: RawDebugSession, threadId?: number): void {
 		this.model.clearThreads(session.getId(), false, threadId);
 
+		// TODO@Isidor remove this mess
 		// Get a top stack frame of a stopped thread if there is any.
 		const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 		const stoppedThread = process && process.getAllThreads().filter(t => t.stopped).pop();
