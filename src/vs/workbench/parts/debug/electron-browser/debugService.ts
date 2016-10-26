@@ -534,6 +534,8 @@ export class DebugService implements debug.IDebugService {
 
 	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
 		this.removeReplExpressions();
+		const sessionId = uuid.generateUuid();
+		this.setStateAndEmit(sessionId, debug.State.Initializing);
 
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
 			.then(() => this.configurationService.reloadConfiguration()	// make sure configuration is up to date
@@ -565,7 +567,7 @@ export class DebugService implements debug.IDebugService {
 								const successExitCode = taskSummary && taskSummary.exitCode === 0;
 								const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 								if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-									return this.doCreateProcess(configuration);
+									return this.doCreateProcess(sessionId, configuration);
 								}
 
 								this.messageService.show(severity.Error, {
@@ -574,7 +576,7 @@ export class DebugService implements debug.IDebugService {
 											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
 									actions: [new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 										this.messageService.hideAll();
-										return this.doCreateProcess(configuration);
+										return this.doCreateProcess(sessionId, configuration);
 									}), CloseAction]
 								});
 							}, (err: TaskError) => {
@@ -590,9 +592,7 @@ export class DebugService implements debug.IDebugService {
 						}))));
 	}
 
-	private doCreateProcess(configuration: debug.IExtHostConfig): TPromise<any> {
-		const sessionId = uuid.generateUuid();
-		this.setStateAndEmit(sessionId, debug.State.Initializing);
+	private doCreateProcess(sessionId: string, configuration: debug.IExtHostConfig): TPromise<any> {
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
@@ -753,8 +753,10 @@ export class DebugService implements debug.IDebugService {
 			return session.attach({ port });
 		}
 
+		const sessionId = uuid.generateUuid();
+		this.setStateAndEmit(sessionId, debug.State.Initializing);
 		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then((configuration: debug.IExtHostConfig) =>
-			this.doCreateProcess({
+			this.doCreateProcess(sessionId, {
 				type: configuration.type,
 				request: 'attach',
 				port,
