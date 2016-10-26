@@ -221,6 +221,7 @@
 /* Editor Actions */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
+	cursor: default;
 	flex: initial;
 	padding-left: 4px;
 }
