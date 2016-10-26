@@ -164,6 +164,9 @@ export class QuickOpenWidget implements IModelProvider {
 						DOM.EventHelper.stop(e, true);
 
 						this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);
+
+						// Position cursor at the end of input to allow right arrow (open in background) to function immediately
+						this.inputBox.inputElement.selectionStart = this.inputBox.value.length;
 					}
 
 					// Select element on Enter or on Arrow-Right if we are at the end of the input
