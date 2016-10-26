@@ -49,7 +49,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(private editor: editorbrowser.ICodeEditor, private debugService: debug.IDebugService, private instantiationService: IInstantiationService) {
-		this.domNode = $('.debug-hover-widget monaco-editor-background');
+		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
