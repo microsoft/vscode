@@ -233,6 +233,7 @@
 	padding: 2px 4px;
 	font-weight: bold;
 	font-size: 11px;
+	color: #CCC;
 }
 
 .extension-editor .subcontent .monaco-tree-row .unknown-dependency > .message {

@@ -234,8 +234,8 @@ class Extension implements IExtension {
 		if (gallery) {
 			return gallery.properties.dependencies;
 		}
-		if (local) {
-			return local.manifest.extensionDependencies && local.manifest.extensionDependencies;
+		if (local && local.manifest.extensionDependencies) {
+			return local.manifest.extensionDependencies;
 		}
 		return [];
 	}
@@ -243,7 +243,7 @@ class Extension implements IExtension {
 
 class ExtensionDependencies implements IExtensionDependencies {
 
-	constructor(private _extension: IExtension, private _identifier: string, private _map: Map<string, Extension>, private _dependent: IExtensionDependencies = null) { }
+	constructor(private _extension: IExtension, private _identifier: string, private _map: Map<string, IExtension>, private _dependent: IExtensionDependencies = null) { }
 
 	get hasDependencies(): boolean {
 		return this._extension ? this._extension.dependencies.length > 0 : false;
@@ -384,8 +384,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		return this.galleryService.getAllDependencies((<Extension>extension).gallery)
 			.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension)))
+			.then(extensions => [...this.local, ...extensions])
 			.then(extensions => {
-				const map = new Map<string, Extension>();
+				const map = new Map<string, IExtension>();
 				for (const extension of extensions) {
 					map.set(`${extension.publisher}.${extension.name}`, extension);
 				}
