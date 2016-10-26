@@ -559,6 +559,7 @@ export class Process implements debug.IProcess {
 	}
 }
 
+// TODO@Isidor breakpoint should not have a pointer to source. Source should live inside a stack frame
 export class Breakpoint implements debug.IBreakpoint {
 
 	public lineNumber: number;
