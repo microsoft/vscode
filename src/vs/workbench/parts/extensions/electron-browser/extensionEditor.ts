@@ -340,14 +340,16 @@ export class ExtensionEditor extends BaseEditor {
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
-				let isEmpty = true;
-				isEmpty = isEmpty && !ExtensionEditor.renderSettings(content, manifest, layout);
-				isEmpty = isEmpty && !this.renderCommands(content, manifest, layout);
-				isEmpty = isEmpty && !ExtensionEditor.renderLanguages(content, manifest, layout);
-				isEmpty = isEmpty && !ExtensionEditor.renderThemes(content, manifest, layout);
-				isEmpty = isEmpty && !ExtensionEditor.renderJSONValidation(content, manifest, layout);
-				isEmpty = isEmpty && !ExtensionEditor.renderDebuggers(content, manifest, layout);
+				const renders = [
+					ExtensionEditor.renderSettings(content, manifest, layout),
+					this.renderCommands(content, manifest, layout),
+					ExtensionEditor.renderLanguages(content, manifest, layout),
+					ExtensionEditor.renderThemes(content, manifest, layout),
+					ExtensionEditor.renderJSONValidation(content, manifest, layout),
+					ExtensionEditor.renderDebuggers(content, manifest, layout)
+				];
 
+				const isEmpty = !renders.reduce((v, r) => r || v, false);
 				scrollableContent.scanDomNode();
 
 				if (isEmpty) {
