@@ -553,10 +553,14 @@ export class Workbench implements IPartService {
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
 			this.sidebarPart.hideActiveViewlet();
 
-			// Pass Focus to Editor if Sidebar is now hidden
-			const editor = this.editorPart.getActiveEditor();
-			if (editor) {
-				editor.focus();
+			const activeEditor = this.editorPart.getActiveEditor();
+			const activePanel = this.panelPart.getActivePanel();
+
+			// Pass Focus to Editor or Panel if Sidebar is now hidden
+			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
+				activePanel.focus();
+			} else if (activeEditor) {
+				activeEditor.focus();
 			}
 		}
 
