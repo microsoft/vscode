@@ -451,7 +451,7 @@ export class DebugService implements debug.IDebugService {
 		this.viewModel.setFocusedStackFrame(focusedStackFrame, process);
 		this._onDidChangeState.fire();
 		if (focusedStackFrame) {
-			return this.model.evaluateWatchExpressions(focusedStackFrame);
+			return this.model.evaluateWatchExpressions(process, focusedStackFrame);
 		} else {
 			this.model.clearWatchExpressionValues();
 			return TPromise.as(null);
@@ -512,7 +512,7 @@ export class DebugService implements debug.IDebugService {
 
 	public addReplExpression(name: string): TPromise<void> {
 		this.telemetryService.publicLog('debugService/addReplExpression');
-		return this.model.addReplExpression(this.viewModel.focusedStackFrame, name)
+		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions again since repl evaluation might have changed some.
 			.then(() => this.setFocusedStackFrameAndEvaluate(this.viewModel.focusedStackFrame));
 	}
@@ -530,11 +530,11 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
-		return this.model.addWatchExpression(this.viewModel.focusedStackFrame, name);
+		return this.model.addWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name);
 	}
 
 	public renameWatchExpression(id: string, newName: string): TPromise<void> {
-		return this.model.renameWatchExpression(this.viewModel.focusedStackFrame, id, newName);
+		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName);
 	}
 
 	public removeWatchExpressions(id?: string): void {
