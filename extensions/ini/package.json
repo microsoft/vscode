@@ -9,19 +9,18 @@
 			"extensions": [ ".ini"],
 			"aliases": [ "Ini", "ini" ],
 			"configuration": "./ini.language-configuration.json"
-			},
-			{
-				"id": "properties",
-				"extensions": [ ".properties", ".gitconfig" ],
-				"filenames": ["config", ".gitattributes", ".gitconfig", "gitconfig", ".editorconfig"],
-				"aliases": [ "properties", "properties" ],
-				"configuration": "./properties.language-configuration.json"
-			}
-		],
+		},
+		{
+			"id": "properties",
+			"extensions": [ ".properties", ".gitconfig" ],
+			"filenames": [ "config", ".gitattributes", ".gitconfig", "gitconfig", ".editorconfig" ],
+			"aliases": [ "properties", "properties" ],
+			"configuration": "./properties.language-configuration.json"
+		}],
 		"grammars": [{
 			"language": "ini",
-			"scopeName": "source.ini",
-			"path": "./syntaxes/Ini.tmLanuage"
+			"scopeName": "source.properties",
+			"path": "./syntaxes/properties.plist"
 		},{
 			"language": "properties",
 			"scopeName": "source.properties",
