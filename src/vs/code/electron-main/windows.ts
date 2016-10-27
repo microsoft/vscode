@@ -576,7 +576,7 @@ export class WindowsManager implements IWindowsService {
 			this.logService.log(error); // be on the safe side with these hardware method calls
 		}
 
-		window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart }, totalmem, cpus });
+		window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart, totalmem, cpus } });
 	}
 
 	private onBroadcast(event: string, payload: any): void {
