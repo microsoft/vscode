@@ -62,7 +62,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		}
 
 		// Input valid, indicate action
-		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and column {1}", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}", this.line);
+		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and character {1}", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}", this.line);
 	}
 
 	private invalidRange(maxLineNumber: number = this.getMaxLineNumber()): boolean {
