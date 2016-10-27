@@ -193,8 +193,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		return this.silosSize[position] === this.minSize && this.silosMinimized[position];
 	}
 
-	private updateMinimizedState(): void {
+	private enableMinimizedState(): void {
 		POSITIONS.forEach(p => this.silosMinimized[p] = this.silosSize[p] === this.minSize);
+	}
+
+	private updateMinimizedState(): void {
+		POSITIONS.forEach(p => {
+			if (this.silosSize[p] !== this.minSize) {
+				this.silosMinimized[p] = false; // release silo from minimized state if it was sized large enough
+			}
+		});
 	}
 
 	private get snapToMinimizeThresholdSize(): number {
@@ -461,7 +469,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 				// Since we triggered a change in minimized/maximized editors, we need
 				// to update our stored state of minimized silos accordingly
-				this.updateMinimizedState();
+				this.enableMinimizedState();
 
 				if (layout) {
 					this.layoutContainers();
@@ -805,7 +813,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Since we triggered a change in minimized/maximized editors, we need
 		// to update our stored state of minimized silos accordingly
-		this.updateMinimizedState();
+		this.enableMinimizedState();
 
 		// Layout silos
 		this.layoutControl(this.dimension);
@@ -1590,7 +1598,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// We allow silos to turn into minimized state from user dragging the sash,
 		// so we need to update our stored state of minimized silos accordingly
-		this.updateMinimizedState();
+		this.enableMinimizedState();
 
 		// Pass on to containers
 		this.layoutContainers();
@@ -1658,7 +1666,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// We allow silos to turn into minimized state from user dragging the sash,
 		// so we need to update our stored state of minimized silos accordingly
-		this.updateMinimizedState();
+		this.enableMinimizedState();
 
 		// Pass on to containers
 		this.layoutContainers();
@@ -1757,7 +1765,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// When restoring from an initial ratio state, we treat editors of min-size as
 		// minimized, so we need to update our stored state of minimized silos accordingly
 		if (wasInitialRatioRestored) {
-			this.updateMinimizedState();
+			this.enableMinimizedState();
 		}
 
 		// Compensate for overflow either through rounding error or min editor size
@@ -1841,6 +1849,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		POSITIONS.forEach(position => {
 			this.getTitleAreaControl(position).layout();
 		});
+
+		// Update minimized state
+		this.updateMinimizedState();
 	}
 
 	private layoutEditor(position: Position): void {
