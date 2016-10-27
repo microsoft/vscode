@@ -149,8 +149,8 @@
 			}
 		},
 		{
-			"name": "brackets of XML tags",
-			"scope": ["meta.tag", "punctuation.tag.js", "punctuation.tag.tsx"],
+			"name": "brackets of XML/HTML tags",
+			"scope": "punctuation.definition.tag",
 			"settings": {
 				"foreground": "#808080"
 			}
