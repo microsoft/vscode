@@ -174,7 +174,7 @@
 		</dict>
 	</array>
 	<key>scopeName</key>
-	<string>source.ini</string>
+	<string>source.properties</string>
 	<key>uuid</key>
 	<string>77DC23B6-8A90-11D9-BAA4-000A9584EC8C</string>
 </dict>
