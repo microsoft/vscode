@@ -108,7 +108,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private dragging: boolean;
 
 	private layoutVertically: boolean;
-	private defaultEditorGroupOrientation: GroupOrientation;
 
 	private showTabs: boolean;
 	private showIcons: boolean;
@@ -170,7 +169,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
-		const editorGroupOrientation = groupOrientation || this.defaultEditorGroupOrientation;
+		const editorGroupOrientation = groupOrientation || 'vertical';
 		this.layoutVertically = (editorGroupOrientation !== 'horizontal');
 
 		this.create();
@@ -212,11 +211,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		if (config.workbench && config.workbench.editor) {
 			this.showTabs = config.workbench.editor.showTabs;
 			this.showIcons = config.workbench.editor.showIcons;
-			this.defaultEditorGroupOrientation = (config.workbench.editor.defaultEditorGroupLayout === 'horizontal') ? 'horizontal' : 'vertical';
 		} else {
 			this.showTabs = true;
 			this.showIcons = false;
-			this.defaultEditorGroupOrientation = 'vertical';
 		}
 
 		if (!refresh) {
