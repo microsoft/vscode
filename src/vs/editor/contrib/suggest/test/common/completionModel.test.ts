@@ -74,51 +74,6 @@ suite('CompletionModel', function () {
 		assert.ok(itemsNow !== itemsThen);
 	});
 
-	test('top score', function () {
-
-		assert.equal(model.topScoreIdx, 0);
-
-		model.lineContext = { leadingLineContent: 'Foo', characterCountDelta: 0 };
-		assert.equal(model.topScoreIdx, 1);
-	});
-
-	test('top score, issue #14446', function () {
-
-		const model = new CompletionModel([
-			createSuggestItem('workbench.editor.defaultSideBySideLayout', 15),
-			createSuggestItem('workbench.sideBar.location', 15),
-		], 15, {
-				leadingLineContent: 'workbench.sideb',
-				characterCountDelta: 0
-			}
-		)
-
-		assert.equal(model.topScoreIdx, 1);
-		assert.equal(model.items[model.topScoreIdx].suggestion.label, 'workbench.sideBar.location')
-	});
-
-	test('top score, issue #11423', function () {
-
-		const model = new CompletionModel([
-			createSuggestItem('diffEditor.renderSideBySide', 8),
-			createSuggestItem('editor.overviewRulerlanes', 8),
-			createSuggestItem('editor.renderControlCharacter', 8),
-			createSuggestItem('editor.renderWhitespace', 8),
-		], 15, {
-				leadingLineContent: 'editor.r',
-				characterCountDelta: 0
-			}
-		)
-
-		assert.equal(model.topScoreIdx, 2);
-		assert.equal(model.items[model.topScoreIdx].suggestion.label, 'editor.renderControlCharacter')
-
-		model.lineContext = { leadingLineContent: 'editor.R', characterCountDelta: 0 };
-		assert.equal(model.topScoreIdx, 1);
-
-		model.lineContext = { leadingLineContent: 'Editor.r', characterCountDelta: 0 };
-		assert.equal(model.topScoreIdx, 0);
-	});
 
 	test('complete/incomplete', function () {
 
@@ -151,5 +106,38 @@ suite('CompletionModel', function () {
 		model.replaceIncomplete(newCompleteItem, (a, b) => 0);
 		assert.equal(model.incomplete.length, 0);
 		assert.equal(model.items.length, 3);
+	});
+
+	function assertTopScore(lineContent: string, expected: number, ...suggestionLabels: string[]): void {
+
+		const model = new CompletionModel(
+			suggestionLabels.map(label => createSuggestItem(label, lineContent.length)),
+			lineContent.length,
+			{
+				characterCountDelta: 0,
+				leadingLineContent: lineContent
+			}
+		);
+
+		assert.equal(model.topScoreIdx, expected, `${lineContent}, ACTUAL: ${model.items[model.topScoreIdx].suggestion.label} <> EXPECTED: ${model.items[expected].suggestion.label}`);
+
+	}
+
+	test('top score', function () {
+
+		assertTopScore('Foo', 1, 'foo', 'Foo', 'foo');
+
+		// issue #14583
+		assertTopScore('log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
+		assertTopScore('e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
+
+		// issue #14446
+		// assertTopScore('workbench.sideb', 1, 'workbench.editor.defaultSideBySideLayout', 'workbench.sideBar.location');
+
+		// issue #11423
+		assertTopScore('editor.r', 2, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		assertTopScore('editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		// assertTopScore('Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+
 	});
 });
