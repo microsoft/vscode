@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
+import * as nls from 'vs/nls';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
-import uuid = require('vs/base/common/uuid');
+import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import arrays = require('vs/base/common/arrays');
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
+import { first, distinct } from 'vs/base/common/arrays';
+import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import aria = require('vs/base/browser/ui/aria/aria');
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
-import editorbrowser = require('vs/editor/browser/editorBrowser');
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -33,12 +33,12 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryI
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
-import model = require('vs/workbench/parts/debug/common/debugModel');
+import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { DebugStringEditorInput, DebugErrorEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
-import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
-import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
+import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
+import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
@@ -67,8 +67,8 @@ export class DebugService implements debug.IDebugService {
 
 	private sessionStates: { [id: string]: debug.State };
 	private _onDidChangeState: Emitter<void>;
-	private model: model.Model;
-	private viewModel: viewmodel.ViewModel;
+	private model: Model;
+	private viewModel: ViewModel;
 	private configurationManager: ConfigurationManager;
 	private customTelemetryService: ITelemetryService;
 	private lastTaskEvent: TaskEvent;
@@ -108,10 +108,10 @@ export class DebugService implements debug.IDebugService {
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 
-		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
+		this.model = new Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
-		this.viewModel = new viewmodel.ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
+		this.viewModel = new ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
 
 		this.registerListeners(eventService, lifecycleService);
 	}
@@ -190,7 +190,7 @@ export class DebugService implements debug.IDebugService {
 				}
 
 				// objects & arrays are special because we want to inspect them in the REPL
-				else if (types.isObject(a) || Array.isArray(a)) {
+				else if (isObject(a) || Array.isArray(a)) {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
@@ -210,7 +210,7 @@ export class DebugService implements debug.IDebugService {
 					for (let j = 0, len = a.length; j < len; j++) {
 						if (a[j] === '%' && (a[j + 1] === 's' || a[j + 1] === 'i' || a[j + 1] === 'd')) {
 							i++; // read over substitution
-							buf += !types.isUndefinedOrNull(args[i]) ? args[i] : ''; // replace
+							buf += !isUndefinedOrNull(args[i]) ? args[i] : ''; // replace
 							j++; // read over directive
 						} else {
 							buf += a[j];
@@ -276,7 +276,7 @@ export class DebugService implements debug.IDebugService {
 					thread.getCallStack().then(callStack => {
 						if (callStack.length > 0) {
 							// focus first stack frame from top that has source location
-							const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
+							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);
 							this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 							this.windowService.getWindow().focus();
 							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
@@ -368,7 +368,7 @@ export class DebugService implements debug.IDebugService {
 		let result: debug.IBreakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new model.Breakpoint(new Source(breakpoint.source.raw ? breakpoint.source.raw : { path: uri.parse(breakpoint.source.uri).fsPath, name: breakpoint.source.name }),
+				return new Breakpoint(new Source(breakpoint.source.raw ? breakpoint.source.raw : { path: uri.parse(breakpoint.source.uri).fsPath, name: breakpoint.source.name }),
 					breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition);
 			});
 		} catch (e) { }
@@ -380,7 +380,7 @@ export class DebugService implements debug.IDebugService {
 		let result: debug.IFunctionBreakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
-				return new model.FunctionBreakpoint(fb.name, fb.enabled, fb.hitCondition);
+				return new FunctionBreakpoint(fb.name, fb.enabled, fb.hitCondition);
 			});
 		} catch (e) { }
 
@@ -391,18 +391,18 @@ export class DebugService implements debug.IDebugService {
 		let result: debug.IExceptionBreakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
-				return new model.ExceptionBreakpoint(exBreakpoint.filter || exBreakpoint.name, exBreakpoint.label, exBreakpoint.enabled);
+				return new ExceptionBreakpoint(exBreakpoint.filter || exBreakpoint.name, exBreakpoint.label, exBreakpoint.enabled);
 			});
 		} catch (e) { }
 
 		return result || [];
 	}
 
-	private loadWatchExpressions(): model.Expression[] {
-		let result: model.Expression[];
+	private loadWatchExpressions(): Expression[] {
+		let result: Expression[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string }) => {
-				return new model.Expression(watchStoredData.name, false, watchStoredData.id);
+				return new Expression(watchStoredData.name, false, watchStoredData.id);
 			});
 		} catch (e) { }
 
@@ -457,9 +457,9 @@ export class DebugService implements debug.IDebugService {
 	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void> {
 		if (breakpoint) {
 			this.model.setEnablement(breakpoint, enable);
-			if (breakpoint instanceof model.Breakpoint) {
-				return this.sendBreakpoints((<model.Breakpoint>breakpoint).source.uri);
-			} else if (breakpoint instanceof model.FunctionBreakpoint) {
+			if (breakpoint instanceof Breakpoint) {
+				return this.sendBreakpoints((<Breakpoint>breakpoint).source.uri);
+			} else if (breakpoint instanceof FunctionBreakpoint) {
 				return this.sendFunctionBreakpoints();
 			}
 
@@ -472,7 +472,7 @@ export class DebugService implements debug.IDebugService {
 
 	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
 		this.model.addBreakpoints(rawBreakpoints);
-		const uris = arrays.distinct(rawBreakpoints, raw => raw.uri.toString()).map(raw => raw.uri);
+		const uris = distinct(rawBreakpoints, raw => raw.uri.toString()).map(raw => raw.uri);
 		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, rbp.uri.fsPath)));
 
 		return TPromise.join(uris.map(uri => this.sendBreakpoints(uri))).then(() => void 0);
@@ -481,7 +481,7 @@ export class DebugService implements debug.IDebugService {
 	public removeBreakpoints(id?: string): TPromise<any> {
 		const toRemove = this.model.getBreakpoints().filter(bp => !id || bp.getId() === id);
 		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.source.uri.fsPath)));
-		const urisToClear = arrays.distinct(toRemove, bp => bp.source.uri.toString()).map(bp => bp.source.uri);
+		const urisToClear = distinct(toRemove, bp => bp.source.uri.toString()).map(bp => bp.source.uri);
 
 		this.model.removeBreakpoints(toRemove);
 		return TPromise.join(urisToClear.map(uri => this.sendBreakpoints(uri)));
@@ -539,7 +539,7 @@ export class DebugService implements debug.IDebugService {
 
 	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
 		this.removeReplExpressions();
-		const sessionId = uuid.generateUuid();
+		const sessionId = generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
 
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
@@ -758,7 +758,7 @@ export class DebugService implements debug.IDebugService {
 			return session.attach({ port });
 		}
 
-		const sessionId = uuid.generateUuid();
+		const sessionId = generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
 		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then(config =>
 			this.doCreateProcess(sessionId, config)
@@ -831,7 +831,7 @@ export class DebugService implements debug.IDebugService {
 			if ((fileInput && fileInput.getResource().toString() === source.uri.toString()) ||
 				(visibleEditors[i].input instanceof DebugStringEditorInput && (<DebugStringEditorInput>visibleEditors[i].input).getResource().toString() === source.uri.toString())) {
 
-				const control = <editorbrowser.ICodeEditor>visibleEditors[i].getControl();
+				const control = <ICodeEditor>visibleEditors[i].getControl();
 				if (control) {
 					control.revealLineInCenterIfOutsideViewport(lineNumber);
 					control.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
@@ -912,7 +912,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private sendAllBreakpoints(session?: RawDebugSession): TPromise<any> {
-		return TPromise.join(arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => this.sendBreakpoints(bp.source.uri, false, session)))
+		return TPromise.join(distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => this.sendBreakpoints(bp.source.uri, false, session)))
 			.then(() => this.sendFunctionBreakpoints(session))
 			// send exception breakpoints at the end since some debug adapters rely on the order
 			.then(() => this.sendExceptionBreakpoints(session));
@@ -929,7 +929,7 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.as(null);
 			}
 
-			const breakpointsToSend = arrays.distinct(
+			const breakpointsToSend = distinct(
 				this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.source.uri.toString() === modelUri.toString()),
 				bp => `${bp.desiredLineNumber}`
 			);
