@@ -19,19 +19,13 @@ import uuid = require('vs/base/common/uuid');
 import extfs = require('vs/base/node/extfs');
 import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
-
-function onError(error:Error, done: () => void): void {
-	assert.fail(error);
-
-	done();
-}
+import { onError } from 'vs/test/utils/servicesTestUtils';
 
 suite('FileService', () => {
 	let events: utils.TestEventService;
 	let service: FileService;
 	let parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	let testDir: string;
-
 
 	setup(function (done) {
 		let id = uuid.generateUuid();
