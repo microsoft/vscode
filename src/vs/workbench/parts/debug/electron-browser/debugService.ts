@@ -601,7 +601,7 @@ export class DebugService implements debug.IDebugService {
 						}))));
 	}
 
-	private doCreateProcess(sessionId: string, configuration: debug.IExtHostConfig): TPromise<any> {
+	private doCreateProcess(sessionId: string, configuration: debug.IConfig): TPromise<any> {
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
@@ -764,15 +764,8 @@ export class DebugService implements debug.IDebugService {
 
 		const sessionId = uuid.generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
-		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then((configuration: debug.IExtHostConfig) =>
-			this.doCreateProcess(sessionId, {
-				type: configuration.type,
-				request: 'attach',
-				port,
-				sourceMaps: configuration.sourceMaps,
-				outFiles: configuration.outDir || configuration.outFiles,
-				debugServer: configuration.debugServer
-			})
+		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then(config =>
+			this.doCreateProcess(sessionId, config)
 		);
 	}
 

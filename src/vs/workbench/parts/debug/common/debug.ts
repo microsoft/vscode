@@ -298,13 +298,6 @@ export interface IEnvConfig {
 	configurationNames?: string[];
 }
 
-export interface IExtHostConfig extends IEnvConfig {
-	port?: number;
-	sourceMaps?: boolean;
-	outDir?: string;
-	outFiles?: string;
-}
-
 export interface IConfig extends IEnvConfig {
 	windows?: IEnvConfig;
 	osx?: IEnvConfig;
