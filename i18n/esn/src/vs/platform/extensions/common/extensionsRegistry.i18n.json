@@ -17,6 +17,10 @@
 	"extensionDescription.publisher": "la propiedad `{0}` es obligatoria y debe ser de tipo \"string\"",
 	"extensionDescription.version": "la propiedad `{0}` es obligatoria y debe ser de tipo \"string\"",
 	"vscode.extension.activationEvents": "Eventos de activación de la extensión VS Code.",
+	"vscode.extension.badges": "Matriz de distintivos que se muestran en la barra lateral de la página de extensiones de Marketplace.",
+	"vscode.extension.badges.description": "Descripción del distintivo.",
+	"vscode.extension.badges.href": "Vínculo del distintivo.",
+	"vscode.extension.badges.url": "URL de la imagen del distintivo.",
 	"vscode.extension.categories": "Categorías que usa la galería de VS Code para clasificar la extensión.",
 	"vscode.extension.contributes": "Todas las contribuciones de la extensión VS Code representadas por este paquete.",
 	"vscode.extension.displayName": "Nombre para mostrar de la extensión que se usa en la galería de VS Code.",
@@ -24,6 +28,8 @@
 	"vscode.extension.galleryBanner": "Banner usado en VS Code Marketplace.",
 	"vscode.extension.galleryBanner.color": "Color del banner en el encabezado de página de VS Code Marketplace.",
 	"vscode.extension.galleryBanner.theme": "Tema de color de la fuente que se usa en el banner.",
+	"vscode.extension.icon": "Ruta de acceso a un icono de 128 x 128 píxeles.",
+	"vscode.extension.preview": "Establece la extensión que debe marcarse como versión preliminar en Marketplace.",
 	"vscode.extension.publisher": "El publicador de la extensión VS Code.",
 	"vscode.extension.scripts.prepublish": "Script que se ejecuta antes de publicar el paquete como extensión VS Code."
 }
