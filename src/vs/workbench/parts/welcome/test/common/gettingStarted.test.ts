@@ -44,27 +44,4 @@ suite('Workbench - GettingStarted', () => {
 		hideWelcomeSettingsValue = null;
 		appName = null;
 	});
-
-	// test('disabled by default', function() {
-	// 	let gettingStarted = instantiation.createInstance(TestGettingStarted);
-	// 	assert(gettingStarted.lastUrl === undefined, 'no page is opened when welcomePage is not configured');
-	// });
-
-	// test('base case', function() {
-	// 	welcomePageEnvConfig = 'base url';
-	// 	appName = 'some app';
-	// 	machineId = '123';
-	// 	instantiation.stubPromise(ITelemetryService, 'getTelemetryInfo', { machineId: machineId });
-	// 	let gettingStarted = instantiation.createInstance(TestGettingStarted);
-	// 	assert(gettingStarted.lastUrl === `${welcomePageEnvConfig}&&from=${appName}&&id=${machineId}`, 'a page is opened when welcomePage is configured && first run');
-	// 	assert(hideWelcomeSettingsValue !== null, 'a flag is set to hide welcome page');
-	// });
-
-	// test('dont show after initial run', function() {
-	// 	welcomePageEnvConfig = 'url';
-	// 	hideWelcomeSettingsValue = 'true';
-	// 	let gettingStarted = instantiation.createInstance(TestGettingStarted);
-	// 	assert(gettingStarted.lastUrl === undefined, 'no page is opened after initial run');
-	// 	assert(hideWelcomeSettingsValue !== null, 'a flag is set to hide welcome page');
-	// });
 });

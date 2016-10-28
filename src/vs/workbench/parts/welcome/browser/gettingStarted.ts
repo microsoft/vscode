@@ -8,7 +8,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { AbstractGettingStarted } from 'vs/workbench/parts/welcome/common/abstractGettingStarted';
 import * as platform from 'vs/base/common/platform';
 
-export class ElectronGettingStarted extends AbstractGettingStarted implements IWorkbenchContribution {
+export class GettingStarted extends AbstractGettingStarted implements IWorkbenchContribution {
 
 	protected openExternal(url: string) {
 		// Don't open the welcome page as the root user on Linux, this is due to a bug with xdg-open
