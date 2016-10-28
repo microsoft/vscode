@@ -747,9 +747,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.cancelAutoSavePromises();
 
-		// TODO: Can this be moved to BackupModelService?
-		this.backupFileService.discardAndDeregisterResource(this.resource);
-
 		super.dispose();
 	}
 }

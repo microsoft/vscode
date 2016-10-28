@@ -34,8 +34,9 @@ export class BackupModelService implements IBackupModelService {
 
 	private registerListeners() {
 		this.toDispose.push(this.textFileService.models.onModelContentChanged((e) => this.onTextFileModelChanged(e)));
-		this.toDispose.push(this.textFileService.models.onModelSaved((e) => this.onTextFileModelClean(e)));
-		this.toDispose.push(this.textFileService.models.onModelReverted((e) => this.onTextFileModelClean(e)));
+		this.toDispose.push(this.textFileService.models.onModelSaved((e) => this.onTextFileModelClean(e.resource)));
+		this.toDispose.push(this.textFileService.models.onModelReverted((e) => this.onTextFileModelClean(e.resource)));
+		this.toDispose.push(this.textFileService.models.onModelDisposed((e) => this.onTextFileModelClean(e)));
 		this.toDispose.push(this.untitledEditorService.onDidChangeContent((e) => this.onUntitledModelChanged(e)));
 	}
 
@@ -57,8 +58,8 @@ export class BackupModelService implements IBackupModelService {
 		}
 	}
 
-	private onTextFileModelClean(event: TextFileModelChangeEvent): void {
-		this.backupFileService.discardAndDeregisterResource(event.resource);
+	private onTextFileModelClean(resource: Uri): void {
+		this.backupFileService.discardAndDeregisterResource(resource);
 	}
 
 	public dispose(): void {
