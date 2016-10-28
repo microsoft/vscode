@@ -231,12 +231,13 @@ export class CompletionModel {
 			}
 		}
 
-		// combine the four scoring values into one
+		// combine the five scoring values into one
 		// value using base_100. Values further left
 		// are more important
 		return (CompletionModel._base ** 4) * caseSensitiveMatches
 			+ (CompletionModel._base ** 3) * caseInsensitiveMatches
 			+ (CompletionModel._base ** 2) * (CompletionModel._base - firstMatchStart)
-			+ (CompletionModel._base ** 1) * (CompletionModel._base - notMatching);
+			+ (CompletionModel._base ** 1) * (CompletionModel._base - highlights.length)
+			+ (CompletionModel._base ** 0) * (CompletionModel._base - notMatching);
 	}
 }

@@ -144,5 +144,6 @@ suite('CompletionModel', function () {
 		assertTopScore('editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
 		assertTopScore('Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
 
+		assertTopScore('-mo', 1, '-ms-ime-mode', '-moz-columns');
 	});
 });
