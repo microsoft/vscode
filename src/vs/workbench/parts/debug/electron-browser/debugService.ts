@@ -450,12 +450,8 @@ export class DebugService implements debug.IDebugService {
 
 		this.viewModel.setFocusedStackFrame(focusedStackFrame, process);
 		this._onDidChangeState.fire();
-		if (focusedStackFrame) {
-			return this.model.evaluateWatchExpressions(process, focusedStackFrame);
-		} else {
-			this.model.clearWatchExpressionValues();
-			return TPromise.as(null);
-		}
+
+		return this.model.evaluateWatchExpressions(process, focusedStackFrame);
 	}
 
 	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void> {
