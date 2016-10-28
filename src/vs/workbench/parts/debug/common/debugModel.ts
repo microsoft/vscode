@@ -490,7 +490,7 @@ export class Process implements debug.IProcess {
 	}
 
 	public getId(): string {
-		return this._session.getId();;
+		return this._session.getId();
 	}
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
