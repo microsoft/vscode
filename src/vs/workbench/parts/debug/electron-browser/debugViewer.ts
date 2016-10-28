@@ -212,8 +212,12 @@ export class BaseDebugController extends treedefaults.DefaultController {
 
 // call stack
 
-class ThreadAndProcessIds {
+class ThreadAndProcessIds implements debug.ITreeElement {
 	constructor(public processId: string, public threadId: number) { }
+
+	public getId(): string {
+		return `${this.processId}:${this.threadId}`;
+	}
 }
 
 export class CallStackController extends BaseDebugController {
@@ -340,9 +344,6 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 export class CallStackDataSource implements tree.IDataSource {
 
 	public getId(tree: tree.ITree, element: any): string {
-		if (typeof element === 'number') {
-			return element.toString();
-		}
 		if (typeof element === 'string') {
 			return element;
 		}
