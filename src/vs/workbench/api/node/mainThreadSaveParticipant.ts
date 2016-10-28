@@ -22,7 +22,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from './extHost.protocol';
 
-class TrimWhitespaceParticipant implements ISaveParticipant {
+interface INamedSaveParticpant extends ISaveParticipant {
+	readonly name: string;
+}
+
+class TrimWhitespaceParticipant implements INamedSaveParticpant {
+
+	readonly name = 'TrimWhitespaceParticipant';
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -76,7 +82,9 @@ class TrimWhitespaceParticipant implements ISaveParticipant {
 	}
 }
 
-class FormatOnSaveParticipant implements ISaveParticipant {
+class FormatOnSaveParticipant implements INamedSaveParticpant {
+
+	readonly name = 'FormatOnSaveParticipant';
 
 	constructor(
 		@ICodeEditorService private _editorService: ICodeEditorService,
@@ -159,9 +167,11 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 	}
 }
 
-class ExtHostSaveParticipant implements ISaveParticipant {
+class ExtHostSaveParticipant implements INamedSaveParticpant {
 
 	private _proxy: ExtHostDocumentSaveParticipantShape;
+
+	readonly name = 'ExtHostSaveParticipant';
 
 	constructor( @IThreadService threadService: IThreadService) {
 		this._proxy = threadService.get(ExtHostContext.ExtHostDocumentSaveParticipant);
@@ -181,7 +191,7 @@ class ExtHostSaveParticipant implements ISaveParticipant {
 // The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
 export class SaveParticipant implements ISaveParticipant {
 
-	private _saveParticipants: ISaveParticipant[];
+	private _saveParticipants: INamedSaveParticpant[];
 
 	constructor(
 		@ITelemetryService private _telemetryService: ITelemetryService,
@@ -204,7 +214,7 @@ export class SaveParticipant implements ISaveParticipant {
 
 		const promiseFactory = this._saveParticipants.map(p => () => {
 
-			const {name} = Object.getPrototypeOf(p).constructor;
+			const {name} = p;
 			const t1 = Date.now();
 
 			return TPromise.as(p.participate(model, env)).then(() => {
@@ -216,7 +226,7 @@ export class SaveParticipant implements ISaveParticipant {
 		});
 
 		return sequence(promiseFactory).then(() => {
-			this._telemetryService.publicLog('saveParticipantTimes', stats);
+			this._telemetryService.publicLog('saveParticipantStats', stats);
 		});
 	}
 }
