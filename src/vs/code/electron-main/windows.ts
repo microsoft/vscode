@@ -668,9 +668,6 @@ export class WindowsManager implements IWindowsService {
 
 				openInNewWindow = true; // any other folders to open must open in new window then
 			});
-
-			// Start tracking the backups
-			this.backupService.pushWorkspaceBackupPathsSync(workspacesWithBackups.map(ws => Uri.file(ws)));
 		}
 
 		let filesToOpen: IPath[] = [];
@@ -797,6 +794,9 @@ export class WindowsManager implements IWindowsService {
 
 		// Emit events
 		iPathsToOpen.forEach(iPath => this.eventEmitter.emit(EventTypes.OPEN, iPath));
+
+		// Register new paths for backup
+		this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(p => p.workspacePath).map(p => Uri.file(p.workspacePath)));
 
 		return arrays.distinct(usedWindows);
 	}
