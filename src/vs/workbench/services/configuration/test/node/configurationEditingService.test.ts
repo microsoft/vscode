@@ -69,7 +69,7 @@ class TestDirtyTextFileService extends TestTextFileService {
 
 suite('WorkspaceConfigurationEditingService - Node', () => {
 
-	function createWorkspace(callback: (workspaceDir: string, globalSettingsFile: string, cleanUp: (callback: () => void) => void) => void): void {
+	function createWorkspace(callback: (workspaceDir: string, globalSettingsFile: string, cleanUp: (done: () => void, error?: Error) => void) => void): void {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const workspaceDir = path.join(parentDir, 'workspaceconfig', id);
@@ -77,7 +77,15 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 		const globalSettingsFile = path.join(workspaceDir, 'config.json');
 
 		extfs.mkdirp(workspaceSettingsDir, 493, (error) => {
-			callback(workspaceDir, globalSettingsFile, (callback) => extfs.del(parentDir, os.tmpdir(), () => { }, callback));
+			callback(workspaceDir, globalSettingsFile, (done, error) => {
+				extfs.del(parentDir, os.tmpdir(), () => { }, () => {
+					if (error) {
+						assert.fail(error);
+					}
+
+					done();
+				});
+			});
 		});
 	}
 
@@ -126,7 +134,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
@@ -139,7 +147,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
@@ -152,7 +160,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
@@ -167,7 +175,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
@@ -180,7 +188,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
@@ -196,7 +204,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
@@ -217,7 +225,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
@@ -234,7 +242,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
@@ -257,7 +265,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
@@ -275,7 +283,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
@@ -297,7 +305,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
@@ -319,7 +327,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 });

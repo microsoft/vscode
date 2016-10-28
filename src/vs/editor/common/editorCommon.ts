@@ -257,6 +257,11 @@ export interface IEditorOptions {
 	 */
 	scrollbar?: IEditorScrollbarOptions;
 	/**
+	 * Display overflow widgets as `fixed`.
+	 * Defaults to `false`.
+	 */
+	fixedOverflowWidgets?: boolean;
+	/**
 	 * The number of vertical lanes the overview ruler should render.
 	 * Defaults to 2.
 	 */
@@ -665,6 +670,7 @@ export class InternalEditorViewOptions {
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: boolean;
 	readonly scrollbar: InternalEditorScrollbarOptions;
+	readonly fixedOverflowWidgets: boolean;
 
 	/**
 	 * @internal
@@ -695,6 +701,7 @@ export class InternalEditorViewOptions {
 		renderIndentGuides: boolean;
 		renderLineHighlight: boolean;
 		scrollbar: InternalEditorScrollbarOptions;
+		fixedOverflowWidgets: boolean;
 	}) {
 		this.theme = String(source.theme);
 		this.canUseTranslate3d = Boolean(source.canUseTranslate3d);
@@ -721,6 +728,7 @@ export class InternalEditorViewOptions {
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
 		this.renderLineHighlight = Boolean(source.renderLineHighlight);
 		this.scrollbar = source.scrollbar.clone();
+		this.fixedOverflowWidgets = Boolean(source.fixedOverflowWidgets);
 	}
 
 	private static _toSortedIntegerArray(source: any): number[] {
@@ -781,6 +789,7 @@ export class InternalEditorViewOptions {
 			&& this.renderIndentGuides === other.renderIndentGuides
 			&& this.renderLineHighlight === other.renderLineHighlight
 			&& this.scrollbar.equals(other.scrollbar)
+			&& this.fixedOverflowWidgets === other.fixedOverflowWidgets
 		);
 	}
 
@@ -814,6 +823,7 @@ export class InternalEditorViewOptions {
 			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
 			renderLineHighlight: this.renderLineHighlight !== newOpts.renderLineHighlight,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
+			fixedOverflowWidgets: this.fixedOverflowWidgets !== newOpts.fixedOverflowWidgets
 		};
 	}
 
@@ -851,6 +861,7 @@ export interface IViewConfigurationChangedEvent {
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: boolean;
 	readonly scrollbar: boolean;
+	readonly fixedOverflowWidgets: boolean;
 }
 
 export class EditorContribOptions {

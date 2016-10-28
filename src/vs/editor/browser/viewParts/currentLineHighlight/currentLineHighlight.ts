@@ -134,6 +134,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	}
 
 	private _shouldShowCurrentLine(): boolean {
-		return this._renderLineHighlight && this._selectionIsEmpty && this._primaryCursorIsInEditableRange && !this._readOnly;
+		return this._renderLineHighlight && this._selectionIsEmpty && this._primaryCursorIsInEditableRange;
 	}
 }

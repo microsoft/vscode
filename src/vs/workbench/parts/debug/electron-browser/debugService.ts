@@ -111,7 +111,7 @@ export class DebugService implements debug.IDebugService {
 		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
-		this.viewModel = new viewmodel.ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
+		this.viewModel = new viewmodel.ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
 
 		this.registerListeners(eventService, lifecycleService);
 	}
@@ -261,29 +261,32 @@ export class DebugService implements debug.IDebugService {
 					return;
 				}
 
-				const thread = response.body.threads.filter(t => t.id === threadId).pop();
+				const rawThread = response.body.threads.filter(t => t.id === threadId).pop();
 				this.model.rawUpdate({
 					sessionId: session.getId(),
-					thread,
+					thread: rawThread,
 					threadId,
 					stoppedDetails: event.body,
 					allThreadsStopped: event.body.allThreadsStopped
 				});
 
 				const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
-				process.getThread(threadId).getCallStack().then(callStack => {
-					if (callStack.length > 0) {
-						// focus first stack frame from top that has source location
-						const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
-						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
-						this.windowService.getWindow().focus();
-						aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
+				const thread = process && process.getThread(threadId);
+				if (thread) {
+					thread.getCallStack().then(callStack => {
+						if (callStack.length > 0) {
+							// focus first stack frame from top that has source location
+							const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
+							this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+							this.windowService.getWindow().focus();
+							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
-						return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
-					} else {
-						this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
-					}
-				});
+							return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
+						} else {
+							this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+						}
+					});
+				}
 			}, errors.onUnexpectedError);
 		}));
 
@@ -437,13 +440,18 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
-		this.viewModel.setFocusedStackFrame(focusedStackFrame);
-		if (focusedStackFrame) {
-			return this.model.evaluateWatchExpressions(focusedStackFrame);
-		} else {
-			this.model.clearWatchExpressionValues();
-			return TPromise.as(null);
+		const processes = this.model.getProcesses();
+		const process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
+		if (process && !focusedStackFrame) {
+			const thread = process.getAllThreads().pop();
+			const callStack = thread ? thread.getCachedCallStack() : null;
+			focusedStackFrame = callStack && callStack.length ? callStack[0] : null;
 		}
+
+		this.viewModel.setFocusedStackFrame(focusedStackFrame, process);
+		this._onDidChangeState.fire();
+
+		return this.model.evaluateWatchExpressions(process, focusedStackFrame);
 	}
 
 	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void> {
@@ -500,7 +508,7 @@ export class DebugService implements debug.IDebugService {
 
 	public addReplExpression(name: string): TPromise<void> {
 		this.telemetryService.publicLog('debugService/addReplExpression');
-		return this.model.addReplExpression(this.viewModel.focusedStackFrame, name)
+		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions again since repl evaluation might have changed some.
 			.then(() => this.setFocusedStackFrameAndEvaluate(this.viewModel.focusedStackFrame));
 	}
@@ -518,11 +526,11 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
-		return this.model.addWatchExpression(this.viewModel.focusedStackFrame, name);
+		return this.model.addWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name);
 	}
 
 	public renameWatchExpression(id: string, newName: string): TPromise<void> {
-		return this.model.renameWatchExpression(this.viewModel.focusedStackFrame, id, newName);
+		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName);
 	}
 
 	public removeWatchExpressions(id?: string): void {
@@ -531,6 +539,8 @@ export class DebugService implements debug.IDebugService {
 
 	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
 		this.removeReplExpressions();
+		const sessionId = uuid.generateUuid();
+		this.setStateAndEmit(sessionId, debug.State.Initializing);
 
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
 			.then(() => this.configurationService.reloadConfiguration()	// make sure configuration is up to date
@@ -562,7 +572,7 @@ export class DebugService implements debug.IDebugService {
 								const successExitCode = taskSummary && taskSummary.exitCode === 0;
 								const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 								if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-									return this.doCreateProcess(configuration);
+									return this.doCreateProcess(sessionId, configuration);
 								}
 
 								this.messageService.show(severity.Error, {
@@ -571,7 +581,7 @@ export class DebugService implements debug.IDebugService {
 											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
 									actions: [new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 										this.messageService.hideAll();
-										return this.doCreateProcess(configuration);
+										return this.doCreateProcess(sessionId, configuration);
 									}), CloseAction]
 								});
 							}, (err: TaskError) => {
@@ -587,9 +597,7 @@ export class DebugService implements debug.IDebugService {
 						}))));
 	}
 
-	private doCreateProcess(configuration: debug.IExtHostConfig): TPromise<any> {
-		const sessionId = uuid.generateUuid();
-		this.setStateAndEmit(sessionId, debug.State.Initializing);
+	private doCreateProcess(sessionId: string, configuration: debug.IConfig): TPromise<any> {
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
@@ -750,16 +758,10 @@ export class DebugService implements debug.IDebugService {
 			return session.attach({ port });
 		}
 
-		this.setStateAndEmit(session.getId(), debug.State.Initializing);
-		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then((configuration: debug.IExtHostConfig) =>
-			this.doCreateProcess({
-				type: configuration.type,
-				request: 'attach',
-				port,
-				sourceMaps: configuration.sourceMaps,
-				outDir: configuration.outDir,
-				debugServer: configuration.debugServer
-			})
+		const sessionId = uuid.generateUuid();
+		this.setStateAndEmit(sessionId, debug.State.Initializing);
+		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then(config =>
+			this.doCreateProcess(sessionId, config)
 		);
 	}
 
@@ -791,25 +793,26 @@ export class DebugService implements debug.IDebugService {
 			// an internal module might be open so the dispose can throw -> ignore and continue with stop session.
 		}
 
-		this.partService.removeClass('debugging');
-
 		this.model.removeProcess(session.getId());
 		this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 		this.setStateAndEmit(session.getId(), debug.State.Inactive);
 
-		// set breakpoints back to unverified since the session ended.
-		// source reference changes across sessions, so we do not use it to persist the source.
-		const data: { [id: string]: { line: number, verified: boolean } } = {};
-		this.model.getBreakpoints().forEach(bp => {
-			delete bp.source.raw.sourceReference;
-			data[bp.getId()] = { line: bp.lineNumber, verified: false };
-		});
-		this.model.updateBreakpoints(data);
+		if (this.model.getProcesses().length === 0) {
+			this.partService.removeClass('debugging');
+			// set breakpoints back to unverified since the session ended.
+			// source reference changes across sessions, so we do not use it to persist the source.
+			const data: { [id: string]: { line: number, verified: boolean } } = {};
+			this.model.getBreakpoints().forEach(bp => {
+				delete bp.source.raw.sourceReference;
+				data[bp.getId()] = { line: bp.lineNumber, verified: false };
+			});
+			this.model.updateBreakpoints(data);
 
-		this.inDebugMode.reset();
+			this.inDebugMode.reset();
 
-		if (!this.partService.isSideBarHidden() && this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {
-			this.viewletService.openViewlet(EXPLORER_VIEWLET_ID).done(null, errors.onUnexpectedError);
+			if (!this.partService.isSideBarHidden() && this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {
+				this.viewletService.openViewlet(EXPLORER_VIEWLET_ID).done(null, errors.onUnexpectedError);
+			}
 		}
 	}
 
@@ -890,18 +893,8 @@ export class DebugService implements debug.IDebugService {
 
 	private transitionToRunningState(session: RawDebugSession, threadId?: number): void {
 		this.model.clearThreads(session.getId(), false, threadId);
-
-		// Get a top stack frame of a stopped thread if there is any.
-		const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
-		const stoppedThread = process && process.getAllThreads().filter(t => t.stopped).pop();
-		const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;
-		const stackFrameToFocus = callStack && callStack.length > 0 ? callStack[0] : null;
-
-		if (!stoppedThread && process) {
-			this.setStateAndEmit(session.getId(), process.session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
-		}
-
-		this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+		this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
+		this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 	}
 
 	private getDebugStringEditorInput(process: debug.IProcess, source: Source, value: string, mtype: string): DebugStringEditorInput {

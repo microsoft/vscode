@@ -700,6 +700,7 @@ export class VSCodeMenu {
 			(product.documentationUrl || product.releaseNotesUrl) ? __separator__() : null,
 			keyboardShortcutsUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")), click: () => this.openUrl(keyboardShortcutsUrl, 'openKeyboardShortcutsUrl') }) : null,
 			product.introductoryVideosUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")), click: () => this.openUrl(product.introductoryVideosUrl, 'openIntroductoryVideosUrl') }) : null,
+			(product.introductoryVideosUrl || keyboardShortcutsUrl) ? __separator__() : null,
 			product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => this.openUrl(product.twitterUrl, 'openTwitterUrl') }) : null,
 			product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")), click: () => this.openUrl(product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
 			reportIssuesItem,

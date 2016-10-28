@@ -61,7 +61,8 @@ const options: minimist.Opts = {
 		'logExtensionHostCommunication',
 		'disable-extensions',
 		'list-extensions',
-		'show-versions'
+		'show-versions',
+		'nolazy'
 	],
 	alias: {
 		help: 'h',

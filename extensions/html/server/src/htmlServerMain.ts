@@ -170,7 +170,6 @@ function validateTextDocument(textDocument: TextDocument): void {
 	if (embeddedLanguages) {
 		let embeddedLanguageIds = hasEmbeddedContent(languageService, textDocument, htmlDocument, embeddedLanguages);
 		let p = { uri: textDocument.uri, version: textDocument.version, embeddedLanguageIds };
-		console.log(JSON.stringify(p));
 		connection.sendNotification(EmbeddedContentChangedNotification.type, p);
 	}
 }

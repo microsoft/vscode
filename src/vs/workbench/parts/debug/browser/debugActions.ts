@@ -143,12 +143,7 @@ export class RestartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		let process = this.debugService.getViewModel().focusedProcess;
-		if (!process) {
-			const processes = this.debugService.getModel().getProcesses();
-			process = processes.length > 0 ? processes[0] : null;
-		}
-
+		const process = this.debugService.getViewModel().focusedProcess;
 		return this.debugService.restartProcess(process);
 	}
 
@@ -252,12 +247,7 @@ export class StopAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		let process = this.debugService.getViewModel().focusedProcess;
-		if (!process) {
-			const processes = this.debugService.getModel().getProcesses();
-			process = processes.length > 0 ? processes[0] : null;
-		}
-
+		const process = this.debugService.getViewModel().focusedProcess;
 		return process ? process.session.disconnect(false, true) : TPromise.as(null);
 	}
 
@@ -275,11 +265,7 @@ export class DisconnectAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		let process = this.debugService.getViewModel().focusedProcess;
-		if (!process) {
-			process = this.debugService.getModel().getProcesses().pop();
-		}
-
+		const process = this.debugService.getViewModel().focusedProcess;
 		return process ? process.session.disconnect(false, true) : TPromise.as(null);
 	}
 
@@ -471,7 +457,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	protected isEnabled(state: debug.State): boolean {
 		const model = this.debugService.getModel();
 		return super.isEnabled(state) && state !== debug.State.Disabled && state !== debug.State.Inactive &&
-			(model.getFunctionBreakpoints().length + model.getBreakpoints().length > 0);
+			(model.getFunctionBreakpoints().length + model.getBreakpoints().length + model.getExceptionBreakpoints().length > 0);
 	}
 }
 

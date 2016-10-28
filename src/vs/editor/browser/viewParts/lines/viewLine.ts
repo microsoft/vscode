@@ -159,6 +159,9 @@ export class ViewLine implements IVisibleLineData {
 	// --- end IVisibleLineData
 
 	public getWidth(): number {
+		if (!this._renderedViewLine) {
+			return 0;
+		}
 		return this._renderedViewLine.getWidth();
 	}
 

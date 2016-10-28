@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { onWillActivate } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IMonarchLanguage } from 'vs/editor/common/modes/monarch/monarchTypes';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
@@ -45,15 +45,16 @@ export function getLanguages(): ILanguageExtensionPoint[] {
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	let isDisposed = false;
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + languageId, () => {
-		if (!isDisposed) {
+	const desired = 'onLanguage:' + languageId;
+	let disposable = onWillActivate.event((activationEvent) => {
+		if (activationEvent === desired) {
+			// stop listening
+			disposable.dispose();
+			// invoke actual listener
 			callback();
 		}
 	});
-	return {
-		dispose: () => { isDisposed = true; }
-	};
+	return disposable;
 }
 
 /**

@@ -215,7 +215,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 				let contentPromise: TPromise<string>;
 				if (selection.autoDetect) {
 					const outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
-					outputChannel.show();
+					outputChannel.show(true);
 					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
 					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService);
 					contentPromise = detector.detect(false, selection.id).then((value) => {
@@ -367,7 +367,7 @@ class ShowLogAction extends AbstractTaskAction {
 		if (!this.canRun()) {
 			return TPromise.as(undefined);
 		}
-		return this.outputService.getChannel(TaskService.OutputChannelId).show();
+		return this.outputService.getChannel(TaskService.OutputChannelId).show(true);
 	}
 }
 

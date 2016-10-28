@@ -17,6 +17,7 @@
 	"terminal.integrated.shell.windows": "Percorso della shell usata dal terminale in Windows. Quando si usano le shell incluse in Windows (cmd, PowerShell o Bash in Ubuntu), preferire C:Windowssysnative rispetto a C:WindowsSystem32 per usare le versioni a 64 bit.",
 	"terminal.integrated.shellArgs.linux": "Argomenti della riga di comando da usare nel terminale Linux.",
 	"terminal.integrated.shellArgs.osx": "Argomenti della riga di comando da usare nel terminale OS X.",
+	"terminal.integrated.shellArgs.windows": "Argomenti della riga di comando da usare nel terminale Windows.",
 	"terminalCategory": "Terminale",
 	"terminalIntegratedConfigurationTitle": "Terminale integrato",
 	"viewCategory": "Visualizza"

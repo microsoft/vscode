@@ -53,8 +53,8 @@ export interface ITreeElement {
 }
 
 export interface IExpressionContainer extends ITreeElement {
-	reference: number;
 	stackFrame: IStackFrame;
+	hasChildren: boolean;
 	getChildren(debugService: IDebugService): TPromise<IExpression[]>;
 }
 
@@ -298,12 +298,6 @@ export interface IEnvConfig {
 	configurationNames?: string[];
 }
 
-export interface IExtHostConfig extends IEnvConfig {
-	port?: number;
-	sourceMaps?: boolean;
-	outDir?: string;
-}
-
 export interface IConfig extends IEnvConfig {
 	windows?: IEnvConfig;
 	osx?: IEnvConfig;
@@ -337,9 +331,21 @@ export interface IRawBreakpointContribution {
 }
 
 export interface IConfigurationManager {
+
+	/**
+	 * Returns a resolved debug configuration.
+	 * If nameOrConfig is null resolves the first configuration and returns it.
+	 */
 	getConfiguration(nameOrConfig: string | IConfig): TPromise<IConfig>;
+
+	/**
+	 * Opens the launch.json file
+	 */
 	openConfigFile(sideBySide: boolean): TPromise<boolean>;
-	loadLaunchConfig(): TPromise<IGlobalConfig>;
+
+	/**
+	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
+	 */
 	canSetBreakpointsIn(model: editor.IModel): boolean;
 }
 

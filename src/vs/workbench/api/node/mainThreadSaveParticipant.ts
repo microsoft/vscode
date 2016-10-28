@@ -11,6 +11,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPosition, IModel, ICommonCodeEditor, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -21,7 +22,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from './extHost.protocol';
 
-class TrimWhitespaceParticipant implements ISaveParticipant {
+interface INamedSaveParticpant extends ISaveParticipant {
+	readonly name: string;
+}
+
+class TrimWhitespaceParticipant implements INamedSaveParticpant {
+
+	readonly name = 'TrimWhitespaceParticipant';
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -75,7 +82,9 @@ class TrimWhitespaceParticipant implements ISaveParticipant {
 	}
 }
 
-class FormatOnSaveParticipant implements ISaveParticipant {
+class FormatOnSaveParticipant implements INamedSaveParticpant {
+
+	readonly name = 'FormatOnSaveParticipant';
 
 	constructor(
 		@ICodeEditorService private _editorService: ICodeEditorService,
@@ -97,7 +106,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 		const {tabSize, insertSpaces} = model.getOptions();
 
 		return new TPromise<ISingleEditOperation[]>((resolve, reject) => {
-			setTimeout(resolve, 750);
+			setTimeout(reject, 750);
 			getDocumentFormattingEdits(model, { tabSize, insertSpaces }).then(resolve, reject);
 
 		}).then(edits => {
@@ -158,25 +167,34 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 	}
 }
 
-class ExtHostSaveParticipant implements ISaveParticipant {
+class ExtHostSaveParticipant implements INamedSaveParticpant {
 
 	private _proxy: ExtHostDocumentSaveParticipantShape;
+
+	readonly name = 'ExtHostSaveParticipant';
 
 	constructor( @IThreadService threadService: IThreadService) {
 		this._proxy = threadService.get(ExtHostContext.ExtHostDocumentSaveParticipant);
 	}
 
 	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
-		return this._proxy.$participateInSave(editorModel.getResource(), env.reason);
+		return this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
+			for (const success of values) {
+				if (!success) {
+					return TPromise.wrapError('listener failed');
+				}
+			}
+		});
 	}
 }
 
 // The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
 export class SaveParticipant implements ISaveParticipant {
 
-	private _saveParticipants: ISaveParticipant[];
+	private _saveParticipants: INamedSaveParticpant[];
 
 	constructor(
+		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService
 	) {
@@ -191,11 +209,24 @@ export class SaveParticipant implements ISaveParticipant {
 		TextFileEditorModel.setSaveParticipant(this);
 	}
 	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
+
+		const stats: { [name: string]: number } = Object.create(null);
+
 		const promiseFactory = this._saveParticipants.map(p => () => {
-			return TPromise.as(p.participate(model, env)).then(undefined, err => {
+
+			const {name} = p;
+			const t1 = Date.now();
+
+			return TPromise.as(p.participate(model, env)).then(() => {
+				stats[`Success-${name}`] = Date.now() - t1;
+			}, err => {
+				stats[`Failure-${name}`] = Date.now() - t1;
 				// console.error(err);
 			});
 		});
-		return sequence(promiseFactory);
+
+		return sequence(promiseFactory).then(() => {
+			this._telemetryService.publicLog('saveParticipantStats', stats);
+		});
 	}
 }

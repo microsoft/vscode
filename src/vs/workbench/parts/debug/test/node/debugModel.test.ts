@@ -294,16 +294,16 @@ suite('Debug - Model', () => {
 		const process = new debugmodel.Process('mockProcess', rawSession);
 		const thread = new debugmodel.Thread(process, 'mockthread', 1);
 		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
-		model.addWatchExpression(stackFrame, 'console').done();
-		model.addWatchExpression(stackFrame, 'console').done();
+		model.addWatchExpression(process, stackFrame, 'console').done();
+		model.addWatchExpression(process, stackFrame, 'console').done();
 		const watchExpressions = model.getWatchExpressions();
 		assertWatchExpressions(watchExpressions, 'console');
 
-		model.renameWatchExpression(stackFrame, watchExpressions[0].getId(), 'new_name').done();
-		model.renameWatchExpression(stackFrame, watchExpressions[1].getId(), 'new_name').done();
+		model.renameWatchExpression(process, stackFrame, watchExpressions[0].getId(), 'new_name').done();
+		model.renameWatchExpression(process, stackFrame, watchExpressions[1].getId(), 'new_name').done();
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
-		model.clearWatchExpressionValues();
+		model.evaluateWatchExpressions(process, null);
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
 		model.removeWatchExpressions();
@@ -315,9 +315,9 @@ suite('Debug - Model', () => {
 		const process = new debugmodel.Process('mockProcess', rawSession);
 		const thread = new debugmodel.Thread(process, 'mockthread', 1);
 		const stackFrame = new debugmodel.StackFrame(thread, 1, null, 'app.js', 1, 1);
-		model.addReplExpression(stackFrame, 'myVariable').done();
-		model.addReplExpression(stackFrame, 'myVariable').done();
-		model.addReplExpression(stackFrame, 'myVariable').done();
+		model.addReplExpression(process, stackFrame, 'myVariable').done();
+		model.addReplExpression(process, stackFrame, 'myVariable').done();
+		model.addReplExpression(process, stackFrame, 'myVariable').done();
 
 		assert.equal(model.getReplElements().length, 3);
 		model.getReplElements().forEach(re => {
