@@ -7,5 +7,5 @@
 	"actions.repl.acceptInput": "REPL 입력 수락",
 	"actions.repl.historyNext": "기록 다음",
 	"actions.repl.historyPrevious": "기록 이전",
-	"replAriaLabel": "읽기 평가 인쇄 루프 패널"
+	"replAriaLabel": "read–eval–print loop 패널"
 }

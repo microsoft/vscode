@@ -6,6 +6,7 @@
 {
 	"closePanel": "Закрыть",
 	"focusPanel": "Фокус на панель",
+	"toggleMaximizedPanel": "Развернутая панель",
 	"togglePanel": "Панель",
 	"view": "Просмотреть"
 }

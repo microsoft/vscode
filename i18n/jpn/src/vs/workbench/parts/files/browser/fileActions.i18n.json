@@ -46,6 +46,7 @@
 	"openToSide": "横に並べて開く",
 	"pasteFile": "貼り付け",
 	"permDelete": "完全に削除",
+	"pickHistory": "比較するエディター履歴エントリを選ぶ",
 	"refresh": "最新の情報に更新",
 	"refreshExplorer": "エクスプローラーを最新表示する",
 	"rename": "名前変更",

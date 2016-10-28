@@ -17,6 +17,8 @@
 	"workbench.action.terminal.runSelectedText": "Ausgewählten Text im aktiven Terminal ausführen",
 	"workbench.action.terminal.scrollDown": "Nach unten scrollen (Zeile)",
 	"workbench.action.terminal.scrollDownPage": "Nach unten scrollen (Seite)",
+	"workbench.action.terminal.scrollToBottom": "Bildlauf nach unten",
+	"workbench.action.terminal.scrollToTop": "Bildlauf nach oben",
 	"workbench.action.terminal.scrollUp": "Nach oben scrollen (Zeile)",
 	"workbench.action.terminal.scrollUpPage": "Nach oben scrollen (Seite)",
 	"workbench.action.terminal.switchTerminalInstance": "Terminalinstanz umschalten",

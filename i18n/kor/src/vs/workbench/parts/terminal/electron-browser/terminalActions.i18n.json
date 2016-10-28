@@ -17,6 +17,8 @@
 	"workbench.action.terminal.runSelectedText": "활성 터미널에서 선택한 텍스트 실행",
 	"workbench.action.terminal.scrollDown": "아래로 스크롤(줄)",
 	"workbench.action.terminal.scrollDownPage": "아래로 스크롤(페이지)",
+	"workbench.action.terminal.scrollToBottom": "맨 아래로 스크롤",
+	"workbench.action.terminal.scrollToTop": "맨 위로 스크롤",
 	"workbench.action.terminal.scrollUp": "위로 스크롤(줄)",
 	"workbench.action.terminal.scrollUpPage": "위로 스크롤(페이지)",
 	"workbench.action.terminal.switchTerminalInstance": "터미널 인스턴스 전환",
