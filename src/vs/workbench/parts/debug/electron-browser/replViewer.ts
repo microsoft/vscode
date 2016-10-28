@@ -218,7 +218,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	private renderInputOutputPair(tree: tree.ITree, expression: debug.IExpression, templateData: IInputOutputPairTemplateData): void {
 		templateData.input.textContent = expression.name;
 		debugviewer.renderExpressionValue(expression, templateData.value, false);
-		if (expression.reference > 0) {
+		if (expression.hasChildren) {
 			templateData.annotation.className = 'annotation octicon octicon-info';
 			templateData.annotation.title = nls.localize('stateCapture', "Object state is captured from first evaluation");
 		}

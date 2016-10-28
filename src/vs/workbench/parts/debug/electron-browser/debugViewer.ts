@@ -582,7 +582,7 @@ export class VariablesActionProvider implements IActionProvider {
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		let actions: IAction[] = [];
 		const variable = <Variable>element;
-		if (variable.reference === 0) {
+		if (!variable.hasChildren) {
 			actions.push(this.instantiationService.createInstance(SetValueAction, SetValueAction.ID, SetValueAction.LABEL, variable));
 			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable));
 			actions.push(new Separator());
@@ -609,7 +609,7 @@ export class VariablesDataSource implements IDataSource {
 		}
 
 		let variable = <Variable>element;
-		return variable.reference !== 0 && !equalsIgnoreCase(variable.value, 'null');
+		return variable.hasChildren && !equalsIgnoreCase(variable.value, 'null');
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
@@ -733,7 +733,7 @@ export class VariablesController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to set the value
 		if (element instanceof Variable && event.detail === 2) {
 			const expression = <debug.IExpression>element;
-			if (expression.reference === 0) {
+			if (!expression.hasChildren) {
 				this.debugService.getViewModel().setSelectedExpression(expression);
 			}
 			return true;
@@ -744,7 +744,7 @@ export class VariablesController extends BaseDebugController {
 
 	protected setSelectedExpression(tree: ITree, event: KeyboardEvent): boolean {
 		const element = tree.getFocus();
-		if (element instanceof Variable && element.reference === 0) {
+		if (element instanceof Variable && !element.hasChildren) {
 			this.debugService.getViewModel().setSelectedExpression(element);
 			return true;
 		}
@@ -785,7 +785,7 @@ export class WatchExpressionsActionProvider implements IActionProvider {
 			const expression = <Expression>element;
 			actions.push(this.instantiationService.createInstance(AddWatchExpressionAction, AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL));
 			actions.push(this.instantiationService.createInstance(EditWatchExpressionAction, EditWatchExpressionAction.ID, EditWatchExpressionAction.LABEL, expression));
-			if (expression.reference === 0) {
+			if (!expression.hasChildren) {
 				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value));
 			}
 			actions.push(new Separator());
@@ -796,7 +796,7 @@ export class WatchExpressionsActionProvider implements IActionProvider {
 			actions.push(this.instantiationService.createInstance(AddWatchExpressionAction, AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL));
 			if (element instanceof Variable) {
 				const variable = <Variable>element;
-				if (variable.reference === 0) {
+				if (!variable.hasChildren) {
 					actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable.value));
 				}
 				actions.push(new Separator());
@@ -824,7 +824,7 @@ export class WatchExpressionsDataSource implements IDataSource {
 		}
 
 		const watchExpression = <Expression>element;
-		return watchExpression.reference !== 0 && !equalsIgnoreCase(watchExpression.value, 'null');
+		return watchExpression.hasChildren && !equalsIgnoreCase(watchExpression.value, 'null');
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
@@ -956,7 +956,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression && event.detail === 2) {
 			const expression = <debug.IExpression>element;
-			if (expression.reference === 0) {
+			if (!expression.hasChildren) {
 				this.debugService.getViewModel().setSelectedExpression(expression);
 			}
 			return true;
@@ -969,7 +969,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		const element = tree.getFocus();
 		if (element instanceof Expression) {
 			const watchExpression = <Expression>element;
-			if (watchExpression.reference === 0) {
+			if (!watchExpression.hasChildren) {
 				this.debugService.getViewModel().setSelectedExpression(watchExpression);
 			}
 			return true;

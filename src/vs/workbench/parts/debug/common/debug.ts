@@ -53,8 +53,8 @@ export interface ITreeElement {
 }
 
 export interface IExpressionContainer extends ITreeElement {
-	reference: number;
 	stackFrame: IStackFrame;
+	hasChildren: boolean;
 	getChildren(debugService: IDebugService): TPromise<IExpression[]>;
 }
 
