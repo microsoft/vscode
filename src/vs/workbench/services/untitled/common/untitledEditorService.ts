@@ -32,6 +32,11 @@ export interface IUntitledEditorService {
 	onDidChangeEncoding: Event<URI>;
 
 	/**
+	 * Events for when untitled editors are disposed.
+	 */
+	onDidDisposeModel: Event<URI>;
+
+	/**
 	 * Returns the untitled editor input matching the provided resource.
 	 */
 	get(resource: URI): UntitledEditorInput;
@@ -81,6 +86,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private _onDidChangeContent: Emitter<URI>;
 	private _onDidChangeDirty: Emitter<URI>;
 	private _onDidChangeEncoding: Emitter<URI>;
+	private _onDidDisposeModel: Emitter<URI>;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService
@@ -88,6 +94,11 @@ export class UntitledEditorService implements IUntitledEditorService {
 		this._onDidChangeContent = new Emitter<URI>();
 		this._onDidChangeDirty = new Emitter<URI>();
 		this._onDidChangeEncoding = new Emitter<URI>();
+		this._onDidDisposeModel = new Emitter<URI>();
+	}
+
+	public get onDidDisposeModel(): Event<URI> {
+		return this._onDidDisposeModel.event;
 	}
 
 	public get onDidChangeContent(): Event<URI> {
@@ -188,6 +199,10 @@ export class UntitledEditorService implements IUntitledEditorService {
 			this._onDidChangeEncoding.fire(resource);
 		});
 
+		const disposeListener = input.onDispose(() => {
+			this._onDidDisposeModel.fire(resource);
+		});
+
 		// Remove from cache on dispose
 		const onceDispose = once(input.onDispose);
 		onceDispose(() => {
@@ -196,6 +211,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			contentListener.dispose();
 			dirtyListener.dispose();
 			encodingListener.dispose();
+			disposeListener.dispose();
 		});
 
 		// Add to cache
@@ -220,5 +236,6 @@ export class UntitledEditorService implements IUntitledEditorService {
 		this._onDidChangeContent.dispose();
 		this._onDidChangeDirty.dispose();
 		this._onDidChangeEncoding.dispose();
+		this._onDidDisposeModel.dispose();
 	}
 }

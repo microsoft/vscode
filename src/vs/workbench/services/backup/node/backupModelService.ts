@@ -33,11 +33,15 @@ export class BackupModelService implements IBackupModelService {
 	}
 
 	private registerListeners() {
+		// Listen for text file model changes
 		this.toDispose.push(this.textFileService.models.onModelContentChanged((e) => this.onTextFileModelChanged(e)));
-		this.toDispose.push(this.textFileService.models.onModelSaved((e) => this.onTextFileModelClean(e.resource)));
-		this.toDispose.push(this.textFileService.models.onModelReverted((e) => this.onTextFileModelClean(e.resource)));
-		this.toDispose.push(this.textFileService.models.onModelDisposed((e) => this.onTextFileModelClean(e)));
+		this.toDispose.push(this.textFileService.models.onModelSaved((e) => this.discardBackup(e.resource)));
+		this.toDispose.push(this.textFileService.models.onModelReverted((e) => this.discardBackup(e.resource)));
+		this.toDispose.push(this.textFileService.models.onModelDisposed((e) => this.discardBackup(e)));
+
+		// Listen for untitled model changes
 		this.toDispose.push(this.untitledEditorService.onDidChangeContent((e) => this.onUntitledModelChanged(e)));
+		this.toDispose.push(this.untitledEditorService.onDidDisposeModel((e) => this.discardBackup(e)));
 	}
 
 	private onTextFileModelChanged(event: TextFileModelChangeEvent): void {
@@ -58,13 +62,11 @@ export class BackupModelService implements IBackupModelService {
 		}
 	}
 
-	private onTextFileModelClean(resource: Uri): void {
+	private discardBackup(resource: Uri): void {
 		this.backupFileService.discardAndDeregisterResource(resource);
 	}
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}
-
-	// TODO: Move untitled file model watching here
 }
