@@ -9,14 +9,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IGlobalConfig } from 'vs/workbench/parts/debug/common/debug';
 
 export class DebugSelectActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
 		@IDebugService private debugService: IDebugService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(null, action, [], -1);
 
@@ -38,20 +38,18 @@ export class DebugSelectActionItem extends SelectActionItem {
 	}
 
 	private updateOptions(changeDebugConfiguration: boolean): TPromise<any> {
-		const configurationManager = this.debugService.getConfigurationManager();
-		return configurationManager.loadLaunchConfig().then(config => {
-			if (!config || !config.configurations || config.configurations.length === 0) {
-				this.setOptions([nls.localize('noConfigurations', "No Configurations")], 0);
-				return changeDebugConfiguration ? this.actionRunner.run(this._action, null) : null;
-			}
+		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch');
+		if (!config || !config.configurations || config.configurations.length === 0) {
+			this.setOptions([nls.localize('noConfigurations', "No Configurations")], 0);
+			return changeDebugConfiguration ? this.actionRunner.run(this._action, null) : TPromise.as(null);
+		}
 
-			const configurationNames = config.configurations.filter(cfg => !!cfg.name).map(cfg => cfg.name);
-			const selected = configurationNames.indexOf(this.debugService.getViewModel().selectedConfigurationName);
-			this.setOptions(configurationNames, selected);
+		const configurationNames = config.configurations.filter(cfg => !!cfg.name).map(cfg => cfg.name);
+		const selected = configurationNames.indexOf(this.debugService.getViewModel().selectedConfigurationName);
+		this.setOptions(configurationNames, selected);
 
-			if (changeDebugConfiguration) {
-				return this.actionRunner.run(this._action, this.getSelected());
-			}
-		});
+		if (changeDebugConfiguration) {
+			return this.actionRunner.run(this._action, this.getSelected());
+		}
 	}
 }

@@ -72,7 +72,6 @@ export enum SessionRequestType {
 }
 
 export interface ISession {
-	// TODO@Isidor consider removing this - feels ugly
 	requestType: SessionRequestType;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
@@ -349,9 +348,6 @@ export interface IConfigurationManager {
 	 * Opens the launch.json file
 	 */
 	openConfigFile(sideBySide: boolean): TPromise<boolean>;
-
-	// TODO@Isidor remove this from the interface
-	loadLaunchConfig(): TPromise<IGlobalConfig>;
 
 	/**
 	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
