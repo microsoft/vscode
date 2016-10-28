@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import editor = require('vs/editor/common/editorCommon');
+import { IModel as EditorIModel, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -98,9 +98,9 @@ export interface ISession {
 
 export interface IProcess extends ITreeElement {
 	name: string;
+	session: ISession;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
-	session: ISession;
 }
 
 export interface IThread extends ITreeElement {
@@ -346,7 +346,7 @@ export interface IConfigurationManager {
 	/**
 	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
 	 */
-	canSetBreakpointsIn(model: editor.IModel): boolean;
+	canSetBreakpointsIn(model: EditorIModel): boolean;
 }
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
@@ -476,7 +476,7 @@ export interface IDebugService {
 }
 
 // Editor interfaces
-export interface IDebugEditorContribution extends editor.IEditorContribution {
+export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void>;
 }
 
