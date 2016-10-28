@@ -168,6 +168,10 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 		return this._value;
 	}
 
+	public get hasChildren(): boolean {
+		return this.reference > 0;
+	}
+
 	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
 		return this.stackFrame.thread.process.session.variables({
 			variablesReference: this.reference,
@@ -296,7 +300,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		return this.stackFrame.thread.process.session.setVariable({
 			name: this.name,
 			value,
-			variablesReference: this.parent.reference
+			variablesReference: (<ExpressionContainer>this.parent).reference
 		}).then(response => {
 			if (response && response.body) {
 				this.value = response.body.value;
@@ -919,7 +923,6 @@ export class Model implements debug.IModel {
 		this.watchExpressions.forEach(we => {
 			we.value = Expression.DEFAULT_VALUE;
 			we.available = false;
-			we.reference = 0;
 		});
 
 		this._onDidChangeWatchExpressions.fire();

@@ -215,7 +215,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.isVisible = true;
 		this.stoleFocus = focus;
 
-		if (expression.reference === 0 || forceValueHover) {
+		if (!expression.hasChildren || forceValueHover) {
 			this.complexValueContainer.hidden = true;
 			this.valueContainer.hidden = false;
 			viewer.renderExpressionValue(expression, this.valueContainer, false, MAX_VALUE_RENDER_LENGTH_IN_HOVER);
