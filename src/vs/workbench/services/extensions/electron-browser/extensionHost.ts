@@ -16,6 +16,7 @@ import { findFreePort } from 'vs/base/node/ports';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ChildProcess, fork } from 'child_process';
 import { ipcRenderer as ipc } from 'electron';
@@ -68,7 +69,8 @@ export class ExtensionHostProcessWorker {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
@@ -204,7 +206,11 @@ export class ExtensionHostProcessWorker {
 		if (this.initializeTimer) {
 			window.clearTimeout(this.initializeTimer);
 		}
-		this.extensionService.readExtensions().then((extensionDescriptions) => {
+
+		TPromise.join<any>([
+			this.telemetryService.getTelemetryInfo(),
+			this.extensionService.readExtensions()
+		]).then(([telemetryInfo, extensionDescriptions]) => {
 			let initData: IInitData = {
 				parentPid: process.pid,
 				environment: {
@@ -218,7 +224,8 @@ export class ExtensionHostProcessWorker {
 					workspace: this.contextService.getWorkspace()
 				},
 				extensions: extensionDescriptions,
-				configuration: this.configurationService.getConfiguration<IInitConfiguration>()
+				configuration: this.configurationService.getConfiguration<IInitConfiguration>(),
+				telemetryInfo
 			};
 			this.extensionHostProcessQueuedSender.send(stringify(initData));
 		});

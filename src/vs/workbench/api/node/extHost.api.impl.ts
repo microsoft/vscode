@@ -42,7 +42,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
 import { realpathSync } from 'fs';
-import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { MainContext, ExtHostContext, InstanceCollection, IInitConfiguration } from './extHost.protocol';
 
 
@@ -53,7 +53,7 @@ export interface IExtensionApiFactory {
 /**
  * This method instantiates and returns the extension API surface
  */
-export function createApiFactory(initDataConfiguration: IInitConfiguration, threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService, telemetryService: ITelemetryService): IExtensionApiFactory {
+export function createApiFactory(initDataConfiguration: IInitConfiguration, initTelemetryInfo: ITelemetryInfo, threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService): IExtensionApiFactory {
 
 
 
@@ -89,11 +89,6 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, thre
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
-
-	// TODO@joh,alex - this is lifecycle critical
-	// fetch and store telemetry info
-	let telemetryInfo: ITelemetryInfo;
-	telemetryService.getTelemetryInfo().then(info => telemetryInfo = info, errors.onUnexpectedError);
 
 	return function (extension: IExtensionDescription): typeof vscode {
 
@@ -133,8 +128,8 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, thre
 
 		// namespace: env
 		const env: typeof vscode.env = Object.freeze({
-			get machineId() { return telemetryInfo.machineId; },
-			get sessionId() { return telemetryInfo.sessionId; },
+			get machineId() { return initTelemetryInfo.machineId; },
+			get sessionId() { return initTelemetryInfo.sessionId; },
 			get language() { return Platform.language; },
 			get appName() { return product.nameLong; }
 		});

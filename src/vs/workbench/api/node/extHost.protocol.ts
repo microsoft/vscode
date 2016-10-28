@@ -55,6 +55,7 @@ export interface IInitData {
 	};
 	extensions: IExtensionDescription[];
 	configuration: IInitConfiguration;
+	telemetryInfo: ITelemetryInfo;
 }
 
 export interface InstanceSetter<T> {
