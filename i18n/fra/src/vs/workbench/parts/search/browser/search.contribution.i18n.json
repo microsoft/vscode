@@ -7,12 +7,14 @@
 	"exclude": "Configurez les modèles Glob pour exclure les fichiers et les dossiers des recherches. Hérite de tous les modèles Glob à partir du paramètre files.exclude.",
 	"exclude.boolean": "Modèle Glob auquel les chemins de fichiers doivent correspondre. Affectez la valeur true ou false pour activer ou désactiver le modèle.",
 	"exclude.when": "Vérification supplémentaire des frères d'un fichier correspondant. Utilisez $(basename) comme variable pour le nom de fichier correspondant.",
+	"findInFiles": "Chercher dans les fichiers",
 	"findInFolder": "Rechercher dans le dossier",
 	"name": "Recherche",
 	"openAnythingHandlerDescription": "Accéder au fichier",
-	"openSymbolDescriptionNormal": "Accéder au symbole dans l'espace de travail",
+	"openSymbolDescriptionNormal": "Atteindre le symbole dans l'espace de travail",
 	"search.quickOpen.includeSymbols": "Configurez l'ajout des résultats d'une recherche de symboles globale dans le fichier de résultats pour Quick Open.",
 	"searchConfigurationTitle": "Rechercher",
-	"showTriggerActions": "Accéder au symbole dans l'espace de travail...",
+	"showSearchViewlet": "Afficher la zone de recherche",
+	"showTriggerActions": "Atteindre le symbole dans l'espace de travail...",
 	"view": "Affichage"
 }
