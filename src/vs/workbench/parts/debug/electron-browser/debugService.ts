@@ -770,7 +770,7 @@ export class DebugService implements debug.IDebugService {
 				request: 'attach',
 				port,
 				sourceMaps: configuration.sourceMaps,
-				outDir: configuration.outDir,
+				outFiles: configuration.outDir || configuration.outFiles,
 				debugServer: configuration.debugServer
 			})
 		);
