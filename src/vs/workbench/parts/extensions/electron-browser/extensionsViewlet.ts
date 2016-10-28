@@ -223,7 +223,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return this.progress(this.query(value))
 			.then(model => {
 				if (!value && model.length === 0 && suggestPopular) {
-					return this.search('@sort:installs');
+					return this.search('@sort:installs ');
 				}
 
 				this.setModel(model);
@@ -241,12 +241,14 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		if (/@outdated/i.test(value)) {
 			return this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(extensions => extensions.filter(extension => extension.outdated))
 				.then(result => new PagedModel(result));
 		}
 
 		if (/@disabled/i.test(value)) {
 			return this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(result => result.filter(e => e.state === ExtensionState.Disabled))
 				.then(result => new PagedModel(result));
 		}
@@ -270,8 +272,12 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			return this.getRecommendationsModel(query, options);
 		}
 
-		if (query.value) {
-			options = assign(options, { text: query.value.substr(0, 200) });
+		const text = value = query.value
+			.replace(/\bext:([^\s]+)\b/g, 'tag:"__ext_$1"')
+			.substr(0, 200);
+
+		if (text) {
+			options = assign(options, { text });
 		}
 
 		return this.extensionsWorkbenchService.queryGallery(options)

@@ -19,7 +19,7 @@ import { IBackupService } from 'vs/code/electron-main/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
+import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog, shell } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -488,6 +488,18 @@ export class WindowsManager implements IWindowsService {
 			}));
 		});
 
+		ipc.on('vscode:showItemInFolder', (event, path: string) => {
+			this.logService.log('IPC#vscode-showItemInFolder');
+
+			shell.showItemInFolder(path);
+		});
+
+		ipc.on('vscode:openExternal', (event, url: string) => {
+			this.logService.log('IPC#vscode-openExternal');
+
+			shell.openExternal(url);
+		});
+
 		this.updateService.on('update-downloaded', (update: IUpdate) => {
 			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
 
@@ -568,7 +580,7 @@ export class WindowsManager implements IWindowsService {
 			this.logService.log(error); // be on the safe side with these hardware method calls
 		}
 
-		window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart }, totalmem, cpus });
+		window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart, totalmem, cpus } });
 	}
 
 	private onBroadcast(event: string, payload: any): void {

@@ -24,39 +24,6 @@ function massageValue(value: string): string {
 	return value ? value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') : value;
 }
 
-export function evaluateExpression(stackFrame: debug.IStackFrame, expression: Expression, context: string): TPromise<Expression> {
-	if (!stackFrame || !stackFrame.thread.process) {
-		expression.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate") : Expression.DEFAULT_VALUE;
-		expression.available = false;
-		expression.reference = 0;
-		return TPromise.as(expression);
-	}
-	expression.stackFrame = stackFrame;
-
-	return stackFrame.thread.process.session.evaluate({
-		expression: expression.name,
-		frameId: stackFrame ? stackFrame.frameId : undefined,
-		context
-	}).then(response => {
-		expression.available = !!(response && response.body);
-		if (response && response.body) {
-			expression.value = response.body.result;
-			expression.reference = response.body.variablesReference;
-			expression.namedVariables = response.body.namedVariables;
-			expression.indexedVariables = response.body.indexedVariables;
-			expression.type = response.body.type;
-		}
-
-		return expression;
-	}, err => {
-		expression.value = err.message;
-		expression.available = false;
-		expression.reference = 0;
-
-		return expression;
-	});
-}
-
 export class OutputElement implements debug.ITreeElement {
 	private static ID_COUNTER = 0;
 
@@ -159,6 +126,10 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 			if (this.reference <= 0) {
 				this.children = TPromise.as([]);
 			} else {
+				if (!this.getChildrenInChunks) {
+					return this.fetchVariables(undefined, undefined, undefined);
+				}
+
 				// Check if object has named variables, fetch them independent from indexed variables #9670
 				this.children = (!!this.namedVariables ? this.fetchVariables(undefined, undefined, 'named')
 					: TPromise.as([])).then(childrenArray => {
@@ -180,9 +151,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 							return childrenArray;
 						}
 
-						const start = this.getChildrenInChunks ? this.startOfVariables : undefined;
-						const count = this.getChildrenInChunks ? this.indexedVariables : undefined;
-						return this.fetchVariables(start, count, this.getChildrenInChunks ? 'indexed' : undefined)
+						return this.fetchVariables(this.startOfVariables, this.indexedVariables, 'indexed')
 							.then(variables => childrenArray.concat(variables));
 					});
 			}
@@ -197,6 +166,10 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 
 	public get value(): string {
 		return this._value;
+	}
+
+	public get hasChildren(): boolean {
+		return this.reference > 0;
 	}
 
 	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
@@ -235,6 +208,39 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 		super(null, 0, id, cacheChildren, 0, 0);
 		this.value = Expression.DEFAULT_VALUE;
 		this.available = false;
+	}
+
+	public evaluate(process: debug.IProcess, stackFrame: debug.IStackFrame, context: string): TPromise<void> {
+		if (!process) {
+			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate") : Expression.DEFAULT_VALUE;
+			this.available = false;
+			this.reference = 0;
+
+			return TPromise.as(null);
+		}
+
+		// Create a fake stack frame which is just used as a container for the process.
+		// TODO@Isidor revisit if variables should have a reference to the StackFrame or a process after all
+		this.stackFrame = stackFrame || new StackFrame(new Thread(process, undefined, undefined), undefined, undefined, undefined, undefined, undefined);
+
+		return process.session.evaluate({
+			expression: this.name,
+			frameId: stackFrame ? stackFrame.frameId : undefined,
+			context
+		}).then(response => {
+			this.available = !!(response && response.body);
+			if (response && response.body) {
+				this.value = response.body.result;
+				this.reference = response.body.variablesReference;
+				this.namedVariables = response.body.namedVariables;
+				this.indexedVariables = response.body.indexedVariables;
+				this.type = response.body.type;
+			}
+		}, err => {
+			this.value = err.message;
+			this.available = false;
+			this.reference = 0;
+		});
 	}
 }
 
@@ -294,10 +300,11 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		return this.stackFrame.thread.process.session.setVariable({
 			name: this.name,
 			value,
-			variablesReference: this.parent.reference
+			variablesReference: (<ExpressionContainer>this.parent).reference
 		}).then(response => {
 			if (response && response.body) {
 				this.value = response.body.value;
+				this.type = response.body.type || this.type;
 			}
 			// TODO@Isidor notify stackFrame that a change has happened so watch expressions get revelauted
 		}, err => {
@@ -487,7 +494,7 @@ export class Process implements debug.IProcess {
 	}
 
 	public getId(): string {
-		return this._session.getId();;
+		return this._session.getId();
 	}
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
@@ -556,6 +563,7 @@ export class Process implements debug.IProcess {
 	}
 }
 
+// TODO@Isidor breakpoint should not have a pointer to source. Source should live inside a stack frame
 export class Breakpoint implements debug.IBreakpoint {
 
 	public lineNumber: number;
@@ -796,10 +804,10 @@ export class Model implements debug.IModel {
 		return this.replElements;
 	}
 
-	public addReplExpression(stackFrame: debug.IStackFrame, name: string): TPromise<void> {
+	public addReplExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
 		const expression = new Expression(name, true);
 		this.addReplElements([expression]);
-		return evaluateExpression(stackFrame, expression, 'repl')
+		return expression.evaluate(process, stackFrame, 'repl')
 			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
@@ -871,7 +879,7 @@ export class Model implements debug.IModel {
 		return this.watchExpressions;
 	}
 
-	public addWatchExpression(stackFrame: debug.IStackFrame, name: string): TPromise<void> {
+	public addWatchExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
 		const we = new Expression(name, false);
 		this.watchExpressions.push(we);
 		if (!name) {
@@ -879,14 +887,14 @@ export class Model implements debug.IModel {
 			return TPromise.as(null);
 		}
 
-		return this.evaluateWatchExpressions(stackFrame, we.getId());
+		return this.evaluateWatchExpressions(process, stackFrame, we.getId());
 	}
 
-	public renameWatchExpression(stackFrame: debug.IStackFrame, id: string, newName: string): TPromise<void> {
+	public renameWatchExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, id: string, newName: string): TPromise<void> {
 		const filtered = this.watchExpressions.filter(we => we.getId() === id);
 		if (filtered.length === 1) {
 			filtered[0].name = newName;
-			return evaluateExpression(stackFrame, filtered[0], 'watch').then(() => {
+			return filtered[0].evaluate(process, stackFrame, 'watch').then(() => {
 				this._onDidChangeWatchExpressions.fire(filtered[0]);
 			});
 		}
@@ -894,31 +902,21 @@ export class Model implements debug.IModel {
 		return TPromise.as(null);
 	}
 
-	public evaluateWatchExpressions(stackFrame: debug.IStackFrame, id: string = null): TPromise<void> {
+	public evaluateWatchExpressions(process: debug.IProcess, stackFrame: debug.IStackFrame, id: string = null): TPromise<void> {
 		if (id) {
 			const filtered = this.watchExpressions.filter(we => we.getId() === id);
 			if (filtered.length !== 1) {
 				return TPromise.as(null);
 			}
 
-			return evaluateExpression(stackFrame, filtered[0], 'watch').then(() => {
+			return filtered[0].evaluate(process, stackFrame, 'watch').then(() => {
 				this._onDidChangeWatchExpressions.fire(filtered[0]);
 			});
 		}
 
-		return TPromise.join(this.watchExpressions.map(we => evaluateExpression(stackFrame, we, 'watch'))).then(() => {
+		return TPromise.join(this.watchExpressions.map(we => we.evaluate(process, stackFrame, 'watch'))).then(() => {
 			this._onDidChangeWatchExpressions.fire();
 		});
-	}
-
-	public clearWatchExpressionValues(): void {
-		this.watchExpressions.forEach(we => {
-			we.value = Expression.DEFAULT_VALUE;
-			we.available = false;
-			we.reference = 0;
-		});
-
-		this._onDidChangeWatchExpressions.fire();
 	}
 
 	public removeWatchExpressions(id: string = null): void {

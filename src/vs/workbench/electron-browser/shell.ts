@@ -288,15 +288,21 @@ export class WorkbenchShell {
 		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 
+		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
+		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
+		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
+
 		const extensionsRuntimeService = instantiationService.createInstance(ExtensionsRuntimeService);
 		serviceCollection.set(IExtensionsRuntimeService, extensionsRuntimeService);
+		disposables.add(extensionsRuntimeService);
 
-		const extensionHostProcessWorker = this.startExtensionHost(instantiationService);
+		const extensionHostProcessWorker = instantiationService.createInstance(ExtensionHostProcessWorker);
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
 		serviceCollection.set(IThreadService, this.threadService);
 
 		const extensionService = instantiationService.createInstance(MainProcessExtensionService);
 		serviceCollection.set(IExtensionService, extensionService);
+		extensionHostProcessWorker.start(extensionService);
 
 		serviceCollection.set(ICommandService, new CommandService(instantiationService, extensionService));
 
@@ -332,10 +338,6 @@ export class WorkbenchShell {
 
 		const integrityService = instantiationService.createInstance(IntegrityServiceImpl);
 		serviceCollection.set(IIntegrityService, integrityService);
-
-		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
-		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
-		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
 		const urlChannel = mainProcessClient.getChannel('url');
 		const urlChannelClient = new URLChannelClient(urlChannel, this.windowService.getWindowId());
@@ -451,12 +453,6 @@ export class WorkbenchShell {
 
 		this.contextViewService.layout();
 		this.workbench.layout();
-	}
-
-	private startExtensionHost(instantiationService: InstantiationService): ExtensionHostProcessWorker {
-		const extensionHostProcessWorker: ExtensionHostProcessWorker = <ExtensionHostProcessWorker>instantiationService.createInstance(ExtensionHostProcessWorker);
-		extensionHostProcessWorker.start();
-		return extensionHostProcessWorker;
 	}
 
 	public joinCreation(): TPromise<boolean> {

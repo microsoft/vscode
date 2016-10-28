@@ -1556,6 +1556,28 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #12950: Cannot Double Click To Insert Emoji Using OSX Emoji Panel', () => {
+		usingCursor({
+			text: [
+				'some lines',
+				'and more lines',
+				'just some text',
+			],
+			modeId: null,
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 1, false);
+
+			cursorCommand(cursor, H.Type, { text: '😍' }, 'keyboard');
+
+			assert.equal(model.getValue(), [
+				'some lines',
+				'and more lines',
+				'😍just some text',
+			].join('\n'));
+		});
+	});
+
 	test('issue #3463: pressing tab adds spaces, but not as many as for a tab', () => {
 		usingCursor({
 			text: [

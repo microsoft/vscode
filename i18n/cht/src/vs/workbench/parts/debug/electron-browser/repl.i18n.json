@@ -7,5 +7,5 @@
 	"actions.repl.acceptInput": "REPL 接受輸入",
 	"actions.repl.historyNext": "下一筆記錄",
 	"actions.repl.historyPrevious": "上一筆記錄",
-	"replAriaLabel": "Read Eval Print Loop 面板"
+	"replAriaLabel": "「讀取、求值、輸出」迴圈面板"
 }

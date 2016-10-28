@@ -8,8 +8,6 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { AbstractGettingStarted } from 'vs/workbench/parts/welcome/common/abstractGettingStarted';
 import * as platform from 'vs/base/common/platform';
 
-import { shell } from 'electron';
-
 export class ElectronGettingStarted extends AbstractGettingStarted implements IWorkbenchContribution {
 
 	protected openExternal(url: string) {
@@ -18,7 +16,7 @@ export class ElectronGettingStarted extends AbstractGettingStarted implements IW
 		if (platform.isLinux && platform.isRootUser) {
 			return;
 		}
-		shell.openExternal(url);
+		window.open(url);
 	}
 
 	protected handleWelcome(): void {

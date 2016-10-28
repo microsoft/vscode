@@ -17,7 +17,7 @@ import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
-import { ipcRenderer as ipc, shell, remote } from 'electron';
+import { ipcRenderer as ipc, remote } from 'electron';
 
 const dialog = remote.dialog;
 
@@ -120,7 +120,7 @@ export class ElectronWindow {
 
 		// Handle window.open() calls
 		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
-			shell.openExternal(url);
+			$this.openExternal(url);
 
 			return null;
 		};
@@ -182,5 +182,13 @@ export class ElectronWindow {
 
 	public flashFrame(): void {
 		ipc.send('vscode:flashFrame', this.windowId); // handled from browser process
+	}
+
+	public showItemInFolder(path: string): void {
+		ipc.send('vscode:showItemInFolder', path); // handled from browser process to prevent foreground ordering issues on Windows
+	}
+
+	public openExternal(url: string): void {
+		ipc.send('vscode:openExternal', url); // handled from browser process to prevent foreground ordering issues on Windows
 	}
 }

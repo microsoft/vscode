@@ -13,6 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IRequestContext } from 'vs/base/node/request';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^[a-z0-9A-Z][a-z0-9\-A-Z]*\\.[a-z0-9A-Z][a-z0-9\-A-Z]*$';
+export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 
 export interface ICommand {
 	command: string;

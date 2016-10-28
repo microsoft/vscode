@@ -6,7 +6,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { shell } from 'electron';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { language } from 'vs/base/common/platform';
@@ -68,7 +67,7 @@ class NPSContribution implements IWorkbenchContribution {
 
 		const takeSurveyAction = new Action('nps.takeSurvey', nls.localize('takeSurvey', "Take Survey"), '', true, () => {
 			return telemetryService.getTelemetryInfo().then(info => {
-				shell.openExternal(`${product.npsSurveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
+				window.open(`${product.npsSurveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
 				storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 				storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 			});

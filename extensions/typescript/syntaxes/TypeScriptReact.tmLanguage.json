@@ -494,8 +494,8 @@
 		},
 		"enum-declaration": {
 			"name": "meta.enum.declaration.tsx",
-			"match": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?(?:\\b(const)\\s+)?\\b(enum)\\s+([_$[:alpha:]][_$[:alnum:]]*)",
-			"captures": {
+			"begin": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?(?:\\b(const)\\s+)?\\b(enum)\\s+([_$[:alpha:]][_$[:alnum:]]*)",
+			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.tsx"
 				},
@@ -508,7 +508,67 @@
 				"4": {
 					"name": "entity.name.type.enum.tsx"
 				}
-			}
+			},
+			"end": "(?<=\\})",
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.block.tsx"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.block.tsx"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#comment"
+						},
+						{
+							"begin": "([_$[:alpha:]][_$[:alnum:]]*)",
+							"beginCaptures": {
+								"0": {
+									"name": "variable.other.enummember.tsx"
+								}
+							},
+							"end": "(?=,|\\}|$)",
+							"patterns": [
+								{
+									"include": "#comment"
+								},
+								{
+									"include": "#variable-initializer"
+								}
+							]
+						},
+						{
+							"begin": "(?=(?:(?:\\'[^']*\\')|(?:\\\"[^\"]*\\\")))",
+							"end": "(?=,|\\}|$)",
+							"patterns": [
+								{
+									"include": "#string"
+								},
+								{
+									"include": "#comment"
+								},
+								{
+									"include": "#variable-initializer"
+								}
+							]
+						},
+						{
+							"include": "#punctuation-comma"
+						}
+					]
+				}
+			]
 		},
 		"namespace-declaration": {
 			"name": "meta.namespace.declaration.tsx",
@@ -1222,7 +1282,7 @@
 			}
 		},
 		"object-literal": {
-			"name": "meta.object-literal.tsx",
+			"name": "meta.objectliteral.tsx",
 			"begin": "\\{",
 			"beginCaptures": {
 				"0": {
@@ -1262,7 +1322,7 @@
 			]
 		},
 		"after-operator-block": {
-			"name": "meta.object-literal.tsx",
+			"name": "meta.objectliteral.tsx",
 			"begin": "(?<=[=(,\\[?+!]|await|return|yield|throw|in|of|typeof|&&|\\|\\||\\*)\\s*(\\{)",
 			"beginCaptures": {
 				"1": {
@@ -1510,7 +1570,7 @@
 			]
 		},
 		"type-predicate-operator": {
-			"name": "keyword.operator.is.tsx",
+			"name": "keyword.operator.expression.is.tsx",
 			"match": "(?<!\\.|\\$)\\bis\\b(?!\\$)"
 		},
 		"type-annotation": {
@@ -2115,7 +2175,7 @@
 					"name": "entity.name.function.tsx"
 				}
 			},
-			"end": "(?=\\()",
+			"end": "(?<=\\))",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -2142,6 +2202,9 @@
 							"include": "#punctuation-comma"
 						}
 					]
+				},
+				{
+					"include": "#paren-expression"
 				}
 			]
 		},
@@ -2166,7 +2229,7 @@
 					}
 				},
 				{
-					"match": "(?x)(?:(\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*=\\s*( (async\\s+)|(function\\s+)| ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)| ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)))",
+					"match": "(?x)(?:(\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*=\\s*( (async\\s+)|(function\\s*[(<])|(function\\s+)| ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)| ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)))",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.tsx"
@@ -2234,8 +2297,11 @@
 					"name": "keyword.operator.new.tsx"
 				}
 			},
-			"end": "(?=[(;),]|$|((?<!\\.|\\$)\\bnew\\b(?!\\$)))",
+			"end": "(?<=\\))|(?=[;),]|$|((?<!\\.|\\$)\\bnew\\b(?!\\$)))",
 			"patterns": [
+				{
+					"include": "#paren-expression"
+				},
 				{
 					"include": "#type"
 				}
@@ -2279,7 +2345,7 @@
 				},
 				{
 					"name": "meta.object.member.tsx",
-					"begin": "(?x)(?:([_$[:alpha:]][_$[:alnum:]]*)\\s*(:)(?=\\s*( (async\\s+)|(function\\s+)| ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)| ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))))",
+					"begin": "(?x)(?:([_$[:alpha:]][_$[:alnum:]]*)\\s*(:)(?=\\s*( (async\\s+)|(function\\s*[(<])|(function\\s+)| ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)| ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))))",
 					"beginCaptures": {
 						"0": {
 							"name": "meta.object-literal.key.tsx"
@@ -2352,19 +2418,19 @@
 					"match": "(?<!\\.|\\$)\\b(await)\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.operator.delete.tsx",
+					"name": "keyword.operator.expression.delete.tsx",
 					"match": "(?<!\\.|\\$)\\bdelete\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.operator.in.tsx",
+					"name": "keyword.operator.expression.in.tsx",
 					"match": "(?<!\\.|\\$)\\bin\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.operator.of.tsx",
+					"name": "keyword.operator.expression.of.tsx",
 					"match": "(?<!\\.|\\$)\\bof\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.operator.instanceof.tsx",
+					"name": "keyword.operator.expression.instanceof.tsx",
 					"match": "(?<!\\.|\\$)\\binstanceof\\b(?!\\$)"
 				},
 				{
@@ -2375,7 +2441,7 @@
 					"include": "#typeof-operator"
 				},
 				{
-					"name": "keyword.operator.void.tsx",
+					"name": "keyword.operator.expression.void.tsx",
 					"match": "(?<!\\.|\\$)\\bvoid\\b(?!\\$)"
 				},
 				{
@@ -2443,7 +2509,7 @@
 			]
 		},
 		"typeof-operator": {
-			"name": "keyword.operator.typeof.tsx",
+			"name": "keyword.operator.expression.typeof.tsx",
 			"match": "(?<!\\.|\\$)\\btypeof\\b(?!\\$)"
 		},
 		"arrow-function": {
@@ -3393,5 +3459,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/fea3b25eb632f689a02057a1715faab29343dda2"
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/578dd5db70333e3b6826ff529276f32916a2c81b"
 }

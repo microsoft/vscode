@@ -556,7 +556,8 @@ export class ReferenceWidget extends PeekViewWidget {
 			var options: editorCommon.IEditorOptions = {
 				scrollBeyondLastLine: false,
 				scrollbar: DefaultConfig.editor.scrollbar,
-				overviewRulerLanes: 2
+				overviewRulerLanes: 2,
+				fixedOverflowWidgets: true
 			};
 
 			this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);

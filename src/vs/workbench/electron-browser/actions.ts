@@ -34,7 +34,7 @@ import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 
 import * as os from 'os';
-import { ipcRenderer as ipc, webFrame, remote, shell } from 'electron';
+import { ipcRenderer as ipc, webFrame, remote } from 'electron';
 
 // --- actions
 
@@ -548,7 +548,7 @@ export class ReportIssueAction extends Action {
 			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
 				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, extensions);
 
-				shell.openExternal(issueUrl);
+				window.open(issueUrl);
 
 				return TPromise.as(true);
 			});

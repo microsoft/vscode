@@ -118,16 +118,22 @@ export class ParameterHintsModel extends Disposable {
 			return;
 		}
 
-		const support = SignatureHelpProviderRegistry.ordered(model)[0];
-		if (!support) {
-			return;
+		const allTriggerCharacters: string[] = [];
+		for (const support of SignatureHelpProviderRegistry.ordered(model)) {
+			if (Array.isArray(support.signatureHelpTriggerCharacters)) {
+				allTriggerCharacters.push(...support.signatureHelpTriggerCharacters);
+			}
 		}
 
-		this.triggerCharactersListeners = support.signatureHelpTriggerCharacters.map((ch) => {
-			return this.editor.addTypingListener(ch, () => {
-				this.trigger();
-			});
-		});
+		allTriggerCharacters.sort();
+		this.triggerCharactersListeners.length = 0;
+		let lastCh: string;
+		for (const ch of allTriggerCharacters) {
+			if (ch !== lastCh) {
+				lastCh = ch;
+				this.triggerCharactersListeners.push(this.editor.addTypingListener(ch, () => this.trigger()));
+			}
+		}
 	}
 
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {
@@ -211,14 +217,14 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.overloads = dom.append(wrapper, $('.overloads'));
 
-		const body = dom.append(wrapper, $('.body'));
+		const body = $('.body');
+		this.scrollbar = new DomScrollableElement(body, { canUseTranslate3d: false });
+		this.disposables.push(this.scrollbar);
+		wrapper.appendChild(this.scrollbar.getDomNode());
 
 		this.signature = dom.append(body, $('.signature'));
 
-		this.docs = $('.docs');
-		this.scrollbar = new DomScrollableElement(this.docs, { canUseTranslate3d: false });
-		this.disposables.push(this.scrollbar);
-		body.appendChild(this.scrollbar.getDomNode());
+		this.docs = dom.append(body, $('.docs'));
 
 		this.currentSignature = 0;
 

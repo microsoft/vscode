@@ -154,7 +154,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._widgets[widget.getId()] = widgetData;
 
 		let domNode = widget.getDomNode();
-		domNode.style.position = 'fixed';
+		domNode.style.position = this._context.configuration.editor.viewInfo.fixedOverflowWidgets ? 'fixed' : 'absolute';
 		StyleMutator.setMaxWidth(domNode, this._contentWidth);
 		StyleMutator.setVisibility(domNode, 'hidden');
 		domNode.setAttribute('widgetId', widget.getId());
@@ -280,19 +280,21 @@ export class ViewContentWidgets extends ViewPart {
 		if (absoluteLeft + width + 20 > INNER_WIDTH) {
 			let delta = absoluteLeft - (INNER_WIDTH - width - 20);
 			absoluteLeft -= delta;
+			left -= delta;
 		}
 		if (absoluteLeft < 0) {
 			let delta = absoluteLeft;
 			absoluteLeft -= delta;
+			left -= delta;
 		}
 
-		return {
-			aboveTop: absoluteAboveTop,
-			fitsAbove: fitsAbove,
-			belowTop: absoluteBelowTop,
-			fitsBelow: fitsBelow,
-			left: absoluteLeft
-		};
+		if (this._context.configuration.editor.viewInfo.fixedOverflowWidgets) {
+			aboveTop = absoluteAboveTop;
+			belowTop = absoluteBelowTop;
+			left = absoluteLeft;
+		}
+
+		return { aboveTop, fitsAbove, belowTop, fitsBelow, left };
 	}
 
 	private _prepareRenderWidgetAtExactPosition(position: Position, ctx: IRenderingContext): IMyWidgetRenderData {

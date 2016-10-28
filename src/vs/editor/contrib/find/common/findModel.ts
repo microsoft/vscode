@@ -428,8 +428,19 @@ export class FindModelBoundToEditorModel {
 
 		// Get all the ranges (even more than the highlighted ones)
 		let ranges = this._findMatches(findScope, Number.MAX_VALUE);
+		let selections = ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn));
 
-		this._editor.setSelections(ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn)));
+		// If one of the ranges is the editor selection, then maintain it as primary
+		let editorSelection = this._editor.getSelection();
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let sel = selections[i];
+			if (sel.equalsRange(editorSelection)) {
+				selections = [editorSelection].concat(selections.slice(0, i)).concat(selections.slice(i + 1));
+				break;
+			}
+		}
+
+		this._editor.setSelections(selections);
 	}
 
 	private _executeEditorCommand(source: string, command: editorCommon.ICommand): void {

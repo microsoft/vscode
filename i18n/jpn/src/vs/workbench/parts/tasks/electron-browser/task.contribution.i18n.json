@@ -83,6 +83,7 @@
 	"TerminateAction.noProcess": "起動したプロセスは既に存在しません。タスクを起動したバックグラウンド タスクが VS コードで終了すると、プロセスが孤立することがあります。",
 	"TestAction.label": "テスト タスクの実行",
 	"manyMarkers": "99+",
+	"problems": "問題",
 	"taskCommands": "タスクの実行",
 	"tasks": "タスク",
 	"tasksCategory": "タスク"

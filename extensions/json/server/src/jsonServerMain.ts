@@ -56,7 +56,9 @@ const filesAssociationContribution = new FileAssociationContribution();
 let workspaceRoot: URI;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceRoot = URI.parse(params.rootPath);
-	filesAssociationContribution.setLanguageIds(params.initializationOptions.languageIds);
+	if (params.initializationOptions) {
+		filesAssociationContribution.setLanguageIds(params.initializationOptions.languageIds);
+	}
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
@@ -64,7 +66,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			completionProvider: { resolveProvider: true, triggerCharacters: ['"', ':'] },
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions['format.enable']
+			documentRangeFormattingProvider: !params.initializationOptions || params.initializationOptions['format.enable']
 		}
 	};
 });
