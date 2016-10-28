@@ -303,7 +303,7 @@ suite('Debug - Model', () => {
 		model.renameWatchExpression(process, stackFrame, watchExpressions[1].getId(), 'new_name').done();
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
-		model.clearWatchExpressionValues();
+		model.evaluateWatchExpressions(process, null);
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
 		model.removeWatchExpressions();

@@ -919,15 +919,6 @@ export class Model implements debug.IModel {
 		});
 	}
 
-	public clearWatchExpressionValues(): void {
-		this.watchExpressions.forEach(we => {
-			we.value = Expression.DEFAULT_VALUE;
-			we.available = false;
-		});
-
-		this._onDidChangeWatchExpressions.fire();
-	}
-
 	public removeWatchExpressions(id: string = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this._onDidChangeWatchExpressions.fire();
