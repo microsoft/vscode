@@ -96,7 +96,8 @@ export class BackupFileService implements IBackupFileService {
 			return null;
 		}
 
-		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
+		// Only hash the file path if the file is not untitled
+		const backupName = resource.scheme === 'untitled' ? resource.fsPath : crypto.createHash('md5').update(resource.fsPath).digest('hex');
 		const backupPath = path.join(this.getWorkspaceBackupDirectory(), resource.scheme, backupName);
 		return Uri.file(backupPath);
 	}

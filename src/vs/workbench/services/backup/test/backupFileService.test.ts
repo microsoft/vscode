@@ -40,11 +40,11 @@ suite('BackupFileService', () => {
 	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
 	const bazFile = Uri.file(platform.isWindows ? 'C:\\baz' : '/baz');
-	const untitledFile = Uri.from({ scheme: 'untitled' });
+	const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 	const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
 	const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
 	const bazBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(bazFile.fsPath).digest('hex'));
-	const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
+	const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', untitledFile.fsPath);
 
 	let service: BackupFileService;
 
@@ -136,29 +136,10 @@ suite('BackupFileService', () => {
 	});
 
 	test('getBackupResource should get the correct backup path for untitled files', () => {
-		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
-		const backupResource = Uri.from({ scheme: 'untitled' });
+		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePath>
+		const backupResource = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
-		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
-		assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
-	});
-
-	test('getBackupResource should get the correct backup path for text files', () => {
-		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
-		const backupResource = fooFile;
-		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
-		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
-		assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
-	});
-
-	test('getBackupResource should get the correct backup path for untitled files', () => {
-		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
-		const backupResource = Uri.from({ scheme: 'untitled' });
-		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
-		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
+		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', backupResource.fsPath)).fsPath;
 		assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
