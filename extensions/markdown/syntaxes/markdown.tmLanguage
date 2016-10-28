@@ -455,7 +455,7 @@
 								</dict>
 							</array>
 							<key>while</key>
-							<string>\G([ ]{4}|\t|$)</string>
+							<string>(^|\G)([ ]{4}|\t)</string>
 						</dict>
 						<dict>
 							<key>begin</key>
@@ -482,7 +482,7 @@
 								</dict>
 							</array>
 							<key>while</key>
-							<string>\G([ ]{4}|\t|$)</string>
+							<string>(^|\G)([ ]{4}|\t)</string>
 						</dict>
 					</array>
 				</dict>
