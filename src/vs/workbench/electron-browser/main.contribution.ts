@@ -85,6 +85,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
 			'default': true
 		},
+		'workbench.editor.showTabCloseButtons': {
+			'type': 'boolean',
+			'description': nls.localize('showEditorTabCloseButtons', "Controls if editor tabs should have a visible close button or not."),
+			'default': true
+		},
 		'workbench.editor.showIcons': {
 			'type': 'boolean',
 			'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),

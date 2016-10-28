@@ -55,9 +55,12 @@ export interface ITitleAreaControl {
 	update(instant?: boolean): void;
 	layout(): void;
 	dispose(): void;
+	showTabCloseButtons: boolean;
 }
 
 export abstract class TitleControl implements ITitleAreaControl {
+
+	public showTabCloseButtons: boolean;
 
 	private static draggedEditor: IEditorIdentifier;
 
@@ -68,6 +71,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	protected dragged: boolean;
 
 	protected closeEditorAction: CloseEditorAction;
+	protected closeEditorDisabledAction: CloseEditorAction;
 	protected pinEditorAction: KeepEditorAction;
 	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
 	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
@@ -229,6 +233,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	private initActions(): void {
 		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
+		this.closeEditorDisabledAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
+		this.closeEditorDisabledAction.enabled = false;
 		this.closeOtherEditorsAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
 		this.closeRightEditorsAction = this.instantiationService.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
 		this.closeEditorsInGroupAction = this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));

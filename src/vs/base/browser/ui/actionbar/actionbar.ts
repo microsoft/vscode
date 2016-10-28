@@ -103,9 +103,13 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this._context = newContext;
 	}
 
-	public render(container: HTMLElement): void {
+	public render(container: HTMLElement, ignoreClicks = false): void {
 		this.builder = $(container);
 		this.gesture = new Gesture(container);
+
+		if (ignoreClicks) {
+			return;
+		}
 
 		this.builder.on(EventType.Tap, e => this.onClick(e));
 
@@ -209,6 +213,7 @@ export interface IActionItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string;
+	ignoreClicks?: boolean;
 }
 
 export class ActionItem extends BaseActionItem {
@@ -223,14 +228,18 @@ export class ActionItem extends BaseActionItem {
 		this.options = options;
 		this.options.icon = options.icon !== undefined ? options.icon : false;
 		this.options.label = options.label !== undefined ? options.label : true;
+		this.options.ignoreClicks = options.ignoreClicks !== undefined ? options.ignoreClicks : false;
 		this.cssClass = '';
 	}
 
 	public render(container: HTMLElement): void {
-		super.render(container);
+		super.render(container, this.options.ignoreClicks);
 
 		this.$e = $('a.action-label').appendTo(this.builder);
 		this.$e.attr({ role: 'button' });
+		if (this.options.ignoreClicks) {
+			this.$e.addClass('ignoring-clicks');
+		}
 
 		if (this.options.label && this.options.keybinding) {
 			$('span.keybinding').text(this.options.keybinding).appendTo(this.builder);
@@ -326,6 +335,7 @@ export interface IActionBarOptions {
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
 	animated?: boolean;
+	ignoreClicks?: boolean;
 }
 
 let defaultOptions: IActionBarOptions = {
@@ -409,8 +419,10 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 		// Prevent native context menu on actions
 		$(this.domNode).on(DOM.EventType.CONTEXT_MENU, (e: Event) => {
-			e.preventDefault();
-			e.stopPropagation();
+			if (!this.options.ignoreClicks) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
 		});
 
 		$(this.domNode).on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
@@ -494,6 +506,8 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 	}
 
 	public push(arg: IAction | IAction[], options: IActionOptions = {}): void {
+
+		options.ignoreClicks = (typeof options.ignoreClicks === 'undefined') ? this.options.ignoreClicks : options.ignoreClicks;
 
 		const actions: IAction[] = !Array.isArray(arg) ? [arg] : arg;
 
