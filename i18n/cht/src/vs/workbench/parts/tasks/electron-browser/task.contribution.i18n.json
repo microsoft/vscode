@@ -83,6 +83,7 @@
 	"TerminateAction.noProcess": "啟動的處理序已不存在。如果工作繁衍的背景工作結束，VS Code 可能會產生孤立的處理序。",
 	"TestAction.label": "執行測試工作",
 	"manyMarkers": "99+",
+	"problems": "問題",
 	"taskCommands": "執行工作",
 	"tasks": "工作",
 	"tasksCategory": "工作"

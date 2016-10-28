@@ -6,5 +6,6 @@
 {
 	"installNet": ".NET Framework 4.5 をダウンロードします",
 	"netVersionError": "Microsoft .NET Framework 4.5 が必要です。リンクに移動してインストールしてください。",
+	"neverShowAgain": "今後は表示しない",
 	"trashFailed": "'{0}' をごみ箱に移動できませんでした"
 }

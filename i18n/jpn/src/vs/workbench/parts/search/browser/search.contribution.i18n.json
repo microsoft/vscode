@@ -7,12 +7,14 @@
 	"exclude": "検索でファイルとフォルダーを除外するために glob パターンを構成します。files.exclude 設定からすべての glob パターンを継承します。",
 	"exclude.boolean": "ファイル パスの照合基準となる glob パターン。これを true または false に設定すると、パターンがそれぞれ有効/無効になります。",
 	"exclude.when": "一致するファイルの兄弟を追加的に検査します。一致するファイル名の変数として $(basename) を使用します。",
+	"findInFiles": "フォルダーを指定して検索",
 	"findInFolder": "フォルダー内を検索",
 	"name": "検索",
 	"openAnythingHandlerDescription": "ファイルに移動する",
 	"openSymbolDescriptionNormal": "ワークスペース内のシンボルへ移動",
 	"search.quickOpen.includeSymbols": "グローバル シンボル検索の結果を、Quick Open の結果ファイルに含めるように構成します。",
 	"searchConfigurationTitle": "検索",
+	"showSearchViewlet": "検索の表示",
 	"showTriggerActions": "ワークスペース内のシンボルへ移動...",
 	"view": "表示"
 }

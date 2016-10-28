@@ -20,6 +20,6 @@
 	"updatedtsdk": "Die Arbeitsbereicheinstellung \"typescript.tsdk\" wurde in {0} aktualisiert.",
 	"use": "Arbeitsbereich verwenden ({0})",
 	"useBundled": "Paket verwenden ({0})",
-	"versionMismatch": "Ein Versionskonflikt zwischen dem global installierten TSC-Compiler ({0}) und dem Sprachdienst von VS Code ({1}) wurde erkannt. Dies kann ggf. zu inkonsistenten Kompilierungsfehlern führen.",
+	"versionMismatch": "Versionskonflikt zwischen dem globalen TSC ({0}) und dem Sprachdienst von VS Code ({1}). Dies kann zu Kompilierungsfehlern aufgrund von Inkonsistenzen führen.",
 	"versionNumber.custom": "benutzerdefiniert"
 }

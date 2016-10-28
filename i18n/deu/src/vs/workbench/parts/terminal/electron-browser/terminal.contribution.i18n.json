@@ -17,6 +17,7 @@
 	"terminal.integrated.shell.windows": "Der Pfad der Shell, den das Terminal unter Windows verwendet. Wenn Shells aus dem Lieferumfang von Windows (cmd, PowerShell oder Bash für Ubuntu) verwendet werden, sollten Sie \"C:Windowssysnative\" dem Pfad \"C:WindowsSystem32\" vorziehen, um die 64-Bit-Versionen zu verwenden.",
 	"terminal.integrated.shellArgs.linux": "Die Befehlszeilenargumente, die für das Linux-Terminal verwendet werden sollen.",
 	"terminal.integrated.shellArgs.osx": "Die Befehlszeilenargumente, die für das OS X-Terminal verwendet werden sollen.",
+	"terminal.integrated.shellArgs.windows": "Die Befehlszeilenargumente, die im Windows-Terminal verwendet werden sollen.",
 	"terminalCategory": "Terminal",
 	"terminalIntegratedConfigurationTitle": "Integriertes Terminal",
 	"viewCategory": "Anzeigen"
