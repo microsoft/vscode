@@ -88,8 +88,7 @@ class MarkerModel {
 		var found = false;
 		var position = this._editor.getPosition();
 		for (var i = 0, len = this._markers.length; i < len && !found; i++) {
-			var pos = { lineNumber: this._markers[i].startLineNumber, column: this._markers[i].startColumn };
-			if (position.isBeforeOrEqual(pos)) {
+			if (Range.containsPosition(this._markers[i], position)) {
 				this._nextIdx = i + (fwd ? 0 : -1);
 				found = true;
 			}
