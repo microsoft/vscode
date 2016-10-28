@@ -183,6 +183,7 @@ export interface IRawTextContent extends IBaseStat {
 
 export interface ITextFileEditorModelManager {
 
+	onModelDisposed: Event<URI>;
 	onModelContentChanged: Event<TextFileModelChangeEvent>;
 	onModelDirty: Event<TextFileModelChangeEvent>;
 	onModelSaveError: Event<TextFileModelChangeEvent>;
