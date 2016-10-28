@@ -264,7 +264,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		return breakpoints.map((breakpoint) => {
 			return {
 				options: this.getBreakpointDecorationOptions(breakpoint),
-				range: createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, 2)
+				range: createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, Number.MAX_VALUE)
 			};
 		});
 	}
