@@ -55,7 +55,7 @@ export class ExtensionHostMain {
 		this._extensionService = new ExtHostExtensionService(initData.extensions, threadService, telemetryService, { _serviceBrand: 'optionalArgs', workspaceStoragePath });
 
 		// Create the ext host API
-		const factory = createApiFactory(initData.configuration, threadService, this._extensionService, this._contextService, telemetryService);
+		const factory = createApiFactory(initData.configuration, initData.telemetryInfo, threadService, this._extensionService, this._contextService);
 		defineAPI(factory, this._extensionService);
 	}
 
