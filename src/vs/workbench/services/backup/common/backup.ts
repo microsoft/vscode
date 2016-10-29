@@ -29,7 +29,7 @@ export interface IBackupService {
 }
 
 /**
- * A service that handles any IO and state associated with the backup system.
+ * A service that handles any I/O and state associated with the backup system.
  */
 export interface IBackupFileService {
 	_serviceBrand: any;
@@ -50,20 +50,6 @@ export interface IBackupFileService {
 	removeWorkspaceBackupPath(workspace: Uri): TPromise<void>;
 
 	/**
-	 * Registers a resource for backup, flagging it for restoration.
-	 *
-	 * @param resource The resource that is being backed up.
-	 */
-	registerResourceForBackup(resource: Uri): TPromise<void>;
-
-	/**
-	 * Deregisters a resource for backup, unflagging it for restoration.
-	 *
-	 * @param resource The resource that is no longer being backed up.
-	 */
-	deregisterResourceForBackup(resource: Uri): TPromise<void>;
-
-	/**
 	 * Gets whether a text file has a backup to restore.
 	 *
 	 * @param resource The resource to check.
@@ -79,9 +65,25 @@ export interface IBackupFileService {
 	 */
 	getBackupResource(resource: Uri): Uri;
 
-	backupAndRegisterResource(resource: Uri, content: string): TPromise<void>;
-	discardAndDeregisterResource(resource: Uri): TPromise<void>;
-	discardBackups(): TPromise<void>;
+	/**
+	 * Backs up a resource.
+	 *
+	 * @param resource The resource to back up.
+	 * @param content THe content of the resource.
+	 */
+	backupResource(resource: Uri, content: string): TPromise<void>;
+
+	/**
+	 * Discards the backup associated with a resource if it exists..
+	 *
+	 * @param resource The resource whose backup is being discarded discard to back up.
+	 */
+	discardResourceBackup(resource: Uri): TPromise<void>;
+
+	/**
+	 * Discards all backups associated with the current workspace.
+	 */
+	discardAllWorkspaceBackups(): TPromise<void>;
 }
 
 /**

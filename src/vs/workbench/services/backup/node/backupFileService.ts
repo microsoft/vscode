@@ -7,10 +7,9 @@
 
 import * as path from 'path';
 import * as crypto from 'crypto';
-import * as arrays from 'vs/base/common/arrays';
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
-import { IBackupWorkspaceFormat, IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
+import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -23,7 +22,6 @@ export class BackupFileService implements IBackupFileService {
 	protected backupHome: string;
 	protected workspacesJsonPath: string;
 
-	private workspaceJsonContent: IBackupWorkspaceFormat;
 	private workspacesJsonContent: IBackupWorkspacesFormat;
 
 	constructor(
@@ -59,37 +57,12 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public registerResourceForBackup(resource: Uri): TPromise<void> {
-		// Hot exit is disabled for empty workspaces
-		if (!this.currentWorkspace) {
-			return TPromise.as(void 0);
-		}
-
-		return this.load().then(() => {
-			if (arrays.contains(this.workspaceJsonContent.textFiles, resource.fsPath)) {
-				return TPromise.as(void 0);
-			}
-			this.workspaceJsonContent.textFiles.push(resource.fsPath);
-			return this.save();
-		});
-	}
-
-	public deregisterResourceForBackup(resource: Uri): TPromise<void> {
-		// Hot exit is disabled for empty workspaces
-		if (!this.currentWorkspace) {
-			return TPromise.as(void 0);
-		}
-
-		return this.load().then(() => {
-			this.workspaceJsonContent.textFiles = this.workspaceJsonContent.textFiles.filter(value => value !== resource.fsPath);
-			return this.save();
-		});
-	}
-
 	public doesTextFileHaveBackup(resource: Uri): TPromise<boolean> {
-		return this.load().then(() => {
-			return arrays.contains(this.workspaceJsonContent.textFiles, resource.fsPath);
-		});
+		const backupResource = this.getBackupResource(resource);
+		if (!backupResource) {
+			return TPromise.as(false);
+		}
+		return pfs.exists(this.getBackupResource(resource).fsPath);
 	}
 
 	public getBackupResource(resource: Uri): Uri {
@@ -109,39 +82,29 @@ export class BackupFileService implements IBackupFileService {
 		return path.join(this.backupHome, workspaceHash);
 	}
 
-	public backupAndRegisterResource(resource: Uri, content: string): TPromise<void> {
-		let registerResourcePromise: TPromise<void>;
-		if (resource.scheme === 'file') {
-			registerResourcePromise = this.registerResourceForBackup(resource);
-		} else {
-			registerResourcePromise = TPromise.as(void 0);
+	public backupResource(resource: Uri, content: string): TPromise<void> {
+		const backupResource = this.getBackupResource(resource);
+
+		// Hot exit is disabled for empty workspaces
+		if (!backupResource) {
+			return TPromise.as(void 0);
 		}
-		return registerResourcePromise.then(() => {
-			const backupResource = this.getBackupResource(resource);
 
-			// Hot exit is disabled for empty workspaces
-			if (!backupResource) {
-				return TPromise.as(null);
-			}
-
-			return this.fileService.updateContent(backupResource, content);
-		}).then(() => void 0);
+		return this.fileService.updateContent(backupResource, content).then(() => void 0);
 	}
 
-	public discardAndDeregisterResource(resource: Uri): TPromise<void> {
-		return this.deregisterResourceForBackup(resource).then(() => {
-			const backupResource = this.getBackupResource(resource);
+	public discardResourceBackup(resource: Uri): TPromise<void> {
+		const backupResource = this.getBackupResource(resource);
 
-			// Hot exit is disabled for empty workspaces
-			if (!backupResource) {
-				return TPromise.as(null);
-			}
+		// Hot exit is disabled for empty workspaces
+		if (!backupResource) {
+			return TPromise.as(void 0);
+		}
 
-			return this.fileService.del(backupResource);
-		});
+		return this.fileService.del(backupResource);
 	}
 
-	public discardBackups(): TPromise<void> {
+	public discardAllWorkspaceBackups(): TPromise<void> {
 		return this.fileService.del(Uri.file(this.getWorkspaceBackupDirectory()));
 	}
 
@@ -174,38 +137,6 @@ export class BackupFileService implements IBackupFileService {
 		const data = JSON.stringify(this.workspacesJsonContent);
 		return pfs.mkdirp(this.backupHome).then(() => {
 			return pfs.writeFile(this.workspacesJsonPath, data);
-		});
-	}
-
-	private load(): TPromise<void> {
-		return pfs.fileExists(this.workspaceJsonPath).then(exists => {
-			if (!exists) {
-				this.workspaceJsonContent = {
-					textFiles: []
-				};
-				return TPromise.as(void 0);
-			}
-
-			return pfs.readFile(this.workspaceJsonPath, 'utf8').then(content => {
-				try {
-					return JSON.parse(content.toString());
-				} catch (ex) {
-					return [];
-				}
-			}).then(content => {
-				this.workspaceJsonContent = content;
-				if (!this.workspaceJsonContent.textFiles) {
-					this.workspaceJsonContent.textFiles = [];
-				}
-				return TPromise.as(void 0);
-			});
-		});
-	}
-
-	private save(): TPromise<void> {
-		const data = JSON.stringify(this.workspaceJsonContent);
-		return pfs.mkdirp(path.dirname(this.workspaceJsonPath)).then(() => {
-			return pfs.writeFile(this.workspaceJsonPath, data);
 		});
 	}
 }

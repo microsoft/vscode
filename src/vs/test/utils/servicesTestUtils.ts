@@ -668,15 +668,15 @@ export class TestBackupFileService implements IBackupFileService {
 		return null;
 	}
 
-	public backupAndRegisterResource(resource: URI, content: string): TPromise<void> {
+	public backupResource(resource: URI, content: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	public discardAndDeregisterResource(resource: URI): TPromise<void> {
+	public discardResourceBackup(resource: URI): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	public discardBackups(): TPromise<void> {
+	public discardAllWorkspaceBackups(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 };

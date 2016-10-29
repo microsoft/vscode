@@ -6,7 +6,3 @@
 export interface IBackupWorkspacesFormat {
 	folderWorkspaces: string[];
 }
-
-export interface IBackupWorkspaceFormat {
-	textFiles: string[];
-}

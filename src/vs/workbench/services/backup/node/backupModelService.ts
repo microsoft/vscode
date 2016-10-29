@@ -57,13 +57,13 @@ export class BackupModelService implements IBackupModelService {
 			if (input.isDirty()) {
 				this.backupService.doBackup(resource, input.getValue());
 			} else {
-				this.backupFileService.discardAndDeregisterResource(resource);
+				this.backupFileService.discardResourceBackup(resource);
 			}
 		}
 	}
 
 	private discardBackup(resource: Uri): void {
-		this.backupFileService.discardAndDeregisterResource(resource);
+		this.backupFileService.discardResourceBackup(resource);
 	}
 
 	public dispose(): void {
