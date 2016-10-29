@@ -16,27 +16,28 @@ import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IBackupFormat } from 'vs/platform/backup/common/backup';
+import { IBackupWorkspaceFormat, IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 
 class TestBackupFileService extends BackupFileService {
-	constructor(workspace: Uri, backupHome: string, backupWorkspacesPath: string) {
+	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
 		const fileService = new FileService(workspace.fsPath, { disableWatcher: true }, null, null, null);
 		super(workspace, TestEnvironmentService, fileService);
 
 		this.backupHome = backupHome;
-		this.backupWorkspacesPath = backupWorkspacesPath;
+		this.workspacesJsonPath = workspacesJsonPath;
 	}
 }
 
 suite('BackupFileService', () => {
 	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service')
 	const backupHome = path.join(parentDir, 'Backups');
-	const backupWorkspacesJsonPath = path.join(backupHome, 'workspaces.json');
+	const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
 	const workspaceResource = Uri.file(platform.isWindows ? 'C:\\workspace' : '/workspace');
 	const workspaceBackupPath = path.join(backupHome, crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex'));
+	const workspaceJsonPath = path.join(workspaceBackupPath, 'workspace.json');
 	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
 	const bazFile = Uri.file(platform.isWindows ? 'C:\\baz' : '/baz');
@@ -49,12 +50,12 @@ suite('BackupFileService', () => {
 	let service: BackupFileService;
 
 	setup(done => {
-		service = new TestBackupFileService(workspaceResource, backupHome, backupWorkspacesJsonPath);
+		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 
 		// Delete any existing backups completely and then re-create it.
 		extfs.del(backupHome, os.tmpdir(), () => {
 			pfs.mkdirp(backupHome).then(() => {
-				pfs.writeFileAndFlush(backupWorkspacesJsonPath, '').then(() => {
+				pfs.writeFileAndFlush(workspacesJsonPath, '').then(() => {
 					done();
 				});
 			});
@@ -66,18 +67,16 @@ suite('BackupFileService', () => {
 	});
 
 	test('removeWorkspaceBackupPath should remove workspaces from workspaces.json', done => {
-		const workspacesJson: IBackupFormat = { folderWorkspaces: {} };
-		workspacesJson.folderWorkspaces[fooFile.fsPath] = [];
-		workspacesJson.folderWorkspaces[barFile.fsPath] = [];
-		pfs.writeFileAndFlush(backupWorkspacesJsonPath, JSON.stringify(workspacesJson)).then(() => {
+		const workspacesJson: IBackupWorkspacesFormat = { folderWorkspaces: [fooFile.fsPath, barFile.fsPath] };
+		pfs.writeFileAndFlush(workspacesJsonPath, JSON.stringify(workspacesJson)).then(() => {
 			service.removeWorkspaceBackupPath(fooFile).then(() => {
-				pfs.readFile(backupWorkspacesJsonPath, 'utf-8').then(buffer => {
-					const json = <IBackupFormat>JSON.parse(buffer);
-					assert.deepEqual(Object.keys(json.folderWorkspaces), [barFile.fsPath]);
+				pfs.readFile(workspacesJsonPath, 'utf-8').then(buffer => {
+					const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
+					assert.deepEqual(json.folderWorkspaces, [barFile.fsPath]);
 					service.removeWorkspaceBackupPath(barFile).then(() => {
-						pfs.readFile(backupWorkspacesJsonPath, 'utf-8').then(content => {
-							const json2 = <IBackupFormat>JSON.parse(content);
-							assert.deepEqual(Object.keys(json2.folderWorkspaces), []);
+						pfs.readFile(workspacesJsonPath, 'utf-8').then(content => {
+							const json2 = <IBackupWorkspacesFormat>JSON.parse(content);
+							assert.deepEqual(json2.folderWorkspaces, []);
 							done();
 						});
 					});
@@ -87,13 +86,12 @@ suite('BackupFileService', () => {
 	});
 
 	test('removeWorkspaceBackupPath should fail gracefully when removing a path that doesn\'t exist', done => {
-		const workspacesJson: IBackupFormat = { folderWorkspaces: {} };
-		workspacesJson.folderWorkspaces[fooFile.fsPath] = [];
-		pfs.writeFileAndFlush(backupWorkspacesJsonPath, JSON.stringify(workspacesJson)).then(() => {
+		const workspacesJson: IBackupWorkspacesFormat = { folderWorkspaces: [fooFile.fsPath] };
+		pfs.writeFileAndFlush(workspacesJsonPath, JSON.stringify(workspacesJson)).then(() => {
 			service.removeWorkspaceBackupPath(barFile).then(() => {
-				pfs.readFile(backupWorkspacesJsonPath, 'utf-8').then(content => {
-					const json = <IBackupFormat>JSON.parse(content);
-					assert.deepEqual(Object.keys(json.folderWorkspaces), [fooFile.fsPath]);
+				pfs.readFile(workspacesJsonPath, 'utf-8').then(content => {
+					const json = <IBackupWorkspacesFormat>JSON.parse(content);
+					assert.deepEqual(json.folderWorkspaces, [fooFile.fsPath]);
 					done();
 				});
 			});
@@ -102,9 +100,9 @@ suite('BackupFileService', () => {
 
 	test('registerResourceForBackup should register backups to workspaces.json', done => {
 		service.registerResourceForBackup(fooFile).then(() => {
-			pfs.readFile(backupWorkspacesJsonPath, 'utf-8').then(content => {
-				const json = <IBackupFormat>JSON.parse(content);
-				assert.deepEqual(json.folderWorkspaces[workspaceResource.fsPath], [fooFile.fsPath]);
+			pfs.readFile(workspaceJsonPath, 'utf-8').then(content => {
+				const json = <IBackupWorkspaceFormat>JSON.parse(content);
+				assert.deepEqual(json.textFiles, [fooFile.fsPath]);
 				done();
 			});
 		});
@@ -112,13 +110,13 @@ suite('BackupFileService', () => {
 
 	test('deregisterResourceForBackup should deregister backups from workspaces.json', done => {
 		service.registerResourceForBackup(fooFile).then(() => {
-			pfs.readFile(backupWorkspacesJsonPath, 'utf-8').then(content => {
-				const json = <IBackupFormat>JSON.parse(content);
-				assert.deepEqual(json.folderWorkspaces[workspaceResource.fsPath], [fooFile.fsPath]);
+			pfs.readFile(workspaceJsonPath, 'utf-8').then(content => {
+				const json = <IBackupWorkspaceFormat>JSON.parse(content);
+				assert.deepEqual(json.textFiles, [fooFile.fsPath]);
 				service.deregisterResourceForBackup(fooFile).then(() => {
-					pfs.readFile(backupWorkspacesJsonPath, 'utf-8').then(content => {
-						const json2 = <IBackupFormat>JSON.parse(content);
-						assert.deepEqual(json2.folderWorkspaces[workspaceResource.fsPath], []);
+					pfs.readFile(workspaceJsonPath, 'utf-8').then(content => {
+						const json2 = <IBackupWorkspaceFormat>JSON.parse(content);
+						assert.deepEqual(json2.textFiles, []);
 						done();
 					});
 				});

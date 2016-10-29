@@ -8,6 +8,7 @@
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 import crypto = require('crypto');
+import fs = require('fs');
 import os = require('os');
 import path = require('path');
 import extfs = require('vs/base/node/extfs');
@@ -17,14 +18,13 @@ import { nfcall } from 'vs/base/common/async';
 import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { BackupService } from 'vs/code/electron-main/backup';
-import { IBackupFormat } from 'vs/platform/backup/common/backup';
 
 class TestBackupService extends BackupService {
 	constructor(backupHome: string, backupWorkspacesPath: string) {
 		super(TestEnvironmentService);
 
 		this.backupHome = backupHome;
-		this.backupWorkspacesPath = backupWorkspacesPath;
+		this.workspacesJsonPath = backupWorkspacesPath;
 	}
 }
 
@@ -45,9 +45,7 @@ suite('BackupService', () => {
 		// Delete any existing backups completely and then re-create it.
 		extfs.del(backupHome, os.tmpdir(), () => {
 			pfs.mkdirp(backupHome).then(() => {
-				pfs.writeFileAndFlush(backupWorkspacesPath, '').then(() => {
-					done();
-				});
+				done();
 			});
 		});
 	});
@@ -56,22 +54,42 @@ suite('BackupService', () => {
 		extfs.del(backupHome, os.tmpdir(), done);
 	});
 
+	test('getWorkspaceBackupPathsSync should return [] when workspaces.json doesn\'t exist', () => {
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
+	});
+
+	test('getWorkspaceBackupPathsSync should return [] when workspaces.json is not properly formed JSON', () => {
+		fs.writeFileSync(backupWorkspacesPath, '');
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
+		fs.writeFileSync(backupWorkspacesPath, '{]');
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
+		fs.writeFileSync(backupWorkspacesPath, 'foo');
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
+	});
+
+	test('getWorkspaceBackupPathsSync should return [] when folderWorkspaces in workspaces.json is absent', () => {
+		fs.writeFileSync(backupWorkspacesPath, '{}');
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
+	});
+
+	test('getWorkspaceBackupPathsSync should return [] when folderWorkspaces in workspaces.json is not a string array', () => {
+		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{}}');
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
+		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{"foo": ["bar"]}}');
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
+		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{"foo": []}}');
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
+		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{"foo": "bar"}}');
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
+		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":"foo"}');
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
+		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":1}');
+		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), []);
+	});
+
 	test('pushWorkspaceBackupPathsSync should persist paths to workspaces.json', () => {
 		backupService.pushWorkspaceBackupPathsSync([fooFile, barFile]);
 		assert.deepEqual(backupService.getWorkspaceBackupPathsSync(), [fooFile.fsPath, barFile.fsPath]);
-	});
-
-	test('getWorkspaceTextFilesWithBackupsSync should return text file resources that have backups', done => {
-		let workspacesJson: IBackupFormat = { folderWorkspaces: {} };
-		workspacesJson.folderWorkspaces[fooFile.fsPath] = [barFile.fsPath];
-		pfs.writeFileAndFlush(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
-			assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(fooFile), [barFile.fsPath]);
-			workspacesJson.folderWorkspaces[fooFile.fsPath].push(bazFile.fsPath);
-			pfs.writeFileAndFlush(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
-				assert.deepEqual(backupService.getWorkspaceTextFilesWithBackupsSync(fooFile), [barFile.fsPath, bazFile.fsPath]);
-				done();
-			});
-		});
 	});
 
 	test('getWorkspaceUntitledFileBackupsSync should return untitled file backup resources', done => {
