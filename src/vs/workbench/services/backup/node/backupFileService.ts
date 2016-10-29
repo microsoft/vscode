@@ -33,10 +33,6 @@ export class BackupFileService implements IBackupFileService {
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 	}
 
-	private get workspaceJsonPath(): string {
-		return path.join(this.getWorkspaceBackupDirectory(), 'workspace.json');
-	}
-
 	public getWorkspaceBackupPaths(): TPromise<string[]> {
 		return this.loadWorkspaces().then(() => {
 			return this.workspacesJsonContent.folderWorkspaces;
