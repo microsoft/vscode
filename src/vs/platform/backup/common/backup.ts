@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IBackupFormat {
-	folderWorkspaces?: {
-		[workspacePath: string]: string[]
-	};
+export interface IBackupWorkspacesFormat {
+	folderWorkspaces: string[];
+}
+
+export interface IBackupWorkspaceFormat {
+	textFiles: string[];
 }

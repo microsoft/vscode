@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 import fs = require('fs');
 import Uri from 'vs/base/common/uri';
 import { readdirSync } from 'vs/base/node/extfs';
-import { IBackupFormat } from 'vs/platform/backup/common/backup';
+import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -34,14 +34,6 @@ export interface IBackupService {
 	pushWorkspaceBackupPathsSync(workspaces: Uri[]): void;
 
 	/**
-	 * Gets the set of text files that are backed up for a particular workspace.
-	 *
-	 * @param workspace The workspace to get the backed up files for.
-	 * @return The absolute paths for text files _that have backups_.
-	 */
-	getWorkspaceTextFilesWithBackupsSync(workspace: Uri): string[];
-
-	/**
 	 * Gets the set of untitled file backups for a particular workspace.
 	 *
 	 * @param workspace The workspace to get the backups for for.
@@ -55,20 +47,20 @@ export class BackupService implements IBackupService {
 	public _serviceBrand: any;
 
 	protected backupHome: string;
-	protected backupWorkspacesPath: string;
+	protected workspacesJsonPath: string;
 
-	private fileContent: IBackupFormat;
+	private workspacesJsonContent: IBackupWorkspacesFormat;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		this.backupHome = environmentService.backupHome;
-		this.backupWorkspacesPath = environmentService.backupWorkspacesPath;
+		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 	}
 
 	public getWorkspaceBackupPathsSync(): string[] {
 		this.loadSync();
-		return Object.keys(this.fileContent.folderWorkspaces);
+		return this.workspacesJsonContent.folderWorkspaces;
 	}
 
 	public pushWorkspaceBackupPathsSync(workspaces: Uri[]): void {
@@ -79,17 +71,11 @@ export class BackupService implements IBackupService {
 				return;
 			}
 
-			if (!this.fileContent.folderWorkspaces[workspace.fsPath]) {
-				this.fileContent.folderWorkspaces[workspace.fsPath] = [];
+			if (this.workspacesJsonContent.folderWorkspaces.indexOf(workspace.fsPath) === -1) {
+				this.workspacesJsonContent.folderWorkspaces.push(workspace.fsPath);
 			}
 		});
 		this.saveSync();
-	}
-
-	public getWorkspaceTextFilesWithBackupsSync(workspace: Uri): string[] {
-		// Allow sync here as it's only used in workbench initialization's critical path
-		this.loadSync();
-		return this.fileContent.folderWorkspaces[workspace.fsPath] || [];
 	}
 
 	public getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[] {
@@ -106,13 +92,21 @@ export class BackupService implements IBackupService {
 
 	private loadSync(): void {
 		try {
-			this.fileContent = JSON.parse(fs.readFileSync(this.backupWorkspacesPath, 'utf8').toString()); // invalid JSON or permission issue can happen here
+			this.workspacesJsonContent = JSON.parse(fs.readFileSync(this.workspacesJsonPath, 'utf8').toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
-			this.fileContent = Object.create(null);
+			this.workspacesJsonContent = Object.create(null);
 		}
 
-		if (!this.fileContent.folderWorkspaces) {
-			this.fileContent.folderWorkspaces = Object.create(null);
+		// Ensure folderWorkspaces is a string[]
+		if (this.workspacesJsonContent.folderWorkspaces) {
+			const fws = this.workspacesJsonContent.folderWorkspaces;
+			if (!Array.isArray(fws) || fws.some(f => typeof f !== 'string')) {
+				this.workspacesJsonContent = Object.create(null);
+			}
+		}
+
+		if (!this.workspacesJsonContent.folderWorkspaces) {
+			this.workspacesJsonContent.folderWorkspaces = [];
 		}
 	}
 
@@ -122,7 +116,7 @@ export class BackupService implements IBackupService {
 			if (!fs.existsSync(this.backupHome)) {
 				fs.mkdirSync(this.backupHome);
 			}
-			fs.writeFileSync(this.backupWorkspacesPath, JSON.stringify(this.fileContent));
+			fs.writeFileSync(this.workspacesJsonPath, JSON.stringify(this.workspacesJsonContent));
 		} catch (ex) {
 		}
 	}
