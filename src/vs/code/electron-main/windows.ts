@@ -659,6 +659,11 @@ export class WindowsManager implements IWindowsService {
 			const workspacesWithBackups = this.backupService.getWorkspaceBackupPathsSync();
 
 			workspacesWithBackups.forEach(workspacePath => {
+				if (!fs.existsSync(workspacePath)) {
+					this.backupService.removeWorkspaceBackupPathSync(Uri.file(workspacePath));
+					return;
+				}
+
 				const untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(workspacePath)).map(filePath => {
 					return { filePath: filePath };
 				});
