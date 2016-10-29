@@ -18,6 +18,7 @@ import { nfcall } from 'vs/base/common/async';
 import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { BackupService } from 'vs/code/electron-main/backup';
+import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 
 class TestBackupService extends BackupService {
 	constructor(backupHome: string, backupWorkspacesPath: string) {
@@ -105,6 +106,35 @@ suite('BackupService', () => {
 					assert.deepEqual(backupService.getWorkspaceUntitledFileBackupsSync(workspaceResource), [untitledBackup1, untitledBackup2]);
 					done();
 				});
+			});
+		});
+	});
+
+	test('removeWorkspaceBackupPath should remove workspaces from workspaces.json', done => {
+		const workspacesJson: IBackupWorkspacesFormat = { folderWorkspaces: [fooFile.fsPath, barFile.fsPath] };
+		pfs.writeFileAndFlush(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
+			backupService.removeWorkspaceBackupPathSync(fooFile);
+			pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
+				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
+				assert.deepEqual(json.folderWorkspaces, [barFile.fsPath]);
+				backupService.removeWorkspaceBackupPathSync(barFile);
+				pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
+					const json2 = <IBackupWorkspacesFormat>JSON.parse(content);
+					assert.deepEqual(json2.folderWorkspaces, []);
+					done();
+				});
+			});
+		});
+	});
+
+	test('removeWorkspaceBackupPath should fail gracefully when removing a path that doesn\'t exist', done => {
+		const workspacesJson: IBackupWorkspacesFormat = { folderWorkspaces: [fooFile.fsPath] };
+		pfs.writeFileAndFlush(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
+			backupService.removeWorkspaceBackupPathSync(barFile);
+			pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
+				const json = <IBackupWorkspacesFormat>JSON.parse(content);
+				assert.deepEqual(json.folderWorkspaces, [fooFile.fsPath]);
+				done();
 			});
 		});
 	});

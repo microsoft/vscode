@@ -34,6 +34,13 @@ export interface IBackupService {
 	pushWorkspaceBackupPathsSync(workspaces: Uri[]): void;
 
 	/**
+	 * Removes a workspace backup path being tracked for restoration.
+	 *
+	 * @param workspace The workspace to remove.
+	 */
+	removeWorkspaceBackupPathSync(workspace: Uri): void;
+
+	/**
 	 * Gets the set of untitled file backups for a particular workspace.
 	 *
 	 * @param workspace The workspace to get the backups for for.
@@ -75,6 +82,19 @@ export class BackupService implements IBackupService {
 				this.workspacesJsonContent.folderWorkspaces.push(workspace.fsPath);
 			}
 		});
+		this.saveSync();
+	}
+
+	public removeWorkspaceBackupPathSync(workspace: Uri): void {
+		this.loadSync();
+		if (!this.workspacesJsonContent.folderWorkspaces) {
+			return;
+		}
+		const index = this.workspacesJsonContent.folderWorkspaces.indexOf(workspace.fsPath);
+		if (index === -1) {
+			return;
+		}
+		this.workspacesJsonContent.folderWorkspaces.splice(index, 1);
 		this.saveSync();
 	}
 
