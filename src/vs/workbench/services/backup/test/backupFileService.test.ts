@@ -16,7 +16,7 @@ import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IBackupWorkspaceFormat, IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
+import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 
@@ -98,32 +98,6 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('registerResourceForBackup should register backups to workspaces.json', done => {
-		service.registerResourceForBackup(fooFile).then(() => {
-			pfs.readFile(workspaceJsonPath, 'utf-8').then(content => {
-				const json = <IBackupWorkspaceFormat>JSON.parse(content);
-				assert.deepEqual(json.textFiles, [fooFile.fsPath]);
-				done();
-			});
-		});
-	});
-
-	test('deregisterResourceForBackup should deregister backups from workspaces.json', done => {
-		service.registerResourceForBackup(fooFile).then(() => {
-			pfs.readFile(workspaceJsonPath, 'utf-8').then(content => {
-				const json = <IBackupWorkspaceFormat>JSON.parse(content);
-				assert.deepEqual(json.textFiles, [fooFile.fsPath]);
-				service.deregisterResourceForBackup(fooFile).then(() => {
-					pfs.readFile(workspaceJsonPath, 'utf-8').then(content => {
-						const json2 = <IBackupWorkspaceFormat>JSON.parse(content);
-						assert.deepEqual(json2.textFiles, []);
-						done();
-					});
-				});
-			});
-		});
-	});
-
 	test('getBackupResource should get the correct backup path for text files', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
 		const backupResource = fooFile;
@@ -144,22 +118,18 @@ suite('BackupFileService', () => {
 	test('doesTextFileHaveBackup should return whether a backup resource exists', done => {
 		service.doesTextFileHaveBackup(fooFile).then(exists => {
 			assert.equal(exists, false);
-			service.registerResourceForBackup(fooFile).then(() => {
+			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
+				fs.writeFileSync(fooBackupPath, 'foo');
 				service.doesTextFileHaveBackup(fooFile).then(exists2 => {
 					assert.equal(exists2, true);
-					service.deregisterResourceForBackup(fooFile).then(() => {
-						service.doesTextFileHaveBackup(fooFile).then(exists3 => {
-							assert.equal(exists3, false);
-							done();
-						});
-					});
+					done();
 				});
 			});
 		});
 	});
 
-	test('backupFile - text file', function (done: () => void) {
-		service.backupAndRegisterResource(fooFile, 'test').then(() => {
+	test('backupResource - text file', function (done: () => void) {
+		service.backupResource(fooFile, 'test').then(() => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
 			assert.equal(fs.readFileSync(fooBackupPath), 'test');
@@ -167,8 +137,8 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('backupFile - untitled file', function (done: () => void) {
-		service.backupAndRegisterResource(untitledFile, 'test').then(() => {
+	test('backupResource - untitled file', function (done: () => void) {
+		service.backupResource(untitledFile, 'test').then(() => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 			assert.equal(fs.existsSync(untitledBackupPath), true);
 			assert.equal(fs.readFileSync(untitledBackupPath), 'test');
@@ -176,10 +146,10 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('discardBackup - text file', function (done: () => void) {
-		service.backupAndRegisterResource(fooFile, 'test').then(() => {
+	test('discardResourceBackup - text file', function (done: () => void) {
+		service.backupResource(fooFile, 'test').then(() => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-			service.discardAndDeregisterResource(fooFile).then(() => {
+			service.discardResourceBackup(fooFile).then(() => {
 				assert.equal(fs.existsSync(fooBackupPath), false);
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 0);
 				done();
@@ -187,10 +157,10 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('discardBackup - untitled file', function (done: () => void) {
-		service.backupAndRegisterResource(untitledFile, 'test').then(() => {
+	test('discardResourceBackup - untitled file', function (done: () => void) {
+		service.backupResource(untitledFile, 'test').then(() => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-			service.discardAndDeregisterResource(untitledFile).then(() => {
+			service.discardResourceBackup(untitledFile).then(() => {
 				assert.equal(fs.existsSync(untitledBackupPath), false);
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 0);
 				done();
@@ -198,12 +168,12 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('discardBackups - text file', function (done: () => void) {
-		service.backupAndRegisterResource(fooFile, 'test').then(() => {
+	test('discardAllWorkspaceBackups - text file', function (done: () => void) {
+		service.backupResource(fooFile, 'test').then(() => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-			service.backupAndRegisterResource(barFile, 'test').then(() => {
+			service.backupResource(barFile, 'test').then(() => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 2);
-				service.discardBackups().then(() => {
+				service.discardAllWorkspaceBackups().then(() => {
 					assert.equal(fs.existsSync(fooBackupPath), false);
 					assert.equal(fs.existsSync(barBackupPath), false);
 					assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'file')), false);
@@ -213,10 +183,10 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('discardBackups - untitled file', function (done: () => void) {
-		service.backupAndRegisterResource(untitledFile, 'test').then(() => {
+	test('discardAllWorkspaceBackups - untitled file', function (done: () => void) {
+		service.backupResource(untitledFile, 'test').then(() => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-			service.discardBackups().then(() => {
+			service.discardAllWorkspaceBackups().then(() => {
 				assert.equal(fs.existsSync(untitledBackupPath), false);
 				assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'untitled')), false);
 				done();

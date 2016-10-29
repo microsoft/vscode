@@ -56,7 +56,7 @@ export class BackupService implements IBackupService {
 
 	private backupImmediately(resource: Uri, content: string): TPromise<void> {
 		if (!resource) {
-			return TPromise.as<void>(null);
+			return TPromise.as(void 0);
 		}
 
 		return this.doBackup(resource, content, true);
@@ -67,12 +67,12 @@ export class BackupService implements IBackupService {
 		this.cancelBackupPromises();
 
 		if (immediate) {
-			return this.backupFileService.backupAndRegisterResource(resource, content).then(f => void 0);
+			return this.backupFileService.backupResource(resource, content);
 		}
 
 		// Create new backup promise and keep it
 		const promise = TPromise.timeout(1000).then(() => {
-			this.backupFileService.backupAndRegisterResource(resource, content); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+			this.backupFileService.backupResource(resource, content); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
 		});
 
 		this.backupPromises.push(promise);
@@ -159,7 +159,7 @@ export class BackupService implements IBackupService {
 			return false; // no backups to cleanup, no veto
 		}
 		return this.backupFileService.removeWorkspaceBackupPath(workspace.resource).then(() => {
-			return this.backupFileService.discardBackups().then(() => {
+			return this.backupFileService.discardAllWorkspaceBackups().then(() => {
 				return false; // no veto
 			});
 		});
@@ -170,6 +170,4 @@ export class BackupService implements IBackupService {
 
 		this.cancelBackupPromises();
 	}
-
-	// TODO: Watch untitled files
 }
