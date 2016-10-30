@@ -83,7 +83,7 @@ export function consolidate(configMap: { [key: string]: IConfigFile; }): { conte
 			configElement = element;
 		}
 
-		merge(configElement, config.contents, false);
+		merge(configElement, config.contents, true);
 		if (config.parseError) {
 			parseErrors.push(configFileName);
 		}
