@@ -400,7 +400,7 @@ export class VSCodeWindow {
 			configuration.verbose = cli.verbose;
 			configuration.debugPluginHost = cli.debugPluginHost;
 			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
-			configuration.extensionHomePath = cli.extensionHomePath;
+			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
 		// Load config
