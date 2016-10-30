@@ -350,7 +350,11 @@ export class WindowsManager implements IWindowsMainService {
 			filesToOpen = candidates;
 		}
 
-		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
+		let openInNewWindow: boolean = true;
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		if (!openConfig.forceNewWindow && windowConfig && windowConfig.openFoldersInNewWindow === false) {
+			openInNewWindow = false;
+		}
 
 		// Restore any existing backup workspaces on the first initial startup, provided an
 		// extension development path is not being launch.
