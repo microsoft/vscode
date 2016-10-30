@@ -21,13 +21,13 @@ export interface IStorage {
 	removeItem(key: string): void;
 }
 
-export class Storage implements IStorageService {
+export class StorageService implements IStorageService {
 
 	public _serviceBrand: any;
 
 	private static COMMON_PREFIX = 'storage://';
-	private static GLOBAL_PREFIX = Storage.COMMON_PREFIX + 'global/';
-	private static WORKSPACE_PREFIX = Storage.COMMON_PREFIX + 'workspace/';
+	private static GLOBAL_PREFIX = StorageService.COMMON_PREFIX + 'global/';
+	private static WORKSPACE_PREFIX = StorageService.COMMON_PREFIX + 'workspace/';
 	private static WORKSPACE_IDENTIFIER = 'workspaceIdentifier';
 	private static NO_WORKSPACE_IDENTIFIER = '__$noWorkspace__';
 
@@ -63,7 +63,7 @@ export class Storage implements IStorageService {
 			workspaceUri = workspace.resource.toString();
 		}
 
-		return workspaceUri ? this.calculateWorkspaceKey(workspaceUri) : Storage.NO_WORKSPACE_IDENTIFIER;
+		return workspaceUri ? this.calculateWorkspaceKey(workspaceUri) : StorageService.NO_WORKSPACE_IDENTIFIER;
 	}
 
 	private calculateWorkspaceKey(workspaceUrl: string): string {
@@ -79,7 +79,7 @@ export class Storage implements IStorageService {
 	private cleanupWorkspaceScope(workspaceId: number, workspaceName: string): void {
 
 		// Get stored identifier from storage
-		const id = this.getInteger(Storage.WORKSPACE_IDENTIFIER, StorageScope.WORKSPACE);
+		const id = this.getInteger(StorageService.WORKSPACE_IDENTIFIER, StorageScope.WORKSPACE);
 
 		// If identifier differs, assume the workspace got recreated and thus clean all storage for this workspace
 		if (types.isNumber(id) && workspaceId !== id) {
@@ -89,7 +89,7 @@ export class Storage implements IStorageService {
 
 			for (let i = 0; i < length; i++) {
 				const key = this.workspaceStorage.key(i);
-				if (key.indexOf(Storage.WORKSPACE_PREFIX) < 0) {
+				if (key.indexOf(StorageService.WORKSPACE_PREFIX) < 0) {
 					continue; // ignore stored things that don't belong to storage service or are defined globally
 				}
 
@@ -111,7 +111,7 @@ export class Storage implements IStorageService {
 
 		// Store workspace identifier now
 		if (workspaceId !== id) {
-			this.store(Storage.WORKSPACE_IDENTIFIER, workspaceId, StorageScope.WORKSPACE);
+			this.store(StorageService.WORKSPACE_IDENTIFIER, workspaceId, StorageScope.WORKSPACE);
 		}
 	}
 
@@ -194,10 +194,10 @@ export class Storage implements IStorageService {
 
 	private toStorageKey(key: string, scope: StorageScope): string {
 		if (scope === StorageScope.GLOBAL) {
-			return Storage.GLOBAL_PREFIX + key.toLowerCase();
+			return StorageService.GLOBAL_PREFIX + key.toLowerCase();
 		}
 
-		return Storage.WORKSPACE_PREFIX + this.workspaceKey + key.toLowerCase();
+		return StorageService.WORKSPACE_PREFIX + this.workspaceKey + key.toLowerCase();
 	}
 }
 
