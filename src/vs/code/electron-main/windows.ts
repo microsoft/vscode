@@ -1029,7 +1029,7 @@ export class WindowsManager implements IWindowsService {
 				configuration.verbose = currentWindowConfig.verbose;
 				configuration.debugBrkPluginHost = currentWindowConfig.debugBrkPluginHost;
 				configuration.debugPluginHost = currentWindowConfig.debugPluginHost;
-				configuration.extensionHomePath = currentWindowConfig.extensionHomePath;
+				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 			}
 		}
 
