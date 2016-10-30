@@ -23,12 +23,13 @@ import { WorkspaceConfigurationService } from 'vs/workbench/services/configurati
 import URI from 'vs/base/common/uri';
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { ConfigurationEditingService, WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/node/configurationEditingService';
+import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { ConfigurationTarget, IConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';

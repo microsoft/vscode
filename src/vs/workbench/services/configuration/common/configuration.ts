@@ -28,3 +28,8 @@ export interface IWorkspaceConfigurationService extends IConfigurationService {
 export interface IWorkspaceConfigurationValue<T> extends IConfigurationValue<T> {
 	workspace: T;
 }
+
+export const WORKSPACE_STANDALONE_CONFIGURATIONS = {
+	'tasks': '.vscode/tasks.json',
+	'launch': '.vscode/launch.json'
+};
