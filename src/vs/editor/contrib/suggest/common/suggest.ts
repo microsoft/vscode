@@ -59,7 +59,11 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 
 	// get provider groups, always add snippet suggestion provider
 	const supports = SuggestRegistry.orderedGroups(model);
-	supports.unshift([snippetSuggestSupport]);
+
+	// add snippets provider unless turned off
+	if (snippetConfig !== 'none') {
+		supports.unshift([snippetSuggestSupport]);
+	}
 
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
