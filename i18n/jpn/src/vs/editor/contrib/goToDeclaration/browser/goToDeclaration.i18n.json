@@ -8,5 +8,5 @@
 	"actions.goToDeclToSide.label": "定義を横に開く",
 	"actions.previewDecl.label": "ピークの定義",
 	"meta.title": " - {0} の定義",
-	"multipleResults": "クリックして、見つかった {0} の定義を表示します。"
+	"multipleResults": "クリックして、{0} の定義を表示します。"
 }

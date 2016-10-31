@@ -83,6 +83,7 @@
 	"TerminateAction.noProcess": "Запущенный процесс больше не существует. Если задача породила фоновые задачи, выход из Visual Studio Code может привести к появлению потерянных процессов.",
 	"TestAction.label": "Выполнить задачу тестирования",
 	"manyMarkers": "99+",
+	"problems": "Проблемы",
 	"taskCommands": "Выполнить задачу",
 	"tasks": "Задачи",
 	"tasksCategory": "Задачи"

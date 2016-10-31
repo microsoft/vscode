@@ -113,21 +113,11 @@ class DefinitionAdapter {
 		let pos = TypeConverters.toPosition(position);
 		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(DefinitionAdapter._convertLocation);
+				return value.map(TypeConverters.location.from);
 			} else if (value) {
-				return DefinitionAdapter._convertLocation(value);
+				return TypeConverters.location.from(value);
 			}
 		});
-	}
-
-	private static _convertLocation(location: vscode.Location): modes.Location {
-		if (!location) {
-			return;
-		}
-		return <modes.Location>{
-			uri: location.uri,
-			range: TypeConverters.fromRange(location.range)
-		};
 	}
 }
 
@@ -208,16 +198,9 @@ class ReferenceAdapter {
 
 		return asWinJsPromise(token => this._provider.provideReferences(doc, pos, context, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(ReferenceAdapter._convertLocation);
+				return value.map(TypeConverters.location.from);
 			}
 		});
-	}
-
-	private static _convertLocation(location: vscode.Location): modes.Location {
-		return <modes.Location>{
-			uri: location.uri,
-			range: TypeConverters.fromRange(location.range)
-		};
 	}
 }
 

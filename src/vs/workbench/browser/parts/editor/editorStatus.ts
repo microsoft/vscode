@@ -682,7 +682,7 @@ export class ShowLanguageExtensionsAction extends Action {
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionGalleryService galleryService: IExtensionGalleryService
 	) {
-		super(ShowLanguageExtensionsAction.ID, nls.localize('showLanguageExtensions', "Search Gallery Extensions for '{0}'...", extension), null, true);
+		super(ShowLanguageExtensionsAction.ID, nls.localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", extension), null, true);
 		this.enabled = galleryService.isEnabled();
 	}
 
@@ -690,7 +690,7 @@ export class ShowLanguageExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search(`tag:__ext_${this.extension.replace(/^\./, '')}`);
+				viewlet.search(`ext:${this.extension.replace(/^\./, '')}`);
 				viewlet.focus();
 			});
 	}

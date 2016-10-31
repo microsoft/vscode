@@ -17,6 +17,10 @@
 	"extensionDescription.publisher": "la proprietà `{0}` è obbligatoria e deve essere di tipo `string`",
 	"extensionDescription.version": "la proprietà `{0}` è obbligatoria e deve essere di tipo `string`",
 	"vscode.extension.activationEvents": "Eventi di attivazione per l'estensione Visual Studio Code.",
+	"vscode.extension.badges": "Matrice di notifiche da visualizzare nella barra laterale della pagina delle estensioni del Marketplace.",
+	"vscode.extension.badges.description": "Descrizione della notifica.",
+	"vscode.extension.badges.href": "Collegamento della notifica.",
+	"vscode.extension.badges.url": "URL di immagine della notifica.",
 	"vscode.extension.categories": "Categorie usate dalla raccolta di Visual Studio Code per definire la categoria dell'estensione.",
 	"vscode.extension.contributes": "Tutti i contributi dell'estensione Visual Studio Code rappresentati da questo pacchetto.",
 	"vscode.extension.displayName": "Nome visualizzato per l'estensione usato nella raccolta di Visual Studio Code.",
@@ -24,6 +28,8 @@
 	"vscode.extension.galleryBanner": "Banner usato nel marketplace di Visual Studio Code.",
 	"vscode.extension.galleryBanner.color": "Colore del banner nell'intestazione pagina del marketplace di Visual Studio Code.",
 	"vscode.extension.galleryBanner.theme": "Tema colori per il tipo di carattere usato nel banner.",
+	"vscode.extension.icon": "Percorso di un'icona da 128x128 pixel.",
+	"vscode.extension.preview": "Imposta l'estensione in modo che venga contrassegnata come Anteprima nel Marketplace.",
 	"vscode.extension.publisher": "Editore dell'estensione Visual Studio Code.",
 	"vscode.extension.scripts.prepublish": "Script eseguito prima che il pacchetto venga pubblicato come estensione Visual Studio Code."
 }

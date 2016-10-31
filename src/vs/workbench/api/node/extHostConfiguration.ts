@@ -5,7 +5,6 @@
 'use strict';
 
 import { mixin } from 'vs/base/common/objects';
-import { illegalState } from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
 import { WorkspaceConfiguration } from 'vscode';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
@@ -14,13 +13,13 @@ import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/
 export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
 	private _proxy: MainThreadConfigurationShape;
-	private _hasConfig: boolean;
 	private _config: any;
 	private _onDidChangeConfiguration = new Emitter<void>();
 
-	constructor(proxy: MainThreadConfigurationShape) {
+	constructor(proxy: MainThreadConfigurationShape, configuration: any) {
 		super();
 		this._proxy = proxy;
+		this._config = configuration;
 	}
 
 	get onDidChangeConfiguration(): Event<void> {
@@ -29,14 +28,10 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
 	public $acceptConfigurationChanged(config: any) {
 		this._config = config;
-		this._hasConfig = true;
 		this._onDidChangeConfiguration.fire(undefined);
 	}
 
 	public getConfiguration(section?: string): WorkspaceConfiguration {
-		if (!this._hasConfig) {
-			throw illegalState('missing config');
-		}
 
 		const config = section
 			? ExtHostConfiguration._lookUp(section, this._config)

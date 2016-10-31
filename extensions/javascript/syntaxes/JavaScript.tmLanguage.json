@@ -495,8 +495,8 @@
 		},
 		"enum-declaration": {
 			"name": "meta.enum.declaration.js",
-			"match": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?(?:\\b(const)\\s+)?\\b(enum)\\s+([_$[:alpha:]][_$[:alnum:]]*)",
-			"captures": {
+			"begin": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?(?:\\b(const)\\s+)?\\b(enum)\\s+([_$[:alpha:]][_$[:alnum:]]*)",
+			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.js"
 				},
@@ -509,7 +509,67 @@
 				"4": {
 					"name": "entity.name.type.enum.js"
 				}
-			}
+			},
+			"end": "(?<=\\})",
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.block.js"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.block.js"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#comment"
+						},
+						{
+							"begin": "([_$[:alpha:]][_$[:alnum:]]*)",
+							"beginCaptures": {
+								"0": {
+									"name": "variable.other.enummember.js"
+								}
+							},
+							"end": "(?=,|\\}|$)",
+							"patterns": [
+								{
+									"include": "#comment"
+								},
+								{
+									"include": "#variable-initializer"
+								}
+							]
+						},
+						{
+							"begin": "(?=(?:(?:\\'[^']*\\')|(?:\\\"[^\"]*\\\")))",
+							"end": "(?=,|\\}|$)",
+							"patterns": [
+								{
+									"include": "#string"
+								},
+								{
+									"include": "#comment"
+								},
+								{
+									"include": "#variable-initializer"
+								}
+							]
+						},
+						{
+							"include": "#punctuation-comma"
+						}
+					]
+				}
+			]
 		},
 		"namespace-declaration": {
 			"name": "meta.namespace.declaration.js",
@@ -1223,7 +1283,7 @@
 			}
 		},
 		"object-literal": {
-			"name": "meta.object-literal.js",
+			"name": "meta.objectliteral.js",
 			"begin": "\\{",
 			"beginCaptures": {
 				"0": {
@@ -1263,7 +1323,7 @@
 			]
 		},
 		"after-operator-block": {
-			"name": "meta.object-literal.js",
+			"name": "meta.objectliteral.js",
 			"begin": "(?<=[=(,\\[?+!]|await|return|yield|throw|in|of|typeof|&&|\\|\\||\\*)\\s*(\\{)",
 			"beginCaptures": {
 				"1": {
@@ -1511,7 +1571,7 @@
 			]
 		},
 		"type-predicate-operator": {
-			"name": "keyword.operator.is.js",
+			"name": "keyword.operator.expression.is.js",
 			"match": "(?<!\\.|\\$)\\bis\\b(?!\\$)"
 		},
 		"type-annotation": {
@@ -2116,7 +2176,7 @@
 					"name": "entity.name.function.js"
 				}
 			},
-			"end": "(?=\\()",
+			"end": "(?<=\\))",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -2143,6 +2203,9 @@
 							"include": "#punctuation-comma"
 						}
 					]
+				},
+				{
+					"include": "#paren-expression"
 				}
 			]
 		},
@@ -2167,7 +2230,7 @@
 					}
 				},
 				{
-					"match": "(?x)(?:(\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*=\\s*( (async\\s+)|(function\\s+)| ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)| ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)))",
+					"match": "(?x)(?:(\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*=\\s*( (async\\s+)|(function\\s*[(<])|(function\\s+)| ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)| ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)))",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.js"
@@ -2235,8 +2298,11 @@
 					"name": "keyword.operator.new.js"
 				}
 			},
-			"end": "(?=[(;),]|$|((?<!\\.|\\$)\\bnew\\b(?!\\$)))",
+			"end": "(?<=\\))|(?=[;),]|$|((?<!\\.|\\$)\\bnew\\b(?!\\$)))",
 			"patterns": [
+				{
+					"include": "#paren-expression"
+				},
 				{
 					"include": "#type"
 				}
@@ -2280,7 +2346,7 @@
 				},
 				{
 					"name": "meta.object.member.js",
-					"begin": "(?x)(?:([_$[:alpha:]][_$[:alnum:]]*)\\s*(:)(?=\\s*( (async\\s+)|(function\\s+)| ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)| ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))))",
+					"begin": "(?x)(?:([_$[:alpha:]][_$[:alnum:]]*)\\s*(:)(?=\\s*( (async\\s+)|(function\\s*[(<])|(function\\s+)| ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)| ((<([^<>]|\\<[^<>]+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>))))",
 					"beginCaptures": {
 						"0": {
 							"name": "meta.object-literal.key.js"
@@ -2353,19 +2419,19 @@
 					"match": "(?<!\\.|\\$)\\b(await)\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.operator.delete.js",
+					"name": "keyword.operator.expression.delete.js",
 					"match": "(?<!\\.|\\$)\\bdelete\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.operator.in.js",
+					"name": "keyword.operator.expression.in.js",
 					"match": "(?<!\\.|\\$)\\bin\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.operator.of.js",
+					"name": "keyword.operator.expression.of.js",
 					"match": "(?<!\\.|\\$)\\bof\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.operator.instanceof.js",
+					"name": "keyword.operator.expression.instanceof.js",
 					"match": "(?<!\\.|\\$)\\binstanceof\\b(?!\\$)"
 				},
 				{
@@ -2376,7 +2442,7 @@
 					"include": "#typeof-operator"
 				},
 				{
-					"name": "keyword.operator.void.js",
+					"name": "keyword.operator.expression.void.js",
 					"match": "(?<!\\.|\\$)\\bvoid\\b(?!\\$)"
 				},
 				{
@@ -2444,7 +2510,7 @@
 			]
 		},
 		"typeof-operator": {
-			"name": "keyword.operator.typeof.js",
+			"name": "keyword.operator.expression.typeof.js",
 			"match": "(?<!\\.|\\$)\\btypeof\\b(?!\\$)"
 		},
 		"arrow-function": {
@@ -3394,5 +3460,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/fea3b25eb632f689a02057a1715faab29343dda2"
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/578dd5db70333e3b6826ff529276f32916a2c81b"
 }

@@ -17,6 +17,7 @@
 	"terminal.integrated.shell.windows": "Путь оболочки, который используется терминалом в Windows. При работе с оболочкой, поставляемой с Windows (cmd, PowerShell или Bash на Ubuntu), укажите C:Windowssysnative вместо C:WindowsSystem32 для использования 64-разрядных версий.",
 	"terminal.integrated.shellArgs.linux": "Аргументы командной строки, которые следует использовать в терминале Linux.",
 	"terminal.integrated.shellArgs.osx": "Аргументы командной строки, которые следует использовать в терминале OS X.",
+	"terminal.integrated.shellArgs.windows": "Аргументы командной строки, используемые в терминале Windows.",
 	"terminalCategory": "Терминал",
 	"terminalIntegratedConfigurationTitle": "Интегрированный терминал",
 	"viewCategory": "Просмотреть"

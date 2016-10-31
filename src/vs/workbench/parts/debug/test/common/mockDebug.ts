@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import uri from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISuggestion } from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
@@ -30,7 +29,7 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
+	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -94,42 +93,6 @@ export class MockDebugService implements debug.IDebugService {
 
 	public openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
 		return TPromise.as(null);
-	}
-
-	public next(threadId: number): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public stepIn(threadId: number): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public stepOut(threadId: number): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public stepBack(threadId: number): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public continue(threadId: number): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public pause(threadId: number): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	public setVariable(variable: debug.IExpression, value: string): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	public restartFrame(frameId: number): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
-		return TPromise.as([]);
 	}
 }
 

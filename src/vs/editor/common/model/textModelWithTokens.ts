@@ -494,6 +494,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public getWordAtPosition(_position: editorCommon.IPosition): editorCommon.IWordAtPosition {
+		this._assertNotDisposed();
 		let position = this.validatePosition(_position);
 		let lineContent = this.getLineContent(position.lineNumber);
 

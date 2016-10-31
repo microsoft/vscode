@@ -17,6 +17,8 @@
 	"restoreFullscreen": "Steuert, ob ein Fenster im Vollbildmodus wiederhergestellt wird, wenn es im Vollbildmodus beendet wurde.",
 	"showEditorTabs": "Steuert, ob geöffnete Editoren auf Registerkarten angezeigt werden sollen.",
 	"showIcons": "Steuert, ob geöffnete Editoren mit einem Symbol angezeigt werden sollen. Hierzu muss auch ein Symboldesign aktiviert werden.",
+	"sideBarLocation": "Steuert die Position der Seitenleiste. Diese kann entweder links oder rechts von der Workbench angezeigt werden.",
+	"statusBarVisibility": "Steuert die Sichtbarkeit der Statusleiste im unteren Bereich der Workbench.",
 	"updateChannel": "Konfiguriert, ob automatische Updates aus einem Updatekanal empfangen werden sollen. Erfordert einen Neustart nach der Änderung.",
 	"updateConfigurationTitle": "Update",
 	"view": "Anzeigen",

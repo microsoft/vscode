@@ -424,26 +424,6 @@ function getShellEnvironment(): TPromise<platform.IProcessEnvironment> {
 	return getUnixShellEnvironment();
 }
 
-/**
- * Returns the user environment necessary for all Code processes.
- * Such environment needs to be propagated to the renderer/shared
- * processes.
- */
-function getEnvironment(accessor: ServicesAccessor): TPromise<platform.IProcessEnvironment> {
-	const environmentService = accessor.get(IEnvironmentService);
-
-	return getShellEnvironment().then(shellEnv => {
-		const instanceEnv = {
-			VSCODE_PID: String(process.pid),
-			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
-			VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
-			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
-		};
-
-		return assign({}, shellEnv, instanceEnv);
-	});
-}
-
 function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	const paths = [environmentService.appSettingsHome, environmentService.userHome, environmentService.extensionsPath];
 
@@ -480,16 +460,30 @@ function start(): void {
 
 	// On some platforms we need to manually read from the global environment variables
 	// and assign them to the process environment (e.g. when doubleclick app on Mac)
-	return instantiationService.invokeFunction(accessor => {
-		return getEnvironment(accessor).then(env => {
-			assign(process.env, env);
+	return getShellEnvironment().then(shellEnv => {
+		// Patch `process.env` with the user's shell environment
+		assign(process.env, shellEnv);
+
+		return instantiationService.invokeFunction(accessor => {
+			const environmentService = accessor.get(IEnvironmentService);
+			const instanceEnv = {
+				VSCODE_PID: String(process.pid),
+				VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
+				VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
+				VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
+			};
+
+			// Patch `process.env` with the instance's environment
+			assign(process.env, instanceEnv);
+
+			// Collect all environment patches to send to other processes
+			const env = assign({}, shellEnv, instanceEnv);
 
 			return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
 				.then(() => instantiationService.invokeFunction(setupIPC))
 				.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
 		});
-	})
-		.done(null, err => instantiationService.invokeFunction(quit, err));
+	}).done(null, err => instantiationService.invokeFunction(quit, err));
 }
 
 start();

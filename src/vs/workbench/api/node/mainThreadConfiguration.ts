@@ -25,7 +25,6 @@ export class MainThreadConfiguration extends MainThreadConfigurationShape {
 		this._configurationEditingService = configurationEditingService;
 		const proxy = threadService.get(ExtHostContext.ExtHostConfiguration);
 		this._toDispose = configurationService.onDidUpdateConfiguration(event => proxy.$acceptConfigurationChanged(event.config));
-		proxy.$acceptConfigurationChanged(configurationService.getConfiguration());
 	}
 
 	public dispose(): void {

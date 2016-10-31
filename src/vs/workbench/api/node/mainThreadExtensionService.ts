@@ -7,8 +7,8 @@
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
-import { IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionsRuntimeService, IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
+import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostContext, ExtHostExtensionServiceShape } from './extHost.protocol';
@@ -37,6 +37,8 @@ function messageWithSource(msg: IMessage): string {
 	return (msg.source ? '[' + msg.source + ']: ' : '') + msg.message;
 }
 
+const hasOwnProperty = Object.hasOwnProperty;
+
 export class MainProcessExtensionService extends AbstractExtensionService<ActivatedExtension> {
 
 	private _threadService: IThreadService;
@@ -51,7 +53,8 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	constructor(
 		@IThreadService threadService: IThreadService,
 		@IMessageService messageService: IMessageService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IExtensionsRuntimeService extensionsRuntimeService: IExtensionsRuntimeService
 	) {
 		super(false);
 		this._isDev = !environmentService.isBuilt || !!environmentService.extensionDevelopmentPath;
@@ -61,7 +64,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
 
-		ExtensionsRegistry.handleExtensionPoints((msg) => this._handleMessage(msg));
+		extensionsRuntimeService.getExtensions().then((extensionDescriptions) => this._onExtensionDescriptions(extensionDescriptions));
 	}
 
 	private _handleMessage(msg: IMessage) {
@@ -124,11 +127,36 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 
 	// -- called by extension host
 
-	public $onExtensionHostReady(extensionDescriptions: IExtensionDescription[], messages: IMessage[]): TPromise<void> {
-		ExtensionsRegistry.registerExtensions(extensionDescriptions);
-		messages.forEach((entry) => this._handleMessage(entry));
+	private _onExtensionDescriptions(extensionDescriptions: IExtensionDescription[]): void {
+		this._registry.registerExtensions(extensionDescriptions);
+
+		let availableExtensions = this._registry.getAllExtensionDescriptions();
+		let extensionPoints = ExtensionsRegistry.getExtensionPoints();
+
+		for (let i = 0, len = extensionPoints.length; i < len; i++) {
+			this._handleExtensionPoint(extensionPoints[i], availableExtensions);
+		}
+
 		this._triggerOnReady();
-		return;
+	}
+
+	private _handleExtensionPoint<T>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[]): void {
+		let messageHandler = (msg: IMessage) => this._handleMessage(msg);
+
+		let users: IExtensionPointUser<T>[] = [], usersLen = 0;
+		for (let i = 0, len = availableExtensions.length; i < len; i++) {
+			let desc = availableExtensions[i];
+
+			if (desc.contributes && hasOwnProperty.call(desc.contributes, extensionPoint.name)) {
+				users[usersLen++] = {
+					description: desc,
+					value: desc.contributes[extensionPoint.name],
+					collector: new ExtensionMessageCollector(messageHandler, desc.extensionFolderPath)
+				};
+			}
+		}
+
+		extensionPoint.acceptUsers(users);
 	}
 
 	public $onExtensionActivated(extensionId: string): void {

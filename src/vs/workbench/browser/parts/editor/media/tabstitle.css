@@ -64,7 +64,6 @@
 	display: flex;
 	width: 120px;
 	min-width: fit-content;
-	overflow: hidden;
 	white-space: nowrap;
 	cursor: pointer;
 	height: 35px;
@@ -221,6 +220,7 @@
 /* Editor Actions */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
+	cursor: default;
 	flex: initial;
 	padding-left: 4px;
 }

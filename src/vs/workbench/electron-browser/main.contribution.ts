@@ -74,12 +74,6 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
 	'type': 'object',
 	'properties': {
-		'workbench.editor.defaultSideBySideLayout': {
-			'type': 'string',
-			'enum': ['vertical', 'horizontal'],
-			'default': 'vertical',
-			'description': nls.localize('defaultSideBySideLayout', "Controls how multiple side by side editors should layout by default if no other user choice has been made.")
-		},
 		'workbench.editor.showTabs': {
 			'type': 'boolean',
 			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),

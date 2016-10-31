@@ -17,6 +17,8 @@
 	"restoreFullscreen": "控制當視窗在全螢幕模式下結束後，下次是否仍以全螢幕模式開啟。",
 	"showEditorTabs": "控制已開啟的編輯器是否應顯示在索引標籤中。",
 	"showIcons": "控制開啟的編輯器是否搭配圖示顯示。這需要同時啟用圖示佈景主題。",
+	"sideBarLocation": "控制項資訊看板的位置。可顯示於 Workbench 的左方或右方。",
+	"statusBarVisibility": "控制 Workbench 底端狀態列的可視性。",
 	"updateChannel": "設定是否要從更新頻道接收自動更新。變更後需要重新啟動。",
 	"updateConfigurationTitle": "更新",
 	"view": "檢視",

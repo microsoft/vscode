@@ -324,7 +324,7 @@ export class FileService implements IFileService {
 			return createPromise.then(() => {
 
 				// 3.) update atime and mtime
-				return pfs.utimes(absolutePath, new Date(), new Date()).then(() => {
+				return pfs.touch(absolutePath).then(() => {
 
 					// 4.) resolve
 					return this.resolve(resource);

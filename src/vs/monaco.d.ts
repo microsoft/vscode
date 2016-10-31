@@ -1082,7 +1082,7 @@ declare module monaco.editor {
         lineNumbersMinChars?: number;
         /**
          * Enable the rendering of the glyph margin.
-         * Defaults to true.
+         * Defaults to true in vscode and to false in monaco-editor.
          */
         glyphMargin?: boolean;
         /**
@@ -1118,6 +1118,11 @@ declare module monaco.editor {
          * Control the behavior and rendering of the scrollbars.
          */
         scrollbar?: IEditorScrollbarOptions;
+        /**
+         * Display overflow widgets as `fixed`.
+         * Defaults to `false`.
+         */
+        fixedOverflowWidgets?: boolean;
         /**
          * The number of vertical lanes the overview ruler should render.
          * Defaults to 2.
@@ -1180,7 +1185,7 @@ declare module monaco.editor {
         wordWrap?: boolean;
         /**
          * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
-         * Defaults to 'none'.
+         * Defaults to 'same' in vscode and to 'none' in monaco-editor.
          */
         wrappingIndent?: string;
         /**
@@ -1263,6 +1268,10 @@ declare module monaco.editor {
          */
         snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
         /**
+         * Copying without a selection copies the current line.
+         */
+        emptySelectionClipboard?: boolean;
+        /**
          * Enable tab completion. Defaults to 'false'
          */
         tabCompletion?: boolean;
@@ -1292,7 +1301,7 @@ declare module monaco.editor {
         codeLens?: boolean;
         /**
          * Enable code folding
-         * Defaults to true.
+         * Defaults to true in vscode and to false in monaco-editor.
          */
         folding?: boolean;
         /**
@@ -1416,6 +1425,7 @@ declare module monaco.editor {
         readonly renderIndentGuides: boolean;
         readonly renderLineHighlight: boolean;
         readonly scrollbar: InternalEditorScrollbarOptions;
+        readonly fixedOverflowWidgets: boolean;
     }
 
     export interface IViewConfigurationChangedEvent {
@@ -1444,6 +1454,7 @@ declare module monaco.editor {
         readonly renderIndentGuides: boolean;
         readonly renderLineHighlight: boolean;
         readonly scrollbar: boolean;
+        readonly fixedOverflowWidgets: boolean;
     }
 
     export class EditorContribOptions {
@@ -1458,6 +1469,7 @@ declare module monaco.editor {
         readonly suggestOnTriggerCharacters: boolean;
         readonly acceptSuggestionOnEnter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+        readonly emptySelectionClipboard: boolean;
         readonly tabCompletion: boolean;
         readonly wordBasedSuggestions: boolean;
         readonly suggestFontSize: number;
