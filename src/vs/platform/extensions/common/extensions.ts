@@ -72,16 +72,15 @@ export interface IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 }
 
-export const IExtensionsRuntimeService = createDecorator<IExtensionsRuntimeService>('extensionsRuntimeService');
+export const IExtensionRuntimeService = createDecorator<IExtensionRuntimeService>('extensionRuntimeService');
 
-export interface IExtensionsRuntimeService {
+export interface IExtensionRuntimeService {
 	_serviceBrand: any;
 
 	/**
-	 * Scans and returns only enabled extensions.
-	 * **NOTE**: This call returns different results based on `setEnablement` calls!
+	 * Returns all extensions enabled for the current VS Code window
 	 */
-	getExtensions(): TPromise<IExtensionDescription[]>;
+	getEnabledExtensions(): TPromise<IExtensionDescription[]>;
 
 	/**
 	 * Returns `true` if given extension is disabled, otherwise `false`.
@@ -91,7 +90,7 @@ export interface IExtensionsRuntimeService {
 	/**
 	 * Returns `true` if given extension is disabled always, otherwise `false`.
 	 */
-	isDisabledAlways(identifier: string): boolean;
+	isDisabledGlobally(identifier: string): boolean;
 
 	/**
 	 * Returns `true` if given extension can be enabled by calling `setEnablement`, otherwise false`.

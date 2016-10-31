@@ -10,7 +10,7 @@ import 'vs/css!./media/extensionsWidgets';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService, ExtensionState } from '../common/extensions';
 import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
-import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionRuntimeService } from 'vs/platform/extensions/common/extensions';
 
 export interface IOptions {
 	extension?: IExtension;
@@ -52,7 +52,7 @@ export class StatusWidget implements IDisposable {
 		private container: HTMLElement,
 		private _extension: IExtension,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
+		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService
 	) {
 		this.render();
 		this.listener = extensionsWorkbenchService.onChange(this.render, this);
@@ -64,7 +64,7 @@ export class StatusWidget implements IDisposable {
 			return;
 		}
 
-		this.extensionsRuntimeService.getExtensions().done(extensions => {
+		this.extensionRuntimeService.getEnabledExtensions().done(extensions => {
 			const status = append(this.container, $('span.extension-status'));
 			const state = this.extension.state;
 			const enabled = state === ExtensionState.Enabled || extensions.some(e => e.id === this.extension.identifier);
@@ -73,7 +73,7 @@ export class StatusWidget implements IDisposable {
 			toggleClass(status, 'disabled', disabled || installed);
 			toggleClass(status, 'active', enabled);
 
-			status.title = disabled ? this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier) ? localize('disabled', "Disabled") : localize('disabledWorkspace', "Disabled (Workspace)")
+			status.title = disabled ? this.extensionRuntimeService.isDisabledGlobally(this.extension.identifier) ? localize('disabled', "Disabled") : localize('disabledWorkspace', "Disabled (Workspace)")
 				: installed ? localize('installed', "Installed")
 					: enabled ? localize('enabled', "Enabled") : '';
 		});

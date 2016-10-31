@@ -7,7 +7,7 @@
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
-import { IExtensionsRuntimeService, IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
+import { IExtensionRuntimeService, IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -54,7 +54,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		@IThreadService threadService: IThreadService,
 		@IMessageService messageService: IMessageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IExtensionsRuntimeService extensionsRuntimeService: IExtensionsRuntimeService
+		@IExtensionRuntimeService extensionsRuntimeService: IExtensionRuntimeService
 	) {
 		super(false);
 		this._isDev = !environmentService.isBuilt || !!environmentService.extensionDevelopmentPath;
@@ -64,7 +64,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
 
-		extensionsRuntimeService.getExtensions().then((extensionDescriptions) => this._onExtensionDescriptions(extensionDescriptions));
+		extensionsRuntimeService.getEnabledExtensions().then((extensionDescriptions) => this._onExtensionDescriptions(extensionDescriptions));
 	}
 
 	private _handleMessage(msg: IMessage) {

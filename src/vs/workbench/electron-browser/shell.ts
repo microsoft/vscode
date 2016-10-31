@@ -64,7 +64,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService, IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionRuntimeService } from 'vs/platform/extensions/common/extensions';
 import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -82,7 +82,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { ExtensionsRuntimeService } from 'vs/workbench/services/extensions/electron-browser/extensions';
+import { ExtensionRuntimeService } from 'vs/workbench/services/extensions/electron-browser/extensionRuntimeService';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -292,8 +292,8 @@ export class WorkbenchShell {
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
 		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
-		const extensionsRuntimeService = instantiationService.createInstance(ExtensionsRuntimeService);
-		serviceCollection.set(IExtensionsRuntimeService, extensionsRuntimeService);
+		const extensionsRuntimeService = instantiationService.createInstance(ExtensionRuntimeService);
+		serviceCollection.set(IExtensionRuntimeService, extensionsRuntimeService);
 		disposables.add(extensionsRuntimeService);
 
 		const extensionHostProcessWorker = instantiationService.createInstance(ExtensionHostProcessWorker);

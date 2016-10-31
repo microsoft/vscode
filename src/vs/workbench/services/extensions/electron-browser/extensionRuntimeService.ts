@@ -13,7 +13,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IExtensionManagementService, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IExtensionsRuntimeService, IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
+import { IExtensionRuntimeService, IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Severity, IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -24,7 +24,7 @@ const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../../../..'));
 const BUILTIN_EXTENSIONS_PATH = paths.join(BASE_PATH, 'extensions');
 const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensions/disabled';
 
-export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
+export class ExtensionRuntimeService implements IExtensionRuntimeService {
 
 	_serviceBrand: any;
 
@@ -47,7 +47,7 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 		extensionManagementService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 	}
 
-	public getExtensions(): TPromise<IExtensionDescription[]> {
+	public getEnabledExtensions(): TPromise<IExtensionDescription[]> {
 		if (!this.installedExtensions) {
 			this.installedExtensions = this.scanExtensions();
 		}
@@ -73,7 +73,7 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 		return this.getDisabledExtensions().indexOf(identifier) !== -1;
 	}
 
-	public isDisabledAlways(identifier: string): boolean {
+	public isDisabledGlobally(identifier: string): boolean {
 		return this.globalDisabledExtensions.indexOf(identifier) !== -1;
 	}
 
