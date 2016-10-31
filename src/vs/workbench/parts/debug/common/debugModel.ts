@@ -24,7 +24,7 @@ const MAX_REPL_LENGTH = 10000;
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
 function massageValue(value: string): string {
-	return value ? value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') : value;
+	return value ? value.replace(/\r\n|\r|\n/g, '↵').replace(/\t/g, '\\t') : value;
 }
 
 export class OutputElement implements debug.ITreeElement {
@@ -170,7 +170,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	}
 
 	public set value(value: string) {
-		this._value = massageValue(value);
+		this._value = value;
 		this.valueChanged = ExpressionContainer.allValues[this.getId()] &&
 			ExpressionContainer.allValues[this.getId()] !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues[this.getId()] !== value;
 		ExpressionContainer.allValues[this.getId()] = value;
@@ -213,14 +213,15 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 		}).then(response => {
 			this.available = !!(response && response.body);
 			if (response && response.body) {
-				this.value = response.body.result;
+				// Take repl responses verbatim - others get massaged.
+				this.value = context === 'repl' ? response.body.result : massageValue(response.body.result);
 				this.reference = response.body.variablesReference;
 				this.namedVariables = response.body.namedVariables;
 				this.indexedVariables = response.body.indexedVariables;
 				this.type = response.body.type;
 			}
 		}, err => {
-			this.value = err.message;
+			this.value = massageValue(err.message);
 			this.available = false;
 			this.reference = 0;
 		});
@@ -286,7 +287,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 			variablesReference: (<ExpressionContainer>this.parent).reference
 		}).then(response => {
 			if (response && response.body) {
-				this.value = response.body.value;
+				this.value = massageValue(response.body.value);
 				this.type = response.body.type || this.type;
 				this.reference = response.body.variablesReference;
 				this.namedVariables = response.body.namedVariables;
