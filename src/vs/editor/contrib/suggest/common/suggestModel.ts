@@ -384,7 +384,7 @@ export class SuggestModel implements IDisposable {
 
 			if (this.completionModel.incomplete && ctx.column > this.context.column) {
 				const {complete, incomplete} = this.completionModel.resolveIncompleteInfo();
-				this.trigger(true, true, incomplete, complete);
+				this.trigger(this.state === State.Auto, true, incomplete, complete);
 				return;
 			}
 

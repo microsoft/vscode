@@ -77,10 +77,10 @@ export class CompletionModel {
 		const complete: ISuggestionItem[] = [];
 
 		for (const item of this._items) {
-			if (item.container.incomplete && incomplete.indexOf(item.support) < 0) {
-				incomplete.push(item.support);
-			} else {
+			if (!item.container.incomplete) {
 				complete.push(item);
+			} else if (incomplete.indexOf(item.support) < 0) {
+				incomplete.push(item.support);
 			}
 		}
 
