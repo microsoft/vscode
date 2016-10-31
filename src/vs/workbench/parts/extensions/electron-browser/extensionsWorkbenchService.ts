@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/extensionsViewlet';
-import { localize } from 'vs/nls';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { LinkedMap as Map } from 'vs/base/common/map';
@@ -35,7 +34,6 @@ import { asText } from 'vs/base/node/request';
 import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from '../common/extensions';
 import { UpdateAllAction } from './extensionsActions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from './extensionsInput';
 import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
@@ -559,40 +557,31 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const id = stripVersion(event.id);
 		const installing = this.installing.filter(e => e.id === id)[0];
 
-		if (!installing) {
-			if (zipPath) {
-				this.messageService.show(
-					Severity.Info,
-					{
-						message: localize('successSingle', "'{0}' was successfully installed. Restart to enable it.", id),
-						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Restart Now"))]
-					}
-				);
-			}
+		const extension: Extension = installing ? installing.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, null) : null;
+		if (extension) {
+			this.installing = this.installing.filter(e => e.id !== id);
 
-			return;
-		}
+			if (!error) {
+				this.newlyInstalled.push(extension);
+				extension.local = local;
+				extension.needsReload = true;
 
-		const extension = installing.extension;
-		this.installing = this.installing.filter(e => e.id !== id);
+				const galleryId = local.metadata && local.metadata.id;
+				const installed = this.installed.filter(e => (e.local && e.local.metadata && e.local.metadata.id) === galleryId)[0];
 
-		if (!error) {
-			this.newlyInstalled.push(extension);
-			extension.local = local;
-			extension.needsReload = true;
-
-			const galleryId = local.metadata && local.metadata.id;
-			const installed = this.installed.filter(e => (e.local && e.local.metadata && e.local.metadata.id) === galleryId)[0];
-
-			if (galleryId && installed) {
-				installing.operation = Operation.Updating;
-				installed.local = local;
-			} else {
-				this.installed.push(extension);
+				if (galleryId && installed) {
+					installing.operation = Operation.Updating;
+					installed.local = local;
+				} else {
+					this.installed.push(extension);
+				}
 			}
 		}
 
-		this.reportTelemetry(installing, !error);
+		if (extension.gallery) {
+			// Report telemetry only for gallery extensions
+			this.reportTelemetry(installing, !error);
+		}
 		this._onChange.fire();
 	}
 
