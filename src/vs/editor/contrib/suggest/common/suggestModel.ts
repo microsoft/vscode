@@ -322,10 +322,6 @@ export class SuggestModel implements IDisposable {
 					this.trigger(true);
 				});
 			}
-
-		} else if (this.completionModel && this.completionModel.incomplete.length > 0) {
-			this.triggerFromIncomplete(this.state === State.Auto);
-
 		} else {
 			this.onNewContext(ctx);
 		}
@@ -383,6 +379,10 @@ export class SuggestModel implements IDisposable {
 			this.triggerFromIncompletePromise.cancel();
 		}
 
+		// Update UI
+		this._onDidCancel.fire({ retrigger: true });
+		this._onDidTrigger.fire({ auto });
+
 		this.triggerFromIncompletePromise = provideSuggestionItems(this.editor.getModel(), this.editor.getPosition(),
 			this.editor.getConfiguration().contribInfo.snippetSuggestions,
 			this.completionModel.incomplete
@@ -414,6 +414,11 @@ export class SuggestModel implements IDisposable {
 			}
 
 		} else if (this.completionModel) {
+
+			if (this.completionModel.incomplete.length > 0 && ctx.column > this.context.column) {
+				this.triggerFromIncomplete(this.state === State.Auto);
+				return;
+			}
 
 			const auto = this.state === State.Auto;
 			const oldLineContext = this.completionModel.lineContext;
