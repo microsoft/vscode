@@ -52,7 +52,7 @@ export const snippetSuggestSupport: ISuggestSupport = {
 
 export function provideSuggestionItems(model: IReadOnlyModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[]): TPromise<ISuggestionItem[]> {
 
-	const result: ISuggestionItem[] = [];
+	const allSuggestions: ISuggestionItem[] = [];
 	const acceptSuggestion = createSuggesionFilter(snippetConfig);
 
 	position = position.clone();
@@ -83,7 +83,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 
 				return asWinJsPromise(token => support.provideCompletionItems(model, position, token)).then(container => {
 
-					const len = result.length;
+					const len = allSuggestions.length;
 
 					if (container && !isFalsyOrEmpty(container.suggestions)) {
 						for (let suggestion of container.suggestions) {
@@ -91,7 +91,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 
 								fixOverwriteBeforeAfter(suggestion, container);
 
-								result.push({
+								allSuggestions.push({
 									position,
 									container,
 									suggestion,
@@ -102,7 +102,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 						}
 					}
 
-					if (len !== result.length && support !== snippetSuggestSupport) {
+					if (len !== allSuggestions.length && support !== snippetSuggestSupport) {
 						hasResult = true;
 					}
 
@@ -111,7 +111,16 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 		};
 	});
 
-	return sequence(factory).then(() => result.sort(getSuggestionComparator(snippetConfig)));
+	const result = sequence(factory).then(() => allSuggestions.sort(getSuggestionComparator(snippetConfig)));
+
+	// result.then(items => {
+	// 	console.log(model.getWordUntilPosition(position), items.map(item => `${item.suggestion.label}, incomplete?${item.container.incomplete}, overwriteBefore=${item.suggestion.overwriteBefore}`));
+	// 	return items;
+	// }, err => {
+	// 	console.warn(model.getWordUntilPosition(position), err);
+	// });
+
+	return result;
 }
 
 function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestResult): void {
