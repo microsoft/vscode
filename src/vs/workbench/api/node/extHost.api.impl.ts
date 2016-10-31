@@ -214,30 +214,34 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 			createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
 				return extHostEditors.createTextEditorDecorationType(options);
 			},
-			onDidChangeActiveTextEditor: extHostEditors.onDidChangeActiveTextEditor.bind(extHostEditors),
+			onDidChangeActiveTextEditor(listener, thisArg?, disposables?) {
+				return extHostEditors.onDidChangeActiveTextEditor(listener, thisArg, disposables);
+			},
 			onDidChangeVisibleTextEditors(listener, thisArg, disposables) {
 				return extHostEditors.onDidChangeVisibleTextEditors(listener, thisArg, disposables);
 			},
-			onDidChangeTextEditorSelection: (listener: (e: vscode.TextEditorSelectionChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
+			onDidChangeTextEditorSelection(listener: (e: vscode.TextEditorSelectionChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
 				return extHostEditors.onDidChangeTextEditorSelection(listener, thisArgs, disposables);
 			},
-			onDidChangeTextEditorOptions: (listener: (e: vscode.TextEditorOptionsChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
+			onDidChangeTextEditorOptions(listener: (e: vscode.TextEditorOptionsChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
 				return extHostEditors.onDidChangeTextEditorOptions(listener, thisArgs, disposables);
 			},
 			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
 				return extHostEditors.onDidChangeTextEditorViewColumn(listener, thisArg, disposables);
 			},
-			onDidCloseTerminal: extHostTerminalService.onDidCloseTerminal.bind(extHostTerminalService),
-			showInformationMessage: (message, ...items) => {
+			onDidCloseTerminal(listener, thisArg?, disposables?) {
+				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
+			},
+			showInformationMessage(message, ...items) {
 				return extHostMessageService.showMessage(Severity.Info, message, items);
 			},
-			showWarningMessage: (message, ...items) => {
+			showWarningMessage(message, ...items) {
 				return extHostMessageService.showMessage(Severity.Warning, message, items);
 			},
-			showErrorMessage: (message, ...items) => {
+			showErrorMessage(message, ...items) {
 				return extHostMessageService.showMessage(Severity.Error, message, items);
 			},
-			showQuickPick: (items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) => {
+			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
