@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions, ICodeEditorViewState, IContributionsViewState, EditorType } from 'vs/editor/common/editorCommon';
+import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -614,7 +614,7 @@ export class TextEditorOptions extends EditorOptions {
 	 *
 	 * @return if something was applied
 	 */
-	public apply(editor: IEditor, extraContributionsViewState?: IContributionsViewState): boolean {
+	public apply(editor: IEditor): boolean {
 
 		// Editor options
 		if (this.editorOptions) {
@@ -622,10 +622,10 @@ export class TextEditorOptions extends EditorOptions {
 		}
 
 		// View state
-		return this.applyViewState(editor, extraContributionsViewState);
+		return this.applyViewState(editor);
 	}
 
-	private applyViewState(editor: IEditor, extraContributionsViewState?: IContributionsViewState): boolean {
+	private applyViewState(editor: IEditor): boolean {
 		let gotApplied = false;
 
 		// First try viewstate
@@ -636,11 +636,6 @@ export class TextEditorOptions extends EditorOptions {
 
 		// Otherwise check for selection
 		else if (!types.isUndefinedOrNull(this.startLineNumber) && !types.isUndefinedOrNull(this.startColumn)) {
-
-			// Additional Contributions View State only applies if we did not have view state otherwise
-			if (extraContributionsViewState && editor.getEditorType() === EditorType.ICodeEditor) {
-				editor.restoreViewState({ contributionsState: extraContributionsViewState } as ICodeEditorViewState);
-			}
 
 			// Select
 			if (!types.isUndefinedOrNull(this.endLineNumber) && !types.isUndefinedOrNull(this.endColumn)) {

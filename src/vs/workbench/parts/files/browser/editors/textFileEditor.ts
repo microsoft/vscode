@@ -10,7 +10,7 @@ import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
-import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { Action } from 'vs/base/common/actions';
 import { Scope } from 'vs/workbench/common/memento';
 import { IEditorOptions } from 'vs/editor/common/editorCommon';
@@ -37,9 +37,9 @@ import { IThemeService } from 'vs/workbench/services/themes/common/themeService'
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
 interface ITextEditorViewState {
-	0?: ICodeEditorViewState;
-	1?: ICodeEditorViewState;
-	2?: ICodeEditorViewState;
+	0?: IEditorViewState;
+	1?: IEditorViewState;
+	2?: IEditorViewState;
 }
 
 /**
@@ -84,7 +84,7 @@ export class TextFileEditor extends BaseTextEditor {
 		return <FileEditorInput>super.getInput();
 	}
 
-	public setInput(input: FileEditorInput, options: TextEditorOptions): TPromise<void> {
+	public setInput(input: FileEditorInput, options: EditorOptions): TPromise<void> {
 		const oldInput = this.getInput();
 		super.setInput(input, options);
 
@@ -105,8 +105,8 @@ export class TextFileEditor extends BaseTextEditor {
 		if (!forceOpen && input.matches(oldInput)) {
 
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
-			if (options && types.isFunction(options.apply)) {
-				options.apply(this.getControl());
+			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+				(<TextEditorOptions>options).apply(this.getControl());
 			}
 
 			return TPromise.as<void>(null);
@@ -145,17 +145,15 @@ export class TextFileEditor extends BaseTextEditor {
 			const textEditor = this.getControl();
 			textEditor.setModel(textFileModel.textEditorModel);
 
-			const previousEditorViewState = this.loadTextEditorViewState(this.storageService, this.getInput().getResource().toString());
-
-			// TextOptions (avoiding instanceof here for a reason, do not change!)
-			let optionsGotApplied = false;
-			if (options && types.isFunction(options.apply)) {
-				optionsGotApplied = options.apply(textEditor, previousEditorViewState && previousEditorViewState.contributionsState);
+			// Always restore View State if any associated
+			const editorViewState = this.loadTextEditorViewState(this.storageService, this.getInput().getResource().toString());
+			if (editorViewState) {
+				textEditor.restoreViewState(editorViewState);
 			}
 
-			// Otherwise restore previous View State if available
-			if (!optionsGotApplied && previousEditorViewState) {
-				textEditor.restoreViewState(previousEditorViewState);
+			// TextOptions (avoiding instanceof here for a reason, do not change!)
+			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+				(<TextEditorOptions>options).apply(textEditor);
 			}
 		}, (error) => {
 
@@ -266,7 +264,7 @@ export class TextFileEditor extends BaseTextEditor {
 	/**
 	 * Loads the text editor view state for the given key and returns it.
 	 */
-	private loadTextEditorViewState(storageService: IStorageService, key: string): ICodeEditorViewState {
+	private loadTextEditorViewState(storageService: IStorageService, key: string): IEditorViewState {
 		const memento = this.getMemento(storageService, Scope.WORKSPACE);
 		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (textEditorViewStateMemento) {

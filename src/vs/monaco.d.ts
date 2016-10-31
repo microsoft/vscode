@@ -2665,11 +2665,9 @@ declare module monaco.editor {
     export interface ICodeEditorViewState extends IEditorViewState {
         cursorState: ICursorState[];
         viewState: IViewState;
-        contributionsState: IContributionsViewState;
-    }
-
-    export interface IContributionsViewState {
-        [id: string]: any;
+        contributionsState: {
+            [id: string]: any;
+        };
     }
 
     /**
