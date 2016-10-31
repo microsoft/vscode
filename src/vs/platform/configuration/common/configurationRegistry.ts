@@ -24,6 +24,11 @@ export interface IConfigurationRegistry {
 	registerConfiguration(configuration: IConfigurationNode): void;
 
 	/**
+	 * Register multiple configurations to the registry.
+	 */
+	registerConfigurations(configurations: IConfigurationNode[]): void;
+
+	/**
 	 * Event that fires whenver a configuratio has been
 	 * registered.
 	 */
@@ -68,9 +73,15 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public registerConfiguration(configuration: IConfigurationNode): void {
-		this.configurationContributors.push(configuration);
+		this.registerConfigurations([configuration]);
+	}
 
-		this.registerJSONConfiguration(configuration);
+	public registerConfigurations(configurations: IConfigurationNode[]): void {
+		configurations.forEach(configuration => {
+			this.configurationContributors.push(configuration);
+			this.registerJSONConfiguration(configuration);
+		});
+
 		this._onDidRegisterConfiguration.fire(this);
 	}
 
@@ -107,7 +118,9 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 	}
 });
 
-configurationExtPoint.setHandler((extensions) => {
+configurationExtPoint.setHandler(extensions => {
+	const configurations: IConfigurationNode[] = [];
+
 	for (let i = 0; i < extensions.length; i++) {
 		const configuration = <IConfigurationNode>extensions[i].value;
 		const collector = extensions[i].collector;
@@ -126,8 +139,11 @@ configurationExtPoint.setHandler((extensions) => {
 			collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
 			return;
 		}
+
 		const clonedConfiguration = objects.clone(configuration);
 		clonedConfiguration.id = extensions[i].description.id;
-		configurationRegistry.registerConfiguration(clonedConfiguration);
+		configurations.push(clonedConfiguration);
 	}
+
+	configurationRegistry.registerConfigurations(configurations);
 });
