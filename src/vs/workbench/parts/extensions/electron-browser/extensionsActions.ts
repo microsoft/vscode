@@ -1147,7 +1147,7 @@ export class BuiltinStatusLabelAction extends Action {
 export class DisableAllAction extends Action {
 
 	static ID = 'workbench.extensions.action.disableAll';
-	static LABEL = localize('disableAll', "Disable All");
+	static LABEL = localize('disableAll', "Disable All Installed Extensions");
 
 	private disposables: IDisposable[] = [];
 
@@ -1178,7 +1178,7 @@ export class DisableAllAction extends Action {
 export class DisableAllWorkpsaceAction extends Action {
 
 	static ID = 'workbench.extensions.action.disableAllWorkspace';
-	static LABEL = localize('disableAllWorkspace', "Disable All (Workspace)");
+	static LABEL = localize('disableAllWorkspace', "Disable All Installed Extensions for this Workspace");
 
 	private disposables: IDisposable[] = [];
 
@@ -1210,7 +1210,7 @@ export class DisableAllWorkpsaceAction extends Action {
 export class EnableAllAction extends Action {
 
 	static ID = 'workbench.extensions.action.enableAll';
-	static LABEL = localize('enableAll', "Enable All");
+	static LABEL = localize('enableAll', "Enable All Installed Extensions");
 
 	private disposables: IDisposable[] = [];
 
@@ -1241,7 +1241,7 @@ export class EnableAllAction extends Action {
 export class EnableAllWorkpsaceAction extends Action {
 
 	static ID = 'workbench.extensions.action.enableAllWorkspace';
-	static LABEL = localize('enableAllWorkspace', "Enable All (Workspace)");
+	static LABEL = localize('enableAllWorkspace', "Enable All Installed Extensions for this Workspace");
 
 	private disposables: IDisposable[] = [];
 
