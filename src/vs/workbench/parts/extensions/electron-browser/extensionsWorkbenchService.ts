@@ -5,7 +5,10 @@
 
 'use strict';
 
-import 'vs/css!./media/extensionsViewlet';
+import { readFile } from 'vs/base/node/pfs';
+import { asText } from 'vs/base/node/request';
+import * as semver from 'semver';
+import * as path from 'path';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { LinkedMap as Map } from 'vs/base/common/map';
@@ -26,16 +29,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import * as semver from 'semver';
-import * as path from 'path';
 import URI from 'vs/base/common/uri';
-import { readFile } from 'vs/base/node/pfs';
-import { asText } from 'vs/base/node/request';
-import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from '../common/extensions';
-import { UpdateAllAction } from './extensionsActions';
+import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
+import { UpdateAllAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService } from 'vs/platform/url/common/url';
-import { ExtensionsInput } from './extensionsInput';
+import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
