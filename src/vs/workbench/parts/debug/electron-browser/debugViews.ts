@@ -403,8 +403,8 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 						return 1;
 					}
 
-					if (first.source.uri.toString() !== second.source.uri.toString()) {
-						return paths.basename(first.source.uri.fsPath).localeCompare(paths.basename(second.source.uri.fsPath));
+					if (first.uri.toString() !== second.uri.toString()) {
+						return paths.basename(first.uri.fsPath).localeCompare(paths.basename(second.uri.fsPath));
 					}
 
 					return first.desiredLineNumber - second.desiredLineNumber;

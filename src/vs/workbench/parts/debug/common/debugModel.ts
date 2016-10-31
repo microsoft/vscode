@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
+import uri from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import paths = require('vs/base/common/paths');
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -563,7 +565,6 @@ export class Process implements debug.IProcess {
 	}
 }
 
-// TODO@Isidor breakpoint should not have a pointer to source. Source should live inside a stack frame
 export class Breakpoint implements debug.IBreakpoint {
 
 	public lineNumber: number;
@@ -589,6 +590,10 @@ export class Breakpoint implements debug.IBreakpoint {
 
 	public getId(): string {
 		return this.id;
+	}
+
+	public get uri(): uri {
+		return this.source.uri;
 	}
 }
 
@@ -632,10 +637,10 @@ export class Model implements debug.IModel {
 	private _onDidChangeREPLElements: Emitter<void>;
 
 	constructor(
-		private breakpoints: debug.IBreakpoint[],
+		private breakpoints: Breakpoint[],
 		private breakpointsActivated: boolean,
-		private functionBreakpoints: debug.IFunctionBreakpoint[],
-		private exceptionBreakpoints: debug.IExceptionBreakpoint[],
+		private functionBreakpoints: FunctionBreakpoint[],
+		private exceptionBreakpoints: ExceptionBreakpoint[],
 		private watchExpressions: Expression[]
 	) {
 		this.processes = [];
@@ -696,7 +701,7 @@ export class Model implements debug.IModel {
 		}
 	}
 
-	public getBreakpoints(): debug.IBreakpoint[] {
+	public getBreakpoints(): Breakpoint[] {
 		return this.breakpoints;
 	}
 
@@ -726,9 +731,19 @@ export class Model implements debug.IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public addBreakpoints(rawData: debug.IRawBreakpoint[]): void {
+	public addBreakpoints(uri: uri, rawData: debug.IRawBreakpoint[]): void {
+		// Traverse the stack frames and check try to find the raw source matching the added breakpoint uri.
+		// Raw source might contain data needed for the debug adapter to match the breakpoint.
+		let source: Source = null;
+		this.processes.forEach(p => p.getAllThreads().forEach(t => t.getCachedCallStack().forEach(sf => {
+			if (sf.source.uri.toString() === uri.toString()) {
+				source = sf.source;
+			}
+		})));
+		source = source || new Source({ path: paths.normalize(uri.fsPath, true), name: paths.basename(uri.fsPath) });
+
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
+			new Breakpoint(source, rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
 		this.breakpointsActivated = true;
 		this._onDidChangeBreakpoints.fire();
 	}
@@ -746,6 +761,7 @@ export class Model implements debug.IModel {
 				bp.verified = bpData.verified;
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;
+				bp.source = bpData.source ? new Source(bpData.source) : bp.source;
 			}
 		});
 		this._onDidChangeBreakpoints.fire();

@@ -1201,9 +1201,9 @@ export class BreakpointsRenderer implements IRenderer {
 	private renderBreakpoint(tree: ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
-		data.name.textContent = getPathLabel(paths.basename(breakpoint.source.uri.fsPath), this.contextService);
+		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
 		data.lineNumber.textContent = breakpoint.desiredLineNumber !== breakpoint.lineNumber ? breakpoint.desiredLineNumber + ' \u2192 ' + breakpoint.lineNumber : '' + breakpoint.lineNumber;
-		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.source.uri.fsPath), this.contextService);
+		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
 		data.actionBar.context = breakpoint;
 
@@ -1233,7 +1233,7 @@ export class BreakpointsAccessibilityProvider implements IAccessibilityProvider 
 
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof Breakpoint) {
-			return nls.localize('breakpointAriaLabel', "Breakpoint line {0} {1}, breakpoints, debug", (<Breakpoint>element).lineNumber, getSourceName((<Breakpoint>element).source, this.contextService));
+			return nls.localize('breakpointAriaLabel', "Breakpoint line {0} {1}, breakpoints, debug", (<Breakpoint>element).lineNumber, getPathLabel(paths.basename((<Breakpoint>element).uri.fsPath), this.contextService), this.contextService);
 		}
 		if (element instanceof FunctionBreakpoint) {
 			return nls.localize('functionBreakpointAriaLabel', "Function breakpoint {0}, breakpoints, debug", (<FunctionBreakpoint>element).name);
@@ -1305,7 +1305,7 @@ export class BreakpointsController extends BaseDebugController {
 		return false;
 	}
 
-	private openBreakpointSource(breakpoint: debug.IBreakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+	private openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		if (!breakpoint.source.inMemory) {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
 			this.debugService.openOrRevealSource(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);

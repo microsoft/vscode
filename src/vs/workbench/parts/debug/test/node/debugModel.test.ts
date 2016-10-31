@@ -27,7 +27,7 @@ suite('Debug - Model', () => {
 
 	test('breakpoints simple', () => {
 		var modelUri = uri.file('/myfolder/myfile.js');
-		model.addBreakpoints([{ uri: modelUri, lineNumber: 5, enabled: true }, { uri: modelUri, lineNumber: 10, enabled: false }]);
+		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
 		assert.equal(model.areBreakpointsActivated(), true);
 		assert.equal(model.getBreakpoints().length, 2);
 
@@ -37,8 +37,8 @@ suite('Debug - Model', () => {
 
 	test('breakpoints toggling', () => {
 		var modelUri = uri.file('/myfolder/myfile.js');
-		model.addBreakpoints([{ uri: modelUri, lineNumber: 5, enabled: true }, { uri: modelUri, lineNumber: 10, enabled: false }]);
-		model.addBreakpoints([{ uri: modelUri, lineNumber: 12, enabled: true, condition: 'fake condition' }]);
+		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
+		model.addBreakpoints(modelUri, [{ lineNumber: 12, enabled: true, condition: 'fake condition' }]);
 		assert.equal(model.getBreakpoints().length, 3);
 		model.removeBreakpoints([model.getBreakpoints().pop()]);
 		assert.equal(model.getBreakpoints().length, 2);
@@ -52,8 +52,8 @@ suite('Debug - Model', () => {
 	test('breakpoints two files', () => {
 		var modelUri1 = uri.file('/myfolder/my file first.js');
 		var modelUri2 = uri.file('/secondfolder/second/second file.js');
-		model.addBreakpoints([{ uri: modelUri1, lineNumber: 5, enabled: true }, { uri: modelUri1, lineNumber: 10, enabled: false }]);
-		model.addBreakpoints([{ uri: modelUri2, lineNumber: 1, enabled: true }, { uri: modelUri2, lineNumber: 2, enabled: true }, { uri: modelUri2, lineNumber: 3, enabled: false }]);
+		model.addBreakpoints(modelUri1, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
+		model.addBreakpoints(modelUri2, [{ lineNumber: 1, enabled: true }, { lineNumber: 2, enabled: true }, { lineNumber: 3, enabled: false }]);
 
 		assert.equal(model.getBreakpoints().length, 5);
 		var bp = model.getBreakpoints()[0];
@@ -71,7 +71,7 @@ suite('Debug - Model', () => {
 		model.setEnablement(bp, true);
 		assert.equal(bp.enabled, true);
 
-		model.removeBreakpoints(model.getBreakpoints().filter(bp => bp.source.uri.toString() === modelUri1.toString()));
+		model.removeBreakpoints(model.getBreakpoints().filter(bp => bp.uri.toString() === modelUri1.toString()));
 		assert.equal(model.getBreakpoints().length, 3);
 	});
 
