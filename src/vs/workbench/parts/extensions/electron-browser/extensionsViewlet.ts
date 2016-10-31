@@ -35,7 +35,7 @@ import {
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, InstallVSIXAction
 } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionsInput } from './extensionsInput';
+import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { Query } from '../common/extensionQuery';
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IProgressService } from 'vs/platform/progress/common/progress';

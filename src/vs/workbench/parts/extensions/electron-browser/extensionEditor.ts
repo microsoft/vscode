@@ -26,7 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { ExtensionsInput } from './extensionsInput';
+import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from '../common/extensions';
 import { Renderer, DataSource, Controller } from './dependenciesViewer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
