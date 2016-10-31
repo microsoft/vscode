@@ -34,7 +34,7 @@ import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenc
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
-import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionRuntimeService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 interface IExtensionStateProvider {
@@ -302,7 +302,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
 
-	// TODO: @sandy - Remove these when IExtensionsRuntimeService exposes sync API to get extensions.
+	// TODO: @sandy - Remove these when IExtensionRuntimeService exposes sync API to get extensions.
 	private newlyInstalled: Extension[] = [];
 	private unInstalled: Extension[] = [];
 
@@ -318,7 +318,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
 		@IURLService urlService: IURLService,
-		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService,
+		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
@@ -512,14 +512,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private doSetEnablement(extension: IExtension, enable: boolean, workspace: boolean): TPromise<boolean> {
 		if (workspace) {
-			return this.extensionsRuntimeService.setEnablement(extension.identifier, enable, workspace);
+			return this.extensionRuntimeService.setEnablement(extension.identifier, enable, workspace);
 		}
 
-		const globalElablement = this.extensionsRuntimeService.setEnablement(extension.identifier, enable, false);
+		const globalElablement = this.extensionRuntimeService.setEnablement(extension.identifier, enable, false);
 		if (!this.workspaceContextService.getWorkspace()) {
 			return globalElablement;
 		}
-		return TPromise.join([globalElablement, this.extensionsRuntimeService.setEnablement(extension.identifier, enable, true)])
+		return TPromise.join([globalElablement, this.extensionRuntimeService.setEnablement(extension.identifier, enable, true)])
 			.then(values => values[0] || values[1]);
 	}
 
@@ -632,7 +632,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			if (this.newlyInstalled.some(e => e.gallery && extension.gallery && e.gallery.id === extension.gallery.id)) {
 				return ExtensionState.Installed;
 			}
-			return this.extensionsRuntimeService.isDisabled(extension.identifier) ? ExtensionState.Disabled : ExtensionState.Enabled;
+			return this.extensionRuntimeService.isDisabled(extension.identifier) ? ExtensionState.Disabled : ExtensionState.Enabled;
 		}
 
 		return ExtensionState.Uninstalled;
