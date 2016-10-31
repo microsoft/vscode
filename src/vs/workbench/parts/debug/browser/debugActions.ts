@@ -548,13 +548,13 @@ class ToggleBreakpointAction extends EditorAction {
 		const debugService = accessor.get(IDebugService);
 
 		const lineNumber = editor.getPosition().lineNumber;
-		const modelUrl = editor.getModel().uri;
+		const modelUri = editor.getModel().uri;
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
 			const bp = debugService.getModel().getBreakpoints()
-				.filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === modelUrl.toString()).pop();
+				.filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === modelUri.toString()).pop();
 
 			return bp ? debugService.removeBreakpoints(bp.getId())
-				: debugService.addBreakpoints([{ uri: modelUrl, lineNumber: lineNumber }]);
+				: debugService.addBreakpoints(modelUri, [{ lineNumber }]);
 		}
 	}
 }
@@ -632,7 +632,7 @@ class RunToCursorAction extends EditorAction {
 		const oneTimeListener = debugService.getViewModel().focusedProcess.session.onDidEvent(event => {
 			if (event.event === 'stopped' || event.event === 'exit') {
 				const toRemove = debugService.getModel().getBreakpoints()
-					.filter(bp => bp.desiredLineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+					.filter(bp => bp.desiredLineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop();
 				if (toRemove) {
 					debugService.removeBreakpoints(toRemove.getId());
 				}
@@ -640,8 +640,8 @@ class RunToCursorAction extends EditorAction {
 			}
 		});
 
-		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop());
-		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints([{ uri, lineNumber }])).then(() => {
+		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop());
+		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints(uri, [{ lineNumber }])).then(() => {
 			debugService.getViewModel().focusedThread.continue();
 		});
 	}

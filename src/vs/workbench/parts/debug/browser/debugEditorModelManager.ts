@@ -92,7 +92,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private onModelAdded(model: editorcommon.IModel): void {
 		const modelUrlStr = model.uri.toString();
-		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr);
+		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.uri.toString() === modelUrlStr);
 
 		const currentStackDecorations = model.deltaDecorations([], this.createCallStackDecorations(modelUrlStr));
 		const breakPointDecorations = model.deltaDecorations([], this.createBreakpointDecorations(breakpoints));
@@ -198,7 +198,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const data: IRawBreakpoint[] = [];
 
 		const lineToBreakpointDataMap: { [key: number]: { enabled: boolean, condition: string, hitCondition: string } } = {};
-		this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr).forEach(bp => {
+		this.debugService.getModel().getBreakpoints().filter(bp => bp.uri.toString() === modelUrlStr).forEach(bp => {
 			lineToBreakpointDataMap[bp.lineNumber] = {
 				enabled: bp.enabled,
 				condition: bp.condition,
@@ -206,14 +206,13 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			};
 		});
 
-		const modelUrl = modelData.model.uri;
+		const modelUri = modelData.model.uri;
 		for (let i = 0, len = modelData.breakpointDecorationIds.length; i < len; i++) {
 			const decorationRange = modelData.model.getDecorationRange(modelData.breakpointDecorationIds[i]);
 			// check if the line got deleted.
 			if (decorationRange.endColumn - decorationRange.startColumn > 0) {
 				// since we know it is collapsed, it cannot grow to multiple lines
 				data.push({
-					uri: modelUrl,
 					lineNumber: decorationRange.startLineNumber,
 					enabled: lineToBreakpointDataMap[modelData.breakpointLines[i]].enabled,
 					condition: lineToBreakpointDataMap[modelData.breakpointLines[i]].condition,
@@ -224,17 +223,17 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		modelData.dirty = this.debugService.state !== State.Inactive && this.debugService.state !== State.Disabled;
 
 		const toRemove = this.debugService.getModel().getBreakpoints()
-			.filter(bp => bp.source.uri.toString() === modelUrl.toString());
+			.filter(bp => bp.uri.toString() === modelUri.toString());
 
 		TPromise.join(toRemove.map(bp => this.debugService.removeBreakpoints(bp.getId()))).then(() => {
-			this.debugService.addBreakpoints(data);
+			this.debugService.addBreakpoints(modelUri, data);
 		});
 	}
 
 	private onBreakpointsChange(): void {
 		const breakpointsMap: { [key: string]: IBreakpoint[] } = {};
 		this.debugService.getModel().getBreakpoints().forEach(bp => {
-			const uriStr = bp.source.uri.toString();
+			const uriStr = bp.uri.toString();
 			if (breakpointsMap[uriStr]) {
 				breakpointsMap[uriStr].push(bp);
 			} else {
@@ -273,7 +272,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const activated = this.debugService.getModel().areBreakpointsActivated();
 		const state = this.debugService.state;
 		const debugActive = state === State.Running || state === State.Stopped || state === State.Initializing;
-		const modelData = this.modelData[breakpoint.source.uri.toString()];
+		const modelData = this.modelData[breakpoint.uri.toString()];
 
 		let result = (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
 			debugActive && modelData && modelData.dirty && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_DIRTY_DECORATION :

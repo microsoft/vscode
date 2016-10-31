@@ -364,8 +364,8 @@ export class DebugService implements debug.IDebugService {
 		this.appendReplOutput(event.body.output, outputSeverity);
 	}
 
-	private loadBreakpoints(): debug.IBreakpoint[] {
-		let result: debug.IBreakpoint[];
+	private loadBreakpoints(): Breakpoint[] {
+		let result: Breakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
 				return new Breakpoint(new Source(breakpoint.source.raw ? breakpoint.source.raw : { path: uri.parse(breakpoint.source.uri).fsPath, name: breakpoint.source.name }),
@@ -376,8 +376,8 @@ export class DebugService implements debug.IDebugService {
 		return result || [];
 	}
 
-	private loadFunctionBreakpoints(): debug.IFunctionBreakpoint[] {
-		let result: debug.IFunctionBreakpoint[];
+	private loadFunctionBreakpoints(): FunctionBreakpoint[] {
+		let result: FunctionBreakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
 				return new FunctionBreakpoint(fb.name, fb.enabled, fb.hitCondition);
@@ -387,8 +387,8 @@ export class DebugService implements debug.IDebugService {
 		return result || [];
 	}
 
-	private loadExceptionBreakpoints(): debug.IExceptionBreakpoint[] {
-		let result: debug.IExceptionBreakpoint[];
+	private loadExceptionBreakpoints(): ExceptionBreakpoint[] {
+		let result: ExceptionBreakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
 				return new ExceptionBreakpoint(exBreakpoint.filter || exBreakpoint.name, exBreakpoint.label, exBreakpoint.enabled);
@@ -458,7 +458,7 @@ export class DebugService implements debug.IDebugService {
 		if (breakpoint) {
 			this.model.setEnablement(breakpoint, enable);
 			if (breakpoint instanceof Breakpoint) {
-				return this.sendBreakpoints((<Breakpoint>breakpoint).source.uri);
+				return this.sendBreakpoints(breakpoint.uri);
 			} else if (breakpoint instanceof FunctionBreakpoint) {
 				return this.sendFunctionBreakpoints();
 			}
@@ -470,18 +470,17 @@ export class DebugService implements debug.IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
-		this.model.addBreakpoints(rawBreakpoints);
-		const uris = distinct(rawBreakpoints, raw => raw.uri.toString()).map(raw => raw.uri);
-		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, rbp.uri.fsPath)));
+	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
+		this.model.addBreakpoints(uri, rawBreakpoints);
+		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, uri.fsPath)));
 
-		return TPromise.join(uris.map(uri => this.sendBreakpoints(uri))).then(() => void 0);
+		return this.sendBreakpoints(uri);
 	}
 
 	public removeBreakpoints(id?: string): TPromise<any> {
 		const toRemove = this.model.getBreakpoints().filter(bp => !id || bp.getId() === id);
-		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.source.uri.fsPath)));
-		const urisToClear = distinct(toRemove, bp => bp.source.uri.toString()).map(bp => bp.source.uri);
+		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.uri.fsPath)));
+		const urisToClear = distinct(toRemove, bp => bp.uri.toString()).map(bp => bp.uri);
 
 		this.model.removeBreakpoints(toRemove);
 		return TPromise.join(urisToClear.map(uri => this.sendBreakpoints(uri)));
@@ -801,10 +800,9 @@ export class DebugService implements debug.IDebugService {
 			this.partService.removeClass('debugging');
 			// set breakpoints back to unverified since the session ended.
 			// source reference changes across sessions, so we do not use it to persist the source.
-			const data: { [id: string]: { line: number, verified: boolean } } = {};
+			const data: { [id: string]: { line: number, verified: boolean, source: DebugProtocol.Source } } = {};
 			this.model.getBreakpoints().forEach(bp => {
-				delete bp.source.raw.sourceReference;
-				data[bp.getId()] = { line: bp.lineNumber, verified: false };
+				data[bp.getId()] = { line: bp.lineNumber, verified: false, source: null };
 			});
 			this.model.updateBreakpoints(data);
 
@@ -912,7 +910,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private sendAllBreakpoints(session?: RawDebugSession): TPromise<any> {
-		return TPromise.join(distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => this.sendBreakpoints(bp.source.uri, false, session)))
+		return TPromise.join(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)))
 			.then(() => this.sendFunctionBreakpoints(session))
 			// send exception breakpoints at the end since some debug adapters rely on the order
 			.then(() => this.sendExceptionBreakpoints(session));
@@ -930,10 +928,10 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			const breakpointsToSend = distinct(
-				this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.source.uri.toString() === modelUri.toString()),
+				this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString()),
 				bp => `${bp.desiredLineNumber}`
 			);
-			const rawSource = breakpointsToSend.length > 0 ? breakpointsToSend[0].source.raw : Source.toRawSource(modelUri, this.model);
+			const rawSource = breakpointsToSend.length > 0 ? (<Breakpoint>breakpointsToSend[0]).source.raw : undefined;
 
 			return session.setBreakpoints({
 				source: rawSource,
@@ -1004,7 +1002,7 @@ export class DebugService implements debug.IDebugService {
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
 		this.model.removeBreakpoints(this.model.getBreakpoints().filter(bp =>
-			fileChangesEvent.contains(bp.source.uri, FileChangeType.DELETED)));
+			fileChangesEvent.contains(bp.uri, FileChangeType.DELETED)));
 
 		fileChangesEvent.getUpdated().forEach(event => {
 			if (this.breakpointsToSendOnResourceSaved[event.resource.toString()]) {

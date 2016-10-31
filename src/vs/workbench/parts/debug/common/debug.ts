@@ -181,7 +181,6 @@ export interface IEnablement extends ITreeElement {
 }
 
 export interface IRawBreakpoint {
-	uri: uri;
 	lineNumber: number;
 	enabled?: boolean;
 	condition?: string;
@@ -189,7 +188,7 @@ export interface IRawBreakpoint {
 }
 
 export interface IBreakpoint extends IEnablement {
-	source: Source;
+	uri: uri;
 	lineNumber: number;
 	desiredLineNumber: number;
 	condition: string;
@@ -375,9 +374,9 @@ export interface IDebugService {
 	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): TPromise<void>;
 
 	/**
-	 * Adds new breakpoints to the model. Notifies debug adapter of breakpoint changes.
+	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
+	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
