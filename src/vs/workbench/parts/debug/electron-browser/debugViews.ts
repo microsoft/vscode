@@ -341,6 +341,11 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
+
+		// Schedule the update of the call stack tree if the viewlet is opened after a session started #14684
+		if (this.debugService.state === debug.State.Stopped) {
+			this.onCallStackChangeScheduler.schedule();
+		}
 	}
 
 	public shutdown(): void {
