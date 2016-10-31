@@ -13,7 +13,7 @@ import { startsWith } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
-import { provideSuggestionItems, getSuggestionComparator } from './suggest';
+import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
 
 export interface ICancelEvent {
@@ -327,7 +327,7 @@ export class SuggestModel implements IDisposable {
 		}
 	}
 
-	public trigger(auto: boolean, retrigger: boolean = false, onlyFrom?: ISuggestSupport[]): void {
+	public trigger(auto: boolean, retrigger: boolean = false, onlyFrom?: ISuggestSupport[], existingItems?: ISuggestionItem[]): void {
 
 		const model = this.editor.getModel();
 
@@ -363,6 +363,11 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
+			if (!isFalsyOrEmpty(existingItems)) {
+				const cmpFn = getSuggestionComparator(this.editor.getConfiguration().contribInfo.snippetSuggestions);
+				items = items.concat(existingItems).sort(cmpFn);
+			}
+
 			const ctx = new Context(model, this.editor.getPosition(), auto);
 			this.completionModel = new CompletionModel(items, this.context.column, {
 				leadingLineContent: ctx.lineContentBefore,
@@ -371,38 +376,6 @@ export class SuggestModel implements IDisposable {
 			this.onNewContext(ctx);
 
 		}).then(null, onUnexpectedError);
-	}
-
-	private triggerFromIncomplete(auto: boolean): void {
-
-		if (this.triggerFromIncompletePromise) {
-			this.triggerFromIncompletePromise.cancel();
-		}
-
-		// Update UI
-		this._onDidCancel.fire({ retrigger: true });
-		this._onDidTrigger.fire({ auto });
-
-		this.triggerFromIncompletePromise = provideSuggestionItems(this.editor.getModel(), this.editor.getPosition(),
-			this.editor.getConfiguration().contribInfo.snippetSuggestions,
-			this.completionModel.incomplete
-		).then(items => {
-
-			this.triggerFromIncompletePromise = null;
-			if (this.state === State.Idle) {
-				return;
-			}
-			const model = this.editor.getModel();
-			if (!model) {
-				return;
-			}
-
-			this.completionModel.replaceIncomplete(
-				items,
-				getSuggestionComparator(this.editor.getConfiguration().contribInfo.snippetSuggestions)
-			);
-			this.onNewContext(new Context(model, this.editor.getPosition(), auto));
-		});
 	}
 
 	private onNewContext(ctx: Context): void {
@@ -415,8 +388,9 @@ export class SuggestModel implements IDisposable {
 
 		} else if (this.completionModel) {
 
-			if (this.completionModel.incomplete.length > 0 && ctx.column > this.context.column) {
-				this.triggerFromIncomplete(this.state === State.Auto);
+			if (this.completionModel.incomplete && ctx.column > this.context.column) {
+				const {complete, incomplete} = this.completionModel.resolveIncompleteInfo();
+				this.trigger(true, true, incomplete, complete);
 				return;
 			}
 

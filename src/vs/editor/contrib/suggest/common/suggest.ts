@@ -114,7 +114,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 	const result = sequence(factory).then(() => allSuggestions.sort(getSuggestionComparator(snippetConfig)));
 
 	// result.then(items => {
-	// 	console.log(model.getWordUntilPosition(position), items.map(item => `${item.suggestion.label}, incomplete?${item.container.incomplete}, overwriteBefore=${item.suggestion.overwriteBefore}`));
+	// 	console.log(model.getWordUntilPosition(position), items.map(item => `${item.suggestion.label}, type=${item.suggestion.type}, incomplete?${item.container.incomplete}, overwriteBefore=${item.suggestion.overwriteBefore}`));
 	// 	return items;
 	// }, err => {
 	// 	console.warn(model.getWordUntilPosition(position), err);
