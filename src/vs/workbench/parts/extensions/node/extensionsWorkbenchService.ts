@@ -622,7 +622,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return ExtensionState.Installing;
 		}
 
-		if (extension.gallery && this.uninstalling.some(e => e.extension.gallery.id === extension.gallery.id)) {
+		if (this.uninstalling.some(e => e.extension.identifier === extension.identifier)) {
 			return ExtensionState.Uninstalling;
 		}
 
