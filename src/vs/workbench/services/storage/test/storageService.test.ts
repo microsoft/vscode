@@ -9,13 +9,13 @@ import * as assert from 'assert';
 import { clone } from 'vs/base/common/objects';
 import { StorageScope } from 'vs/platform/storage/common/storage';
 import { TestContextService, TestWorkspace, TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
-import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
+import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
 
-suite('Workbench Storage', () => {
+suite('Workbench StorageSevice', () => {
 
 	test('Swap Data with undefined default value', () => {
 		let context = new TestContextService();
-		let s = new Storage(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
+		let s = new StorageService(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
 
 		s.swap('Monaco.IDE.Core.Storage.Test.swap', 'foobar', 'barfoo');
 		assert.strictEqual('foobar', s.get('Monaco.IDE.Core.Storage.Test.swap'));
@@ -27,7 +27,7 @@ suite('Workbench Storage', () => {
 
 	test('Remove Data', () => {
 		let context = new TestContextService();
-		let s = new Storage(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
+		let s = new StorageService(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
 		s.store('Monaco.IDE.Core.Storage.Test.remove', 'foobar');
 		assert.strictEqual('foobar', s.get('Monaco.IDE.Core.Storage.Test.remove'));
 
@@ -37,7 +37,7 @@ suite('Workbench Storage', () => {
 
 	test('Get Data, Integer, Boolean', () => {
 		let context = new TestContextService();
-		let s = new Storage(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
+		let s = new StorageService(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
 
 		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.get', StorageScope.GLOBAL, 'foobar'), 'foobar');
 		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.get', StorageScope.GLOBAL, ''), '');
@@ -69,17 +69,17 @@ suite('Workbench Storage', () => {
 		assert.strictEqual(s.getBoolean('Monaco.IDE.Core.Storage.Test.getBooleanDefault', StorageScope.GLOBAL, true), true);
 	});
 
-	test('Storage cleans up when workspace changes', () => {
+	test('StorageSevice cleans up when workspace changes', () => {
 		let storageImpl = new InMemoryLocalStorage();
 		let context = new TestContextService();
-		let s = new Storage(storageImpl, null, context, TestEnvironmentService);
+		let s = new StorageService(storageImpl, null, context, TestEnvironmentService);
 
 		s.store('key1', 'foobar');
 		s.store('key2', 'something');
 		s.store('wkey1', 'foo', StorageScope.WORKSPACE);
 		s.store('wkey2', 'foo2', StorageScope.WORKSPACE);
 
-		s = new Storage(storageImpl, null, context, TestEnvironmentService);
+		s = new StorageService(storageImpl, null, context, TestEnvironmentService);
 
 		assert.strictEqual(s.get('key1', StorageScope.GLOBAL), 'foobar');
 		assert.strictEqual(s.get('key1', StorageScope.WORKSPACE, null), null);
@@ -91,7 +91,7 @@ suite('Workbench Storage', () => {
 		let ws: any = clone(TestWorkspace);
 		ws.uid = new Date().getTime() + 100;
 		context = new TestContextService(ws);
-		s = new Storage(storageImpl, null, context, TestEnvironmentService);
+		s = new StorageService(storageImpl, null, context, TestEnvironmentService);
 
 		assert.strictEqual(s.get('key1', StorageScope.GLOBAL), 'foobar');
 		assert.strictEqual(s.get('key1', StorageScope.WORKSPACE, null), null);

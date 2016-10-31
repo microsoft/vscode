@@ -14,7 +14,7 @@ import * as paths from 'vs/base/common/paths';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
+import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
@@ -274,13 +274,13 @@ export class TestEventService extends EventEmitter implements IEventService {
 export class TestStorageService extends EventEmitter implements IStorageService {
 	public _serviceBrand: any;
 
-	private storage: Storage;
+	private storage: StorageService;
 
 	constructor() {
 		super();
 
 		let context = new TestContextService();
-		this.storage = new Storage(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {

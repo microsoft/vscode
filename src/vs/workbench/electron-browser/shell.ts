@@ -21,7 +21,7 @@ import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
-import { Storage, inMemoryLocalStorageInstance } from 'vs/workbench/common/storage';
+import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
 import { ITelemetryService, NullTelemetryService, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -239,9 +239,9 @@ export class WorkbenchShell {
 			});
 		}, errors.onUnexpectedError);
 
-		// Storage
+		// Storage Sevice
 		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
-		this.storageService = instantiationService.createInstance(Storage, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
+		this.storageService = instantiationService.createInstance(StorageService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 		serviceCollection.set(IStorageService, this.storageService);
 
 		// Telemetry

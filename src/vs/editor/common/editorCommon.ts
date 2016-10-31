@@ -2965,7 +2965,10 @@ export interface IViewState {
 export interface ICodeEditorViewState extends IEditorViewState {
 	cursorState: ICursorState[];
 	viewState: IViewState;
-	contributionsState: { [id: string]: any };
+	contributionsState: IContributionsViewState;
+}
+export interface IContributionsViewState {
+	[id: string]: any;
 }
 
 /**
