@@ -435,7 +435,10 @@ export class Thread implements debug.IThread {
 				return [];
 			}
 
-			this.stoppedDetails.totalFrames = response.body.totalFrames;
+			if (this.stoppedDetails) {
+				this.stoppedDetails.totalFrames = response.body.totalFrames;
+			}
+
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
 					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
@@ -444,7 +447,10 @@ export class Thread implements debug.IThread {
 				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
 			});
 		}, (err: Error) => {
-			this.stoppedDetails.framesErrorMessage = err.message;
+			if (this.stoppedDetails) {
+				this.stoppedDetails.framesErrorMessage = err.message;
+			}
+
 			return [];
 		});
 	}
