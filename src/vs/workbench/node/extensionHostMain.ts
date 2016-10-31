@@ -17,7 +17,7 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInitData, IEnvironment } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData, IEnvironment, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
 
 const nativeExit = process.exit.bind(process);
@@ -53,6 +53,10 @@ export class ExtensionHostMain {
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
 
 		this._extensionService = new ExtHostExtensionService(initData.extensions, threadService, telemetryService, { _serviceBrand: 'optionalArgs', workspaceStoragePath });
+
+		// Error forwarding
+		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
+		errors.setUnexpectedErrorHandler(err => mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err)));
 
 		// Create the ext host API
 		const factory = createApiFactory(initData.configuration, initData.telemetryInfo, threadService, this._extensionService, this._contextService);

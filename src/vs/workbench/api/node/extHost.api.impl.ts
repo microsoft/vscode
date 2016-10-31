@@ -55,8 +55,6 @@ export interface IExtensionApiFactory {
  */
 export function createApiFactory(initDataConfiguration: IInitConfiguration, initTelemetryInfo: ITelemetryInfo, threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService): IExtensionApiFactory {
 
-
-
 	// Addressable instances
 	const col = new InstanceCollection();
 	const extHostHeapService = col.define(ExtHostContext.ExtHostHeapService).set<ExtHostHeapService>(new ExtHostHeapService());
@@ -80,12 +78,6 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 	const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
 	const extHostWorkspace = new ExtHostWorkspace(threadService, workspacePath);
 	const extHostLanguages = new ExtHostLanguages(threadService);
-
-	// Error forwarding
-	const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
-	errors.setUnexpectedErrorHandler((err) => {
-		mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err));
-	});
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
