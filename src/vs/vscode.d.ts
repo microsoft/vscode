@@ -4178,8 +4178,8 @@ declare module 'vscode' {
 		 * Register a signature help provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * by their [score](#languages.match) and called sequentially until a provider returns a
+		 * valid result.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A signature help provider.

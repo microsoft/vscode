@@ -6,6 +6,7 @@
 
 import * as nativeKeymap from 'native-keymap';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { CharCode } from 'vs/base/common/charCode';
 import { IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider, AriaKeyLabelProvider } from 'vs/base/common/keybinding';
 import { lookupKeyCode, setExtractKeyCode } from 'vs/base/browser/keyboardEvent';
 import Platform = require('vs/base/common/platform');
@@ -355,8 +356,61 @@ export function getNativeLabelProvider(): IKeyBindingLabelProvider {
 	return nativeLabelProvider;
 }
 
-let nativeLabelRemaps: string[] = null;
-function getNativeLabelProviderRemaps(): string[] {
+class NativeLabel {
+
+	public static Empty = new NativeLabel('', '', '', '');
+
+	private readonly _rendered: string;
+
+	constructor(value: string, withShift: string, withAltGr: string, withShiftAltGr: string) {
+		this._rendered = value || withShift;
+		this._rendered = NativeLabel._massageRenderedKey(this._rendered);
+	}
+
+	/**
+	 * Very often, keyboards generate combining diacritical marks
+	 * They reside in the range 0300..036F
+	 * See ftp://ftp.unicode.org/Public/UNIDATA/Blocks.txt
+	 * See https://en.wikipedia.org/wiki/Combining_Diacritical_Marks
+	 */
+	private static _massageRenderedKey(str: string): string {
+		if (str.length !== 1) {
+			return str;
+		}
+
+		return String.fromCharCode(this._combiningToRegular(str.charCodeAt(0)));
+	}
+
+	/**
+	 * Attempt to map a combining character to a regular one that renders the same way.
+	 *
+	 * To the brave person following me: Good Luck!
+	 * https://www.compart.com/en/unicode/bidiclass/NSM
+	 */
+	private static _combiningToRegular(charCode: number): number {
+		switch (charCode) {
+			case CharCode.U_Combining_Grave_Accent: return CharCode.U_GRAVE_ACCENT;
+			case CharCode.U_Combining_Acute_Accent: return CharCode.U_ACUTE_ACCENT;
+			case CharCode.U_Combining_Circumflex_Accent: return CharCode.U_CIRCUMFLEX;
+			case CharCode.U_Combining_Tilde: return CharCode.U_SMALL_TILDE;
+			case CharCode.U_Combining_Macron: return CharCode.U_MACRON;
+			case CharCode.U_Combining_Overline: return CharCode.U_OVERLINE;
+			case CharCode.U_Combining_Breve: return CharCode.U_BREVE;
+			case CharCode.U_Combining_Dot_Above: return CharCode.U_DOT_ABOVE;
+			case CharCode.U_Combining_Diaeresis: return CharCode.U_DIAERESIS;
+			case CharCode.U_Combining_Ring_Above: return CharCode.U_RING_ABOVE;
+			case CharCode.U_Combining_Double_Acute_Accent: return CharCode.U_DOUBLE_ACUTE_ACCENT;
+		}
+		return charCode;
+	}
+
+	public render(): string {
+		return this._rendered;
+	}
+}
+
+let nativeLabelRemaps: NativeLabel[] = null;
+function getNativeLabelProviderRemaps(): NativeLabel[] {
 	if (!nativeLabelRemaps) {
 		// See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
 		// See https://github.com/Microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
@@ -387,12 +441,14 @@ function getNativeLabelProviderRemaps(): string[] {
 			let nativeMapping = nativeMappings[i];
 
 			if (interestingKeyCodes[nativeMapping.key_code]) {
-				let newValue = nativeMapping.value || nativeMapping.withShift;
-				if (newValue.length > 0) {
+				if (nativeMapping.value.length > 0 || nativeMapping.withShift.length > 0) {
 					hadRemap = true;
-					nativeLabelRemaps[NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code]] = newValue;
-				} else {
-					// console.warn('invalid remap for ', nativeMapping);
+					nativeLabelRemaps[NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code]] = new NativeLabel(
+						nativeMapping.value,
+						nativeMapping.withShift,
+						nativeMapping.withAltGr,
+						nativeMapping.withShiftAltGr
+					);
 				}
 			}
 		}
@@ -401,7 +457,7 @@ function getNativeLabelProviderRemaps(): string[] {
 			for (let interestingKeyCode in interestingKeyCodes) {
 				if (interestingKeyCodes.hasOwnProperty(interestingKeyCode)) {
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[interestingKeyCode];
-					nativeLabelRemaps[keyCode] = nativeLabelRemaps[keyCode] || '';
+					nativeLabelRemaps[keyCode] = nativeLabelRemaps[keyCode] || NativeLabel.Empty;
 				}
 			}
 		}
@@ -411,39 +467,39 @@ function getNativeLabelProviderRemaps(): string[] {
 }
 
 class NativeMacUIKeyLabelProvider extends MacUIKeyLabelProvider {
-	constructor(private remaps: string[]) {
+	constructor(private remaps: NativeLabel[]) {
 		super();
 	}
 
 	public getLabelForKey(keyCode: KeyCode): string {
 		if (this.remaps[keyCode] !== null) {
-			return this.remaps[keyCode];
+			return this.remaps[keyCode].render();
 		}
 		return super.getLabelForKey(keyCode);
 	}
 }
 
 class NativeClassicUIKeyLabelProvider extends ClassicUIKeyLabelProvider {
-	constructor(private remaps: string[]) {
+	constructor(private remaps: NativeLabel[]) {
 		super();
 	}
 
 	public getLabelForKey(keyCode: KeyCode): string {
 		if (this.remaps[keyCode] !== null) {
-			return this.remaps[keyCode];
+			return this.remaps[keyCode].render();
 		}
 		return super.getLabelForKey(keyCode);
 	}
 }
 
 class NativeAriaKeyLabelProvider extends AriaKeyLabelProvider {
-	constructor(private remaps: string[]) {
+	constructor(private remaps: NativeLabel[]) {
 		super();
 	}
 
 	public getLabelForKey(keyCode: KeyCode): string {
 		if (this.remaps[keyCode] !== null) {
-			return this.remaps[keyCode];
+			return this.remaps[keyCode].render();
 		}
 		return super.getLabelForKey(keyCode);
 	}

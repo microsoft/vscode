@@ -5,6 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -1397,9 +1398,15 @@ export class Cursor extends EventEmitter {
 		if (ctx.eventSource === 'keyboard') {
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
-			var i: number, len: number, chr: string;
-			for (i = 0, len = text.length; i < len; i++) {
-				chr = text.charAt(i);
+			for (let i = 0, len = text.length; i < len; i++) {
+				let charCode = text.charCodeAt(i);
+				let chr: string;
+				if (strings.isHighSurrogate(charCode) && i + 1 < len) {
+					chr = text.charAt(i) + text.charAt(i + 1);
+					i++;
+				} else {
+					chr = text.charAt(i);
+				}
 
 				this.charactersTyped += chr;
 

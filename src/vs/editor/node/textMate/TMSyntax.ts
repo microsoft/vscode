@@ -8,8 +8,9 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
+import * as types from 'vs/base/common/types';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionPoint, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ILineTokens, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { TMState } from 'vs/editor/common/modes/TMState';
 import { LineTokens } from 'vs/editor/common/modes/supports';
@@ -17,16 +18,18 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IGrammar, Registry, StackElement, IToken } from 'vscode-textmate';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
+import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
 	scopeName: string;
 	path: string;
+	embeddedLanguages: { [scopeName: string]: string; };
 	injectTo: string[];
 }
 
 // TODO@Martin TS(2.0.2) - Type IJsonSchema has no defined property require. Keeping semantic using any cast
-let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', <any>{
+export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', [languagesExtPoint], <any>{
 	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.' }] }],
@@ -45,6 +48,10 @@ let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtens
 			path: {
 				description: nls.localize('vscode.extension.contributes.grammars.path', 'Path of the tmLanguage file. The path is relative to the extension folder and typically starts with \'./syntaxes/\'.'),
 				type: 'string'
+			},
+			embeddedLanguages: {
+				description: nls.localize('vscode.extension.contributes.grammars.embeddedLanguages', 'A map of scope name to language id if this grammar contains embedded languages.'),
+				type: 'object'
 			},
 			injectTo: {
 				description: nls.localize('vscode.extension.contributes.grammars.injectTo', 'List of language scope names to which this grammar is injected to.'),
@@ -77,8 +84,18 @@ export class TMScopeRegistry {
 
 	public register(language: string, scopeName: string, filePath: string): void {
 		this._scopeNameToFilePath[scopeName] = filePath;
-		if (language) {
-			this._scopeNameToLanguage[scopeName] = language;
+	}
+
+	public registerEmbeddedLanguages(scopeToLanguageMap: { [scopeName: string]: string }): void {
+		var scopes = Object.keys(scopeToLanguageMap);
+		for (let i = 0, len = scopes.length; i < len; i++) {
+			let scope = scopes[i];
+			let language = scopeToLanguageMap[scope];
+			if (typeof language !== 'string') {
+				// never hurts to be too careful
+				continue;
+			}
+			this._scopeNameToLanguage[scope] = language;
 			this._cachedScopesRegex = null;
 		}
 	}
@@ -106,6 +123,9 @@ export class TMScopeRegistry {
 	 * e.g. source.html => html, source.css.embedded.html => css, punctuation.definition.tag.html => null
 	 */
 	public scopeToLanguage(scope: string): string {
+		if (!scope) {
+			return null;
+		}
 		let regex = this._getScopesRegex();
 		if (!regex) {
 			// no scopes registered
@@ -162,7 +182,7 @@ export class MainProcessTextMateSyntax {
 		});
 	}
 
-	private _handleGrammarExtensionPointUser(extensionFolderPath: string, syntax: ITMSyntaxExtensionPoint, collector: IExtensionMessageCollector): void {
+	private _handleGrammarExtensionPointUser(extensionFolderPath: string, syntax: ITMSyntaxExtensionPoint, collector: ExtensionMessageCollector): void {
 		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", grammarsExtPoint.name, String(syntax.language)));
 			return;
@@ -179,6 +199,11 @@ export class MainProcessTextMateSyntax {
 			collector.error(nls.localize('invalid.injectTo', "Invalid value in `contributes.{0}.injectTo`. Must be an array of language scope names. Provided value: {1}", grammarsExtPoint.name, JSON.stringify(syntax.injectTo)));
 			return;
 		}
+		if (syntax.embeddedLanguages && !types.isObject(syntax.embeddedLanguages)) {
+			collector.error(nls.localize('invalid.embeddedLanguages', "Invalid value in `contributes.{0}.embeddedLanguages`. Must be an object map from scope name to language. Provided value: {1}", grammarsExtPoint.name, JSON.stringify(syntax.embeddedLanguages)));
+			return;
+		}
+
 		let normalizedAbsolutePath = paths.normalize(paths.join(extensionFolderPath, syntax.path));
 
 		if (normalizedAbsolutePath.indexOf(extensionFolderPath) !== 0) {
@@ -186,6 +211,10 @@ export class MainProcessTextMateSyntax {
 		}
 
 		this._scopeRegistry.register(syntax.language, syntax.scopeName, normalizedAbsolutePath);
+
+		if (syntax.embeddedLanguages) {
+			this._scopeRegistry.registerEmbeddedLanguages(syntax.embeddedLanguages);
+		}
 
 		if (syntax.injectTo) {
 			for (let injectScope of syntax.injectTo) {
@@ -216,13 +245,13 @@ export class MainProcessTextMateSyntax {
 				return;
 			}
 
-			TokenizationRegistry.register(modeId, createTokenizationSupport(this._scopeRegistry, modeId, grammar));
+			TokenizationRegistry.register(modeId, createTokenizationSupport(this._scopeRegistry, scopeName, modeId, grammar));
 		});
 	}
 }
 
-function createTokenizationSupport(scopeRegistry: TMScopeRegistry, modeId: string, grammar: IGrammar): ITokenizationSupport {
-	var tokenizer = new Tokenizer(scopeRegistry, modeId, grammar);
+function createTokenizationSupport(scopeRegistry: TMScopeRegistry, topLevelScopeName: string, modeId: string, grammar: IGrammar): ITokenizationSupport {
+	var tokenizer = new Tokenizer(scopeRegistry, topLevelScopeName, modeId, grammar);
 	return {
 		getInitialState: () => new TMState(modeId, null, null),
 		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState>state, offsetDelta, stopAtOffset)
@@ -319,14 +348,16 @@ export class DecodeMap {
 	private readonly tokenToTokenId: { [token: string]: number; };
 	private readonly tokenIdToToken: string[];
 	prevTokenScopes: TMScopesDecodeData[];
+	public readonly topLevelScope: TMScopesDecodeData;
 
-	constructor(scopeRegistry: TMScopeRegistry) {
+	constructor(scopeRegistry: TMScopeRegistry, topLevelScopeName: string) {
 		this.lastAssignedTokenId = 0;
 		this.scopeRegistry = scopeRegistry;
 		this.scopeToTokenIds = Object.create(null);
 		this.tokenToTokenId = Object.create(null);
 		this.tokenIdToToken = [null];
 		this.prevTokenScopes = [];
+		this.topLevelScope = new TMScopesDecodeData(null, new TMScopeDecodeData(topLevelScopeName, this.scopeRegistry.scopeToLanguage(topLevelScopeName), []));
 	}
 
 	private _getTokenId(token: string): number {
@@ -389,10 +420,10 @@ class Tokenizer {
 	private _modeId: string;
 	private _decodeMap: DecodeMap;
 
-	constructor(scopeRegistry: TMScopeRegistry, modeId: string, grammar: IGrammar) {
+	constructor(scopeRegistry: TMScopeRegistry, topLevelScopeName: string, modeId: string, grammar: IGrammar) {
 		this._modeId = modeId;
 		this._grammar = grammar;
-		this._decodeMap = new DecodeMap(scopeRegistry);
+		this._decodeMap = new DecodeMap(scopeRegistry, topLevelScopeName);
 	}
 
 	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
@@ -459,16 +490,11 @@ export function decodeTextMateTokens(line: string, offsetDelta: number, decodeMa
 }
 
 export function decodeTextMateToken(decodeMap: DecodeMap, scopes: string[]): TMScopesDecodeData {
-	if (scopes.length <= 1) {
-		// fast case
-		return null;
-	}
-
 	const prevTokenScopes = decodeMap.prevTokenScopes;
 	const prevTokenScopesLength = prevTokenScopes.length;
 
-	let resultScopes: TMScopesDecodeData[] = [null];
-	let lastResultScope: TMScopesDecodeData = null;
+	let resultScopes: TMScopesDecodeData[] = [decodeMap.topLevelScope];
+	let lastResultScope: TMScopesDecodeData = decodeMap.topLevelScope;
 
 	let sameAsPrev = true;
 	for (let level = 1/* deliberately skip scope 0*/, scopesLength = scopes.length; level < scopesLength; level++) {

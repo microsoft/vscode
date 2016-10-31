@@ -7,5 +7,5 @@
 	"actions.repl.acceptInput": "REPL-Eingaben akzeptieren",
 	"actions.repl.historyNext": "Verlauf nächste",
 	"actions.repl.historyPrevious": "Verlauf vorherige",
-	"replAriaLabel": "REPL-Bereich (Read Eval Print Loop)"
+	"replAriaLabel": "REPL-Bereich (Read Eval Print-Loop)"
 }

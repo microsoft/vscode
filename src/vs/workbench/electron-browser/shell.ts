@@ -21,7 +21,7 @@ import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
-import { Storage, inMemoryLocalStorageInstance } from 'vs/workbench/common/storage';
+import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
 import { ITelemetryService, NullTelemetryService, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -239,9 +239,9 @@ export class WorkbenchShell {
 			});
 		}, errors.onUnexpectedError);
 
-		// Storage
+		// Storage Sevice
 		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
-		this.storageService = instantiationService.createInstance(Storage, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
+		this.storageService = instantiationService.createInstance(StorageService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 		serviceCollection.set(IStorageService, this.storageService);
 
 		// Telemetry
@@ -288,15 +288,21 @@ export class WorkbenchShell {
 		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 
+		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
+		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
+		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
+
 		const extensionsRuntimeService = instantiationService.createInstance(ExtensionsRuntimeService);
 		serviceCollection.set(IExtensionsRuntimeService, extensionsRuntimeService);
+		disposables.add(extensionsRuntimeService);
 
-		const extensionHostProcessWorker = this.startExtensionHost(instantiationService);
+		const extensionHostProcessWorker = instantiationService.createInstance(ExtensionHostProcessWorker);
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
 		serviceCollection.set(IThreadService, this.threadService);
 
 		const extensionService = instantiationService.createInstance(MainProcessExtensionService);
 		serviceCollection.set(IExtensionService, extensionService);
+		extensionHostProcessWorker.start(extensionService);
 
 		serviceCollection.set(ICommandService, new CommandService(instantiationService, extensionService));
 
@@ -332,10 +338,6 @@ export class WorkbenchShell {
 
 		const integrityService = instantiationService.createInstance(IntegrityServiceImpl);
 		serviceCollection.set(IIntegrityService, integrityService);
-
-		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
-		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
-		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
 		const urlChannel = mainProcessClient.getChannel('url');
 		const urlChannelClient = new URLChannelClient(urlChannel, this.windowService.getWindowId());
@@ -451,12 +453,6 @@ export class WorkbenchShell {
 
 		this.contextViewService.layout();
 		this.workbench.layout();
-	}
-
-	private startExtensionHost(instantiationService: InstantiationService): ExtensionHostProcessWorker {
-		const extensionHostProcessWorker: ExtensionHostProcessWorker = <ExtensionHostProcessWorker>instantiationService.createInstance(ExtensionHostProcessWorker);
-		extensionHostProcessWorker.start();
-		return extensionHostProcessWorker;
 	}
 
 	public joinCreation(): TPromise<boolean> {

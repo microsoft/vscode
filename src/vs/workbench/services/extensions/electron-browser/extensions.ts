@@ -9,7 +9,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
+import { IExtensionManagementService, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IExtensionsRuntimeService, IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -29,25 +31,25 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 	private workspace: IWorkspace;
 
 	private installedExtensions: TPromise<IExtensionDescription[]>;
-
 	private _globalDisabledExtensions: string[];
 	private _workspaceDisabledExtensions: string[];
+
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		this.workspace = contextService.getWorkspace();
+		extensionManagementService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 	}
 
-	public getExtensions(includeDisabled: boolean = false): TPromise<IExtensionDescription[]> {
+	public getExtensions(): TPromise<IExtensionDescription[]> {
 		if (!this.installedExtensions) {
 			this.installedExtensions = this.scanExtensions();
-		}
-		if (includeDisabled) {
-			return this.installedExtensions;
 		}
 		return this.installedExtensions.then(extensionDescriptions => {
 			const disabledExtensions = this.getDisabledExtensions();
@@ -76,30 +78,33 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 	}
 
 	public setEnablement(identifier: string, enable: boolean, workspace: boolean = false): TPromise<boolean> {
-		const disabled = this.environmentService.disableExtensions || this.getDisabledExtensionsFromStorage().indexOf(identifier) !== -1;
-		if (!enable === disabled) {
-			return TPromise.wrap(false);
-		}
-
-		if (enable && !this.canEnable(identifier)) {
-			return TPromise.wrap(false);
-		}
-
 		if (workspace && !this.workspace) {
 			return TPromise.wrapError(localize('noWorkspace', "No workspace."));
 		}
 
+		if (this.environmentService.disableExtensions) {
+			return TPromise.wrap(false);
+		}
+
+		if (this.isDisabled(identifier) === !enable) {
+			return TPromise.wrap(false);
+		}
+
 		if (enable) {
 			if (workspace) {
-				return this.enableExtension(identifier, StorageScope.WORKSPACE);
+				this.enableExtension(identifier, StorageScope.WORKSPACE);
+			} else {
+				this.enableExtension(identifier, StorageScope.GLOBAL);
 			}
-			return this.enableExtension(identifier, StorageScope.GLOBAL);
 		} else {
 			if (workspace) {
-				return this.disableExtension(identifier, StorageScope.WORKSPACE);
+				this.disableExtension(identifier, StorageScope.WORKSPACE);
+			} else {
+				this.disableExtension(identifier, StorageScope.GLOBAL);
 			}
-			return this.disableExtension(identifier, StorageScope.GLOBAL);
 		}
+
+		return TPromise.wrap(true);
 	}
 
 	private getDisabledExtensions(): string[] {
@@ -157,6 +162,14 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 			this.storageService.store(DISABLED_EXTENSIONS_STORAGE_PATH, disabledExtensions.join(','), scope);
 		} else {
 			this.storageService.remove(DISABLED_EXTENSIONS_STORAGE_PATH, scope);
+		}
+	}
+
+	private onDidUninstallExtension({id, error}: DidUninstallExtensionEvent): void {
+		if (!error) {
+			id = stripVersion(id);
+			this.enableExtension(id, StorageScope.WORKSPACE);
+			this.enableExtension(id, StorageScope.GLOBAL);
 		}
 	}
 
@@ -223,4 +236,12 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 			}
 		}
 	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+function stripVersion(id: string): string {
+	return id.replace(/-\d+\.\d+\.\d+$/, '');
 }

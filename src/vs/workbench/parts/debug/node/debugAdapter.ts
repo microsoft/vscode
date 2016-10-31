@@ -142,6 +142,10 @@ export class Adapter {
 					enum: [request],
 					description: nls.localize('debugRequest', "Request type of configuration. Can be \"launch\" or \"attach\"."),
 				};
+				properties.debugServer = {
+					type: 'number',
+					description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode")
+				};
 				properties.configurationNames = {
 					type: 'array',
 					default: [],

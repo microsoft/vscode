@@ -27,8 +27,6 @@ import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/exte
 import { TerminalSupport } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-import { shell } from 'electron';
-
 export interface SessionExitedEvent extends DebugProtocol.ExitedEvent {
 	body: {
 		exitCode: number,
@@ -175,7 +173,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 					return TPromise.wrapError(errors.create(userMessage, {
 						actions: [CloseAction, new Action('debug.moreInfo', label, null, true, () => {
-							shell.openExternal(error.url);
+							window.open(error.url);
 							return TPromise.as(null);
 						})]
 					}));

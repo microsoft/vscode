@@ -121,8 +121,8 @@
 
 .monaco-workbench.windows .repl .repl-input-wrapper:before {
 	content: '\203A'; /* character does not exist on windows */
-	font-size: 22px;
-	line-height: 18px;
+	font-size: 30px;
+	line-height: 12px;
 }
 
 .monaco-workbench.linux .repl .repl-input-wrapper:before {

@@ -37,13 +37,15 @@ suite('TextMate.TMScopeRegistry', () => {
 
 		assert.equal(registry.scopeToLanguage('source.html'), null);
 
-		registry.register('html', 'source.html', null);
-		registry.register('c', 'source.c', null);
-		registry.register('css', 'source.css', null);
-		registry.register('javascript', 'source.js', null);
-		registry.register('python', 'source.python', null);
-		registry.register('smarty', 'source.smarty', null);
-		registry.register(null, 'source.baz', null);
+		registry.registerEmbeddedLanguages({
+			'source.html': 'html',
+			'source.c': 'c',
+			'source.css': 'css',
+			'source.js': 'javascript',
+			'source.python': 'python',
+			'source.smarty': 'smarty',
+			'source.baz': null,
+		});
 
 		// exact matches
 		assert.equal(registry.scopeToLanguage('source.html'), 'html');
@@ -76,15 +78,17 @@ suite('TextMate.decodeTextMateTokens', () => {
 	test('embedded modes', () => {
 		let registry = new TMScopeRegistry();
 
-		registry.register('html', 'source.html', null);
-		registry.register('c', 'source.c', null);
-		registry.register('css', 'source.css', null);
-		registry.register('javascript', 'source.js', null);
-		registry.register('python', 'source.python', null);
-		registry.register('smarty', 'source.smarty', null);
-		registry.register(null, 'source.baz', null);
+		registry.registerEmbeddedLanguages({
+			'source.html': 'html',
+			'source.c': 'c',
+			'source.css': 'css',
+			'source.js': 'javascript',
+			'source.python': 'python',
+			'source.smarty': 'smarty',
+			'source.baz': null,
+		});
 
-		let decodeMap = new DecodeMap(registry);
+		let decodeMap = new DecodeMap(registry, 'source.html');
 		let actual = decodeTextMateTokens(
 			'text<style>body{}</style><script>var x=3;</script>text',
 			0,
@@ -111,6 +115,290 @@ suite('TextMate.decodeTextMateTokens', () => {
 			{ startIndex: 33, modeId: 'javascript' },
 			{ startIndex: 41, modeId: 'html' },
 		]);
+	});
+
+	test('php and embedded', () => {
+		var tests = [
+			{
+				line: '<div></div>',
+				tmTokens: [
+					{ startIndex: 0, endIndex: 1, scopes: ['text.html.php', 'meta.tag.any.html', 'punctuation.definition.tag.html'] },
+					{ startIndex: 1, endIndex: 4, scopes: ['text.html.php', 'meta.tag.any.html', 'entity.name.tag.html'] },
+					{ startIndex: 4, endIndex: 5, scopes: ['text.html.php', 'meta.tag.any.html', 'punctuation.definition.tag.html'] },
+					{ startIndex: 5, endIndex: 6, scopes: ['text.html.php', 'meta.tag.any.html', 'punctuation.definition.tag.html', 'meta.scope.between-tag-pair.html'] },
+					{ startIndex: 6, endIndex: 7, scopes: ['text.html.php', 'meta.tag.any.html', 'punctuation.definition.tag.html'] },
+					{ startIndex: 7, endIndex: 10, scopes: ['text.html.php', 'meta.tag.any.html', 'entity.name.tag.html'] },
+					{ startIndex: 10, endIndex: 11, scopes: ['text.html.php', 'meta.tag.any.html', 'punctuation.definition.tag.html'] }
+				],
+				tokens: [
+					{ startIndex: 0, type: 'meta.tag.any.html.punctuation.definition' },
+					{ startIndex: 1, type: 'meta.tag.any.html.entity.name' },
+					{ startIndex: 4, type: 'meta.tag.any.html.punctuation.definition' },
+					{ startIndex: 5, type: 'meta.tag.any.html.punctuation.definition.scope.between-tag-pair' },
+					{ startIndex: 6, type: 'meta.tag.any.html.punctuation.definition' },
+					{ startIndex: 7, type: 'meta.tag.any.html.entity.name' },
+					{ startIndex: 10, type: 'meta.tag.any.html.punctuation.definition' }
+				],
+				modeTransitions: [
+					{ startIndex: 0, modeId: 'html' }
+				]
+			}, {
+				line: '<script>var x = 3;</script>',
+				tmTokens: [
+					{ startIndex: 0, endIndex: 1, scopes: ['text.html.php', 'punctuation.definition.tag.html'] },
+					{ startIndex: 1, endIndex: 7, scopes: ['text.html.php', 'entity.name.tag.script.html'] },
+					{ startIndex: 7, endIndex: 8, scopes: ['text.html.php', 'source.js.embedded.html', 'punctuation.definition.tag.html'] },
+					{ startIndex: 8, endIndex: 11, scopes: ['text.html.php', 'source.js.embedded.html', 'meta.var.expr.js', 'storage.type.js'] },
+					{ startIndex: 11, endIndex: 12, scopes: ['text.html.php', 'source.js.embedded.html', 'meta.var.expr.js'] },
+					{ startIndex: 12, endIndex: 13, scopes: ['text.html.php', 'source.js.embedded.html', 'meta.var.expr.js', 'meta.var-single-variable.expr.js', 'variable.other.readwrite.js'] },
+					{ startIndex: 13, endIndex: 14, scopes: ['text.html.php', 'source.js.embedded.html', 'meta.var.expr.js', 'meta.var-single-variable.expr.js'] },
+					{ startIndex: 14, endIndex: 15, scopes: ['text.html.php', 'source.js.embedded.html', 'meta.var.expr.js', 'keyword.operator.assignment.js'] },
+					{ startIndex: 15, endIndex: 16, scopes: ['text.html.php', 'source.js.embedded.html', 'meta.var.expr.js'] },
+					{ startIndex: 16, endIndex: 17, scopes: ['text.html.php', 'source.js.embedded.html', 'meta.var.expr.js', 'constant.numeric.decimal.js'] },
+					{ startIndex: 17, endIndex: 18, scopes: ['text.html.php', 'source.js.embedded.html', 'punctuation.terminator.statement.js'] },
+					{ startIndex: 18, endIndex: 20, scopes: ['text.html.php', 'source.js.embedded.html', 'punctuation.definition.tag.html'] },
+					{ startIndex: 20, endIndex: 26, scopes: ['text.html.php', 'source.js.embedded.html', 'entity.name.tag.script.html'] },
+					{ startIndex: 26, endIndex: 27, scopes: ['text.html.php', 'punctuation.definition.tag.html'] }
+				],
+				tokens: [
+					{ startIndex: 0, type: 'tag.html.punctuation.definition' },
+					{ startIndex: 1, type: 'tag.html.entity.name.script' },
+					{ startIndex: 7, type: 'tag.html.punctuation.definition.source.js.embedded' },
+					{ startIndex: 8, type: 'meta.html.source.js.embedded.var.expr.storage.type' },
+					{ startIndex: 11, type: 'meta.html.source.js.embedded.var.expr' },
+					{ startIndex: 12, type: 'meta.html.source.js.embedded.var.expr.var-single-variable.variable.other.readwrite' },
+					{ startIndex: 13, type: 'meta.html.source.js.embedded.var.expr.var-single-variable' },
+					{ startIndex: 14, type: 'meta.html.source.js.embedded.var.expr.keyword.operator.assignment' },
+					{ startIndex: 15, type: 'meta.html.source.js.embedded.var.expr' },
+					{ startIndex: 16, type: 'meta.html.source.js.embedded.var.expr.constant.numeric.decimal' },
+					{ startIndex: 17, type: 'html.punctuation.source.js.embedded.terminator.statement' },
+					{ startIndex: 18, type: 'tag.html.punctuation.definition.source.js.embedded' },
+					{ startIndex: 20, type: 'tag.html.entity.name.script.source.js.embedded' },
+					{ startIndex: 26, type: 'tag.html.punctuation.definition' }
+				],
+				modeTransitions: [
+					{ startIndex: 0, modeId: 'html' },
+					{ startIndex: 7, modeId: 'javascript' },
+					{ startIndex: 26, modeId: 'html' }
+				]
+			}, {
+				line: '<style>body{background-color:red;}</style>',
+				tmTokens: [
+					{ startIndex: 0, endIndex: 1, scopes: ['text.html.php', 'punctuation.definition.tag.html'] },
+					{ startIndex: 1, endIndex: 6, scopes: ['text.html.php', 'entity.name.tag.style.html'] },
+					{ startIndex: 6, endIndex: 7, scopes: ['text.html.php', 'source.css.embedded.html', 'punctuation.definition.tag.html'] },
+					{ startIndex: 7, endIndex: 11, scopes: ['text.html.php', 'source.css.embedded.html', 'meta.selector.css', 'entity.name.tag.css'] },
+					{ startIndex: 11, endIndex: 12, scopes: ['text.html.php', 'source.css.embedded.html', 'meta.property-list.css', 'punctuation.section.property-list.begin.css'] },
+					{ startIndex: 12, endIndex: 28, scopes: ['text.html.php', 'source.css.embedded.html', 'meta.property-list.css', 'meta.property-name.css', 'support.type.property-name.css'] },
+					{ startIndex: 28, endIndex: 29, scopes: ['text.html.php', 'source.css.embedded.html', 'meta.property-list.css', 'meta.property-value.css', 'punctuation.separator.key-value.css'] },
+					{ startIndex: 29, endIndex: 32, scopes: ['text.html.php', 'source.css.embedded.html', 'meta.property-list.css', 'meta.property-value.css', 'support.constant.color.w3c-standard-color-name.css'] },
+					{ startIndex: 32, endIndex: 33, scopes: ['text.html.php', 'source.css.embedded.html', 'meta.property-list.css', 'meta.property-value.css', 'punctuation.terminator.rule.css'] },
+					{ startIndex: 33, endIndex: 34, scopes: ['text.html.php', 'source.css.embedded.html', 'meta.property-list.css', 'punctuation.section.property-list.end.css'] },
+					{ startIndex: 34, endIndex: 36, scopes: ['text.html.php', 'punctuation.definition.tag.html'] },
+					{ startIndex: 36, endIndex: 41, scopes: ['text.html.php', 'entity.name.tag.style.html'] },
+					{ startIndex: 41, endIndex: 42, scopes: ['text.html.php', 'punctuation.definition.tag.html'] }
+				],
+				tokens: [
+					{ startIndex: 0, type: 'tag.html.punctuation.definition' },
+					{ startIndex: 1, type: 'tag.html.entity.name.style' },
+					{ startIndex: 6, type: 'tag.html.punctuation.definition.source.embedded.css' },
+					{ startIndex: 7, type: 'meta.tag.html.entity.name.source.embedded.css.selector' },
+					{ startIndex: 11, type: 'meta.html.punctuation.source.embedded.css.property-list.section.begin' },
+					{ startIndex: 12, type: 'meta.html.source.embedded.type.css.property-list.property-name.support' },
+					{ startIndex: 28, type: 'meta.html.punctuation.source.embedded.css.property-list.property-value.separator.key-value' },
+					{ startIndex: 29, type: 'meta.html.source.embedded.constant.css.property-list.support.property-value.color.w3c-standard-color-name' },
+					{ startIndex: 32, type: 'meta.html.punctuation.source.embedded.terminator.css.property-list.property-value.rule' },
+					{ startIndex: 33, type: 'meta.html.punctuation.source.embedded.css.property-list.section.end' },
+					{ startIndex: 34, type: 'tag.html.punctuation.definition' },
+					{ startIndex: 36, type: 'tag.html.entity.name.style' },
+					{ startIndex: 41, type: 'tag.html.punctuation.definition' }
+				],
+				modeTransitions: [
+					{ startIndex: 0, modeId: 'html' },
+					{ startIndex: 6, modeId: 'css' },
+					{ startIndex: 34, modeId: 'html' }
+				]
+			}, {
+				line: '<?php',
+				tmTokens: [
+					{ startIndex: 0, endIndex: 5, scopes: ['text.html.php', 'meta.embedded.block.php', 'punctuation.section.embedded.metatag.begin.php'] }
+				],
+				tokens: [
+					{ startIndex: 0, type: 'meta.punctuation.embedded.section.begin.block.php.metatag' }
+				],
+				modeTransitions: [
+					{ startIndex: 0, modeId: 'html' }
+				]
+			}, {
+				line: '$query = \"SELECT col1, col2 FROM db; -- selects from sql\"; ',
+				tmTokens: [
+					{ startIndex: 0, endIndex: 1, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'variable.other.php', 'punctuation.definition.variable.php'] },
+					{ startIndex: 1, endIndex: 6, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'variable.other.php'] },
+					{ startIndex: 6, endIndex: 7, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php'] },
+					{ startIndex: 7, endIndex: 8, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'keyword.operator.assignment.php'] },
+					{ startIndex: 8, endIndex: 9, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php'] },
+					{ startIndex: 9, endIndex: 10, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.sql.php', 'punctuation.definition.string.begin.php'] },
+					{ startIndex: 10, endIndex: 16, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.sql.php', 'source.sql.embedded.php', 'keyword.other.DML.sql'] },
+					{ startIndex: 16, endIndex: 28, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.sql.php', 'source.sql.embedded.php'] },
+					{ startIndex: 28, endIndex: 32, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.sql.php', 'source.sql.embedded.php', 'keyword.other.DML.sql'] },
+					{ startIndex: 32, endIndex: 37, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.sql.php', 'source.sql.embedded.php'] },
+					{ startIndex: 37, endIndex: 56, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.sql.php', 'source.sql.embedded.php', 'comment.line.double-dash.sql'] },
+					{ startIndex: 56, endIndex: 57, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.sql.php', 'punctuation.definition.string.end.php'] },
+					{ startIndex: 57, endIndex: 58, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'punctuation.terminator.expression.php'] },
+					{ startIndex: 58, endIndex: 60, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php'] }
+				],
+				tokens: [
+					{ startIndex: 0, type: 'meta.punctuation.definition.source.embedded.variable.other.block.php' },
+					{ startIndex: 1, type: 'meta.source.embedded.variable.other.block.php' },
+					{ startIndex: 6, type: 'meta.source.embedded.block.php' },
+					{ startIndex: 7, type: 'meta.source.embedded.keyword.operator.assignment.block.php' },
+					{ startIndex: 8, type: 'meta.source.embedded.block.php' },
+					{ startIndex: 9, type: 'meta.punctuation.definition.source.embedded.begin.block.php.string.quoted.double.sql' },
+					{ startIndex: 10, type: 'meta.source.embedded.other.keyword.block.php.string.quoted.double.sql.DML' },
+					{ startIndex: 16, type: 'meta.source.embedded.block.php.string.quoted.double.sql' },
+					{ startIndex: 28, type: 'meta.source.embedded.other.keyword.block.php.string.quoted.double.sql.DML' },
+					{ startIndex: 32, type: 'meta.source.embedded.block.php.string.quoted.double.sql' },
+					{ startIndex: 37, type: 'meta.source.embedded.block.php.string.quoted.double.sql.comment.line.double-dash' },
+					{ startIndex: 56, type: 'meta.punctuation.definition.source.embedded.end.block.php.string.quoted.double.sql' },
+					{ startIndex: 57, type: 'meta.punctuation.source.embedded.terminator.block.php.expression' },
+					{ startIndex: 58, type: 'meta.source.embedded.block.php' }
+				],
+				modeTransitions: [
+					{ startIndex: 0, modeId: 'php' },
+					{ startIndex: 10, modeId: 'sql' },
+					{ startIndex: 56, modeId: 'php' }
+				]
+			}, {
+				line: '$a = <<<JSON { \"3\": \"4\" } JSON;',
+				tmTokens: [
+					{ startIndex: 0, endIndex: 1, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'variable.other.php', 'punctuation.definition.variable.php'] },
+					{ startIndex: 1, endIndex: 2, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'variable.other.php'] },
+					{ startIndex: 2, endIndex: 3, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php'] },
+					{ startIndex: 3, endIndex: 4, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'keyword.operator.assignment.php'] },
+					{ startIndex: 4, endIndex: 5, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php'] },
+					{ startIndex: 5, endIndex: 6, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'keyword.operator.comparison.php'] },
+					{ startIndex: 6, endIndex: 7, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'keyword.operator.comparison.php'] },
+					{ startIndex: 7, endIndex: 8, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'keyword.operator.comparison.php'] },
+					{ startIndex: 8, endIndex: 12, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'constant.other.php'] },
+					{ startIndex: 12, endIndex: 13, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php'] },
+					{ startIndex: 13, endIndex: 14, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'punctuation.section.scope.begin.php'] },
+					{ startIndex: 14, endIndex: 15, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php'] },
+					{ startIndex: 15, endIndex: 16, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.php', 'punctuation.definition.string.begin.php'] },
+					{ startIndex: 16, endIndex: 17, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.php', 'meta.string-contents.quoted.double.php'] },
+					{ startIndex: 17, endIndex: 18, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.php', 'punctuation.definition.string.end.php'] },
+					{ startIndex: 18, endIndex: 20, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php'] },
+					{ startIndex: 20, endIndex: 21, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.php', 'punctuation.definition.string.begin.php'] },
+					{ startIndex: 21, endIndex: 22, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.php', 'meta.string-contents.quoted.double.php'] },
+					{ startIndex: 22, endIndex: 23, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'string.quoted.double.php', 'punctuation.definition.string.end.php'] },
+					{ startIndex: 23, endIndex: 24, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php'] },
+					{ startIndex: 24, endIndex: 25, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'punctuation.section.scope.end.php'] },
+					{ startIndex: 25, endIndex: 26, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php'] },
+					{ startIndex: 26, endIndex: 30, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'constant.other.php'] },
+					{ startIndex: 30, endIndex: 31, scopes: ['text.html.php', 'meta.embedded.block.php', 'source.php', 'punctuation.terminator.expression.php'] }
+				],
+				tokens: [
+					{ startIndex: 0, type: 'meta.punctuation.definition.source.embedded.variable.other.block.php' },
+					{ startIndex: 1, type: 'meta.source.embedded.variable.other.block.php' },
+					{ startIndex: 2, type: 'meta.source.embedded.block.php' },
+					{ startIndex: 3, type: 'meta.source.embedded.keyword.operator.assignment.block.php' },
+					{ startIndex: 4, type: 'meta.source.embedded.block.php' },
+					{ startIndex: 5, type: 'meta.source.embedded.keyword.operator.block.php.comparison' },
+					{ startIndex: 8, type: 'meta.source.embedded.other.constant.block.php' },
+					{ startIndex: 12, type: 'meta.source.embedded.block.php' },
+					{ startIndex: 13, type: 'meta.punctuation.scope.source.embedded.section.begin.block.php' },
+					{ startIndex: 14, type: 'meta.source.embedded.block.php' },
+					{ startIndex: 15, type: 'meta.punctuation.definition.source.embedded.begin.block.php.string.quoted.double' },
+					{ startIndex: 16, type: 'meta.source.embedded.block.php.string.quoted.double.string-contents' },
+					{ startIndex: 17, type: 'meta.punctuation.definition.source.embedded.end.block.php.string.quoted.double' },
+					{ startIndex: 18, type: 'meta.source.embedded.block.php' },
+					{ startIndex: 20, type: 'meta.punctuation.definition.source.embedded.begin.block.php.string.quoted.double' },
+					{ startIndex: 21, type: 'meta.source.embedded.block.php.string.quoted.double.string-contents' },
+					{ startIndex: 22, type: 'meta.punctuation.definition.source.embedded.end.block.php.string.quoted.double' },
+					{ startIndex: 23, type: 'meta.source.embedded.block.php' },
+					{ startIndex: 24, type: 'meta.punctuation.scope.source.embedded.section.end.block.php' },
+					{ startIndex: 25, type: 'meta.source.embedded.block.php' },
+					{ startIndex: 26, type: 'meta.source.embedded.other.constant.block.php' },
+					{ startIndex: 30, type: 'meta.punctuation.source.embedded.terminator.block.php.expression' }
+				],
+				modeTransitions: [
+					{ startIndex: 0, modeId: 'php' }
+				]
+			}, {
+				line: '?>',
+				tmTokens: [
+					{ startIndex: 0, endIndex: 1, scopes: ['text.html.php', 'meta.embedded.block.php', 'punctuation.section.embedded.metatag.end.php', 'source.php'] },
+					{ startIndex: 1, endIndex: 2, scopes: ['text.html.php', 'meta.embedded.block.php', 'punctuation.section.embedded.metatag.end.php'] }
+				],
+				tokens: [
+					{ startIndex: 0, type: 'meta.punctuation.source.embedded.section.end.block.php.metatag' },
+					{ startIndex: 1, type: 'meta.punctuation.embedded.section.end.block.php.metatag' }
+				],
+				modeTransitions: [
+					{ startIndex: 0, modeId: 'php'},
+					{ startIndex: 1, modeId: 'html' }
+				]
+			}, {
+				line: '<div><?=\"something\"?></div>',
+				tmTokens: [
+					{ startIndex: 0, endIndex: 1, scopes: ['text.html.php', 'meta.tag.block.any.html', 'punctuation.definition.tag.begin.html'] },
+					{ startIndex: 1, endIndex: 4, scopes: ['text.html.php', 'meta.tag.block.any.html', 'entity.name.tag.block.any.html'] },
+					{ startIndex: 4, endIndex: 5, scopes: ['text.html.php', 'meta.tag.block.any.html', 'punctuation.definition.tag.end.html'] },
+					{ startIndex: 5, endIndex: 8, scopes: ['text.html.php', 'meta.embedded.line.php', 'punctuation.section.embedded.begin.php'] },
+					{ startIndex: 8, endIndex: 9, scopes: ['text.html.php', 'meta.embedded.line.php', 'source.php', 'string.quoted.double.php', 'punctuation.definition.string.begin.php'] },
+					{ startIndex: 9, endIndex: 18, scopes: ['text.html.php', 'meta.embedded.line.php', 'source.php', 'string.quoted.double.php', 'meta.string-contents.quoted.double.php'] },
+					{ startIndex: 18, endIndex: 19, scopes: ['text.html.php', 'meta.embedded.line.php', 'source.php', 'string.quoted.double.php', 'punctuation.definition.string.end.php'] },
+					{ startIndex: 19, endIndex: 20, scopes: ['text.html.php', 'meta.embedded.line.php', 'punctuation.section.embedded.end.php', 'source.php'] },
+					{ startIndex: 20, endIndex: 21, scopes: ['text.html.php', 'meta.embedded.line.php', 'punctuation.section.embedded.end.php'] },
+					{ startIndex: 21, endIndex: 23, scopes: ['text.html.php', 'meta.tag.block.any.html', 'punctuation.definition.tag.begin.html'] },
+					{ startIndex: 23, endIndex: 26, scopes: ['text.html.php', 'meta.tag.block.any.html', 'entity.name.tag.block.any.html'] },
+					{ startIndex: 26, endIndex: 27, scopes: ['text.html.php', 'meta.tag.block.any.html', 'punctuation.definition.tag.end.html'] }
+				],
+				tokens: [
+					{ startIndex: 0, type: 'meta.tag.any.html.punctuation.definition.begin.block' },
+					{ startIndex: 1, type: 'meta.tag.any.html.entity.name.block' },
+					{ startIndex: 4, type: 'meta.tag.any.html.punctuation.definition.end.block' },
+					{ startIndex: 5, type: 'meta.punctuation.embedded.section.begin.php.line' },
+					{ startIndex: 8, type: 'meta.punctuation.definition.source.embedded.begin.php.string.quoted.double.line' },
+					{ startIndex: 9, type: 'meta.source.embedded.php.string.quoted.double.line.string-contents' },
+					{ startIndex: 18, type: 'meta.punctuation.definition.source.embedded.end.php.string.quoted.double.line' },
+					{ startIndex: 19, type: 'meta.punctuation.source.embedded.section.end.php.line' },
+					{ startIndex: 20, type: 'meta.punctuation.embedded.section.end.php.line' },
+					{ startIndex: 21, type: 'meta.tag.any.html.punctuation.definition.begin.block' },
+					{ startIndex: 23, type: 'meta.tag.any.html.entity.name.block' },
+					{ startIndex: 26, type: 'meta.tag.any.html.punctuation.definition.end.block' }
+				],
+				modeTransitions: [
+					{ startIndex: 0, modeId: 'html' },
+					{ startIndex: 8, modeId: 'php' },
+					{ startIndex: 20, modeId: 'html' }
+				]
+			}
+		];
+
+		let registry = new TMScopeRegistry();
+
+		registry.registerEmbeddedLanguages({
+			'text.html': 'html',
+			'source.php': 'php',
+			'source.sql': 'sql',
+			'text.xml': 'xml',
+			'source.js': 'javascript',
+			'source.json': 'json',
+			'source.css': 'css'
+		});
+
+		let decodeMap = new DecodeMap(registry, 'text.html.php');
+
+		for (let i = 0, len = tests.length; i < len; i++) {
+			let test = tests[i];
+			let actual = decodeTextMateTokens(test.line, 0, decodeMap, test.tmTokens, new TMState('html', null, null));
+
+			let actualTokens = actual.tokens.map((t) => { return { startIndex: t.startIndex, type: t.type }; });
+			let actualModeTransitions = actual.modeTransitions.map((t) => { return { startIndex: t.startIndex, modeId: t.modeId }; });
+
+			assert.deepEqual(actualTokens, test.tokens, 'test ' + test.line);
+			assert.deepEqual(actualModeTransitions, test.modeTransitions, 'test ' + test.line);
+		}
 	});
 
 	test('html and embedded', () => {
@@ -530,15 +818,15 @@ suite('TextMate.decodeTextMateTokens', () => {
 
 		let registry = new TMScopeRegistry();
 
-		registry.register('html', 'source.html', null);
-		registry.register('c', 'source.c', null);
-		registry.register('css', 'source.css', null);
-		registry.register('javascript', 'source.js', null);
-		registry.register('python', 'source.python', null);
-		registry.register('smarty', 'source.smarty', null);
-		registry.register(null, 'source.baz', null);
+		registry.registerEmbeddedLanguages({
+			'text.html.basic': 'html',
+			'source.css': 'css',
+			'source.js': 'javascript',
+			'source.python': 'python',
+			'source.smarty': 'smarty'
+		});
 
-		let decodeMap = new DecodeMap(registry);
+		let decodeMap = new DecodeMap(registry, 'text.html.basic');
 
 		for (let i = 0, len = tests.length; i < len; i++) {
 			let test = tests[i];
@@ -586,7 +874,7 @@ suite('textMate', () => {
 	}
 
 	function testDecodeTextMateToken(input: string[][], expected: string[]): void {
-		let decodeMap = new DecodeMap(new TMScopeRegistry());
+		let decodeMap = new DecodeMap(new TMScopeRegistry(), null);
 
 		for (let i = 0; i < input.length; i++) {
 			testOneDecodeTextMateToken(decodeMap, input[i], expected[i]);

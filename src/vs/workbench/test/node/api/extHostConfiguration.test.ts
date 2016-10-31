@@ -25,14 +25,8 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends MainThreadConfigurationShape { };
 		}
-		const result = new ExtHostConfiguration(shape);
-		result.$acceptConfigurationChanged(data);
-		return result;
+		return new ExtHostConfiguration(shape, data);
 	}
-
-	test('check illegal state', function () {
-		assert.throws(() => new ExtHostConfiguration(new class extends MainThreadConfigurationShape { }).getConfiguration('foo'));
-	});
 
 	test('udate / section to key', function () {
 

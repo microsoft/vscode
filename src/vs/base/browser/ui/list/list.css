@@ -39,7 +39,7 @@
 
 /* for OS X ballistic scrolling */
 .monaco-list-row.scrolling {
-	display: none;
+	display: none !important;
 }
 
 /* Hover */

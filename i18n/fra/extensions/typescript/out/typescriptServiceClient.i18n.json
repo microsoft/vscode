@@ -20,6 +20,6 @@
 	"updatedtsdk": "Mise à jour du paramètre d'espace de travail 'typescript.tsdk' avec la valeur {0}",
 	"use": "Utiliser l'espace de travail ({0})",
 	"useBundled": "Utiliser l'ensemble d'applications ({0})",
-	"versionMismatch": "Une incompatibilité de version entre le compilateur tsc installé globalement ({0}) et le service de langage de VS Code ({1}) a été détecté. Cela peut entraîner des erreurs de compilation incohérentes.",
+	"versionMismatch": "Incompatibilité de version ! global tsc ({0}) != Service de langage de VS Code ({1}). Des erreurs de compilation incohérentes risquent de se produire",
 	"versionNumber.custom": "personnalisé"
 }

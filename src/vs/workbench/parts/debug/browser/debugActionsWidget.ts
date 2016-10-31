@@ -5,6 +5,7 @@
 
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
+import * as strings from 'vs/base/common/strings';
 import severity from 'vs/base/common/severity';
 import builder = require('vs/base/browser/builder');
 import dom = require('vs/base/browser/dom');
@@ -185,7 +186,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 
 		this.actions[0] = state === debug.State.Running ? this.pauseAction : this.continueAction;
 		const process = this.debugService.getViewModel().focusedProcess;
-		this.actions[5] = process && process.session.requestType === debug.SessionRequestType.ATTACH ? this.disconnectAction : this.stopAction;
+		this.actions[5] = (process && !strings.equalsIgnoreCase(process.session.configuration.type, 'extensionHost') && process.session.requestType === debug.SessionRequestType.ATTACH) ? this.disconnectAction : this.stopAction;
 
 		if (process && process.session.configuration.capabilities.supportsStepBack) {
 			if (!this.stepBackAction) {

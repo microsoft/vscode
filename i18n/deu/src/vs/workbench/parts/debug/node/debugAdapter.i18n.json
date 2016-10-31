@@ -11,6 +11,6 @@
 	"debugRequest": "Der Anforderungstyp der Konfiguration. Der Wert kann \"launch\" oder \"attach\" sein.",
 	"debugType": "Der Typ der Konfiguration.",
 	"debugWindowsConfiguration": "Windows-spezifische Startkonfigurationsattribute.",
-	"internalConsoleOptions": "Steuert das Verhalten der internen Debugkonsole.",
+	"internalConsoleOptions": "Steuert das Verhalten der internen Debugging-Konsole.",
 	"relativePathsNotConverted": "Relative Pfade werden nicht mehr automatisch in absolute Pfade konvertiert. Verwenden Sie ggf. ${workspaceRoot} als Präfix."
 }

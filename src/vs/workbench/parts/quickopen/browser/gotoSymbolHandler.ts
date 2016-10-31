@@ -428,7 +428,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 		}
 
-		return canRun ? true : editor instanceof BaseTextEditor ? nls.localize('cannotRunGotoSymbolInFile', "Unfortunately we have no symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
+		return canRun ? true : editor instanceof BaseTextEditor ? nls.localize('cannotRunGotoSymbolInFile', "No symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {

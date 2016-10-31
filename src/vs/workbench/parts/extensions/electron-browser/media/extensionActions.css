@@ -82,6 +82,12 @@
 	background: url('clear-inverse.svg') center center no-repeat;
 }
 
+.monaco-action-bar .action-item .action-label.extension-action.enable:after,
+.monaco-action-bar .action-item .action-label.extension-action.disable:after {
+	content: '▼';
+	padding-left: 2px;
+	font-size: 80%;
+}
 
 .monaco-action-bar .action-item.disabled .action-label.extension-action.install:not(.installing),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.uninstall:not(.uninstalling),
@@ -104,4 +110,19 @@
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.extension-action.built-in-status {
 	font-weight: normal;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage.no-extension {
+	display: none;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage {
+	height: 18px;
+	width: 10px;
+	border: none;
+	background: url('manage.svg') center center no-repeat;
+}
+
+.vs-dark .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage {
+	background: url('manage-inverse.svg') center center no-repeat;
 }

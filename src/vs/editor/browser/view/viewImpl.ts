@@ -686,9 +686,15 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					return this.viewZones.addZone(zone);
 				},
 				removeZone: (id: number): void => {
+					if (!id) {
+						return;
+					}
 					zonesHaveChanged = this.viewZones.removeZone(id) || zonesHaveChanged;
 				},
 				layoutZone: (id: number): void => {
+					if (!id) {
+						return;
+					}
 					zonesHaveChanged = this.viewZones.layoutZone(id) || zonesHaveChanged;
 				}
 			};
