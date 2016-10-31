@@ -31,7 +31,6 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
-import { UpdateAllAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
@@ -163,7 +162,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
+		return this.gallery && this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
 	}
 
 	get reload(): boolean {
@@ -446,20 +445,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			.done(null, err => null);
 	}
 
-	private autoUpdateExtensions(): TPromise<void> {
+	private autoUpdateExtensions(): TPromise<any> {
 		const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
 
 		if (!config.autoUpdate) {
 			return TPromise.as(null);
 		}
 
-		const action = this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
-
-		if (!action.enabled) {
-			return TPromise.as(null);
-		}
-
-		return action.run(false);
+		const toUpdate = this.local.filter(e => e.outdated && (e.state !== ExtensionState.Installing));
+		return TPromise.join(toUpdate.map(e => this.install(e, false)));
 	}
 
 	canInstall(extension: IExtension): boolean {
