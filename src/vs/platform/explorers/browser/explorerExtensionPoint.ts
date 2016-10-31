@@ -36,7 +36,7 @@ namespace schema {
 	};
 }
 
-ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', schema.explorerContribtion).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], schema.explorerContribtion).setHandler(extensions => {
 	let baseOrder = 200; // Stock viewlet order goes up to 100
 	let descriptors = [];
 
