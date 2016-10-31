@@ -50,6 +50,16 @@ export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
 }
 
+function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
+	if (extension.enableProposedApi) {
+		return fn;
+	} else {
+		return <any>(() => {
+			throw new Error(`${extension.id} cannot access proposed api`);
+		});
+	}
+}
+
 /**
  * This method instantiates and returns the extension API surface
  */
@@ -83,6 +93,10 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 	ExtHostApiCommands.register(extHostCommands);
 
 	return function (extension: IExtensionDescription): typeof vscode {
+
+		if (extension.enableProposedApi) {
+			console.warn(`${extension.name} (${extension.id}) uses PROPOSED API which is subject to change and removal without notice`);
+		}
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
@@ -258,7 +272,11 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 			},
 			createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
 				return extHostTerminalService.createTerminal(name, shellPath, shellArgs);
-			}
+			},
+			// proposed API
+			sampleFunction: proposedApiFunction(extension, () => {
+				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', []);
+			})
 		};
 
 		// namespace: workspace
