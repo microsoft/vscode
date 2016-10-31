@@ -1067,7 +1067,7 @@ let schema: IJSONSchema =
 					},
 					'location': {
 						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.location', 'The match group index of the problem\'s location. Valid location patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn). If omitted line and column is assumed.')
+						'description': nls.localize('JsonSchema.pattern.location', 'The match group index of the problem\'s location. Valid location patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn). If omitted (line,column) is assumed.')
 					},
 					'line': {
 						'type': 'integer',
@@ -1075,7 +1075,7 @@ let schema: IJSONSchema =
 					},
 					'column': {
 						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.column', 'The match group index of the problem\'s column. Defaults to 3')
+						'description': nls.localize('JsonSchema.pattern.column', 'The match group index of the problem\'s line character. Defaults to 3')
 					},
 					'endLine': {
 						'type': 'integer',
@@ -1083,7 +1083,7 @@ let schema: IJSONSchema =
 					},
 					'endColumn': {
 						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.endColumn', 'The match group index of the problem\'s end column. Defaults to undefined')
+						'description': nls.localize('JsonSchema.pattern.endColumn', 'The match group index of the problem\'s end line character. Defaults to undefined')
 					},
 					'severity': {
 						'type': 'integer',
