@@ -251,19 +251,23 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.cursor || !this.hasView) {
 			return;
 		}
-		var s = <any>state;
-		if (s && s.cursorState && s.viewState) {
-			var codeEditorState = <editorCommon.ICodeEditorViewState>s;
-			var cursorState = <any>codeEditorState.cursorState;
-			if (Array.isArray(cursorState)) {
-				this.cursor.restoreState(<editorCommon.ICursorState[]>cursorState);
-			} else {
-				// Backwards compatibility
-				this.cursor.restoreState([<editorCommon.ICursorState>cursorState]);
+		if (state) {
+			var codeEditorState = <editorCommon.ICodeEditorViewState>state;
+			var cursorState = codeEditorState.cursorState;
+			if (cursorState) {
+				if (Array.isArray(cursorState)) {
+					this.cursor.restoreState(<editorCommon.ICursorState[]>cursorState);
+				} else {
+					// Backwards compatibility
+					this.cursor.restoreState([<editorCommon.ICursorState>cursorState]);
+				}
 			}
-			this._view.restoreState(codeEditorState.viewState);
 
-			let contributionsState = s.contributionsState || {};
+			if (codeEditorState.viewState) {
+				this._view.restoreState(codeEditorState.viewState);
+			}
+
+			let contributionsState = codeEditorState.contributionsState || {};
 			let keys = Object.keys(this._contributions);
 			for (let i = 0, len = keys.length; i < len; i++) {
 				let id = keys[i];
