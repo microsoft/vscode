@@ -123,6 +123,12 @@ export class CompletionModel {
 			const {suggestion, support, container} = item;
 			const filter = support && support.filter || fuzzyContiguousFilter;
 
+			// collect those supports that signaled having
+			// an incomplete result
+			if (container.incomplete && this._incomplete.indexOf(support) < 0) {
+				this._incomplete.push(support);
+			}
+
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
 			// differnet word, but in practice not - that's why we cache
@@ -159,12 +165,6 @@ export class CompletionModel {
 			if (score > topScore) {
 				topScore = score;
 				this._topScoreIdx = this._filteredItems.length - 1;
-			}
-
-			// collect those supports that signaled having
-			// an incomplete result
-			if (container.incomplete && this._incomplete.indexOf(support) < 0) {
-				this._incomplete.push(support);
 			}
 
 			// update stats
