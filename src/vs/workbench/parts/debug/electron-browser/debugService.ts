@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
+import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
@@ -248,8 +249,8 @@ export class DebugService implements debug.IDebugService {
 					});
 				}
 			};
-
-			this.sendAllBreakpoints(session).done(sendConfigurationDone, sendConfigurationDone);
+			const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
+			this.sendAllBreakpoints(process).done(sendConfigurationDone, sendConfigurationDone);
 		}));
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidStop(event => {
@@ -368,8 +369,7 @@ export class DebugService implements debug.IDebugService {
 		let result: Breakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new Breakpoint(new Source(breakpoint.source.raw ? breakpoint.source.raw : { path: uri.parse(breakpoint.source.uri).fsPath, name: breakpoint.source.name }),
-					breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition);
+				return new Breakpoint(uri.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition);
 			});
 		} catch (e) { }
 
@@ -799,10 +799,9 @@ export class DebugService implements debug.IDebugService {
 		if (this.model.getProcesses().length === 0) {
 			this.partService.removeClass('debugging');
 			// set breakpoints back to unverified since the session ended.
-			// source reference changes across sessions, so we do not use it to persist the source.
-			const data: { [id: string]: { line: number, verified: boolean, source: DebugProtocol.Source } } = {};
+			const data: { [id: string]: { line: number, verified: boolean } } = {};
 			this.model.getBreakpoints().forEach(bp => {
-				data[bp.getId()] = { line: bp.lineNumber, verified: false, source: null };
+				data[bp.getId()] = { line: bp.lineNumber, verified: false };
 			});
 			this.model.updateBreakpoints(data);
 
@@ -822,12 +821,14 @@ export class DebugService implements debug.IDebugService {
 		return this.viewModel;
 	}
 
-	public openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
+	public openOrRevealSource(sourceOrUri: Source | uri, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
 		const visibleEditors = this.editorService.getVisibleEditors();
+		const uri = sourceOrUri instanceof Source ? sourceOrUri.uri : sourceOrUri;
+		const source = sourceOrUri instanceof Source ? sourceOrUri : null;
 		for (let i = 0; i < visibleEditors.length; i++) {
 			const fileInput = asFileEditorInput(visibleEditors[i].input);
-			if ((fileInput && fileInput.getResource().toString() === source.uri.toString()) ||
-				(visibleEditors[i].input instanceof DebugStringEditorInput && (<DebugStringEditorInput>visibleEditors[i].input).getResource().toString() === source.uri.toString())) {
+			if ((fileInput && fileInput.getResource().toString() === uri.toString()) ||
+				(visibleEditors[i].input instanceof DebugStringEditorInput && (<DebugStringEditorInput>visibleEditors[i].input).getResource().toString() === uri.toString())) {
 
 				const control = <ICodeEditor>visibleEditors[i].getControl();
 				if (control) {
@@ -844,9 +845,9 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		const process = this.viewModel.focusedProcess;
-		if (source.inMemory) {
+		if (process && source && source.inMemory) {
 			// internal module
-			if (source.reference !== 0 && process && source.available) {
+			if (source.reference !== 0 && source.available) {
 				return process.session.source({ sourceReference: source.reference }).then(response => {
 					const mime = response && response.body && response.body.mimeType ? response.body.mimeType : guessMimeTypes(source.name)[0];
 					const inputValue = response && response.body ? response.body.content : '';
@@ -861,10 +862,13 @@ export class DebugService implements debug.IDebugService {
 
 			return this.sourceIsUnavailable(process, source, sideBySide);
 		}
+		if (Source.isInMemory(uri)) {
+			return TPromise.as(null);
+		}
 
-		return this.fileService.resolveFile(source.uri).then(() =>
+		return this.fileService.resolveFile(uri).then(() =>
 			this.editorService.openEditor({
-				resource: source.uri,
+				resource: uri,
 				options: {
 					selection: {
 						startLineNumber: lineNumber,
@@ -909,15 +913,17 @@ export class DebugService implements debug.IDebugService {
 		return result;
 	}
 
-	private sendAllBreakpoints(session?: RawDebugSession): TPromise<any> {
-		return TPromise.join(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)))
-			.then(() => this.sendFunctionBreakpoints(session))
+	private sendAllBreakpoints(process?: debug.IProcess): TPromise<any> {
+		return TPromise.join(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, process)))
+			.then(() => this.sendFunctionBreakpoints(process))
 			// send exception breakpoints at the end since some debug adapters rely on the order
-			.then(() => this.sendExceptionBreakpoints(session));
+			.then(() => this.sendExceptionBreakpoints(process));
 	}
 
-	private sendBreakpoints(modelUri: uri, sourceModified = false, targetSession?: RawDebugSession): TPromise<void> {
-		const sendBreakpointsToSession = (session: RawDebugSession): TPromise<void> => {
+	private sendBreakpoints(modelUri: uri, sourceModified = false, targetProcess?: debug.IProcess): TPromise<void> {
+
+		const sendBreakpointsToProcess = (process: debug.IProcess): TPromise<void> => {
+			const session = <RawDebugSession>process.session;
 			if (!session.readyForBreakpoints) {
 				return TPromise.as(null);
 			}
@@ -931,7 +937,17 @@ export class DebugService implements debug.IDebugService {
 				this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString()),
 				bp => `${bp.desiredLineNumber}`
 			);
-			const rawSource = breakpointsToSend.length > 0 ? (<Breakpoint>breakpointsToSend[0]).source.raw : undefined;
+
+			let rawSource: DebugProtocol.Source;
+			for (let t of process.getAllThreads()) {
+				for (let sf of t.getCachedCallStack()) {
+					if (sf.source.uri.toString() === modelUri.toString()) {
+						rawSource = sf.source.raw;
+						break;
+					}
+				}
+			}
+			rawSource = rawSource || { path: paths.normalize(modelUri.fsPath, true), name: paths.basename(modelUri.fsPath) };
 
 			return session.setBreakpoints({
 				source: rawSource,
@@ -952,11 +968,12 @@ export class DebugService implements debug.IDebugService {
 			});
 		};
 
-		return this.sendToOneOrAllSessions(targetSession, sendBreakpointsToSession);
+		return this.sendToOneOrAllProcesses(targetProcess, sendBreakpointsToProcess);
 	}
 
-	private sendFunctionBreakpoints(targetSession?: RawDebugSession): TPromise<void> {
-		const sendFunctionBreakpointsToSession = (session: RawDebugSession): TPromise<void> => {
+	private sendFunctionBreakpoints(targetProcess?: debug.IProcess): TPromise<void> {
+		const sendFunctionBreakpointsToProcess = (process: debug.IProcess): TPromise<void> => {
+			const session = <RawDebugSession>process.session;
 			if (!session.readyForBreakpoints || !session.configuration.capabilities.supportsFunctionBreakpoints) {
 				return TPromise.as(null);
 			}
@@ -976,12 +993,13 @@ export class DebugService implements debug.IDebugService {
 			});
 		};
 
-		return this.sendToOneOrAllSessions(targetSession, sendFunctionBreakpointsToSession);
+		return this.sendToOneOrAllProcesses(targetProcess, sendFunctionBreakpointsToProcess);
 	}
 
-	private sendExceptionBreakpoints(targetSession?: RawDebugSession): TPromise<void> {
-		const sendExceptionBreakpointsToSession = (session: RawDebugSession): TPromise<any> => {
-			if (!session || !session.readyForBreakpoints || this.model.getExceptionBreakpoints().length === 0) {
+	private sendExceptionBreakpoints(targetProcess?: debug.IProcess): TPromise<void> {
+		const sendExceptionBreakpointsToProcess = (process: debug.IProcess): TPromise<any> => {
+			const session = <RawDebugSession>process.session;
+			if (!session.readyForBreakpoints || this.model.getExceptionBreakpoints().length === 0) {
 				return TPromise.as(null);
 			}
 
@@ -989,15 +1007,15 @@ export class DebugService implements debug.IDebugService {
 			return session.setExceptionBreakpoints({ filters: enabledExceptionBps.map(exb => exb.filter) });
 		};
 
-		return this.sendToOneOrAllSessions(targetSession, sendExceptionBreakpointsToSession);
+		return this.sendToOneOrAllProcesses(targetProcess, sendExceptionBreakpointsToProcess);
 	}
 
-	private sendToOneOrAllSessions(session: RawDebugSession, send: (session: RawDebugSession) => TPromise<void>): TPromise<void> {
-		if (session) {
-			return send(session);
+	private sendToOneOrAllProcesses(process: debug.IProcess, send: (process: debug.IProcess) => TPromise<void>): TPromise<void> {
+		if (process) {
+			return send(process);
 		}
 
-		return TPromise.join(this.model.getProcesses().map(p => send(<RawDebugSession>p.session))).then(() => void 0);
+		return TPromise.join(this.model.getProcesses().map(p => send(p))).then(() => void 0);
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {

@@ -471,7 +471,7 @@ export interface IDebugService {
 	/**
 	 * Opens a new or reveals an already visible editor showing the source.
 	 */
-	openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
+	openOrRevealSource(sourceOrUri: Source | uri, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
 }
 
 // Editor interfaces

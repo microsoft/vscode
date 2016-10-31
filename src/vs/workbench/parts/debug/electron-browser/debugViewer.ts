@@ -290,7 +290,7 @@ export class CallStackController extends BaseDebugController {
 
 		if (stackFrame) {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+			this.debugService.openOrRevealSource(stackFrame.source.uri, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 		}
 	}
 }
@@ -1306,9 +1306,7 @@ export class BreakpointsController extends BaseDebugController {
 	}
 
 	private openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
-		if (!breakpoint.source.inMemory) {
-			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			this.debugService.openOrRevealSource(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
-		}
+		const sideBySide = (event && (event.ctrlKey || event.metaKey));
+		this.debugService.openOrRevealSource(breakpoint.uri, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 	}
 }

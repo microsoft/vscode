@@ -32,6 +32,10 @@ export class Source {
 	}
 
 	public get inMemory() {
-		return this.uri.toString().indexOf(Source.INTERNAL_URI_PREFIX) === 0;
+		return Source.isInMemory(this.uri);
+	}
+
+	public static isInMemory(uri: uri): boolean {
+		return uri.toString().indexOf(Source.INTERNAL_URI_PREFIX) === 0;
 	}
 }

@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -574,7 +573,7 @@ export class Breakpoint implements debug.IBreakpoint {
 	private id: string;
 
 	constructor(
-		public source: Source,
+		public uri: uri,
 		public desiredLineNumber: number,
 		public enabled: boolean,
 		public condition: string,
@@ -590,10 +589,6 @@ export class Breakpoint implements debug.IBreakpoint {
 
 	public getId(): string {
 		return this.id;
-	}
-
-	public get uri(): uri {
-		return this.source.uri;
 	}
 }
 
@@ -732,18 +727,8 @@ export class Model implements debug.IModel {
 	}
 
 	public addBreakpoints(uri: uri, rawData: debug.IRawBreakpoint[]): void {
-		// Traverse the stack frames and check try to find the raw source matching the added breakpoint uri.
-		// Raw source might contain data needed for the debug adapter to match the breakpoint.
-		let source: Source = null;
-		this.processes.forEach(p => p.getAllThreads().forEach(t => t.getCachedCallStack().forEach(sf => {
-			if (sf.source.uri.toString() === uri.toString()) {
-				source = sf.source;
-			}
-		})));
-		source = source || new Source({ path: paths.normalize(uri.fsPath, true), name: paths.basename(uri.fsPath) });
-
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(source, rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
+			new Breakpoint(uri, rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
 		this.breakpointsActivated = true;
 		this._onDidChangeBreakpoints.fire();
 	}
@@ -761,7 +746,6 @@ export class Model implements debug.IModel {
 				bp.verified = bpData.verified;
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;
-				bp.source = bpData.source ? new Source(bpData.source) : bp.source;
 			}
 		});
 		this._onDidChangeBreakpoints.fire();
