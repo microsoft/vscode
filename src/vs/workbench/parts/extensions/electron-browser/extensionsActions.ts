@@ -744,20 +744,15 @@ export class UpdateAllAction extends Action {
 	}
 
 	private get outdated(): IExtension[] {
-		return this.extensionsWorkbenchService.local.filter(
-			e => this.extensionsWorkbenchService.canInstall(e)
-				&& e.type === LocalExtensionType.User
-				&& (e.state === ExtensionState.Enabled || e.state === ExtensionState.Disabled || e.state === ExtensionState.Installed)
-				&& e.outdated
-		);
+		return this.extensionsWorkbenchService.local.filter(e => e.outdated && e.state !== ExtensionState.Installing);
 	}
 
 	private update(): void {
 		this.enabled = this.outdated.length > 0;
 	}
 
-	run(promptToInstallDependencies: boolean = true, ): TPromise<any> {
-		return TPromise.join(this.outdated.map(e => this.extensionsWorkbenchService.install(e, promptToInstallDependencies)));
+	run(): TPromise<any> {
+		return TPromise.join(this.outdated.map(e => this.extensionsWorkbenchService.install(e)));
 	}
 
 	dispose(): void {
