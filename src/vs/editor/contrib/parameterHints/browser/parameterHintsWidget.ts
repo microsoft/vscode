@@ -296,6 +296,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		const signature = this.hints.signatures[this.currentSignature];
 
+		if (!signature) {
+			return;
+		}
+
 		const code = dom.append(this.signature, $('.code'));
 		const hasParameters = signature.parameters.length > 0;
 
