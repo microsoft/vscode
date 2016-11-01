@@ -661,8 +661,11 @@ export class Model implements debug.IModel {
 		return this.processes;
 	}
 
-	public addProcess(name: string, session: debug.ISession & debug.ITreeElement): void {
-		this.processes.push(new Process(name, session));
+	public addProcess(name: string, session: debug.ISession & debug.ITreeElement): Process {
+		const process = new Process(name, session);
+		this.processes.push(process);
+
+		return process;
 	}
 
 	public removeProcess(id: string): void {
