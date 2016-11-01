@@ -314,7 +314,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	public reopenLastClosedEditor(): void {
-		this.ensureLoaded();
+		this.ensureHistoryLoaded();
 
 		const stacks = this.editorGroupService.getStacksModel();
 
@@ -343,7 +343,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	public clear(): void {
-		this.ensureLoaded();
+		this.ensureHistoryLoaded();
 
 		this.index = -1;
 		this.stack.splice(0);
@@ -395,7 +395,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return;
 		}
 
-		this.ensureLoaded();
+		this.ensureHistoryLoaded();
 
 		const historyInput = this.preferResourceInput(input);
 
@@ -426,27 +426,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.removeFromRecentlyClosedFiles(arg1);
 	}
 
-	private removeFromHistory(arg1: IEditorInput | IResourceInput | FileChangesEvent, index?: number): void {
-		this.ensureLoaded();
+	private removeFromHistory(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
+		this.ensureHistoryLoaded();
 
-		if (typeof index !== 'number') {
-			index = this.indexOf(arg1);
-		}
-
-		if (index >= 0) {
-			this.history.splice(index, 1);
-		}
-	}
-
-	private indexOf(arg1: IEditorInput | IResourceInput | FileChangesEvent): number {
-		for (let i = 0; i < this.history.length; i++) {
-			const entry = this.history[i];
-			if (this.matches(arg1, entry)) {
-				return i;
-			}
-		}
-
-		return -1;
+		this.history = this.history.filter(e => !this.matches(arg1, e));
 	}
 
 	private handleEditorEventInStack(editor: IBaseEditor, storeSelection: boolean): void {
@@ -593,11 +576,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private removeFromRecentlyClosedFiles(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
-		this.recentlyClosedFiles.forEach((e, i) => {
-			if (this.matchesFile(e.resource, arg1)) {
-				this.recentlyClosedFiles.splice(i, 1);
-			}
-		});
+		this.recentlyClosedFiles = this.recentlyClosedFiles.filter(e => !this.matchesFile(e.resource, arg1));
 	}
 
 	private isFileOpened(resource: URI, group: IEditorGroup): boolean {
@@ -658,14 +637,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	public getHistory(): (IEditorInput | IResourceInput)[] {
-		this.ensureLoaded();
+		this.ensureHistoryLoaded();
 
 		return this.history.slice(0);
 	}
 
-	private ensureLoaded(): void {
+	private ensureHistoryLoaded(): void {
 		if (!this.loaded) {
-			this.load();
+			this.loadHistory();
 		}
 
 		this.loaded = true;
@@ -687,7 +666,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
 
-	private load(): void {
+	private loadHistory(): void {
 		let entries: (ILegacySerializedEditorInput | ISerializedFileEditorInput)[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);

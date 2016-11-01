@@ -269,6 +269,11 @@ export function isEqual(path1: string, path2: string) {
 }
 
 export function isParent(path: string, candidate: string): boolean {
+	if (!isLinux) {
+		path = path.toLowerCase();
+		candidate = candidate.toLowerCase();
+	}
+
 	return path.indexOf(candidate + paths.nativeSep) === 0;
 }
 
