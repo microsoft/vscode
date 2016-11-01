@@ -76,14 +76,16 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 			if (e.target.type !== editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail) {
 				return;
 			}
-			if (!this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
-				return;
-			}
+			const canSetBreakpoints = this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel());
 
 			const lineNumber = e.target.position.lineNumber;
 			const uri = this.editor.getModel().uri;
 
 			if (e.event.rightButton || (env.isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
+				if (!canSetBreakpoints) {
+					return;
+				}
+
 				const anchor = { x: e.event.posx + 1, y: e.event.posy };
 				const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop();
 
@@ -98,7 +100,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 
 				if (breakpoint) {
 					this.debugService.removeBreakpoints(breakpoint.getId());
-				} else {
+				} else if (canSetBreakpoints) {
 					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
 				}
 			}
