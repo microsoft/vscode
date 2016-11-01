@@ -51,30 +51,22 @@ export class EditorState {
 
 	public justifiesNewPushState(other: EditorState): boolean {
 		if (!this._editorInput.matches(other._editorInput)) {
-			// push different editor inputs
-			return true;
+			return true; // push different editor inputs
 		}
 
 		if (!Selection.isISelection(this._selection) || !Selection.isISelection(other._selection)) {
-			// unknown selections
-			return true;
+			return true; // unknown selections
 		}
 
 		const liftedSelection = Selection.liftSelection(this._selection);
 		const liftedOtherSelection = Selection.liftSelection(other._selection);
 
 		if (Math.abs(liftedSelection.getStartPosition().lineNumber - liftedOtherSelection.getStartPosition().lineNumber) < EditorState.EDITOR_SELECTION_THRESHOLD) {
-			// ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
-			return false;
+			return false; // ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
 		}
 
 		return true;
 	}
-}
-
-interface ILegacySerializedEditorInput {
-	id: string;
-	value: string;
 }
 
 interface ISerializedFileEditorInput {
@@ -661,7 +653,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private loadHistory(): void {
-		let entries: (ILegacySerializedEditorInput | ISerializedFileEditorInput)[] = [];
+		let entries: ISerializedFileEditorInput[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
@@ -669,24 +661,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		this.history = entries.map(entry => {
-			const serializedLegacyInput = entry as ILegacySerializedEditorInput;
 			const serializedFileInput = entry as ISerializedFileEditorInput;
-
-			// Legacy support (TODO@Ben remove me - migration)
-			if (serializedLegacyInput.id) {
-				const factory = this.registry.getEditorInputFactory(serializedLegacyInput.id);
-				if (factory && typeof serializedLegacyInput.value === 'string') {
-					const fileInput = asFileEditorInput(factory.deserialize(this.instantiationService, serializedLegacyInput.value));
-					if (fileInput) {
-						return { resource: fileInput.getResource() } as IResourceInput;
-					}
-
-					return void 0;
-				}
-			}
-
-			// New resource input support
-			else if (serializedFileInput.resource) {
+			if (serializedFileInput.resource) {
 				return { resource: URI.parse(serializedFileInput.resource) } as IResourceInput;
 			}
 
