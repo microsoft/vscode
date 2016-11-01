@@ -6,13 +6,20 @@
 
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
+import pkg from 'vs/platform/package';
+import { localize } from 'vs/nls';
+import * as path from 'path';
+import URI from 'vs/base/common/uri';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
 import { IExtensionRuntimeService, IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostContext, ExtHostExtensionServiceShape } from './extHost.protocol';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+
+const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
 /**
  * Represents a failed extension in the ext host.
@@ -64,7 +71,10 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
 
-		extensionsRuntimeService.getEnabledExtensions().then((extensionDescriptions) => this._onExtensionDescriptions(extensionDescriptions));
+		const disabledExtensions = [...extensionsRuntimeService.getGloballyDisabledExtensions(), ...extensionsRuntimeService.getWorkspaceDisabledExtensions()];
+		this.scanExtensions().done(extensionDescriptions => {
+			this._onExtensionDescriptions(disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.indexOf(`${e.publisher}.${e.name}`) === -1) : extensionDescriptions);
+		});
 	}
 
 	private _handleMessage(msg: IMessage) {
@@ -165,5 +175,45 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 
 	public $onExtensionActivationFailed(extensionId: string): void {
 		this._activatedExtensions[extensionId] = new MainProcessFailedExtension();
+	}
+
+	private scanExtensions(): TPromise<IExtensionDescription[]> {
+		const collector = new MessagesCollector();
+		const version = pkg.version;
+		const builtinExtensions = ExtensionScanner.scanExtensions(version, collector, SystemExtensionsRoot, true);
+		const userExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionsPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, this.environmentService.extensionsPath, false);
+		const developedExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionDevelopmentPath ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, this.environmentService.extensionDevelopmentPath, false);
+
+		return TPromise.join([builtinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
+			let builtinExtensions = extensionDescriptions[0];
+			let userExtensions = extensionDescriptions[1];
+			let developedExtensions = extensionDescriptions[2];
+
+			let result: { [extensionId: string]: IExtensionDescription; } = {};
+			builtinExtensions.forEach((builtinExtension) => {
+				result[builtinExtension.id] = builtinExtension;
+			});
+			userExtensions.forEach((userExtension) => {
+				if (result.hasOwnProperty(userExtension.id)) {
+					collector.warn(userExtension.extensionFolderPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
+				}
+				result[userExtension.id] = userExtension;
+			});
+			developedExtensions.forEach(developedExtension => {
+				collector.info('', localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
+				if (result.hasOwnProperty(developedExtension.id)) {
+					collector.warn(developedExtension.extensionFolderPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
+				}
+				result[developedExtension.id] = developedExtension;
+			});
+
+			return Object.keys(result).map(name => result[name]);
+		}).then(null, err => {
+			collector.error('', err);
+			return [];
+		}).then(extensions => {
+			collector.getMessages().forEach(entry => this.$localShowMessage(entry.type, this._isDev ? (entry.source ? '[' + entry.source + ']: ' : '') + entry.message : entry.message));
+			return extensions;
+		});
 	}
 }

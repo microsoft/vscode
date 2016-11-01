@@ -30,7 +30,7 @@ import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extens
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
-import { IExtensionRuntimeService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionRuntimeService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
 
 const dialog = remote.dialog;
@@ -689,7 +689,7 @@ export class ReloadAction extends Action {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
 		this.throttler = new Throttler();
@@ -710,7 +710,7 @@ export class ReloadAction extends Action {
 			if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
 				return TPromise.wrap<void>(null);
 			}
-			return this.extensionRuntimeService.getEnabledExtensions()
+			return this.extensionService.getExtensions()
 				.then(runningExtensions => this.computeReloadState(runningExtensions));
 		}).done(() => {
 			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;

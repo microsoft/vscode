@@ -9,6 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 
+export const ExtensionProperties = ['id', 'name', 'version', 'publisher', 'isBuiltin', 'extensionFolderPath', 'extensionDependencies', 'activationEvents', 'engines', 'main', 'contributes', 'enableProposedApi'];
+
 export interface IExtensionDescription {
 	readonly id: string;
 	readonly name: string;
@@ -62,6 +64,11 @@ export interface IExtensionService {
 	onReady(): TPromise<boolean>;
 
 	/**
+	 * Return all registered extensions
+	 */
+	getExtensions(): TPromise<IExtensionDescription[]>;
+
+	/**
 	 * Read all contributions to an extension point.
 	 */
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]>;
@@ -76,11 +83,6 @@ export const IExtensionRuntimeService = createDecorator<IExtensionRuntimeService
 
 export interface IExtensionRuntimeService {
 	_serviceBrand: any;
-
-	/**
-	 * Returns all extensions enabled for the current VS Code window
-	 */
-	getEnabledExtensions(): TPromise<IExtensionDescription[]>;
 
 	/**
 	 * Returns all globally disabled extension identifiers.

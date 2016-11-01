@@ -44,7 +44,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
-import { IExtensionRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -67,7 +67,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@IExtensionManagementService private extensionService: IExtensionManagementService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IProgressService private progressService: IProgressService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -76,7 +76,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService,
-		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
@@ -242,7 +242,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		if (/@disabled/i.test(value)) {
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(result => this.extensionRuntimeService.getEnabledExtensions()
+				.then(result => this.extensionService.getExtensions()
 					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.identifier))))
 				.then(result => new PagedModel(result));
 		}
