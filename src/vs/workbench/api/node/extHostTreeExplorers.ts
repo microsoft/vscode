@@ -12,6 +12,7 @@ import { MainContext, ExtHostTreeExplorersShape, MainThreadTreeExplorersShape } 
 import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
+import * as modes from 'vs/editor/common/modes';
 
 export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 	private _proxy: MainThreadTreeExplorersShape;
@@ -79,14 +80,20 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		});
 	}
 
-	$executeCommand(providerId: string, mainThreadNode: InternalTreeExplorerNode): TPromise<void> {
+	// Convert the command on the ExtHost side so we can pass the original externalNode to the registered handler
+	$getInternalCommand(providerId: string, mainThreadNode: InternalTreeExplorerNode): TPromise<modes.Command> {
+		const commandConverter = this.commands.converter;
+
 		if (mainThreadNode.clickCommand) {
 			const externalNode = this._externalNodeMaps[providerId][mainThreadNode.id];
-			return asWinJsPromise(() => this.commands.executeCommand(mainThreadNode.clickCommand, externalNode)).then(() => {
-				return null;
-			}, err => {
-				return TPromise.wrapError(`Failed to execute command '${mainThreadNode.clickCommand}' provided by TreeExplorerNodeProvider '${providerId}'.`);
+
+			const internalCommand = commandConverter.toInternal({
+				title: '',
+				command: mainThreadNode.clickCommand,
+				arguments: [externalNode]
 			});
+
+			return TPromise.wrap(internalCommand);
 		}
 
 		return TPromise.as(null);
