@@ -4179,10 +4179,14 @@ declare module monaco.languages {
      * Definition of documentation comments (e.g. Javadoc/JSdoc)
      */
     export interface IDocComment {
-        scope: string;
+        /**
+         * The string that starts a doc comment (e.g. '/**')
+         */
         open: string;
-        lineStart: string;
-        close?: string;
+        /**
+         * The string that appears on the last line and closes the doc comment (e.g. ' * /').
+         */
+        close: string;
     }
 
     /**

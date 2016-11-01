@@ -20,23 +20,4 @@ export class ModeTransition {
 	public static findIndexInSegmentsArray(arr: ModeTransition[], desiredIndex: number): number {
 		return Arrays.findIndexInSegmentsArray(arr, desiredIndex);
 	}
-
-	public static equals(a: ModeTransition[], b: ModeTransition[]): boolean {
-		let aLen = a.length;
-		let bLen = b.length;
-		if (aLen !== bLen) {
-			return false;
-		}
-		for (let i = 0; i < aLen; i++) {
-			let aModeTransition = a[i];
-			let bModeTransition = b[i];
-			if (aModeTransition.startIndex !== bModeTransition.startIndex) {
-				return false;
-			}
-			if (aModeTransition.modeId !== bModeTransition.modeId) {
-				return false;
-			}
-		}
-		return true;
-	}
 }

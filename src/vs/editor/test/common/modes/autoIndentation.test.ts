@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Brackets } from 'vs/editor/common/modes/supports/electricCharacter';
+import { BracketElectricCharacterSupport } from 'vs/editor/common/modes/supports/electricCharacter';
 import { createFakeLineTokens } from 'vs/editor/test/common/modesTestUtils';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Token } from 'vs/editor/common/core/token';
@@ -37,7 +37,7 @@ function createScopedLineTokensFromTokenText(modeId: string, tokens: TokenText[]
 
 suite('Editor Modes - Auto Indentation', () => {
 	test('Doc comments', () => {
-		var brackets = new Brackets(null, [{ open: '/**', close: ' */' }]);
+		var brackets = new BracketElectricCharacterSupport(null, [{ open: '/**', close: ' */' }], null);
 
 		assert.equal(brackets.onElectricCharacter(createScopedLineTokensFromTokenText('test', [
 			{ text: '/**', type: 'doc' },

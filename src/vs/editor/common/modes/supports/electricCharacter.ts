@@ -13,10 +13,14 @@ import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets'
  * Definition of documentation comments (e.g. Javadoc/JSdoc)
  */
 export interface IDocComment {
-	scope: string; // What tokens should be used to detect a doc comment (e.g. 'comment.documentation').
-	open: string; // The string that starts a doc comment (e.g. '/**')
-	lineStart: string; // The string that appears at the start of each line, except the first and last (e.g. ' * ').
-	close?: string; // The string that appears on the last line and closes the doc comment (e.g. ' */').
+	/**
+	 * The string that starts a doc comment (e.g. '/**')
+	 */
+	open: string;
+	/**
+	 * The string that appears on the last line and closes the doc comment (e.g. ' * /').
+	 */
+	close: string;
 }
 
 export interface IBracketElectricCharacterContribution {
@@ -25,34 +29,16 @@ export interface IBracketElectricCharacterContribution {
 
 export class BracketElectricCharacterSupport {
 
-	private readonly contribution: IBracketElectricCharacterContribution;
-	private readonly brackets: Brackets;
-
-	constructor(brackets: modes.IRichEditBrackets, autoClosePairs: modes.IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution) {
-		this.contribution = contribution || {};
-		this.brackets = new Brackets(brackets, autoClosePairs, this.contribution.docComment);
-	}
-
-	public getElectricCharacters(): string[] {
-		return this.brackets.getElectricCharacters();
-	}
-
-	public onElectricCharacter(context: ScopedLineTokens, offset: number): modes.IElectricAction {
-		return this.brackets.onElectricCharacter(context, offset);
-	}
-}
-
-export class Brackets {
-
 	private readonly _richEditBrackets: modes.IRichEditBrackets;
 	private readonly _complexAutoClosePairs: modes.IAutoClosingPairConditional[];
 
-	constructor(richEditBrackets: modes.IRichEditBrackets, autoClosePairs: modes.IAutoClosingPairConditional[], docComment?: IDocComment) {
+	constructor(richEditBrackets: modes.IRichEditBrackets, autoClosePairs: modes.IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution) {
+		contribution = contribution || {};
 		this._richEditBrackets = richEditBrackets;
 		this._complexAutoClosePairs = autoClosePairs.filter(pair => pair.open.length > 1 && !!pair.close);
-		if (docComment) {
+		if (contribution.docComment) {
 			// IDocComment is legacy, only partially supported
-			this._complexAutoClosePairs.push({ open: docComment.open, close: docComment.close });
+			this._complexAutoClosePairs.push({ open: contribution.docComment.open, close: contribution.docComment.close });
 		}
 	}
 

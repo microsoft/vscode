@@ -226,13 +226,35 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 
 	// --- configuration
 
-	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any> {
+	$setLanguageConfiguration(handle: number, languageId: string, _configuration: vscode.LanguageConfiguration): TPromise<any> {
 
-		if (configuration.__characterPairSupport) {
-			(<LanguageConfiguration>configuration).autoClosingPairs = configuration.__characterPairSupport.autoClosingPairs;
+		let configuration: LanguageConfiguration = {
+			comments: _configuration.comments,
+			brackets: _configuration.brackets,
+			wordPattern: _configuration.wordPattern,
+			indentationRules: _configuration.indentationRules,
+			onEnterRules: _configuration.onEnterRules,
+
+			autoClosingPairs: null,
+			surroundingPairs: null,
+			__electricCharacterSupport: null
+		};
+
+		if (_configuration.__characterPairSupport) {
+			// backwards compatibility
+			configuration.autoClosingPairs = _configuration.__characterPairSupport.autoClosingPairs;
 		}
 
-		this._registrations[handle] = LanguageConfigurationRegistry.register(languageId, <LanguageConfiguration>configuration);
+		if (_configuration.__electricCharacterSupport && _configuration.__electricCharacterSupport.docComment) {
+			configuration.__electricCharacterSupport = {
+				docComment: {
+					open: _configuration.__electricCharacterSupport.docComment.open,
+					close: _configuration.__electricCharacterSupport.docComment.close
+				}
+			};
+		}
+
+		this._registrations[handle] = LanguageConfigurationRegistry.register(languageId, configuration);
 		return undefined;
 	}
 
