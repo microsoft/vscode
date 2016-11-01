@@ -439,9 +439,11 @@ export class DebugService implements debug.IDebugService {
 		return !!this.contextService.getWorkspace();
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
+	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
 		const processes = this.model.getProcesses();
-		const process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
+		if (!process) {
+			process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
+		}
 		if (process && !focusedStackFrame) {
 			const thread = process.getAllThreads().pop();
 			const callStack = thread ? thread.getCachedCallStack() : null;
@@ -635,7 +637,7 @@ export class DebugService implements debug.IDebugService {
 			const process = this.model.addProcess(configuration.name, session);
 
 			if (!this.viewModel.focusedProcess) {
-				this.viewModel.setFocusedStackFrame(null, process);
+				this.setFocusedStackFrameAndEvaluate(null, process);
 			}
 			this.toDisposeOnSessionEnd[session.getId()] = [];
 			if (client) {

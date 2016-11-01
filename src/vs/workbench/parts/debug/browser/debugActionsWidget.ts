@@ -71,7 +71,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			this.update();
 		}));
 		this.toDispose.push(this.actionBar.actionRunner.addListener2(events.EventType.RUN, (e: any) => {
