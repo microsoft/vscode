@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { IAutoClosingPairConditional, IBracketElectricCharacterContribution } from 'vs/editor/common/modes/languageConfiguration';
+import { IAutoClosingPairConditional, IBracketElectricCharacterContribution, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 
 /**
  * Interface used to support electric characters
@@ -31,15 +31,15 @@ export interface IElectricAction {
 export class BracketElectricCharacterSupport {
 
 	private readonly _richEditBrackets: RichEditBrackets;
-	private readonly _complexAutoClosePairs: IAutoClosingPairConditional[];
+	private readonly _complexAutoClosePairs: StandardAutoClosingPairConditional[];
 
 	constructor(richEditBrackets: RichEditBrackets, autoClosePairs: IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution) {
 		contribution = contribution || {};
 		this._richEditBrackets = richEditBrackets;
-		this._complexAutoClosePairs = autoClosePairs.filter(pair => pair.open.length > 1 && !!pair.close);
+		this._complexAutoClosePairs = autoClosePairs.filter(pair => pair.open.length > 1 && !!pair.close).map(el => new StandardAutoClosingPairConditional(el));
 		if (contribution.docComment) {
 			// IDocComment is legacy, only partially supported
-			this._complexAutoClosePairs.push({ open: contribution.docComment.open, close: contribution.docComment.close });
+			this._complexAutoClosePairs.push(new StandardAutoClosingPairConditional({ open: contribution.docComment.open, close: contribution.docComment.close }));
 		}
 	}
 
@@ -74,16 +74,6 @@ export class BracketElectricCharacterSupport {
 
 		return (this._onElectricAutoClose(context, offset) ||
 			this._onElectricAutoIndent(context, offset));
-	}
-
-	private containsTokenTypes(fullTokenSpec: string, tokensToLookFor: string): boolean {
-		var array = tokensToLookFor.split('.');
-		for (var i = 0; i < array.length; ++i) {
-			if (fullTokenSpec.indexOf(array[i]) < 0) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	private _onElectricAutoIndent(context: ScopedLineTokens, offset: number): IElectricAction {
@@ -150,12 +140,9 @@ export class BracketElectricCharacterSupport {
 				continue;
 			}
 
-			// If we're in a scope listen in 'notIn', do nothing
-			if (pair.notIn) {
-				let tokenType = context.getTokenType(lastTokenIndex);
-				if (pair.notIn.some(scope => this.containsTokenTypes(tokenType, scope))) {
-					continue;
-				}
+			// If we're in a scope listed in 'notIn', do nothing
+			if (!pair.isOK(context.getStandardTokenType(lastTokenIndex))) {
+				continue;
 			}
 
 			return { appendText: pair.close };

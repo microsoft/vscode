@@ -319,11 +319,8 @@ suite('Editor Modes - Tokenization', () => {
 		assert.deepEqual(scopedLineTokens1.modeId, 'A');
 		assert.equal(scopedLineTokens1.getTokenCount(), 3);
 		assert.equal(scopedLineTokens1.getTokenStartOffset(0), 0);
-		assert.equal(scopedLineTokens1.getTokenType(0), 'A.abc');
 		assert.equal(scopedLineTokens1.getTokenStartOffset(1), 3);
-		assert.equal(scopedLineTokens1.getTokenType(1), '');
 		assert.equal(scopedLineTokens1.getTokenStartOffset(2), 4);
-		assert.equal(scopedLineTokens1.getTokenType(2), 'A.(');
 		assert.deepEqual(scopedLineTokens1.firstCharOffset, 0);
 		assert.equal(scopedLineTokens1.getLineContent(), 'abc (');
 
@@ -331,7 +328,6 @@ suite('Editor Modes - Tokenization', () => {
 		assert.deepEqual(scopedLineTokens2.modeId, 'B');
 		assert.equal(scopedLineTokens2.getTokenCount(), 1);
 		assert.equal(scopedLineTokens2.getTokenStartOffset(0), 0);
-		assert.equal(scopedLineTokens2.getTokenType(0), 'B.def');
 		assert.deepEqual(scopedLineTokens2.firstCharOffset, 5);
 		assert.equal(scopedLineTokens2.getLineContent(), 'def');
 

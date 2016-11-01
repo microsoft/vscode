@@ -96,10 +96,6 @@ export class ScopedLineTokens {
 		return this._actual.getTokenStartOffset(tokenIndex + this._firstTokenIndex) - this.firstCharOffset;
 	}
 
-	public getTokenType(tokenIndex: number): string {
-		return this._actual.getTokenType(tokenIndex + this._firstTokenIndex);
-	}
-
 	public getStandardTokenType(tokenIndex: number): StandardTokenType {
 		return this._actual.getStandardTokenType(tokenIndex + this._firstTokenIndex);
 	}
