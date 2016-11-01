@@ -52,10 +52,12 @@ class EditorInputCache {
 		if (editorInputPromise) {
 			editorInputPromise.done(() => {
 				if (reloadFromSource) {
-					this.editorService.resolveEditorModel({ resource: fileMatch.resource() }).then(value => {
-						let replaceResource = this.getReplaceResource(fileMatch.resource());
-						this.modelService.getModel(replaceResource).setValue(value.textEditorModel.getValue());
-						this.replaceService.replace(fileMatch, null, replaceResource);
+					this.editorService.resolveEditorModel({ resource: fileMatch.resource() }).then(editorModel => {
+						if (editorModel.textEditorModel) {
+							let replaceResource = this.getReplaceResource(fileMatch.resource());
+							this.modelService.getModel(replaceResource).setValue(editorModel.textEditorModel.getValue());
+							this.replaceService.replace(fileMatch, null, replaceResource);
+						}
 					});
 				} else {
 					let replaceResource = this.getReplaceResource(fileMatch.resource());

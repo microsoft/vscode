@@ -21,7 +21,7 @@ import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
-import { Storage, inMemoryLocalStorageInstance } from 'vs/workbench/common/storage';
+import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
 import { ITelemetryService, NullTelemetryService, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -64,7 +64,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService, IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionRuntimeService } from 'vs/platform/extensions/common/extensions';
 import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -73,16 +73,16 @@ import { IThemeService } from 'vs/workbench/services/themes/common/themeService'
 import { ThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/common/ipc.electron';
-import { ipcRenderer } from 'electron';
+import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
-import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { ExtensionsRuntimeService } from 'vs/workbench/services/extensions/electron-browser/extensions';
+import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
+import { ExtensionRuntimeService } from 'vs/workbench/services/extensions/common/extensionRuntimeService';
+import { remote } from 'electron';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -212,7 +212,7 @@ export class WorkbenchShell {
 	private initServiceCollection(container: HTMLElement): [InstantiationService, ServiceCollection] {
 		const disposables = new Disposables();
 
-		const mainProcessClient = new ElectronIPCClient(ipcRenderer);
+		const mainProcessClient = new ElectronIPCClient(String(`window${remote.getCurrentWindow().id}`));
 		disposables.add(mainProcessClient);
 
 		const serviceCollection = new ServiceCollection();
@@ -239,9 +239,9 @@ export class WorkbenchShell {
 			});
 		}, errors.onUnexpectedError);
 
-		// Storage
+		// Storage Sevice
 		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
-		this.storageService = instantiationService.createInstance(Storage, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
+		this.storageService = instantiationService.createInstance(StorageService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 		serviceCollection.set(IStorageService, this.storageService);
 
 		// Telemetry
@@ -292,8 +292,8 @@ export class WorkbenchShell {
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
 		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
-		const extensionsRuntimeService = instantiationService.createInstance(ExtensionsRuntimeService);
-		serviceCollection.set(IExtensionsRuntimeService, extensionsRuntimeService);
+		const extensionsRuntimeService = instantiationService.createInstance(ExtensionRuntimeService);
+		serviceCollection.set(IExtensionRuntimeService, extensionsRuntimeService);
 		disposables.add(extensionsRuntimeService);
 
 		const extensionHostProcessWorker = instantiationService.createInstance(ExtensionHostProcessWorker);

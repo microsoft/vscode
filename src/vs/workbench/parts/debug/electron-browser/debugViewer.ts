@@ -13,13 +13,13 @@ import * as errors from 'vs/base/common/errors';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem, Separator, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_ACCEPT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope } from 'vs/workbench/parts/debug/common/debugModel';
@@ -290,7 +290,7 @@ export class CallStackController extends BaseDebugController {
 
 		if (stackFrame) {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+			this.debugService.openOrRevealSource(stackFrame.source.uri, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 		}
 	}
 }
@@ -479,7 +479,7 @@ export class CallStackRenderer implements IRenderer {
 
 		let data: IStackFrameTemplateData = Object.create(null);
 		data.stackFrame = dom.append(container, $('.stack-frame'));
-		data.label = dom.append(data.stackFrame, $('span.label'));
+		data.label = dom.append(data.stackFrame, $('span.label.expression'));
 		data.file = dom.append(data.stackFrame, $('.file'));
 		data.fileName = dom.append(data.file, $('span.file-name'));
 		data.lineNumber = dom.append(data.file, $('span.line-number'));
@@ -991,6 +991,43 @@ export class WatchExpressionsController extends BaseDebugController {
 	}
 }
 
+export class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
+
+	constructor( @debug.IDebugService private debugService: debug.IDebugService) {
+		super();
+	}
+
+	public getDragURI(tree: ITree, element: Expression): string {
+		if (!(element instanceof Expression)) {
+			return null;
+		}
+
+		return element.getId();
+	}
+
+	public getDragLabel(tree: ITree, elements: Expression[]): string {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+
+		return elements[0].name;
+	}
+
+	public onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): IDragOverReaction {
+		return DRAG_OVER_ACCEPT;
+	}
+
+	public drop(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): void {
+		const draggedData = data.getData();
+		if (Array.isArray(draggedData)) {
+			const draggedElement = <Expression>draggedData[0];
+			const watches = this.debugService.getModel().getWatchExpressions();
+			const position = target instanceof Model ? watches.length - 1 : watches.indexOf(target);
+			this.debugService.moveWatchExpression(draggedElement.getId(), position);
+		}
+	}
+}
+
 // breakpoints
 
 export class BreakpointsActionProvider implements IActionProvider {
@@ -1201,9 +1238,9 @@ export class BreakpointsRenderer implements IRenderer {
 	private renderBreakpoint(tree: ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
-		data.name.textContent = getPathLabel(paths.basename(breakpoint.source.uri.fsPath), this.contextService);
+		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
 		data.lineNumber.textContent = breakpoint.desiredLineNumber !== breakpoint.lineNumber ? breakpoint.desiredLineNumber + ' \u2192 ' + breakpoint.lineNumber : '' + breakpoint.lineNumber;
-		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.source.uri.fsPath), this.contextService);
+		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
 		data.actionBar.context = breakpoint;
 
@@ -1233,7 +1270,7 @@ export class BreakpointsAccessibilityProvider implements IAccessibilityProvider 
 
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof Breakpoint) {
-			return nls.localize('breakpointAriaLabel', "Breakpoint line {0} {1}, breakpoints, debug", (<Breakpoint>element).lineNumber, getSourceName((<Breakpoint>element).source, this.contextService));
+			return nls.localize('breakpointAriaLabel', "Breakpoint line {0} {1}, breakpoints, debug", (<Breakpoint>element).lineNumber, getPathLabel(paths.basename((<Breakpoint>element).uri.fsPath), this.contextService), this.contextService);
 		}
 		if (element instanceof FunctionBreakpoint) {
 			return nls.localize('functionBreakpointAriaLabel', "Function breakpoint {0}, breakpoints, debug", (<FunctionBreakpoint>element).name);
@@ -1305,10 +1342,8 @@ export class BreakpointsController extends BaseDebugController {
 		return false;
 	}
 
-	private openBreakpointSource(breakpoint: debug.IBreakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
-		if (!breakpoint.source.inMemory) {
-			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			this.debugService.openOrRevealSource(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
-		}
+	private openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+		const sideBySide = (event && (event.ctrlKey || event.metaKey));
+		this.debugService.openOrRevealSource(breakpoint.uri, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 	}
 }

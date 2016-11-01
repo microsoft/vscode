@@ -19,14 +19,9 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
+import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
-
-export const WORKSPACE_STANDALONE_CONFIGURATIONS = {
-	'tasks': '.vscode/tasks.json',
-	'launch': '.vscode/launch.json'
-};
 
 interface IConfigurationEditOperation extends IConfigurationValue {
 	target: URI;

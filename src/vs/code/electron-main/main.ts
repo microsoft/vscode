@@ -12,13 +12,12 @@ import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/electron-main/paths';
-import { IWindowsService, WindowsManager, WindowEventService } from 'vs/code/electron-main/windows';
-import { IWindowEventService } from 'vs/code/common/windows';
+import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
 import { WindowEventChannel } from 'vs/code/common/windowsIpc';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
-import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/common/ipc.electron';
+import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
@@ -75,11 +74,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const windowsService = accessor.get(IWindowsService);
-	const windowEventService = accessor.get(IWindowEventService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
 	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
-	const windowEventChannel = new WindowEventChannel(windowEventService);
+	const windowEventChannel = new WindowEventChannel(windowsService);
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
@@ -126,7 +124,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	mainIpcServer.registerChannel('askpass', askpassChannel);
 
 	// Create Electron IPC Server
-	const electronIpcServer = new ElectronIPCServer(ipc);
+	const electronIpcServer = new ElectronIPCServer();
 
 	// Register Electron IPC services
 	const urlService = accessor.get(IURLService);
@@ -141,12 +139,12 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	};
 
 	let sharedProcessDisposable;
+
 	spawnSharedProcess(initData, options).done(disposable => {
 		sharedProcessDisposable = disposable;
-		const sharedProcessConnect = connect(environmentService.sharedIPCHandle, 'main');
-		sharedProcessConnect.done(client => {
-			client.registerChannel('windowEvent', windowEventChannel);
-		});
+
+		connect(environmentService.sharedIPCHandle, 'main')
+			.done(client => client.registerChannel('windowEvent', windowEventChannel));
 	});
 
 	// Make sure we associate the program with the app user model id
@@ -449,7 +447,6 @@ function start(): void {
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
 	services.set(ILogService, new SyncDescriptor(MainLogService));
 	services.set(IWindowsService, new SyncDescriptor(WindowsManager));
-	services.set(IWindowEventService, new SyncDescriptor(WindowEventService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStorageService, new SyncDescriptor(StorageService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));

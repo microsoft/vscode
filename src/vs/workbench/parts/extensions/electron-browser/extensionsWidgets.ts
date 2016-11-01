@@ -5,12 +5,10 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
 import 'vs/css!./media/extensionsWidgets';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, ExtensionState } from '../common/extensions';
-import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
-import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
+import { append, $, addClass } from 'vs/base/browser/dom';
 
 export interface IOptions {
 	extension?: IExtension;
@@ -35,48 +33,6 @@ export class Label implements IDisposable {
 
 	private render(): void {
 		this.element.textContent = this.extension ? this.fn(this.extension) : '';
-	}
-
-	dispose(): void {
-		this.listener = dispose(this.listener);
-	}
-}
-
-export class StatusWidget implements IDisposable {
-
-	private listener: IDisposable;
-	get extension(): IExtension { return this._extension; }
-	set extension(extension: IExtension) { this._extension = extension; this.render(); }
-
-	constructor(
-		private container: HTMLElement,
-		private _extension: IExtension,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
-	) {
-		this.render();
-		this.listener = extensionsWorkbenchService.onChange(this.render, this);
-	}
-
-	private render(): void {
-		this.container.innerHTML = '';
-		if (!this.extension) {
-			return;
-		}
-
-		this.extensionsRuntimeService.getExtensions().done(extensions => {
-			const status = append(this.container, $('span.extension-status'));
-			const state = this.extension.state;
-			const enabled = state === ExtensionState.Enabled || extensions.some(e => e.id === this.extension.identifier);
-			const disabled = state === ExtensionState.Disabled;
-			const installed = state === ExtensionState.Installed;
-			toggleClass(status, 'disabled', disabled || installed);
-			toggleClass(status, 'active', enabled);
-
-			status.title = disabled ? this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier) ? localize('disabled', "Disabled") : localize('disabledWorkspace', "Disabled (Workspace)")
-				: installed ? localize('installed', "Installed")
-					: enabled ? localize('enabled', "Enabled") : '';
-		});
 	}
 
 	dispose(): void {

@@ -9,6 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 
+export const ExtensionProperties = ['id', 'name', 'version', 'publisher', 'isBuiltin', 'extensionFolderPath', 'extensionDependencies', 'activationEvents', 'engines', 'main', 'contributes', 'enableProposedApi'];
+
 export interface IExtensionDescription {
 	readonly id: string;
 	readonly name: string;
@@ -23,6 +25,7 @@ export interface IExtensionDescription {
 	};
 	readonly main?: string;
 	readonly contributes?: { [point: string]: any; };
+	readonly enableProposedApi?: boolean;
 }
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
@@ -61,6 +64,11 @@ export interface IExtensionService {
 	onReady(): TPromise<boolean>;
 
 	/**
+	 * Return all registered extensions
+	 */
+	getExtensions(): TPromise<IExtensionDescription[]>;
+
+	/**
 	 * Read all contributions to an extension point.
 	 */
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]>;
@@ -71,26 +79,22 @@ export interface IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 }
 
-export const IExtensionsRuntimeService = createDecorator<IExtensionsRuntimeService>('extensionsRuntimeService');
+export const IExtensionRuntimeService = createDecorator<IExtensionRuntimeService>('extensionRuntimeService');
 
-export interface IExtensionsRuntimeService {
+export interface IExtensionRuntimeService {
 	_serviceBrand: any;
 
 	/**
-	 * Scans and returns only enabled extensions.
-	 * **NOTE**: This call returns different results based on `setEnablement` calls!
+	 * Returns all globally disabled extension identifiers.
+	 * Returns an empty array if none exist.
 	 */
-	getExtensions(): TPromise<IExtensionDescription[]>;
+	getGloballyDisabledExtensions(): string[];
 
 	/**
-	 * Returns `true` if given extension is disabled, otherwise `false`.
+	 * Returns all workspace disabled extension identifiers.
+	 * Returns an empty array if none exist or workspace does not exist.
 	 */
-	isDisabled(identifier: string): boolean;
-
-	/**
-	 * Returns `true` if given extension is disabled always, otherwise `false`.
-	 */
-	isDisabledAlways(identifier: string): boolean;
+	getWorkspaceDisabledExtensions(): string[];
 
 	/**
 	 * Returns `true` if given extension can be enabled by calling `setEnablement`, otherwise false`.

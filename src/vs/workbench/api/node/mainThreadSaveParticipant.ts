@@ -178,12 +178,15 @@ class ExtHostSaveParticipant implements INamedSaveParticpant {
 	}
 
 	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
-		return this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
-			for (const success of values) {
-				if (!success) {
-					return TPromise.wrapError('listener failed');
+		return new TPromise<any>((resolve, reject) => {
+			setTimeout(reject, 1750);
+			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
+				for (const success of values) {
+					if (!success) {
+						return TPromise.wrapError('listener failed');
+					}
 				}
-			}
+			}).then(resolve, reject);
 		});
 	}
 }

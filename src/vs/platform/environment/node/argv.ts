@@ -23,7 +23,7 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	verbose?: boolean;
 	logExtensionHostCommunication?: boolean;
 	'disable-extensions'?: boolean;
-	extensionHomePath?: string;
+	'extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
 	debugBrkPluginHost?: string;
@@ -39,7 +39,7 @@ const options: minimist.Opts = {
 	string: [
 		'locale',
 		'user-data-dir',
-		'extensionHomePath',
+		'extensions-dir',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
 		'install-extension',
@@ -73,7 +73,8 @@ const options: minimist.Opts = {
 		'new-window': 'n',
 		'reuse-window': 'r',
 		performance: 'p',
-		'disable-extensions': 'disableExtensions'
+		'disable-extensions': 'disableExtensions',
+		'extensions-dir': 'extensionHomePath'
 	}
 };
 
@@ -137,7 +138,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in, useful when running as root."),
 	'--verbose': localize('verbose', "Print verbose output (implies --wait)."),
 	'-w, --wait': localize('wait', "Wait for the window to be closed before returning."),
-	'--extensionHomePath': localize('extensionHomePath', "Set the root path for extensions."),
+	'--extensions-dir <dir>': localize('extensionHomePath', "Set the root path for extensions."),
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
 	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
 	'--install-extension <ext>': localize('installExtension', "Installs an extension."),

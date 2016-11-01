@@ -142,7 +142,7 @@ export interface IViewController {
 /**
  * @internal
  */
-export var ClassNames = {
+export const ClassNames = {
 	TEXTAREA_COVER: 'textAreaCover',
 	TEXTAREA: 'inputarea',
 	LINES_CONTENT: 'lines-content',

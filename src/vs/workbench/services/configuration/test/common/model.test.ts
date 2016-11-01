@@ -24,28 +24,6 @@ suite('ConfigurationService - Model', () => {
 		assert.deepEqual(base, { 'a': { 'b': 2 } });
 	});
 
-	test('Test consolidate (settings)', () => {
-		const config1: model.IConfigFile = {
-			contents: {
-				awesome: true
-			}
-		};
-
-		const config2: model.IConfigFile = {
-			contents: {
-				awesome: false
-			}
-		};
-
-		const expected = {
-			awesome: false
-		};
-
-		assert.deepEqual(model.consolidate({ '.vscode/team.settings.json': config1, '.vscode/settings.json': config2 }).contents, expected);
-		assert.deepEqual(model.consolidate({ 'settings.json': config2, 'team.settings.json': config1 }).contents, {});
-		assert.deepEqual(model.consolidate({ '.vscode/team.settings.json': config1, '.vscode/settings.json': config2, '.vscode/team2.settings.json': config1 }).contents, expected);
-	});
-
 	test('Test consolidate (settings and tasks)', () => {
 		const settingsConfig: model.IConfigFile = {
 			contents: {

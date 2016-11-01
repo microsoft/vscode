@@ -338,7 +338,7 @@ class InternalEditorOptionsHelper {
 
 	private static _sanitizeScrollbarOpts(raw: editorCommon.IEditorScrollbarOptions, mouseWheelScrollSensitivity: number): editorCommon.InternalEditorScrollbarOptions {
 
-		var visibilityFromString = (visibility: string) => {
+		let visibilityFromString = (visibility: string) => {
 			switch (visibility) {
 				case 'hidden':
 					return ScrollbarVisibility.Hidden;

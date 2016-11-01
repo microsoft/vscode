@@ -6,6 +6,7 @@
 import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Throttler } from 'vs/base/common/async';
 import { IAction, Action } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import severity from 'vs/base/common/severity';
@@ -29,7 +30,7 @@ import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extens
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
-import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionRuntimeService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
 
 const dialog = remote.dialog;
@@ -120,22 +121,26 @@ export class UninstallAction extends Action {
 		if (state === ExtensionState.Uninstalling) {
 			this.label = UninstallAction.UninstallingLabel;
 			this.class = UninstallAction.UnInstallingClass;
-		} else {
-			this.label = UninstallAction.UninstallLabel;
-			this.class = UninstallAction.UninstallClass;
-		}
-
-		if (ExtensionState.Installed === state) {
-			this.enabled = true;
-			return;
-		}
-
-		if (this.extension.type !== LocalExtensionType.User) {
 			this.enabled = false;
 			return;
 		}
 
-		this.enabled = state === ExtensionState.Enabled || state === ExtensionState.Disabled;
+		this.label = UninstallAction.UninstallLabel;
+		this.class = UninstallAction.UninstallClass;
+
+		const installedExtensions = this.extensionsWorkbenchService.local.filter(e => e.identifier === this.extension.identifier);
+
+		if (!installedExtensions.length) {
+			this.enabled = false;
+			return;
+		}
+
+		if (installedExtensions[0].type !== LocalExtensionType.User) {
+			this.enabled = false;
+			return;
+		}
+
+		this.enabled = true;
 	}
 
 	run(): TPromise<any> {
@@ -252,9 +257,7 @@ export class UpdateAction extends Action {
 		}
 
 		const canInstall = this.extensionsWorkbenchService.canInstall(this.extension);
-		const isInstalled = this.extension.state === ExtensionState.Enabled
-			|| this.extension.state === ExtensionState.Disabled
-			|| this.extension.state === ExtensionState.Installed;
+		const isInstalled = this.extension.state === ExtensionState.Installed;
 
 		this.enabled = canInstall && isInstalled && this.extension.outdated;
 		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
@@ -357,7 +360,7 @@ export class ManageExtensionAction extends Action {
 	constructor(
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionsRuntimeService private extensionRuntimeService: IExtensionsRuntimeService,
+		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(ManageExtensionAction.ID);
@@ -371,11 +374,13 @@ export class ManageExtensionAction extends Action {
 
 	private update(): void {
 		this.class = ManageExtensionAction.NoExtensionClass;
+		this.tooltip = '';
 		this.enabled = false;
 		if (this.extension) {
 			const state = this.extension.state;
-			this.enabled = ExtensionState.Uninstalled !== state && ExtensionState.Installing !== state && ExtensionState.Uninstalling !== state;
-			this.class = ExtensionState.Uninstalled === state || ExtensionState.Installing === state ? ManageExtensionAction.NoExtensionClass : ManageExtensionAction.Class;
+			this.enabled = state === ExtensionState.Installed;
+			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.NoExtensionClass;
+			this.tooltip = state === ExtensionState.Uninstalling ? localize('ManageExtensionAction.uninstallingTooltip', "Uninstalling") : '';
 		}
 	}
 
@@ -404,7 +409,7 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 	constructor(label: string,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService,
+		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(EnableForWorkspaceAction.ID, label);
@@ -415,9 +420,8 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 
 	private update(): void {
 		this.enabled = false;
-		if (this.extension && this.workspaceContextService.getWorkspace()) {
-			this.enabled = this.extension.type !== LocalExtensionType.System && ExtensionState.Disabled === this.extension.state
-				&& !this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier) && this.extensionsRuntimeService.canEnable(this.extension.identifier);
+		if (this.extension) {
+			this.enabled = !this.extension.disabledGlobally && this.extension.disabledForWorkspace && this.extensionRuntimeService.canEnable(this.extension.identifier);
 		}
 	}
 
@@ -444,7 +448,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 
 	constructor(label: string,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService,
+		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(EnableGloballyAction.ID, label);
@@ -456,7 +460,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = this.extension.type !== LocalExtensionType.System && this.extensionsRuntimeService.isDisabledAlways(this.extension.identifier) && this.extensionsRuntimeService.canEnable(this.extension.identifier);
+			this.enabled = this.extension.disabledGlobally && this.extensionRuntimeService.canEnable(this.extension.identifier);
 		}
 	}
 
@@ -489,7 +493,7 @@ export class EnableAction extends Action {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
+		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService
 	) {
 		super(EnableAction.ID, localize('enableAction', "Enable"), EnableAction.DisabledClass, false);
 
@@ -507,7 +511,7 @@ export class EnableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && ExtensionState.Disabled === this.extension.state && this.extensionsRuntimeService.canEnable(this.extension.identifier);
+		this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.disabledGlobally || this.extension.disabledForWorkspace) && this.extensionRuntimeService.canEnable(this.extension.identifier);
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
@@ -548,7 +552,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 	private update(): void {
 		this.enabled = false;
 		if (this.extension && this.workspaceContextService.getWorkspace()) {
-			this.enabled = this.extension.type !== LocalExtensionType.System && ExtensionState.Enabled === this.extension.state;
+			this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.disabledGlobally && !this.extension.disabledForWorkspace;
 		}
 	}
 
@@ -586,7 +590,7 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = this.extension.type !== LocalExtensionType.System && ExtensionState.Enabled === this.extension.state;
+			this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.disabledGlobally && !this.extension.disabledForWorkspace;
 		}
 	}
 
@@ -635,7 +639,7 @@ export class DisableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.reload && this.extension.state === ExtensionState.Enabled;
+		this.enabled = this.extension.state === ExtensionState.Installed && this.extension.type !== LocalExtensionType.System && !this.extension.disabledGlobally && !this.extension.disabledForWorkspace;
 		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
 	}
 
@@ -678,50 +682,91 @@ export class ReloadAction extends Action {
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
+	private reloadMessaage: string = '';
+	private throttler: Throttler;
+
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
+		this.throttler = new Throttler();
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 	}
 
 	private update(): void {
-		if (!this.extension) {
+		this.throttler.queue(() => {
 			this.enabled = false;
-			this.class = ReloadAction.DisabledClass;
+			this.tooltip = '';
+			this.reloadMessaage = '';
+			if (!this.extension) {
+				return TPromise.wrap<void>(null);
+			}
+			const state = this.extension.state;
+			if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
+				return TPromise.wrap<void>(null);
+			}
+			return this.extensionService.getExtensions()
+				.then(runningExtensions => this.computeReloadState(runningExtensions));
+		}).done(() => {
+			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
+		});
+	}
+
+	private computeReloadState(runningExtensions: IExtensionDescription[]): void {
+		const isInstalled = this.extensionsWorkbenchService.local.some(e => e.identifier === this.extension.identifier);
+		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
+		const isDisabled = this.extension.disabledForWorkspace || this.extension.disabledGlobally;
+
+		const filteredExtensions = runningExtensions.filter(e => e.id === this.extension.identifier);
+		const isExtensionRunning = filteredExtensions.length > 0;
+		const isDifferentVersionRunning = filteredExtensions.length > 0 && this.extension.version !== filteredExtensions[0].version;
+
+		if (isInstalled) {
+			if (isDifferentVersionRunning && !isDisabled) {
+				// Requires reload to run the updated extension
+				this.enabled = true;
+				this.tooltip = localize('postUpdateTooltip', "Reload to update");
+				this.reloadMessaage = localize('postUpdateMessage', "Reload this window to activate the updated extension '{0}'?", this.extension.displayName);
+				return;
+			}
+
+			if (!isExtensionRunning && !isDisabled) {
+				// Requires reload to enable the extension
+				this.enabled = true;
+				this.tooltip = localize('postEnableTooltip', "Reload to activate");
+				this.reloadMessaage = localize('postEnableMessage', "Reload this window to activate the extension '{0}'?", this.extension.displayName);
+				return;
+			}
+
+			if (isExtensionRunning && isDisabled) {
+				// Requires reload to disable the extension
+				this.enabled = true;
+				this.tooltip = localize('postDisableTooltip', "Reload to deactivate");
+				this.reloadMessaage = localize('postDisableMessage', "Reload this window to deactivate the extension '{0}'?", this.extension.displayName);
+				return;
+			}
 			return;
 		}
 
-		const state = this.extension.state;
-		this.enabled = state !== ExtensionState.Installing && state !== ExtensionState.Uninstalling && (this.extension.reload || /* Following is needed due to extension is stale */this.extension.state === ExtensionState.Installed);
-		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
-		this.tooltip = this.getMessage(true);
+		if (isUninstalled && isExtensionRunning) {
+			// Requires reload to deactivate the extension
+			this.enabled = true;
+			this.tooltip = localize('postUninstallTooltip', "Reload to deactivate");
+			this.reloadMessaage = localize('postUninstallMessage', "Reload this window to deactivate the uninstalled extension '{0}'?", this.extension.displayName);
+			return;
+		}
 	}
 
 	run(): TPromise<any> {
-		if (window.confirm(this.getMessage(false))) {
+		if (window.confirm(this.reloadMessaage)) {
 			this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Reload Now")).run();
 		}
 		return TPromise.wrap(null);
-	}
-
-	private getMessage(tooltip: boolean): string {
-		const state = this.extension.state;
-		if (state === ExtensionState.Installed) {
-			return tooltip ? localize('postInstallTooltip', "Reload to activate") : localize('postInstallMessage', "Reload this window to activate '{0}' extension?", this.extension.displayName);
-		}
-		if (state === ExtensionState.Disabled) {
-			return tooltip ? localize('postEnableTooltip', "Reload to enable") : localize('postEnableMessage', "Reload this window to enable '{0}' extension?", this.extension.displayName);
-		}
-		if (state === ExtensionState.Enabled) {
-			return tooltip ? localize('postDisableTooltip', "Reload to disable") : localize('postDisableMessage', "Reload this window to disable '{0}' extension?", this.extension.displayName);
-		}
-		return tooltip ? localize('postUninstallTooltip', "Reload to deactivate") : localize('postUninstallMessage', "Reload this window to deactivate '{0}' extension?", this.extension.displayName);
 	}
 }
 
@@ -744,20 +789,15 @@ export class UpdateAllAction extends Action {
 	}
 
 	private get outdated(): IExtension[] {
-		return this.extensionsWorkbenchService.local.filter(
-			e => this.extensionsWorkbenchService.canInstall(e)
-				&& e.type === LocalExtensionType.User
-				&& (e.state === ExtensionState.Enabled || e.state === ExtensionState.Disabled || e.state === ExtensionState.Installed)
-				&& e.outdated
-		);
+		return this.extensionsWorkbenchService.local.filter(e => e.outdated && e.state !== ExtensionState.Installing);
 	}
 
 	private update(): void {
 		this.enabled = this.outdated.length > 0;
 	}
 
-	run(promptToInstallDependencies: boolean = true, ): TPromise<any> {
-		return TPromise.join(this.outdated.map(e => this.extensionsWorkbenchService.install(e, promptToInstallDependencies)));
+	run(): TPromise<any> {
+		return TPromise.join(this.outdated.map(e => this.extensionsWorkbenchService.install(e)));
 	}
 
 	dispose(): void {
@@ -1100,7 +1140,9 @@ export class InstallVSIXAction extends Action {
 	constructor(
 		id = InstallVSIXAction.ID,
 		label = InstallVSIXAction.LABEL,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IMessageService private messageService: IMessageService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label, 'extension-action install-vsix', true);
 	}
@@ -1115,7 +1157,15 @@ export class InstallVSIXAction extends Action {
 			return TPromise.as(null);
 		}
 
-		return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix)));
+		return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
+			this.messageService.show(
+				severity.Info,
+				{
+					message: localize('InstallVSIXAction.success', "Successfully installed the extension. Restart to enable it."),
+					actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('InstallVSIXAction.reloadNow', "Reload Now"))]
+				}
+			);
+		});
 	}
 }
 
@@ -1147,14 +1197,14 @@ export class BuiltinStatusLabelAction extends Action {
 export class DisableAllAction extends Action {
 
 	static ID = 'workbench.extensions.action.disableAll';
-	static LABEL = localize('disableAll', "Disable All");
+	static LABEL = localize('disableAll', "Disable All Installed Extensions");
 
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		id: string = DisableAllAction.ID, label: string = DisableAllAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionsRuntimeService private extensionRuntimeService: IExtensionsRuntimeService
+		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService
 	) {
 		super(id, label);
 		this.update();
@@ -1162,7 +1212,7 @@ export class DisableAllAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User && !this.extensionRuntimeService.isDisabled(e.identifier));
+		this.enabled = this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User && !e.disabledForWorkspace && !e.disabledGlobally);
 	}
 
 	run(): TPromise<any> {
@@ -1178,7 +1228,7 @@ export class DisableAllAction extends Action {
 export class DisableAllWorkpsaceAction extends Action {
 
 	static ID = 'workbench.extensions.action.disableAllWorkspace';
-	static LABEL = localize('disableAllWorkspace', "Disable All (Workspace)");
+	static LABEL = localize('disableAllWorkspace', "Disable All Installed Extensions for this Workspace");
 
 	private disposables: IDisposable[] = [];
 
@@ -1186,7 +1236,7 @@ export class DisableAllWorkpsaceAction extends Action {
 		id: string = DisableAllWorkpsaceAction.ID, label: string = DisableAllWorkpsaceAction.LABEL,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionsRuntimeService private extensionRuntimeService: IExtensionsRuntimeService
+		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService
 	) {
 		super(id, label);
 		this.update();
@@ -1194,7 +1244,7 @@ export class DisableAllWorkpsaceAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = !!this.workspaceContextService.getWorkspace() && this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User && !this.extensionRuntimeService.isDisabled(e.identifier));
+		this.enabled = !!this.workspaceContextService.getWorkspace() && this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User && !e.disabledForWorkspace && !e.disabledGlobally);
 	}
 
 	run(): TPromise<any> {
@@ -1210,14 +1260,14 @@ export class DisableAllWorkpsaceAction extends Action {
 export class EnableAllAction extends Action {
 
 	static ID = 'workbench.extensions.action.enableAll';
-	static LABEL = localize('enableAll', "Enable All");
+	static LABEL = localize('enableAll', "Enable All Installed Extensions");
 
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		id: string = EnableAllAction.ID, label: string = EnableAllAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionsRuntimeService private extensionRuntimeService: IExtensionsRuntimeService
+		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService
 	) {
 		super(id, label);
 		this.update();
@@ -1225,7 +1275,7 @@ export class EnableAllAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.extensionsWorkbenchService.local.some(e => this.extensionRuntimeService.canEnable(e.identifier));
+		this.enabled = this.extensionsWorkbenchService.local.some(e => this.extensionRuntimeService.canEnable(e.identifier) && e.disabledGlobally);
 	}
 
 	run(): TPromise<any> {
@@ -1241,7 +1291,7 @@ export class EnableAllAction extends Action {
 export class EnableAllWorkpsaceAction extends Action {
 
 	static ID = 'workbench.extensions.action.enableAllWorkspace';
-	static LABEL = localize('enableAllWorkspace', "Enable All (Workspace)");
+	static LABEL = localize('enableAllWorkspace', "Enable All Installed Extensions for this Workspace");
 
 	private disposables: IDisposable[] = [];
 
@@ -1249,7 +1299,7 @@ export class EnableAllWorkpsaceAction extends Action {
 		id: string = EnableAllWorkpsaceAction.ID, label: string = EnableAllWorkpsaceAction.LABEL,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionsRuntimeService private extensionRuntimeService: IExtensionsRuntimeService
+		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService
 	) {
 		super(id, label);
 		this.update();
@@ -1257,7 +1307,7 @@ export class EnableAllWorkpsaceAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = !!this.workspaceContextService.getWorkspace() && this.extensionsWorkbenchService.local.some(e => this.extensionRuntimeService.canEnable(e.identifier) && !this.extensionRuntimeService.isDisabledAlways(e.identifier));
+		this.enabled = !!this.workspaceContextService.getWorkspace() && this.extensionsWorkbenchService.local.some(e => this.extensionRuntimeService.canEnable(e.identifier) && !e.disabledGlobally && e.disabledForWorkspace);
 	}
 
 	run(): TPromise<any> {

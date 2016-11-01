@@ -39,7 +39,8 @@ function getStatus(gitService: IGitService, contextService: IWorkspaceContextSer
 	const repositoryRelativePath = paths.normalize(paths.relative(repositoryRoot, input.getResource().fsPath));
 
 	return statusModel.getWorkingTreeStatus().find(repositoryRelativePath) ||
-		statusModel.getIndexStatus().find(repositoryRelativePath);
+		statusModel.getIndexStatus().find(repositoryRelativePath) ||
+		statusModel.getMergeStatus().find(repositoryRelativePath);
 }
 
 class OpenInDiffAction extends baseeditor.EditorInputAction {

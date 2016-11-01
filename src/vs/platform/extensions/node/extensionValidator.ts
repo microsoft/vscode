@@ -11,6 +11,7 @@ import * as paths from 'vs/base/common/paths';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
+	hasGreaterEquals: boolean;
 	majorBase: number;
 	majorMustEqual: boolean;
 	minorBase: number;
@@ -27,9 +28,10 @@ export interface INormalizedVersion {
 	minorMustEqual: boolean;
 	patchBase: number;
 	patchMustEqual: boolean;
+	isMinimum: boolean;
 }
 
-const VERSION_REGEXP = /^(\^)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
+const VERSION_REGEXP = /^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
 
 export function isValidVersionStr(version: string): boolean {
 	version = version.trim();
@@ -46,6 +48,7 @@ export function parseVersion(version: string): IParsedVersion {
 	if (version === '*') {
 		return {
 			hasCaret: false,
+			hasGreaterEquals: false,
 			majorBase: 0,
 			majorMustEqual: false,
 			minorBase: 0,
@@ -58,7 +61,8 @@ export function parseVersion(version: string): IParsedVersion {
 
 	let m = version.match(VERSION_REGEXP);
 	return {
-		hasCaret: !!m[1],
+		hasCaret: m[1] === '^',
+		hasGreaterEquals: m[1] === '>=',
 		majorBase: m[2] === 'x' ? 0 : parseInt(m[2], 10),
 		majorMustEqual: (m[2] === 'x' ? false : true),
 		minorBase: m[4] === 'x' ? 0 : parseInt(m[4], 10),
@@ -96,7 +100,8 @@ export function normalizeVersion(version: IParsedVersion): INormalizedVersion {
 		minorBase: minorBase,
 		minorMustEqual: minorMustEqual,
 		patchBase: patchBase,
-		patchMustEqual: patchMustEqual
+		patchMustEqual: patchMustEqual,
+		isMinimum: version.hasGreaterEquals
 	};
 }
 
@@ -130,6 +135,26 @@ export function isValidVersion(_version: string | INormalizedVersion, _desiredVe
 	let majorMustEqual = desiredVersion.majorMustEqual;
 	let minorMustEqual = desiredVersion.minorMustEqual;
 	let patchMustEqual = desiredVersion.patchMustEqual;
+
+	if (desiredVersion.isMinimum) {
+		if (majorBase > desiredMajorBase) {
+			return true;
+		}
+
+		if (majorBase < desiredMajorBase) {
+			return false;
+		}
+
+		if (minorBase > desiredMinorBase) {
+			return true;
+		}
+
+		if (minorBase < desiredMinorBase) {
+			return false;
+		}
+
+		return patchBase >= desiredPatchBase;
+	}
 
 	// Anything < 1.0.0 is compatible with >= 1.0.0, except exact matches
 	if (majorBase === 1 && desiredMajorBase === 0 && (!majorMustEqual || !minorMustEqual || !patchMustEqual)) {

@@ -14,10 +14,11 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IElectricAction, IndentAction } from 'vs/editor/common/modes';
+import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
+import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 
 export interface IPostOperationRunnable {
 	(ctx: IOneCursorOperationContext): void;
@@ -1471,12 +1472,6 @@ export class OneCursorOp {
 			return false;
 		}
 
-		let characterPairSupport = LanguageConfigurationRegistry.getCharacterPairSupport(cursor.model.getMode().getId());
-
-		if (!characterPairSupport) {
-			return false;
-		}
-
 		let position = cursor.getPosition();
 		let lineText = cursor.model.getLineContent(position.lineNumber);
 		let beforeCharacter = lineText[position.column - 1];
@@ -1495,11 +1490,11 @@ export class OneCursorOp {
 			}
 		}
 
-		let lineContext = cursor.model.getLineContext(position.lineNumber);
+		let lineTokens = cursor.model.getLineTokens(position.lineNumber, false);
 
 		let shouldAutoClosePair = false;
 		try {
-			shouldAutoClosePair = characterPairSupport.shouldAutoClosePair(ch, lineContext, position.column - 1);
+			shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(ch, lineTokens, position.column - 1);
 		} catch (e) {
 			onUnexpectedError(e);
 		}
@@ -1571,16 +1566,13 @@ export class OneCursorOp {
 
 		let position = cursor.getPosition();
 		let lineText = cursor.model.getLineContent(position.lineNumber);
-		let lineContext = cursor.model.getLineContext(position.lineNumber);
+		let lineTokens = cursor.model.getLineTokens(position.lineNumber, false);
 
 		let electricAction: IElectricAction;
-		let electricCharSupport = LanguageConfigurationRegistry.getElectricCharacterSupport(cursor.model.getMode().getId());
-		if (electricCharSupport) {
-			try {
-				electricAction = electricCharSupport.onElectricCharacter(lineContext, position.column - 2);
-			} catch (e) {
-				onUnexpectedError(e);
-			}
+		try {
+			electricAction = LanguageConfigurationRegistry.onElectricCharacter(lineTokens, position.column - 2);
+		} catch (e) {
+			onUnexpectedError(e);
 		}
 
 		if (electricAction) {
