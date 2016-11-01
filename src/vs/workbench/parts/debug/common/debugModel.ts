@@ -306,6 +306,9 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 			if (response && response.body) {
 				this.value = response.body.value;
 				this.type = response.body.type || this.type;
+				this.reference = response.body.variablesReference;
+				this.namedVariables = response.body.namedVariables;
+				this.indexedVariables = response.body.indexedVariables;
 			}
 			// TODO@Isidor notify stackFrame that a change has happened so watch expressions get revelauted
 		}, err => {
