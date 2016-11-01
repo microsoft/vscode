@@ -75,8 +75,7 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 	// ----- end event handlers
 
 	_createLine(): ViewOverlayLine {
-		var r = new ViewOverlayLine(this._context, this._dynamicOverlays);
-		return r;
+		return new ViewOverlayLine(this._context, this._dynamicOverlays);
 	}
 
 
@@ -285,18 +284,18 @@ export class MarginViewOverlays extends ViewOverlays {
 	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 		if (this._canUseTranslate3d) {
-			var transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
+			let transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
 			this.domNode.setTransform(transform);
 			this.domNode.setTop(0);
 		} else {
 			this.domNode.setTransform('');
 			this.domNode.setTop(ctx.linesViewportData.visibleRangesDeltaTop);
 		}
-		var height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
+		let height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
 		this.domNode.setHeight(height);
 		this.domNode.setWidth(this._contentLeft);
 
-		var glyphMargin = this._getGlyphMarginDomNode();
+		let glyphMargin = this._getGlyphMarginDomNode();
 		if (glyphMargin) {
 			StyleMutator.setHeight(glyphMargin, this._scrollHeight);
 			StyleMutator.setLeft(glyphMargin, this._glyphMarginLeft);

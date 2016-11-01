@@ -80,7 +80,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 		this._parentTypeKey = parentTypeKey;
 		this.refCount = 0;
 
-		var themedOpts = getThemedRenderOptions(options);
+		let themedOpts = getThemedRenderOptions(options);
 
 		this._beforeContentClassName = DecorationRenderHelper.createCSSRules(
 			styleSheet,
@@ -146,7 +146,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	constructor(styleSheet: HTMLStyleElement, key: string, options: IDecorationRenderOptions) {
 		this.refCount = 0;
 
-		var themedOpts = getThemedRenderOptions(options);
+		let themedOpts = getThemedRenderOptions(options);
 
 		this.className = DecorationRenderHelper.createCSSRules(
 			styleSheet,
@@ -446,14 +446,14 @@ interface IResolvedDecorationRenderOptions {
 }
 function getThemedRenderOptions<T>(opts: { light?: T, dark?: T }): { light?: T, dark?: T } {
 	// TODO@alex,joh - not really how/what deep clone is being used
-	// for here but it will break the URI
+	// for here but it will break the URI TODO@martin
 
-	// var light = <T> objects.deepClone(opts);
-	var light = <T>parse(stringify(opts));
+	// let light = <T> objects.deepClone(opts);
+	let light = <T>parse(stringify(opts));
 	objects.mixin(light, opts.light);
 
-	// var dark = <T> objects.deepClone(opts);
-	var dark = <T>parse(stringify(opts));
+	// let dark = <T> objects.deepClone(opts);
+	let dark = <T>parse(stringify(opts));
 	objects.mixin(dark, opts.dark);
 
 	return {
