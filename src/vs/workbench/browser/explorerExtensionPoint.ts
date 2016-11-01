@@ -38,7 +38,6 @@ namespace schema {
 
 ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], schema.explorerContribtion).setHandler(extensions => {
 	let baseOrder = 200; // Stock viewlet order goes up to 100
-	let descriptors = [];
 
 	for (let extension of extensions) {
 		const { treeExplorerNodeProviderId, treeLabel, icon } = extension.value;
@@ -50,7 +49,7 @@ ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], schema.
 			createCSSRule(iconClass, getIconRule(iconPath));
 		}
 
-		descriptors.push(new ViewletDescriptor(
+		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
 			'TreeExplorerViewlet',
 			VIEWLET_ID_ROOT + treeExplorerNodeProviderId,
@@ -60,5 +59,4 @@ ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], schema.
 			true
 		));
 	}
-	Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerExternalViewlets(descriptors);
 });

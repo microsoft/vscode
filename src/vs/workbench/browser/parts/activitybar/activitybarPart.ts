@@ -24,6 +24,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 export class ActivitybarPart extends Part implements IActivityService {
 	public _serviceBrand: any;
@@ -45,7 +46,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super(id);
 
@@ -68,10 +70,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
 
 		// Update activity bar on registering external viewlets
-		this.toUnbind.push(
-			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets))
-				.onDidRegisterExternalViewlets(viewlets => this.onDidRegisterExternalViewlets(viewlets))
-		);
+		this.extensionService.onReady().then(() => {
+			const viewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
+			this.onDidRegisterExternalViewlets(viewlets);
+		});
 	}
 
 	private onDidRegisterExternalViewlets(viewlets: ViewletDescriptor[]): void {
