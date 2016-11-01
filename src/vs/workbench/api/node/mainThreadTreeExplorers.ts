@@ -15,7 +15,7 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 	private _proxy: ExtHostTreeExplorersShape;
 
 	constructor(
-		@IThreadService threadService: IThreadService,
+		@IThreadService private threadService: IThreadService,
 		@ITreeExplorerViewletService private treeExplorerService: ITreeExplorerViewletService,
 		@IMessageService private messageService: IMessageService
 	) {
@@ -25,20 +25,18 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 	}
 
 	$registerTreeExplorerNodeProvider(providerId: string): void {
+		const onError = err => { this.messageService.show(Severity.Error, err); };
+
 		this.treeExplorerService.registerTreeExplorerNodeProvider(providerId, {
 			provideRootNode: (): TPromise<InternalTreeExplorerNode> => {
-				return this._proxy.$provideRootNode(providerId);
+				return this._proxy.$provideRootNode(providerId).then(rootNode => rootNode, onError);
 			},
 			resolveChildren: (node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> => {
-				return this._proxy.$resolveChildren(providerId, node);
+				return this._proxy.$resolveChildren(providerId, node).then(children => children, onError);
 			},
 			executeCommand: (node: InternalTreeExplorerNode): TPromise<void> => {
 				return this._proxy.$executeCommand(providerId, node);
 			}
 		});
-	}
-
-	$showMessage(severity: Severity, message: string): void {
-		this.messageService.show(severity, message);
 	}
 }
