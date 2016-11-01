@@ -32,7 +32,11 @@ suite('FileService', () => {
 		testDir = path.join(parentDir, id);
 		let sourceDir = require.toUrl('./fixtures/service');
 
-		extfs.copy(sourceDir, testDir, () => {
+		extfs.copy(sourceDir, testDir, (error) => {
+			if (error) {
+				return onError(error, done);
+			}
+
 			events = new utils.TestEventService();
 			service = new FileService(testDir, { disableWatcher: true }, events);
 			done();
