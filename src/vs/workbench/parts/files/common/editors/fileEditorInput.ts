@@ -10,7 +10,7 @@ import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import { EditorModel, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { IFileOperationResult, FileOperationResult, FileChangesEvent, EventType } from 'vs/platform/files/common/files';
+import { IFileOperationResult, FileOperationResult, FileChangesEvent, EventType, FileChangeType } from 'vs/platform/files/common/files';
 import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, LocalFileChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -78,9 +78,9 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {
-		e.getDeleted().forEach(deleted => {
-			this.disposeIfRelated(deleted.resource);
-		});
+		if (e.gotDeleted()) {
+			this.disposeIfRelated(e);
+		}
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
@@ -207,7 +207,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		});
 	}
 
-	private disposeIfRelated(resource: URI, movedTo?: URI): void {
+	private disposeIfRelated(arg1: URI | FileChangesEvent, movedTo?: URI): void {
 		if (this.isDirty()) {
 			return; // we never dispose dirty files
 		}
@@ -219,9 +219,14 @@ export class FileEditorInput extends CommonFileEditorInput {
 			return;
 		}
 
-		// Check if path is identical or path is a folder that the content is inside
-		if (paths.isEqualOrParent(this.resource.toString(), resource.toString())) {
-			this.historyService.remove(this);
+		let matches = false;
+		if (arg1 instanceof FileChangesEvent) {
+			matches = arg1.contains(this.resource, FileChangeType.DELETED);
+		} else {
+			matches = paths.isEqualOrParent(this.resource.toString(), arg1.toString());
+		}
+
+		if (matches) {
 			this.dispose();
 		}
 	}

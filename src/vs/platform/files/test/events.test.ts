@@ -39,24 +39,24 @@ suite('Workbench Events', () => {
 
 	test('File Changes Event', function () {
 		let changes = [
-			{ resource: URI.file(Paths.join('C:\\', '/foo/updated.txt')), type: 0 },
-			{ resource: URI.file(Paths.join('C:\\', '/foo/otherupdated.txt')), type: 0 },
-			{ resource: URI.file(Paths.join('C:\\', '/added.txt')), type: 1 },
-			{ resource: URI.file(Paths.join('C:\\', '/bar/deleted.txt')), type: 2 },
-			{ resource: URI.file(Paths.join('C:\\', '/bar/folder')), type: 2 }
+			{ resource: URI.file(Paths.join('C:\\', '/foo/updated.txt')), type: Files.FileChangeType.UPDATED },
+			{ resource: URI.file(Paths.join('C:\\', '/foo/otherupdated.txt')), type: Files.FileChangeType.UPDATED },
+			{ resource: URI.file(Paths.join('C:\\', '/added.txt')), type: Files.FileChangeType.ADDED },
+			{ resource: URI.file(Paths.join('C:\\', '/bar/deleted.txt')), type: Files.FileChangeType.DELETED },
+			{ resource: URI.file(Paths.join('C:\\', '/bar/folder')), type: Files.FileChangeType.DELETED }
 		];
 
 		let r1 = new FileChangesEvent(changes);
 
-		assert(!r1.contains(toResource('/foo'), 0));
-		assert(r1.contains(toResource('/foo/updated.txt'), 0));
-		assert(!r1.contains(toResource('/foo/updated.txt'), 1));
-		assert(!r1.contains(toResource('/foo/updated.txt'), 2));
+		assert(!r1.contains(toResource('/foo'), Files.FileChangeType.UPDATED));
+		assert(r1.contains(toResource('/foo/updated.txt'), Files.FileChangeType.UPDATED));
+		assert(!r1.contains(toResource('/foo/updated.txt'), Files.FileChangeType.ADDED));
+		assert(!r1.contains(toResource('/foo/updated.txt'), Files.FileChangeType.DELETED));
 
-		assert(r1.contains(toResource('/bar/folder'), 2));
-		assert(r1.contains(toResource('/bar/folder/somefile'), 2));
-		assert(r1.contains(toResource('/bar/folder/somefile/test.txt'), 2));
-		assert(!r1.contains(toResource('/bar/folder2/somefile'), 2));
+		assert(r1.contains(toResource('/bar/folder'), Files.FileChangeType.DELETED));
+		assert(r1.contains(toResource('/bar/folder/somefile'), Files.FileChangeType.DELETED));
+		assert(r1.contains(toResource('/bar/folder/somefile/test.txt'), Files.FileChangeType.DELETED));
+		assert(!r1.contains(toResource('/bar/folder2/somefile'), Files.FileChangeType.DELETED));
 
 		assert.strictEqual(5, r1.changes.length);
 		assert.strictEqual(1, r1.getAdded().length);
