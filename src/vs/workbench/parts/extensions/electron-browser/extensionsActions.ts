@@ -121,10 +121,12 @@ export class UninstallAction extends Action {
 		if (state === ExtensionState.Uninstalling) {
 			this.label = UninstallAction.UninstallingLabel;
 			this.class = UninstallAction.UnInstallingClass;
-		} else {
-			this.label = UninstallAction.UninstallLabel;
-			this.class = UninstallAction.UninstallClass;
+			this.enabled = false;
+			return;
 		}
+
+		this.label = UninstallAction.UninstallLabel;
+		this.class = UninstallAction.UninstallClass;
 
 		const installedExtensions = this.extensionsWorkbenchService.local.filter(e => e.identifier === this.extension.identifier);
 
@@ -509,7 +511,7 @@ export class EnableAction extends Action {
 			return;
 		}
 
-		this.enabled = (this.extension.disabledGlobally || this.extension.disabledForWorkspace) && this.extensionRuntimeService.canEnable(this.extension.identifier);
+		this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.disabledGlobally || this.extension.disabledForWorkspace) && this.extensionRuntimeService.canEnable(this.extension.identifier);
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
@@ -637,7 +639,7 @@ export class DisableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.disabledGlobally && !this.extension.disabledForWorkspace;
+		this.enabled = this.extension.state === ExtensionState.Installed && this.extension.type !== LocalExtensionType.System && !this.extension.disabledGlobally && !this.extension.disabledForWorkspace;
 		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
 	}
 
@@ -704,6 +706,10 @@ export class ReloadAction extends Action {
 			if (!this.extension) {
 				return TPromise.wrap<void>(null);
 			}
+			const state = this.extension.state;
+			if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
+				return TPromise.wrap<void>(null);
+			}
 			return this.extensionRuntimeService.getEnabledExtensions()
 				.then(runningExtensions => this.computeReloadState(runningExtensions));
 		}).done(() => {
@@ -712,7 +718,7 @@ export class ReloadAction extends Action {
 	}
 
 	private computeReloadState(runningExtensions: IExtensionDescription[]): void {
-		const isInstalled = this.extensionsWorkbenchService.local.some(e => e.identifier === this.extension.identifier && e.state !== ExtensionState.Installing);
+		const isInstalled = this.extensionsWorkbenchService.local.some(e => e.identifier === this.extension.identifier);
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const isDisabled = this.extension.disabledForWorkspace || this.extension.disabledGlobally;
 
