@@ -936,6 +936,14 @@ export class Model implements debug.IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
+	public moveWatchExpression(id: string, position: number): void {
+		const we = this.watchExpressions.filter(we => we.getId() === id).pop();
+		this.watchExpressions = this.watchExpressions.filter(we => we.getId() !== id);
+		this.watchExpressions = this.watchExpressions.slice(0, position).concat(we, this.watchExpressions.slice(position));
+
+		this._onDidChangeWatchExpressions.fire();
+	}
+
 	public sourceIsUnavailable(source: Source): void {
 		this.processes.forEach(p => p.sourceIsUnavailable(source));
 		this._onDidChangeCallStack.fire();

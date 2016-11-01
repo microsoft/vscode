@@ -444,6 +444,11 @@ export interface IDebugService {
 	renameWatchExpression(id: string, newName: string): TPromise<void>;
 
 	/**
+	 * Moves a watch expression to a new possition. Used for reordering watch expressions.
+	 */
+	moveWatchExpression(id: string, position: number): void;
+
+	/**
 	 * Removes all watch expressions. If id is passed only removes the watch expression with the passed id.
 	 */
 	removeWatchExpressions(id?: string): void;

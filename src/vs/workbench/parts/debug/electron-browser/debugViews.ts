@@ -197,6 +197,7 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
 			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider),
+			dnd: this.instantiationService.createInstance(viewer.WatchExpressionsDragAndDrop)
 		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions")));
 
 		this.tree.setInput(this.debugService.getModel());
