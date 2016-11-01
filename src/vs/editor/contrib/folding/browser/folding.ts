@@ -577,7 +577,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 
 	constructor() {
 		super({
-			id: 'editor.unFoldRecursively',
+			id: 'editor.unfoldRecursively',
 			label: nls.localize('unFoldRecursivelyAction.label', "Unfold Recursively"),
 			alias: 'Unfold Recursively',
 			precondition: null,
