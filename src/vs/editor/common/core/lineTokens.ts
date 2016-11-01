@@ -113,31 +113,6 @@ export class LineTokens {
 		return this._textLength;
 	}
 
-	public equals(other: LineTokens): boolean {
-		if (!(other instanceof LineTokens)) {
-			return false;
-		}
-		if (this._text !== other._text) {
-			return false;
-		}
-		if (this._map !== other._map) {
-			return false;
-		}
-		if (!ModeTransition.equals(this.modeTransitions, other.modeTransitions)) {
-			return false;
-		}
-
-		if (this._tokens.length !== other._tokens.length) {
-			return false;
-		}
-		for (let i = 0, len = this._tokens.length; i < len; i++) {
-			if (this._tokens[i] !== other._tokens[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-
 	/**
 	 * Find the token containing offset `offset`.
 	 *    For example, with the following tokens [0, 5), [5, 9), [9, infinity)
