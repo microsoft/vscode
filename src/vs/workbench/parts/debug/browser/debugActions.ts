@@ -556,7 +556,7 @@ class ToggleBreakpointAction extends EditorAction {
 			return debugService.removeBreakpoints(bp.getId());
 		}
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			return debugService.addBreakpoints(modelUri, [{ lineNumber }]);
+			return debugService.addBreakpoints(modelUri, [{ lineNumber, content: editor.getModel().getLineContent(lineNumber) }]);
 		}
 	}
 }
@@ -643,7 +643,7 @@ class RunToCursorAction extends EditorAction {
 		});
 
 		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop());
-		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints(uri, [{ lineNumber }])).then(() => {
+		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints(uri, [{ lineNumber, content: editor.getModel().getLineContent(lineNumber) }])).then(() => {
 			debugService.getViewModel().focusedThread.continue();
 		});
 	}

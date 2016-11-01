@@ -130,7 +130,8 @@ export class BreakpointWidget extends ZoneWidget {
 						lineNumber: this.lineNumber,
 						enabled: true,
 						condition: oldBreakpoint && oldBreakpoint.condition,
-						hitCondition: oldBreakpoint && oldBreakpoint.hitCondition
+						hitCondition: oldBreakpoint && oldBreakpoint.hitCondition,
+						content: this.editor.getModel().getLineContent(this.lineNumber)
 					};
 					if (this.hitCountContext) {
 						raw.hitCondition = this.inputBox.value;
