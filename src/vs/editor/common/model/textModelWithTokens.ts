@@ -13,10 +13,10 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TokenIterator } from 'vs/editor/common/model/tokenIterator';
-import { ITokenizationSupport, ILineTokens, IMode, IState, TokenizationRegistry, IRichEditBrackets } from 'vs/editor/common/modes';
+import { ITokenizationSupport, ILineTokens, IMode, IState, TokenizationRegistry } from 'vs/editor/common/modes';
 import { NULL_MODE_ID, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
-import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { BracketsUtils, RichEditBrackets, IRichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { TokensInflatorMap } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { Position } from 'vs/editor/common/core/position';
@@ -623,7 +623,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	private _matchFoundBracket(foundBracket: Range, data: editorCommon.IRichEditBracket, isOpen: boolean): [Range, Range] {
+	private _matchFoundBracket(foundBracket: Range, data: IRichEditBracket, isOpen: boolean): [Range, Range] {
 		if (isOpen) {
 			let matched = this._findMatchingBracketDown(data, foundBracket.getEndPosition());
 			if (matched) {
@@ -639,7 +639,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	private _findMatchingBracketUp(bracket: editorCommon.IRichEditBracket, position: Position): Range {
+	private _findMatchingBracketUp(bracket: IRichEditBracket, position: Position): Range {
 		// console.log('_findMatchingBracketUp: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
 		const modeId = bracket.modeId;
@@ -698,7 +698,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	private _findMatchingBracketDown(bracket: editorCommon.IRichEditBracket, position: Position): Range {
+	private _findMatchingBracketDown(bracket: IRichEditBracket, position: Position): Range {
 		// console.log('_findMatchingBracketDown: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
 		const modeId = bracket.modeId;
@@ -760,7 +760,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		const position = this.validatePosition(_position);
 
 		let modeId: string = null;
-		let modeBrackets: IRichEditBrackets;
+		let modeBrackets: RichEditBrackets;
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
 			const lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 			const lineText = this._lines[lineNumber - 1].text;
@@ -803,7 +803,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		const position = this.validatePosition(_position);
 
 		let modeId: string = null;
-		let modeBrackets: IRichEditBrackets;
+		let modeBrackets: RichEditBrackets;
 		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
 			const lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 			const lineText = this._lines[lineNumber - 1].text;
@@ -842,7 +842,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	private _toFoundBracket(modeBrackets: IRichEditBrackets, r: Range): editorCommon.IFoundBracket {
+	private _toFoundBracket(modeBrackets: RichEditBrackets, r: Range): editorCommon.IFoundBracket {
 		if (!r) {
 			return null;
 		}

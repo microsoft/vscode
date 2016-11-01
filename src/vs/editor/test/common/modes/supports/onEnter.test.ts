@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IndentAction, CharacterPair } from 'vs/editor/common/modes';
+import { CharacterPair, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 
 suite('OnEnter', () => {

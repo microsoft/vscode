@@ -1851,17 +1851,6 @@ export interface IReadOnlyModel extends ITextModel {
 /**
  * @internal
  */
-export interface IRichEditBracket {
-	modeId: string;
-	open: string;
-	close: string;
-	forwardRegex: RegExp;
-	reversedRegex: RegExp;
-}
-
-/**
- * @internal
- */
 export interface IFoundBracket {
 	range: Range;
 	open: string;

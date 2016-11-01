@@ -14,10 +14,11 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IElectricAction, IndentAction } from 'vs/editor/common/modes';
+import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
+import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 
 export interface IPostOperationRunnable {
 	(ctx: IOneCursorOperationContext): void;

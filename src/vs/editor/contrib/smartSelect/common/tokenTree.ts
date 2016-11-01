@@ -8,9 +8,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel, IPosition } from 'vs/editor/common/editorCommon';
 import { LineToken } from 'vs/editor/common/core/lineTokens';
-import { IRichEditBrackets } from 'vs/editor/common/modes';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
-import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export const enum TokenTreeBracket {
@@ -189,7 +188,7 @@ class TokenScanner {
 	private _rawTokenScanner: ModelRawTokenScanner;
 	private _nextBuff: Token[];
 
-	private _cachedModeBrackets: IRichEditBrackets;
+	private _cachedModeBrackets: RichEditBrackets;
 	private _cachedModeId: string;
 
 	constructor(model: IModel) {

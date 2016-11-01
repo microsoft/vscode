@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IAutoClosingPair, IAutoClosingPairConditional, CharacterPair } from 'vs/editor/common/modes';
 import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { CharacterPair, IAutoClosingPair, IAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 
 export class CharacterPairSupport {
 

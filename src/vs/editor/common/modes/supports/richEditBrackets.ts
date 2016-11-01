@@ -6,22 +6,30 @@
 
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
-import { IRichEditBracket } from 'vs/editor/common/editorCommon';
-import { IRichEditBrackets, CharacterPair } from 'vs/editor/common/modes';
+import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 
 interface ISimpleInternalBracket {
 	open: string;
 	close: string;
 }
 
-export class RichEditBrackets implements IRichEditBrackets {
+export interface IRichEditBracket {
+	readonly modeId: string;
+	readonly open: string;
+	readonly close: string;
+	readonly forwardRegex: RegExp;
+	readonly reversedRegex: RegExp;
+}
 
-	public brackets: IRichEditBracket[];
-	public forwardRegex: RegExp;
-	public reversedRegex: RegExp;
-	public maxBracketLength: number;
-	public textIsBracket: { [text: string]: IRichEditBracket; };
-	public textIsOpenBracket: { [text: string]: boolean; };
+export class RichEditBrackets {
+	_richEditBracketsBrand: void;
+
+	public readonly brackets: IRichEditBracket[];
+	public readonly forwardRegex: RegExp;
+	public readonly reversedRegex: RegExp;
+	public readonly maxBracketLength: number;
+	public readonly textIsBracket: { [text: string]: IRichEditBracket; };
+	public readonly textIsOpenBracket: { [text: string]: boolean; };
 
 	constructor(modeId: string, brackets: CharacterPair[]) {
 		this.brackets = brackets.map((b) => {
@@ -38,15 +46,17 @@ export class RichEditBrackets implements IRichEditBrackets {
 
 		this.textIsBracket = {};
 		this.textIsOpenBracket = {};
-		this.maxBracketLength = 0;
+
+		let maxBracketLength = 0;
 		this.brackets.forEach((b) => {
 			this.textIsBracket[b.open.toLowerCase()] = b;
 			this.textIsBracket[b.close.toLowerCase()] = b;
 			this.textIsOpenBracket[b.open.toLowerCase()] = true;
 			this.textIsOpenBracket[b.close.toLowerCase()] = false;
-			this.maxBracketLength = Math.max(this.maxBracketLength, b.open.length);
-			this.maxBracketLength = Math.max(this.maxBracketLength, b.close.length);
+			maxBracketLength = Math.max(maxBracketLength, b.open.length);
+			maxBracketLength = Math.max(maxBracketLength, b.close.length);
 		});
+		this.maxBracketLength = maxBracketLength;
 	}
 }
 

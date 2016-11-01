@@ -30,7 +30,6 @@ import { ExtHostLanguages } from 'vs/workbench/api/node/extHostLanguages';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
-import Modes = require('vs/editor/common/modes');
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -44,6 +43,7 @@ import * as paths from 'vs/base/common/paths';
 import { realpathSync } from 'fs';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { MainContext, ExtHostContext, InstanceCollection, IInitConfiguration } from './extHost.protocol';
+import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 
 
 export interface IExtensionApiFactory {
@@ -385,7 +385,7 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 			DocumentLink: extHostTypes.DocumentLink,
 			ViewColumn: extHostTypes.ViewColumn,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
-			IndentAction: Modes.IndentAction,
+			IndentAction: languageConfiguration.IndentAction,
 			OverviewRulerLane: EditorCommon.OverviewRulerLane,
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			EndOfLine: extHostTypes.EndOfLine,
