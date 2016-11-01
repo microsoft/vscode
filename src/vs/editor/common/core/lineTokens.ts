@@ -8,6 +8,33 @@ import { TokensBinaryEncoding, TokensInflatorMap } from 'vs/editor/common/model/
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 
+/**
+ * A standard token type.
+ */
+export const enum StandardTokenType {
+	Other = 0,
+	Comment = 1,
+	String = 2,
+	RegEx = 3
+}
+
+const STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex)\b/;
+function toStandardTokenType(tokenType: string): StandardTokenType {
+	let m = tokenType.match(STANDARD_TOKEN_TYPE_REGEXP);
+	if (!m) {
+		return StandardTokenType.Other;
+	}
+	switch (m[1]) {
+		case 'comment':
+			return StandardTokenType.Comment;
+		case 'string':
+			return StandardTokenType.String;
+		case 'regex':
+			return StandardTokenType.RegEx;
+	}
+	throw new Error('Unexpected match for standard token type!');
+}
+
 export class LineToken {
 	_lineTokenBrand: void;
 
@@ -18,6 +45,7 @@ export class LineToken {
 	public readonly startOffset: number;
 	public readonly endOffset: number;
 	public readonly type: string;
+	public readonly standardType: StandardTokenType;
 	public readonly modeId: string;
 	public readonly hasPrev: boolean;
 	public readonly hasNext: boolean;
@@ -30,6 +58,7 @@ export class LineToken {
 		this.startOffset = this._source.getTokenStartOffset(this._tokenIndex);
 		this.endOffset = this._source.getTokenEndOffset(this._tokenIndex);
 		this.type = this._source.getTokenType(this._tokenIndex);
+		this.standardType = toStandardTokenType(this.type);
 		this.modeId = this._source.modeTransitions[this._modeIndex].modeId;
 		this.hasPrev = (this._tokenIndex > 0);
 		this.hasNext = (this._tokenIndex + 1 < this._source.getTokenCount());
@@ -104,6 +133,10 @@ export class LineTokens {
 
 	public getTokenType(tokenIndex: number): string {
 		return TokensBinaryEncoding.getType(this._map, this._tokens[tokenIndex]);
+	}
+
+	public getStandardTokenType(tokenIndex: number): StandardTokenType {
+		return toStandardTokenType(this.getTokenType(tokenIndex));
 	}
 
 	public getTokenEndOffset(tokenIndex: number): number {

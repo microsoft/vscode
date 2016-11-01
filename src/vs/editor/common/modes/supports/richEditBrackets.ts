@@ -13,33 +13,43 @@ interface ISimpleInternalBracket {
 	close: string;
 }
 
-export interface IRichEditBracket {
+export class RichEditBracket {
+	_richEditBracketBrand: void;
+
 	readonly modeId: string;
 	readonly open: string;
 	readonly close: string;
 	readonly forwardRegex: RegExp;
 	readonly reversedRegex: RegExp;
+
+	constructor(modeId: string, open: string, close: string, forwardRegex: RegExp, reversedRegex: RegExp) {
+		this.modeId = modeId;
+		this.open = open;
+		this.close = close;
+		this.forwardRegex = forwardRegex;
+		this.reversedRegex = reversedRegex;
+	}
 }
 
 export class RichEditBrackets {
 	_richEditBracketsBrand: void;
 
-	public readonly brackets: IRichEditBracket[];
+	public readonly brackets: RichEditBracket[];
 	public readonly forwardRegex: RegExp;
 	public readonly reversedRegex: RegExp;
 	public readonly maxBracketLength: number;
-	public readonly textIsBracket: { [text: string]: IRichEditBracket; };
+	public readonly textIsBracket: { [text: string]: RichEditBracket; };
 	public readonly textIsOpenBracket: { [text: string]: boolean; };
 
 	constructor(modeId: string, brackets: CharacterPair[]) {
 		this.brackets = brackets.map((b) => {
-			return {
-				modeId: modeId,
-				open: b[0],
-				close: b[1],
-				forwardRegex: getRegexForBracketPair({ open: b[0], close: b[1] }),
-				reversedRegex: getReversedRegexForBracketPair({ open: b[0], close: b[1] })
-			};
+			return new RichEditBracket(
+				modeId,
+				b[0],
+				b[1],
+				getRegexForBracketPair({ open: b[0], close: b[1] }),
+				getReversedRegexForBracketPair({ open: b[0], close: b[1] })
+			);
 		});
 		this.forwardRegex = getRegexForBrackets(this.brackets);
 		this.reversedRegex = getReversedRegexForBrackets(this.brackets);
