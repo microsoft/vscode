@@ -175,53 +175,25 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		return input instanceof FileEditorInput && input.getResource().toString() === resource.toString();
 	}
 
-	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, deletedResource: URI): FileEditorInput;
-	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, updatedFiles: FileChangesEvent): FileEditorInput;
-	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, arg: any): FileEditorInput {
+	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, e: FileChangesEvent): FileEditorInput {
 
 		// First try modifiedInput
 		const modifiedInput = input.modifiedInput;
-		const res = this.getMatchingFileEditorInputFromInput(modifiedInput, arg);
+		const res = this.getMatchingFileEditorInputFromInput(modifiedInput, e);
 		if (res) {
 			return res;
 		}
 
 		// Second try originalInput
-		return this.getMatchingFileEditorInputFromInput(input.originalInput, arg);
+		return this.getMatchingFileEditorInputFromInput(input.originalInput, e);
 	}
 
-	private getMatchingFileEditorInputFromInput(input: EditorInput, deletedResource: URI): FileEditorInput;
-	private getMatchingFileEditorInputFromInput(input: EditorInput, updatedFiles: FileChangesEvent): FileEditorInput;
-	private getMatchingFileEditorInputFromInput(input: EditorInput, arg: any): FileEditorInput {
-		if (input instanceof FileEditorInput) {
-			if (arg instanceof URI) {
-				const deletedResource = <URI>arg;
-				if (this.containsResource(input, deletedResource)) {
-					return input;
-				}
-			} else {
-				const updatedFiles = <FileChangesEvent>arg;
-				if (updatedFiles.contains(input.getResource(), FileChangeType.UPDATED)) {
-					return input;
-				}
-			}
+	private getMatchingFileEditorInputFromInput(input: EditorInput, e: FileChangesEvent): FileEditorInput {
+		if (input instanceof FileEditorInput && e.contains(input.getResource(), FileChangeType.UPDATED)) {
+			return input;
 		}
 
 		return null;
-	}
-
-	private containsResource(input: FileEditorInput, resource: URI): boolean;
-	private containsResource(input: EditorInput, resource: URI): boolean {
-		let fileResource: URI;
-		if (input instanceof FileEditorInput) {
-			fileResource = input.getResource();
-		}
-
-		if (paths.isEqualOrParent(fileResource.fsPath, resource.fsPath)) {
-			return true;
-		}
-
-		return false;
 	}
 
 	public dispose(): void {
