@@ -101,10 +101,10 @@ export class ScopedLineTokens {
 	}
 }
 
+const enum IgnoreBracketsInTokens {
+	value = StandardTokenType.Comment | StandardTokenType.String | StandardTokenType.RegEx
+}
+
 export function ignoreBracketsInToken(standardTokenType: StandardTokenType): boolean {
-	return (
-		standardTokenType === StandardTokenType.Comment
-		|| standardTokenType === StandardTokenType.String
-		|| standardTokenType === StandardTokenType.RegEx
-	);
+	return (standardTokenType & IgnoreBracketsInTokens.value) !== 0;
 }
