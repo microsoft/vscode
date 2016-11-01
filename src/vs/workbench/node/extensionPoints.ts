@@ -211,7 +211,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 				vscode: string;
 			};
 			main?: string;
-			enableProposedApi: boolean;
+			enableProposedApi?: boolean;
 		}
 		let extensionDescription = <IRelaxedExtensionDescription>_extensionDescription;
 		extensionDescription.isBuiltin = this._isBuiltin;
