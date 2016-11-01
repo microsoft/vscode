@@ -20,7 +20,7 @@ import 'vs/editor/browser/editor.all';
 import 'vs/platform/actions/browser/menusExtensionPoint';
 
 // External Explorers
-import "vs/platform/explorers/browser/explorerExtensionPoint";
+import "vs/workbench/browser/explorerExtensionPoint";
 
 // Workbench
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
