@@ -75,21 +75,27 @@ export class LineToken {
 export class LineTokens {
 	_lineTokensBrand: void;
 
-	private _map: TokensInflatorMap;
-	private _tokens: number[];
-	private _textLength: number;
+	private readonly _map: TokensInflatorMap;
+	private readonly _tokens: number[];
+	private readonly _text: string;
+	private readonly _textLength: number;
 
 	readonly modeTransitions: ModeTransition[];
 
-	constructor(map: TokensInflatorMap, tokens: number[], modeTransitions: ModeTransition[], textLength: number) {
+	constructor(map: TokensInflatorMap, tokens: number[], modeTransitions: ModeTransition[], text: string) {
 		this._map = map;
 		this._tokens = tokens;
 		this.modeTransitions = modeTransitions;
-		this._textLength = textLength;
+		this._text = text;
+		this._textLength = this._text.length;
 	}
 
 	public getTokenCount(): number {
 		return this._tokens.length;
+	}
+
+	public getLineContent(): string {
+		return this._text;
 	}
 
 	public getTokenStartOffset(tokenIndex: number): number {
@@ -108,25 +114,39 @@ export class LineTokens {
 	}
 
 	public equals(other: LineTokens): boolean {
-		if (other instanceof LineTokens) {
-			if (this._map !== other._map) {
-				return false;
-			}
-			if (this._tokens.length !== other._tokens.length) {
-				return false;
-			}
-			for (let i = 0, len = this._tokens.length; i < len; i++) {
-				if (this._tokens[i] !== other._tokens[i]) {
-					return false;
-				}
-			}
-			return true;
-		}
 		if (!(other instanceof LineTokens)) {
 			return false;
 		}
+		if (this._text !== other._text) {
+			return false;
+		}
+		if (this._map !== other._map) {
+			return false;
+		}
+		if (!ModeTransition.equals(this.modeTransitions, other.modeTransitions)) {
+			return false;
+		}
+
+		if (this._tokens.length !== other._tokens.length) {
+			return false;
+		}
+		for (let i = 0, len = this._tokens.length; i < len; i++) {
+			if (this._tokens[i] !== other._tokens[i]) {
+				return false;
+			}
+		}
+		return true;
 	}
 
+	/**
+	 * Find the token containing offset `offset`.
+	 *    For example, with the following tokens [0, 5), [5, 9), [9, infinity)
+	 *    Searching for 0, 1, 2, 3 or 4 will return 0.
+	 *    Searching for 5, 6, 7 or 8 will return 1.
+	 *    Searching for 9, 10, 11, ... will return 2.
+	 * @param offset The search offset
+	 * @return The index of the token containing the offset.
+	 */
 	public findTokenIndexAtOffset(offset: number): number {
 		return TokensBinaryEncoding.findIndexOfOffset(this._tokens, offset);
 	}

@@ -10,7 +10,7 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { ILineContext, IMode } from 'vs/editor/common/modes';
+import { IMode } from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -1881,12 +1881,6 @@ export interface ITokenizedModel extends ITextModel {
 	 * @internal
 	 */
 	getLineTokens(lineNumber: number, inaccurateTokensAcceptable?: boolean): LineTokens;
-
-	/**
-	 * Tokenize if necessary and get the tokenization result for the line `lineNumber`, as returned by the language mode.
-	 * @internal
-	 */
-	getLineContext(lineNumber: number): ILineContext;
 
 	/**
 	 * Get the current language mode associated with the model.

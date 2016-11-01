@@ -6,10 +6,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { IPosition, ITextModel, ITokenizedModel } from 'vs/editor/common/editorCommon';
-import { EnterAction, ILineContext, IRichEditOnEnter, IndentAction, CharacterPair } from 'vs/editor/common/modes';
-import { handleEvent } from 'vs/editor/common/modes/supports';
-import { LanguageConfigurationRegistryImpl } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { EnterAction, IndentAction, CharacterPair } from 'vs/editor/common/modes';
 
 /**
  * Describes indentation rules for a language.
@@ -64,20 +61,17 @@ interface IProcessedBracketPair {
 	closeRegExp: RegExp;
 }
 
-export class OnEnterSupport implements IRichEditOnEnter {
+export class OnEnterSupport {
 
 	private static _INDENT: EnterAction = { indentAction: IndentAction.Indent };
 	private static _INDENT_OUTDENT: EnterAction = { indentAction: IndentAction.IndentOutdent };
 	private static _OUTDENT: EnterAction = { indentAction: IndentAction.Outdent };
 
-	private _registry: LanguageConfigurationRegistryImpl;
-	private _modeId: string;
-	private _brackets: IProcessedBracketPair[];
-	private _indentationRules: IndentationRule;
-	private _regExpRules: OnEnterRule[];
+	private readonly _brackets: IProcessedBracketPair[];
+	private readonly _indentationRules: IndentationRule;
+	private readonly _regExpRules: OnEnterRule[];
 
-	constructor(registry: LanguageConfigurationRegistryImpl, modeId: string, opts?: IOnEnterSupportOptions) {
-		this._registry = registry;
+	constructor(opts?: IOnEnterSupportOptions) {
 		opts = opts || {};
 		opts.brackets = opts.brackets || [
 			['(', ')'],
@@ -85,7 +79,6 @@ export class OnEnterSupport implements IRichEditOnEnter {
 			['[', ']']
 		];
 
-		this._modeId = modeId;
 		this._brackets = opts.brackets.map((bracket) => {
 			return {
 				open: bracket[0],
@@ -98,34 +91,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 		this._indentationRules = opts.indentationRules;
 	}
 
-	public onEnter(model: ITokenizedModel, position: IPosition): EnterAction {
-		var context = model.getLineContext(position.lineNumber);
-
-		return handleEvent(context, position.column - 1, (nestedModeId: string, context: ILineContext, offset: number) => {
-			if (this._modeId === nestedModeId) {
-				return this._onEnter(model, position);
-			}
-
-			let onEnterSupport = this._registry.getOnEnterSupport(nestedModeId);
-			if (onEnterSupport) {
-				return onEnterSupport.onEnter(model, position);
-			}
-
-			return null;
-		});
-	}
-
-	private _onEnter(model: ITextModel, position: IPosition): EnterAction {
-		let lineText = model.getLineContent(position.lineNumber);
-		let beforeEnterText = lineText.substr(0, position.column - 1);
-		let afterEnterText = lineText.substr(position.column - 1);
-
-		let oneLineAboveText = position.lineNumber === 1 ? '' : model.getLineContent(position.lineNumber - 1);
-
-		return this._actualOnEnter(oneLineAboveText, beforeEnterText, afterEnterText);
-	}
-
-	_actualOnEnter(oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction {
+	public onEnter(oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction {
 		// (1): `regExpRules`
 		for (let i = 0, len = this._regExpRules.length; i < len; i++) {
 			let rule = this._regExpRules[i];

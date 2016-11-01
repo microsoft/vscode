@@ -11,11 +11,9 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import * as timer from 'vs/base/common/timer';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ModelLine } from 'vs/editor/common/model/modelLine';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { WordHelper } from 'vs/editor/common/model/textModelWithTokensHelpers';
 import { TokenIterator } from 'vs/editor/common/model/tokenIterator';
-import { ITokenizationSupport, ILineContext, ILineTokens, IMode, IState, TokenizationRegistry, IRichEditBrackets } from 'vs/editor/common/modes';
+import { ITokenizationSupport, ILineTokens, IMode, IState, TokenizationRegistry, IRichEditBrackets } from 'vs/editor/common/modes';
 import { NULL_MODE_ID, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -25,6 +23,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { Token } from 'vs/editor/common/core/token';
 import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
+import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 
 class Mode implements IMode {
 
@@ -71,42 +70,6 @@ class ModelTokensChangedEventBuilder {
 		return {
 			ranges: this._ranges
 		};
-	}
-}
-
-/**
- * TODO@Alex: remove this wrapper
- */
-class LineContext implements ILineContext {
-
-	public modeTransitions: ModeTransition[];
-	private _text: string;
-	private _lineTokens: LineTokens;
-
-	constructor(topLevelModeId: string, line: ModelLine, map: TokensInflatorMap) {
-		this.modeTransitions = line.getModeTransitions(topLevelModeId);
-		this._text = line.text;
-		this._lineTokens = line.getTokens(map);
-	}
-
-	public getLineContent(): string {
-		return this._text;
-	}
-
-	public getTokenCount(): number {
-		return this._lineTokens.getTokenCount();
-	}
-
-	public getTokenStartOffset(tokenIndex: number): number {
-		return this._lineTokens.getTokenStartOffset(tokenIndex);
-	}
-
-	public getTokenType(tokenIndex: number): string {
-		return this._lineTokens.getTokenType(tokenIndex);
-	}
-
-	public findIndexOfOffset(offset: number): number {
-		return this._lineTokens.findTokenIndexAtOffset(offset);
 	}
 }
 
@@ -237,18 +200,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			});
 		}
 		return this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
-	}
-
-	public getLineContext(lineNumber: number): ILineContext {
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
-		}
-
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
-		});
-
-		return new LineContext(this.getModeId(), this._lines[lineNumber - 1], this._tokensInflatorMap);
 	}
 
 	public getMode(): IMode {
@@ -489,10 +440,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	// Having tokens allows implementing additional helper methods
 
-	protected _getWordDefinition(): RegExp {
-		return WordHelper.massageWordDefinitionOf(this.getModeId());
-	}
-
 	public getWordAtPosition(_position: editorCommon.IPosition): editorCommon.IWordAtPosition {
 		this._assertNotDisposed();
 		let position = this.validatePosition(_position);
@@ -500,11 +447,44 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		if (this._invalidLineStartIndex <= position.lineNumber) {
 			// this line is not tokenized
-			return WordHelper.getWordAtPosition(lineContent, position.column, this.getModeId(), null);
+			return getWordAtText(
+				position.column,
+				LanguageConfigurationRegistry.getWordDefinition(this.getModeId()),
+				lineContent,
+				0
+			);
 		}
 
 		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this.getModeId());
-		return WordHelper.getWordAtPosition(lineContent, position.column, this.getModeId(), modeTransitions);
+		let offset = position.column - 1;
+		let modeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, offset);
+
+		let modeStartOffset = modeTransitions[modeIndex].startIndex;
+		let modeEndOffset = (modeIndex + 1 < modeTransitions.length ? modeTransitions[modeIndex + 1].startIndex : lineContent.length);
+		let modeId = modeTransitions[modeIndex].modeId;
+
+		let result = getWordAtText(
+			position.column,
+			LanguageConfigurationRegistry.getWordDefinition(modeId),
+			lineContent.substring(modeStartOffset, modeEndOffset),
+			modeStartOffset
+		);
+
+		if (!result && modeIndex > 0 && modeTransitions[modeIndex].startIndex === offset) {
+			// The position is right at the beginning of `modeIndex`, so try looking at `modeIndex` - 1 too
+
+			let prevModeStartOffset = modeTransitions[modeIndex - 1].startIndex;
+			let prevModeId = modeTransitions[modeIndex - 1].modeId;
+
+			result = getWordAtText(
+				position.column,
+				LanguageConfigurationRegistry.getWordDefinition(prevModeId),
+				lineContent.substring(prevModeStartOffset, modeStartOffset),
+				prevModeStartOffset
+			);
+		}
+
+		return result;
 	}
 
 	public getWordUntilPosition(position: editorCommon.IPosition): editorCommon.IWordAtPosition {

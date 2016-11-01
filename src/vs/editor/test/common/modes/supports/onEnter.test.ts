@@ -11,7 +11,7 @@ import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 suite('OnEnter', () => {
 
 	test('uses indentationRules', () => {
-		var support = new OnEnterSupport(null, null, {
+		var support = new OnEnterSupport({
 			indentationRules: {
 				decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
 				increaseIndentPattern: /(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
@@ -21,7 +21,7 @@ suite('OnEnter', () => {
 		});
 
 		var testIndentAction = (oneLineAboveText: string, beforeText: string, afterText: string, expected: IndentAction) => {
-			var actual = support._actualOnEnter(oneLineAboveText, beforeText, afterText);
+			var actual = support.onEnter(oneLineAboveText, beforeText, afterText);
 			if (expected === IndentAction.None) {
 				assert.equal(actual, null);
 			} else {
@@ -42,11 +42,11 @@ suite('OnEnter', () => {
 			['(', ')'],
 			['begin', 'end']
 		];
-		var support = new OnEnterSupport(null, null, {
+		var support = new OnEnterSupport({
 			brackets: brackets
 		});
 		var testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
-			var actual = support._actualOnEnter('', beforeText, afterText);
+			var actual = support.onEnter('', beforeText, afterText);
 			if (expected === IndentAction.None) {
 				assert.equal(actual, null);
 			} else {
@@ -75,7 +75,7 @@ suite('OnEnter', () => {
 	});
 
 	test('uses regExpRules', () => {
-		var support = new OnEnterSupport(null, null, {
+		var support = new OnEnterSupport({
 			regExpRules: [
 				{
 					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
@@ -101,7 +101,7 @@ suite('OnEnter', () => {
 			]
 		});
 		var testIndentAction = (beforeText: string, afterText: string, expectedIndentAction: IndentAction, expectedAppendText: string, removeText: number = 0) => {
-			var actual = support._actualOnEnter('', beforeText, afterText);
+			var actual = support.onEnter('', beforeText, afterText);
 			if (expectedIndentAction === null) {
 				assert.equal(actual, null, 'isNull:' + beforeText);
 			} else {
