@@ -10,6 +10,7 @@ import { ExtHostContext, MainThreadTreeExplorersShape, ExtHostTreeExplorersShape
 import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
 import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 	private _proxy: ExtHostTreeExplorersShape;
@@ -17,7 +18,8 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 	constructor(
 		@IThreadService private threadService: IThreadService,
 		@ITreeExplorerViewletService private treeExplorerService: ITreeExplorerViewletService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@ICommandService private commandService: ICommandService
 	) {
 		super();
 
@@ -34,8 +36,10 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 			resolveChildren: (node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> => {
 				return this._proxy.$resolveChildren(providerId, node).then(children => children, onError);
 			},
-			executeCommand: (node: InternalTreeExplorerNode): TPromise<void> => {
-				return this._proxy.$executeCommand(providerId, node);
+			executeCommand: (node: InternalTreeExplorerNode): TPromise<any> => {
+				return this._proxy.$getInternalCommand(providerId, node).then(command => {
+					return this.commandService.executeCommand(command.id, ...command.arguments);
+				});
 			}
 		});
 	}
