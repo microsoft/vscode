@@ -41,10 +41,6 @@ export interface IInternalIndentationOptions {
 	 * Tab size in spaces. This is used for rendering and for editing.
 	 */
 	tabSize: number;
-	/**
-	 * Insert spaces instead of tabs when indenting or when auto-indenting.
-	 */
-	insertSpaces: boolean;
 }
 
 export interface IConfiguration {
@@ -61,10 +57,10 @@ function isLowSurrogate(model: ICursorMoveHelperModel, lineNumber: number, colum
 
 export class CursorMoveHelper {
 
-	private configuration: IConfiguration;
+	private readonly _tabSize: number;
 
-	constructor(configuration: IConfiguration) {
-		this.configuration = configuration;
+	constructor(tabSize: number) {
+		this._tabSize = tabSize;
 	}
 
 	public getLeftOfPosition(model: ICursorMoveHelperModel, lineNumber: number, column: number): IPosition {
@@ -219,7 +215,7 @@ export class CursorMoveHelper {
 	}
 
 	public visibleColumnFromColumn(model: ICursorMoveHelperModel, lineNumber: number, column: number): number {
-		return CursorMoveHelper.visibleColumnFromColumn(model, lineNumber, column, this.configuration.getIndentationOptions().tabSize);
+		return CursorMoveHelper.visibleColumnFromColumn(model, lineNumber, column, this._tabSize);
 	}
 
 	public static visibleColumnFromColumn(model: ICursorMoveHelperModel, lineNumber: number, column: number, tabSize: number): number {
@@ -242,7 +238,7 @@ export class CursorMoveHelper {
 
 		for (var i = 0; i < line.length && thisVisibleColumn <= visibleColumn; i++) {
 			lastVisibleColumn = thisVisibleColumn;
-			thisVisibleColumn = (line.charAt(i) === '\t') ? CursorMoveHelper.nextTabColumn(thisVisibleColumn, this.configuration.getIndentationOptions().tabSize) : thisVisibleColumn + 1;
+			thisVisibleColumn = (line.charAt(i) === '\t') ? CursorMoveHelper.nextTabColumn(thisVisibleColumn, this._tabSize) : thisVisibleColumn + 1;
 		}
 
 		// Choose the closest

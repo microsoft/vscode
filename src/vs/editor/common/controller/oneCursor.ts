@@ -19,6 +19,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IPostOperationRunnable {
 	(ctx: IOneCursorOperationContext): void;
@@ -149,6 +150,8 @@ export class OneCursor {
 	private _selEndMarker: string;
 	private _selDirection: SelectionDirection;
 
+	private _modelOptionsListener: IDisposable;
+
 	constructor(
 		editorId: number,
 		model: editorCommon.IModel,
@@ -162,6 +165,9 @@ export class OneCursor {
 		this.modeConfiguration = modeConfiguration;
 		this.viewModelHelper = viewModelHelper;
 		this.helper = new CursorHelper(this.model, this.configuration);
+		this._modelOptionsListener = model.onDidChangeOptions(() => {
+			this.helper = new CursorHelper(this.model, this.configuration);
+		});
 
 		this.bracketDecorations = [];
 
@@ -254,6 +260,7 @@ export class OneCursor {
 	}
 
 	public dispose(): void {
+		this._modelOptionsListener.dispose();
 		this.model._removeMarker(this._selStartMarker);
 		this.model._removeMarker(this._selEndMarker);
 		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, [], this.editorId);
@@ -2206,11 +2213,7 @@ class CursorHelper {
 	constructor(model: editorCommon.IModel, configuration: editorCommon.IConfiguration) {
 		this.model = model;
 		this.configuration = configuration;
-		this.moveHelper = new CursorMoveHelper({
-			getIndentationOptions: () => {
-				return this.model.getOptions();
-			}
-		});
+		this.moveHelper = new CursorMoveHelper(this.model.getOptions().tabSize);
 	}
 
 	public getLeftOfPosition(model: ICursorMoveHelperModel, lineNumber: number, column: number): editorCommon.IPosition {
