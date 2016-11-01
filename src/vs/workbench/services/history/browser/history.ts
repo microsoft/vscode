@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
-import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
 import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
@@ -18,7 +17,7 @@ import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, EventType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, EventType, FileChangeType } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -290,9 +289,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {
-		e.getDeleted().forEach(deleted => {
-			this.remove(deleted.resource); // remove from history files that got deleted or moved
-		});
+		if (e.gotDeleted()) {
+			this.remove(e); // remove from history files that got deleted or moved
+		}
 	}
 
 	private onEditorClosed(event: IGroupEvent): void {
@@ -420,18 +419,18 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	public remove(input: IEditorInput | IResourceInput): void;
-	public remove(input: URI): void;
-	public remove(arg1: IEditorInput | IResourceInput | URI): void {
+	public remove(input: FileChangesEvent): void;
+	public remove(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
 		this.removeFromHistory(arg1);
 		this.removeFromStack(arg1);
 		this.removeFromRecentlyClosedFiles(arg1);
 	}
 
-	private removeFromHistory(input: IEditorInput | IResourceInput | URI, index?: number): void {
+	private removeFromHistory(arg1: IEditorInput | IResourceInput | FileChangesEvent, index?: number): void {
 		this.ensureLoaded();
 
 		if (typeof index !== 'number') {
-			index = this.indexOf(input);
+			index = this.indexOf(arg1);
 		}
 
 		if (index >= 0) {
@@ -439,10 +438,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private indexOf(input: IEditorInput | IResourceInput | URI): number {
+	private indexOf(arg1: IEditorInput | IResourceInput | FileChangesEvent): number {
 		for (let i = 0; i < this.history.length; i++) {
 			const entry = this.history[i];
-			if (this.matches(input, entry)) {
+			if (this.matches(arg1, entry)) {
 				return i;
 			}
 		}
@@ -582,9 +581,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		return s1.startLineNumber === s2.startLineNumber; // we consider the history entry same if we are on the same line
 	}
 
-	private removeFromStack(input: IEditorInput | IResourceInput | URI): void {
+	private removeFromStack(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
 		this.stack.forEach((e, i) => {
-			if (this.matches(input, e.input)) {
+			if (this.matches(arg1, e.input)) {
 				this.stack.splice(i, 1);
 				if (this.index >= i) {
 					this.index--; // reduce index if the element is before index
@@ -593,9 +592,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		});
 	}
 
-	private removeFromRecentlyClosedFiles(input: IEditorInput | IResourceInput | URI): void {
+	private removeFromRecentlyClosedFiles(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
 		this.recentlyClosedFiles.forEach((e, i) => {
-			if (this.matchesFile(e.resource, input)) {
+			if (this.matchesFile(e.resource, arg1)) {
 				this.recentlyClosedFiles.splice(i, 1);
 			}
 		});
@@ -613,47 +612,47 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		return group.getEditors().some(e => this.matchesFile(resource, e));
 	}
 
-	private matches(inputA: IEditorInput | IResourceInput | URI, inputB: IEditorInput | IResourceInput): boolean {
-		if (inputA instanceof URI) {
+	private matches(arg1: IEditorInput | IResourceInput | FileChangesEvent, inputB: IEditorInput | IResourceInput): boolean {
+		if (arg1 instanceof FileChangesEvent) {
 			if (inputB instanceof EditorInput) {
 				return false; // we only support this for IResourceInput
 			}
 
 			const resourceInputB = inputB as IResourceInput;
 
-			return resourceInputB && paths.isEqualOrParent(resourceInputB.resource.toString(), inputA.toString());
+			return arg1.contains(resourceInputB.resource, FileChangeType.DELETED);
 		}
 
-		if (inputA instanceof EditorInput && inputB instanceof EditorInput) {
-			return inputA.matches(inputB);
+		if (arg1 instanceof EditorInput && inputB instanceof EditorInput) {
+			return arg1.matches(inputB);
 		}
 
-		if (inputA instanceof EditorInput) {
-			return this.matchesFile((inputB as IResourceInput).resource, inputA);
+		if (arg1 instanceof EditorInput) {
+			return this.matchesFile((inputB as IResourceInput).resource, arg1);
 		}
 
 		if (inputB instanceof EditorInput) {
-			return this.matchesFile((inputA as IResourceInput).resource, inputB);
+			return this.matchesFile((arg1 as IResourceInput).resource, inputB);
 		}
 
-		const resourceInputA = inputA as IResourceInput;
+		const resourceInputA = arg1 as IResourceInput;
 		const resourceInputB = inputB as IResourceInput;
 
 		return resourceInputA && resourceInputB && resourceInputA.resource.toString() === resourceInputB.resource.toString();
 	}
 
-	private matchesFile(resource: URI, input: IEditorInput | IResourceInput | URI): boolean {
-		if (input instanceof URI) {
-			return paths.isEqualOrParent(resource.toString(), input.toString());
+	private matchesFile(resource: URI, arg2: IEditorInput | IResourceInput | FileChangesEvent): boolean {
+		if (arg2 instanceof FileChangesEvent) {
+			return arg2.contains(resource, FileChangeType.DELETED);
 		}
 
-		if (input instanceof EditorInput) {
-			const fileInput = asFileEditorInput(input);
+		if (arg2 instanceof EditorInput) {
+			const fileInput = asFileEditorInput(arg2);
 
 			return fileInput && fileInput.getResource().toString() === resource.toString();
 		}
 
-		const resourceInput = input as IResourceInput;
+		const resourceInput = arg2 as IResourceInput;
 
 		return resourceInput && resourceInput.resource.toString() === resource.toString();
 	}
