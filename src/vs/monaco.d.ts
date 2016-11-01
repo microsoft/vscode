@@ -4067,6 +4067,7 @@ declare module monaco.languages {
          */
         resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
     }
+
     /**
      * Describes how comments for a language work.
      */

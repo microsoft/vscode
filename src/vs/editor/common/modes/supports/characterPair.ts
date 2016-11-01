@@ -5,18 +5,22 @@
 'use strict';
 
 import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
-import { CharacterPair, IAutoClosingPair, IAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { CharacterPair, IAutoClosingPair, IAutoClosingPairConditional, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 
 export class CharacterPairSupport {
 
-	private readonly _autoClosingPairs: IAutoClosingPairConditional[];
+	private readonly _autoClosingPairs: StandardAutoClosingPairConditional[];
 	private readonly _surroundingPairs: IAutoClosingPair[];
 
 	constructor(config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[] }) {
-		this._autoClosingPairs = config.autoClosingPairs;
-		if (!this._autoClosingPairs) {
-			this._autoClosingPairs = config.brackets ? config.brackets.map(b => ({ open: b[0], close: b[1] })) : [];
+		if (config.autoClosingPairs) {
+			this._autoClosingPairs = config.autoClosingPairs.map(el => new StandardAutoClosingPairConditional(el));
+		} else if (config.brackets) {
+			this._autoClosingPairs = config.brackets.map(b => new StandardAutoClosingPairConditional({ open: b[0], close: b[1] }));
+		} else {
+			this._autoClosingPairs = [];
 		}
+
 		this._surroundingPairs = config.surroundingPairs || this._autoClosingPairs;
 	}
 
@@ -30,19 +34,14 @@ export class CharacterPairSupport {
 			return true;
 		}
 
-		var tokenIndex = context.findTokenIndexAtOffset(offset - 1);
-		var tokenType = context.getTokenType(tokenIndex);
+		let tokenIndex = context.findTokenIndexAtOffset(offset - 1);
+		let standardTokenType = context.getStandardTokenType(tokenIndex);
 
-		for (var i = 0; i < this._autoClosingPairs.length; ++i) {
-			if (this._autoClosingPairs[i].open === character) {
-				if (this._autoClosingPairs[i].notIn) {
-					for (var notInIndex = 0; notInIndex < this._autoClosingPairs[i].notIn.length; ++notInIndex) {
-						if (tokenType.indexOf(this._autoClosingPairs[i].notIn[notInIndex]) > -1) {
-							return false;
-						}
-					}
-				}
-				break;
+		for (let i = 0; i < this._autoClosingPairs.length; ++i) {
+			let autoClosingPair = this._autoClosingPairs[i];
+
+			if (autoClosingPair.open === character) {
+				return autoClosingPair.isOK(standardTokenType);
 			}
 		}
 
