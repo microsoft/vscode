@@ -47,6 +47,8 @@ export class MockDebugService implements debug.IDebugService {
 
 	public addFunctionBreakpoint(): void { }
 
+	public moveWatchExpression(id: string, position: number): void { }
+
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {
 		return TPromise.as(null);
 	}

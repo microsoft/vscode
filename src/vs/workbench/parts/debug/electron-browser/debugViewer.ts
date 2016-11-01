@@ -13,13 +13,13 @@ import * as errors from 'vs/base/common/errors';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem, Separator, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_ACCEPT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope } from 'vs/workbench/parts/debug/common/debugModel';
@@ -988,6 +988,43 @@ export class WatchExpressionsController extends BaseDebugController {
 		}
 
 		return false;
+	}
+}
+
+export class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
+
+	constructor( @debug.IDebugService private debugService: debug.IDebugService) {
+		super();
+	}
+
+	public getDragURI(tree: ITree, element: Expression): string {
+		if (!(element instanceof Expression)) {
+			return null;
+		}
+
+		return element.getId();
+	}
+
+	public getDragLabel(tree: ITree, elements: Expression[]): string {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+
+		return elements[0].name;
+	}
+
+	public onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): IDragOverReaction {
+		return DRAG_OVER_ACCEPT;
+	}
+
+	public drop(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): void {
+		const draggedData = data.getData();
+		if (Array.isArray(draggedData)) {
+			const draggedElement = <Expression>draggedData[0];
+			const watches = this.debugService.getModel().getWatchExpressions();
+			const position = target instanceof Model ? watches.length - 1 : watches.indexOf(target);
+			this.debugService.moveWatchExpression(draggedElement.getId(), position);
+		}
 	}
 }
 

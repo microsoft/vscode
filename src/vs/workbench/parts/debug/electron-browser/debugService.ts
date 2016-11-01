@@ -534,6 +534,10 @@ export class DebugService implements debug.IDebugService {
 		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName);
 	}
 
+	public moveWatchExpression(id: string, position: number): void {
+		this.model.moveWatchExpression(id, position);
+	}
+
 	public removeWatchExpressions(id?: string): void {
 		this.model.removeWatchExpressions(id);
 	}
