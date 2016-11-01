@@ -4067,7 +4067,6 @@ declare module monaco.languages {
          */
         resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
     }
-
     /**
      * Describes how comments for a language work.
      */
@@ -4187,6 +4186,63 @@ declare module monaco.languages {
          * The string that appears on the last line and closes the doc comment (e.g. ' * /').
          */
         close: string;
+    }
+
+    /**
+     * A tuple of two characters, like a pair of
+     * opening and closing brackets.
+     */
+    export type CharacterPair = [string, string];
+
+    export interface IAutoClosingPair {
+        open: string;
+        close: string;
+    }
+
+    export interface IAutoClosingPairConditional extends IAutoClosingPair {
+        notIn?: string[];
+    }
+
+    /**
+     * Describes what to do with the indentation when pressing Enter.
+     */
+    export enum IndentAction {
+        /**
+         * Insert new line and copy the previous line's indentation.
+         */
+        None = 0,
+        /**
+         * Insert new line and indent once (relative to the previous line's indentation).
+         */
+        Indent = 1,
+        /**
+         * Insert two new lines:
+         *  - the first one indented which will hold the cursor
+         *  - the second one at the same indentation level
+         */
+        IndentOutdent = 2,
+        /**
+         * Insert new line and outdent once (relative to the previous line's indentation).
+         */
+        Outdent = 3,
+    }
+
+    /**
+     * Describes what to do when pressing Enter.
+     */
+    export interface EnterAction {
+        /**
+         * Describe what to do with the indentation.
+         */
+        indentAction: IndentAction;
+        /**
+         * Describes text to be appended after the new line and after the indentation.
+         */
+        appendText?: string;
+        /**
+         * Describes the number of characters to remove from the new line's indentation.
+         */
+        removeText?: number;
     }
 
     /**
@@ -4621,63 +4677,6 @@ declare module monaco.languages {
     export interface CodeLensProvider {
         provideCodeLenses(model: editor.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
         resolveCodeLens?(model: editor.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
-    }
-
-    /**
-     * A tuple of two characters, like a pair of
-     * opening and closing brackets.
-     */
-    export type CharacterPair = [string, string];
-
-    export interface IAutoClosingPairConditional extends IAutoClosingPair {
-        notIn?: string[];
-    }
-
-    /**
-     * Describes what to do with the indentation when pressing Enter.
-     */
-    export enum IndentAction {
-        /**
-         * Insert new line and copy the previous line's indentation.
-         */
-        None = 0,
-        /**
-         * Insert new line and indent once (relative to the previous line's indentation).
-         */
-        Indent = 1,
-        /**
-         * Insert two new lines:
-         *  - the first one indented which will hold the cursor
-         *  - the second one at the same indentation level
-         */
-        IndentOutdent = 2,
-        /**
-         * Insert new line and outdent once (relative to the previous line's indentation).
-         */
-        Outdent = 3,
-    }
-
-    /**
-     * Describes what to do when pressing Enter.
-     */
-    export interface EnterAction {
-        /**
-         * Describe what to do with the indentation.
-         */
-        indentAction: IndentAction;
-        /**
-         * Describes text to be appended after the new line and after the indentation.
-         */
-        appendText?: string;
-        /**
-         * Describes the number of characters to remove from the new line's indentation.
-         */
-        removeText?: number;
-    }
-
-    export interface IAutoClosingPair {
-        open: string;
-        close: string;
     }
 
     export interface ILanguageExtensionPoint {

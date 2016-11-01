@@ -7,7 +7,8 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
-import { IMode, IndentAction } from 'vs/editor/common/modes';
+import { IMode } from 'vs/editor/common/modes';
+import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/common/tokenSelectionSupport';
 import { MockTokenizingMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';

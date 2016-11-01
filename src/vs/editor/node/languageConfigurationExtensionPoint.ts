@@ -7,24 +7,16 @@
 import * as nls from 'vs/nls';
 import { parse } from 'vs/base/common/json';
 import { readFile } from 'vs/base/node/pfs';
-import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, CommentRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IAutoClosingPair, IAutoClosingPairConditional } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { MainProcessTextMateSyntax } from 'vs/editor/node/textMate/TMSyntax';
 
-type CharacterPair = [string, string];
-
-interface ICommentRule {
-	lineComment?: string;
-	blockComment?: CharacterPair;
-}
-
 interface ILanguageConfiguration {
-	comments?: ICommentRule;
+	comments?: CommentRule;
 	brackets?: CharacterPair[];
 	autoClosingPairs?: (CharacterPair | IAutoClosingPairConditional)[];
 	surroundingPairs?: (CharacterPair | IAutoClosingPair)[];

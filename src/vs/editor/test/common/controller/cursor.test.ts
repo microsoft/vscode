@@ -17,7 +17,7 @@ import {
 	ICursorPositionChangedEvent, ICursorSelectionChangedEvent
 } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { IndentAction } from 'vs/editor/common/modes';
+import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';

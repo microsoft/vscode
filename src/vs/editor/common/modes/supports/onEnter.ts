@@ -6,47 +6,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EnterAction, IndentAction, CharacterPair } from 'vs/editor/common/modes';
-
-/**
- * Describes indentation rules for a language.
- */
-export interface IndentationRule {
-	/**
-	 * If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).
-	 */
-	decreaseIndentPattern: RegExp;
-	/**
-	 * If a line matches this pattern, then all the lines after it should be indented once (until another rule matches).
-	 */
-	increaseIndentPattern: RegExp;
-	/**
-	 * If a line matches this pattern, then **only the next line** after it should be indented once.
-	 */
-	indentNextLinePattern?: RegExp;
-	/**
-	 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
-	 */
-	unIndentedLinePattern?: RegExp;
-}
-
-/**
- * Describes a rule to be evaluated when pressing Enter.
- */
-export interface OnEnterRule {
-	/**
-	 * This rule will only execute if the text before the cursor matches this regular expression.
-	 */
-	beforeText: RegExp;
-	/**
-	 * This rule will only execute if the text after the cursor matches this regular expression.
-	 */
-	afterText?: RegExp;
-	/**
-	 * The action to execute.
-	 */
-	action: EnterAction;
-}
+import { CharacterPair, IndentationRule, IndentAction, EnterAction, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 
 export interface IOnEnterSupportOptions {
 	brackets?: CharacterPair[];

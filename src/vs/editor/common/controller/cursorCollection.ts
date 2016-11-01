@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IModeConfiguration, IOneCursorState, IViewModelHelper, OneCursor } from 'vs/editor/common/controller/oneCursor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IConfiguration, IModel, ISelection } from 'vs/editor/common/editorCommon';
-import { IAutoClosingPair } from 'vs/editor/common/modes';
+import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 

@@ -4,14 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {
-	ICommentsConfiguration, IRichEditBrackets, IAutoClosingPair,
-	IAutoClosingPairConditional, CharacterPair,
-	EnterAction, IndentAction, IElectricAction
-} from 'vs/editor/common/modes';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
-import { BracketElectricCharacterSupport, IBracketElectricCharacterContribution } from 'vs/editor/common/modes/supports/electricCharacter';
-import { IndentationRule, OnEnterRule, IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
+import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
+import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITokenizedModel } from 'vs/editor/common/editorCommon';
@@ -21,68 +16,15 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IndentAction, EnterAction, IAutoClosingPair, IAutoClosingPairConditional, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 
 /**
- * Describes how comments for a language work.
+ * Interface used to support insertion of mode specific comments.
  */
-export interface CommentRule {
-	/**
-	 * The line comment token, like `// this is a comment`
-	 */
-	lineComment?: string;
-	/**
-	 * The block comment character pair, like `/* block comment *&#47;`
-	 */
-	blockComment?: CharacterPair;
-}
-
-/**
- * The language configuration interface defines the contract between extensions and
- * various editor features, like automatic bracket insertion, automatic indentation etc.
- */
-export interface LanguageConfiguration {
-	/**
-	 * The language's comment settings.
-	 */
-	comments?: CommentRule;
-	/**
-	 * The language's brackets.
-	 * This configuration implicitly affects pressing Enter around these brackets.
-	 */
-	brackets?: CharacterPair[];
-	/**
-	 * The language's word definition.
-	 * If the language supports Unicode identifiers (e.g. JavaScript), it is preferable
-	 * to provide a word definition that uses exclusion of known separators.
-	 * e.g.: A regex that matches anything except known separators (and dot is allowed to occur in a floating point number):
-	 *   /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
-	 */
-	wordPattern?: RegExp;
-	/**
-	 * The language's indentation settings.
-	 */
-	indentationRules?: IndentationRule;
-	/**
-	 * The language's rules to be evaluated when pressing Enter.
-	 */
-	onEnterRules?: OnEnterRule[];
-	/**
-	 * The language's auto closing pairs. The 'close' character is automatically inserted with the
-	 * 'open' character is typed. If not set, the configured brackets will be used.
-	 */
-	autoClosingPairs?: IAutoClosingPairConditional[];
-	/**
-	 * The language's surrounding pairs. When the 'open' character is typed on a selection, the
-	 * selected string is surrounded by the open and close characters. If not set, the autoclosing pairs
-	 * settings will be used.
-	 */
-	surroundingPairs?: IAutoClosingPair[];
-	/**
-	 * **Deprecated** Do not use.
-	 *
-	 * @deprecated Will be replaced by a better API soon.
-	 */
-	__electricCharacterSupport?: IBracketElectricCharacterContribution;
+export interface ICommentsConfiguration {
+	lineCommentToken?: string;
+	blockCommentStartToken?: string;
+	blockCommentEndToken?: string;
 }
 
 export class RichEditSupport {
@@ -94,7 +36,7 @@ export class RichEditSupport {
 	public characterPair: CharacterPairSupport;
 	public wordDefinition: RegExp;
 	public onEnter: OnEnterSupport;
-	public brackets: IRichEditBrackets;
+	public brackets: RichEditBrackets;
 
 	constructor(modeId: string, previous: RichEditSupport, rawConf: LanguageConfiguration) {
 
@@ -365,7 +307,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	// end onEnter
 
-	public getBracketsSupport(modeId: string): IRichEditBrackets {
+	public getBracketsSupport(modeId: string): RichEditBrackets {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
