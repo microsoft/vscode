@@ -4173,7 +4173,6 @@ declare module monaco.languages {
 
     export interface IBracketElectricCharacterContribution {
         docComment?: IDocComment;
-        embeddedElectricCharacters?: string[];
     }
 
     /**

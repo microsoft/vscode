@@ -21,7 +21,6 @@ export interface IDocComment {
 
 export interface IBracketElectricCharacterContribution {
 	docComment?: IDocComment;
-	embeddedElectricCharacters?: string[];
 }
 
 export class BracketElectricCharacterSupport {
@@ -35,9 +34,6 @@ export class BracketElectricCharacterSupport {
 	}
 
 	public getElectricCharacters(): string[] {
-		if (Array.isArray(this.contribution.embeddedElectricCharacters)) {
-			return this.contribution.embeddedElectricCharacters.concat(this.brackets.getElectricCharacters());
-		}
 		return this.brackets.getElectricCharacters();
 	}
 
