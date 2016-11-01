@@ -143,7 +143,6 @@ export abstract class MainThreadEditorsShape {
 
 export abstract class MainThreadTreeExplorersShape {
 	$registerTreeExplorerNodeProvider(providerId: string): void { throw ni(); }
-	$showMessage(severity: Severity, message: string): void { throw ni(); }
 }
 
 export abstract class MainThreadErrorsShape {
