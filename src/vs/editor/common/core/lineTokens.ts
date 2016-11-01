@@ -44,7 +44,6 @@ export class LineToken {
 
 	public readonly startOffset: number;
 	public readonly endOffset: number;
-	public readonly type: string;
 	public readonly standardType: StandardTokenType;
 	public readonly modeId: string;
 	public readonly hasPrev: boolean;
@@ -57,8 +56,7 @@ export class LineToken {
 
 		this.startOffset = this._source.getTokenStartOffset(this._tokenIndex);
 		this.endOffset = this._source.getTokenEndOffset(this._tokenIndex);
-		this.type = this._source.getTokenType(this._tokenIndex);
-		this.standardType = toStandardTokenType(this.type);
+		this.standardType = this._source.getStandardTokenType(this._tokenIndex);
 		this.modeId = this._source.modeTransitions[this._modeIndex].modeId;
 		this.hasPrev = (this._tokenIndex > 0);
 		this.hasNext = (this._tokenIndex + 1 < this._source.getTokenCount());
