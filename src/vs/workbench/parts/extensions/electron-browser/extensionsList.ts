@@ -15,11 +15,12 @@ import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IExtension, ExtensionState } from '../common/extensions';
+import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
 import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ReloadAction, ManageExtensionAction } from './extensionsActions';
 import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IExtensionRuntimeService } from 'vs/platform/extensions/common/extensions';
 
 export interface ITemplateData {
 	element: HTMLElement;
@@ -46,7 +47,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -122,7 +125,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
 
-		toggleClass(data.element, 'disabled', ExtensionState.Disabled === extension.state);
+		this.extensionRuntimeService.getEnabledExtensions().then(enabledExtensions => {
+			const isExtensionRunning = enabledExtensions.some(e => e.id === extension.identifier);
+			const isInstalled = this.extensionsWorkbenchService.local.some(e => e.identifier === extension.identifier);
+			toggleClass(data.element, 'disabled', isInstalled && !isExtensionRunning);
+		});
 
 		const onError = once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
