@@ -7,7 +7,7 @@
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, once, filterEvent } from 'vs/base/common/event';
 
 enum MessageType {
 	RequestCommon,
@@ -310,6 +310,105 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		this.activeRequests.forEach(r => r.cancel());
 		this.activeRequests = [];
+	}
+}
+
+export interface ClientConnectionEvent {
+	protocol: IMessagePassingProtocol;
+	onDidClientDisconnect: Event<void>;
+}
+
+export class IPCServer implements IChannelServer, IRoutingChannelClient, IDisposable {
+
+	private channels: { [name: string]: IChannel } = Object.create(null);
+	private channelClients: { [id: string]: ChannelClient; } = Object.create(null);
+	private onClientAdded = new Emitter<string>();
+
+	constructor(onDidClientConnect: Event<ClientConnectionEvent>) {
+		onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
+			const onFirstMessage = once(protocol.onMessage);
+
+			onFirstMessage(id => {
+				const channelServer = new ChannelServer(protocol);
+				const channelClient = new ChannelClient(protocol);
+
+				Object.keys(this.channels)
+					.forEach(name => channelServer.registerChannel(name, this.channels[name]));
+
+				this.channelClients[id] = channelClient;
+				this.onClientAdded.fire(id);
+
+				onDidClientDisconnect(() => {
+					channelServer.dispose();
+					channelClient.dispose();
+					delete this.channelClients[id];
+				});
+			});
+		});
+	}
+
+	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T {
+		const call = (command: string, arg: any) => {
+			const id = router.routeCall(command, arg);
+
+			if (!id) {
+				return TPromise.wrapError('Client id should be provided');
+			}
+
+			return this.getClient(id).then(client => client.getChannel(channelName).call(command, arg));
+		};
+
+		return { call } as T;
+	}
+
+	registerChannel(channelName: string, channel: IChannel): void {
+		this.channels[channelName] = channel;
+	}
+
+	private getClient(clientId: string): TPromise<IChannelClient> {
+		const client = this.channelClients[clientId];
+
+		if (client) {
+			return TPromise.as(client);
+		}
+
+		return new TPromise<IChannelClient>(c => {
+			const onClient = once(filterEvent(this.onClientAdded.event, id => id === clientId));
+			onClient(() => c(this.channelClients[clientId]));
+		});
+	}
+
+	dispose(): void {
+		this.channels = null;
+		this.channelClients = null;
+		this.onClientAdded.dispose();
+	}
+}
+
+export class IPCClient implements IChannelClient, IChannelServer, IDisposable {
+
+	private channelClient: ChannelClient;
+	private channelServer: ChannelServer;
+
+	constructor(protocol: IMessagePassingProtocol, id: string) {
+		protocol.send(id);
+		this.channelClient = new ChannelClient(protocol);
+		this.channelServer = new ChannelServer(protocol);
+	}
+
+	getChannel<T extends IChannel>(channelName: string): T {
+		return this.channelClient.getChannel(channelName) as T;
+	}
+
+	registerChannel(channelName: string, channel: IChannel): void {
+		this.channelServer.registerChannel(channelName, channel);
+	}
+
+	dispose(): void {
+		this.channelClient.dispose();
+		this.channelClient = null;
+		this.channelServer.dispose();
+		this.channelServer = null;
 	}
 }
 
