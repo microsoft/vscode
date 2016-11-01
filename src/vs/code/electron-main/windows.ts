@@ -123,22 +123,7 @@ export interface IWindowsService {
 	clearRecentPathsList(): void;
 }
 
-export class WindowEventService implements IWindowEventService {
-
-	_serviceBrand: any;
-
-	constructor( @IWindowsService private windowsService: IWindowsService) { }
-
-	public get onWindowFocus(): CommonEvent<number> {
-		return this.windowsService.onWindowFocus;
-	}
-
-	public get onNewWindowOpen(): CommonEvent<number> {
-		return this.windowsService.onNewWindowOpen;
-	}
-}
-
-export class WindowsManager implements IWindowsService {
+export class WindowsManager implements IWindowsService, IWindowEventService {
 
 	_serviceBrand: any;
 
