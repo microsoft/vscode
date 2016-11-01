@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens, StandardTokenType } from 'vs/editor/common/core/lineTokens';
 
 export class RawLineTokens implements modes.ILineTokens {
 	_lineTokensBrand: void;
@@ -99,9 +99,16 @@ export class ScopedLineTokens {
 	public getTokenType(tokenIndex: number): string {
 		return this._actual.getTokenType(tokenIndex + this._firstTokenIndex);
 	}
+
+	public getStandardTokenType(tokenIndex: number): StandardTokenType {
+		return this._actual.getStandardTokenType(tokenIndex + this._firstTokenIndex);
+	}
 }
 
-const IGNORE_IN_TOKENS = /\b(comment|string|regex)\b/;
-export function ignoreBracketsInToken(tokenType: string): boolean {
-	return IGNORE_IN_TOKENS.test(tokenType);
+export function ignoreBracketsInToken(standardTokenType: StandardTokenType): boolean {
+	return (
+		standardTokenType === StandardTokenType.Comment
+		|| standardTokenType === StandardTokenType.String
+		|| standardTokenType === StandardTokenType.RegEx
+	);
 }

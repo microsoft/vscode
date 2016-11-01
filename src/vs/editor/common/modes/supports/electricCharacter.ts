@@ -104,7 +104,7 @@ export class BracketElectricCharacterSupport {
 			return null;
 		}
 
-		if (!ignoreBracketsInToken(context.getTokenType(tokenIndex))) {
+		if (!ignoreBracketsInToken(context.getStandardTokenType(tokenIndex))) {
 			let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, 1, lineText, tokenStart, tokenEnd);
 			if (r) {
 				let text = lineText.substring(r.startColumn - 1, r.endColumn - 1);
