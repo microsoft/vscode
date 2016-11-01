@@ -209,7 +209,7 @@ export class ExtensionHostProcessWorker {
 
 		TPromise.join<any>([
 			this.telemetryService.getTelemetryInfo(),
-			this.extensionService.readExtensions()
+			this.extensionService.getExtensions()
 		]).then(([telemetryInfo, extensionDescriptions]) => {
 			let initData: IInitData = {
 				parentPid: process.pid,

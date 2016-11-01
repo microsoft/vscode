@@ -3,25 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import pkg from 'vs/platform/package';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
-import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IExtensionManagementService, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IExtensionRuntimeService, IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
+import { IExtensionRuntimeService } from 'vs/platform/extensions/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Severity, IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-
-const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
-const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../../../..'));
-const BUILTIN_EXTENSIONS_PATH = paths.join(BASE_PATH, 'extensions');
 const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensions/disabled';
 
 export class ExtensionRuntimeService implements IExtensionRuntimeService {
@@ -29,7 +21,6 @@ export class ExtensionRuntimeService implements IExtensionRuntimeService {
 	_serviceBrand: any;
 
 	private workspace: IWorkspace;
-	private enabledExtensions: TPromise<IExtensionDescription[]>;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -40,17 +31,7 @@ export class ExtensionRuntimeService implements IExtensionRuntimeService {
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		this.workspace = contextService.getWorkspace();
-
-		const disabledExtensions = this.getDisabledExtensions();
-		this.enabledExtensions = this.scanExtensions().then(extensionDescriptions => {
-			return disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.indexOf(`${e.publisher}.${e.name}`) === -1) : extensionDescriptions;
-		});
-
 		extensionManagementService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
-	}
-
-	public getEnabledExtensions(): TPromise<IExtensionDescription[]> {
-		return this.enabledExtensions;
 	}
 
 	public getGloballyDisabledExtensions(): string[] {
@@ -150,70 +131,6 @@ export class ExtensionRuntimeService implements IExtensionRuntimeService {
 			id = stripVersion(id);
 			this.enableExtension(id, StorageScope.WORKSPACE);
 			this.enableExtension(id, StorageScope.GLOBAL);
-		}
-	}
-
-	private scanExtensions(): TPromise<IExtensionDescription[]> {
-		const collector = new MessagesCollector();
-		const version = pkg.version;
-		const builtinExtensions = ExtensionScanner.scanExtensions(version, collector, BUILTIN_EXTENSIONS_PATH, true);
-		const userExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionsPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, this.environmentService.extensionsPath, false);
-		const developedExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionDevelopmentPath ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, this.environmentService.extensionDevelopmentPath, false);
-		const isDev = !this.environmentService.isBuilt || !!this.environmentService.extensionDevelopmentPath;
-
-		return TPromise.join([builtinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
-			let builtinExtensions = extensionDescriptions[0];
-			let userExtensions = extensionDescriptions[1];
-			let developedExtensions = extensionDescriptions[2];
-
-			let result: { [extensionId: string]: IExtensionDescription; } = {};
-			builtinExtensions.forEach((builtinExtension) => {
-				result[builtinExtension.id] = builtinExtension;
-			});
-			userExtensions.forEach((userExtension) => {
-				if (result.hasOwnProperty(userExtension.id)) {
-					collector.warn(userExtension.extensionFolderPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
-				}
-				result[userExtension.id] = userExtension;
-			});
-			developedExtensions.forEach(developedExtension => {
-				collector.info('', localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
-				if (result.hasOwnProperty(developedExtension.id)) {
-					collector.warn(developedExtension.extensionFolderPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
-				}
-				result[developedExtension.id] = developedExtension;
-			});
-
-			return Object.keys(result).map(name => result[name]);
-		}).then(null, err => {
-			collector.error('', err);
-			return [];
-		}).then(extensions => {
-			collector.getMessages().forEach(entry => this._handleMessage(entry, isDev));
-			return extensions;
-		});
-	}
-
-	private _handleMessage(message: IMessage, isDev: boolean): void {
-		let messageShown = false;
-		if (message.type === Severity.Error || message.type === Severity.Warning) {
-			if (isDev) {
-				// Only show nasty intrusive messages if doing extension development.
-				this.messageService.show(message.type, (message.source ? '[' + message.source + ']: ' : '') + message.message);
-				messageShown = true;
-			}
-		}
-		if (!messageShown) {
-			switch (message.type) {
-				case Severity.Error:
-					console.error(message);
-					break;
-				case Severity.Warning:
-					console.warn(message);
-					break;
-				default:
-					console.log(message);
-			}
 		}
 	}
 

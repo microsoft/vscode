@@ -81,8 +81,8 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
-import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { ExtensionRuntimeService } from 'vs/workbench/services/extensions/electron-browser/extensionRuntimeService';
+import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
+import { ExtensionRuntimeService } from 'vs/workbench/services/extensions/common/extensionRuntimeService';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';

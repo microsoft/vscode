@@ -20,7 +20,7 @@ import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ReloadAction, Ma
 import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 export interface ITemplateData {
 	element: HTMLElement;
@@ -49,7 +49,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMessageService private messageService: IMessageService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionRuntimeService private extensionRuntimeService: IExtensionRuntimeService
+		@IExtensionService private extensionService: IExtensionService
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -125,7 +125,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
 
-		this.extensionRuntimeService.getEnabledExtensions().then(enabledExtensions => {
+		this.extensionService.getExtensions().then(enabledExtensions => {
 			const isExtensionRunning = enabledExtensions.some(e => e.id === extension.identifier);
 			const isInstalled = this.extensionsWorkbenchService.local.some(e => e.identifier === extension.identifier);
 			toggleClass(data.element, 'disabled', isInstalled && !isExtensionRunning);
