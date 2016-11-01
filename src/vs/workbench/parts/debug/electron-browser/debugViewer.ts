@@ -1085,6 +1085,7 @@ interface IBreakpointTemplateData extends IExceptionBreakpointTemplateData {
 	actionBar: ActionBar;
 	lineNumber: HTMLElement;
 	filePath: HTMLElement;
+	content: HTMLElement;
 }
 
 interface IFunctionBreakpointTemplateData extends IExceptionBreakpointTemplateData {
@@ -1143,8 +1144,10 @@ export class BreakpointsRenderer implements IRenderer {
 		data.name = dom.append(data.breakpoint, $('span.name'));
 
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID) {
-			data.lineNumber = dom.append(data.breakpoint, $('span.line-number'));
-			data.filePath = dom.append(data.breakpoint, $('span.file-path'));
+			data.name.classList.add('expression');
+			const file = dom.append(data.breakpoint, $('.file'));
+			data.filePath = dom.append(file, $('span.file-name'));
+			data.lineNumber = dom.append(file, $('span.line-number'));
 		}
 
 		return data;
@@ -1201,9 +1204,9 @@ export class BreakpointsRenderer implements IRenderer {
 	private renderBreakpoint(tree: ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
-		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
+		data.name.textContent = breakpoint.content;
+		data.filePath.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
 		data.lineNumber.textContent = breakpoint.desiredLineNumber !== breakpoint.lineNumber ? breakpoint.desiredLineNumber + ' \u2192 ' + breakpoint.lineNumber : '' + breakpoint.lineNumber;
-		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
 		data.actionBar.context = breakpoint;
 

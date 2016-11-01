@@ -150,7 +150,7 @@
 	margin-right: 0.2em;
 }
 
-.debug-viewlet .debug-call-stack .stack-frame > .file {
+.debug-viewlet .file {
 	float: right;
 }
 
@@ -158,15 +158,15 @@
 	display: none;
 }
 
-.debug-viewlet .debug-call-stack > .monaco-tree-row:not(.selected) .stack-frame > .file {
+.debug-viewlet .debug-call-stack > .monaco-tree-row:not(.selected) > .file {
 	color: rgba(108, 108, 108, 0.8);
 }
 
-.vs-dark .debug-viewlet .debug-call-stack > .monaco-tree-row:not(.selected) .stack-frame > .file {
+.vs-dark .debug-viewlet .debug-call-stack > .monaco-tree-row:not(.selected) > .file {
 	color: rgba(204, 204, 204, 0.6);
 }
 
-.debug-viewlet .debug-call-stack .stack-frame > .file:not(:first-child) {
+.debug-viewlet .file:not(:first-child) {
 	margin-left: 0.8em;
 }
 
@@ -177,6 +177,10 @@
 
 .monaco-workbench .debug-viewlet .monaco-tree-row .expression {
 	white-space: pre;
+}
+
+.monaco-workbench .debug-viewlet .monaco-tree-row .breakpoint .expression {
+	white-space: initial;
 }
 
 .debug-viewlet .debug-call-stack .error {
@@ -266,6 +270,12 @@
 .debug-viewlet .debug-breakpoints .breakpoint {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	padding-right: 0.8em;
+}
+
+.debug-viewlet .monaco-tree .monaco-tree-row:hover .breakpoint .file,
+.debug-viewlet .monaco-tree .monaco-tree-row.focused .breakpoint .file {
+	display: none;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {
