@@ -17,7 +17,7 @@ import { WindowEventChannel } from 'vs/code/common/windowsIpc';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
-import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/common/ipc.electron';
+import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
@@ -123,7 +123,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	mainIpcServer.registerChannel('askpass', askpassChannel);
 
 	// Create Electron IPC Server
-	const electronIpcServer = new ElectronIPCServer(ipc);
+	const electronIpcServer = new ElectronIPCServer();
 
 	// Register Electron IPC services
 	const urlService = accessor.get(IURLService);
