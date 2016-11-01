@@ -66,13 +66,13 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
-	const windowEventChannel = server.getChannel('windowEvent', { routeCall: () => 'main' });
+	const windowEventChannel = server.getChannel('windowEvent', { route: () => 'main' });
 	const windowEventService: IWindowEventService = new WindowEventChannelClient(windowEventChannel);
 	services.set(IWindowEventService, windowEventService);
 
 	const activeWindowManager = new ActiveWindowManager(windowEventService);
 
-	const choiceChannel = server.getChannel('choice', { routeCall: () => activeWindowManager.activeClientId });
+	const choiceChannel = server.getChannel('choice', { route: () => activeWindowManager.activeClientId });
 	services.set(IChoiceService, new ChoiceChannelClient(choiceChannel));
 
 	const instantiationService = new InstantiationService(services);
