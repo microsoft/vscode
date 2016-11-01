@@ -28,7 +28,7 @@ import { TerminalConfigHelper, IShell } from 'vs/workbench/parts/terminal/electr
 export class TerminalInstance implements ITerminalInstance {
 	/** The amount of time to consider terminal errors to be related to the launch */
 	private static readonly LAUNCHING_DURATION = 500;
-	private static EOL_REGEX = /\r?\n/g;
+	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _idCounter = 1;
 
