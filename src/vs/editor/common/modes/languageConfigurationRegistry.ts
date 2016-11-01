@@ -16,7 +16,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { IndentAction, EnterAction, IAutoClosingPair, IAutoClosingPairConditional, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 
 /**
  * Interface used to support insertion of mode specific comments.
@@ -191,7 +191,7 @@ export class LanguageConfigurationRegistryImpl {
 		return value.characterPair || null;
 	}
 
-	public getAutoClosingPairs(modeId: string): IAutoClosingPairConditional[] {
+	public getAutoClosingPairs(modeId: string): IAutoClosingPair[] {
 		let characterPairSupport = this._getCharacterPairSupport(modeId);
 		if (!characterPairSupport) {
 			return [];

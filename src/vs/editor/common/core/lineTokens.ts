@@ -9,13 +9,13 @@ import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 
 /**
- * A standard token type.
+ * A standard token type. Values are 2^x such that a bit mask can be used.
  */
 export const enum StandardTokenType {
 	Other = 0,
 	Comment = 1,
 	String = 2,
-	RegEx = 3
+	RegEx = 4
 }
 
 const STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex)\b/;

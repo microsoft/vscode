@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { StandardTokenType } from 'vs/editor/common/core/lineTokens';
+
 /**
  * Describes how comments for a language work.
  */
@@ -180,4 +182,44 @@ export interface EnterAction {
 	 * Describes the number of characters to remove from the new line's indentation.
 	 */
 	removeText?: number;
+}
+
+/**
+ * @internal
+ */
+export class StandardAutoClosingPairConditional {
+	_standardAutoClosingPairConditionalBrand: void;
+
+	readonly open: string;
+	readonly close: string;
+	private readonly _standardTokenMask: number;
+
+	constructor(source: IAutoClosingPairConditional) {
+		this.open = source.open;
+		this.close = source.close;
+
+		// initially allowed in all tokens
+		this._standardTokenMask = 0;
+
+		if (Array.isArray(source.notIn)) {
+			for (let i = 0, len = source.notIn.length; i < len; i++) {
+				let notIn = source.notIn[i];
+				switch (notIn) {
+					case 'string':
+						this._standardTokenMask |= StandardTokenType.String;
+						break;
+					case 'comment':
+						this._standardTokenMask |= StandardTokenType.Comment;
+						break;
+					case 'regex':
+						this._standardTokenMask |= StandardTokenType.RegEx;
+						break;
+				}
+			}
+		}
+	}
+
+	public isOK(standardToken: StandardTokenType): boolean {
+		return (this._standardTokenMask & <number>standardToken) === 0;
+	}
 }
