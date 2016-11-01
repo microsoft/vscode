@@ -479,7 +479,7 @@ export class CallStackRenderer implements IRenderer {
 
 		let data: IStackFrameTemplateData = Object.create(null);
 		data.stackFrame = dom.append(container, $('.stack-frame'));
-		data.label = dom.append(data.stackFrame, $('span.label'));
+		data.label = dom.append(data.stackFrame, $('span.label.expression'));
 		data.file = dom.append(data.stackFrame, $('.file'));
 		data.fileName = dom.append(data.file, $('span.file-name'));
 		data.lineNumber = dom.append(data.file, $('span.line-number'));
