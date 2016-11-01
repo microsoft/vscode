@@ -9,7 +9,7 @@ import * as modes from 'vs/editor/common/modes';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
 
-export class LineTokens implements modes.ILineTokens {
+export class RawLineTokens implements modes.ILineTokens {
 	_lineTokensBrand: void;
 
 	tokens: Token[];
