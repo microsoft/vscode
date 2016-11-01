@@ -342,9 +342,9 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 			onWillSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocumentSaveParticipant.onWillSaveTextDocumentEvent(listener, thisArgs, disposables);
 			},
-			registerTreeExplorerNodeProvider(providerId: string, provider: vscode.TreeExplorerNodeProvider<any>) {
+			registerTreeExplorerNodeProvider: proposedApiFunction(extension, (providerId: string, provider: vscode.TreeExplorerNodeProvider<any>) => {
 				return extHostExplorers.registerTreeExplorerNodeProvider(providerId, provider);
-			},
+			}),
 			onDidChangeConfiguration: (listener: () => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);
 			},
