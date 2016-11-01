@@ -17,7 +17,7 @@ import {
 	ICursorPositionChangedEvent, ICursorSelectionChangedEvent
 } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { IMode, IndentAction } from 'vs/editor/common/modes';
+import { IndentAction } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
@@ -1148,7 +1148,7 @@ suite('Editor Controller - Regression tests', () => {
 			modeId: new BracketMode().getId()
 		}, (model, cursor) => {
 			// ensure is tokenized
-			model.getLineContext(1);
+			model.getLineTokens(1, false);
 
 			moveTo(cursor, 1, 20);
 

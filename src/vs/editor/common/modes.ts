@@ -37,47 +37,6 @@ export interface IModeDescriptor {
 }
 
 /**
- * @internal
- */
-export interface ILineContext {
-	/**
-	 * Get the content of the line.
-	 */
-	getLineContent(): string;
-
-	/**
-	 * The mode transitions on this line.
-	 */
-	modeTransitions: ModeTransition[];
-
-	/**
-	 * Get the number of tokens on this line.
-	 */
-	getTokenCount(): number;
-
-	/**
-	 * Get the start offset of the token at `tokenIndex`.
-	 */
-	getTokenStartOffset(tokenIndex: number): number;
-
-	/**
-	 * Get the type of the token at `tokenIndex`.
-	 */
-	getTokenType(tokenIndex: number): string;
-
-	/**
-	 * Find the token containing offset `offset`.
-	 *    For example, with the following tokens [0, 5), [5, 9), [9, infinity)
-	 *    Searching for 0, 1, 2, 3 or 4 will return 0.
-	 *    Searching for 5, 6, 7 or 8 will return 1.
-	 *    Searching for 9, 10, 11, ... will return 2.
-	 * @param offset The search offset
-	 * @return The index of the token containing the offset.
-	 */
-	findIndexOfOffset(offset: number): number;
-}
-
-/**
  * A mode. Will soon be obsolete.
  */
 export interface IMode {
@@ -774,22 +733,6 @@ export interface EnterAction {
 }
 
 /**
- * @internal
- */
-export interface IRichEditElectricCharacter {
-	getElectricCharacters(): string[];
-	// Should return opening bracket type to match indentation with
-	onElectricCharacter(context: ILineContext, offset: number): IElectricAction;
-}
-
-/**
- * @internal
- */
-export interface IRichEditOnEnter {
-	onEnter(model: editorCommon.ITokenizedModel, position: editorCommon.IPosition): EnterAction;
-}
-
-/**
  * Interface used to support insertion of mode specific comments.
  * @internal
  */
@@ -802,15 +745,6 @@ export interface ICommentsConfiguration {
 export interface IAutoClosingPair {
 	open: string;
 	close: string;
-}
-
-/**
- * @internal
- */
-export interface IRichEditCharacterPair {
-	getAutoClosingPairs(): IAutoClosingPairConditional[];
-	shouldAutoClosePair(character: string, context: ILineContext, offset: number): boolean;
-	getSurroundingPairs(): IAutoClosingPair[];
 }
 
 /**

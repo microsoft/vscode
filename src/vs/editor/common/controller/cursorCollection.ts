@@ -328,49 +328,43 @@ export class CursorCollection {
 		};
 
 
-		let electricCharSupport = LanguageConfigurationRegistry.getElectricCharacterSupport(this.model.getMode().getId());
-		if (electricCharSupport) {
-			let electricChars: string[] = null;
-			try {
-				electricChars = electricCharSupport.getElectricCharacters();
-			} catch (e) {
-				onUnexpectedError(e);
-				electricChars = null;
-			}
-			if (electricChars) {
-				for (i = 0; i < electricChars.length; i++) {
-					result.electricChars[electricChars[i]] = true;
-				}
+		let electricChars: string[] = null;
+		try {
+			electricChars = LanguageConfigurationRegistry.getElectricCharacters(this.model.getMode().getId());
+		} catch (e) {
+			onUnexpectedError(e);
+			electricChars = null;
+		}
+		if (electricChars) {
+			for (i = 0; i < electricChars.length; i++) {
+				result.electricChars[electricChars[i]] = true;
 			}
 		}
 
-		let characterPairSupport = LanguageConfigurationRegistry.getCharacterPairSupport(this.model.getMode().getId());
-		if (characterPairSupport) {
-			let autoClosingPairs: IAutoClosingPair[];
-			try {
-				autoClosingPairs = characterPairSupport.getAutoClosingPairs();
-			} catch (e) {
-				onUnexpectedError(e);
-				autoClosingPairs = null;
+		let autoClosingPairs: IAutoClosingPair[];
+		try {
+			autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(this.model.getMode().getId());
+		} catch (e) {
+			onUnexpectedError(e);
+			autoClosingPairs = null;
+		}
+		if (autoClosingPairs) {
+			for (i = 0; i < autoClosingPairs.length; i++) {
+				result.autoClosingPairsOpen[autoClosingPairs[i].open] = autoClosingPairs[i].close;
+				result.autoClosingPairsClose[autoClosingPairs[i].close] = autoClosingPairs[i].open;
 			}
-			if (autoClosingPairs) {
-				for (i = 0; i < autoClosingPairs.length; i++) {
-					result.autoClosingPairsOpen[autoClosingPairs[i].open] = autoClosingPairs[i].close;
-					result.autoClosingPairsClose[autoClosingPairs[i].close] = autoClosingPairs[i].open;
-				}
-			}
+		}
 
-			let surroundingPairs: IAutoClosingPair[];
-			try {
-				surroundingPairs = characterPairSupport.getSurroundingPairs();
-			} catch (e) {
-				onUnexpectedError(e);
-				surroundingPairs = null;
-			}
-			if (surroundingPairs) {
-				for (i = 0; i < surroundingPairs.length; i++) {
-					result.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
-				}
+		let surroundingPairs: IAutoClosingPair[];
+		try {
+			surroundingPairs = LanguageConfigurationRegistry.getSurroundingPairs(this.model.getMode().getId());
+		} catch (e) {
+			onUnexpectedError(e);
+			surroundingPairs = null;
+		}
+		if (surroundingPairs) {
+			for (i = 0; i < surroundingPairs.length; i++) {
+				result.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
 			}
 		}
 
