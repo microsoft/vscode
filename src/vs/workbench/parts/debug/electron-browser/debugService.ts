@@ -632,7 +632,11 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
-			this.model.addProcess(configuration.name, session);
+			const process = this.model.addProcess(configuration.name, session);
+
+			if (!this.viewModel.focusedProcess) {
+				this.viewModel.setFocusedStackFrame(null, process);
+			}
 			this.toDisposeOnSessionEnd[session.getId()] = [];
 			if (client) {
 				this.toDisposeOnSessionEnd[session.getId()].push(client);
