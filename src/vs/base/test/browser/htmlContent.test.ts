@@ -155,4 +155,23 @@ suite('HtmlContent', () => {
 		assert.strictEqual(result.children.length, 0);
 		assert.strictEqual(result.innerHTML, '**bold**');
 	});
+
+	test('image width from title params', ()=> {
+		var result: HTMLElement = <any>renderHtml({
+			markdown: "![image](someimageurl 'caption|width=100')"
+		});
+		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" width="100"></p>`);
+	});
+	test('image height from title params', ()=> {
+		var result: HTMLElement = <any>renderHtml({
+			markdown: "![image](someimageurl 'caption|height=100')"
+		});
+		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" height="100"></p>`);
+	});
+	test('image width and height from title params', ()=> {
+		var result: HTMLElement = <any>renderHtml({
+			markdown: "![image](someimageurl 'caption|height=200, width=100')"
+		});
+		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" width="100" height="200"></p>`);
+	});
 });
