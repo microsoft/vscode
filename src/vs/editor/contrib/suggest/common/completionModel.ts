@@ -35,38 +35,13 @@ export class CompletionModel {
 
 	private _filteredItems: ICompletionItem[];
 	private _topScoreIdx: number;
-	private _incomplete: ISuggestSupport[];
+	private _isIncomplete: boolean;
 	private _stats: ICompletionStats;
 
 	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext) {
 		this._items = items;
 		this._column = column;
 		this._lineContext = lineContext;
-	}
-
-	replaceIncomplete(newItems: ISuggestionItem[], compareFn: (a: ISuggestionItem, b: ISuggestionItem) => number): void {
-		let newItemsIdx = 0;
-		for (let i = 0; i < this._items.length; i++) {
-			if (this._incomplete.indexOf(this._items[i].support) >= 0) {
-				// we found an item which support signaled 'incomplete'
-				// which means we remove the item. For perf reasons we
-				// frist replace and only then splice.
-				if (newItemsIdx < newItems.length) {
-					this._items[i] = newItems[newItemsIdx++];
-				} else {
-					this._items.splice(i, 1);
-					i--;
-				}
-			}
-		}
-		// add remaining new items
-		if (newItemsIdx < newItems.length) {
-			this._items.push(...newItems.slice(newItemsIdx));
-		}
-
-		// sort and reset cached state
-		this._items.sort(compareFn);
-		this._filteredItems = undefined;
 	}
 
 	get lineContext(): LineContext {
@@ -92,9 +67,24 @@ export class CompletionModel {
 		return this._topScoreIdx;
 	}
 
-	get incomplete(): ISuggestSupport[] {
+	get incomplete(): boolean {
 		this._ensureCachedState();
-		return this._incomplete;
+		return this._isIncomplete;
+	}
+
+	resolveIncompleteInfo(): { incomplete: ISuggestSupport[], complete: ISuggestionItem[] } {
+		const incomplete: ISuggestSupport[] = [];
+		const complete: ISuggestionItem[] = [];
+
+		for (const item of this._items) {
+			if (!item.container.incomplete) {
+				complete.push(item);
+			} else if (incomplete.indexOf(item.support) < 0) {
+				incomplete.push(item.support);
+			}
+		}
+
+		return { incomplete, complete };
 	}
 
 	get stats(): ICompletionStats {
@@ -110,8 +100,8 @@ export class CompletionModel {
 
 	private _createCachedState(): void {
 		this._filteredItems = [];
-		this._incomplete = [];
 		this._topScoreIdx = -1;
+		this._isIncomplete = false;
 		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
 
 		const {leadingLineContent, characterCountDelta} = this._lineContext;
@@ -122,6 +112,10 @@ export class CompletionModel {
 
 			const {suggestion, support, container} = item;
 			const filter = support && support.filter || fuzzyContiguousFilter;
+
+			// collect those supports that signaled having
+			// an incomplete result
+			this._isIncomplete = this._isIncomplete || container.incomplete;
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
@@ -159,12 +153,6 @@ export class CompletionModel {
 			if (score > topScore) {
 				topScore = score;
 				this._topScoreIdx = this._filteredItems.length - 1;
-			}
-
-			// collect those supports that signaled having
-			// an incomplete result
-			if (container.incomplete && this._incomplete.indexOf(support) < 0) {
-				this._incomplete.push(support);
 			}
 
 			// update stats

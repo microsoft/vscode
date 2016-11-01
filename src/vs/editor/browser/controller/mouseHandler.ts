@@ -287,7 +287,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 			shouldHandle = false;
 		}
 
-		var focus = () => {
+		let focus = () => {
 			// In IE11, if the focus is in the browser's address bar and
 			// then you click in the editor, calling preventDefault()
 			// will not move focus properly (focus remains the address bar)

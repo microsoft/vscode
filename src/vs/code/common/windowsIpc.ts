@@ -28,12 +28,10 @@ export class WindowEventChannel implements IWindowEventChannel {
 
 	call(command: string, args?: any): any {
 		switch (command) {
-			case 'event:onNewWindowOpen':
-				return eventToCall(this.onNewWindowOpen);
-			case 'event:onWindowFocus':
-				return eventToCall(this.onWindowFocus);
+			case 'event:onNewWindowOpen': return eventToCall(this.onNewWindowOpen);
+			case 'event:onWindowFocus': return eventToCall(this.onWindowFocus);
+			default: return TPromise.wrapError('invalid command');
 		}
-		return TPromise.wrapError('invalid command');
 	}
 }
 
@@ -44,12 +42,8 @@ export class WindowEventChannelClient implements IWindowEventService {
 	constructor(private channel: IWindowEventChannel) { }
 
 	private _onNewWindowOpen: Event<number> = eventFromCall<number>(this.channel, 'event:onNewWindowOpen');
-	get onNewWindowOpen(): Event<number> {
-		return this._onNewWindowOpen;
-	}
+	get onNewWindowOpen(): Event<number> { return this._onNewWindowOpen; }
 
 	private _onWindowFocus: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowFocus');
-	get onWindowFocus(): Event<number> {
-		return this._onWindowFocus;
-	}
+	get onWindowFocus(): Event<number> { return this._onWindowFocus; }
 }

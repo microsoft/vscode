@@ -19,13 +19,13 @@ import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from '../common/extensions';
-import { ExtensionsWorkbenchService } from './extensionsWorkbenchService';
+import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction,
 	ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, UpdateAllAction, OpenExtensionsFolderAction, ConfigureWorkspaceRecommendedExtensionsAction, InstallVSIXAction,
 	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction
 } from './extensionsActions';
-import { ExtensionsInput } from './extensionsInput';
+import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from './extensionEditor';
 import { StatusUpdater } from './extensionsViewlet';

@@ -77,7 +77,7 @@ suite('CompletionModel', function () {
 
 	test('complete/incomplete', function () {
 
-		assert.equal(model.incomplete.length, 0);
+		assert.equal(model.incomplete, false);
 
 		let incompleteModel = new CompletionModel([
 			createSuggestItem('foo', 3, true),
@@ -86,7 +86,7 @@ suite('CompletionModel', function () {
 				leadingLineContent: 'foo',
 				characterCountDelta: 0
 			});
-		assert.equal(incompleteModel.incomplete.length, 1);
+		assert.equal(incompleteModel.incomplete, true);
 	});
 
 	test('replaceIncomplete', function () {
@@ -95,17 +95,15 @@ suite('CompletionModel', function () {
 		const incompleteItem = createSuggestItem('foofoo', 1, true, { lineNumber: 1, column: 2 });
 
 		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: 'foo', characterCountDelta: 0 });
-		assert.equal(model.incomplete.length, 1);
-		assert.equal(model.incomplete[0], incompleteItem.support);
+		assert.equal(model.incomplete, true);
 		assert.equal(model.items.length, 2);
 
-		const newCompleteItem = [
-			createSuggestItem('foofoo', 1, false, { lineNumber: 1, column: 3 }),
-			createSuggestItem('foofoo2', 1, false, { lineNumber: 1, column: 3 })
-		];
-		model.replaceIncomplete(newCompleteItem, (a, b) => 0);
-		assert.equal(model.incomplete.length, 0);
-		assert.equal(model.items.length, 3);
+		const {complete, incomplete} = model.resolveIncompleteInfo();
+
+		assert.equal(incomplete.length, 1);
+		assert.ok(incomplete[0] === incompleteItem.support);
+		assert.equal(complete.length, 1);
+		assert.ok(complete[0] === completeItem);
 	});
 
 	function assertTopScore(lineContent: string, expected: number, ...suggestionLabels: string[]): void {

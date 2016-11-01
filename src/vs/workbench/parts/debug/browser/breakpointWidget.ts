@@ -85,7 +85,7 @@ export class BreakpointWidget extends ZoneWidget {
 	protected _fillContainer(container: HTMLElement): void {
 		dom.addClass(container, 'breakpoint-widget monaco-editor-background');
 		const uri = this.editor.getModel().uri;
-		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.uri.toString() === uri.toString()).pop();
 
 		let selected = BreakpointWidget.lastSelected;
 		if (breakpoint && breakpoint.condition) {
@@ -124,10 +124,9 @@ export class BreakpointWidget extends ZoneWidget {
 				if (success) {
 					// if there is already a breakpoint on this location - remove it.
 					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
-						.filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+						.filter(bp => bp.lineNumber === this.lineNumber && bp.uri.toString() === uri.toString()).pop();
 
 					const raw: debug.IRawBreakpoint = {
-						uri,
 						lineNumber: this.lineNumber,
 						enabled: true,
 						condition: oldBreakpoint && oldBreakpoint.condition,
@@ -143,7 +142,7 @@ export class BreakpointWidget extends ZoneWidget {
 						this.debugService.removeBreakpoints(oldBreakpoint.getId()).done(null, errors.onUnexpectedError);
 					}
 
-					this.debugService.addBreakpoints([raw]).done(null, errors.onUnexpectedError);
+					this.debugService.addBreakpoints(uri, [raw]).done(null, errors.onUnexpectedError);
 				}
 
 				this.dispose();

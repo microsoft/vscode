@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
+import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
+import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
-import uuid = require('vs/base/common/uuid');
-import objects = require('vs/base/common/objects');
+import { generateUuid } from 'vs/base/common/uuid';
+import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
-import types = require('vs/base/common/types');
-import arrays = require('vs/base/common/arrays');
+import { isObject, isString } from 'vs/base/common/types';
+import { distinct } from 'vs/base/common/arrays';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 const MAX_REPL_LENGTH = 10000;
@@ -67,9 +68,9 @@ export class KeyValueOutputElement extends OutputElement {
 				this._valueName = 'null';
 			} else if (Array.isArray(this.valueObj)) {
 				this._valueName = `Array[${this.valueObj.length}]`;
-			} else if (types.isObject(this.valueObj)) {
+			} else if (isObject(this.valueObj)) {
 				this._valueName = 'Object';
-			} else if (types.isString(this.valueObj)) {
+			} else if (isString(this.valueObj)) {
 				this._valueName = `"${massageValue(this.valueObj)}"`;
 			} else {
 				this._valueName = String(this.valueObj);
@@ -87,7 +88,7 @@ export class KeyValueOutputElement extends OutputElement {
 		if (!this.children) {
 			if (Array.isArray(this.valueObj)) {
 				this.children = (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map((v, index) => new KeyValueOutputElement(String(index), v, null));
-			} else if (types.isObject(this.valueObj)) {
+			} else if (isObject(this.valueObj)) {
 				this.children = Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map(key => new KeyValueOutputElement(key, this.valueObj[key], null));
 			} else {
 				this.children = [];
@@ -179,7 +180,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 			count,
 			filter
 		}).then(response => {
-			return response && response.body && response.body.variables ? arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
+			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v), v => v.name).map(
 				v => new Variable(this.stackFrame, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.type)
 			) : [];
 		}, (e: Error) => [new Variable(this.stackFrame, this, 0, null, e.message, '', 0, 0, null, false)]);
@@ -204,7 +205,7 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 	public available: boolean;
 	public type: string;
 
-	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
+	constructor(public name: string, cacheChildren: boolean, id = generateUuid()) {
 		super(null, 0, id, cacheChildren, 0, 0);
 		this.value = Expression.DEFAULT_VALUE;
 		this.available = false;
@@ -305,6 +306,9 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 			if (response && response.body) {
 				this.value = response.body.value;
 				this.type = response.body.type || this.type;
+				this.reference = response.body.variablesReference;
+				this.namedVariables = response.body.namedVariables;
+				this.indexedVariables = response.body.indexedVariables;
 			}
 			// TODO@Isidor notify stackFrame that a change has happened so watch expressions get revelauted
 		}, err => {
@@ -434,7 +438,10 @@ export class Thread implements debug.IThread {
 				return [];
 			}
 
-			this.stoppedDetails.totalFrames = response.body.totalFrames;
+			if (this.stoppedDetails) {
+				this.stoppedDetails.totalFrames = response.body.totalFrames;
+			}
+
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
 					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
@@ -443,7 +450,10 @@ export class Thread implements debug.IThread {
 				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
 			});
 		}, (err: Error) => {
-			this.stoppedDetails.framesErrorMessage = err.message;
+			if (this.stoppedDetails) {
+				this.stoppedDetails.framesErrorMessage = err.message;
+			}
+
 			return [];
 		});
 	}
@@ -512,7 +522,7 @@ export class Process implements debug.IProcess {
 					// Only update the details if all the threads are stopped
 					// because we don't want to overwrite the details of other
 					// threads that have stopped for a different reason
-					this.threads[ref].stoppedDetails = objects.clone(data.stoppedDetails);
+					this.threads[ref].stoppedDetails = clone(data.stoppedDetails);
 					this.threads[ref].stopped = true;
 					this.threads[ref].clearCallStack();
 				});
@@ -563,7 +573,6 @@ export class Process implements debug.IProcess {
 	}
 }
 
-// TODO@Isidor breakpoint should not have a pointer to source. Source should live inside a stack frame
 export class Breakpoint implements debug.IBreakpoint {
 
 	public lineNumber: number;
@@ -573,7 +582,7 @@ export class Breakpoint implements debug.IBreakpoint {
 	private id: string;
 
 	constructor(
-		public source: Source,
+		public uri: uri,
 		public desiredLineNumber: number,
 		public enabled: boolean,
 		public condition: string,
@@ -584,7 +593,7 @@ export class Breakpoint implements debug.IBreakpoint {
 		}
 		this.lineNumber = this.desiredLineNumber;
 		this.verified = false;
-		this.id = uuid.generateUuid();
+		this.id = generateUuid();
 	}
 
 	public getId(): string {
@@ -600,7 +609,7 @@ export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
 
 	constructor(public name: string, public enabled: boolean, public hitCondition: string) {
 		this.verified = false;
-		this.id = uuid.generateUuid();
+		this.id = generateUuid();
 	}
 
 	public getId(): string {
@@ -613,7 +622,7 @@ export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
 	private id: string;
 
 	constructor(public filter: string, public label: string, public enabled: boolean) {
-		this.id = uuid.generateUuid();
+		this.id = generateUuid();
 	}
 
 	public getId(): string {
@@ -632,10 +641,10 @@ export class Model implements debug.IModel {
 	private _onDidChangeREPLElements: Emitter<void>;
 
 	constructor(
-		private breakpoints: debug.IBreakpoint[],
+		private breakpoints: Breakpoint[],
 		private breakpointsActivated: boolean,
-		private functionBreakpoints: debug.IFunctionBreakpoint[],
-		private exceptionBreakpoints: debug.IExceptionBreakpoint[],
+		private functionBreakpoints: FunctionBreakpoint[],
+		private exceptionBreakpoints: ExceptionBreakpoint[],
 		private watchExpressions: Expression[]
 	) {
 		this.processes = [];
@@ -655,8 +664,11 @@ export class Model implements debug.IModel {
 		return this.processes;
 	}
 
-	public addProcess(name: string, session: debug.ISession & debug.ITreeElement): void {
-		this.processes.push(new Process(name, session));
+	public addProcess(name: string, session: debug.ISession & debug.ITreeElement): Process {
+		const process = new Process(name, session);
+		this.processes.push(process);
+
+		return process;
 	}
 
 	public removeProcess(id: string): void {
@@ -696,7 +708,7 @@ export class Model implements debug.IModel {
 		}
 	}
 
-	public getBreakpoints(): debug.IBreakpoint[] {
+	public getBreakpoints(): Breakpoint[] {
 		return this.breakpoints;
 	}
 
@@ -726,9 +738,9 @@ export class Model implements debug.IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public addBreakpoints(rawData: debug.IRawBreakpoint[]): void {
+	public addBreakpoints(uri: uri, rawData: debug.IRawBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
+			new Breakpoint(uri, rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
 		this.breakpointsActivated = true;
 		this._onDidChangeBreakpoints.fire();
 	}
@@ -921,6 +933,14 @@ export class Model implements debug.IModel {
 
 	public removeWatchExpressions(id: string = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
+		this._onDidChangeWatchExpressions.fire();
+	}
+
+	public moveWatchExpression(id: string, position: number): void {
+		const we = this.watchExpressions.filter(we => we.getId() === id).pop();
+		this.watchExpressions = this.watchExpressions.filter(we => we.getId() !== id);
+		this.watchExpressions = this.watchExpressions.slice(0, position).concat(we, this.watchExpressions.slice(position));
+
 		this._onDidChangeWatchExpressions.fire();
 	}
 

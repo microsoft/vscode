@@ -30,7 +30,6 @@ import { ExtHostLanguages } from 'vs/workbench/api/node/extHostLanguages';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
-import Modes = require('vs/editor/common/modes');
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -44,18 +43,27 @@ import * as paths from 'vs/base/common/paths';
 import { realpathSync } from 'fs';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { MainContext, ExtHostContext, InstanceCollection, IInitConfiguration } from './extHost.protocol';
+import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
 }
 
+function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
+	if (extension.enableProposedApi) {
+		return fn;
+	} else {
+		return <any>(() => {
+			throw new Error(`${extension.id} cannot access proposed api`);
+		});
+	}
+}
+
 /**
  * This method instantiates and returns the extension API surface
  */
 export function createApiFactory(initDataConfiguration: IInitConfiguration, initTelemetryInfo: ITelemetryInfo, threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService): IExtensionApiFactory {
-
-
 
 	// Addressable instances
 	const col = new InstanceCollection();
@@ -81,16 +89,14 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 	const extHostWorkspace = new ExtHostWorkspace(threadService, workspacePath);
 	const extHostLanguages = new ExtHostLanguages(threadService);
 
-	// Error forwarding
-	const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
-	errors.setUnexpectedErrorHandler((err) => {
-		mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err));
-	});
-
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
 
 	return function (extension: IExtensionDescription): typeof vscode {
+
+		if (extension.enableProposedApi) {
+			console.warn(`${extension.name} (${extension.id}) uses PROPOSED API which is subject to change and removal without notice`);
+		}
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
@@ -222,30 +228,34 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 			createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
 				return extHostEditors.createTextEditorDecorationType(options);
 			},
-			onDidChangeActiveTextEditor: extHostEditors.onDidChangeActiveTextEditor.bind(extHostEditors),
+			onDidChangeActiveTextEditor(listener, thisArg?, disposables?) {
+				return extHostEditors.onDidChangeActiveTextEditor(listener, thisArg, disposables);
+			},
 			onDidChangeVisibleTextEditors(listener, thisArg, disposables) {
 				return extHostEditors.onDidChangeVisibleTextEditors(listener, thisArg, disposables);
 			},
-			onDidChangeTextEditorSelection: (listener: (e: vscode.TextEditorSelectionChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
+			onDidChangeTextEditorSelection(listener: (e: vscode.TextEditorSelectionChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
 				return extHostEditors.onDidChangeTextEditorSelection(listener, thisArgs, disposables);
 			},
-			onDidChangeTextEditorOptions: (listener: (e: vscode.TextEditorOptionsChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
+			onDidChangeTextEditorOptions(listener: (e: vscode.TextEditorOptionsChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
 				return extHostEditors.onDidChangeTextEditorOptions(listener, thisArgs, disposables);
 			},
 			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
 				return extHostEditors.onDidChangeTextEditorViewColumn(listener, thisArg, disposables);
 			},
-			onDidCloseTerminal: extHostTerminalService.onDidCloseTerminal.bind(extHostTerminalService),
-			showInformationMessage: (message, ...items) => {
+			onDidCloseTerminal(listener, thisArg?, disposables?) {
+				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
+			},
+			showInformationMessage(message, ...items) {
 				return extHostMessageService.showMessage(Severity.Info, message, items);
 			},
-			showWarningMessage: (message, ...items) => {
+			showWarningMessage(message, ...items) {
 				return extHostMessageService.showMessage(Severity.Warning, message, items);
 			},
-			showErrorMessage: (message, ...items) => {
+			showErrorMessage(message, ...items) {
 				return extHostMessageService.showMessage(Severity.Error, message, items);
 			},
-			showQuickPick: (items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) => {
+			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
@@ -262,7 +272,11 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 			},
 			createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
 				return extHostTerminalService.createTerminal(name, shellPath, shellArgs);
-			}
+			},
+			// proposed API
+			sampleFunction: proposedApiFunction(extension, () => {
+				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', []);
+			})
 		};
 
 		// namespace: workspace
@@ -371,7 +385,7 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 			DocumentLink: extHostTypes.DocumentLink,
 			ViewColumn: extHostTypes.ViewColumn,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
-			IndentAction: Modes.IndentAction,
+			IndentAction: languageConfiguration.IndentAction,
 			OverviewRulerLane: EditorCommon.OverviewRulerLane,
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			EndOfLine: extHostTypes.EndOfLine,

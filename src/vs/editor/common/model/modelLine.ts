@@ -195,8 +195,6 @@ export class ModelLine {
 	}
 
 	public getTokens(map: TokensInflatorMap): LineTokens {
-		const textLength = this._text.length;
-
 		let lineTokens = this._lineTokens;
 		if (!lineTokens) {
 			if (this._text.length === 0) {
@@ -206,7 +204,7 @@ export class ModelLine {
 			}
 		}
 
-		return new LineTokens(map, lineTokens, this.getModeTransitions(map.topLevelModeId), textLength);
+		return new LineTokens(map, lineTokens, this.getModeTransitions(map.topLevelModeId), this._text);
 	}
 
 	// --- END TOKENS

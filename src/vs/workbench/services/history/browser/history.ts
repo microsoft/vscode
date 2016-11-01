@@ -15,7 +15,9 @@ import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
 import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEventService } from 'vs/platform/event/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { FileChangesEvent, EventType, FileChangeType } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -49,30 +51,22 @@ export class EditorState {
 
 	public justifiesNewPushState(other: EditorState): boolean {
 		if (!this._editorInput.matches(other._editorInput)) {
-			// push different editor inputs
-			return true;
+			return true; // push different editor inputs
 		}
 
 		if (!Selection.isISelection(this._selection) || !Selection.isISelection(other._selection)) {
-			// unknown selections
-			return true;
+			return true; // unknown selections
 		}
 
 		const liftedSelection = Selection.liftSelection(this._selection);
 		const liftedOtherSelection = Selection.liftSelection(other._selection);
 
 		if (Math.abs(liftedSelection.getStartPosition().lineNumber - liftedOtherSelection.getStartPosition().lineNumber) < EditorState.EDITOR_SELECTION_THRESHOLD) {
-			// ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
-			return false;
+			return false; // ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
 		}
 
 		return true;
 	}
-}
-
-interface ILegacySerializedEditorInput {
-	id: string;
-	value: string;
 }
 
 interface ISerializedFileEditorInput {
@@ -262,6 +256,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IIntegrityService integrityService: IIntegrityService
 	) {
@@ -280,6 +275,15 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.toUnbind.push(this.lifecycleService.onShutdown(() => this.save()));
 		this.toUnbind.push(this.editorGroupService.onEditorOpenFail(editor => this.remove(editor)));
 		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(event => this.onEditorClosed(event)));
+
+		// File changes
+		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+	}
+
+	private onFileChanges(e: FileChangesEvent): void {
+		if (e.gotDeleted()) {
+			this.remove(e); // remove from history files that got deleted or moved
+		}
 	}
 
 	private onEditorClosed(event: IGroupEvent): void {
@@ -302,7 +306,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	public reopenLastClosedEditor(): void {
-		this.ensureLoaded();
+		this.ensureHistoryLoaded();
 
 		const stacks = this.editorGroupService.getStacksModel();
 
@@ -331,7 +335,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	public clear(): void {
-		this.ensureLoaded();
+		this.ensureHistoryLoaded();
 
 		this.index = -1;
 		this.stack.splice(0);
@@ -383,7 +387,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return;
 		}
 
-		this.ensureLoaded();
+		this.ensureHistoryLoaded();
 
 		const historyInput = this.preferResourceInput(input);
 
@@ -406,33 +410,18 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	public remove(input: IEditorInput | IResourceInput): void {
-		this.removeFromHistory(input);
-		this.removeFromStack(input);
-		this.removeFromRecentlyClosedFiles(input);
+	public remove(input: IEditorInput | IResourceInput): void;
+	public remove(input: FileChangesEvent): void;
+	public remove(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
+		this.removeFromHistory(arg1);
+		this.removeFromStack(arg1);
+		this.removeFromRecentlyClosedFiles(arg1);
 	}
 
-	private removeFromHistory(input: IEditorInput | IResourceInput, index?: number): void {
-		this.ensureLoaded();
+	private removeFromHistory(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
+		this.ensureHistoryLoaded();
 
-		if (typeof index !== 'number') {
-			index = this.indexOf(input);
-		}
-
-		if (index >= 0) {
-			this.history.splice(index, 1);
-		}
-	}
-
-	private indexOf(input: IEditorInput | IResourceInput): number {
-		for (let i = 0; i < this.history.length; i++) {
-			const entry = this.history[i];
-			if (this.matches(input, entry)) {
-				return i;
-			}
-		}
-
-		return -1;
+		this.history = this.history.filter(e => !this.matches(arg1, e));
 	}
 
 	private handleEditorEventInStack(editor: IBaseEditor, storeSelection: boolean): void {
@@ -567,23 +556,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		return s1.startLineNumber === s2.startLineNumber; // we consider the history entry same if we are on the same line
 	}
 
-	private removeFromStack(input: IEditorInput | IResourceInput): void {
-		this.stack.forEach((e, i) => {
-			if (this.matches(input, e.input)) {
-				this.stack.splice(i, 1);
-				if (this.index >= i) {
-					this.index--; // reduce index if the element is before index
-				}
-			}
-		});
+	private removeFromStack(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
+		this.stack = this.stack.filter(e => !this.matches(arg1, e.input));
+		this.index = this.stack.length - 1; // reset index
 	}
 
-	private removeFromRecentlyClosedFiles(input: IEditorInput | IResourceInput): void {
-		this.recentlyClosedFiles.forEach((e, i) => {
-			if (this.matchesFile(e.resource, input)) {
-				this.recentlyClosedFiles.splice(i, 1);
-			}
-		});
+	private removeFromRecentlyClosedFiles(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
+		this.recentlyClosedFiles = this.recentlyClosedFiles.filter(e => !this.matchesFile(e.resource, arg1));
 	}
 
 	private isFileOpened(resource: URI, group: IEditorGroup): boolean {
@@ -598,46 +577,60 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		return group.getEditors().some(e => this.matchesFile(resource, e));
 	}
 
-	private matches(inputA: IEditorInput | IResourceInput, inputB: IEditorInput | IResourceInput): boolean {
-		if (inputA instanceof EditorInput && inputB instanceof EditorInput) {
-			return inputA.matches(inputB);
+	private matches(arg1: IEditorInput | IResourceInput | FileChangesEvent, inputB: IEditorInput | IResourceInput): boolean {
+		if (arg1 instanceof FileChangesEvent) {
+			if (inputB instanceof EditorInput) {
+				return false; // we only support this for IResourceInput
+			}
+
+			const resourceInputB = inputB as IResourceInput;
+
+			return arg1.contains(resourceInputB.resource, FileChangeType.DELETED);
 		}
 
-		if (inputA instanceof EditorInput) {
-			return this.matchesFile((inputB as IResourceInput).resource, inputA);
+		if (arg1 instanceof EditorInput && inputB instanceof EditorInput) {
+			return arg1.matches(inputB);
+		}
+
+		if (arg1 instanceof EditorInput) {
+			return this.matchesFile((inputB as IResourceInput).resource, arg1);
 		}
 
 		if (inputB instanceof EditorInput) {
-			return this.matchesFile((inputA as IResourceInput).resource, inputB);
+			return this.matchesFile((arg1 as IResourceInput).resource, inputB);
 		}
 
-		const resourceInputA = inputA as IResourceInput;
+		const resourceInputA = arg1 as IResourceInput;
 		const resourceInputB = inputB as IResourceInput;
 
 		return resourceInputA && resourceInputB && resourceInputA.resource.toString() === resourceInputB.resource.toString();
 	}
 
-	private matchesFile(resource: URI, input: IEditorInput | IResourceInput): boolean {
-		if (input instanceof EditorInput) {
-			const fileInput = asFileEditorInput(input);
+	private matchesFile(resource: URI, arg2: IEditorInput | IResourceInput | FileChangesEvent): boolean {
+		if (arg2 instanceof FileChangesEvent) {
+			return arg2.contains(resource, FileChangeType.DELETED);
+		}
+
+		if (arg2 instanceof EditorInput) {
+			const fileInput = asFileEditorInput(arg2);
 
 			return fileInput && fileInput.getResource().toString() === resource.toString();
 		}
 
-		const resourceInput = input as IResourceInput;
+		const resourceInput = arg2 as IResourceInput;
 
 		return resourceInput && resourceInput.resource.toString() === resource.toString();
 	}
 
 	public getHistory(): (IEditorInput | IResourceInput)[] {
-		this.ensureLoaded();
+		this.ensureHistoryLoaded();
 
 		return this.history.slice(0);
 	}
 
-	private ensureLoaded(): void {
+	private ensureHistoryLoaded(): void {
 		if (!this.loaded) {
-			this.load();
+			this.loadHistory();
 		}
 
 		this.loaded = true;
@@ -659,8 +652,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
 
-	private load(): void {
-		let entries: (ILegacySerializedEditorInput | ISerializedFileEditorInput)[] = [];
+	private loadHistory(): void {
+		let entries: ISerializedFileEditorInput[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
@@ -668,24 +661,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		this.history = entries.map(entry => {
-			const serializedLegacyInput = entry as ILegacySerializedEditorInput;
 			const serializedFileInput = entry as ISerializedFileEditorInput;
-
-			// Legacy support (TODO@Ben remove me - migration)
-			if (serializedLegacyInput.id) {
-				const factory = this.registry.getEditorInputFactory(serializedLegacyInput.id);
-				if (factory && typeof serializedLegacyInput.value === 'string') {
-					const fileInput = asFileEditorInput(factory.deserialize(this.instantiationService, serializedLegacyInput.value));
-					if (fileInput) {
-						return { resource: fileInput.getResource() } as IResourceInput;
-					}
-
-					return void 0;
-				}
-			}
-
-			// New resource input support
-			else if (serializedFileInput.resource) {
+			if (serializedFileInput.resource) {
 				return { resource: URI.parse(serializedFileInput.resource) } as IResourceInput;
 			}
 

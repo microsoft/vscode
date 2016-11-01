@@ -452,9 +452,13 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			.position(this.options.margin.top, this.options.margin.right, this.options.margin.bottom, this.options.margin.left, 'relative')
 			.size(this.workbenchSize.width, this.workbenchSize.height);
 
-		// Bug on Chrome: Sometimes Chrome wants to scroll the workbench container on layout changes. The fix is to reset scrollTop in this case.
-		if (this.workbenchContainer.getHTMLElement().scrollTop > 0) {
-			this.workbenchContainer.getHTMLElement().scrollTop = 0;
+		// Bug on Chrome: Sometimes Chrome wants to scroll the workbench container on layout changes. The fix is to reset scrolling in this case.
+		const workbenchContainer = this.workbenchContainer.getHTMLElement();
+		if (workbenchContainer.scrollTop > 0) {
+			workbenchContainer.scrollTop = 0;
+		}
+		if (workbenchContainer.scrollLeft > 0) {
+			workbenchContainer.scrollLeft = 0;
 		}
 
 		// Editor Part and Panel part

@@ -316,7 +316,7 @@ export class FoldingController implements IFoldingController {
 			for (let i = 0; i < this.decorations.length; i++) {
 				let dec = this.decorations[i];
 				let decRange = dec.getDecorationRange(model);
-				if (decRange.startLineNumber === lineNumber) {
+				if (decRange && decRange.startLineNumber === lineNumber) {
 					if (iconClicked || dec.isCollapsed) {
 						dec.setCollapsed(!dec.isCollapsed, changeAccessor);
 						this.updateHiddenAreas(lineNumber);
@@ -334,6 +334,9 @@ export class FoldingController implements IFoldingController {
 		let hiddenAreas: editorCommon.IRange[] = [];
 		this.decorations.filter(dec => dec.isCollapsed).forEach(dec => {
 			let decRange = dec.getDecorationRange(model);
+			if (!decRange) {
+				return;
+			}
 			hiddenAreas.push({
 				startLineNumber: decRange.startLineNumber + 1,
 				startColumn: 1,
@@ -574,7 +577,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 
 	constructor() {
 		super({
-			id: 'editor.unFoldRecursively',
+			id: 'editor.unfoldRecursively',
 			label: nls.localize('unFoldRecursivelyAction.label', "Unfold Recursively"),
 			alias: 'Unfold Recursively',
 			precondition: null,

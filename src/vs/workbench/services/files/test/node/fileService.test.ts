@@ -21,12 +21,7 @@ import uuid = require('vs/base/common/uuid');
 import extfs = require('vs/base/node/extfs');
 import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
-
-function onError(error:Error, done: () => void): void {
-	assert.fail(error);
-
-	done();
-}
+import { onError } from 'vs/test/utils/servicesTestUtils';
 
 suite('FileService', () => {
 	let events: utils.TestEventService;
@@ -34,13 +29,16 @@ suite('FileService', () => {
 	let parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	let testDir: string;
 
-
 	setup(function (done) {
 		let id = uuid.generateUuid();
 		testDir = path.join(parentDir, id);
 		let sourceDir = require.toUrl('./fixtures/service');
 
-		extfs.copy(sourceDir, testDir, () => {
+		extfs.copy(sourceDir, testDir, (error) => {
+			if (error) {
+				return onError(error, done);
+			}
+
 			events = new utils.TestEventService();
 			service = new FileService(testDir, { disableWatcher: true }, events, null, null);
 			done();

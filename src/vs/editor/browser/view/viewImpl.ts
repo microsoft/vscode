@@ -98,7 +98,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this._renderAnimationFrame = null;
 		this.outgoingEventBus = new EventEmitter();
 
-		var viewController = new ViewController(model, triggerCursorHandler, this.outgoingEventBus, commandService);
+		let viewController = new ViewController(model, triggerCursorHandler, this.outgoingEventBus, commandService);
 
 		this.listenersToRemove = [];
 		this.listenersToDispose = [];
@@ -159,7 +159,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	}
 
 	private _flushAnyAccumulatedEvents(): void {
-		var toEmit = this.accumulatedModelEvents;
+		let toEmit = this.accumulatedModelEvents;
 		this.accumulatedModelEvents = [];
 		if (toEmit.length > 0) {
 			this.eventDispatcher.emitMany(toEmit);
@@ -217,24 +217,24 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.viewParts.push(this.viewZones);
 
 		// Decorations overview ruler
-		var decorationsOverviewRuler = new DecorationsOverviewRuler(
+		let decorationsOverviewRuler = new DecorationsOverviewRuler(
 			this._context, this.layoutProvider.getScrollHeight(),
 			(lineNumber: number) => this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber)
 		);
 		this.viewParts.push(decorationsOverviewRuler);
 
 
-		var scrollDecoration = new ScrollDecorationViewPart(this._context);
+		let scrollDecoration = new ScrollDecorationViewPart(this._context);
 		this.viewParts.push(scrollDecoration);
 
-		var contentViewOverlays = new ContentViewOverlays(this._context, this.layoutProvider);
+		let contentViewOverlays = new ContentViewOverlays(this._context, this.layoutProvider);
 		this.viewParts.push(contentViewOverlays);
 		contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this._context, this.layoutProvider));
 		contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
 
-		var marginViewOverlays = new MarginViewOverlays(this._context, this.layoutProvider);
+		let marginViewOverlays = new MarginViewOverlays(this._context, this.layoutProvider);
 		this.viewParts.push(marginViewOverlays);
 		marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
@@ -252,7 +252,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.overlayWidgets = new ViewOverlayWidgets(this._context);
 		this.viewParts.push(this.overlayWidgets);
 
-		var rulers = new Rulers(this._context, this.layoutProvider);
+		let rulers = new Rulers(this._context, this.layoutProvider);
 		this.viewParts.push(rulers);
 
 		// -------------- Wire dom nodes up
@@ -261,7 +261,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.linesContentContainer.style.position = 'absolute';
 
 		if (decorationsOverviewRuler) {
-			var overviewRulerData = this.layoutProvider.getOverviewRulerInsertData();
+			let overviewRulerData = this.layoutProvider.getOverviewRulerInsertData();
 			overviewRulerData.parent.insertBefore(decorationsOverviewRuler.getDomNode(), overviewRulerData.insertBefore);
 		}
 
@@ -377,7 +377,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					throw new Error('ViewImpl.pointerHandler.visibleRangeForPosition2: View is disposed');
 				}
 				this._flushAccumulatedAndRenderNow();
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), 0);
+				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), 0);
 				if (!visibleRanges) {
 					return null;
 				}
@@ -403,8 +403,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					throw new Error('ViewImpl.keyboardHandler.visibleRangeForPositionRelativeToEditor: View is disposed');
 				}
 				this._flushAccumulatedAndRenderNow();
-				var linesViewPortData = this.layoutProvider.getLinesViewportData();
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), linesViewPortData.visibleRangesDeltaTop);
+				let linesViewPortData = this.layoutProvider.getLinesViewportData();
+				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), linesViewPortData.visibleRangesDeltaTop);
 				if (!visibleRanges) {
 					return null;
 				}
@@ -437,7 +437,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			/* tslint:disable:no-unused-variable */
 			// Access overflowGuardContainer.clientWidth to prevent relayouting bug in Chrome
 			// See Bug 19676: Editor misses a layout event
-			var clientWidth = this.overflowGuardContainer.clientWidth + 'px';
+			let clientWidth = this.overflowGuardContainer.clientWidth + 'px';
 			/* tslint:enable:no-unused-variable */
 		}
 		StyleMutator.setWidth(this.domNode, layoutInfo.width);
@@ -516,7 +516,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.viewLines.dispose();
 
 		// Destroy IViewPart second
-		for (var i = 0, len = this.viewParts.length; i < len; i++) {
+		for (let i = 0, len = this.viewParts.length; i < len; i++) {
 			this.viewParts[i].dispose();
 		}
 		this.viewParts = [];
@@ -567,11 +567,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.getVerticalOffsetForPosition: View is disposed');
 					}
-					var modelPosition = this._context.model.validateModelPosition({
+					let modelPosition = this._context.model.validateModelPosition({
 						lineNumber: modelLineNumber,
 						column: modelColumn
 					});
-					var viewPosition = this._context.model.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
+					let viewPosition = this._context.model.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
 					return this.layoutProvider.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 				},
 				delegateVerticalScrollbarMouseDown: (browserEvent: MouseEvent) => {
@@ -584,13 +584,13 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.getOffsetForColumn: View is disposed');
 					}
-					var modelPosition = this._context.model.validateModelPosition({
+					let modelPosition = this._context.model.validateModelPosition({
 						lineNumber: modelLineNumber,
 						column: modelColumn
 					});
-					var viewPosition = this._context.model.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
+					let viewPosition = this._context.model.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
 					this._flushAccumulatedAndRenderNow();
-					var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column), 0);
+					let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column), 0);
 					if (!visibleRanges) {
 						return -1;
 					}
@@ -605,9 +605,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.getCenteredRangeInViewport: View is disposed');
 		}
-		var viewLineNumber = this.layoutProvider.getCenteredViewLineNumberInViewport();
-		var viewModel = this._context.model;
-		var currentCenteredViewRange = new Range(viewLineNumber, 1, viewLineNumber, viewModel.getLineMaxColumn(viewLineNumber));
+		let viewLineNumber = this.layoutProvider.getCenteredViewLineNumberInViewport();
+		let viewModel = this._context.model;
+		let currentCenteredViewRange = new Range(viewLineNumber, 1, viewLineNumber, viewModel.getLineMaxColumn(viewLineNumber));
 		return viewModel.convertViewRangeToModelRange(currentCenteredViewRange);
 	}
 
@@ -676,11 +676,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.change: View is disposed');
 		}
-		var zonesHaveChanged = false;
+		let zonesHaveChanged = false;
 		this._renderOnce(() => {
 			// Handle events to avoid "adjusting" newly inserted view zones
 			this._flushAnyAccumulatedEvents();
-			var changeAccessor: editorBrowser.IViewZoneChangeAccessor = {
+			let changeAccessor: editorBrowser.IViewZoneChangeAccessor = {
 				addZone: (zone: editorBrowser.IViewZone): number => {
 					zonesHaveChanged = true;
 					return this.viewZones.addZone(zone);
@@ -699,7 +699,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 				}
 			};
 
-			var r: any = safeInvoke1Arg(callback, changeAccessor);
+			let r: any = safeInvoke1Arg(callback, changeAccessor);
 
 			// Invalidate changeAccessor
 			changeAccessor.addZone = null;
@@ -836,11 +836,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 	private createRenderingContext(linesViewportData: ViewLinesViewportData): IRenderingContext {
 
-		var vInfo = this.layoutProvider.getCurrentViewport();
+		let vInfo = this.layoutProvider.getCurrentViewport();
 
-		var deltaTop = linesViewportData.visibleRangesDeltaTop;
+		let deltaTop = linesViewportData.visibleRangesDeltaTop;
 
-		var r: IRenderingContext = {
+		let r: IRenderingContext = {
 			linesViewportData: linesViewportData,
 			scrollWidth: this.layoutProvider.getScrollWidth(),
 			scrollHeight: this.layoutProvider.getScrollHeight(),
@@ -858,8 +858,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			},
 
 			getViewportVerticalOffsetForLineNumber: (lineNumber: number) => {
-				var verticalOffset = this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber);
-				var scrolledTop = this.layoutProvider.getScrolledTopFromAbsoluteTop(verticalOffset);
+				let verticalOffset = this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber);
+				let scrolledTop = this.layoutProvider.getScrolledTopFromAbsoluteTop(verticalOffset);
 				return scrolledTop;
 			},
 
@@ -870,7 +870,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			},
 
 			visibleRangeForPosition: (position: editorCommon.IPosition) => {
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column), deltaTop);
+				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column), deltaTop);
 				if (!visibleRanges) {
 					return null;
 				}

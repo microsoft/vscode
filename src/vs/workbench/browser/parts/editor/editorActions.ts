@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
+import { mixin } from 'vs/base/common/objects';
 import { EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
@@ -433,15 +434,15 @@ export class OpenToSideAction extends Action {
 	public run(context: any): TPromise<any> {
 		let entry = toEditorQuickOpenEntry(context);
 		if (entry) {
-			let typedInputPromise: TPromise<EditorInput>;
 			const input = entry.getInput();
 			if (input instanceof EditorInput) {
-				typedInputPromise = TPromise.as(input);
-			} else {
-				typedInputPromise = this.editorService.createInput(<IResourceInput>input);
+				return this.editorService.openEditor(input, entry.getOptions(), true);
 			}
 
-			return typedInputPromise.then(typedInput => this.editorService.openEditor(typedInput, entry.getOptions(), true));
+			const resourceInput = input as IResourceInput;
+			resourceInput.options = mixin(resourceInput.options, entry.getOptions());
+
+			return this.editorService.openEditor(resourceInput, true);
 		}
 
 		return TPromise.as(false);
