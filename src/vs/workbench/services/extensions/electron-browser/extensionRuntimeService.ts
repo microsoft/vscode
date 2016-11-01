@@ -29,11 +29,7 @@ export class ExtensionRuntimeService implements IExtensionRuntimeService {
 	_serviceBrand: any;
 
 	private workspace: IWorkspace;
-
-	private installedExtensions: TPromise<IExtensionDescription[]>;
-	private _globalDisabledExtensions: string[];
-	private _workspaceDisabledExtensions: string[];
-
+	private enabledExtensions: TPromise<IExtensionDescription[]>;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -44,37 +40,29 @@ export class ExtensionRuntimeService implements IExtensionRuntimeService {
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		this.workspace = contextService.getWorkspace();
+
+		const disabledExtensions = this.getDisabledExtensions();
+		this.enabledExtensions = this.scanExtensions().then(extensionDescriptions => {
+			return disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.indexOf(`${e.publisher}.${e.name}`) === -1) : extensionDescriptions;
+		});
+
 		extensionManagementService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 	}
 
 	public getEnabledExtensions(): TPromise<IExtensionDescription[]> {
-		if (!this.installedExtensions) {
-			this.installedExtensions = this.scanExtensions();
-		}
-		return this.installedExtensions.then(extensionDescriptions => {
-			const disabledExtensions = this.getDisabledExtensions();
-			return disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.indexOf(`${e.publisher}.${e.name}`) === -1) : extensionDescriptions;
-		});
+		return this.enabledExtensions;
+	}
+
+	public getGloballyDisabledExtensions(): string[] {
+		return this.getDisabledExtensionsFromStorage(StorageScope.GLOBAL);
+	}
+
+	public getWorkspaceDisabledExtensions(): string[] {
+		return this.getDisabledExtensionsFromStorage(StorageScope.WORKSPACE);
 	}
 
 	public canEnable(identifier: string): boolean {
-		if (this.environmentService.disableExtensions) {
-			return false;
-		}
-
-		return this.getDisabledExtensions().indexOf(identifier) !== -1;
-	}
-
-	public isDisabled(identifier: string): boolean {
-		if (this.environmentService.disableExtensions) {
-			return true;
-		}
-
-		return this.getDisabledExtensions().indexOf(identifier) !== -1;
-	}
-
-	public isDisabledGlobally(identifier: string): boolean {
-		return this.globalDisabledExtensions.indexOf(identifier) !== -1;
+		return !this.environmentService.disableExtensions && this.isDisabled(identifier);
 	}
 
 	public setEnablement(identifier: string, enable: boolean, workspace: boolean = false): TPromise<boolean> {
@@ -108,21 +96,13 @@ export class ExtensionRuntimeService implements IExtensionRuntimeService {
 	}
 
 	private getDisabledExtensions(): string[] {
-		return [...this.globalDisabledExtensions, ...this.workspaceDisabledExtensions];
+		const globalDisabledExtensions = this.getGloballyDisabledExtensions();
+		const workspaceDisabledExtensions = this.getWorkspaceDisabledExtensions();
+		return distinct([...workspaceDisabledExtensions, ...globalDisabledExtensions]);
 	}
 
-	private get workspaceDisabledExtensions(): string[] {
-		if (!this._workspaceDisabledExtensions) {
-			this._workspaceDisabledExtensions = this.getDisabledExtensionsFromStorage(StorageScope.WORKSPACE);
-		}
-		return this._workspaceDisabledExtensions;
-	}
-
-	private get globalDisabledExtensions(): string[] {
-		if (!this._globalDisabledExtensions) {
-			this._globalDisabledExtensions = this.getDisabledExtensionsFromStorage(StorageScope.GLOBAL);
-		}
-		return this._globalDisabledExtensions;
+	private isDisabled(identifier: string): boolean {
+		return this.getDisabledExtensions().indexOf(identifier) !== -1;
 	}
 
 	private getDisabledExtensionsFromStorage(scope?: StorageScope): string[] {

@@ -43,7 +43,8 @@ interface IExtensionStateProvider {
 
 class Extension implements IExtension {
 
-	public needsReload = false;
+	public disabledGlobally = false;
+	public disabledForWorkspace = false;
 
 	constructor(
 		private galleryService: IExtensionGalleryService,
@@ -163,10 +164,6 @@ class Extension implements IExtension {
 
 	get outdated(): boolean {
 		return this.gallery && this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
-	}
-
-	get reload(): boolean {
-		return this.needsReload;
 	}
 
 	get telemetryData(): any {
@@ -349,10 +346,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	queryLocal(): TPromise<IExtension[]> {
 		return this.extensionService.getInstalled().then(result => {
 			const installedById = index(this.installed, e => e.local.id);
-
+			const globallyDisabledExtensions = this.extensionRuntimeService.getGloballyDisabledExtensions();
+			const workspaceDisabledExtensions = this.extensionRuntimeService.getWorkspaceDisabledExtensions();
 			this.installed = result.map(local => {
 				const extension = installedById[local.id] || new Extension(this.galleryService, this.stateProvider, local);
 				extension.local = local;
+				extension.disabledGlobally = globallyDisabledExtensions.indexOf(extension.identifier) !== -1;
+				extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(extension.identifier) !== -1;
 				return extension;
 			});
 
@@ -489,7 +489,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		return this.doSetEnablement(extension, enable, workspace).then(reload => {
-			(<Extension>extension).needsReload = reload;
+			// update the disable flags
+			const globallyDisabledExtensions = this.extensionRuntimeService.getGloballyDisabledExtensions();
+			const workspaceDisabledExtensions = this.extensionRuntimeService.getWorkspaceDisabledExtensions();
+			extension.disabledGlobally = globallyDisabledExtensions.indexOf(extension.identifier) !== -1;
+			extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(extension.identifier) !== -1;
+
 			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
 			this._onChange.fire();
 		});
@@ -557,7 +562,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			if (!error) {
 				this.newlyInstalled.push(extension);
 				extension.local = local;
-				extension.needsReload = true;
 
 				const galleryId = local.metadata && local.metadata.id;
 				const installed = this.installed.filter(e => (e.local && e.local.metadata && e.local.metadata.id) === galleryId)[0];
@@ -610,7 +614,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		if (!error) {
 			this.unInstalled.push(uninstalling.extension);
-			uninstalling.extension.needsReload = !newlyInstalled;
+			const globallyDisabledExtensions = this.extensionRuntimeService.getGloballyDisabledExtensions();
+			const workspaceDisabledExtensions = this.extensionRuntimeService.getWorkspaceDisabledExtensions();
+			uninstalling.extension.disabledGlobally = globallyDisabledExtensions.indexOf(uninstalling.extension.identifier) !== -1;
+			uninstalling.extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(uninstalling.extension.identifier) !== -1;
 			this.reportTelemetry(uninstalling, true);
 		}
 
@@ -627,15 +634,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		const local = this.installed.filter(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))[0];
-
-		if (local) {
-			if (this.newlyInstalled.some(e => e.gallery && extension.gallery && e.gallery.id === extension.gallery.id)) {
-				return ExtensionState.Installed;
-			}
-			return this.extensionRuntimeService.isDisabled(extension.identifier) ? ExtensionState.Disabled : ExtensionState.Enabled;
-		}
-
-		return ExtensionState.Uninstalled;
+		return local ? ExtensionState.Installed : ExtensionState.Uninstalled;
 	}
 
 	private reportTelemetry(active: IActiveExtension, success: boolean): void {
