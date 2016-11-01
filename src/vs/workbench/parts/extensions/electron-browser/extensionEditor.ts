@@ -43,6 +43,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { Position } from 'vs/platform/editor/common/editor';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -60,6 +61,7 @@ class NavBar {
 	private _onChange = new Emitter<string>();
 	get onChange(): Event<string> { return this._onChange.event; }
 
+	private currentId: string = null;
 	private actions: Action[];
 	private actionbar: ActionBar;
 
@@ -70,12 +72,7 @@ class NavBar {
 	}
 
 	push(id: string, label: string): void {
-		const run = () => {
-			this._onChange.fire(id);
-			this.actions.forEach(a => a.enabled = a.id !== action.id);
-			return TPromise.as(null);
-		};
-
+		const run = () => this._update(id);
 		const action = new Action(id, label, null, true, run);
 
 		this.actions.push(action);
@@ -89,6 +86,17 @@ class NavBar {
 	clear(): void {
 		this.actions = dispose(this.actions);
 		this.actionbar.clear();
+	}
+
+	update(): void {
+		this._update(this.currentId);
+	}
+
+	_update(id: string = this.currentId): TPromise<void> {
+		this.currentId = id;
+		this._onChange.fire(id);
+		this.actions.forEach(a => a.enabled = a.id !== id);
+		return TPromise.as(null);
 	}
 
 	dispose(): void {
@@ -286,6 +294,11 @@ export class ExtensionEditor extends BaseEditor {
 		this.content.innerHTML = '';
 
 		return super.setInput(input, options);
+	}
+
+	changePosition(position: Position): void {
+		this.navbar.update();
+		super.changePosition(position);
 	}
 
 	private onNavbarChange(extension: IExtension, id: string): void {
