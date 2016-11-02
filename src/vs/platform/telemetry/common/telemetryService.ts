@@ -54,14 +54,15 @@ export class TelemetryService implements ITelemetryService {
 		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		// #2 // Any other file path that doesn't match the approved form above should be cleaned.
 		// #3 "Error: ENOENT; no such file or directory" is often followed with PII, clean it
-		for (let piiPath of this._piiPaths) {
-			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(piiPath), 'gi'), '']);
-		}
 		this._cleanupPatterns.push(
 			[/file:\/\/\/.*?\/resources\/app\//gi, ''],
 			[/file:\/\/\/.*/gi, ''],
 			[/ENOENT: no such file or directory.*?\'([^\']+)\'/gi, 'ENOENT: no such file or directory']
 		);
+
+		for (let piiPath of this._piiPaths) {
+			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(piiPath), 'gi'), '']);
+		}
 
 		if (this._configurationService) {
 			this._updateUserOptIn();
