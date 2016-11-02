@@ -91,27 +91,40 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 
 		const renderer = new marked.Renderer();
 		renderer.image = (href: string, title: string, text: string) => {
-			let attributes = '';
-			if (title) {
-				const splitted = title.split('|');
-				title = splitted[0];
+			let dimensions = [];
+			if (href) {
+				const splitted = href.split('|').map(s => s.trim());
+				href = splitted[0];
 				const parameters = splitted[1];
 				if (parameters) {
-					const heightFromParams = new RegExp(/height=(\d+)/).exec(parameters);
-					const widthFromParams = new RegExp(/width=(\d+)/).exec(parameters);
+					const heightFromParams = /height=(\d+)/.exec(parameters);
+					const widthFromParams = /width=(\d+)/.exec(parameters);
 					const height = (heightFromParams && heightFromParams[1]);
 					const width = (widthFromParams && widthFromParams[1]);
-					const dimensions = [];
-					if (width) {
+					const widthIsFinite = isFinite(parseInt(width));
+					const heightIsFinite = isFinite(parseInt(height));
+					if (widthIsFinite) {
 						dimensions.push(`width="${width}"`);
 					}
-					if (height) {
+					if (heightIsFinite) {
 						dimensions.push(`height="${height}"`);
 					}
-					attributes = dimensions.join(' ');
 				}
 			}
-			return `<img src="${href}" alt="${text}" ${attributes}>`;
+			let attributes: string[] = [];
+			if (href) {
+				attributes.push(`src="${href}"`);
+			}
+			if (text) {
+				attributes.push(`alt="${text}"`);
+			}
+			if (title) {
+				attributes.push(`title="${title}"`);
+			}
+			if (dimensions.length) {
+				attributes = attributes.concat(dimensions);
+			}
+			return '<img ' + attributes.join(' ') + '>';
 		};
 		renderer.link = (href, title, text): string => {
 			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
