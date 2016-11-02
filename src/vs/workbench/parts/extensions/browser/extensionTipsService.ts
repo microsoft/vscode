@@ -8,7 +8,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionsConfiguration, ConfigurationKey } from '../common/extensions';
+import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';

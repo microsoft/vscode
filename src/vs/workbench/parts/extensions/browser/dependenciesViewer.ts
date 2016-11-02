@@ -11,7 +11,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { IDataSource, ITree, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Action } from 'vs/base/common/actions';
-import { IExtensionDependencies, IExtensionsWorkbenchService } from '../common/extensions';
+import { IExtensionDependencies, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
