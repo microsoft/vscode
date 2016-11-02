@@ -80,6 +80,7 @@ export abstract class BaseHistoryService {
 
 	private activeEditorListeners: IDisposable[];
 	private isPure: boolean;
+	private showFullPath: boolean;
 
 	private static NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 
@@ -98,16 +99,29 @@ export abstract class BaseHistoryService {
 		// Window Title
 		window.document.title = this.getWindowTitle(null);
 
-		// Editor Input Changes
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
-
 		// Integrity
-		integrityService.isPure().then((r) => {
+		integrityService.isPure().then(r => {
 			if (!r.isPure) {
 				this.isPure = false;
 				window.document.title = this.getWindowTitle(this.editorService.getActiveEditorInput());
 			}
 		});
+
+		// Editor Input Changes
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
+		// Configuration Changes
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
+		this.onConfigurationChanged();
+	}
+
+	private onConfigurationChanged(update?: boolean): void {
+		const currentShowPath = this.showFullPath;
+		this.showFullPath = this.configurationService.lookup<boolean>('window.showFullPath').value;
+
+		if (update && currentShowPath !== this.showFullPath) {
+			this.updateWindowTitle(this.editorService.getActiveEditorInput());
+		}
 	}
 
 	private onEditorsChanged(): void {
@@ -182,12 +196,11 @@ export abstract class BaseHistoryService {
 	}
 
 	private doGetWindowTitle(input?: IEditorInput): string {
-		const showFullPaths = this.configurationService.lookup('window.showFullPath').value;
 		const appName = product.nameLong;
 
 		let prefix: string;
 		const fileInput = asFileEditorInput(input);
-		if (fileInput && showFullPaths) {
+		if (fileInput && this.showFullPath) {
 			prefix = labels.getPathLabel(fileInput.getResource());
 		} else {
 			prefix = input && input.getName();
@@ -379,7 +392,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		openEditorPromise.done(() => {
 			this.blockStackChanges = false;
-		}, (error) => {
+		}, error => {
 			this.blockStackChanges = false;
 			errors.onUnexpectedError(error);
 		});
