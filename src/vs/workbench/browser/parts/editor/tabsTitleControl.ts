@@ -93,7 +93,7 @@ export class TabsTitleControl extends TitleControl {
 		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
 			if (DOM.hasClass(this.tabsContainer, 'scroll')) {
 				this.scrollbar.updateState({
-					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
+					scrollLeft: this.tabsContainer.scrollLeft // during DND the container gets scrolled so we need to update the custom scrollbar
 				});
 			}
 		}));
@@ -529,7 +529,7 @@ export class TabsTitleControl extends TitleControl {
 		// Local DND
 		const draggedEditor = TabsTitleControl.getDraggedEditor();
 		if (draggedEditor) {
-			DOM.EventHelper.stop(e, true);
+			DOM.EventHelper.stop(e);
 
 			// Move editor to target position and index
 			if (this.isMoveOperation(e, draggedEditor.group, group)) {
