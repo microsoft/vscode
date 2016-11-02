@@ -35,7 +35,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditorsTracker';
 
-import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
 export interface IEnvironment {
 	appSettingsHome: string;
@@ -287,9 +287,9 @@ export abstract class ExtHostEditorsShape {
 }
 
 export abstract class ExtHostTreeExplorersShape {
-	$provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode> { throw ni(); };
-	$resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> { throw ni(); }
-	$getInternalCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<modes.Command> { throw ni(); }
+	$provideRootNode(providerId: string): TPromise<InternalTreeExplorerNodeContent> { throw ni(); };
+	$resolveChildren(providerId: string, node: InternalTreeExplorerNodeContent): TPromise<InternalTreeExplorerNodeContent[]> { throw ni(); }
+	$getInternalCommand(providerId: string, node: InternalTreeExplorerNodeContent): TPromise<modes.Command> { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {

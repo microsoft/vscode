@@ -7,7 +7,13 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TreeExplorerNodeProvider } from 'vscode';
 
-export class InternalTreeExplorerNode implements TreeExplorerNodeContent {
+export interface InternalTreeExplorerNodeContent {
+	label: string;
+	hasChildren: boolean;
+	clickCommand: string;
+}
+
+export class InternalTreeExplorerNode implements InternalTreeExplorerNodeContent {
 	private static idCounter = 1;
 
 	id: number;
@@ -26,13 +32,7 @@ export class InternalTreeExplorerNode implements TreeExplorerNodeContent {
 }
 
 export interface InternalTreeExplorerNodeProvider {
-	provideRootNode(): Thenable<InternalTreeExplorerNode>;
-	resolveChildren(node: InternalTreeExplorerNode): Thenable<InternalTreeExplorerNode[]>;
-	executeCommand(node: TreeExplorerNodeContent): TPromise<any>;
-}
-
-export interface TreeExplorerNodeContent {
-	label: string;
-	hasChildren: boolean;
-	clickCommand: string;
+	provideRootNode(): Thenable<InternalTreeExplorerNodeContent>;
+	resolveChildren(node: InternalTreeExplorerNodeContent): Thenable<InternalTreeExplorerNodeContent[]>;
+	executeCommand(node: InternalTreeExplorerNodeContent): TPromise<any>;
 }
