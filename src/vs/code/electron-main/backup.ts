@@ -43,10 +43,19 @@ export interface IBackupService {
 	/**
 	 * Gets the set of untitled file backups for a particular workspace.
 	 *
-	 * @param workspace The workspace to get the backups for for.
+	 * @param workspace The workspace to get the backups for.
 	 * @return The absolute paths for all the untitled file _backups_.
 	 */
 	getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[];
+
+	/**
+	 * Gets whether the workspace has backups associated with it (ie. if the workspace backup
+	 * directory exists).
+	 *
+	 * @param workspace The workspace to evaluate.
+	 * @return Whether the workspace has backups.
+	 */
+	doesWorkspaceHaveBackups(workspace: Uri): boolean;
 }
 
 export class BackupService implements IBackupService {
@@ -99,8 +108,7 @@ export class BackupService implements IBackupService {
 	}
 
 	public getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[] {
-		const workspaceHash = crypto.createHash('md5').update(workspace.fsPath).digest('hex');
-		const untitledDir = path.join(this.backupHome, workspaceHash, 'untitled');
+		const untitledDir = path.join(this.getWorkspaceBackupDirectory(workspace), 'untitled');
 
 		// Allow sync here as it's only used in workbench initialization's critical path
 		try {
@@ -108,6 +116,15 @@ export class BackupService implements IBackupService {
 		} catch (ex) {
 			return [];
 		}
+	}
+
+	public doesWorkspaceHaveBackups(workspace: Uri): boolean {
+		return fs.existsSync(this.getWorkspaceBackupDirectory(workspace));
+	}
+
+	private getWorkspaceBackupDirectory(workspace: Uri): string {
+		const workspaceHash = crypto.createHash('md5').update(workspace.fsPath).digest('hex');
+		return path.join(this.backupHome, workspaceHash);
 	}
 
 	private loadSync(): void {

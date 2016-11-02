@@ -38,6 +38,8 @@ suite('BackupService', () => {
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
 	const bazFile = Uri.file(platform.isWindows ? 'C:\\baz' : '/baz');
 
+	const fooWorkspaceBackupDir = path.join(backupHome, crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
+
 	let backupService: BackupService;
 
 	setup(done => {
@@ -94,16 +96,14 @@ suite('BackupService', () => {
 	});
 
 	test('getWorkspaceUntitledFileBackupsSync should return untitled file backup resources', done => {
-		const workspaceResource = fooFile;
-		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-		const untitledBackupDir = path.join(backupHome, workspaceHash, 'untitled');
+		const untitledBackupDir = path.join(fooWorkspaceBackupDir, 'untitled');
 		const untitledBackup1 = path.join(untitledBackupDir, 'bar');
 		const untitledBackup2 = path.join(untitledBackupDir, 'foo');
 		pfs.mkdirp(untitledBackupDir).then(() => {
 			pfs.writeFile(untitledBackup1, 'test').then(() => {
-				assert.deepEqual(backupService.getWorkspaceUntitledFileBackupsSync(workspaceResource), [untitledBackup1]);
+				assert.deepEqual(backupService.getWorkspaceUntitledFileBackupsSync(fooFile), [untitledBackup1]);
 				pfs.writeFile(untitledBackup2, 'test').then(() => {
-					assert.deepEqual(backupService.getWorkspaceUntitledFileBackupsSync(workspaceResource), [untitledBackup1, untitledBackup2]);
+					assert.deepEqual(backupService.getWorkspaceUntitledFileBackupsSync(fooFile), [untitledBackup1, untitledBackup2]);
 					done();
 				});
 			});
@@ -137,5 +137,11 @@ suite('BackupService', () => {
 				done();
 			});
 		});
+	});
+
+	test('doesWorkspaceHaveBackups should return whether the workspace\'s backup exists', () => {
+		assert.equal(backupService.doesWorkspaceHaveBackups(fooFile), false);
+		fs.mkdirSync(fooWorkspaceBackupDir);
+		assert.equal(backupService.doesWorkspaceHaveBackups(fooFile), true);
 	});
 });

@@ -158,10 +158,8 @@ export class BackupService implements IBackupService {
 		if (!workspace) {
 			return false; // no backups to cleanup, no veto
 		}
-		return this.backupFileService.removeWorkspaceBackupPath(workspace.resource).then(() => {
-			return this.backupFileService.discardAllWorkspaceBackups().then(() => {
-				return false; // no veto
-			});
+		return this.backupFileService.discardAllWorkspaceBackups().then(() => {
+			return false; // no veto
 		});
 	}
 

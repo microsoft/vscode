@@ -5,12 +5,14 @@
 
 'use strict';
 
+import Uri from 'vs/base/common/uri';
 import { EventEmitter } from 'events';
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IBackupService } from 'vs/code/electron-main/backup';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
 
@@ -52,7 +54,8 @@ export class LifecycleService implements ILifecycleService {
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILogService private logService: ILogService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IBackupService private backupService: IBackupService
 	) {
 		this.windowToCloseRequest = Object.create(null);
 		this.quitRequested = false;
@@ -121,6 +124,7 @@ export class LifecycleService implements ILifecycleService {
 		vscodeWindow.win.on('close', (e) => {
 			const windowId = vscodeWindow.id;
 			this.logService.log('Lifecycle#window-before-close', windowId);
+			this.logService.log('this.quitRequested: ' + this.quitRequested);
 
 			// The window already acknowledged to be closed
 			if (this.windowToCloseRequest[windowId]) {
@@ -135,6 +139,12 @@ export class LifecycleService implements ILifecycleService {
 			e.preventDefault();
 			this.unload(vscodeWindow).done(veto => {
 				if (!veto) {
+					// Clear out any workspace backups from workspaces.json that don't have any backups
+					const workspaceResource = Uri.file(vscodeWindow.openedWorkspacePath);
+					if (!this.backupService.doesWorkspaceHaveBackups(workspaceResource)) {
+						this.backupService.removeWorkspaceBackupPathSync(workspaceResource);
+					}
+
 					this.windowToCloseRequest[windowId] = true;
 					vscodeWindow.win.close();
 				} else {
