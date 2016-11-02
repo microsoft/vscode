@@ -151,6 +151,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 0,
 			'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
+		},
+		'window.showFullPath': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
 		}
 	}
 });
