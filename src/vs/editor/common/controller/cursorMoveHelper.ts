@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IPosition } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
@@ -254,22 +253,6 @@ export class CursorMoveHelper {
 
 	constructor(config: CursorMoveConfiguration) {
 		this._config = config;
-	}
-
-	public getLeftOfPosition(model: ICursorMoveHelperModel, lineNumber: number, column: number): IPosition {
-		return CursorMove.left(this._config, model, lineNumber, column);
-	}
-
-	public getRightOfPosition(model: ICursorMoveHelperModel, lineNumber: number, column: number): IPosition {
-		return CursorMove.right(this._config, model, lineNumber, column);
-	}
-
-	public getPositionUp(model: ICursorMoveHelperModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorMoveResult {
-		return CursorMove.up(this._config, model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnFirstLine);
-	}
-
-	public getPositionDown(model: ICursorMoveHelperModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorMoveResult {
-		return CursorMove.down(this._config, model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
 
 	public columnSelect(model: ICursorMoveHelperModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IViewColumnSelectResult {
