@@ -14,7 +14,7 @@ import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/exten
 import { IThemeService, IThemeData, IThemeSetting, IThemeDocument } from 'vs/workbench/services/themes/common/themeService';
 import { TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import { getBaseThemeId } from 'vs/platform/theme/common/themes';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/platform';
@@ -163,7 +163,7 @@ export class ThemeService implements IThemeService {
 
 	constructor(
 		@IExtensionService private extensionService: IExtensionService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@IStorageService private storageService: IStorageService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 

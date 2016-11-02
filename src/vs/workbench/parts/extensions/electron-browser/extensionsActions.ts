@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { remote } from 'electron';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 
 const dialog = remote.dialog;
 
@@ -26,7 +26,7 @@ export class OpenExtensionsFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label, null, true);

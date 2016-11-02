@@ -15,7 +15,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { CloseEditorAction, ReloadWindowAction, ShowStartupPerformance, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleDevToolsAction, ToggleFullScreenAction, ToggleMenuBarAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext, NoEditorsVisibleContext } from 'vs/workbench/electron-browser/workbench';
 
@@ -61,7 +61,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: NoEditorsVisibleContext,
 	primary: closeEditorOrWindowKeybindings.primary,
 	handler: accessor => {
-		const windowService = accessor.get(IWindowService);
+		const windowService = accessor.get(IWindowIPCService);
 		windowService.getWindow().close();
 	}
 });

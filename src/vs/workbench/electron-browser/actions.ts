@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
 import { Action } from 'vs/base/common/actions';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -66,7 +66,7 @@ export class CloseWindowAction extends Action {
 	public static ID = 'workbench.action.closeWindow';
 	public static LABEL = nls.localize('closeWindow', "Close Window");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(id: string, label: string, @IWindowIPCService private windowService: IWindowIPCService) {
 		super(id, label);
 	}
 
@@ -85,7 +85,7 @@ export class SwitchWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
@@ -121,7 +121,7 @@ export class CloseFolderAction extends Action {
 		label: string,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService,
-		@IWindowService private windowService: IWindowService
+		@IWindowIPCService private windowService: IWindowIPCService
 	) {
 		super(id, label);
 	}
@@ -145,7 +145,7 @@ export class NewWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService
+		@IWindowIPCService private windowService: IWindowIPCService
 	) {
 		super(id, label);
 	}
@@ -162,7 +162,7 @@ export class ToggleFullScreenAction extends Action {
 	public static ID = 'workbench.action.toggleFullScreen';
 	public static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(id: string, label: string, @IWindowIPCService private windowService: IWindowIPCService) {
 		super(id, label);
 	}
 
@@ -178,7 +178,7 @@ export class ToggleMenuBarAction extends Action {
 	public static ID = 'workbench.action.toggleMenuBar';
 	public static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(id: string, label: string, @IWindowIPCService private windowService: IWindowIPCService) {
 		super(id, label);
 	}
 
@@ -194,7 +194,7 @@ export class ToggleDevToolsAction extends Action {
 	public static ID = 'workbench.action.toggleDevTools';
 	public static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(id: string, label: string, @IWindowIPCService private windowService: IWindowIPCService) {
 		super(id, label);
 	}
 
@@ -329,7 +329,7 @@ export class ShowStartupPerformance extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super(id, label);
@@ -426,7 +426,7 @@ export class ReloadWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@IPartService private partService: IPartService
 	) {
 		super(id, label);
@@ -448,7 +448,7 @@ export class OpenRecentAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
