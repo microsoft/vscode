@@ -138,7 +138,7 @@ class Extension implements IExtension {
 	}
 
 	private get defaultIconUrl(): string {
-		return require.toUrl('./media/defaultIcon.png');
+		return require.toUrl('../browser/media/defaultIcon.png');
 	}
 
 	get licenseUrl(): string {
