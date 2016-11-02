@@ -17,7 +17,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 
 import { ipcRenderer as ipc, clipboard } from 'electron';
 
@@ -26,7 +26,7 @@ export class RevealInOSAction extends Action {
 
 	constructor(
 		resource: uri,
-		@IWindowService private windowService: IWindowService
+		@IWindowIPCService private windowService: IWindowIPCService
 	) {
 		super('workbench.action.files.revealInWindows', platform.isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : (platform.isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")));
 
@@ -51,7 +51,7 @@ export class GlobalRevealInOSAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);

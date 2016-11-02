@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import nls = require('vs/nls');
 import product from 'vs/platform/product';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -19,7 +19,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 
 	constructor(
 		container: HTMLElement,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(container, telemetryService);

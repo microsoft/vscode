@@ -86,9 +86,9 @@ const ReopenFoldersSetting = {
 	NONE: 'none'
 };
 
-export const IWindowsService = createDecorator<IWindowsService>('windowsService');
+export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
-export interface IWindowsService {
+export interface IWindowsMainService {
 	_serviceBrand: any;
 
 	// TODO make proper events
@@ -123,7 +123,7 @@ export interface IWindowsService {
 	clearRecentPathsList(): void;
 }
 
-export class WindowsManager implements IWindowsService, IWindowEventService {
+export class WindowsManager implements IWindowsMainService, IWindowEventService {
 
 	_serviceBrand: any;
 

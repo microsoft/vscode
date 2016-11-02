@@ -22,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
@@ -45,7 +45,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IModeService private modeService: IModeService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@IModelService private modelService: IModelService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {

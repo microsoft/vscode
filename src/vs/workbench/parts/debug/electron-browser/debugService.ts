@@ -52,7 +52,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/electron-browser/extensionHost';
 import { ipcRenderer as ipc } from 'electron';
 
@@ -87,7 +87,7 @@ export class DebugService implements debug.IDebugService {
 		@IFileService private fileService: IFileService,
 		@IMessageService private messageService: IMessageService,
 		@IPartService private partService: IPartService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,

@@ -12,7 +12,10 @@ import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/electron-main/paths';
-import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
+import { IWindowsMainService, WindowsManager } from 'vs/code/electron-main/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
+import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { WindowEventChannel } from 'vs/code/common/windowsIpc';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
@@ -72,11 +75,11 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
-	const windowsService = accessor.get(IWindowsService);
+	const windowsMainService = accessor.get(IWindowsMainService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
 	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
-	const windowEventChannel = new WindowEventChannel(windowsService);
+	const windowEventChannel = new WindowEventChannel(windowsMainService);
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
@@ -89,7 +92,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 			};
 
 			// handle on client side
-			windowsService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
+			windowsMainService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
 		}
 
 		console.error('[uncaught exception in main]: ' + err);
@@ -129,6 +132,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const urlService = accessor.get(IURLService);
 	const urlChannel = instantiationService.createInstance(URLChannel, urlService);
 	electronIpcServer.registerChannel('url', urlChannel);
+
+	const windowsService = accessor.get(IWindowsService);
+	const windowsChannel = new WindowsChannel(windowsService);
+	electronIpcServer.registerChannel('windows', windowsChannel);
 
 	// Spawn shared process
 	const initData = { args: environmentService.args };
@@ -190,7 +197,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	lifecycleService.ready();
 
 	// Propagate to clients
-	windowsService.ready(userEnv);
+	windowsMainService.ready(userEnv);
 
 	// Install Menu
 	const menu = instantiationService.createInstance(VSCodeMenu);
@@ -217,12 +224,12 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		});
 
 		// Recent Folders
-		const folders = windowsService.getRecentPathsList().folders;
+		const folders = windowsMainService.getRecentPathsList().folders;
 		if (folders.length > 0) {
 			jumpList.push({
 				type: 'custom',
 				name: 'Recent Folders',
-				items: windowsService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
+				items: windowsMainService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
 					return <Electron.JumpListItem>{
 						type: 'task',
 						title: getPathLabel(folder),
@@ -253,11 +260,11 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 
 	// Open our first window
 	if (environmentService.args['new-window'] && environmentService.args._.length === 0) {
-		windowsService.open({ cli: environmentService.args, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
+		windowsMainService.open({ cli: environmentService.args, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
 	} else if (global.macOpenFiles && global.macOpenFiles.length && (!environmentService.args._ || !environmentService.args._.length)) {
-		windowsService.open({ cli: environmentService.args, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
+		windowsMainService.open({ cli: environmentService.args, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
-		windowsService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff }); // default: read paths from cli
+		windowsMainService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff }); // default: read paths from cli
 	}
 }
 
@@ -445,7 +452,8 @@ function start(): void {
 
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
 	services.set(ILogService, new SyncDescriptor(MainLogService));
-	services.set(IWindowsService, new SyncDescriptor(WindowsManager));
+	services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
+	services.set(IWindowsService, new SyncDescriptor(WindowsService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStorageService, new SyncDescriptor(StorageService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
