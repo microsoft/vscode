@@ -37,8 +37,6 @@ namespace schema {
 }
 
 ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], schema.explorerContribtion).setHandler(extensions => {
-	let baseOrder = 200; // Stock viewlet order goes up to 100
-
 	for (let extension of extensions) {
 		const { treeExplorerNodeProviderId, treeLabel, icon } = extension.value;
 
@@ -55,7 +53,7 @@ ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], schema.
 			VIEWLET_ID_ROOT + treeExplorerNodeProviderId,
 			treeLabel,
 			treeExplorerNodeProviderId,
-			baseOrder++,
+			-1, // External viewlets are ordered by enabling sequence, so order here doesn't matter.
 			true
 		));
 	}
