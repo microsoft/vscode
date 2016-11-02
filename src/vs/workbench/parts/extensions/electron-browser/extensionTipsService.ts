@@ -15,7 +15,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import product from 'vs/platform/product';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from './extensionsActions';
+import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';

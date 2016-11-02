@@ -16,7 +16,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
-import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ReloadAction, ManageExtensionAction } from './extensionsActions';
+import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ManageExtensionAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';

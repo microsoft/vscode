@@ -27,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from './dependenciesViewer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';
@@ -35,7 +35,7 @@ import { RatingsWidget, InstallWidget } from './extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import product from 'vs/platform/product';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, BuiltinStatusLabelAction } from './extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
