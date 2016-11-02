@@ -319,6 +319,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		extensionService.onDidInstallExtension(this.onDidInstallExtension, this, this.disposables);
 		extensionService.onUninstallExtension(this.onUninstallExtension, this, this.disposables);
 		extensionService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
+		extensionEnablementService.onEnablementChanged(this.onEnablementChanged, this, this.disposables);
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
 		this.autoUpdateDelayer = new ThrottledDelayer<void>(1000);
@@ -484,7 +485,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		return this.doSetEnablement(extension, enable, workspace).then(reload => {
-			this.updatedDisableFlags(extension);
 			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
 			this._onChange.fire();
 		});
@@ -599,18 +599,20 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		if (!error) {
-			this.updatedDisableFlags(uninstalling.extension);
 			this.reportTelemetry(uninstalling, true);
 		}
 
 		this._onChange.fire();
 	}
 
-	private updatedDisableFlags(extension: IExtension) {
-		const globallyDisabledExtensions = this.extensionEnablementService.getGloballyDisabledExtensions();
-		const workspaceDisabledExtensions = this.extensionEnablementService.getWorkspaceDisabledExtensions();
-		extension.disabledGlobally = globallyDisabledExtensions.indexOf(extension.identifier) !== -1;
-		extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(extension.identifier) !== -1;
+	private onEnablementChanged(extensionIdentifier: string) {
+		const [extension] = this.local.filter(e => e.identifier === extensionIdentifier);
+		if (extension) {
+			const globallyDisabledExtensions = this.extensionEnablementService.getGloballyDisabledExtensions();
+			const workspaceDisabledExtensions = this.extensionEnablementService.getWorkspaceDisabledExtensions();
+			extension.disabledGlobally = globallyDisabledExtensions.indexOf(extension.identifier) !== -1;
+			extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(extension.identifier) !== -1;
+		}
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {

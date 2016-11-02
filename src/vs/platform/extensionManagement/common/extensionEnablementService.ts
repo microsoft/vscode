@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
+import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -21,6 +22,9 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 
 	private workspace: IWorkspace;
 	private disposables: IDisposable[] = [];
+
+	private _onEnablementChanged = new Emitter<string>();
+	public onEnablementChanged: Event<string> = this._onEnablementChanged.event;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -98,7 +102,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 	private disableExtension(identifier: string, scope: StorageScope): TPromise<boolean> {
 		let disabledExtensions = this._getDisabledExtensions(scope);
 		disabledExtensions.push(identifier);
-		this._setDisabledExtensions(disabledExtensions, scope);
+		this._setDisabledExtensions(disabledExtensions, scope, identifier);
 		return TPromise.wrap(true);
 	}
 
@@ -107,7 +111,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		const index = disabledExtensions.indexOf(identifier);
 		if (index !== -1) {
 			disabledExtensions.splice(index, 1);
-			this._setDisabledExtensions(disabledExtensions, scope);
+			this._setDisabledExtensions(disabledExtensions, scope, identifier);
 		}
 		return TPromise.wrap(true);
 	}
@@ -117,12 +121,13 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		return value ? distinct(value.split(',')) : [];
 	}
 
-	private _setDisabledExtensions(disabledExtensions: string[], scope: StorageScope): void {
+	private _setDisabledExtensions(disabledExtensions: string[], scope: StorageScope, extension: string): void {
 		if (disabledExtensions.length) {
 			this.storageService.store(DISABLED_EXTENSIONS_STORAGE_PATH, disabledExtensions.join(','), scope);
 		} else {
 			this.storageService.remove(DISABLED_EXTENSIONS_STORAGE_PATH, scope);
 		}
+		this._onEnablementChanged.fire(extension);
 	}
 
 	private onDidUninstallExtension({id, error}: DidUninstallExtensionEvent): void {
