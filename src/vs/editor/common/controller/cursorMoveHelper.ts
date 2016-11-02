@@ -13,11 +13,14 @@ export class CursorMoveConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
 	public readonly tabSize: number;
+	public readonly pageSize: number;
 
 	constructor(
-		tabSize: number
+		tabSize: number,
+		pageSize: number
 	) {
 		this.tabSize = tabSize;
+		this.pageSize = pageSize;
 	}
 }
 
@@ -247,12 +250,10 @@ export interface IColumnSelectResult extends IViewColumnSelectResult {
 
 export class CursorMoveHelper {
 
-	private readonly _tabSize: number;
 	private readonly _config: CursorMoveConfiguration;
 
-	constructor(tabSize: number) {
-		this._tabSize = tabSize;
-		this._config = new CursorMoveConfiguration(this._tabSize);
+	constructor(config: CursorMoveConfiguration) {
+		this._config = config;
 	}
 
 	public getLeftOfPosition(model: ICursorMoveHelperModel, lineNumber: number, column: number): IPosition {
@@ -345,7 +346,7 @@ export class CursorMoveHelper {
 	}
 
 	public visibleColumnFromColumn(model: ICursorMoveHelperModel, lineNumber: number, column: number): number {
-		return CursorMoveHelper.visibleColumnFromColumn(model, lineNumber, column, this._tabSize);
+		return CursorMoveHelper.visibleColumnFromColumn(model, lineNumber, column, this._config.tabSize);
 	}
 
 	public static visibleColumnFromColumn(model: ICursorMoveHelperModel, lineNumber: number, column: number, tabSize: number): number {
