@@ -111,6 +111,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private showTabs: boolean;
 	private showIcons: boolean;
+	private lastConfiguredShowTabCloseButtons: boolean;
 
 	private silos: Builder[];
 	private silosSize: number[];
@@ -225,14 +226,17 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		if (!refresh) {
-			return; // return early if no refresh is needed
+			// Return early if no refresh is needed
+			this.lastConfiguredShowTabCloseButtons = config.workbench && config.workbench.editor && config.workbench.editor.showTabCloseButtons;
+			return;
 		}
 
 		// Editor Containers
 		POSITIONS.forEach(position => {
 			const titleControl = this.getTitleAreaControl(position);
+			titleControl.showTabCloseButtons = config.workbench && config.workbench.editor && config.workbench.editor.showTabCloseButtons;
 
-			// TItle Container
+			// Title Container
 			const titleContainer = $(titleControl.getContainer());
 			if (this.showTabs) {
 				titleContainer.addClass('tabs');
@@ -259,11 +263,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				}
 
 				// Refresh title when icons change
-				else if (showingIcons !== this.showIcons) {
+				if (
+					showingIcons !== this.showIcons ||
+					(usingTabs && this.lastConfiguredShowTabCloseButtons !== titleControl.showTabCloseButtons)
+				) {
 					titleControl.refresh(true);
 				}
 			}
 		});
+
+		this.lastConfiguredShowTabCloseButtons = config.workbench && config.workbench.editor && config.workbench.editor.showTabCloseButtons;
 	}
 
 	private onExtensionsReady(): void {
@@ -1195,6 +1204,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(this.showTabs ? TabsTitleControl : NoTabsTitleControl);
 		titleAreaControl.create(container.getHTMLElement());
 		titleAreaControl.setContext(context);
+		titleAreaControl.showTabCloseButtons = this.lastConfiguredShowTabCloseButtons;
 		titleAreaControl.refresh(true /* instant */);
 
 		silo.child().setProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container

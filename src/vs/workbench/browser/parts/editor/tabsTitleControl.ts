@@ -346,8 +346,12 @@ export class TabsTitleControl extends TitleControl {
 			DOM.addClass(tabCloseContainer, 'tab-close');
 			tabContainer.appendChild(tabCloseContainer);
 
-			const bar = new ActionBar(tabCloseContainer, { context: { editor, group }, ariaLabel: nls.localize('araLabelTabActions', "Tab actions") });
-			bar.push(this.closeEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorAction) });
+			let closeEditorAction = this.closeEditorAction;
+			if (!this.showTabCloseButtons) {
+				closeEditorAction = this.closeEditorDisabledAction;
+			}
+			const bar = new ActionBar(tabCloseContainer, { context: { editor, group }, ignoreClicks: !this.showTabCloseButtons, ariaLabel: nls.localize('araLabelTabActions', "Tab actions") });
+			bar.push(closeEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(closeEditorAction) });
 
 			this.tabDisposeables.push(bar);
 
@@ -403,7 +407,7 @@ export class TabsTitleControl extends TitleControl {
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			tab.blur();
 
-			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
+			if (e.button === 0 /* Left Button */ && (DOM.hasClass(<any>e.target || e.srcElement, "ignoring-clicks") || !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab'))) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
 		}));
