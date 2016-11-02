@@ -42,14 +42,6 @@ export interface IBackupFileService {
 	getWorkspaceBackupPaths(): TPromise<string[]>;
 
 	/**
-	 * Removes a workspace backup path being tracked for restoration, deregistering all associated
-	 * resources for backup.
-	 *
-	 * @param workspace The absolute workspace path being removed.
-	 */
-	removeWorkspaceBackupPath(workspace: Uri): TPromise<void>;
-
-	/**
 	 * Gets whether a text file has a backup to restore.
 	 *
 	 * @param resource The resource to check.

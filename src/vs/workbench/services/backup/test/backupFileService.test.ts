@@ -66,38 +66,6 @@ suite('BackupFileService', () => {
 		extfs.del(backupHome, os.tmpdir(), done);
 	});
 
-	test('removeWorkspaceBackupPath should remove workspaces from workspaces.json', done => {
-		const workspacesJson: IBackupWorkspacesFormat = { folderWorkspaces: [fooFile.fsPath, barFile.fsPath] };
-		pfs.writeFileAndFlush(workspacesJsonPath, JSON.stringify(workspacesJson)).then(() => {
-			service.removeWorkspaceBackupPath(fooFile).then(() => {
-				pfs.readFile(workspacesJsonPath, 'utf-8').then(buffer => {
-					const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-					assert.deepEqual(json.folderWorkspaces, [barFile.fsPath]);
-					service.removeWorkspaceBackupPath(barFile).then(() => {
-						pfs.readFile(workspacesJsonPath, 'utf-8').then(content => {
-							const json2 = <IBackupWorkspacesFormat>JSON.parse(content);
-							assert.deepEqual(json2.folderWorkspaces, []);
-							done();
-						});
-					});
-				});
-			});
-		});
-	});
-
-	test('removeWorkspaceBackupPath should fail gracefully when removing a path that doesn\'t exist', done => {
-		const workspacesJson: IBackupWorkspacesFormat = { folderWorkspaces: [fooFile.fsPath] };
-		pfs.writeFileAndFlush(workspacesJsonPath, JSON.stringify(workspacesJson)).then(() => {
-			service.removeWorkspaceBackupPath(barFile).then(() => {
-				pfs.readFile(workspacesJsonPath, 'utf-8').then(content => {
-					const json = <IBackupWorkspacesFormat>JSON.parse(content);
-					assert.deepEqual(json.folderWorkspaces, [fooFile.fsPath]);
-					done();
-				});
-			});
-		});
-	});
-
 	test('getBackupResource should get the correct backup path for text files', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
 		const backupResource = fooFile;

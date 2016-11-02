@@ -641,10 +641,6 @@ export class TestBackupFileService implements IBackupFileService {
 		return null;
 	}
 
-	public removeWorkspaceBackupPath(workspace: URI): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	public getWorkspaceTextFilesWithBackupsSync(workspace: URI): string[] {
 		return [];
 	}

@@ -22,8 +22,6 @@ export class BackupFileService implements IBackupFileService {
 	protected backupHome: string;
 	protected workspacesJsonPath: string;
 
-	private workspacesJsonContent: IBackupWorkspacesFormat;
-
 	constructor(
 		private currentWorkspace: Uri,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -34,22 +32,8 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public getWorkspaceBackupPaths(): TPromise<string[]> {
-		return this.loadWorkspaces().then(() => {
-			return this.workspacesJsonContent.folderWorkspaces;
-		});
-	}
-
-	public removeWorkspaceBackupPath(workspace: Uri): TPromise<void> {
-		return this.loadWorkspaces().then(() => {
-			if (!this.workspacesJsonContent.folderWorkspaces) {
-				return TPromise.as(void 0);
-			}
-			const index = this.workspacesJsonContent.folderWorkspaces.indexOf(workspace.fsPath);
-			if (index === -1) {
-				return TPromise.as(void 0);
-			}
-			this.workspacesJsonContent.folderWorkspaces.splice(index, 1);
-			return this.saveWorkspaces();
+		return this.loadWorkspaces().then(workspacesJsonContent => {
+			return workspacesJsonContent.folderWorkspaces;
 		});
 	}
 
@@ -104,13 +88,10 @@ export class BackupFileService implements IBackupFileService {
 		return this.fileService.del(Uri.file(this.getWorkspaceBackupDirectory()));
 	}
 
-	private loadWorkspaces(): TPromise<void> {
+	private loadWorkspaces(): TPromise<IBackupWorkspacesFormat> {
 		return pfs.fileExists(this.workspacesJsonPath).then(exists => {
 			if (!exists) {
-				this.workspacesJsonContent = {
-					folderWorkspaces: []
-				};
-				return TPromise.as(void 0);
+				return { folderWorkspaces: [] };
 			}
 
 			return pfs.readFile(this.workspacesJsonPath, 'utf8').then(content => {
@@ -120,19 +101,12 @@ export class BackupFileService implements IBackupFileService {
 					return [];
 				}
 			}).then(content => {
-				this.workspacesJsonContent = content;
-				if (!this.workspacesJsonContent.folderWorkspaces) {
-					this.workspacesJsonContent.folderWorkspaces = [];
+				let result = content;
+				if (!result.folderWorkspaces) {
+					result.folderWorkspaces = [];
 				}
-				return TPromise.as(void 0);
+				return result;
 			});
-		});
-	}
-
-	private saveWorkspaces(): TPromise<void> {
-		const data = JSON.stringify(this.workspacesJsonContent);
-		return pfs.mkdirp(this.backupHome).then(() => {
-			return pfs.writeFile(this.workspacesJsonPath, data);
 		});
 	}
 }
