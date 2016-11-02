@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
-import { CursorMoveHelper, ICursorMoveHelperModel, IMoveResult, IColumnSelectResult, IViewColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorMoveHelper, CursorMoveConfiguration, ICursorMoveHelperModel, CursorMoveResult, IColumnSelectResult, IViewColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -120,6 +120,57 @@ export const enum WordNavigationType {
 	WordEnd = 1
 }
 
+/**
+ * Represents the cursor state on either the model or on the view model.
+ */
+class CursorModelState {
+	_cursorModelStateBrand: void;
+
+	// --- selection can start as a range (think double click and drag)
+	public readonly selectionStart: Range;
+	public readonly selectionStartLeftoverVisibleColumns: number;
+	public readonly position: Position;
+	public readonly leftoverVisibleColumns: number;
+	public readonly selection: Selection;
+
+	constructor(
+		selectionStart: Range,
+		selectionStartLeftoverVisibleColumns: number,
+		position: Position,
+		leftoverVisibleColumns: number,
+	) {
+		this.selectionStart = selectionStart;
+		this.selectionStartLeftoverVisibleColumns = selectionStartLeftoverVisibleColumns;
+		this.position = position;
+		this.leftoverVisibleColumns = leftoverVisibleColumns;
+		this.selection = OneCursor.computeSelection(this.selectionStart, this.position);
+	}
+
+	public withSelectionStartLeftoverVisibleColumns(selectionStartLeftoverVisibleColumns: number): CursorModelState {
+		return new CursorModelState(
+			this.selectionStart,
+			selectionStartLeftoverVisibleColumns,
+			this.position,
+			this.leftoverVisibleColumns
+		);
+	}
+}
+
+class CursorState {
+	_cursorStateBrand: void;
+
+	public readonly modelState: CursorModelState;
+	public readonly viewModelState: CursorModelState;
+
+	constructor(
+		modelState: CursorModelState,
+		viewModelState: CursorModelState
+	) {
+		this.modelState = modelState;
+		this.viewModelState = viewModelState;
+	}
+}
+
 export class OneCursor {
 
 	// --- contextual state
@@ -128,29 +179,28 @@ export class OneCursor {
 	public configuration: editorCommon.IConfiguration;
 	public modeConfiguration: IModeConfiguration;
 	private helper: CursorHelper;
+	private config: CursorMoveConfiguration;
 	private viewModelHelper: IViewModelHelper;
 
+
+	private modelState: CursorModelState;
+
 	// --- selection can start as a range (think double click and drag)
-	private selectionStart: Range;
 	private viewSelectionStart: Range;
-	private selectionStartLeftoverVisibleColumns: number;
 
 	// --- position
-	private position: Position;
 	private viewPosition: Position;
-	private leftoverVisibleColumns: number;
 
 	// --- bracket match decorations
 	private bracketDecorations: string[];
 
 	// --- computed properties
-	private _cachedSelection: Selection;
 	private _cachedViewSelection: Selection;
 	private _selStartMarker: string;
 	private _selEndMarker: string;
-	private _selDirection: SelectionDirection;
 
 	private _modelOptionsListener: IDisposable;
+	private _configChangeListener: IDisposable;
 
 	constructor(
 		editorId: number,
@@ -164,9 +214,16 @@ export class OneCursor {
 		this.configuration = configuration;
 		this.modeConfiguration = modeConfiguration;
 		this.viewModelHelper = viewModelHelper;
-		this.helper = new CursorHelper(this.model, this.configuration);
-		this._modelOptionsListener = model.onDidChangeOptions(() => {
-			this.helper = new CursorHelper(this.model, this.configuration);
+
+		this._recreateCursorHelper();
+
+		this._modelOptionsListener = model.onDidChangeOptions(() => this._recreateCursorHelper());
+
+		this._configChangeListener = this.configuration.onDidChange((e) => {
+			if (e.layoutInfo) {
+				// due to pageSize
+				this._recreateCursorHelper();
+			}
 		});
 
 		this.bracketDecorations = [];
@@ -178,26 +235,28 @@ export class OneCursor {
 		);
 	}
 
+	private _recreateCursorHelper(): void {
+		this.config = new CursorMoveConfiguration(
+			this.model.getOptions().tabSize,
+			this.getPageSize()
+		);
+		this.helper = new CursorHelper(this.model, this.configuration, this.config);
+	}
+
 	private _set(
 		selectionStart: Range, selectionStartLeftoverVisibleColumns: number,
 		position: Position, leftoverVisibleColumns: number,
 		viewSelectionStart: Range, viewPosition: Position
 	): void {
-		this.selectionStart = selectionStart;
-		this.selectionStartLeftoverVisibleColumns = selectionStartLeftoverVisibleColumns;
-
-		this.position = position;
-		this.leftoverVisibleColumns = leftoverVisibleColumns;
+		this.modelState = new CursorModelState(selectionStart, selectionStartLeftoverVisibleColumns, position, leftoverVisibleColumns);
 
 		this.viewSelectionStart = viewSelectionStart;
 		this.viewPosition = viewPosition;
 
-		this._cachedSelection = OneCursor.computeSelection(this.selectionStart, this.position);
 		this._cachedViewSelection = OneCursor.computeSelection(this.viewSelectionStart, this.viewPosition);
 
-		this._selStartMarker = this._ensureMarker(this._selStartMarker, this._cachedSelection.startLineNumber, this._cachedSelection.startColumn, true);
-		this._selEndMarker = this._ensureMarker(this._selEndMarker, this._cachedSelection.endLineNumber, this._cachedSelection.endColumn, false);
-		this._selDirection = this._cachedSelection.getDirection();
+		this._selStartMarker = this._ensureMarker(this._selStartMarker, this.modelState.selection.startLineNumber, this.modelState.selection.startColumn, true);
+		this._selEndMarker = this._ensureMarker(this._selEndMarker, this.modelState.selection.endLineNumber, this.modelState.selection.endColumn, false);
 	}
 
 	private _ensureMarker(markerId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
@@ -212,12 +271,12 @@ export class OneCursor {
 
 	public saveState(): IOneCursorState {
 		return {
-			selectionStart: this.selectionStart,
+			selectionStart: this.modelState.selectionStart,
 			viewSelectionStart: this.viewSelectionStart,
-			position: this.position,
+			position: this.modelState.position,
 			viewPosition: this.viewPosition,
-			leftoverVisibleColumns: this.leftoverVisibleColumns,
-			selectionStartLeftoverVisibleColumns: this.selectionStartLeftoverVisibleColumns
+			leftoverVisibleColumns: this.modelState.leftoverVisibleColumns,
+			selectionStartLeftoverVisibleColumns: this.modelState.selectionStartLeftoverVisibleColumns
 		};
 	}
 
@@ -252,8 +311,8 @@ export class OneCursor {
 	public duplicate(): OneCursor {
 		let result = new OneCursor(this.editorId, this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
 		result._set(
-			this.selectionStart, this.selectionStartLeftoverVisibleColumns,
-			this.position, this.leftoverVisibleColumns,
+			this.modelState.selectionStart, this.modelState.selectionStartLeftoverVisibleColumns,
+			this.modelState.position, this.modelState.leftoverVisibleColumns,
 			this.viewSelectionStart, this.viewPosition
 		);
 		return result;
@@ -261,6 +320,7 @@ export class OneCursor {
 
 	public dispose(): void {
 		this._modelOptionsListener.dispose();
+		this._configChangeListener.dispose();
 		this.model._removeMarker(this._selStartMarker);
 		this.model._removeMarker(this._selEndMarker);
 		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, [], this.editorId);
@@ -270,7 +330,7 @@ export class OneCursor {
 		let bracketMatch: [Range, Range] = null;
 		let selection = this.getSelection();
 		if (selection.isEmpty()) {
-			bracketMatch = this.model.matchBracket(this.position);
+			bracketMatch = this.model.matchBracket(this.modelState.position);
 		}
 
 		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
@@ -286,7 +346,7 @@ export class OneCursor {
 		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, newDecorations, this.editorId);
 	}
 
-	private static computeSelection(selectionStart: Range, position: Position): Selection {
+	public static computeSelection(selectionStart: Range, position: Position): Selection {
 		let startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number;
 		if (selectionStart.isEmpty()) {
 			startLineNumber = selectionStart.startLineNumber;
@@ -336,12 +396,12 @@ export class OneCursor {
 	}
 
 	public setViewSelection(desiredViewSel: editorCommon.ISelection): void {
-		let viewSelectionStart = this.viewModelHelper.validateViewRange(desiredViewSel.selectionStartLineNumber, desiredViewSel.selectionStartColumn, desiredViewSel.selectionStartLineNumber, desiredViewSel.selectionStartColumn, this.selectionStart);
-		let viewPosition = this.viewModelHelper.validateViewPosition(desiredViewSel.positionLineNumber, desiredViewSel.positionColumn, this.position);
+		let viewSelectionStart = this.viewModelHelper.validateViewRange(desiredViewSel.selectionStartLineNumber, desiredViewSel.selectionStartColumn, desiredViewSel.selectionStartLineNumber, desiredViewSel.selectionStartColumn, this.modelState.selectionStart);
+		let viewPosition = this.viewModelHelper.validateViewPosition(desiredViewSel.positionLineNumber, desiredViewSel.positionColumn, this.modelState.position);
 
 		this._set(
-			this.selectionStart, 0,
-			this.position, 0,
+			this.modelState.selectionStart, 0,
+			this.modelState.position, 0,
 			viewSelectionStart, viewPosition
 		);
 	}
@@ -350,18 +410,18 @@ export class OneCursor {
 
 	public setSelectionStart(rng: Range, viewRng: Range): void {
 		this._set(
-			rng, this.selectionStartLeftoverVisibleColumns,
-			this.position, this.leftoverVisibleColumns,
+			rng, this.modelState.selectionStartLeftoverVisibleColumns,
+			this.modelState.position, this.modelState.leftoverVisibleColumns,
 			viewRng, this.viewPosition
 		);
 	}
 
 	public collapseSelection(): void {
-		let selectionStart = new Range(this.position.lineNumber, this.position.column, this.position.lineNumber, this.position.column);
+		let selectionStart = new Range(this.modelState.position.lineNumber, this.modelState.position.column, this.modelState.position.lineNumber, this.modelState.position.column);
 		let viewSelectionStart = new Range(this.viewPosition.lineNumber, this.viewPosition.column, this.viewPosition.lineNumber, this.viewPosition.column);
 		this._set(
 			selectionStart, 0,
-			this.position, this.leftoverVisibleColumns,
+			this.modelState.position, this.modelState.leftoverVisibleColumns,
 			viewSelectionStart, this.viewPosition
 		);
 	}
@@ -405,7 +465,7 @@ export class OneCursor {
 		if (inSelectionMode) {
 			// move just position
 			this._set(
-				this.selectionStart, this.selectionStartLeftoverVisibleColumns,
+				this.modelState.selectionStart, this.modelState.selectionStartLeftoverVisibleColumns,
 				position, leftoverVisibleColumns,
 				this.viewSelectionStart, viewPosition
 			);
@@ -425,7 +485,7 @@ export class OneCursor {
 		let start = this.model._getMarker(this._selStartMarker);
 		let end = this.model._getMarker(this._selEndMarker);
 
-		if (this._selDirection === SelectionDirection.LTR) {
+		if (this.modelState.selection.getDirection() === SelectionDirection.LTR) {
 			return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
 		}
 
@@ -466,13 +526,13 @@ export class OneCursor {
 	}
 
 	public getSelectionStart(): Range {
-		return this.selectionStart;
+		return this.modelState.selectionStart;
 	}
 	public getPosition(): Position {
-		return this.position;
+		return this.modelState.position;
 	}
 	public getSelection(): Selection {
-		return this._cachedSelection;
+		return this.modelState.selection;
 	}
 
 	public getViewPosition(): Position {
@@ -482,23 +542,23 @@ export class OneCursor {
 		return this._cachedViewSelection;
 	}
 	public getValidViewPosition(): Position {
-		return this.viewModelHelper.validateViewPosition(this.viewPosition.lineNumber, this.viewPosition.column, this.position);
+		return this.viewModelHelper.validateViewPosition(this.viewPosition.lineNumber, this.viewPosition.column, this.modelState.position);
 	}
 
 	public hasSelection(): boolean {
-		return (!this.getSelection().isEmpty() || !this.selectionStart.isEmpty());
+		return (!this.getSelection().isEmpty() || !this.modelState.selectionStart.isEmpty());
 	}
 	public getBracketsDecorations(): string[] {
 		return this.bracketDecorations;
 	}
 	public getLeftoverVisibleColumns(): number {
-		return this.leftoverVisibleColumns;
+		return this.modelState.leftoverVisibleColumns;
 	}
 	public getSelectionStartLeftoverVisibleColumns(): number {
-		return this.selectionStartLeftoverVisibleColumns;
+		return this.modelState.selectionStartLeftoverVisibleColumns;
 	}
 	public setSelectionStartLeftoverVisibleColumns(value: number): void {
-		this.selectionStartLeftoverVisibleColumns = value;
+		this.modelState = this.modelState.withSelectionStartLeftoverVisibleColumns(value);
 	}
 
 	// -- utils
@@ -581,10 +641,10 @@ export class OneCursor {
 	public getRightOfPosition(lineNumber: number, column: number): editorCommon.IPosition {
 		return this.helper.getRightOfPosition(this.model, lineNumber, column);
 	}
-	public getPositionUp(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): IMoveResult {
+	public getPositionUp(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorMoveResult {
 		return this.helper.getPositionUp(this.model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnFirstLine);
 	}
-	public getPositionDown(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): IMoveResult {
+	public getPositionDown(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorMoveResult {
 		return this.helper.getPositionDown(this.model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
 	public getColumnAtEndOfLine(lineNumber: number, column: number): number {
@@ -649,10 +709,10 @@ export class OneCursor {
 	public getRightOfViewPosition(lineNumber: number, column: number): editorCommon.IPosition {
 		return this.helper.getRightOfPosition(this.viewModelHelper.viewModel, lineNumber, column);
 	}
-	public getViewPositionUp(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): IMoveResult {
+	public getViewPositionUp(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorMoveResult {
 		return this.helper.getPositionUp(this.viewModelHelper.viewModel, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnFirstLine);
 	}
-	public getViewPositionDown(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): IMoveResult {
+	public getViewPositionDown(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorMoveResult {
 		return this.helper.getPositionDown(this.viewModelHelper.viewModel, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
 	public getColumnAtBeginningOfViewLine(lineNumber: number, column: number): number {
@@ -2210,10 +2270,10 @@ class CursorHelper {
 	private configuration: editorCommon.IConfiguration;
 	private moveHelper: CursorMoveHelper;
 
-	constructor(model: editorCommon.IModel, configuration: editorCommon.IConfiguration) {
+	constructor(model: editorCommon.IModel, configuration: editorCommon.IConfiguration, config: CursorMoveConfiguration) {
 		this.model = model;
 		this.configuration = configuration;
-		this.moveHelper = new CursorMoveHelper(this.model.getOptions().tabSize);
+		this.moveHelper = new CursorMoveHelper(config);
 	}
 
 	public getLeftOfPosition(model: ICursorMoveHelperModel, lineNumber: number, column: number): editorCommon.IPosition {
@@ -2224,11 +2284,11 @@ class CursorHelper {
 		return this.moveHelper.getRightOfPosition(model, lineNumber, column);
 	}
 
-	public getPositionUp(model: ICursorMoveHelperModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): IMoveResult {
+	public getPositionUp(model: ICursorMoveHelperModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorMoveResult {
 		return this.moveHelper.getPositionUp(model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnFirstLine);
 	}
 
-	public getPositionDown(model: ICursorMoveHelperModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): IMoveResult {
+	public getPositionDown(model: ICursorMoveHelperModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorMoveResult {
 		return this.moveHelper.getPositionDown(model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
 

@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import * as strings from 'vs/base/common/strings';
-import { CursorMoveHelper, ICursorMoveHelperModel } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorMoveHelper, ICursorMoveHelperModel, CursorMoveConfiguration } from 'vs/editor/common/controller/cursorMoveHelper';
 
 suite('CursorMove', () => {
 
@@ -86,7 +86,7 @@ suite('CursorMove', () => {
 	test('visibleColumnFromColumn', () => {
 
 		function testVisibleColumnFromColumn(text:string, tabSize:number, column:number, expected:number): void {
-			let helper = new CursorMoveHelper(tabSize);
+			let helper = new CursorMoveHelper(new CursorMoveConfiguration(tabSize, 13));
 			let model = new OneLineModel(text);
 			assert.equal(helper.visibleColumnFromColumn(model, 1, column), expected);
 		}
@@ -147,7 +147,7 @@ suite('CursorMove', () => {
 	test('columnFromVisibleColumn', () => {
 
 		function testColumnFromVisibleColumn(text:string, tabSize:number, visibleColumn:number, expected:number): void {
-			let helper = new CursorMoveHelper(tabSize);
+			let helper = new CursorMoveHelper(new CursorMoveConfiguration(tabSize, 13));
 			let model = new OneLineModel(text);
 			assert.equal(helper.columnFromVisibleColumn(model, 1, visibleColumn), expected);
 		}
