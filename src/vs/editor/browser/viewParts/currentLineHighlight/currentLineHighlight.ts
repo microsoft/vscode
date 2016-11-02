@@ -63,7 +63,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		return true;
 	}
 	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
-		var hasChanged = false;
+		let hasChanged = false;
 		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
 			this._primaryCursorIsInEditableRange = e.isInEditableRange;
 			hasChanged = true;
@@ -75,7 +75,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		return hasChanged;
 	}
 	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
-		var isEmpty = e.selection.isEmpty();
+		let isEmpty = e.selection.isEmpty();
 		if (this._selectionIsEmpty !== isEmpty) {
 			this._selectionIsEmpty = isEmpty;
 			return true;
@@ -134,6 +134,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	}
 
 	private _shouldShowCurrentLine(): boolean {
-		return this._renderLineHighlight && this._selectionIsEmpty && this._primaryCursorIsInEditableRange && !this._readOnly;
+		return this._renderLineHighlight && this._selectionIsEmpty && this._primaryCursorIsInEditableRange;
 	}
 }

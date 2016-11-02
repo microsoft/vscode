@@ -20,6 +20,6 @@
 	"updatedtsdk": "已将工作区设置 \"typescript.tsdk\" 更新为 {0}",
 	"use": "使用工作区({0})",
 	"useBundled": "捆绑使用({0})",
-	"versionMismatch": "检测到全局安装的 tsc 编译器({0})与 VS 代码语言服务({1})版本不匹配。这可能导致不一致的编译错误。",
+	"versionMismatch": "版本不匹配! 全局 tsc ({0}) != VS Code 的语言服务({1})。可能出现不一致的编译错误",
 	"versionNumber.custom": "自定义"
 }

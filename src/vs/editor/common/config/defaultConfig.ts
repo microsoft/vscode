@@ -56,6 +56,7 @@ class ConfigClass implements IConfiguration {
 				verticalHasArrows: false,
 				horizontalHasArrows: false
 			},
+			fixedOverflowWidgets: false,
 			overviewRulerLanes: 2,
 			cursorBlinking: 'blink',
 			mouseWheelZoom: false,
@@ -85,6 +86,7 @@ class ConfigClass implements IConfiguration {
 			suggestOnTriggerCharacters: true,
 			acceptSuggestionOnEnter: true,
 			snippetSuggestions: 'bottom',
+			emptySelectionClipboard: true,
 			tabCompletion: false,
 			wordBasedSuggestions: true,
 			suggestFontSize: 0,

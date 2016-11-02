@@ -15,7 +15,7 @@ interface IJSONValidationExtensionPoint {
 	url: string;
 }
 
-let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>('jsonValidation', {
+let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>('jsonValidation', [], {
 	description: nls.localize('contributes.jsonValidation', 'Contributes json schema configuration.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ fileMatch: '{{file.json}}', url: '{{url}}' }] }],

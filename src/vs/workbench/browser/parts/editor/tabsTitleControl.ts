@@ -496,18 +496,29 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
+		// We need to keep track of DRAG_ENTER and DRAG_LEAVE events because a tab is not just a div without children,
+		// it contains a label and a close button. HTML gives us DRAG_ENTER and DRAG_LEAVE events when hovering over
+		// these children and this can cause flicker of the drop feedback. The workaround is to count the events and only
+		// remove the drop feedback when the counter is 0 (see https://github.com/Microsoft/vscode/issues/14470)
+		let counter = 0;
+
 		// Drag over
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
+			counter++;
 			DOM.addClass(tab, 'dropfeedback');
 		}));
 
 		// Drag leave
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
-			DOM.removeClass(tab, 'dropfeedback');
+			counter--;
+			if (counter === 0) {
+				DOM.removeClass(tab, 'dropfeedback');
+			}
 		}));
 
 		// Drag end
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
+			counter = 0;
 			DOM.removeClass(tab, 'dropfeedback');
 
 			this.onEditorDragEnd();
@@ -515,6 +526,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Drop
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
+			counter = 0;
 			DOM.removeClass(tab, 'dropfeedback');
 
 			const targetPosition = this.stacks.positionOfGroup(group);

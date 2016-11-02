@@ -83,6 +83,7 @@
 	"TerminateAction.noProcess": "El proceso iniciado ya no existe. Si la tarea generó procesos en segundo plano al salir de VS Code, puede dar lugar a procesos huérfanos.",
 	"TestAction.label": "Ejecutar tarea de prueba",
 	"manyMarkers": "Más de 99",
+	"problems": "Problemas",
 	"taskCommands": "Ejecutar tarea",
 	"tasks": "Tareas",
 	"tasksCategory": "Tareas"

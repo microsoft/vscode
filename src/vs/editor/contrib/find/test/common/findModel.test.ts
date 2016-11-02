@@ -1585,6 +1585,52 @@ suite('FindModel', () => {
 		findState.dispose();
 	});
 
+	findTest('issue #14143 selectAllMatches should maintain primary cursor if feasible', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		editor.setSelection(new Range(7, 14, 7, 19));
+
+		findModel.selectAllMatches();
+
+		assert.deepEqual(editor.getSelections().map(s => s.toString()), [
+			new Selection(7, 14, 7, 19),
+			new Selection(6, 14, 6, 19),
+			new Selection(6, 27, 6, 32),
+			new Selection(8, 14, 8, 19)
+		].map(s => s.toString()));
+
+		assert.deepEqual(editor.getSelection().toString(), new Selection(7, 14, 7, 19).toString());
+
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			null,
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
 	findTest('issue #1914: NPE when there is only one find match', (editor, cursor) => {
 		let findState = new FindReplaceState();
 		findState.change({ searchString: 'cool.h' }, false);

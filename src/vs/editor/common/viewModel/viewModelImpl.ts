@@ -310,12 +310,20 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this.lines.onModelLinesDeleted(e.versionId, e.fromLineNumber, e.toLineNumber, (eventType: string, payload: any) => this.emit(eventType, payload));
 	}
 	private onModelTokensChanged(e: editorCommon.IModelTokensChangedEvent): void {
-		var viewStartLineNumber = this.convertModelPositionToViewPosition(e.fromLineNumber, 1).lineNumber;
-		var viewEndLineNumber = this.convertModelPositionToViewPosition(e.toLineNumber, this.model.getLineMaxColumn(e.toLineNumber)).lineNumber;
+		let viewRanges: { fromLineNumber: number; toLineNumber: number; }[] = [];
+
+		for (let i = 0, len = e.ranges.length; i < len; i++) {
+			let modelRange = e.ranges[i];
+			let viewStartLineNumber = this.convertModelPositionToViewPosition(modelRange.fromLineNumber, 1).lineNumber;
+			let viewEndLineNumber = this.convertModelPositionToViewPosition(modelRange.toLineNumber, this.model.getLineMaxColumn(modelRange.toLineNumber)).lineNumber;
+			viewRanges[i] = {
+				fromLineNumber: viewStartLineNumber,
+				toLineNumber: viewEndLineNumber
+			};
+		}
 
 		var e: editorCommon.IViewTokensChangedEvent = {
-			fromLineNumber: viewStartLineNumber,
-			toLineNumber: viewEndLineNumber
+			ranges: viewRanges
 		};
 		this.emit(editorCommon.ViewEventNames.TokensChangedEvent, e);
 	}
@@ -386,6 +394,10 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 	public getLineCount(): number {
 		return this.lines.getOutputLineCount();
+	}
+
+	public mightContainRTL(): boolean {
+		return this.model.mightContainRTL();
 	}
 
 	public getLineContent(lineNumber: number): string {

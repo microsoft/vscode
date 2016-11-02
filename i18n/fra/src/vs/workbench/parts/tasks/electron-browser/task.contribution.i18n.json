@@ -83,6 +83,7 @@
 	"TerminateAction.noProcess": "Le processus lancé n'existe plus. Si la tâche a engendré des tâches en arrière-plan, la sortie de VS Code risque de donner lieu à des processus orphelins.",
 	"TestAction.label": "Exécuter la tâche de test",
 	"manyMarkers": "99",
+	"problems": "Problèmes",
 	"taskCommands": "Exécuter la tâche",
 	"tasks": "Tâches",
 	"tasksCategory": "Tâches"

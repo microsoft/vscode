@@ -17,6 +17,8 @@
 	"workbench.action.terminal.runSelectedText": "在使用中的終端機執行選取的文字",
 	"workbench.action.terminal.scrollDown": "向下捲動 (行)",
 	"workbench.action.terminal.scrollDownPage": "向下捲動 (頁)",
+	"workbench.action.terminal.scrollToBottom": "捲動至底端",
+	"workbench.action.terminal.scrollToTop": "捲動至頂端",
 	"workbench.action.terminal.scrollUp": "向上捲動 (行)",
 	"workbench.action.terminal.scrollUpPage": "向上捲動 (頁)",
 	"workbench.action.terminal.switchTerminalInstance": "切換終端機執行個體",

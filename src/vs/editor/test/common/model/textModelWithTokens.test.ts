@@ -7,7 +7,8 @@
 import * as assert from 'assert';
 import { Model } from 'vs/editor/common/model/model';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
-import { TokenizationRegistry, CharacterPair } from 'vs/editor/common/modes';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { Token } from 'vs/editor/common/core/token';
 import { Range } from 'vs/editor/common/core/range';

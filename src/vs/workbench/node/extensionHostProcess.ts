@@ -7,15 +7,21 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtensionHostMain, IInitData, exit } from 'vs/workbench/node/extensionHostMain';
+import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
 import { create as createIPC, IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import marshalling = require('vs/base/common/marshalling');
 import { createQueuedSender } from 'vs/base/node/processes';
+import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 
 interface IRendererConnection {
 	remoteCom: IMainProcessExtHostIPC;
 	initData: IInitData;
 }
+
+/**
+ * Flag set when in shutdown phase to avoid communicating to the main process.
+ */
+let isTerminating = false;
 
 // This calls exit directly in case the initialization is not finished and we need to exit
 // Otherwise, if initialization completed we go to extensionHostMain.terminate()
@@ -36,6 +42,10 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			let msg = marshalling.parse(raw);
 
 			const remoteCom = createIPC(data => {
+				// Needed to avoid EPIPE errors in process.send below when a channel is closed
+				if (isTerminating === true) {
+					return;
+				}
 				queuedSender.send(data);
 				stats.push(data.length);
 			});
@@ -43,6 +53,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			// Listen to all other messages
 			process.on('message', (msg) => {
 				if (msg.type === '__$terminate') {
+					isTerminating = true;
 					onTerminate();
 					return;
 				}
@@ -94,6 +105,12 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 				}
 				stats.length = 0;
 			}, 1000);
+
+
+			// Send heartbeat
+			setInterval(function () {
+				queuedSender.send('__$heartbeat');
+			}, 250);
 
 			// Tell the outside that we are initialized
 			queuedSender.send('initialized');

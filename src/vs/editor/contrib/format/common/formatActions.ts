@@ -178,7 +178,7 @@ export class FormatDocumentAction extends AbstractFormatAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
-				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)],
+				// secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)],
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
 			},
 			menuOpts: {

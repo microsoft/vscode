@@ -7,7 +7,6 @@ import 'vs/css!../browser/media/debug.contribution';
 import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -137,19 +136,9 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(FocusReplAction, Focus
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: '_workbench.startDebug',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, configuration: any) {
+	handler(accessor: ServicesAccessor, configurationOrName: any) {
 		const debugService = accessor.get(debug.IDebugService);
-		if (typeof configuration === 'string') {
-			const configurationManager = debugService.getConfigurationManager();
-			return configurationManager.setConfiguration(configuration)
-				.then(() => {
-					return configurationManager.configuration ? debugService.createSession(false)
-						: TPromise.wrapError(new Error(nls.localize('launchConfigDoesNotExist', "Launch configuration '{0}' does not exist.", configuration)));
-				});
-		}
-
-		const noDebug = configuration && !!configuration.noDebug;
-		return debugService.createSession(noDebug, configuration);
+		return debugService.createProcess(configurationOrName);
 	},
 	when: debug.CONTEXT_NOT_IN_DEBUG_MODE,
 	primary: undefined
@@ -176,12 +165,12 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'debug.allowBreakpointsEverywhere': {
 			type: 'boolean',
-			description: nls.localize('allowBreakpointsEverywhere', "Allows setting breakpoints for all files, no matter the extension."),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "Allows setting breakpoint in any file"),
 			default: false
 		},
 		'debug.openExplorerOnEnd': {
 			type: 'boolean',
-			description: nls.localize('openExplorerOnEnd', "Automatically open explorer viewlet on the end of a debug session."),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open explorer viewlet on the end of a debug session"),
 			default: false
 		}
 	}

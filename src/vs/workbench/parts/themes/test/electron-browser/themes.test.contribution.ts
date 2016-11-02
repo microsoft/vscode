@@ -118,18 +118,22 @@ class Snapper {
 		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
 			let result: Data[] = [];
 			let model = new TextModelWithTokens([], TextModel.toRawText(content, TextModel.DEFAULT_CREATION_OPTIONS), mode.getId());
-			model.tokenIterator({ lineNumber: 1, column: 1 }, iterator => {
-				while (iterator.hasNext()) {
-					let tokenInfo = iterator.next();
-					let lineNumber = tokenInfo.lineNumber;
-					let content = model.getValueInRange({ startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: tokenInfo.startColumn, endColumn: tokenInfo.endColumn });
+			for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
+				let lineTokens = model.getLineTokens(lineNumber, false);
+				let lineContent = model.getLineContent(lineNumber);
+
+				for (let i = 0, len = lineTokens.getTokenCount(); i < len; i++) {
+					let tokenType = lineTokens.getTokenType(i);
+					let tokenStartOffset = lineTokens.getTokenStartOffset(i);
+					let tokenEndOffset = lineTokens.getTokenEndOffset(i);
+
 					result.push({
-						c: content,
-						t: this.normalizeType(tokenInfo.type),
+						c: lineContent.substring(tokenStartOffset, tokenEndOffset),
+						t: this.normalizeType(tokenType),
 						r: {}
 					});
 				}
-			});
+			}
 			return this.appendThemeInformation(result);
 		});
 	}

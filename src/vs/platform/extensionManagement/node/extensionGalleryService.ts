@@ -11,7 +11,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { memoize } from 'vs/base/common/decorators';
 import { ArraySet } from 'vs/base/common/set';
-import { IGalleryExtension, IExtensionGalleryService, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, IQueryOptions, SortBy, SortOrder, IExtensionManifest, EXTENSION_IDENTIFIER_REGEX } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -23,6 +23,7 @@ import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
 import * as url from 'url';
+import { getMachineId } from 'vs/base/node/id';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -262,18 +263,11 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	@memoize
 	private get commonHeaders(): TPromise<{ [key: string]: string; }> {
-		return this.telemetryService.getTelemetryInfo().then(({ machineId }) => {
-			const result: { [key: string]: string; } = {
-				'X-Market-Client-Id': `VSCode ${pkg.version}`,
-				'User-Agent': `VSCode ${pkg.version}`
-			};
-
-			if (machineId) {
-				result['X-Market-User-Id'] = machineId;
-			}
-
-			return result;
-		});
+		return getMachineId().then(machineId => ({
+			'X-Market-Client-Id': `VSCode ${pkg.version}`,
+			'User-Agent': `VSCode ${pkg.version}`,
+			'X-Market-User-Id': machineId
+		}));
 	}
 
 	constructor(
@@ -426,6 +420,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private loadDependencies(extensionNames: string[]): TPromise<IGalleryExtension[]> {
+		extensionNames = extensionNames.filter(e => EXTENSION_IDENTIFIER_REGEX.test(e));
 		let query = new Query()
 			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, extensionNames.length)
@@ -452,7 +447,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		if (!toGet || !toGet.length) {
 			return TPromise.wrap(result);
 		}
-		if (toGet.indexOf(`${root.publisher}.${root.name}`) && result.indexOf(root) === -1) {
+		if (toGet.indexOf(`${root.publisher}.${root.name}`) !== -1 && result.indexOf(root) === -1) {
 			result.push(root);
 		}
 		toGet = result.length ? toGet.filter(e => !ExtensionGalleryService.hasExtensionByName(result, e)) : toGet;

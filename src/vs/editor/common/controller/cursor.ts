@@ -5,6 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -1051,7 +1052,7 @@ export class Cursor extends EventEmitter {
 
 		if (sorted) {
 			cursors = cursors.sort((a, b) => {
-				return Range.compareRangesUsingStarts(a.getSelection(), b.getSelection());
+				return Range.compareRangesUsingStarts(a.modelState.selection, b.modelState.selection);
 			});
 		}
 
@@ -1111,7 +1112,7 @@ export class Cursor extends EventEmitter {
 	private _getColumnSelectToLineNumber(): number {
 		if (!this._columnSelectToLineNumber) {
 			let primaryCursor = this.cursors.getAll()[0];
-			let primaryPos = primaryCursor.getViewPosition();
+			let primaryPos = primaryCursor.viewState.position;
 			return primaryPos.lineNumber;
 		}
 		return this._columnSelectToLineNumber;
@@ -1121,7 +1122,7 @@ export class Cursor extends EventEmitter {
 	private _getColumnSelectToVisualColumn(): number {
 		if (!this._columnSelectToVisualColumn) {
 			let primaryCursor = this.cursors.getAll()[0];
-			let primaryPos = primaryCursor.getViewPosition();
+			let primaryPos = primaryCursor.viewState.position;
 			return primaryCursor.getViewVisibleColumnFromColumn(primaryPos.lineNumber, primaryPos.column);
 		}
 		return this._columnSelectToVisualColumn;
@@ -1397,9 +1398,15 @@ export class Cursor extends EventEmitter {
 		if (ctx.eventSource === 'keyboard') {
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
-			var i: number, len: number, chr: string;
-			for (i = 0, len = text.length; i < len; i++) {
-				chr = text.charAt(i);
+			for (let i = 0, len = text.length; i < len; i++) {
+				let charCode = text.charCodeAt(i);
+				let chr: string;
+				if (strings.isHighSurrogate(charCode) && i + 1 < len) {
+					chr = text.charAt(i) + text.charAt(i + 1);
+					i++;
+				} else {
+					chr = text.charAt(i);
+				}
 
 				this.charactersTyped += chr;
 
@@ -1454,13 +1461,13 @@ export class Cursor extends EventEmitter {
 	private _revealLine(ctx: IMultipleCursorOperationContext): boolean {
 		const revealLineArg: editorCommon.RevealLineArguments = ctx.eventData;
 		const lineNumber = revealLineArg.lineNumber + 1;
-		const range = this.model.validateRange({
+		let range = this.model.validateRange({
 			startLineNumber: lineNumber,
 			startColumn: 1,
 			endLineNumber: lineNumber,
 			endColumn: 1
 		});
-		range.endColumn = this.model.getLineMaxColumn(range.endLineNumber);
+		range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, this.model.getLineMaxColumn(range.endLineNumber));
 
 		let revealAt = editorCommon.VerticalRevealType.Simple;
 		if (revealLineArg.at) {

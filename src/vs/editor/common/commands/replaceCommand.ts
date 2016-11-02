@@ -35,8 +35,8 @@ export class ReplaceCommand implements editorCommon.ICommand {
 	}
 
 	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		var inverseEditOperations = helper.getInverseEditOperations();
-		var srcRange = inverseEditOperations[0].range;
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
 			srcRange.endLineNumber,
 			srcRange.endColumn,
@@ -53,8 +53,8 @@ export class ReplaceCommandWithoutChangingPosition extends ReplaceCommand {
 	}
 
 	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		var inverseEditOperations = helper.getInverseEditOperations();
-		var srcRange = inverseEditOperations[0].range;
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
 			srcRange.startLineNumber,
 			srcRange.startColumn,
@@ -76,8 +76,8 @@ export class ReplaceCommandWithOffsetCursorState extends ReplaceCommand {
 	}
 
 	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		var inverseEditOperations = helper.getInverseEditOperations();
-		var srcRange = inverseEditOperations[0].range;
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
 			srcRange.endLineNumber + this._lineNumberDeltaOffset,
 			srcRange.endColumn + this._columnDeltaOffset,

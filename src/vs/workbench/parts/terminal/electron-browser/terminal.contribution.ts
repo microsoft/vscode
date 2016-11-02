@@ -181,8 +181,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollDownPageTe
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Down (Page)', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToBottomTerminalAction, ScrollToBottomTerminalAction.ID, ScrollToBottomTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.End,
-	linux: { primary: KeyMod.Shift | KeyCode.End },
-	mac: { primary: KeyCode.End }
+	linux: { primary: KeyMod.Shift | KeyCode.End }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Bottom', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpTerminalAction, ScrollUpTerminalAction.ID, ScrollUpTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
@@ -194,7 +193,6 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpPageTerm
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Up (Page)', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToTopTerminalAction, ScrollToTopTerminalAction.ID, ScrollToTopTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.Home,
-	linux: { primary: KeyMod.Shift | KeyCode.Home },
-	mac: { primary: KeyCode.Home }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Bottom', category);
+	linux: { primary: KeyMod.Shift | KeyCode.Home }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Top', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL), 'Terminal: Clear', category);

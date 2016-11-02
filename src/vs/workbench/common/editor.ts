@@ -861,7 +861,6 @@ export interface IWorkbenchEditorConfiguration {
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
-			sideBySideLayout: 'vertical' | 'horizontal';
 		}
 	};
 }

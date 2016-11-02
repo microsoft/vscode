@@ -1240,7 +1240,7 @@ declare module 'vscode' {
 		 *
 		 * @param listener The listener function will be called when the event happens.
 		 * @param thisArgs The `this`-argument which will be used when calling the event listener.
-		 * @param disposables An array to which a [disposeable](#Disposable) will be added.
+		 * @param disposables An array to which a [disposable](#Disposable) will be added.
 		 * @return A disposable which unsubscribes the event listener.
 		 */
 		(listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]): Disposable;
@@ -4107,8 +4107,8 @@ declare module 'vscode' {
 		 * Register a signature help provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * by their [score](#languages.match) and called sequentially until a provider returns a
+		 * valid result.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A signature help provider.

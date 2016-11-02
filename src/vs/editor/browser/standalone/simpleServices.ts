@@ -115,14 +115,14 @@ export class SimpleEditorService implements IEditorService {
 	}
 
 	private doOpenEditor(editor: editorCommon.ICommonCodeEditor, data: IResourceInput): IEditor {
-		var model = this.findModel(editor, data);
+		let model = this.findModel(editor, data);
 		if (!model) {
 			if (data.resource) {
 				if (this.openEditorDelegate) {
 					this.openEditorDelegate(data.resource.toString());
 					return null;
 				} else {
-					var schema = data.resource.scheme;
+					let schema = data.resource.scheme;
 					if (schema === Schemas.http || schema === Schemas.https) {
 						// This is a fully qualified http or https URL
 						window.open(data.resource.toString());
@@ -133,14 +133,13 @@ export class SimpleEditorService implements IEditorService {
 			return null;
 		}
 
-
-		var selection = <editorCommon.IRange>data.options.selection;
+		let selection = <editorCommon.IRange>data.options.selection;
 		if (selection) {
 			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
 				editor.setSelection(selection);
 				editor.revealRangeInCenter(selection);
 			} else {
-				var pos = {
+				let pos = {
 					lineNumber: selection.startLineNumber,
 					column: selection.startColumn
 				};
@@ -153,7 +152,7 @@ export class SimpleEditorService implements IEditorService {
 	}
 
 	private findModel(editor: editorCommon.ICommonCodeEditor, data: IResourceInput): editorCommon.IModel {
-		var model = editor.getModel();
+		let model = editor.getModel();
 		if (model.uri.toString() !== data.resource.toString()) {
 			return null;
 		}
@@ -162,7 +161,7 @@ export class SimpleEditorService implements IEditorService {
 	}
 
 	public resolveEditorModel(typedData: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel> {
-		var model: editorCommon.IModel;
+		let model: editorCommon.IModel;
 
 		model = this.editor.withTypedEditor(
 			(editor) => this.findModel(editor, typedData),
@@ -224,7 +223,7 @@ export class SimpleMessageService implements IMessageService {
 	}
 
 	public confirm(confirmation: IConfirmation): boolean {
-		var messageText = confirmation.message;
+		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
@@ -277,7 +276,7 @@ export class StandaloneKeybindingService extends KeybindingService {
 		if (commandId === null) {
 			commandId = 'DYNAMIC_' + (++StandaloneKeybindingService.LAST_GENERATED_ID);
 		}
-		var parsedContext = IOSupport.readKeybindingWhen(when);
+		let parsedContext = IOSupport.readKeybindingWhen(when);
 		this._dynamicKeybindings.push({
 			keybinding: keybinding,
 			command: commandId,

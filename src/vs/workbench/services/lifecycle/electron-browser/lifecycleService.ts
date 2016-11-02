@@ -9,7 +9,7 @@ import Severity from 'vs/base/common/severity';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ipcRenderer as ipc } from 'electron';
 import Event, { Emitter } from 'vs/base/common/event';
 
@@ -24,7 +24,7 @@ export class LifecycleService implements ILifecycleService {
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
-		@IWindowService private windowService: IWindowService
+		@IWindowIPCService private windowService: IWindowIPCService
 	) {
 		this.registerListeners();
 	}

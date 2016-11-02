@@ -122,9 +122,8 @@
 .explorer-viewlet:lang(ko) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group { font-weight: normal; }
 
 /* Disable tree twistie */
-.explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:after,
 .explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:before {
-	border: none;
+	display: none;
 }
 
 /* High Contrast Theming */
