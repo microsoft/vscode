@@ -48,14 +48,14 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		this.create();
 	}
 
-	renderBody(container: HTMLElement): void {
+	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		DOM.addClass(this.treeContainer, 'tree-explorer-viewlet-tree-view');
 
 		this.tree = this.createViewer($(this.treeContainer));
 	}
 
-	createViewer(container: Builder): ITree {
+	public createViewer(container: Builder): ITree {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.treeNodeProviderId);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
 		const controller = this.instantiationService.createInstance(TreeController, this.treeNodeProviderId);
@@ -75,20 +75,20 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		});
 	}
 
-	getActions(): IAction[] {
+	public getActions(): IAction[] {
 		const refresh = this.instantiationService.createInstance(RefreshViewExplorerAction, this);
 		return [refresh];
 	}
 
-	create(): TPromise<void> {
+	public create(): TPromise<void> {
 		return this.updateInput();
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible);
 	}
 
-	updateInput(): TPromise<void> {
+	public updateInput(): TPromise<void> {
 		if (this.treeExplorerViewletService.hasProvider(this.treeNodeProviderId)) {
 			return this.treeExplorerViewletService.provideRootNode(this.treeNodeProviderId).then(tree => {
 				this.tree.setInput(tree);
