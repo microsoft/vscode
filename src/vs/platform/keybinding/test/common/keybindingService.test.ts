@@ -31,6 +31,23 @@ suite('Keybinding Service', () => {
 		assert.equal(resolver.resolve({ bar: 'bz' }, 0, keybinding), null);
 	});
 
+	test('resolve key with arguments', function () {
+		let commandArgs = { text: 'no' };
+		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
+		let contextRules = ContextKeyExpr.equals('bar', 'baz');
+		let keybindingItem: IKeybindingItem = {
+			command: 'yes',
+			commandArgs: commandArgs,
+			when: contextRules,
+			keybinding: keybinding,
+			weight1: 0,
+			weight2: 0
+		};
+
+		let resolver = new KeybindingResolver([keybindingItem], []);
+		assert.equal(resolver.resolve({ bar: 'baz' }, 0, keybinding).commandArgs, commandArgs);
+	});
+
 	test('KbAndExpression.equals', function () {
 		let a = ContextKeyExpr.and(
 			ContextKeyExpr.has('a1'),
@@ -470,8 +487,6 @@ suite('Keybinding Service', () => {
 		];
 
 		let resolver = new KeybindingResolver(items, [], false);
-
-
 
 		let testKey = (commandId: string, expectedKeys: number[]) => {
 			// Test lookup
