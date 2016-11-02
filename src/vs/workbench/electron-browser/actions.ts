@@ -10,6 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
 import { Action } from 'vs/base/common/actions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -420,22 +421,21 @@ export class ShowStartupPerformance extends Action {
 
 export class ReloadWindowAction extends Action {
 
-	public static ID = 'workbench.action.reloadWindow';
-	public static LABEL = nls.localize('reloadWindow', "Reload Window");
+	static ID = 'workbench.action.reloadWindow';
+	static LABEL = nls.localize('reloadWindow', "Reload Window");
 
 	constructor(
 		id: string,
 		label: string,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
 		@IPartService private partService: IPartService
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		this.windowService.getWindow().reload();
-
-		return TPromise.as(true);
+	run(): TPromise<boolean> {
+		this.partService.setRestoreSidebar(); // we want the same sidebar after a reload restored
+		return this.windowService.reloadWindow().then(() => true);
 	}
 }
 

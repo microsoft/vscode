@@ -33,4 +33,14 @@ export class WindowsService implements IWindowsService {
 		this.windowsMainService.openFolderPicker(forceNewWindow);
 		return TPromise.as(null);
 	}
+
+	reloadWindow(windowId: number): TPromise<void> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			this.windowsMainService.reload(vscodeWindow);
+		}
+
+		return TPromise.as(null);
+	}
 }

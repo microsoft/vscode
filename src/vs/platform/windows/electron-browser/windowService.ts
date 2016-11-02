@@ -28,4 +28,8 @@ export class WindowService implements IWindowService {
 	openFolderPicker(forceNewWindow?: boolean): TPromise<void> {
 		return this.windowsService.openFolderPicker(this.windowId, forceNewWindow);
 	}
+
+	reloadWindow(): TPromise<void> {
+		return this.windowsService.reloadWindow(this.windowId);
+	}
 }
