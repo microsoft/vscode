@@ -423,7 +423,7 @@ function getShellEnvironment(): TPromise<platform.IProcessEnvironment> {
 }
 
 function createPaths(environmentService: IEnvironmentService): TPromise<any> {
-	const paths = [environmentService.appSettingsHome, environmentService.userHome, environmentService.extensionsPath];
+	const paths = [environmentService.appSettingsHome, environmentService.userProductHome, environmentService.extensionsPath];
 
 	return TPromise.join(paths.map(p => mkdirp(p))) as TPromise<any>;
 }
