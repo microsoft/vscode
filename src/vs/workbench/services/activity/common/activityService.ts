@@ -60,6 +60,7 @@ export const IActivityService = createDecorator<IActivityService>('activityServi
 
 export interface IActivityService {
 	_serviceBrand: any;
+	externalViewletIdToOpen: string;
 
 	/**
 	 * Show activity in the activitybar for the given viewlet or panel.
@@ -74,7 +75,7 @@ export interface IActivityService {
 	/**
 	 * Get registered external viewlets' info for populating 'Toggle Custom Explorer' command picks.
 	 */
-	getInfoForRegisteredViewlets(): {
+	getInfoForExternalViewlets(): {
 		[viewletId: string]: {
 			isEnabled: boolean;
 			treeLabel: string;
@@ -84,10 +85,5 @@ export interface IActivityService {
 	/**
 	 * Enable/disable an external viewlet.
 	 */
-	toggleViewlet(viewletId: string): void;
-
-	/**
-	 * Get the external viewlet id that is about to open.
-	 */
-	getExternalViewletIdToOpen(): string;
+	toggleExternalViewlet(viewletId: string): void;
 }
