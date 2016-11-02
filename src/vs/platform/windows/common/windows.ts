@@ -17,6 +17,7 @@ export interface IWindowsService {
 	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
 	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void>;
 	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
+	reloadWindow(windowId: number): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -28,4 +29,5 @@ export interface IWindowService {
 	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void>;
 	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void>;
 	openFolderPicker(forceNewWindow?: boolean): TPromise<void>;
+	reloadWindow(): TPromise<void>;
 }
