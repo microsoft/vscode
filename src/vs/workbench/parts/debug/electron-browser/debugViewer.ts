@@ -502,7 +502,7 @@ export class CallStackRenderer implements IRenderer {
 	}
 
 	private renderProcess(process: debug.IProcess, data: IProcessTemplateData): void {
-		data.process.title = nls.localize('process', "Process");
+		data.process.title = nls.localize({ key: 'process', comment: ['Process is a noun'] }, "Process");
 		data.name.textContent = process.name;
 	}
 
