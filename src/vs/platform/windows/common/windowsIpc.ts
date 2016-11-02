@@ -11,7 +11,7 @@ import { IWindowsService } from './windows';
 
 export interface IWindowsChannel extends IChannel {
 	call(command: 'openFileFolderPicker', args: [number, boolean]): TPromise<void>;
-	call(command: 'openFilePicker', args: [number, boolean]): TPromise<void>;
+	call(command: 'openFilePicker', args: [number, boolean, string]): TPromise<void>;
 	call(command: 'openFolderPicker', args: [number, boolean]): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
 }
@@ -23,7 +23,7 @@ export class WindowsChannel implements IWindowsChannel {
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'openFileFolderPicker': return this.service.openFileFolderPicker(arg[0], arg[1]);
-			case 'openFilePicker': return this.service.openFilePicker(arg[0], arg[1]);
+			case 'openFilePicker': return this.service.openFilePicker(arg[0], arg[1], arg[2]);
 			case 'openFolderPicker': return this.service.openFolderPicker(arg[0], arg[1]);
 		}
 	}
@@ -39,8 +39,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('openFileFolderPicker', [windowId, forceNewWindow]);
 	}
 
-	openFilePicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
-		return this.channel.call('openFilePicker', [windowId, forceNewWindow]);
+	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void> {
+		return this.channel.call('openFilePicker', [windowId, forceNewWindow, path]);
 	}
 
 	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {

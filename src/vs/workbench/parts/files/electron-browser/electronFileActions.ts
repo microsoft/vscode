@@ -18,6 +18,7 @@ import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 import { ipcRenderer as ipc, clipboard } from 'electron';
 
@@ -116,63 +117,65 @@ export class GlobalCopyPathAction extends Action {
 	}
 }
 
-export class BaseOpenAction extends Action {
-
-	private ipcMsg: string;
-
-	constructor(id: string, label: string, ipcMsg: string) {
-		super(id, label);
-
-		this.ipcMsg = ipcMsg;
-	}
-
-	public run(): TPromise<any> {
-		ipc.send(this.ipcMsg); // Handle in browser process
-
-		return TPromise.as(true);
-	}
-}
-
 export class OpenFileAction extends Action {
 
-	public static ID = 'workbench.action.files.openFile';
-	public static LABEL = nls.localize('openFile', "Open File...");
+	static ID = 'workbench.action.files.openFile';
+	static LABEL = nls.localize('openFile', "Open File...");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWindowService private windowService: IWindowService
+	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 
 		// Handle in browser process
 		if (fileInput) {
-			ipc.send('vscode:openFilePicker', false, paths.dirname(fileInput.getResource().fsPath));
-		} else {
-			ipc.send('vscode:openFilePicker');
+			return this.windowService.openFilePicker(false, paths.dirname(fileInput.getResource().fsPath));
 		}
 
-		return TPromise.as(true);
+		return this.windowService.openFilePicker();
 	}
 }
 
-export class OpenFolderAction extends BaseOpenAction {
+export class OpenFolderAction extends Action {
 
-	public static ID = 'workbench.action.files.openFolder';
-	public static LABEL = nls.localize('openFolder', "Open Folder...");
+	static ID = 'workbench.action.files.openFolder';
+	static LABEL = nls.localize('openFolder', "Open Folder...");
 
-	constructor(id: string, label: string) {
-		super(id, label, 'vscode:openFolderPicker');
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		return this.windowService.openFolderPicker();
 	}
 }
 
-export class OpenFileFolderAction extends BaseOpenAction {
+export class OpenFileFolderAction extends Action {
 
-	public static ID = 'workbench.action.files.openFileFolder';
-	public static LABEL = nls.localize('openFileFolder', "Open...");
+	static ID = 'workbench.action.files.openFileFolder';
+	static LABEL = nls.localize('openFileFolder', "Open...");
 
-	constructor(id: string, label: string) {
-		super(id, label, 'vscode:openFileFolderPicker');
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		return this.windowService.openFileFolderPicker();
 	}
 }
 
