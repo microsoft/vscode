@@ -28,10 +28,10 @@ import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/pl
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
-import { Renderer, DataSource, Controller } from './dependenciesViewer';
+import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITemplateData } from './extensionsList';
-import { RatingsWidget, InstallWidget } from './extensionsWidgets';
+import { ITemplateData } from 'vs/workbench/parts/extensions/browser/extensionsList';
+import { RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import product from 'vs/platform/product';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
