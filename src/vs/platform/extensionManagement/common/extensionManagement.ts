@@ -242,7 +242,7 @@ export interface IExtensionEnablementService {
 	/**
 	 * Event to listen on for extension enablement changes
 	 */
-	// onEnablementChanged: Event<string>;
+	onEnablementChanged: Event<string>;
 
 	/**
 	 * Returns all globally disabled extension identifiers.
