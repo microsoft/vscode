@@ -15,7 +15,7 @@ export interface IWindowsService {
 	_serviceBrand: any;
 
 	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
-	openFilePicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
+	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void>;
 	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
 }
 
@@ -26,6 +26,6 @@ export interface IWindowService {
 	_serviceBrand: any;
 
 	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void>;
-	openFilePicker(forceNewWindow?: boolean): TPromise<void>;
+	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void>;
 	openFolderPicker(forceNewWindow?: boolean): TPromise<void>;
 }

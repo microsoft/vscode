@@ -24,8 +24,8 @@ export class WindowsService implements IWindowsService {
 		return TPromise.as(null);
 	}
 
-	openFilePicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
-		this.windowsMainService.openFilePicker(forceNewWindow);
+	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void> {
+		this.windowsMainService.openFilePicker(forceNewWindow, path);
 		return TPromise.as(null);
 	}
 

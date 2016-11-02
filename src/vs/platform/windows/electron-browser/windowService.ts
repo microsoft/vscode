@@ -21,8 +21,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.openFileFolderPicker(this.windowId, forceNewWindow);
 	}
 
-	openFilePicker(forceNewWindow?: boolean): TPromise<void> {
-		return this.windowsService.openFilePicker(this.windowId, forceNewWindow);
+	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void> {
+		return this.windowsService.openFilePicker(this.windowId, forceNewWindow, path);
 	}
 
 	openFolderPicker(forceNewWindow?: boolean): TPromise<void> {
