@@ -5,8 +5,8 @@
 'use strict';
 
 import { workspace, Uri, EventEmitter, Disposable, TextDocument } from 'vscode';
-import { LanguageClient, RequestType } from 'vscode-languageclient';
-
+import { LanguageClient, RequestType, NotificationType } from 'vscode-languageclient';
+import { getEmbeddedContentUri, getEmbeddedLanguageId, getHostDocumentUri, isEmbeddedContentUri, EMBEDDED_CONTENT_SCHEME } from './embeddedContentUri';
 
 interface EmbeddedContentParams {
 	uri: string;
@@ -23,12 +23,21 @@ namespace EmbeddedContentRequest {
 }
 
 export interface EmbeddedDocuments extends Disposable {
-	getVirtualDocumentUri: (parentDocumentUri: string, embeddedLanguageId: string) => Uri;
-	openVirtualDocument: (embeddedContentUri: Uri, expectedVersion: number) => Thenable<TextDocument>;
+	getEmbeddedContentUri: (parentDocumentUri: string, embeddedLanguageId: string) => Uri;
+	openEmbeddedContentDocument: (embeddedContentUri: Uri, expectedVersion: number) => Thenable<TextDocument>;
 }
 
+interface EmbeddedContentChangedParams {
+	uri: string;
+	version: number;
+	embeddedLanguageIds: string[];
+}
 
-export function initializeEmbeddedContentDocuments(embeddedScheme: string, client: LanguageClient): EmbeddedDocuments {
+namespace EmbeddedContentChangedNotification {
+	export const type: NotificationType<EmbeddedContentChangedParams> = { get method() { return 'embedded/contentchanged'; } };
+}
+
+export function initializeEmbeddedContentDocuments(parentDocumentSelector: string[], embeddedLanguages: { [languageId: string]: boolean }, client: LanguageClient): EmbeddedDocuments {
 	let toDispose: Disposable[] = [];
 
 	let embeddedContentChanged = new EventEmitter<Uri>();
@@ -38,16 +47,16 @@ export function initializeEmbeddedContentDocuments(embeddedScheme: string, clien
 
 	// documents are closed after a time out or when collected.
 	toDispose.push(workspace.onDidCloseTextDocument(d => {
-		if (d.uri.scheme === embeddedScheme) {
+		if (isEmbeddedContentUri(d.uri)) {
 			delete openVirtualDocuments[d.uri.toString()];
 		}
 	}));
 
 	// virtual document provider
-	toDispose.push(workspace.registerTextDocumentContentProvider(embeddedScheme, {
+	toDispose.push(workspace.registerTextDocumentContentProvider(EMBEDDED_CONTENT_SCHEME, {
 		provideTextDocumentContent: uri => {
-			if (uri.scheme === embeddedScheme) {
-				let contentRequestParms = { uri: getParentDocumentUri(uri), embeddedLanguageId: getEmbeddedLanguageId(uri) };
+			if (isEmbeddedContentUri(uri)) {
+				let contentRequestParms = { uri: getHostDocumentUri(uri), embeddedLanguageId: getEmbeddedLanguageId(uri) };
 				return client.sendRequest(EmbeddedContentRequest.type, contentRequestParms).then(content => {
 					if (content) {
 						openVirtualDocuments[uri.toString()] = content.version;
@@ -63,19 +72,16 @@ export function initializeEmbeddedContentDocuments(embeddedScheme: string, clien
 		onDidChange: embeddedContentChanged.event
 	}));
 
-	function getVirtualDocumentUri(parentDocumentUri: string, embeddedLanguageId: string) {
-		return Uri.parse(embeddedScheme + '://' + embeddedLanguageId + '/' + encodeURIComponent(parentDocumentUri) + '.' + embeddedLanguageId);
-	};
-
-	function getParentDocumentUri(virtualDocumentUri: Uri): string {
-		let languageId = virtualDocumentUri.authority;
-		let path = virtualDocumentUri.path.substring(1, virtualDocumentUri.path.length - languageId.length - 1); // remove leading '/' and new file extension
-		return decodeURIComponent(path);
-	};
-
-	function getEmbeddedLanguageId(virtualDocumentUri: Uri): string {
-		return virtualDocumentUri.authority;
-	}
+	// diagnostics for embedded contents
+	client.onNotification(EmbeddedContentChangedNotification.type, p => {
+		for (let languageId in embeddedLanguages) {
+			if (p.embeddedLanguageIds.indexOf(languageId) !== -1) {
+				// open the document so that validation is triggered in the embedded mode
+				let virtualUri = getEmbeddedContentUri(p.uri, languageId);
+				openEmbeddedContentDocument(virtualUri, p.version);
+			}
+		}
+	});
 
 	function ensureContentUpdated(virtualURI: Uri, expectedVersion: number) {
 		let virtualURIString = virtualURI.toString();
@@ -94,7 +100,7 @@ export function initializeEmbeddedContentDocuments(embeddedScheme: string, clien
 		return Promise.resolve();
 	};
 
-	function openVirtualDocument(virtualURI: Uri, expectedVersion: number): Thenable<TextDocument> {
+	function openEmbeddedContentDocument(virtualURI: Uri, expectedVersion: number): Thenable<TextDocument> {
 		return ensureContentUpdated(virtualURI, expectedVersion).then(_ => {
 			return workspace.openTextDocument(virtualURI).then(document => {
 				if (expectedVersion === openVirtualDocuments[virtualURI.toString()]) {
@@ -106,8 +112,8 @@ export function initializeEmbeddedContentDocuments(embeddedScheme: string, clien
 	};
 
 	return {
-		getVirtualDocumentUri,
-		openVirtualDocument,
+		getEmbeddedContentUri,
+		openEmbeddedContentDocument,
 		dispose: Disposable.from(...toDispose).dispose
 	};
 

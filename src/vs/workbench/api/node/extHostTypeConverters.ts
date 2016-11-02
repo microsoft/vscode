@@ -248,10 +248,10 @@ export function toSymbolInformation(bearing: IWorkspaceSymbol): types.SymbolInfo
 
 
 export const location = {
-	from(value: types.Location): modes.Location {
+	from(value: vscode.Location): modes.Location {
 		return {
-			range: fromRange(value.range),
-			uri: value.uri
+			range: value.range && fromRange(value.range),
+			uri: <URI>value.uri
 		};
 	},
 	to(value: modes.Location): types.Location {

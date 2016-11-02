@@ -11,9 +11,10 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
+import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
+import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
@@ -30,7 +31,7 @@ import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/l
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { IFileService, IResolveContentOptions, IFileOperationResult } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -273,13 +274,13 @@ export class TestEventService extends EventEmitter implements IEventService {
 export class TestStorageService extends EventEmitter implements IStorageService {
 	public _serviceBrand: any;
 
-	private storage: Storage;
+	private storage: StorageService;
 
 	constructor() {
 		super();
 
 		let context = new TestContextService();
-		this.storage = new Storage(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -315,10 +316,12 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
+	private _onGroupOrientationChanged: Emitter<void>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
+		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
 
 		let services = new ServiceCollection();
@@ -350,6 +353,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this._onEditorsMoved.event;
 	}
 
+	public get onGroupOrientationChanged(): Event<void> {
+		return this._onGroupOrientationChanged.event;
+	}
+
 	public focusGroup(group: IEditorGroup): void;
 	public focusGroup(position: Position): void;
 	public focusGroup(arg1: any): void {
@@ -370,6 +377,14 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
 
+	}
+
+	public setGroupOrientation(orientation: GroupOrientation): void {
+
+	}
+
+	public getGroupOrientation(): GroupOrientation {
+		return 'vertical';
 	}
 
 	public pinEditor(group: IEditorGroup, input: IEditorInput): void;
@@ -605,4 +620,14 @@ export class TestLifecycleService implements ILifecycleService {
 export function createMockModelService(instantiationService: TestInstantiationService): IModelService {
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	return instantiationService.createInstance(ModelServiceImpl);
+}
+
+export function onError(error: Error, done: () => void): void {
+	assert.fail(error);
+
+	done();
+}
+
+export function toResource(path) {
+	return URI.file(paths.join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
 }

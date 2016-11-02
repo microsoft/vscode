@@ -54,7 +54,14 @@
       {
         "language": "html",
         "scopeName": "text.html.basic",
-        "path": "./syntaxes/html.json"
+        "path": "./syntaxes/html.json",
+        "embeddedLanguages": {
+          "text.html": "html",
+          "source.css": "css",
+          "source.js": "javascript",
+          "source.python": "python",
+          "source.smarty": "smarty"
+        }
       }
     ],
     "configuration": {
@@ -66,7 +73,7 @@
         "html.format.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Enable/disable default HTML formatter"
+          "description": "Enable/disable default HTML formatter (requires restart)"
         },
         "html.format.wrapLineLength": {
           "type": "integer",

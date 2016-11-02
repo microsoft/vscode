@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
+import { mixin } from 'vs/base/common/objects';
 import { EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
@@ -16,7 +17,6 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { Position, IEditor, Direction, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -412,7 +412,7 @@ export class OpenToSideAction extends Action {
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		super(OpenToSideAction.OPEN_TO_SIDE_ID, OpenToSideAction.OPEN_TO_SIDE_LABEL);
 
@@ -421,9 +421,9 @@ export class OpenToSideAction extends Action {
 	}
 
 	public updateClass(): void {
-		const editorLayoutVertical = this.configurationService.lookup('workbench.editor.sideBySideLayout').value !== 'horizontal';
+		const editorGroupLayoutVertical = (this.editorGroupService.getGroupOrientation() !== 'horizontal');
 
-		this.class = editorLayoutVertical ? 'quick-open-sidebyside-vertical' : 'quick-open-sidebyside-horizontal';
+		this.class = editorGroupLayoutVertical ? 'quick-open-sidebyside-vertical' : 'quick-open-sidebyside-horizontal';
 	}
 
 	private updateEnablement(): void {
@@ -434,15 +434,15 @@ export class OpenToSideAction extends Action {
 	public run(context: any): TPromise<any> {
 		let entry = toEditorQuickOpenEntry(context);
 		if (entry) {
-			let typedInputPromise: TPromise<EditorInput>;
 			const input = entry.getInput();
 			if (input instanceof EditorInput) {
-				typedInputPromise = TPromise.as(input);
-			} else {
-				typedInputPromise = this.editorService.createInput(<IResourceInput>input);
+				return this.editorService.openEditor(input, entry.getOptions(), true);
 			}
 
-			return typedInputPromise.then(typedInput => this.editorService.openEditor(typedInput, entry.getOptions(), true));
+			const resourceInput = input as IResourceInput;
+			resourceInput.options = mixin(resourceInput.options, entry.getOptions());
+
+			return this.editorService.openEditor(resourceInput, true);
 		}
 
 		return TPromise.as(false);

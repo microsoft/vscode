@@ -31,7 +31,7 @@ class LinkOccurence {
 			range: {
 				startLineNumber: link.range.startLineNumber,
 				startColumn: link.range.startColumn,
-				endLineNumber: link.range.startLineNumber,
+				endLineNumber: link.range.endLineNumber,
 				endColumn: link.range.endColumn
 			},
 			options: LinkOccurence._getOptions(link, false)

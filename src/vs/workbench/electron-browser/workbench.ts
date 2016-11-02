@@ -225,7 +225,7 @@ export class Workbench implements IPartService {
 			const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 			let viewletId = viewletRegistry.getDefaultViewletId();
 			if (this.shouldRestoreSidebar()) {
-				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId()); // help developers and restore last view
+				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletId); // help developers and restore last view
 			}
 
 			if (!this.sideBarHidden && !!viewletId) {
@@ -553,10 +553,14 @@ export class Workbench implements IPartService {
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
 			this.sidebarPart.hideActiveViewlet();
 
-			// Pass Focus to Editor if Sidebar is now hidden
-			const editor = this.editorPart.getActiveEditor();
-			if (editor) {
-				editor.focus();
+			const activeEditor = this.editorPart.getActiveEditor();
+			const activePanel = this.panelPart.getActivePanel();
+
+			// Pass Focus to Editor or Panel if Sidebar is now hidden
+			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
+				activePanel.focus();
+			} else if (activeEditor) {
+				activeEditor.focus();
 			}
 		}
 

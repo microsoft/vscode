@@ -130,17 +130,17 @@ export class QuickFixModel {
 	}
 
 	private _update(): void {
-		dispose(this._quickFixOracle);
+
+		if (this._quickFixOracle) {
+			dispose(this._quickFixOracle);
+			this._onDidChangeFixes.fire(undefined);
+		}
 
 		if (this._editor.getModel()
 			&& CodeActionProviderRegistry.has(this._editor.getModel())
 			&& !this._editor.getConfiguration().readOnly) {
 
 			this._quickFixOracle = new QuickFixOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
-
-		} else {
-			// signal unavailable
-			this._onDidChangeFixes.fire(undefined);
 		}
 	}
 

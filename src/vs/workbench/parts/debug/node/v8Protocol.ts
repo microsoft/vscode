@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import stream = require('stream');
-import uuid = require('vs/base/common/uuid');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { canceled } from 'vs/base/common/errors';
 
@@ -16,15 +15,13 @@ export abstract class V8Protocol {
 	private sequence: number;
 	private pendingRequests: { [id: number]: (e: DebugProtocol.Response) => void; };
 	private rawData: Buffer;
-	private id: string;
 	private contentLength: number;
 
-	constructor() {
+	constructor(private id: string) {
 		this.sequence = 1;
 		this.contentLength = -1;
 		this.pendingRequests = {};
 		this.rawData = new Buffer(0);
-		this.id = uuid.generateUuid();
 	}
 
 	public getId(): string {

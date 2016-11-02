@@ -11,11 +11,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { WordHelper } from 'vs/editor/common/model/textModelWithTokensHelpers';
 import { IInplaceReplaceSupportResult, ILink, ISuggestResult, LinkProviderRegistry, LinkProvider } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -321,7 +321,7 @@ export class EditorWorkerClient extends Disposable {
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getModeId());
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getModeId());
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
@@ -334,7 +334,7 @@ export class EditorWorkerClient extends Disposable {
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getModeId());
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getModeId());
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);

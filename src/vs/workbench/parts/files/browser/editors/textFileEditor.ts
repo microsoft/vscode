@@ -145,18 +145,15 @@ export class TextFileEditor extends BaseTextEditor {
 			const textEditor = this.getControl();
 			textEditor.setModel(textFileModel.textEditorModel);
 
-			// TextOptions (avoiding instanceof here for a reason, do not change!)
-			let optionsGotApplied = false;
-			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-				optionsGotApplied = (<TextEditorOptions>options).apply(textEditor);
+			// Always restore View State if any associated
+			const editorViewState = this.loadTextEditorViewState(this.storageService, this.getInput().getResource().toString());
+			if (editorViewState) {
+				textEditor.restoreViewState(editorViewState);
 			}
 
-			// Otherwise restore View State
-			if (!optionsGotApplied) {
-				const editorViewState = this.loadTextEditorViewState(this.storageService, this.getInput().getResource().toString());
-				if (editorViewState) {
-					textEditor.restoreViewState(editorViewState);
-				}
+			// TextOptions (avoiding instanceof here for a reason, do not change!)
+			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+				(<TextEditorOptions>options).apply(textEditor);
 			}
 		}, (error) => {
 

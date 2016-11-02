@@ -6,6 +6,7 @@
 
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
+import { LineParts } from 'vs/editor/common/core/lineParts';
 
 export class RenderLineInput {
 	_renderLineInputBrand: void;
@@ -16,7 +17,7 @@ export class RenderLineInput {
 	stopRenderingLineAfter: number;
 	renderWhitespace: 'none' | 'boundary' | 'all';
 	renderControlCharacters: boolean;
-	parts: ViewLineToken[];
+	lineParts: LineParts;
 
 	constructor(
 		lineContent: string,
@@ -25,7 +26,7 @@ export class RenderLineInput {
 		stopRenderingLineAfter: number,
 		renderWhitespace: 'none' | 'boundary' | 'all',
 		renderControlCharacters: boolean,
-		parts: ViewLineToken[]
+		lineParts: LineParts
 	) {
 		this.lineContent = lineContent;
 		this.tabSize = tabSize;
@@ -33,20 +34,35 @@ export class RenderLineInput {
 		this.stopRenderingLineAfter = stopRenderingLineAfter;
 		this.renderWhitespace = renderWhitespace;
 		this.renderControlCharacters = renderControlCharacters;
-		this.parts = parts;
+		this.lineParts = lineParts;
+	}
+
+	public equals(other: RenderLineInput): boolean {
+		return (
+			this.lineContent === other.lineContent
+			&& this.tabSize === other.tabSize
+			&& this.spaceWidth === other.spaceWidth
+			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
+			&& this.renderWhitespace === other.renderWhitespace
+			&& this.renderControlCharacters === other.renderControlCharacters
+			&& this.lineParts.equals(other.lineParts)
+		);
 	}
 }
 
 export class RenderLineOutput {
 	_renderLineOutputBrand: void;
-	charOffsetInPart: number[];
-	lastRenderedPartIndex: number;
-	output: string;
 
-	constructor(charOffsetInPart: number[], lastRenderedPartIndex: number, output: string) {
+	readonly charOffsetInPart: number[];
+	readonly lastRenderedPartIndex: number;
+	readonly output: string;
+	readonly isWhitespaceOnly: boolean;
+
+	constructor(charOffsetInPart: number[], lastRenderedPartIndex: number, output: string, isWhitespaceOnly: boolean) {
 		this.charOffsetInPart = charOffsetInPart;
 		this.lastRenderedPartIndex = lastRenderedPartIndex;
 		this.output = output;
+		this.isWhitespaceOnly = isWhitespaceOnly;
 	}
 }
 
@@ -55,7 +71,7 @@ export function renderLine(input: RenderLineInput): RenderLineOutput {
 	const lineTextLength = lineText.length;
 	const tabSize = input.tabSize;
 	const spaceWidth = input.spaceWidth;
-	const actualLineParts = input.parts;
+	const actualLineParts = input.lineParts.parts;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
 	const charBreakIndex = (input.stopRenderingLineAfter === -1 ? lineTextLength : input.stopRenderingLineAfter - 1);
@@ -65,7 +81,8 @@ export function renderLine(input: RenderLineInput): RenderLineOutput {
 			[],
 			0,
 			// This is basically for IE's hit test to work
-			'<span><span>&nbsp;</span></span>'
+			'<span><span>&nbsp;</span></span>',
+			true
 		);
 	}
 
@@ -73,7 +90,7 @@ export function renderLine(input: RenderLineInput): RenderLineOutput {
 		throw new Error('Cannot render non empty line without line parts!');
 	}
 
-	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts.slice(0), renderWhitespace, renderControlCharacters, charBreakIndex);
+	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts, renderWhitespace, renderControlCharacters, charBreakIndex);
 }
 
 function isWhitespace(type: string): boolean {
@@ -99,6 +116,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 	let charOffsetInPartArr: number[] = [];
 	let charOffsetInPart = 0;
 	let tabsCharDelta = 0;
+	let isWhitespaceOnly = /^\s*$/.test(lineText);
 
 	out += '<span>';
 	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
@@ -151,7 +169,8 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 					return new RenderLineOutput(
 						charOffsetInPartArr,
 						partIndex,
-						out
+						out,
+						isWhitespaceOnly
 					);
 				}
 			}
@@ -224,7 +243,8 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 					return new RenderLineOutput(
 						charOffsetInPartArr,
 						partIndex,
-						out
+						out,
+						isWhitespaceOnly
 					);
 				}
 			}
@@ -242,6 +262,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 	return new RenderLineOutput(
 		charOffsetInPartArr,
 		actualLineParts.length - 1,
-		out
+		out,
+		isWhitespaceOnly
 	);
 }

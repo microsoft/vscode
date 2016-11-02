@@ -101,8 +101,10 @@ export function readlink(path: string): TPromise<string> {
 	return nfcall<string>(fs.readlink, path);
 }
 
-export function utimes(path: string, atime: Date, mtime: Date): TPromise<void> {
-	return nfcall(fs.utimes, path, atime, mtime);
+export function touch(path: string): TPromise<void> {
+	const now = Date.now() / 1000; // the value should be a Unix timestamp in seconds
+
+	return nfcall(fs.utimes, path, now, now);
 }
 
 export function readFile(path: string): TPromise<Buffer>;

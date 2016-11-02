@@ -239,12 +239,24 @@ export class OpenWorkspaceSettingsAction extends BaseOpenSettingsAction {
 	}
 }
 
-class DefaultSettingsInput extends StringEditorInput {
-	static RESOURCE: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' }); // URI is used to register JSON schema support
-	private static INSTANCE: DefaultSettingsInput;
+class AbstractSettingsInput extends StringEditorInput {
 
 	private _willDispose = new Emitter<void>();
 	public willDispose: Event<void> = this._willDispose.event;
+
+	public get resource(): URI {
+		return this.getResource();
+	}
+
+	public dispose() {
+		this._willDispose.fire();
+		this._willDispose.dispose();
+		super.dispose();
+	}
+}
+
+class DefaultSettingsInput extends AbstractSettingsInput {
+	private static INSTANCE: DefaultSettingsInput;
 
 	public static getInstance(instantiationService: IInstantiationService, configurationService: IWorkspaceConfigurationService): DefaultSettingsInput {
 		if (!DefaultSettingsInput.INSTANCE) {
@@ -260,17 +272,11 @@ class DefaultSettingsInput extends StringEditorInput {
 	}
 
 	protected getResource(): URI {
-		return DefaultSettingsInput.RESOURCE;
-	}
-
-	public dispose() {
-		this._willDispose.fire();
-		this._willDispose.dispose();
-		super.dispose();
+		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' }); // URI is used to register JSON schema support
 	}
 }
 
-class DefaultKeybindingsInput extends StringEditorInput {
+class DefaultKeybindingsInput extends AbstractSettingsInput {
 	private static INSTANCE: DefaultKeybindingsInput;
 
 	public static getInstance(instantiationService: IInstantiationService, keybindingService: IKeybindingService): DefaultKeybindingsInput {
@@ -324,7 +330,7 @@ export class DefaultSettingsEditor extends StringEditor {
 	}
 
 	public clearInput(): void {
-		this.saveState();
+		this.saveState(<AbstractSettingsInput>this.input);
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
 		}
@@ -332,27 +338,27 @@ export class DefaultSettingsEditor extends StringEditor {
 	}
 
 	protected restoreViewState(input: EditorInput) {
-		const viewState = DefaultSettingsEditor.VIEW_STATE.get(this.getResource());
+		const viewState = DefaultSettingsEditor.VIEW_STATE.get(this.getResource(<AbstractSettingsInput>input));
 		if (viewState) {
 			this.getControl().restoreViewState(viewState);
-		} else {
+		} else if (input instanceof DefaultSettingsInput) {
 			this.foldAll();
 		}
 	}
 
-	private saveState() {
-		const resource = this.getResource();
-		if (DefaultSettingsEditor.VIEW_STATE.has(resource)) {
-			DefaultSettingsEditor.VIEW_STATE.delete(resource);
-		}
+	private saveState(input: AbstractSettingsInput) {
 		const state = this.getControl().saveViewState();
 		if (state) {
+			const resource = this.getResource(input);
+			if (DefaultSettingsEditor.VIEW_STATE.has(resource)) {
+				DefaultSettingsEditor.VIEW_STATE.delete(resource);
+			}
 			DefaultSettingsEditor.VIEW_STATE.set(resource, state);
 		}
 	}
 
-	private getResource(): URI {
-		return DefaultSettingsInput.RESOURCE;
+	private getResource(input: AbstractSettingsInput): URI {
+		return input.resource;
 	}
 
 	private foldAll() {
@@ -364,8 +370,8 @@ export class DefaultSettingsEditor extends StringEditor {
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
 		}
-		if (input instanceof DefaultSettingsInput) {
-			this.inputDisposeListener = input.willDispose(() => this.saveState());
+		if (input instanceof AbstractSettingsInput) {
+			this.inputDisposeListener = (<AbstractSettingsInput>input).willDispose(() => this.saveState(<AbstractSettingsInput>input));
 		}
 	}
 }
@@ -378,8 +384,8 @@ export class DefaultSettingsEditor extends StringEditor {
 		'DefaultSettingsEditor'
 	),
 	[
-		new SyncDescriptor(DefaultSettingsInput)
-		// new SyncDescriptor(DefaultKeybindingsInput),
+		new SyncDescriptor(DefaultSettingsInput),
+		new SyncDescriptor(DefaultKeybindingsInput)
 	]
 );
 

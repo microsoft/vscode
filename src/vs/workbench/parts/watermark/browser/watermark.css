@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.editor.empty {
+.monaco-workbench .part.editor.empty.has-watermark {
 	background-position-y: calc(50% - 100px);
-	transition: background-position-y 1s;
 }
 
 .monaco-workbench > .part.editor > .watermark {
@@ -28,31 +27,17 @@
 	border-spacing: 13px 17px;
 }
 
-@keyframes watermarkfadein {
-	0% {
-		opacity: 0;
-	}
-	33% {
-		opacity: 0;
-	}
-	100% {
-		opacity: 1;
-	}
-}
-
 @media (min-height: 501px) {
 	.monaco-workbench > .part.editor.empty > .watermark {
-		animation: watermarkfadein 2s;
-		opacity: 1;
-		transition: opacity 1s;
+		display: block;
 	}
 }
 
 @media (max-height: 500px) {
 	.monaco-workbench > .part.editor.empty > .watermark {
-		opacity: 0;
+		display: none;
 	}
-	.monaco-workbench .part.editor.empty {
+	.monaco-workbench .part.editor.empty.has-watermark {
 		background-position-y: 50%;
 	}
 }

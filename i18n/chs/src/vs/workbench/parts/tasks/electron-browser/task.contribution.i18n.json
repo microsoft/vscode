@@ -83,6 +83,7 @@
 	"TerminateAction.noProcess": "启动的进程不再存在。如果任务衍生的后台任务退出 VS Code，则可能会导致出现孤立的进程。",
 	"TestAction.label": "运行测试任务",
 	"manyMarkers": "99+",
+	"problems": "问题",
 	"taskCommands": "运行任务",
 	"tasks": "任务",
 	"tasksCategory": "任务"

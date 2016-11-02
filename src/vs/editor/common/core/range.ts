@@ -16,19 +16,19 @@ export class Range {
 	/**
 	 * Line number on which the range starts (starts at 1).
 	 */
-	public startLineNumber: number;
+	public readonly startLineNumber: number;
 	/**
 	 * Column on which the range starts in line `startLineNumber` (starts at 1).
 	 */
-	public startColumn: number;
+	public readonly startColumn: number;
 	/**
 	 * Line number on which the range ends.
 	 */
-	public endLineNumber: number;
+	public readonly endLineNumber: number;
 	/**
 	 * Column on which the range ends in line `endLineNumber`.
 	 */
-	public endColumn: number;
+	public readonly endColumn: number;
 
 	constructor(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number) {
 		if ((startLineNumber > endLineNumber) || (startLineNumber === endLineNumber && startColumn > endColumn)) {

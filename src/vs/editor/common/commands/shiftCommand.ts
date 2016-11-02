@@ -22,9 +22,9 @@ export class ShiftCommand implements ICommand {
 
 	public static unshiftIndentCount(line: string, column: number, tabSize: number): number {
 		// Determine the visible column where the content starts
-		var contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(line, column, tabSize);
+		let contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(line, column, tabSize);
 
-		var desiredTabStop = CursorMoveHelper.prevTabColumn(contentStartVisibleColumn, tabSize);
+		let desiredTabStop = CursorMoveHelper.prevTabColumn(contentStartVisibleColumn, tabSize);
 
 		// The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
 		return desiredTabStop / tabSize;
@@ -32,9 +32,9 @@ export class ShiftCommand implements ICommand {
 
 	public static shiftIndentCount(line: string, column: number, tabSize: number): number {
 		// Determine the visible column where the content starts
-		var contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(line, column, tabSize);
+		let contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(line, column, tabSize);
 
-		var desiredTabStop = CursorMoveHelper.nextTabColumn(contentStartVisibleColumn, tabSize);
+		let desiredTabStop = CursorMoveHelper.nextTabColumn(contentStartVisibleColumn, tabSize);
 
 		// The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
 		return desiredTabStop / tabSize;
@@ -154,7 +154,7 @@ export class ShiftCommand implements ICommand {
 
 	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
 		if (this._useLastEditRangeForCursorEndPosition) {
-			var lastOp = helper.getInverseEditOperations()[0];
+			let lastOp = helper.getInverseEditOperations()[0];
 			return new Selection(lastOp.range.endLineNumber, lastOp.range.endColumn, lastOp.range.endLineNumber, lastOp.range.endColumn);
 		}
 		return helper.getTrackedSelection(this._selectionId);

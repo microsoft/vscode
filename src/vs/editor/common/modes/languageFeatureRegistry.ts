@@ -65,7 +65,7 @@ export default class LanguageFeatureRegistry<T> {
 	}
 
 	all(model: IReadOnlyModel): T[] {
-		if (!model || model.isTooLargeForHavingAMode()) {
+		if (!model || model.isTooLargeForHavingARichMode()) {
 			return [];
 		}
 
@@ -108,7 +108,7 @@ export default class LanguageFeatureRegistry<T> {
 
 	private _orderedForEach(model: IReadOnlyModel, callback: (provider: Entry<T>) => any): void {
 
-		if (!model || model.isTooLargeForHavingAMode()) {
+		if (!model || model.isTooLargeForHavingARichMode()) {
 			return;
 		}
 

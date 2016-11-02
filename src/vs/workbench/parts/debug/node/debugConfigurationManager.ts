@@ -8,7 +8,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import Event, { Emitter } from 'vs/base/common/event';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -30,7 +29,7 @@ import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickO
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 // debuggers extension point
-export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
+export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', [], {
 	description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ type: '', extensions: [] }] }],
@@ -122,7 +121,7 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 });
 
 // breakpoints extension point #9037
-export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawBreakpointContribution[]>('breakpoints', {
+export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawBreakpointContribution[]>('breakpoints', [], {
 	description: nls.localize('vscode.extension.contributes.breakpoints', 'Contributes breakpoints.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ language: '' }] }],
@@ -159,7 +158,12 @@ const schema: IJSONSchema = {
 				'type': 'object',
 				oneOf: []
 			}
-		}
+		},
+		// TODO@Isidor remove support for this in December
+		debugServer: {
+			type: 'number',
+			description: nls.localize('app.launch.json.debugServer', "DEPRECATED: please move debugServer inside a configuration.")
+		},
 	}
 };
 
@@ -167,13 +171,10 @@ const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platfor
 jsonRegistry.registerSchema(schemaId, schema);
 
 export class ConfigurationManager implements debug.IConfigurationManager {
-	public configuration: debug.IConfig;
 	private adapters: Adapter[];
 	private allModeIdsForBreakpoints: { [key: string]: boolean };
-	private _onDidConfigurationChange: Emitter<debug.IConfig>;
 
 	constructor(
-		configName: string,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -183,8 +184,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this._onDidConfigurationChange = new Emitter<debug.IConfig>();
-		this.setConfiguration(configName);
 		this.adapters = [];
 		this.registerListeners();
 		this.allModeIdsForBreakpoints = {};
@@ -246,64 +245,56 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		});
 	}
 
-	public get onDidConfigurationChange(): Event<debug.IConfig> {
-		return this._onDidConfigurationChange.event;
+	public getAdapter(type: string): Adapter {
+		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, type)).pop();
 	}
 
-	public get configurationName(): string {
-		return this.configuration ? this.configuration.name : null;
-	}
+	public getConfiguration(nameOrConfig: string | debug.IConfig): TPromise<debug.IConfig> {
+		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
 
-	public get adapter(): Adapter {
-		if (!this.configuration || !this.configuration.type) {
-			return null;
+		let result: debug.IConfig = null;
+		if (types.isObject(nameOrConfig)) {
+			result = objects.deepClone(nameOrConfig) as debug.IConfig;
+		} else {
+			if (!config || !config.configurations) {
+				return TPromise.as(null);
+			}
+			// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
+			const filtered = config.configurations.filter(cfg => cfg.name === nameOrConfig);
+
+			result = filtered.length === 1 ? filtered[0] : config.configurations[0];
+			result = objects.deepClone(result);
+			if (config && result && config.debugServer) {
+				result.debugServer = config.debugServer;
+			}
 		}
 
-		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, this.configuration.type)).pop();
-	}
-
-	public setConfiguration(nameOrConfig: string | debug.IConfig): TPromise<void> {
-		return this.loadLaunchConfig().then(config => {
-			if (types.isObject(nameOrConfig)) {
-				this.configuration = objects.deepClone(nameOrConfig) as debug.IConfig;
-			} else {
-				if (!config || !config.configurations) {
-					this.configuration = null;
-					return;
-				}
-				// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
-				const filtered = nameOrConfig ? config.configurations.filter(cfg => cfg.name === nameOrConfig) : [config.configurations[0]];
-
-				this.configuration = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
-				if (config && this.configuration) {
-					this.configuration.debugServer = config.debugServer;
-				}
-			}
-
-			if (this.configuration) {
-				// Set operating system specific properties #1873
-				if (isWindows && this.configuration.windows) {
-					Object.keys(this.configuration.windows).forEach(key => {
-						this.configuration[key] = this.configuration.windows[key];
-					});
-				}
-				if (isMacintosh && this.configuration.osx) {
-					Object.keys(this.configuration.osx).forEach(key => {
-						this.configuration[key] = this.configuration.osx[key];
-					});
-				}
-				if (isLinux && this.configuration.linux) {
-					Object.keys(this.configuration.linux).forEach(key => {
-						this.configuration[key] = this.configuration.linux[key];
-					});
-				}
-
-				// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-				Object.keys(this.configuration).forEach(key => {
-					this.configuration[key] = this.configurationResolverService.resolveAny(this.configuration[key]);
+		if (result) {
+			// Set operating system specific properties #1873
+			if (isWindows && result.windows) {
+				Object.keys(result.windows).forEach(key => {
+					result[key] = result.windows[key];
 				});
 			}
-		}).then(() => this._onDidConfigurationChange.fire(this.configuration));
+			if (isMacintosh && result.osx) {
+				Object.keys(result.osx).forEach(key => {
+					result[key] = result.osx[key];
+				});
+			}
+			if (isLinux && result.linux) {
+				Object.keys(result.linux).forEach(key => {
+					result[key] = result.linux[key];
+				});
+			}
+
+			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
+			Object.keys(result).forEach(key => {
+				result[key] = this.configurationResolverService.resolveAny(result[key]);
+			});
+
+			const adapter = this.getAdapter(result.type);
+			return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
+		}
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
@@ -351,13 +342,5 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		const modeId = mode ? mode.getId() : null;
 
 		return !!this.allModeIdsForBreakpoints[modeId];
-	}
-
-	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {
-		return TPromise.as(this.configurationService.getConfiguration<debug.IGlobalConfig>('launch'));
-	}
-
-	public resolveInteractiveVariables(): TPromise<any> {
-		return this.configurationResolverService.resolveInteractiveVariables(this.configuration, this.adapter ? this.adapter.variables : null);
 	}
 }

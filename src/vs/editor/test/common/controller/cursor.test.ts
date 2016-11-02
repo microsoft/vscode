@@ -17,7 +17,7 @@ import {
 	ICursorPositionChangedEvent, ICursorSelectionChangedEvent
 } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { IMode, IndentAction } from 'vs/editor/common/modes';
+import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
@@ -1148,7 +1148,7 @@ suite('Editor Controller - Regression tests', () => {
 			modeId: new BracketMode().getId()
 		}, (model, cursor) => {
 			// ensure is tokenized
-			model.getLineContext(1);
+			model.getLineTokens(1, false);
 
 			moveTo(cursor, 1, 20);
 
@@ -1553,6 +1553,28 @@ suite('Editor Controller - Regression tests', () => {
 				'and more lines',
 				'just some text',
 			].join('\n'), '003');
+		});
+	});
+
+	test('issue #12950: Cannot Double Click To Insert Emoji Using OSX Emoji Panel', () => {
+		usingCursor({
+			text: [
+				'some lines',
+				'and more lines',
+				'just some text',
+			],
+			modeId: null,
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 1, false);
+
+			cursorCommand(cursor, H.Type, { text: '😍' }, 'keyboard');
+
+			assert.equal(model.getValue(), [
+				'some lines',
+				'and more lines',
+				'😍just some text',
+			].join('\n'));
 		});
 	});
 

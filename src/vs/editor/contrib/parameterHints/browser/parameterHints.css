@@ -36,8 +36,8 @@
 	margin: 8px 0;
 }
 
-.monaco-editor .parameter-hints-widget .body,
-.monaco-editor .parameter-hints-widget .body > .monaco-scrollable-element {
+.monaco-editor .parameter-hints-widget .monaco-scrollable-element,
+.monaco-editor .parameter-hints-widget .body {
 	display: flex;
 	flex-direction: column;
 }

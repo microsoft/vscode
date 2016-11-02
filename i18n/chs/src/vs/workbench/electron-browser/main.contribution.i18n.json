@@ -17,6 +17,8 @@
 	"restoreFullscreen": "如果窗口已退出全屏模式，控制其是否应还原为全屏模式。",
 	"showEditorTabs": "控制打开的编辑器是否显示在选项卡中。",
 	"showIcons": "控制打开的编辑器是否随图标一起显示。这还需启用图标主题。",
+	"sideBarLocation": "控制边栏的位置。它可显示在工作台的左侧或右侧。",
+	"statusBarVisibility": "控制工作台底部状态栏的可见性。",
 	"updateChannel": "配置是否从更新通道接收自动更新。更改后需要重启。",
 	"updateConfigurationTitle": "更新",
 	"view": "查看",

@@ -6,6 +6,7 @@
 {
 	"closePanel": "Cerrar",
 	"focusPanel": "Centrarse en el panel",
+	"toggleMaximizedPanel": "Alternar el panel maximizado",
 	"togglePanel": "Alternar panel",
 	"view": "Ver"
 }

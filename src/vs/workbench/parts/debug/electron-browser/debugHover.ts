@@ -15,7 +15,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { evaluateExpression, Expression } from 'vs/workbench/parts/debug/common/debugModel';
+import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
@@ -49,13 +49,13 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(private editor: editorbrowser.ICodeEditor, private debugService: debug.IDebugService, private instantiationService: IInstantiationService) {
-		this.domNode = $('.debug-hover-widget monaco-editor-background');
+		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
 		this.tree = new Tree(this.treeContainer, {
-			dataSource: new viewer.VariablesDataSource(this.debugService),
+			dataSource: new viewer.VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: new DebugHoverController(editor)
 		}, debugTreeOptions);
@@ -148,23 +148,26 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 	public showAt(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
-		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
+		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== this.editor.getModel().uri.toString())) {
 			return;
 		}
 
-		const session = this.debugService.activeSession;
+		const process = this.debugService.getViewModel().focusedProcess;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
 		const expressionRange = this.getExactExpressionRange(lineContent, range);
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
+		let promise: TPromise<debug.IExpression>;
+		if (process.session.configuration.capabilities.supportsEvaluateForHovers) {
+			const result = new Expression(matchingExpression);
+			promise = result.evaluate(process, focusedStackFrame, 'hover').then(() => result);
+		} else {
+			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
+		}
 
-		const evaluatedExpression = session.configuration.capabilities.supportsEvaluateForHovers ?
-			evaluateExpression(session, focusedStackFrame, new Expression(matchingExpression, true), 'hover') :
-			this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
-
-		return evaluatedExpression.then(expression => {
-			if (!expression || !expression.available) {
+		return promise.then(expression => {
+			if (!expression || (expression instanceof Expression && !expression.available)) {
 				this.hide();
 				return;
 			}
@@ -198,7 +201,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	}
 
 	private findExpressionInStackFrame(namesToFind: string[]): TPromise<debug.IExpression> {
-		return this.debugService.getViewModel().getFocusedStackFrame().getScopes(this.debugService)
+		return this.debugService.getViewModel().focusedStackFrame.getScopes()
 			// no expensive scopes
 			.then(scopes => scopes.filter(scope => !scope.expensive))
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
@@ -212,7 +215,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.isVisible = true;
 		this.stoleFocus = focus;
 
-		if (expression.reference === 0 || forceValueHover) {
+		if (!expression.hasChildren || forceValueHover) {
 			this.complexValueContainer.hidden = true;
 			this.valueContainer.hidden = false;
 			viewer.renderExpressionValue(expression, this.valueContainer, false, MAX_VALUE_RENDER_LENGTH_IN_HOVER);
