@@ -202,6 +202,9 @@ export abstract class BaseHistoryService {
 		const fileInput = asFileEditorInput(input);
 		if (fileInput && this.showFullPath) {
 			prefix = labels.getPathLabel(fileInput.getResource());
+			if ((platform.isMacintosh || platform.isLinux) && prefix.indexOf(this.environmentService.userHome) === 0) {
+				prefix = `~${prefix.substr(this.environmentService.userHome.length)}`;
+			}
 		} else {
 			prefix = input && input.getName();
 		}
