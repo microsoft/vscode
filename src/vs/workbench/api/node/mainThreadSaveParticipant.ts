@@ -24,7 +24,7 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from './extHost.protocol';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 
-interface INamedSaveParticpant extends ISaveParticipant {
+export interface INamedSaveParticpant extends ISaveParticipant {
 	readonly name: string;
 }
 
@@ -93,7 +93,7 @@ function findEditor(model: IModel, codeEditorService: ICodeEditorService): IComm
 	return null;
 }
 
-class FinalNewLineParticipant implements INamedSaveParticpant {
+export class FinalNewLineParticipant implements INamedSaveParticpant {
 
 	readonly name = 'FinalNewLineParticipant';
 
@@ -115,7 +115,7 @@ class FinalNewLineParticipant implements INamedSaveParticpant {
 		const lastLine = model.getLineContent(lineCount);
 		const lastLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(lastLine) === -1;
 
-		if (lineCount <= 1 || lastLineIsEmptyOrWhitespace) {
+		if (!lineCount || lastLineIsEmptyOrWhitespace) {
 			return;
 		}
 
