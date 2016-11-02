@@ -36,7 +36,7 @@ export class TreeExplorerViewlet extends Viewlet {
 
 		this.viewletState = new TreeExplorerViewletState();
 
-		this.externalViewletId = this.activityService.getExternalViewletIdToOpen();
+		this.externalViewletId = this.activityService.externalViewletIdToOpen;
 		this.treeNodeProviderId = this.getTreeProviderName(this.externalViewletId);
 
 		TreeExplorerViewlet._idCounter++;

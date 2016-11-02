@@ -29,11 +29,11 @@ export class ToggleExternalViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const infoForRegisteredViewlets = this.activityService.getInfoForRegisteredViewlets();
+		const infoForExternalViewlets = this.activityService.getInfoForExternalViewlets();
 
 		const picks: IPickOpenEntry[] = [];
-		for (let viewletId in infoForRegisteredViewlets) {
-			const { isEnabled, treeLabel } = infoForRegisteredViewlets[viewletId];
+		for (let viewletId in infoForExternalViewlets) {
+			const { isEnabled, treeLabel } = infoForExternalViewlets[viewletId];
 			picks.push({
 				id: viewletId,
 				label: (isEnabled ? 'Disable ' : 'Enable ') + treeLabel
@@ -43,7 +43,7 @@ export class ToggleExternalViewletAction extends Action {
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
 			this.quickOpenService.pick(picks, { placeHolder: 'Select Viewlet to toggle', autoFocus: 2 }).then(pick => {
 				if (pick) {
-					this.activityService.toggleViewlet(pick.id);
+					this.activityService.toggleExternalViewlet(pick.id);
 				}
 			});
 		});
