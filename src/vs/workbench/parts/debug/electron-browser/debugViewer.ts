@@ -56,7 +56,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		dom.addClass(container, 'string');
 	}
 
-	if (showChanged && (<any>expressionOrValue).valueChanged) {
+	if (showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
 		// value changed color has priority over other colors.
 		container.className = 'value changed';
 	}

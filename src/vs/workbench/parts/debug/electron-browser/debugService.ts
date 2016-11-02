@@ -641,7 +641,8 @@ export class DebugService implements debug.IDebugService {
 			const process = this.model.addProcess(configuration.name, session);
 
 			if (!this.viewModel.focusedProcess) {
-				this.setFocusedStackFrameAndEvaluate(null, process);
+				this.viewModel.setFocusedStackFrame(null, process);
+				this._onDidChangeState.fire();
 			}
 			this.toDisposeOnSessionEnd[session.getId()] = [];
 			if (client) {

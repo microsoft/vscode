@@ -207,8 +207,12 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 
 	constructor(public name: string, cacheChildren: boolean, id = generateUuid()) {
 		super(null, 0, id, cacheChildren, 0, 0);
-		this.value = Expression.DEFAULT_VALUE;
 		this.available = false;
+		// name is not set if the expression is just being added
+		// in that case do not set default value to prevent flashing #14499
+		if (name) {
+			this.value = Expression.DEFAULT_VALUE;
+		}
 	}
 
 	public evaluate(process: debug.IProcess, stackFrame: debug.IStackFrame, context: string): TPromise<void> {
