@@ -78,37 +78,3 @@ export interface IExtensionService {
 	 */
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 }
-
-export const IExtensionRuntimeService = createDecorator<IExtensionRuntimeService>('extensionRuntimeService');
-
-export interface IExtensionRuntimeService {
-	_serviceBrand: any;
-
-	/**
-	 * Returns all globally disabled extension identifiers.
-	 * Returns an empty array if none exist.
-	 */
-	getGloballyDisabledExtensions(): string[];
-
-	/**
-	 * Returns all workspace disabled extension identifiers.
-	 * Returns an empty array if none exist or workspace does not exist.
-	 */
-	getWorkspaceDisabledExtensions(): string[];
-
-	/**
-	 * Returns `true` if given extension can be enabled by calling `setEnablement`, otherwise false`.
-	 */
-	canEnable(identifier: string): boolean;
-
-	/**
-	 * Enable or disable the given extension.
-	 * if `workspace` is `true` then enablement is done for workspace, otherwise globally.
-	 *
-	 * Returns a promise that resolves to boolean value.
-	 * if resolves to `true` then requires restart for the change to take effect.
-	 *
-	 * Throws error if enablement is requested for workspace and there is no workspace
-	 */
-	setEnablement(identifier: string, enable: boolean, workspace?: boolean): TPromise<boolean>;
-}

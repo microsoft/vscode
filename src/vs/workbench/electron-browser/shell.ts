@@ -64,7 +64,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService, IExtensionRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -75,13 +75,13 @@ import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
-import { ExtensionRuntimeService } from 'vs/workbench/services/extensions/common/extensionRuntimeService';
 import { remote } from 'electron';
 
 // self registering services
@@ -292,9 +292,9 @@ export class WorkbenchShell {
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
 		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
-		const extensionsRuntimeService = instantiationService.createInstance(ExtensionRuntimeService);
-		serviceCollection.set(IExtensionRuntimeService, extensionsRuntimeService);
-		disposables.add(extensionsRuntimeService);
+		const extensionEnablementService = instantiationService.createInstance(ExtensionEnablementService);
+		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
+		disposables.add(extensionEnablementService);
 
 		const extensionHostProcessWorker = instantiationService.createInstance(ExtensionHostProcessWorker);
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
