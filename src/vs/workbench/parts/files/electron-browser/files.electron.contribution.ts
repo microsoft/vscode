@@ -21,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 
 class FileViewerActionContributor extends ActionBarContributor {
 
@@ -85,4 +85,9 @@ actionsRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionContr
 CommandsRegistry.registerCommand('_files.openFolderPicker', (accessor: ServicesAccessor, forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
 	windowService.openFolderPicker(forceNewWindow);
+});
+
+CommandsRegistry.registerCommand('_files.windowOpen', (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
+	const windowsService = accessor.get(IWindowsService);
+	windowsService.windowOpen(paths, forceNewWindow);
 });

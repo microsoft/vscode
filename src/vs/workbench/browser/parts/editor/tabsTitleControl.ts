@@ -28,6 +28,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -65,7 +66,8 @@ export class TabsTitleControl extends TitleControl {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IMenuService menuService: IMenuService,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
@@ -337,6 +339,12 @@ export class TabsTitleControl extends TitleControl {
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
 
+			if (!this.showTabCloseButton) {
+				DOM.addClass(tabContainer, 'no-close-button');
+			} else {
+				DOM.removeClass(tabContainer, 'no-close-button');
+			}
+
 			// Tab Editor Label
 			const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
 			this.editorLabels.push(editorLabel);
@@ -537,6 +545,8 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private onDrop(e: DragEvent, group: IEditorGroup, targetPosition: Position, targetIndex: number): void {
+		DOM.removeClass(this.tabsContainer, 'dropfeedback');
+		DOM.removeClass(this.tabsContainer, 'scroll');
 
 		// Local DND
 		const draggedEditor = TabsTitleControl.getDraggedEditor();
@@ -574,10 +584,10 @@ export class TabsTitleControl extends TitleControl {
 					input: { resource, options: { pinned: true, index: targetIndex } },
 					position: targetPosition
 				};
-			})).done(() => {
+			})).then(() => {
 				this.editorGroupService.focusGroup(targetPosition);
-				window.focus();
-			}, errors.onUnexpectedError);
+				return this.windowService.focusWindow();
+			}).done(null, errors.onUnexpectedError);
 		}
 	}
 

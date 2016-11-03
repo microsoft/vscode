@@ -11,7 +11,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensions/disabled';
@@ -29,7 +28,6 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IMessageService private messageService: IMessageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {

@@ -18,9 +18,8 @@ import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-
-import { ipcRenderer as ipc, clipboard } from 'electron';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { clipboard } from 'electron';
 
 export class RevealInOSAction extends Action {
 	private resource: uri;
@@ -187,6 +186,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
+		@IWindowsService private windowsService: IWindowsService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService
 	) {
@@ -196,7 +196,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	public run(): TPromise<any> {
 		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
-			ipc.send('vscode:windowOpen', [fileInput.getResource().fsPath], true /* force new window */); // handled from browser process
+			this.windowsService.windowOpen([fileInput.getResource().fsPath], true);
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to open in new window"));
 		}

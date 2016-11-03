@@ -761,8 +761,14 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				validateViewPosition: (viewLineNumber: number, viewColumn: number, modelPosition: Position) => {
 					return this.viewModel.validateViewPosition(viewLineNumber, viewColumn, modelPosition);
 				},
+				validateViewPosition2: (viewPosition: Position, modelPosition: Position): Position => {
+					return this.viewModel.validateViewPosition(viewPosition.lineNumber, viewPosition.column, modelPosition);
+				},
 				validateViewRange: (viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range) => {
 					return this.viewModel.validateViewRange(viewStartLineNumber, viewStartColumn, viewEndLineNumber, viewEndColumn, modelRange);
+				},
+				validateViewRange2: (viewRange: Range, modelRange: Range): Range => {
+					return this.viewModel.validateViewRange(viewRange.startLineNumber, viewRange.startColumn, viewRange.endLineNumber, viewRange.endColumn, modelRange);
 				}
 			};
 

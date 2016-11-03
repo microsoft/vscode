@@ -336,7 +336,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	public validateViewRange(viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range): Range {
-		var validViewStart = this.validateViewPosition(viewStartColumn, viewStartColumn, modelRange.getStartPosition());
+		var validViewStart = this.validateViewPosition(viewStartLineNumber, viewStartColumn, modelRange.getStartPosition());
 		var validViewEnd = this.validateViewPosition(viewEndLineNumber, viewEndColumn, modelRange.getEndPosition());
 		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
 	}
