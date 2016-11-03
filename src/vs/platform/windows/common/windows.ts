@@ -19,8 +19,12 @@ export interface IWindowsService {
 	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
 	reloadWindow(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
+	// TODO@joao: rename, shouldn't this be closeWindow?
+	closeFolder(windowId: number): TPromise<void>;
 
-	// TODO@joao: rename
+	// Global methods
+
+	// TODO@joao: rename, shouldn't this be openWindow?
 	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void>;
 }
 
@@ -35,4 +39,5 @@ export interface IWindowService {
 	openFolderPicker(forceNewWindow?: boolean): TPromise<void>;
 	reloadWindow(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
+	closeFolder(): TPromise<void>;
 }

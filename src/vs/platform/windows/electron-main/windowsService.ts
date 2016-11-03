@@ -64,4 +64,14 @@ export class WindowsService implements IWindowsService {
 		this.windowsMainService.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: forceNewWindow });
 		return TPromise.as(null);
 	}
+
+	closeFolder(windowId: number): TPromise<void> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			this.windowsMainService.open({ cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow });
+		}
+
+		return TPromise.as(null);
+	}
 }

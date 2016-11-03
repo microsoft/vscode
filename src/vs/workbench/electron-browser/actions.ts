@@ -114,27 +114,26 @@ export class SwitchWindow extends Action {
 
 export class CloseFolderAction extends Action {
 
-	public static ID = 'workbench.action.closeFolder';
-	public static LABEL = nls.localize('closeFolder', "Close Folder");
+	static ID = 'workbench.action.closeFolder';
+	static LABEL = nls.localize('closeFolder', "Close Folder");
 
 	constructor(
 		id: string,
 		label: string,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService,
-		@IWindowIPCService private windowService: IWindowIPCService
+		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		if (this.contextService.getWorkspace()) {
-			ipc.send('vscode:closeFolder', this.windowService.getWindowId()); // handled from browser process
-		} else {
+	run(): TPromise<void> {
+		if (!this.contextService.getWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('noFolderOpened', "There is currently no folder opened in this instance to close."));
+			return TPromise.as(null);
 		}
 
-		return TPromise.as(true);
+		return this.windowService.closeFolder();
 	}
 }
 
