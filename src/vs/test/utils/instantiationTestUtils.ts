@@ -58,6 +58,10 @@ export class TestInstantiationService extends InstantiationService {
 		return <T>this._serviceCollection.get(service);
 	}
 
+	public set<T>(service: ServiceIdentifier<T>, instance: T): T {
+		return <T>this._serviceCollection.set(service, instance);
+	}
+
 	public mock<T>(service: ServiceIdentifier<T>): T | sinon.SinonMock {
 		return <T>this._create(service, { mock: true });
 	}
