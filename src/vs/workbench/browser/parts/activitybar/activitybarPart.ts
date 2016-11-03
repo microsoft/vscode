@@ -33,19 +33,19 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
 
-	private enabledExternalViewlets: string[];
-	private externalViewlets: { [viewletId: string]: ViewletDescriptor; };
+	private enabledExtViewlets: string[];
+	private extViewlets: { [viewletId: string]: ViewletDescriptor; };
 
 	// Serves two purposes:
-	// 1. Expose the viewletId that will be assigned to an external Viewlet,
+	// 1. Expose the viewletId that will be assigned to an extension viewlet,
 	//    which wouldn't know its viewletId until construction time.
-	// 2. When workbench restores sidebar, if the last-opened Viewlet is external,
+	// 2. When workbench restores sidebar, if the last-opened viewlet is an extension viewlet,
 	//    it'll set this value and defer restoration until all extensions are loaded.
-	private _externalViewletIdToOpen: string;
-	public get externalViewletIdToOpen() { return this._externalViewletIdToOpen; };
-	public set externalViewletIdToOpen(viewletId: string) { this._externalViewletIdToOpen = viewletId; };
+	private _extViewletIdToOpen: string;
+	public get extViewletIdToOpen() { return this._extViewletIdToOpen; };
+	public set extViewletIdToOpen(viewletId: string) { this._extViewletIdToOpen = viewletId; };
 
-	private static ENABLED_EXTERNAL_VIEWLETS = 'workbench.activityBar.enabledExternalViewlets';
+	private static ENABLED_EXT_VIEWLETS = 'workbench.activityBar.enabledExtViewlets';
 
 	constructor(
 		id: string,
@@ -61,9 +61,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.activityActionItems = {};
 		this.compositeIdToActions = {};
 
-		const enabledExternalViewletsJson = this.storageService.get(ActivitybarPart.ENABLED_EXTERNAL_VIEWLETS);
-		this.enabledExternalViewlets = enabledExternalViewletsJson ? JSON.parse(enabledExternalViewletsJson) : [];
-		this.externalViewlets = {};
+		const enabledExtViewletsJson = this.storageService.get(ActivitybarPart.ENABLED_EXT_VIEWLETS);
+		this.enabledExtViewlets = enabledExtViewletsJson ? JSON.parse(enabledExtViewletsJson) : [];
+		this.extViewlets = {};
 
 		this.registerListeners();
 	}
@@ -76,7 +76,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
 
-		// Update activity bar on registering external viewlets
+		// Update activity bar on registering extension viewlets
 		this.extensionService.onReady().then(() => {
 			const viewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
 			this.onExtensionServiceReady(viewlets);
@@ -86,13 +86,13 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private onExtensionServiceReady(viewlets: ViewletDescriptor[]): void {
 		viewlets.forEach(v => {
 			if (v.isExternal) {
-				this.externalViewlets[v.id] = v;
+				this.extViewlets[v.id] = v;
 			}
 		});
 
-		this.viewletSwitcherBar.push(this.getAllEnabledExternalViewlets().map(d => this.toAction(d)), { label: true, icon: true });
-		if (this._externalViewletIdToOpen) {
-			this.compositeIdToActions[this._externalViewletIdToOpen].run().done();
+		this.viewletSwitcherBar.push(this.getAllEnabledExtViewlets().map(d => this.toAction(d)), { label: true, icon: true });
+		if (this._extViewletIdToOpen) {
+			this.compositeIdToActions[this._extViewletIdToOpen].run().done();
 		}
 	}
 
@@ -108,36 +108,36 @@ export class ActivitybarPart extends Part implements IActivityService {
 		}
 	}
 
-	public getInfoForExternalViewlets(): {
+	public getInfoForExtViewlets(): {
 		[viewletId: string]: {
 			isEnabled: boolean;
 			treeLabel: string;
 		}
 	} {
 		const result = {};
-		for (let viewletId in this.externalViewlets) {
+		for (let viewletId in this.extViewlets) {
 			result[viewletId] = {
-				isEnabled: (this.enabledExternalViewlets.indexOf(viewletId) !== -1),
-				treeLabel: this.externalViewlets[viewletId].name
+				isEnabled: (this.enabledExtViewlets.indexOf(viewletId) !== -1),
+				treeLabel: this.extViewlets[viewletId].name
 			};
 		}
 		return result;
 	}
 
-	public toggleExternalViewlet(viewletId: string): void {
-		const index = this.enabledExternalViewlets.indexOf(viewletId);
+	public toggleExtViewlet(viewletId: string): void {
+		const index = this.enabledExtViewlets.indexOf(viewletId);
 		if (index === -1) {
-			this.enabledExternalViewlets.push(viewletId);
+			this.enabledExtViewlets.push(viewletId);
 		} else {
-			this.enabledExternalViewlets.splice(index, 1);
+			this.enabledExtViewlets.splice(index, 1);
 		}
 
-		this.setEnabledExternalViewlets();
+		this.setEnabledExtViewlets();
 		this.refreshViewletSwitcher();
 	}
 
-	private setEnabledExternalViewlets(): void {
-		this.storageService.store(ActivitybarPart.ENABLED_EXTERNAL_VIEWLETS, JSON.stringify(this.enabledExternalViewlets));
+	private setEnabledExtViewlets(): void {
+		this.storageService.store(ActivitybarPart.ENABLED_EXT_VIEWLETS, JSON.stringify(this.enabledExtViewlets));
 	}
 
 	public showActivity(compositeId: string, badge: IBadge, clazz?: string): void {
@@ -179,8 +179,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.viewletSwitcherBar.clear();
 
 		const allStockViewlets = this.getAllStockViewlets();
-		const allEnabledExternalViewlets = this.getAllEnabledExternalViewlets();
-		this.fillViewletSwitcher(allStockViewlets.concat(allEnabledExternalViewlets));
+		const allEnabledExtViewlets = this.getAllEnabledExtViewlets();
+		this.fillViewletSwitcher(allStockViewlets.concat(allEnabledExtViewlets));
 	}
 
 	private fillViewletSwitcher(viewlets: ViewletDescriptor[]) {
@@ -196,20 +196,20 @@ export class ActivitybarPart extends Part implements IActivityService {
 			.sort((v1, v2) => v1.order - v2.order);
 	}
 
-	// Get a list of all enabled external viewlets, ordered by the enabling sequence
-	private getAllEnabledExternalViewlets(): ViewletDescriptor[] {
-		return this.enabledExternalViewlets
-			.filter(viewletId => this.externalViewlets[viewletId])
-			.map(viewletId => this.externalViewlets[viewletId]);
+	// Get a list of all enabled extension viewlets, ordered by the enabling sequence
+	private getAllEnabledExtViewlets(): ViewletDescriptor[] {
+		return this.enabledExtViewlets
+			.filter(viewletId => this.extViewlets[viewletId])
+			.map(viewletId => this.extViewlets[viewletId]);
 	}
 
 	private toAction(composite: ViewletDescriptor): ActivityAction {
 		const action = this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite);
-		// Store the viewletId of the external viewlet that is about to open.
+		// Store the viewletId of the extension viewlet that is about to open.
 		// Later retrieved by TreeExplorerViewlet, which wouldn't know its id until
 		// its construction at runtime.
-		action.onOpenExternalViewlet((viewletId) => {
-			this._externalViewletIdToOpen = viewletId;
+		action.onOpenExtViewlet((viewletId) => {
+			this._extViewletIdToOpen = viewletId;
 		});
 
 		this.activityActionItems[action.id] = new ActivityActionItem(action, composite.name, this.getKeybindingLabel(composite.id));
@@ -241,8 +241,8 @@ class ViewletActivityAction extends ActivityAction {
 	private static preventDoubleClickDelay = 300;
 	private lastRun: number = 0;
 
-	private _onOpenExternalViewlet = new Emitter<string>();
-	public get onOpenExternalViewlet(): Event<string> { return this._onOpenExternalViewlet.event; };
+	private _onOpenExtViewlet = new Emitter<string>();
+	public get onOpenExtViewlet(): Event<string> { return this._onOpenExtViewlet.event; };
 
 	constructor(
 		id: string,
@@ -270,7 +270,7 @@ class ViewletActivityAction extends ActivityAction {
 			this.partService.setSideBarHidden(true);
 		} else {
 			if (this.viewlet.isExternal) {
-				this._onOpenExternalViewlet.fire(this.viewlet.id);
+				this._onOpenExtViewlet.fire(this.viewlet.id);
 			}
 			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
 			this.activate();
