@@ -13,11 +13,10 @@ const path = require('path');
 const electron = require('electron');
 const remote = electron.remote;
 const ipc = electron.ipcRenderer;
-const windowId = remote.getCurrentWindow().id;
 
 function onError(error, enableDeveloperTools) {
 	if (enableDeveloperTools) {
-		ipc.send('vscode:openDevTools', windowId);
+		remote.getCurrentWebContents().openDevTools();
 	}
 
 	console.error('[uncaught exception]: ' + error);
@@ -80,8 +79,7 @@ function registerListeners(enableDeveloperTools) {
 		window.addEventListener('keydown', function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB) {
-				ipc.send('vscode:toggleDevTools', windowId);
-				// remote.getCurrentWebContents().toggleDevTools();
+				remote.getCurrentWebContents().toggleDevTools();
 			} else if (key === RELOAD_KB) {
 				remote.getCurrentWindow().reload();
 			}

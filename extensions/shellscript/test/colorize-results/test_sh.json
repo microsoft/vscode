@@ -1,7 +1,7 @@
 [
 	{
-		"c": "#",
-		"t": "comment.definition.line.number-sign.punctuation.shell",
+		"c": "#!",
+		"t": "comment.definition.line.punctuation.shebang.shell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -11,8 +11,8 @@
 		}
 	},
 	{
-		"c": "!/usr/bin/env bash",
-		"t": "comment.line.number-sign.shell",
+		"c": "/usr/bin/env bash",
+		"t": "comment.line.shebang.shell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",

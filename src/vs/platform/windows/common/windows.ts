@@ -18,6 +18,26 @@ export interface IWindowsService {
 	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void>;
 	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
 	reloadWindow(windowId: number): TPromise<void>;
+	openDevTools(windowId: number): TPromise<void>;
+	toggleDevTools(windowId: number): TPromise<void>;
+	// TODO@joao: rename, shouldn't this be closeWindow?
+	closeFolder(windowId: number): TPromise<void>;
+	toggleFullScreen(windowId: number): TPromise<void>;
+	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
+	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
+	focusWindow(windowId: number): TPromise<void>;
+	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
+	toggleMenuBar(windowId: number): TPromise<void>;
+
+	// Global methods
+	// TODO@joao: rename, shouldn't this be openWindow?
+	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void>;
+	openNewWindow(): TPromise<void>;
+	showWindow(windowId: number): TPromise<void>;
+	getWindows(): TPromise<{ id: number; path: string; title: string; }[]>;
+	log(severity: string, ...messages: string[]): TPromise<void>;
+	// TODO@joao: what?
+	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -26,8 +46,18 @@ export interface IWindowService {
 
 	_serviceBrand: any;
 
+	getCurrentWindowId(): number;
 	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void>;
 	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void>;
 	openFolderPicker(forceNewWindow?: boolean): TPromise<void>;
 	reloadWindow(): TPromise<void>;
+	openDevTools(): TPromise<void>;
+	toggleDevTools(): TPromise<void>;
+	closeFolder(): TPromise<void>;
+	toggleFullScreen(): TPromise<void>;
+	setRepresentedFilename(fileName: string): TPromise<void>;
+	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
+	focusWindow(): TPromise<void>;
+	setDocumentEdited(flag: boolean): TPromise<void>;
+	toggleMenuBar(): TPromise<void>;
 }
