@@ -74,4 +74,9 @@ export class WindowsService implements IWindowsService {
 
 		return TPromise.as(null);
 	}
+
+	openNewWindow(): TPromise<void> {
+		this.windowsMainService.openNewWindow();
+		return TPromise.as(null);
+	}
 }
