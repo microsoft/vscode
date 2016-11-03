@@ -16,11 +16,14 @@ import { ITreeExplorerViewletService, TreeExplorerViewletService } from 'vs/work
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ITreeExplorer } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { toCustomViewletId, toCustomViewletCSSClass } from 'vs/workbench/parts/explorers/common/treeExplorer';
+import { toCustomViewletId, toCustomViewletCSSClass, isValidViewletId } from 'vs/workbench/parts/explorers/common/treeExplorer';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 registerSingleton(ITreeExplorerViewletService, TreeExplorerViewletService);
 
-const explorerContribtion: IJSONSchema = {
+const explorerSchema: IJSONSchema = {
 	description: localize('vscode.extension.contributes.explorer', "Contributes custom tree explorer viewlet to the sidebar"),
 	type: 'object',
 	properties: {
@@ -29,7 +32,7 @@ const explorerContribtion: IJSONSchema = {
 			type: 'string'
 		},
 		treeLabel: {
-			description: localize('vscode.extension.contributes.explorer.treeLabel', 'Human readable string used to render the custom tree viewlet'),
+			description: localize('vscode.extension.contributes.explorer.treeLabel', 'Human readable string used to render the custom tree explorer'),
 			type: 'string'
 		},
 		icon: {
@@ -39,25 +42,46 @@ const explorerContribtion: IJSONSchema = {
 	}
 };
 
-ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], explorerContribtion).setHandler(extensions => {
-	for (let extension of extensions) {
-		const { treeExplorerNodeProviderId, treeLabel, icon } = extension.value;
+export class ExplorerContribtion implements IWorkbenchContribution {
 
-		const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };
-		if (icon) {
-			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${toCustomViewletCSSClass(treeExplorerNodeProviderId)}`;
-			const iconPath = join(extension.description.extensionFolderPath, icon);
-			createCSSRule(iconClass, getIconRule(iconPath));
-		}
-
-		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
-			'TreeExplorerViewlet',
-			toCustomViewletId(treeExplorerNodeProviderId),
-			treeLabel,
-			toCustomViewletCSSClass(treeExplorerNodeProviderId),
-			-1, // Extension viewlets are ordered by enabling sequence, so order here doesn't matter.
-			true
-		));
+	constructor(
+		@IMessageService private messageService: IMessageService
+	) {
+		this.init();
 	}
-});
+
+	public getId(): string {
+		return 'vs.explorer';
+	}
+
+	private init() {
+		ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], explorerSchema).setHandler(extensions => {
+			for (let extension of extensions) {
+				const { treeExplorerNodeProviderId, treeLabel, icon } = extension.value;
+
+				if (!isValidViewletId(treeExplorerNodeProviderId)) {
+					return this.messageService.show(Severity.Error, localize('customExplorer.invalidId', 'Tree Explorer extension {0} has invalid id and failed to activate.', treeLabel));
+				}
+
+				const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };
+				if (icon) {
+					const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${toCustomViewletCSSClass(treeExplorerNodeProviderId)}`;
+					const iconPath = join(extension.description.extensionFolderPath, icon);
+					createCSSRule(iconClass, getIconRule(iconPath));
+				}
+
+				Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+					'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
+					'TreeExplorerViewlet',
+					toCustomViewletId(treeExplorerNodeProviderId),
+					treeLabel,
+					toCustomViewletCSSClass(treeExplorerNodeProviderId),
+					-1, // Extension viewlets are ordered by enabling sequence, so order here doesn't matter.
+					true
+				));
+			}
+		});
+	}
+}
+
+(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(ExplorerContribtion);
