@@ -113,6 +113,8 @@ export class Workbench implements IPartService {
 	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 
+	private static activityBarVisibleConfigurationKey = 'workbench.activitybar.visible';
+
 	public _serviceBrand: any;
 
 	private container: HTMLElement;
@@ -140,6 +142,7 @@ export class Workbench implements IPartService {
 	private creationPromiseComplete: ValueCallback;
 	private sideBarHidden: boolean;
 	private statusBarHidden: boolean;
+	private activityBarHidden: boolean;
 	private sideBarPosition: Position;
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
@@ -452,6 +455,11 @@ export class Workbench implements IPartService {
 		// Statusbar visibility
 		const statusBarVisible = this.configurationService.lookup<string>(Workbench.statusbarVisibleConfigurationKey).value;
 		this.statusBarHidden = !statusBarVisible;
+
+		// Activity bar visibility
+		const activityBarVisible = this.configurationService.lookup<string>(Workbench.activityBarVisibleConfigurationKey).value;
+		this.activityBarHidden = !activityBarVisible;
+
 	}
 
 	/**
@@ -512,6 +520,8 @@ export class Workbench implements IPartService {
 				return !this.panelHidden;
 			case Parts.STATUSBAR_PART:
 				return !this.statusBarHidden;
+			case Parts.ACTIVITYBAR_PART:
+				return !this.activityBarHidden;
 		}
 
 		return true; // any other part cannot be hidden
@@ -523,6 +533,26 @@ export class Workbench implements IPartService {
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.statusBarHidden = hidden;
+
+		// Layout
+		if (!skipLayout) {
+			this.workbenchLayout.layout({ forceStyleReCompute: true });
+		}
+	}
+
+	public isActivityBarHidden(): boolean {
+		return this.activityBarHidden;
+	}
+
+	public setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
+		this.activityBarHidden = hidden;
+
+		// Adjust CSS
+		if (hidden) {
+			this.workbench.addClass('noactivitybar');
+		} else {
+			this.workbench.removeClass('noactivitybar');
+		}
 
 		// Layout
 		if (!skipLayout) {
@@ -714,6 +744,11 @@ export class Workbench implements IPartService {
 		const newStatusbarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.statusbarVisibleConfigurationKey).value;
 		if (newStatusbarHiddenValue !== this.isStatusBarHidden()) {
 			this.setStatusBarHidden(newStatusbarHiddenValue);
+		}
+
+		const newActivityBarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.activityBarVisibleConfigurationKey).value;
+		if (newActivityBarHiddenValue !== this.isActivityBarHidden()) {
+			this.setActivityBarHidden(newActivityBarHiddenValue);
 		}
 	}
 

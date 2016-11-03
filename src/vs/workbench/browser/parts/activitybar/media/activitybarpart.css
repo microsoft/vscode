@@ -13,6 +13,11 @@
 	height: 100%;
 }
 
+.monaco-workbench.noactivitybar > .activitybar {
+	display: none !important;
+	visibility: hidden !important;
+}
+
 .monaco-workbench > .activitybar > .content .monaco-action-bar {
 	text-align: left;
 	background-color: inherit;

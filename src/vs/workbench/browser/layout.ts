@@ -343,6 +343,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		this.workbenchSize = this.getWorkbenchArea();
 
+		const isActivityBarHidden = this.partService.isActivityBarHidden();
 		const isSidebarHidden = this.partService.isSideBarHidden();
 		const isPanelHidden = this.partService.isPanelHidden();
 		const sidebarPosition = this.partService.getSideBarPosition();
@@ -366,7 +367,13 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Activity Bar
 		let activityBarMinWidth = this.computedStyles.activitybar.minWidth;
-		let activityBarSize = new Dimension(activityBarMinWidth, sidebarSize.height);
+		let activityBarWidth: number;
+		if (isActivityBarHidden) {
+			activityBarWidth = 0;
+		} else {
+			activityBarWidth = activityBarMinWidth;
+		}
+		let activityBarSize = new Dimension(activityBarWidth, sidebarSize.height);
 
 		// Panel part
 		let panelHeight: number;
@@ -399,7 +406,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Sidebar hidden
 		if (isSidebarHidden) {
-			editorSize.width = Math.min(this.workbenchSize.width - activityBarSize.width, this.workbenchSize.width - activityBarMinWidth);
+			editorSize.width = this.workbenchSize.width - activityBarSize.width;
 
 			if (sidebarPosition === Position.LEFT) {
 				editorSize.remainderLeft = Math.round((this.workbenchSize.width - editorSize.width + activityBarSize.width) / 2);
@@ -531,7 +538,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	public getVerticalSashLeft(sash: Sash): number {
 		let isSidebarHidden = this.partService.isSideBarHidden();
 		let sidebarPosition = this.partService.getSideBarPosition();
-		let activitybarWidth = this.computedStyles.activitybar.minWidth;
+		let isActivityBarHidden = this.partService.isActivityBarHidden();
+		let activitybarWidth = !isActivityBarHidden ? this.computedStyles.activitybar.minWidth : 0;
 
 		if (sidebarPosition === Position.LEFT) {
 			return !isSidebarHidden ? this.sidebarWidth + activitybarWidth : activitybarWidth;
