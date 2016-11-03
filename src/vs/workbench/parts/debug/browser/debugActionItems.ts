@@ -8,7 +8,7 @@ import errors = require('vs/base/common/errors');
 import { IAction } from 'vs/base/common/actions';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugService, State, IGlobalConfig } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IGlobalConfig } from 'vs/workbench/parts/debug/common/debug';
 
 export class DebugSelectActionItem extends SelectActionItem {
 
@@ -25,15 +25,11 @@ export class DebugSelectActionItem extends SelectActionItem {
 		this.toDispose.push(this.debugService.getViewModel().onDidSelectConfigurationName(name => {
 			this.updateOptions(false);
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			this.enabled = this.debugService.state === State.Inactive;
-		}));
 	}
 
 	public render(container: HTMLElement): void {
 		super.render(container);
 		this.updateOptions(true);
-		this.enabled = this.debugService.state === State.Inactive;
 	}
 
 	private updateOptions(changeDebugConfiguration: boolean): void {
