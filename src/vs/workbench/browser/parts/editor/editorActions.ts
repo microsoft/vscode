@@ -467,49 +467,6 @@ export function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
 	return null;
 }
 
-export class SaveEditorAction extends Action {
-
-	public static ID = 'workbench.action.files.save';
-	public static LABEL = nls.localize('saveEditor', "Save Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label, 'save-editor-action');
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		const position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-
-		// Save Active Editor
-		if (typeof position !== 'number') {
-			const activeEditor = this.editorService.getActiveEditorInput();
-			if (activeEditor instanceof EditorInput) {
-				return activeEditor.save();
-			}
-		}
-
-		let input = context ? context.editor : null;
-		if (!input) {
-
-			// Get Editor at Position
-			const visibleEditors = this.editorService.getVisibleEditors();
-			if (visibleEditors[position]) {
-				input = visibleEditors[position].input;
-			}
-		}
-
-		if (input instanceof EditorInput) {
-			return input.save();
-		}
-
-		return TPromise.as(false);
-	}
-}
-
 export class CloseEditorAction extends Action {
 
 	public static ID = 'workbench.action.closeActiveEditor';
