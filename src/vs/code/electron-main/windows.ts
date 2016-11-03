@@ -231,15 +231,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		});
 
-		ipc.on('vscode:setMenuBarVisibility', (event, windowId: number, visibility: boolean) => {
-			this.logService.log('IPC#vscode:setMenuBarVisibility');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.win.setMenuBarVisibility(visibility);
-			}
-		});
-
 		ipc.on('vscode:flashFrame', (event, windowId: number) => {
 			this.logService.log('IPC#vscode:flashFrame');
 
