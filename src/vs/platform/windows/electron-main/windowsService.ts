@@ -96,6 +96,17 @@ export class WindowsService implements IWindowsService {
 		return TPromise.as(null);
 	}
 
+	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			const { files, folders } = this.windowsMainService.getRecentPathsList(vscodeWindow.config.workspacePath, vscodeWindow.config.filesToOpen);
+			return TPromise.as({ files, folders });
+		}
+
+		return TPromise.as({ files: [], folders: [] });
+	}
+
 	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
 		if (!paths || !paths.length) {
 			return TPromise.as(null);

@@ -24,9 +24,9 @@ export interface IWindowsService {
 	closeFolder(windowId: number): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
+	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 
 	// Global methods
-
 	// TODO@joao: rename, shouldn't this be openWindow?
 	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void>;
 	openNewWindow(): TPromise<void>;
@@ -47,4 +47,5 @@ export interface IWindowService {
 	closeFolder(): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
+	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 }

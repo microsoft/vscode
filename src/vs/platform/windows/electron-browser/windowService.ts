@@ -52,4 +52,8 @@ export class WindowService implements IWindowService {
 	setRepresentedFilename(fileName: string): TPromise<void> {
 		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
 	}
+
+	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
+		return this.windowsService.getRecentlyOpen(this.windowId);
+	}
 }
