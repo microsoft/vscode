@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
@@ -68,7 +69,7 @@ export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 		const provider = this._treeExplorerNodeProviders[providerId];
 
 		if (!provider) {
-			this.messageService.show(Severity.Error, `No TreeExplorerNodeProvider with id '${providerId}' registered.`);
+			this.messageService.show(Severity.Error, localize('customExplorer.noMatchingProviderId', 'No TreeExplorerNodeProvider with id {providerId} registered.'));
 		}
 
 		return provider;
