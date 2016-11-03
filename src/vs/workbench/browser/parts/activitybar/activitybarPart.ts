@@ -85,7 +85,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private onExtensionServiceReady(viewlets: ViewletDescriptor[]): void {
 		viewlets.forEach(v => {
-			if (v.isExternal) {
+			if (v.isExtension) {
 				this.extViewlets[v.id] = v;
 			}
 		});
@@ -192,7 +192,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private getAllStockViewlets(): ViewletDescriptor[] {
 		return (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets))
 			.getViewlets()
-			.filter(viewlet => !viewlet.isExternal)
+			.filter(viewlet => !viewlet.isExtension)
 			.sort((v1, v2) => v1.order - v2.order);
 	}
 
@@ -269,7 +269,7 @@ class ViewletActivityAction extends ActivityAction {
 		if (!sideBarHidden && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
 			this.partService.setSideBarHidden(true);
 		} else {
-			if (this.viewlet.isExternal) {
+			if (this.viewlet.isExtension) {
 				this._onOpenExtViewlet.fire(this.viewlet.id);
 			}
 			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
