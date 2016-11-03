@@ -1144,7 +1144,6 @@ export class BreakpointsRenderer implements IRenderer {
 		data.name = dom.append(data.breakpoint, $('span.name'));
 
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID) {
-			data.name.classList.add('expression');
 			const file = dom.append(data.breakpoint, $('.file'));
 			data.filePath = dom.append(file, $('span.file-name'));
 			data.lineNumber = dom.append(file, $('span.line-number'));
@@ -1205,7 +1204,13 @@ export class BreakpointsRenderer implements IRenderer {
 	private renderBreakpoint(tree: ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
-		data.name.textContent = breakpoint.content;
+		if (breakpoint.content) {
+			dom.addClass(data.name, 'expression');
+			data.name.textContent = breakpoint.content;
+		} else {
+			dom.removeClass(data.name, 'expression');
+			data.name.textContent = nls.localize('noContent', "no content");
+		}
 		data.filePath.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
 		data.lineNumber.textContent = breakpoint.desiredLineNumber !== breakpoint.lineNumber ? breakpoint.desiredLineNumber + ' \u2192 ' + breakpoint.lineNumber : '' + breakpoint.lineNumber;
 		data.checkbox.checked = breakpoint.enabled;
