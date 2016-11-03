@@ -544,6 +544,8 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private onDrop(e: DragEvent, group: IEditorGroup, targetPosition: Position, targetIndex: number): void {
+		DOM.removeClass(this.tabsContainer, 'dropfeedback');
+		DOM.removeClass(this.tabsContainer, 'scroll');
 
 		// Local DND
 		const draggedEditor = TabsTitleControl.getDraggedEditor();
