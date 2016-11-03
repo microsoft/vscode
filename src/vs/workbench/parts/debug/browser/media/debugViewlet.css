@@ -66,9 +66,7 @@
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row .content .monaco-action-bar {
-	float: right;
-	display: none;
-	margin-right: 12px;
+	visibility: hidden;
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row .content .monaco-action-bar .action-label {
@@ -79,7 +77,7 @@
 
 .debug-viewlet .monaco-tree .monaco-tree-row:hover .content .monaco-action-bar,
 .debug-viewlet .monaco-tree.focused .monaco-tree-row.focused .content .monaco-action-bar {
-	display: block;
+	visibility: visible;
 }
 
 .debug-viewlet .disabled {
@@ -267,9 +265,14 @@
 
 /* Breakpoints */
 
+.debug-viewlet .debug-breakpoints .content {
+	display: flex;
+}
+
 .debug-viewlet .debug-breakpoints .breakpoint {
 	padding-right: 0.8em;
 	display: flex;
+	flex: 1;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint .snippet,
@@ -277,12 +280,6 @@
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
-}
-
-.debug-viewlet .debug-breakpoints .breakpoint > .file-path {
-	opacity: 0.7;
-	font-size: 0.9em;
-	margin-left: 0.8em;
 }
 
 .monaco-workbench.windows debug-viewlet .debug-breakpoints .breakpoint > .checkbox,

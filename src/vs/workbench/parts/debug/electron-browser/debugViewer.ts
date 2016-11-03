@@ -1169,8 +1169,12 @@ export class BreakpointsRenderer implements IRenderer {
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
 		const data = Object.create(null);
-
 		data.breakpoint = dom.append(container, $('.breakpoint'));
+		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
+			data.actionBar = new ActionBar(data.breakpoint, { actionRunner: this.actionRunner });
+			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
+		}
+
 		data.toDisposeBeforeRender = [];
 
 		data.checkbox = <HTMLInputElement>$('input');
@@ -1185,11 +1189,6 @@ export class BreakpointsRenderer implements IRenderer {
 			data.lineNumber = dom.append(file, $('span.line-number'));
 		} else {
 			data.name = dom.append(data.breakpoint, $('span.name'));
-		}
-
-		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
-			data.actionBar = new ActionBar(container, { actionRunner: this.actionRunner });
-			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
 		}
 
 		return data;
