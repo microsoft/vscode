@@ -318,14 +318,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		});
 
-		ipc.on('vscode:switchWindow', (event, windowId: number) => {
-			const windows = this.getWindows();
-			const window = this.getWindowById(windowId);
-			window.send('vscode:switchWindow', windows.map(w => {
-				return { path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id };
-			}));
-		});
-
 		ipc.on('vscode:showItemInFolder', (event, path: string) => {
 			this.logService.log('IPC#vscode-showItemInFolder');
 

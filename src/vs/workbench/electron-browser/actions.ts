@@ -28,7 +28,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
 import { isMacintosh } from 'vs/base/common/platform';
-import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry, ISeparator } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
@@ -87,27 +87,25 @@ export class SwitchWindow extends Action {
 		id: string,
 		label: string,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 	}
 
-	run(): TPromise<boolean> {
-		const id = this.windowService.getWindowId();
-		ipc.send('vscode:switchWindow', id);
-		ipc.once('vscode:switchWindow', (event, workspaces) => {
-			const picks: IPickOpenEntry[] = workspaces.map(w => {
-				return {
-					label: w.title,
-					description: (id === w.id) ? nls.localize('current', "Current Window") : void 0,
-					run: () => this.windowsService.showWindow(w.id)
-				};
-			});
-			this.quickOpenService.pick(picks, { placeHolder: nls.localize('switchWindowPlaceHolder', "Select a window") });
-		});
+	run(): TPromise<void> {
+		const currentWindowId = this.windowService.getCurrentWindowId();
 
-		return TPromise.as(true);
+		return this.windowsService.getWindows().then(workspaces => {
+			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window");
+			const picks = workspaces.map(w => ({
+				label: w.title,
+				description: (currentWindowId === w.id) ? nls.localize('current', "Current Window") : void 0,
+				run: () => this.windowsService.showWindow(w.id)
+			}));
+
+			this.quickOpenService.pick(picks, { placeHolder });
+		});
 	}
 }
 

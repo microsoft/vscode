@@ -17,6 +17,10 @@ export class WindowService implements IWindowService {
 		@IWindowsService private windowsService: IWindowsService
 	) { }
 
+	getCurrentWindowId(): number {
+		return this.windowId;
+	}
+
 	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void> {
 		return this.windowsService.openFileFolderPicker(this.windowId, forceNewWindow);
 	}
