@@ -77,7 +77,7 @@ export class MoveOperations {
 			lineNumber = cursor.selection.startLineNumber;
 			column = cursor.selection.startColumn;
 		} else {
-			let r = this.left(config, model, cursor.position.lineNumber, cursor.position.column - (noOfColumns - 1));
+			let r = MoveOperations.left(config, model, cursor.position.lineNumber, cursor.position.column - (noOfColumns - 1));
 			lineNumber = r.lineNumber;
 			column = r.column;
 		}
@@ -111,7 +111,7 @@ export class MoveOperations {
 			lineNumber = cursor.selection.endLineNumber;
 			column = cursor.selection.endColumn;
 		} else {
-			let r = this.right(config, model, cursor.position.lineNumber, cursor.position.column + (noOfColumns - 1));
+			let r = MoveOperations.right(config, model, cursor.position.lineNumber, cursor.position.column + (noOfColumns - 1));
 			lineNumber = r.lineNumber;
 			column = r.column;
 		}
@@ -159,7 +159,7 @@ export class MoveOperations {
 			column = cursor.position.column;
 		}
 
-		let r = this.down(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
+		let r = MoveOperations.down(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
 
 		return new MoveOperationResult(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true, CursorChangeReason.Explicit);
 	}
@@ -203,7 +203,7 @@ export class MoveOperations {
 			column = cursor.position.column;
 		}
 
-		let r = this.up(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
+		let r = MoveOperations.up(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
 
 		return new MoveOperationResult(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true, CursorChangeReason.Explicit);
 	}
