@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .customTreeExplorer-action.toggle {
+.monaco-workbench .customExplorer-action.toggle {
 	background: url('Refresh.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .customTreeExplorer-action.toggle,
-.hc-black .monaco-workbench .customTreeExplorer-action.toggle {
+.vs-dark .monaco-workbench .customExplorer-action.toggle,
+.hc-black .monaco-workbench .customExplorer-action.toggle {
 	background: url('Refresh_inverse.svg') center center no-repeat;
 }
 
 /* Coerce external icon into a style similar to stock icons */
 .monaco-workbench > .activitybar .monaco-action-bar .action-item:nth-child(n+6) .action-label {
 	-webkit-filter: grayscale(1) invert(1);
+	filter: grayscale(1) invert(1);
 }
