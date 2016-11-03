@@ -140,4 +140,10 @@ export class WindowsService implements IWindowsService {
 
 		return TPromise.as(null);
 	}
+
+	getWindows(): TPromise<{ id: number; path: string; title: string; }[]> {
+		const windows = this.windowsMainService.getWindows();
+		const result = windows.map(w => ({ path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id }));
+		return TPromise.as(result);
+	}
 }

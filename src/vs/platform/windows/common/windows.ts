@@ -32,6 +32,7 @@ export interface IWindowsService {
 	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void>;
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
+	getWindows(): TPromise<{ id: number; path: string; title: string; }[]>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -40,6 +41,7 @@ export interface IWindowService {
 
 	_serviceBrand: any;
 
+	getCurrentWindowId(): number;
 	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void>;
 	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void>;
 	openFolderPicker(forceNewWindow?: boolean): TPromise<void>;
