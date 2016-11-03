@@ -17,6 +17,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/common/http';
+import { IBackupService } from 'vs/code/electron-main/backup';
+import Uri from 'vs/base/common/uri';
 
 export interface IWindowState {
 	width?: number;
@@ -139,7 +141,8 @@ export class VSCodeWindow {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IBackupService private backupService: IBackupService
 	) {
 		this.options = config;
 		this._lastFocusTime = -1;
@@ -410,7 +413,11 @@ export class VSCodeWindow {
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.filesToDiff;
-		delete configuration.untitledToRestore;
+
+		// Update untitled files to restore so they come through in the reloaded window
+		configuration.untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(configuration.workspacePath)).map(filePath => {
+			return { filePath: filePath };
+		});
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in plugin development mode. These options are all development related.
