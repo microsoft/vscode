@@ -163,10 +163,6 @@ export class ElectronWindow {
 		return dialog.showSaveDialog(this.win, options); // https://github.com/electron/electron/issues/4936
 	}
 
-	public setFullScreen(fullscreen: boolean): void {
-		ipc.send('vscode:setFullScreen', this.windowId, fullscreen); // handled from browser process
-	}
-
 	public openDevTools(): void {
 		ipc.send('vscode:openDevTools', this.windowId); // handled from browser process
 	}
