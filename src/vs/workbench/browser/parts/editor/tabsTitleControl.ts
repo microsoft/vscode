@@ -353,8 +353,7 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.appendChild(tabCloseContainer);
 
 			const bar = new ActionBar(tabCloseContainer, { context: { editor, group }, ariaLabel: nls.localize('araLabelTabActions', "Tab actions") });
-			const action = this.showTabCloseButton ? this.closeEditorAction : this.saveEditorAction;
-			bar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
+			bar.push(this.closeEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorAction) });
 
 			this.tabDisposeables.push(bar);
 
