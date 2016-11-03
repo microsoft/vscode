@@ -16,7 +16,7 @@ import { ITreeExplorerViewletService, TreeExplorerViewletService } from 'vs/work
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ITreeExplorer } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { VIEWLET_ID_ROOT } from 'vs/workbench/parts/explorers/common/treeExplorer';
+import { toCustomViewletId } from 'vs/workbench/parts/explorers/common/treeExplorer';
 
 registerSingleton(ITreeExplorerViewletService, TreeExplorerViewletService);
 
@@ -53,7 +53,7 @@ ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], explore
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
 			'TreeExplorerViewlet',
-			VIEWLET_ID_ROOT + treeExplorerNodeProviderId,
+			toCustomViewletId(treeExplorerNodeProviderId),
 			treeLabel,
 			treeExplorerNodeProviderId,
 			-1, // Extension viewlets are ordered by enabling sequence, so order here doesn't matter.

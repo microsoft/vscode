@@ -8,11 +8,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/treeExplorerView';
+import { toCustomViewletActionId } from 'vs/workbench/parts/explorers/common/treeExplorer';
 
 export class RefreshViewExplorerAction extends Action {
 
 	constructor(view: TreeExplorerView) {
-		super('workbench.action.customTreeExplorer.refresh', nls.localize('refresh', "Refresh"), 'customTreeExplorer-action toggle', true, () => {
+		super(toCustomViewletActionId('refresh'), nls.localize('refresh', 'Refresh'), 'customExplorer-action toggle', true, () => {
 			view.updateInput();
 			return TPromise.as(null);
 		});
