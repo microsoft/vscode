@@ -40,4 +40,8 @@ export class WindowService implements IWindowService {
 	closeFolder(): TPromise<void> {
 		return this.windowsService.closeFolder(this.windowId);
 	}
+
+	toggleFullScreen(): TPromise<void> {
+		return this.windowsService.toggleFullScreen(this.windowId);
+	}
 }
