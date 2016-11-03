@@ -16,7 +16,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
+import { IColumnSelectResult, CursorMove } from 'vs/editor/common/controller/cursorMoveHelper';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface ITypingListener {
@@ -1126,7 +1126,7 @@ export class Cursor extends EventEmitter {
 		if (!this._columnSelectToVisualColumn) {
 			let primaryCursor = this.cursors.getAll()[0];
 			let primaryPos = primaryCursor.viewState.position;
-			return primaryCursor.getViewVisibleColumnFromColumn(primaryPos.lineNumber, primaryPos.column);
+			return CursorMove.visibleColumnFromColumn2(primaryCursor.config, primaryCursor.viewModel, primaryPos);
 		}
 		return this._columnSelectToVisualColumn;
 	}
@@ -1513,10 +1513,10 @@ export class Cursor extends EventEmitter {
 		let noOfLines = editorScrollArg.value || 1;
 		switch (editorScrollArg.by) {
 			case editorCommon.EditorScrollByUnit.Page:
-				noOfLines = cursor.getPageSize() * noOfLines;
+				noOfLines = cursor.config.pageSize * noOfLines;
 				break;
 			case editorCommon.EditorScrollByUnit.HalfPage:
-				noOfLines = Math.round(cursor.getPageSize() / 2) * noOfLines;
+				noOfLines = Math.round(cursor.config.pageSize / 2) * noOfLines;
 				break;
 		}
 		this.emitCursorScrollRequest((up ? -1 : 1) * noOfLines, !!editorScrollArg.revealCursor);
