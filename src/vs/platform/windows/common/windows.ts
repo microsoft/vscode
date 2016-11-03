@@ -38,6 +38,7 @@ export interface IWindowsService {
 	log(severity: string, ...messages: string[]): TPromise<void>;
 	// TODO@joao: what?
 	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void>;
+	showItemInFolder(path: string): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');

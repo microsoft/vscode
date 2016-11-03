@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { remote } from 'electron';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 const dialog = remote.dialog;
 
@@ -26,17 +26,15 @@ export class OpenExtensionsFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowsService private windowsService: IWindowsService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<any> {
+	run(): TPromise<void> {
 		const extensionsHome = this.environmentService.extensionsPath;
-		this.windowService.getWindow().showItemInFolder(paths.normalize(extensionsHome, true));
-
-		return TPromise.as(true);
+		return this.windowsService.showItemInFolder(paths.normalize(extensionsHome, true));
 	}
 
 	protected isEnabled(): boolean {

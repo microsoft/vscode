@@ -28,6 +28,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'getWindows'): TPromise<{ id: number; path: string; title: string; }[]>;
 	call(command: 'log', args: [string, string[]]): TPromise<void>;
 	call(command: 'closeExtensionHostWindow', args: string): TPromise<void>;
+	call(command: 'showItemInFolder', args: string): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -56,6 +57,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'getWindows': return this.service.getWindows();
 			case 'log': return this.service.log(arg[0], arg[1]);
 			case 'closeExtensionHostWindow': return this.service.closeExtensionHostWindow(arg);
+			case 'showItemInFolder': return this.service.showItemInFolder(arg);
 		}
 	}
 }
@@ -140,5 +142,9 @@ export class WindowsChannelClient implements IWindowsService {
 
 	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void> {
 		return this.channel.call('closeExtensionHostWindow', extensionDevelopmentPath);
+	}
+
+	showItemInFolder(path: string): TPromise<void> {
+		return this.channel.call('showItemInFolder', path);
 	}
 }
