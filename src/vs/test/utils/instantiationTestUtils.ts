@@ -54,6 +54,10 @@ export class TestInstantiationService extends InstantiationService {
 		this._servciesMap.set(IKeybindingService, WorkbenchKeybindingService);
 	}
 
+	public get<T>(service: ServiceIdentifier<T>): T {
+		return <T>this._serviceCollection.get(service);
+	}
+
 	public mock<T>(service: ServiceIdentifier<T>): T | sinon.SinonMock {
 		return <T>this._create(service, { mock: true });
 	}
