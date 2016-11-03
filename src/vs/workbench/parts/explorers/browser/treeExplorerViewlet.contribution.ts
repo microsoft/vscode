@@ -16,7 +16,7 @@ import { ITreeExplorerViewletService, TreeExplorerViewletService } from 'vs/work
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ITreeExplorer } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { toCustomViewletId } from 'vs/workbench/parts/explorers/common/treeExplorer';
+import { toCustomViewletId, toCustomViewletCSSClass } from 'vs/workbench/parts/explorers/common/treeExplorer';
 
 registerSingleton(ITreeExplorerViewletService, TreeExplorerViewletService);
 
@@ -45,7 +45,7 @@ ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], explore
 
 		const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };
 		if (icon) {
-			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
+			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${toCustomViewletCSSClass(treeExplorerNodeProviderId)}`;
 			const iconPath = join(extension.description.extensionFolderPath, icon);
 			createCSSRule(iconClass, getIconRule(iconPath));
 		}
@@ -55,7 +55,7 @@ ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], explore
 			'TreeExplorerViewlet',
 			toCustomViewletId(treeExplorerNodeProviderId),
 			treeLabel,
-			treeExplorerNodeProviderId,
+			toCustomViewletCSSClass(treeExplorerNodeProviderId),
 			-1, // Extension viewlets are ordered by enabling sequence, so order here doesn't matter.
 			true
 		));
