@@ -15,3 +15,8 @@ export function toCustomViewletActionId(viewletId: string): string {
 export function toCustomViewletCSSClass(viewletId: string): string {
 	return 'customExplorer-' + viewletId;
 }
+
+export function isValidViewletId(viewletId: string): boolean {
+	// Only allow alphanumeric letters, `_` and `-`.
+	return /^[a-z0-9_-]+$/i.test(viewletId);
+}
