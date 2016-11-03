@@ -83,7 +83,7 @@
 				},
 				"typescript.disableAutomaticTypeAcquisition": {
 					"type": "boolean",
-					"default": false,
+					"default": true,
 					"description": "%typescript.disableAutomaticTypeAcquisition%"
 				},
 				"typescript.check.workspaceVersion": {
