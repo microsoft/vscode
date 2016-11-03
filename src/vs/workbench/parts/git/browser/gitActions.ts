@@ -29,7 +29,7 @@ import { IGitService, IFileStatus, Status, StatusType, ServiceState, IModel, IBr
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
@@ -1152,7 +1152,7 @@ export class SyncAction extends GitAction {
 		@IGitService gitService: IGitService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
-		@IWindowService private windowService: IWindowService
+		@IWindowIPCService private windowService: IWindowIPCService
 	) {
 		super(id, label, 'git-action sync', gitService);
 	}

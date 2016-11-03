@@ -337,6 +337,12 @@ export class TabsTitleControl extends TitleControl {
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
 
+			if (!this.showTabCloseButton) {
+				DOM.addClass(tabContainer, 'no-close-button');
+			} else {
+				DOM.removeClass(tabContainer, 'no-close-button');
+			}
+
 			// Tab Editor Label
 			const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
 			this.editorLabels.push(editorLabel);
@@ -347,7 +353,8 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.appendChild(tabCloseContainer);
 
 			const bar = new ActionBar(tabCloseContainer, { context: { editor, group }, ariaLabel: nls.localize('araLabelTabActions', "Tab actions") });
-			bar.push(this.closeEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorAction) });
+			const action = this.showTabCloseButton ? this.closeEditorAction : this.saveEditorAction;
+			bar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
 
 			this.tabDisposeables.push(bar);
 
@@ -537,6 +544,8 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private onDrop(e: DragEvent, group: IEditorGroup, targetPosition: Position, targetIndex: number): void {
+		DOM.removeClass(this.tabsContainer, 'dropfeedback');
+		DOM.removeClass(this.tabsContainer, 'scroll');
 
 		// Local DND
 		const draggedEditor = TabsTitleControl.getDraggedEditor();

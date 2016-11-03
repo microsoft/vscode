@@ -26,12 +26,15 @@ import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper, IShell } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export class TerminalInstance implements ITerminalInstance {
-	private static EOL_REGEX = /\r?\n/g;
+	/** The amount of time to consider terminal errors to be related to the launch */
+	private static readonly LAUNCHING_DURATION = 500;
+	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _idCounter = 1;
 
 	private _id: number;
 	private _isExiting: boolean;
+	private _isLaunching: boolean;
 	private _isVisible: boolean;
 	private _onDisposed: Emitter<TerminalInstance>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
@@ -65,6 +68,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._toDispose = [];
 		this._skipTerminalKeybindings = [];
 		this._isExiting = false;
+		this._isLaunching = true;
 		this._isVisible = false;
 		this._id = TerminalInstance._idCounter++;
 
@@ -286,10 +290,18 @@ export class TerminalInstance implements ITerminalInstance {
 			if (!this._isExiting) {
 				this.dispose();
 				if (exitCode) {
-					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
+					if (this._isLaunching) {
+						const args = shell.args && shell.args.length ? ' ' + shell.args.map(a => a.indexOf(' ') !== -1 ? `'${a}'` : a).join(' ') : '';
+						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', shell.executable, args, exitCode));
+					} else {
+						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
+					}
 				}
 			}
 		});
+		setTimeout(() => {
+			this._isLaunching = false;
+		}, TerminalInstance.LAUNCHING_DURATION);
 	}
 
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {

@@ -149,6 +149,7 @@ export class ElectronWindow {
 	}
 
 	public reload(): void {
+		this.partService.setRestoreSidebar(); // we want the same sidebar after a reload restored
 		ipc.send('vscode:reloadWindow', this.windowId);
 	}
 

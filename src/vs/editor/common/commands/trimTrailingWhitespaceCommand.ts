@@ -20,9 +20,9 @@ export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
-		var ops = trimTrailingWhitespace(model, []);
-		for (var i = 0, len = ops.length; i < len; i++) {
-			var op = ops[i];
+		let ops = trimTrailingWhitespace(model, []);
+		for (let i = 0, len = ops.length; i < len; i++) {
+			let op = ops[i];
 
 			builder.addEditOperation(op.range, op.text);
 		}
@@ -48,29 +48,22 @@ export function trimTrailingWhitespace(model: editorCommon.ITextModel, cursors: 
 	});
 
 	// Reduce multiple cursors on the same line and only keep the last one on the line
-	for (var i = cursors.length - 2; i >= 0; i--) {
+	for (let i = cursors.length - 2; i >= 0; i--) {
 		if (cursors[i].lineNumber === cursors[i + 1].lineNumber) {
 			// Remove cursor at `i`
 			cursors.splice(i, 1);
 		}
 	}
 
-	var r: editorCommon.IIdentifiedSingleEditOperation[] = [],
-		cursorIndex = 0,
-		cursorLen = cursors.length,
-		lineNumber: number,
-		lineCount: number,
-		lineContent: string,
-		minEditColumn: number,
-		maxLineColumn: number,
-		fromColumn: number,
-		// toColumn:number,
-		lastNonWhitespaceIndex: number;
+	let r: editorCommon.IIdentifiedSingleEditOperation[] = [];
+	let rLen = 0;
+	let cursorIndex = 0;
+	let cursorLen = cursors.length;
 
-	for (lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-		lineContent = model.getLineContent(lineNumber);
-		maxLineColumn = lineContent.length + 1;
-		minEditColumn = 0;
+	for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
+		let lineContent = model.getLineContent(lineNumber);
+		let maxLineColumn = lineContent.length + 1;
+		let minEditColumn = 0;
 
 		if (cursorIndex < cursorLen && cursors[cursorIndex].lineNumber === lineNumber) {
 			minEditColumn = cursors[cursorIndex].column;
@@ -85,9 +78,9 @@ export function trimTrailingWhitespace(model: editorCommon.ITextModel, cursors: 
 			continue;
 		}
 
-		lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
+		let lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
 
-		fromColumn = 0;
+		let fromColumn = 0;
 		if (lastNonWhitespaceIndex === -1) {
 			// Entire line is whitespace
 			fromColumn = 1;
@@ -100,10 +93,10 @@ export function trimTrailingWhitespace(model: editorCommon.ITextModel, cursors: 
 		}
 
 		fromColumn = Math.max(minEditColumn, fromColumn);
-		r.push(EditOperation.delete(new Range(
+		r[rLen++] = EditOperation.delete(new Range(
 			lineNumber, fromColumn,
 			lineNumber, maxLineColumn
-		)));
+		));
 	}
 
 	return r;

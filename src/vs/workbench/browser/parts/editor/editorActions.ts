@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
+import { mixin } from 'vs/base/common/objects';
 import { EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
@@ -433,15 +434,15 @@ export class OpenToSideAction extends Action {
 	public run(context: any): TPromise<any> {
 		let entry = toEditorQuickOpenEntry(context);
 		if (entry) {
-			let typedInputPromise: TPromise<EditorInput>;
 			const input = entry.getInput();
 			if (input instanceof EditorInput) {
-				typedInputPromise = TPromise.as(input);
-			} else {
-				typedInputPromise = this.editorService.createInput(<IResourceInput>input);
+				return this.editorService.openEditor(input, entry.getOptions(), true);
 			}
 
-			return typedInputPromise.then(typedInput => this.editorService.openEditor(typedInput, entry.getOptions(), true));
+			const resourceInput = input as IResourceInput;
+			resourceInput.options = mixin(resourceInput.options, entry.getOptions());
+
+			return this.editorService.openEditor(resourceInput, true);
 		}
 
 		return TPromise.as(false);
@@ -464,6 +465,49 @@ export function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
 	}
 
 	return null;
+}
+
+export class SaveEditorAction extends Action {
+
+	public static ID = 'workbench.action.files.save';
+	public static LABEL = nls.localize('saveEditor', "Save Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label, 'save-editor-action');
+	}
+
+	public run(context?: IEditorContext): TPromise<any> {
+		const position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+
+		// Save Active Editor
+		if (typeof position !== 'number') {
+			const activeEditor = this.editorService.getActiveEditorInput();
+			if (activeEditor instanceof EditorInput) {
+				return activeEditor.save();
+			}
+		}
+
+		let input = context ? context.editor : null;
+		if (!input) {
+
+			// Get Editor at Position
+			const visibleEditors = this.editorService.getVisibleEditors();
+			if (visibleEditors[position]) {
+				input = visibleEditors[position].input;
+			}
+		}
+
+		if (input instanceof EditorInput) {
+			return input.save();
+		}
+
+		return TPromise.as(false);
+	}
 }
 
 export class CloseEditorAction extends Action {

@@ -135,7 +135,7 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 			return null;
 		}
 		if (Array.isArray(descriptor.keybindings)) {
-			var handler: ICommandHandler = (accessor) => {
+			let handler: ICommandHandler = (accessor) => {
 				return this.trigger('keyboard', descriptor.id, null);
 			};
 			descriptor.keybindings.forEach((kb) => {
@@ -221,7 +221,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			return null;
 		}
 		if (Array.isArray(descriptor.keybindings)) {
-			var handler: ICommandHandler = (ctx) => {
+			let handler: ICommandHandler = (ctx) => {
 				return this.trigger('keyboard', descriptor.id, null);
 			};
 			descriptor.keybindings.forEach((kb) => {

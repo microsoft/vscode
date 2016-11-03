@@ -7,9 +7,9 @@
 import * as assert from 'assert';
 import * as modes from 'vs/editor/common/modes';
 import { AbstractState, ITokenizationResult } from 'vs/editor/common/modes/abstractState';
-import { handleEvent } from 'vs/editor/common/modes/supports';
+import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { IModeLocator, ILeavingNestedModeData, TokenizationSupport } from 'vs/editor/common/modes/supports/tokenizationSupport';
-import { createMockLineContext } from 'vs/editor/test/common/modesTestUtils';
+import { createFakeLineTokens } from 'vs/editor/test/common/modesTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
@@ -315,27 +315,21 @@ suite('Editor Modes - Tokenization', () => {
 			{ startIndex: 5, id: 'B' }
 		]);
 
-		handleEvent(createMockLineContext('abc (def', lineTokens), 0, (modeId: string, context: modes.ILineContext, offset: number) => {
-			assert.deepEqual(modeId, 'A');
-			assert.equal(context.getTokenCount(), 3);
-			assert.equal(context.getTokenStartOffset(0), 0);
-			assert.equal(context.getTokenType(0), 'A.abc');
-			assert.equal(context.getTokenStartOffset(1), 3);
-			assert.equal(context.getTokenType(1), '');
-			assert.equal(context.getTokenStartOffset(2), 4);
-			assert.equal(context.getTokenType(2), 'A.(');
-			assert.deepEqual(offset, 0);
-			assert.equal(context.getLineContent(), 'abc (');
-		});
+		let scopedLineTokens1 = createScopedLineTokens(createFakeLineTokens('abc (def', switchingMode.getId(), lineTokens.tokens, lineTokens.modeTransitions), 0);
+		assert.deepEqual(scopedLineTokens1.modeId, 'A');
+		assert.equal(scopedLineTokens1.getTokenCount(), 3);
+		assert.equal(scopedLineTokens1.getTokenStartOffset(0), 0);
+		assert.equal(scopedLineTokens1.getTokenStartOffset(1), 3);
+		assert.equal(scopedLineTokens1.getTokenStartOffset(2), 4);
+		assert.deepEqual(scopedLineTokens1.firstCharOffset, 0);
+		assert.equal(scopedLineTokens1.getLineContent(), 'abc (');
 
-		handleEvent(createMockLineContext('abc (def', lineTokens), 6, (modeId: string, context: modes.ILineContext, offset: number) => {
-			assert.deepEqual(modeId, 'B');
-			assert.equal(context.getTokenCount(), 1);
-			assert.equal(context.getTokenStartOffset(0), 0);
-			assert.equal(context.getTokenType(0), 'B.def');
-			assert.deepEqual(offset, 1);
-			assert.equal(context.getLineContent(), 'def');
-		});
+		let scopedLineTokens2 = createScopedLineTokens(createFakeLineTokens('abc (def', switchingMode.getId(), lineTokens.tokens, lineTokens.modeTransitions), 6);
+		assert.deepEqual(scopedLineTokens2.modeId, 'B');
+		assert.equal(scopedLineTokens2.getTokenCount(), 1);
+		assert.equal(scopedLineTokens2.getTokenStartOffset(0), 0);
+		assert.deepEqual(scopedLineTokens2.firstCharOffset, 5);
+		assert.equal(scopedLineTokens2.getLineContent(), 'def');
 
 		lineTokens = switchingModeTokenize('ghi jkl', lineTokens.endState);
 		assertTokens(lineTokens.tokens, [

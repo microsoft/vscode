@@ -15,7 +15,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { CloseEditorAction, ReloadWindowAction, ShowStartupPerformance, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleDevToolsAction, ToggleFullScreenAction, ToggleMenuBarAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext, NoEditorsVisibleContext } from 'vs/workbench/electron-browser/workbench';
 
@@ -61,7 +61,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: NoEditorsVisibleContext,
 	primary: closeEditorOrWindowKeybindings.primary,
 	handler: accessor => {
-		const windowService = accessor.get(IWindowService);
+		const windowService = accessor.get(IWindowIPCService);
 		windowService.getWindow().close();
 	}
 });
@@ -77,6 +77,11 @@ configurationRegistry.registerConfiguration({
 		'workbench.editor.showTabs': {
 			'type': 'boolean',
 			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
+			'default': true
+		},
+		'workbench.editor.showTabCloseButton': {
+			'type': 'boolean',
+			'description': nls.localize('showEditorTabCloseButton', "Controls if editor tabs should have a visible close button or not."),
 			'default': true
 		},
 		'workbench.editor.showIcons': {
@@ -151,6 +156,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 0,
 			'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
+		},
+		'window.showFullPath': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
 		}
 	}
 });
