@@ -17,6 +17,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeFolder', arg: number): TPromise<void>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
+	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'windowOpen', arg: [string[], boolean]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
@@ -36,6 +37,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeFolder': return this.service.closeFolder(arg);
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
+			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'windowOpen': return this.service.windowOpen(arg[0], arg[1]);
 			case 'openNewWindow': return this.service.openNewWindow();
 		}
@@ -78,6 +80,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	toggleFullScreen(windowId: number): TPromise<void> {
 		return this.channel.call('toggleFullScreen', windowId);
+	}
+
+	setRepresentedFilename(windowId: number, fileName: string): TPromise<void> {
+		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
 	}
 
 	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {

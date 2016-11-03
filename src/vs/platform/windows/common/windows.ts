@@ -23,6 +23,7 @@ export interface IWindowsService {
 	// TODO@joao: rename, shouldn't this be closeWindow?
 	closeFolder(windowId: number): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
+	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
 
 	// Global methods
 
@@ -45,4 +46,5 @@ export interface IWindowService {
 	toggleDevTools(): TPromise<void>;
 	closeFolder(): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
+	setRepresentedFilename(fileName: string): TPromise<void>;
 }
