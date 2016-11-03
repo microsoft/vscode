@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-const CUSTOM_VIEWLET_ID_ROOT = 'workbench.view.customExplorer.';
-const CUSTOM_VIEWLET_ACTION_ID_ROOT = 'workbench.action.customExplorer.';
-
 export function toCustomViewletId(viewletId: string): string {
-	return CUSTOM_VIEWLET_ID_ROOT + viewletId;
+	return 'workbench.view.customExplorer.' + viewletId;
 }
 
 export function toCustomViewletActionId(viewletId: string): string {
-	return CUSTOM_VIEWLET_ACTION_ID_ROOT + viewletId;
+	return 'workbench.action.customExplorer.' + viewletId;
+}
+
+export function toCustomViewletCSSClass(viewletId: string): string {
+	return 'customExplorer-' + viewletId;
 }
