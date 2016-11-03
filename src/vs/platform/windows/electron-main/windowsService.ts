@@ -161,4 +161,9 @@ export class WindowsService implements IWindowsService {
 		const result = windows.map(w => ({ path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id }));
 		return TPromise.as(result);
 	}
+
+	log(severity: string, ...messages: string[]): TPromise<void> {
+		console[severity].apply(console, ...messages);
+		return TPromise.as(null);
+	}
 }
