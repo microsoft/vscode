@@ -152,7 +152,6 @@ export class BackupService implements IBackupService {
 		});
 	}
 
-	// TODO: Verify whether this is even needed at all if there is an onsave listener
 	public cleanupBackupsBeforeShutdown(): boolean | TPromise<boolean> {
 		const workspace = this.contextService.getWorkspace();
 		if (!workspace) {
