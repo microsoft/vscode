@@ -31,6 +31,9 @@ interface IConfiguration extends IFilesConfiguration {
 		},
 		statusBar: {
 			visible: boolean;
+		},
+		activityBar: {
+			visible: boolean;
 		}
 	};
 }
@@ -44,6 +47,7 @@ export class VSCodeMenu {
 	private currentAutoSaveSetting: string;
 	private currentSidebarLocation: 'left' | 'right';
 	private currentStatusbarVisible: boolean;
+	private currentActivityBarVisible: boolean;
 
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
@@ -149,6 +153,15 @@ export class VSCodeMenu {
 			}
 			if (newStatusbarVisible !== this.currentStatusbarVisible) {
 				this.currentStatusbarVisible = newStatusbarVisible;
+				updateMenu = true;
+			}
+
+			let newActivityBarVisible = config.workbench.activityBar && config.workbench.activityBar.visible;
+			if (typeof newActivityBarVisible !== 'boolean') {
+				newActivityBarVisible = true;
+			}
+			if (newActivityBarVisible !== this.currentActivityBarVisible) {
+				this.currentActivityBarVisible = newActivityBarVisible;
 				updateMenu = true;
 			}
 		}
@@ -543,6 +556,14 @@ export class VSCodeMenu {
 		}
 		const toggleStatusbar = this.createMenuItem(statusBarLabel, 'workbench.action.toggleStatusbarVisibility');
 
+		let activityBarLabel: string;
+		if (this.currentActivityBarVisible) {
+			activityBarLabel = 'Show Activity Bar';
+		} else {
+			activityBarLabel = 'Hide Activity Bar';
+		}
+		const toggleActivtyBar = this.createMenuItem(activityBarLabel, 'workbench.action.toggleActivityBarVisibility');
+
 		const toggleWordWrap = this.createMenuItem(nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
 		const toggleRenderWhitespace = this.createMenuItem(nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"), 'editor.action.toggleRenderWhitespace');
 		const toggleRenderControlCharacters = this.createMenuItem(nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters"), 'editor.action.toggleRenderControlCharacter');
@@ -574,6 +595,7 @@ export class VSCodeMenu {
 			toggleSidebar,
 			togglePanel,
 			toggleStatusbar,
+			toggleActivtyBar,
 			__separator__(),
 			toggleWordWrap,
 			toggleRenderWhitespace,
