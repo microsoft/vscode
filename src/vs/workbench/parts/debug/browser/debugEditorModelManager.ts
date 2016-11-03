@@ -218,7 +218,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					enabled: lineToBreakpointDataMap[modelData.breakpointLines[i]].enabled,
 					condition: lineToBreakpointDataMap[modelData.breakpointLines[i]].condition,
 					hitCondition: lineToBreakpointDataMap[modelData.breakpointLines[i]].hitCondition,
-					content: modelData.model.getLineContent(decorationRange.startLineNumber)
+					snippet: modelData.model.getLineContent(decorationRange.startLineNumber)
 				});
 			}
 		}

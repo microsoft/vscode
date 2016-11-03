@@ -1074,21 +1074,25 @@ export class BreakpointsDataSource implements IDataSource {
 	}
 }
 
-interface IExceptionBreakpointTemplateData {
+interface IBaseBreakpointTemplateData {
 	breakpoint: HTMLElement;
-	name: HTMLElement;
 	checkbox: HTMLInputElement;
 	toDisposeBeforeRender: lifecycle.IDisposable[];
 }
 
-interface IBreakpointTemplateData extends IExceptionBreakpointTemplateData {
-	actionBar: ActionBar;
-	lineNumber: HTMLElement;
-	filePath: HTMLElement;
-	content: HTMLElement;
+interface IExceptionBreakpointTemplateData extends IBaseBreakpointTemplateData {
+	name: HTMLElement;
 }
 
-interface IFunctionBreakpointTemplateData extends IExceptionBreakpointTemplateData {
+interface IBreakpointTemplateData extends IBaseBreakpointTemplateData {
+	actionBar: ActionBar;
+	snippet: HTMLElement;
+	lineNumber: HTMLElement;
+	filePath: HTMLElement;
+}
+
+interface IFunctionBreakpointTemplateData extends IBaseBreakpointTemplateData {
+	name: HTMLElement;
 	actionBar: ActionBar;
 }
 
@@ -1127,11 +1131,7 @@ export class BreakpointsRenderer implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
-		const data: IBreakpointTemplateData = Object.create(null);
-		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
-			data.actionBar = new ActionBar(container, { actionRunner: this.actionRunner });
-			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
-		}
+		const data = Object.create(null);
 
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 		data.toDisposeBeforeRender = [];
@@ -1141,12 +1141,18 @@ export class BreakpointsRenderer implements IRenderer {
 
 		dom.append(data.breakpoint, data.checkbox);
 
-		data.name = dom.append(data.breakpoint, $('span.name'));
-
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID) {
+			data.snippet = dom.append(data.breakpoint, $('span.snippet'));
 			const file = dom.append(data.breakpoint, $('.file'));
 			data.filePath = dom.append(file, $('span.file-name'));
 			data.lineNumber = dom.append(file, $('span.line-number'));
+		} else {
+			data.name = dom.append(data.breakpoint, $('span.name'));
+		}
+
+		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
+			data.actionBar = new ActionBar(container, { actionRunner: this.actionRunner });
+			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
 		}
 
 		return data;
@@ -1204,12 +1210,12 @@ export class BreakpointsRenderer implements IRenderer {
 	private renderBreakpoint(tree: ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
-		if (breakpoint.content) {
-			dom.addClass(data.name, 'expression');
-			data.name.textContent = breakpoint.content;
+		if (breakpoint.snippet) {
+			dom.addClass(data.snippet, 'expression');
+			data.snippet.textContent = breakpoint.snippet;
 		} else {
-			dom.removeClass(data.name, 'expression');
-			data.name.textContent = nls.localize('noContent', "no content");
+			dom.removeClass(data.snippet, 'expression');
+			data.snippet.textContent = nls.localize('noContent', "no content");
 		}
 		data.filePath.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
 		data.lineNumber.textContent = breakpoint.desiredLineNumber !== breakpoint.lineNumber ? breakpoint.desiredLineNumber + ' \u2192 ' + breakpoint.lineNumber : '' + breakpoint.lineNumber;

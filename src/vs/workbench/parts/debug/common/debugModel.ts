@@ -580,7 +580,7 @@ export class Breakpoint implements debug.IBreakpoint {
 
 	constructor(
 		public uri: uri,
-		public content: string,
+		public snippet: string,
 		public desiredLineNumber: number,
 		public enabled: boolean,
 		public condition: string,
@@ -735,7 +735,7 @@ export class Model implements debug.IModel {
 
 	public addBreakpoints(uri: uri, rawData: debug.IRawBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(uri, rawBp.content, rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
+			new Breakpoint(uri, rawBp.snippet, rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
 		this.breakpointsActivated = true;
 		this._onDidChangeBreakpoints.fire();
 	}

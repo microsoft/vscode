@@ -63,7 +63,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 				nls.localize('addBreakpoint', "Add Breakpoint"),
 				null,
 				true,
-				() => this.debugService.addBreakpoints(uri, [{ lineNumber, content: this.editor.getModel().getLineContent(lineNumber) }])
+				() => this.debugService.addBreakpoints(uri, [{ lineNumber, snippet: this.editor.getModel().getLineContent(lineNumber) }])
 			));
 			actions.push(this.instantiationService.createInstance(debugactions.AddConditionalBreakpointAction, debugactions.AddConditionalBreakpointAction.ID, debugactions.AddConditionalBreakpointAction.LABEL, this.editor, lineNumber));
 		}
@@ -101,7 +101,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 				if (breakpoint) {
 					this.debugService.removeBreakpoints(breakpoint.getId());
 				} else if (canSetBreakpoints) {
-					this.debugService.addBreakpoints(uri, [{ lineNumber, content: this.editor.getModel().getLineContent(lineNumber) }]);
+					this.debugService.addBreakpoints(uri, [{ lineNumber, snippet: this.editor.getModel().getLineContent(lineNumber) }]);
 				}
 			}
 		}));

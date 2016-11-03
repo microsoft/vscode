@@ -27,8 +27,8 @@ suite('Debug - Model', () => {
 
 	test('breakpoints simple', () => {
 		var modelUri = uri.file('/myfolder/myfile.js');
-		const content = 'fake line content';
-		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true, content }, { lineNumber: 10, enabled: false, content }]);
+		const snippet = 'fake line snippet';
+		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true, snippet }, { lineNumber: 10, enabled: false, snippet }]);
 		assert.equal(model.areBreakpointsActivated(), true);
 		assert.equal(model.getBreakpoints().length, 2);
 
@@ -38,9 +38,9 @@ suite('Debug - Model', () => {
 
 	test('breakpoints toggling', () => {
 		var modelUri = uri.file('/myfolder/myfile.js');
-		const content = 'fake line content';
-		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true, content }, { lineNumber: 10, enabled: false, content }]);
-		model.addBreakpoints(modelUri, [{ lineNumber: 12, enabled: true, condition: 'fake condition', content }]);
+		const snippet = 'fake line snippet';
+		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true, snippet }, { lineNumber: 10, enabled: false, snippet }]);
+		model.addBreakpoints(modelUri, [{ lineNumber: 12, enabled: true, condition: 'fake condition', snippet }]);
 		assert.equal(model.getBreakpoints().length, 3);
 		model.removeBreakpoints([model.getBreakpoints().pop()]);
 		assert.equal(model.getBreakpoints().length, 2);
@@ -54,9 +54,9 @@ suite('Debug - Model', () => {
 	test('breakpoints two files', () => {
 		var modelUri1 = uri.file('/myfolder/my file first.js');
 		var modelUri2 = uri.file('/secondfolder/second/second file.js');
-		const content = 'fake line content';
-		model.addBreakpoints(modelUri1, [{ lineNumber: 5, enabled: true, content }, { lineNumber: 10, enabled: false, content }]);
-		model.addBreakpoints(modelUri2, [{ lineNumber: 1, enabled: true, content }, { lineNumber: 2, enabled: true, content }, { lineNumber: 3, enabled: false, content }]);
+		const snippet = 'fake line snippet';
+		model.addBreakpoints(modelUri1, [{ lineNumber: 5, enabled: true, snippet }, { lineNumber: 10, enabled: false, snippet }]);
+		model.addBreakpoints(modelUri2, [{ lineNumber: 1, enabled: true, snippet }, { lineNumber: 2, enabled: true, snippet }, { lineNumber: 3, enabled: false, snippet }]);
 
 		assert.equal(model.getBreakpoints().length, 5);
 		var bp = model.getBreakpoints()[0];

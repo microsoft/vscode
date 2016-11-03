@@ -180,7 +180,7 @@
 }
 
 .monaco-workbench .debug-viewlet .monaco-tree-row .breakpoint .expression {
-	white-space: initial;
+	white-space: nowrap;
 }
 
 .debug-viewlet .debug-call-stack .error {
@@ -268,14 +268,15 @@
 /* Breakpoints */
 
 .debug-viewlet .debug-breakpoints .breakpoint {
-	overflow: hidden;
-	text-overflow: ellipsis;
 	padding-right: 0.8em;
+	display: flex;
 }
 
-.debug-viewlet .monaco-tree .monaco-tree-row:hover .breakpoint .file,
-.debug-viewlet .monaco-tree .monaco-tree-row.focused .breakpoint .file {
-	display: none;
+.debug-viewlet .debug-breakpoints .breakpoint .snippet,
+.debug-viewlet .debug-breakpoints .breakpoint .name {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {

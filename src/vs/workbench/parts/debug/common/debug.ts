@@ -182,7 +182,7 @@ export interface IEnablement extends ITreeElement {
 
 export interface IRawBreakpoint {
 	lineNumber: number;
-	content: string;
+	snippet: string;
 	enabled?: boolean;
 	condition?: string;
 	hitCondition?: string;
@@ -191,7 +191,7 @@ export interface IRawBreakpoint {
 export interface IBreakpoint extends IEnablement {
 	uri: uri;
 	lineNumber: number;
-	content: string;
+	snippet: string;
 	desiredLineNumber: number;
 	condition: string;
 	hitCondition: string;
