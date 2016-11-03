@@ -119,18 +119,11 @@ export class ElectronWindow {
 		});
 
 		// Handle window.open() calls
+		const $this = this;
 		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
 			$this.openExternal(url);
 
 			return null;
-		};
-
-		// Patch focus to also focus the entire window
-		const originalFocus = window.focus;
-		const $this = this;
-		window.focus = function () {
-			originalFocus.call(this, arguments);
-			$this.focus();
 		};
 	}
 
@@ -161,8 +154,8 @@ export class ElectronWindow {
 		return dialog.showSaveDialog(this.win, options); // https://github.com/electron/electron/issues/4936
 	}
 
-	public focus(): void {
-		ipc.send('vscode:focusWindow', this.windowId); // handled from browser process
+	focus(): TPromise<void> {
+		return this.windowService.focusWindow();
 	}
 
 	public showItemInFolder(path: string): void {

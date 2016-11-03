@@ -56,4 +56,8 @@ export class WindowService implements IWindowService {
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
 		return this.windowsService.getRecentlyOpen(this.windowId);
 	}
+
+	focusWindow(): TPromise<void> {
+		return this.windowsService.focusWindow(this.windowId);
+	}
 }

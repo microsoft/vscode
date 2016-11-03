@@ -107,6 +107,16 @@ export class WindowsService implements IWindowsService {
 		return TPromise.as({ files: [], folders: [] });
 	}
 
+	focusWindow(windowId: number): TPromise<void> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			vscodeWindow.win.focus();
+		}
+
+		return TPromise.as(null);
+	}
+
 	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
 		if (!paths || !paths.length) {
 			return TPromise.as(null);

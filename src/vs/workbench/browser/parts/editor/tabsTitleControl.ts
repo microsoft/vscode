@@ -28,6 +28,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -65,7 +66,8 @@ export class TabsTitleControl extends TitleControl {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IMenuService menuService: IMenuService,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
@@ -582,10 +584,10 @@ export class TabsTitleControl extends TitleControl {
 					input: { resource, options: { pinned: true, index: targetIndex } },
 					position: targetPosition
 				};
-			})).done(() => {
+			})).then(() => {
 				this.editorGroupService.focusGroup(targetPosition);
-				window.focus();
-			}, errors.onUnexpectedError);
+				return this.windowService.focusWindow();
+			}).done(null, errors.onUnexpectedError);
 		}
 	}
 

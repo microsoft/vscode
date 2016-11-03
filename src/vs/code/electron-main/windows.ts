@@ -231,15 +231,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		});
 
-		ipc.on('vscode:focusWindow', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:focusWindow');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.win.focus();
-			}
-		});
-
 		ipc.on('vscode:showWindow', (event, windowId: number) => {
 			this.logService.log('IPC#vscode:showWindow');
 
