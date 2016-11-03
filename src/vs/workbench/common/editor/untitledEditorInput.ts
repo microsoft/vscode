@@ -87,7 +87,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			return this.cachedModel.isDirty();
 		}
 
-		return this.hasAssociatedFilePath; // untitled files with associated path are always dirty
+		// untitled files with an associated path or restore resource are always dirty
+		return this.hasAssociatedFilePath || !!this.restoreResource;
 	}
 
 	public confirmSave(): ConfirmResult {
