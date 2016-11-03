@@ -21,6 +21,7 @@ export interface IWindowsService {
 	toggleDevTools(windowId: number): TPromise<void>;
 	// TODO@joao: rename, shouldn't this be closeWindow?
 	closeFolder(windowId: number): TPromise<void>;
+	toggleFullScreen(windowId: number): TPromise<void>;
 
 	// Global methods
 
@@ -41,4 +42,5 @@ export interface IWindowService {
 	reloadWindow(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeFolder(): TPromise<void>;
+	toggleFullScreen(): TPromise<void>;
 }

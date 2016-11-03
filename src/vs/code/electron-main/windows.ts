@@ -231,15 +231,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		});
 
-		ipc.on('vscode:toggleFullScreen', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:toggleFullScreen');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				vscodeWindow.toggleFullScreen();
-			}
-		});
-
 		ipc.on('vscode:setFullScreen', (event, windowId: number, fullscreen: boolean) => {
 			this.logService.log('IPC#vscode:setFullScreen');
 

@@ -56,15 +56,6 @@ export class WindowsService implements IWindowsService {
 		return TPromise.as(null);
 	}
 
-	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
-		if (!paths || !paths.length) {
-			return TPromise.as(null);
-		}
-
-		this.windowsMainService.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: forceNewWindow });
-		return TPromise.as(null);
-	}
-
 	closeFolder(windowId: number): TPromise<void> {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 
@@ -72,6 +63,25 @@ export class WindowsService implements IWindowsService {
 			this.windowsMainService.open({ cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow });
 		}
 
+		return TPromise.as(null);
+	}
+
+	toggleFullScreen(windowId: number): TPromise<void> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			vscodeWindow.toggleFullScreen();
+		}
+
+		return TPromise.as(null);
+	}
+
+	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
+		if (!paths || !paths.length) {
+			return TPromise.as(null);
+		}
+
+		this.windowsMainService.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: forceNewWindow });
 		return TPromise.as(null);
 	}
 

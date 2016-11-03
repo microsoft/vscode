@@ -15,8 +15,9 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'openFolderPicker', args: [number, boolean]): TPromise<void>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
-	call(command: 'windowOpen', arg: [string[], boolean]): TPromise<void>;
 	call(command: 'closeFolder', arg: number): TPromise<void>;
+	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
+	call(command: 'windowOpen', arg: [string[], boolean]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
 }
@@ -32,8 +33,9 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'openFolderPicker': return this.service.openFolderPicker(arg[0], arg[1]);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
-			case 'windowOpen': return this.service.windowOpen(arg[0], arg[1]);
 			case 'closeFolder': return this.service.closeFolder(arg);
+			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
+			case 'windowOpen': return this.service.windowOpen(arg[0], arg[1]);
 			case 'openNewWindow': return this.service.openNewWindow();
 		}
 	}
@@ -65,12 +67,16 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('toggleDevTools', windowId);
 	}
 
-	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
-		return this.channel.call('windowOpen', [paths, forceNewWindow]);
-	}
-
 	closeFolder(windowId: number): TPromise<void> {
 		return this.channel.call('closeFolder', windowId);
+	}
+
+	toggleFullScreen(windowId: number): TPromise<void> {
+		return this.channel.call('toggleFullScreen', windowId);
+	}
+
+	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
+		return this.channel.call('windowOpen', [paths, forceNewWindow]);
 	}
 
 	openNewWindow(): TPromise<void> {

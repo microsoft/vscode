@@ -157,17 +157,15 @@ export class NewWindowAction extends Action {
 
 export class ToggleFullScreenAction extends Action {
 
-	public static ID = 'workbench.action.toggleFullScreen';
-	public static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
+	static ID = 'workbench.action.toggleFullScreen';
+	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
 
-	constructor(id: string, label: string, @IWindowIPCService private windowService: IWindowIPCService) {
+	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		ipc.send('vscode:toggleFullScreen', this.windowService.getWindowId());
-
-		return TPromise.as(true);
+	run(): TPromise<void> {
+		return this.windowService.toggleFullScreen();
 	}
 }
 
