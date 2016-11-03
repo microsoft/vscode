@@ -48,4 +48,8 @@ export class WindowService implements IWindowService {
 	toggleFullScreen(): TPromise<void> {
 		return this.windowsService.toggleFullScreen(this.windowId);
 	}
+
+	setRepresentedFilename(fileName: string): TPromise<void> {
+		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
+	}
 }

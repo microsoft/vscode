@@ -16,7 +16,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 
 import { ipcRenderer as ipc, remote } from 'electron';
 
@@ -32,7 +32,8 @@ export class ElectronWindow {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private windowsService: IWindowsService,
+		@IWindowService private windowService: IWindowService
 	) {
 		this.win = win;
 		this.windowId = win.id;
@@ -45,12 +46,9 @@ export class ElectronWindow {
 		if (platform.platform === platform.Platform.Mac) {
 			this.editorGroupService.onEditorsChanged(() => {
 				const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
-				let representedFilename = '';
-				if (fileInput) {
-					representedFilename = fileInput.getResource().fsPath;
-				}
+				const fileName = fileInput ? fileInput.getResource().fsPath : '';
 
-				ipc.send('vscode:setRepresentedFilename', this.windowId, representedFilename);
+				this.windowService.setRepresentedFilename(fileName);
 			});
 		}
 
