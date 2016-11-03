@@ -162,7 +162,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return this.gallery && this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
+		return !!this.gallery && this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
 	}
 
 	get telemetryData(): any {
@@ -201,10 +201,6 @@ class Extension implements IExtension {
 		return this.galleryService.getAsset(readmeUrl).then(asText);
 	}
 
-	get hasChangelog(): boolean {
-		return !!(this.changelogUrl);
-	}
-
 	getChangelog(): TPromise<string> {
 		const changelogUrl = this.changelogUrl;
 
@@ -223,11 +219,11 @@ class Extension implements IExtension {
 
 	get dependencies(): string[] {
 		const { local, gallery } = this;
-		if (gallery) {
-			return gallery.properties.dependencies;
-		}
 		if (local && local.manifest.extensionDependencies) {
 			return local.manifest.extensionDependencies;
+		}
+		if (gallery) {
+			return gallery.properties.dependencies;
 		}
 		return [];
 	}
@@ -235,10 +231,15 @@ class Extension implements IExtension {
 
 class ExtensionDependencies implements IExtensionDependencies {
 
+	private _hasDependencies: boolean = null;
+
 	constructor(private _extension: IExtension, private _identifier: string, private _map: Map<string, IExtension>, private _dependent: IExtensionDependencies = null) { }
 
 	get hasDependencies(): boolean {
-		return this._extension ? this._extension.dependencies.length > 0 : false;
+		if (this._hasDependencies === null) {
+			this._hasDependencies = this.computeHasDependencies();
+		}
+		return this._hasDependencies;
 	}
 
 	get extension(): IExtension {
@@ -254,7 +255,24 @@ class ExtensionDependencies implements IExtensionDependencies {
 	}
 
 	get dependencies(): IExtensionDependencies[] {
+		if (!this.hasDependencies) {
+			return [];
+		}
 		return this._extension.dependencies.map(d => new ExtensionDependencies(this._map.get(d), d, this._map, this));
+	}
+
+	private computeHasDependencies(): boolean {
+		if (this._extension && this._extension.dependencies.length > 0) {
+			let dependent = this._dependent;
+			while (dependent !== null) {
+				if (dependent.identifier === this.identifier) {
+					return false;
+				}
+				dependent = dependent.dependent;
+			}
+			return true;
+		}
+		return false;
 	}
 }
 
@@ -486,7 +504,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		return this.doSetEnablement(extension, enable, workspace).then(reload => {
 			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
-			this._onChange.fire();
 		});
 	}
 
@@ -503,6 +520,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		return this.extensionService.uninstall(local);
+
 	}
 
 	private doSetEnablement(extension: IExtension, enable: boolean, workspace: boolean): TPromise<boolean> {
@@ -511,11 +529,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		const globalElablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, false);
-		if (!this.workspaceContextService.getWorkspace()) {
-			return globalElablement;
+		if (enable && this.workspaceContextService.getWorkspace()) {
+			const workspaceEnablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, true);
+			return TPromise.join([globalElablement, workspaceEnablement]).then(values => values[0] || values[1]);
 		}
-		return TPromise.join([globalElablement, this.extensionEnablementService.setEnablement(extension.identifier, enable, true)])
-			.then(values => values[0] || values[1]);
+		return globalElablement;
 	}
 
 	private onInstallExtension(event: InstallExtensionEvent): void {
@@ -612,6 +630,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			const workspaceDisabledExtensions = this.extensionEnablementService.getWorkspaceDisabledExtensions();
 			extension.disabledGlobally = globallyDisabledExtensions.indexOf(extension.identifier) !== -1;
 			extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(extension.identifier) !== -1;
+			this._onChange.fire();
 		}
 	}
 

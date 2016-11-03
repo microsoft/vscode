@@ -16,6 +16,7 @@ import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
+import { getCommonHTTPHeaders } from 'vs/platform/environment/common/http';
 
 export interface IWindowState {
 	width?: number;
@@ -179,6 +180,21 @@ export class VSCodeWindow {
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
+
+		// TODO@joao: hook this up to some initialization routine
+		// this causes a race between setting the headers and doing
+		// a request that needs them. chances are low
+		getCommonHTTPHeaders().done(headers => {
+			if (!this._win) {
+				return;
+			}
+
+			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+
+			this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
+			});
+		});
 
 		if (isFullscreenOrMaximized) {
 			this.win.maximize();

@@ -42,7 +42,7 @@ export class DataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: IExtensionDependencies): boolean {
-		return element.hasDependencies && !this.isSelfAncestor(element);
+		return element.hasDependencies;
 	}
 
 	public getChildren(tree: ITree, element: IExtensionDependencies): Promise {
@@ -51,17 +51,6 @@ export class DataSource implements IDataSource {
 
 	public getParent(tree: ITree, element: IExtensionDependencies): Promise {
 		return TPromise.as(element.dependent);
-	}
-
-	private isSelfAncestor(element: IExtensionDependencies): boolean {
-		let ancestor = element.dependent;
-		while (ancestor !== null) {
-			if (ancestor.identifier === element.identifier) {
-				return true;
-			}
-			ancestor = ancestor.dependent;
-		}
-		return false;
 	}
 }
 

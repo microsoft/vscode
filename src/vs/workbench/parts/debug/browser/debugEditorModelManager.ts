@@ -295,7 +295,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		const mode = modelData ? modelData.model.getMode() : null;
 		const modeId = mode ? mode.getId() : '';
-		const condition = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
+		let condition: string;
+		if (breakpoint.condition && breakpoint.hitCondition) {
+			condition = `Expression: ${breakpoint.condition}\nHitCount: ${breakpoint.hitCondition}`;
+		} else {
+			condition = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
+		}
 		const glyphMarginHoverMessage = `\`\`\`${modeId}\n${condition}\`\`\``;
 
 		return {
