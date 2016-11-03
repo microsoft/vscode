@@ -121,6 +121,7 @@ export interface IWindowsMainService {
 	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
 	removeFromRecentPathsList(path: string);
 	clearRecentPathsList(): void;
+	toggleMenuBar(windowId: number): void;
 }
 
 export class WindowsManager implements IWindowsMainService, IWindowEventService {
@@ -228,26 +229,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 				// Event
 				this.eventEmitter.emit(EventTypes.READY, win);
-			}
-		});
-
-		ipc.on('vscode:toggleMenuBar', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:toggleMenuBar');
-
-			// Update in settings
-			const menuBarHidden = this.storageService.getItem(VSCodeWindow.menuBarHiddenKey, false);
-			const newMenuBarHidden = !menuBarHidden;
-			this.storageService.setItem(VSCodeWindow.menuBarHiddenKey, newMenuBarHidden);
-
-			// Update across windows
-			WindowsManager.WINDOWS.forEach(w => w.setMenuBarVisibility(!newMenuBarHidden));
-
-			// Inform user if menu bar is now hidden
-			if (newMenuBarHidden) {
-				const vscodeWindow = this.getWindowById(windowId);
-				if (vscodeWindow) {
-					vscodeWindow.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
-				}
 			}
 		});
 
@@ -1226,5 +1207,23 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		}
 
 		return pathA === pathB;
+	}
+
+	toggleMenuBar(windowId: number): void {
+		// Update in settings
+		const menuBarHidden = this.storageService.getItem(VSCodeWindow.menuBarHiddenKey, false);
+		const newMenuBarHidden = !menuBarHidden;
+		this.storageService.setItem(VSCodeWindow.menuBarHiddenKey, newMenuBarHidden);
+
+		// Update across windows
+		WindowsManager.WINDOWS.forEach(w => w.setMenuBarVisibility(!newMenuBarHidden));
+
+		// Inform user if menu bar is now hidden
+		if (newMenuBarHidden) {
+			const vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow) {
+				vscodeWindow.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
+			}
+		}
 	}
 }

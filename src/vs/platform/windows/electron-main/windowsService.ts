@@ -127,6 +127,11 @@ export class WindowsService implements IWindowsService {
 		return TPromise.as(null);
 	}
 
+	toggleMenuBar(windowId: number): TPromise<void> {
+		this.windowsMainService.toggleMenuBar(windowId);
+		return TPromise.as(null);
+	}
+
 	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
 		if (!paths || !paths.length) {
 			return TPromise.as(null);
