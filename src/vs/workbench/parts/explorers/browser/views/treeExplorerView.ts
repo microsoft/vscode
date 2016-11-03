@@ -22,7 +22,7 @@ import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browse
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
-import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/treeExplorerActions';
+import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/common/treeExplorerActions';
 
 export class TreeExplorerView extends CollapsibleViewletView {
 	private workspace: IWorkspace;
