@@ -123,7 +123,7 @@ export class ViewCursor {
 	}
 
 	public prepareRender(ctx: IRenderingContext): void {
-		var visibleRange = ctx.visibleRangeForPosition(this._position);
+		let visibleRange = ctx.visibleRangeForPosition(this._position);
 		if (visibleRange) {
 			this._positionTop = visibleRange.top;
 			this._positionLeft = visibleRange.left;

@@ -30,7 +30,10 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { ElectronIntegration } from 'vs/workbench/electron-browser/integration';
 import { WorkspaceStats } from 'vs/workbench/services/telemetry/common/workspaceStats';
-import { IWindowService, WindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService, WindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
+import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
@@ -50,6 +53,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
 import { IOptions } from 'vs/workbench/common/options';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -64,7 +68,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService, IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -73,16 +77,16 @@ import { IThemeService } from 'vs/workbench/services/themes/common/themeService'
 import { ThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/common/ipc.electron';
-import { ipcRenderer } from 'electron';
+import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
-import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { ExtensionsRuntimeService } from 'vs/workbench/services/extensions/electron-browser/extensions';
+import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
+import { remote } from 'electron';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -107,7 +111,6 @@ export class WorkbenchShell {
 	private eventService: IEventService;
 	private environmentService: IEnvironmentService;
 	private contextViewService: ContextViewService;
-	private windowService: IWindowService;
 	private threadService: MainThreadService;
 	private configurationService: IConfigurationService;
 	private themeService: ThemeService;
@@ -212,7 +215,7 @@ export class WorkbenchShell {
 	private initServiceCollection(container: HTMLElement): [InstantiationService, ServiceCollection] {
 		const disposables = new Disposables();
 
-		const mainProcessClient = new ElectronIPCClient(ipcRenderer);
+		const mainProcessClient = new ElectronIPCClient(String(`window${remote.getCurrentWindow().id}`));
 		disposables.add(mainProcessClient);
 
 		const serviceCollection = new ServiceCollection();
@@ -221,12 +224,21 @@ export class WorkbenchShell {
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 
-		const instantiationService = new InstantiationService(serviceCollection, true);
+		const instantiationServiceImpl = new InstantiationService(serviceCollection, true);
+		const instantiationService = instantiationServiceImpl as IInstantiationService;
 
-		this.windowService = instantiationService.createInstance(WindowService);
-		serviceCollection.set(IWindowService, this.windowService);
+		// TODO@joao remove this
+		const windowIPCService = instantiationService.createInstance<IWindowIPCService>(WindowIPCService);
+		serviceCollection.set(IWindowIPCService, windowIPCService);
 
-		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle, `window:${this.windowService.getWindowId()}`);
+		const windowsChannel = mainProcessClient.getChannel('windows');
+		const windowsChannelClient = new WindowsChannelClient(windowsChannel);
+		serviceCollection.set(IWindowsService, windowsChannelClient);
+
+		const windowService = new WindowService(windowIPCService.getWindowId(), windowsChannelClient);
+		serviceCollection.set(IWindowService, windowService);
+
+		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle, `window:${windowIPCService.getWindowId()}`);
 		sharedProcess.done(client => {
 
 			client.registerChannel('choice', new ChoiceChannel(this.messageService));
@@ -292,9 +304,9 @@ export class WorkbenchShell {
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
 		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
-		const extensionsRuntimeService = instantiationService.createInstance(ExtensionsRuntimeService);
-		serviceCollection.set(IExtensionsRuntimeService, extensionsRuntimeService);
-		disposables.add(extensionsRuntimeService);
+		const extensionEnablementService = instantiationService.createInstance(ExtensionEnablementService);
+		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
+		disposables.add(extensionEnablementService);
 
 		const extensionHostProcessWorker = instantiationService.createInstance(ExtensionHostProcessWorker);
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
@@ -333,17 +345,17 @@ export class WorkbenchShell {
 		const searchService = instantiationService.createInstance(SearchService);
 		serviceCollection.set(ISearchService, searchService);
 
-		const codeEditorService = instantiationService.createInstance(CodeEditorServiceImpl);
+		const codeEditorService = instantiationServiceImpl.createInstance(CodeEditorServiceImpl);
 		serviceCollection.set(ICodeEditorService, codeEditorService);
 
 		const integrityService = instantiationService.createInstance(IntegrityServiceImpl);
 		serviceCollection.set(IIntegrityService, integrityService);
 
 		const urlChannel = mainProcessClient.getChannel('url');
-		const urlChannelClient = new URLChannelClient(urlChannel, this.windowService.getWindowId());
+		const urlChannelClient = new URLChannelClient(urlChannel, windowIPCService.getWindowId());
 		serviceCollection.set(IURLService, urlChannelClient);
 
-		return [instantiationService, serviceCollection];
+		return [instantiationServiceImpl, serviceCollection];
 	}
 
 	public open(): void {

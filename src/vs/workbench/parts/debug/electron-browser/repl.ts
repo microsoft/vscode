@@ -18,10 +18,12 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import tree = require('vs/base/parts/tree/browser/tree');
 import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -270,7 +272,8 @@ export class Repl extends Panel implements IPrivateReplService {
 			scrollBeyondLastLine: false,
 			theme: this.themeService.getColorTheme(),
 			renderLineHighlight: false,
-			fixedOverflowWidgets: true
+			fixedOverflowWidgets: true,
+			acceptSuggestionOnEnter: false
 		};
 	}
 
@@ -349,6 +352,19 @@ class AcceptReplInputAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+		SuggestController.get(editor).acceptSelectedSuggestion();
 		accessor.get(IPrivateReplService).acceptReplInput();
 	}
 }
+
+const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+	id: 'repl.action.acceptSuggestion',
+	precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
+	handler: x => x.acceptSelectedSuggestion(),
+	kbOpts: {
+		weight: 50,
+		kbExpr: EditorContextKeys.TextFocus,
+		primary: KeyCode.RightArrow
+	}
+}));

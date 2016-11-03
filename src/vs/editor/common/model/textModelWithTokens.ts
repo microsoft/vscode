@@ -11,20 +11,19 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import * as timer from 'vs/base/common/timer';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ModelLine } from 'vs/editor/common/model/modelLine';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { WordHelper } from 'vs/editor/common/model/textModelWithTokensHelpers';
 import { TokenIterator } from 'vs/editor/common/model/tokenIterator';
-import { ITokenizationSupport, ILineContext, ILineTokens, IMode, IState, TokenizationRegistry, IRichEditBrackets } from 'vs/editor/common/modes';
+import { ITokenizationSupport, ILineTokens, IMode, IState, TokenizationRegistry } from 'vs/editor/common/modes';
 import { NULL_MODE_ID, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
-import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { BracketsUtils, RichEditBrackets, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { TokensInflatorMap } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { Token } from 'vs/editor/common/core/token';
 import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
+import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 
 class Mode implements IMode {
 
@@ -71,42 +70,6 @@ class ModelTokensChangedEventBuilder {
 		return {
 			ranges: this._ranges
 		};
-	}
-}
-
-/**
- * TODO@Alex: remove this wrapper
- */
-class LineContext implements ILineContext {
-
-	public modeTransitions: ModeTransition[];
-	private _text: string;
-	private _lineTokens: LineTokens;
-
-	constructor(topLevelModeId: string, line: ModelLine, map: TokensInflatorMap) {
-		this.modeTransitions = line.getModeTransitions(topLevelModeId);
-		this._text = line.text;
-		this._lineTokens = line.getTokens(map);
-	}
-
-	public getLineContent(): string {
-		return this._text;
-	}
-
-	public getTokenCount(): number {
-		return this._lineTokens.getTokenCount();
-	}
-
-	public getTokenStartOffset(tokenIndex: number): number {
-		return this._lineTokens.getTokenStartOffset(tokenIndex);
-	}
-
-	public getTokenType(tokenIndex: number): string {
-		return this._lineTokens.getTokenType(tokenIndex);
-	}
-
-	public findIndexOfOffset(offset: number): number {
-		return this._lineTokens.findTokenIndexAtOffset(offset);
 	}
 }
 
@@ -237,18 +200,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			});
 		}
 		return this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
-	}
-
-	public getLineContext(lineNumber: number): ILineContext {
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
-		}
-
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
-		});
-
-		return new LineContext(this.getModeId(), this._lines[lineNumber - 1], this._tokensInflatorMap);
 	}
 
 	public getMode(): IMode {
@@ -489,10 +440,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	// Having tokens allows implementing additional helper methods
 
-	protected _getWordDefinition(): RegExp {
-		return WordHelper.massageWordDefinitionOf(this.getModeId());
-	}
-
 	public getWordAtPosition(_position: editorCommon.IPosition): editorCommon.IWordAtPosition {
 		this._assertNotDisposed();
 		let position = this.validatePosition(_position);
@@ -500,11 +447,44 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		if (this._invalidLineStartIndex <= position.lineNumber) {
 			// this line is not tokenized
-			return WordHelper.getWordAtPosition(lineContent, position.column, this.getModeId(), null);
+			return getWordAtText(
+				position.column,
+				LanguageConfigurationRegistry.getWordDefinition(this.getModeId()),
+				lineContent,
+				0
+			);
 		}
 
 		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this.getModeId());
-		return WordHelper.getWordAtPosition(lineContent, position.column, this.getModeId(), modeTransitions);
+		let offset = position.column - 1;
+		let modeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, offset);
+
+		let modeStartOffset = modeTransitions[modeIndex].startIndex;
+		let modeEndOffset = (modeIndex + 1 < modeTransitions.length ? modeTransitions[modeIndex + 1].startIndex : lineContent.length);
+		let modeId = modeTransitions[modeIndex].modeId;
+
+		let result = getWordAtText(
+			position.column,
+			LanguageConfigurationRegistry.getWordDefinition(modeId),
+			lineContent.substring(modeStartOffset, modeEndOffset),
+			modeStartOffset
+		);
+
+		if (!result && modeIndex > 0 && modeTransitions[modeIndex].startIndex === offset) {
+			// The position is right at the beginning of `modeIndex`, so try looking at `modeIndex` - 1 too
+
+			let prevModeStartOffset = modeTransitions[modeIndex - 1].startIndex;
+			let prevModeId = modeTransitions[modeIndex - 1].modeId;
+
+			result = getWordAtText(
+				position.column,
+				LanguageConfigurationRegistry.getWordDefinition(prevModeId),
+				lineContent.substring(prevModeStartOffset, modeStartOffset),
+				prevModeStartOffset
+			);
+		}
+
+		return result;
 	}
 
 	public getWordUntilPosition(position: editorCommon.IPosition): editorCommon.IWordAtPosition {
@@ -568,7 +548,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		const currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentToken.modeId);
 
 		// check that the token is not to be ignored
-		if (currentModeBrackets && !ignoreBracketsInToken(currentToken.type)) {
+		if (currentModeBrackets && !ignoreBracketsInToken(currentToken.standardType)) {
 			// limit search to not go before `maxBracketLength`
 			let searchStartOffset = Math.max(currentToken.startOffset, position.column - 1 - currentModeBrackets.maxBracketLength);
 			// limit search to not go after `maxBracketLength`
@@ -619,7 +599,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			const prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(prevToken.modeId);
 
 			// check that previous token is not to be ignored
-			if (prevModeBrackets && !ignoreBracketsInToken(prevToken.type)) {
+			if (prevModeBrackets && !ignoreBracketsInToken(prevToken.standardType)) {
 				// limit search in case previous token is very large, there's no need to go beyond `maxBracketLength`
 				const searchStartOffset = Math.max(prevToken.startOffset, position.column - 1 - prevModeBrackets.maxBracketLength);
 				const searchEndOffset = currentToken.startOffset;
@@ -643,7 +623,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	private _matchFoundBracket(foundBracket: Range, data: editorCommon.IRichEditBracket, isOpen: boolean): [Range, Range] {
+	private _matchFoundBracket(foundBracket: Range, data: RichEditBracket, isOpen: boolean): [Range, Range] {
 		if (isOpen) {
 			let matched = this._findMatchingBracketDown(data, foundBracket.getEndPosition());
 			if (matched) {
@@ -659,7 +639,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	private _findMatchingBracketUp(bracket: editorCommon.IRichEditBracket, position: Position): Range {
+	private _findMatchingBracketUp(bracket: RichEditBracket, position: Position): Range {
 		// console.log('_findMatchingBracketUp: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
 		const modeId = bracket.modeId;
@@ -683,7 +663,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 
 			while (currentToken) {
-				if (currentToken.modeId === modeId && !ignoreBracketsInToken(currentToken.type)) {
+				if (currentToken.modeId === modeId && !ignoreBracketsInToken(currentToken.standardType)) {
 
 					while (true) {
 						let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, currentToken.startOffset, searchStopOffset);
@@ -718,7 +698,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	private _findMatchingBracketDown(bracket: editorCommon.IRichEditBracket, position: Position): Range {
+	private _findMatchingBracketDown(bracket: RichEditBracket, position: Position): Range {
 		// console.log('_findMatchingBracketDown: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
 		const modeId = bracket.modeId;
@@ -742,7 +722,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 
 			while (currentToken) {
-				if (currentToken.modeId === modeId && !ignoreBracketsInToken(currentToken.type)) {
+				if (currentToken.modeId === modeId && !ignoreBracketsInToken(currentToken.standardType)) {
 					while (true) {
 						let r = BracketsUtils.findNextBracketInToken(bracketRegex, lineNumber, lineText, searchStartOffset, currentToken.endOffset);
 						if (!r) {
@@ -780,7 +760,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		const position = this.validatePosition(_position);
 
 		let modeId: string = null;
-		let modeBrackets: IRichEditBrackets;
+		let modeBrackets: RichEditBrackets;
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
 			const lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 			const lineText = this._lines[lineNumber - 1].text;
@@ -802,7 +782,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 					modeId = currentToken.modeId;
 					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(modeId);
 				}
-				if (modeBrackets && !ignoreBracketsInToken(currentToken.type)) {
+				if (modeBrackets && !ignoreBracketsInToken(currentToken.standardType)) {
 					let r = BracketsUtils.findPrevBracketInToken(modeBrackets.reversedRegex, lineNumber, lineText, currentToken.startOffset, searchStopOffset);
 					if (r) {
 						return this._toFoundBracket(modeBrackets, r);
@@ -823,7 +803,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		const position = this.validatePosition(_position);
 
 		let modeId: string = null;
-		let modeBrackets: IRichEditBrackets;
+		let modeBrackets: RichEditBrackets;
 		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
 			const lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 			const lineText = this._lines[lineNumber - 1].text;
@@ -845,7 +825,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 					modeId = currentToken.modeId;
 					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(modeId);
 				}
-				if (modeBrackets && !ignoreBracketsInToken(currentToken.type)) {
+				if (modeBrackets && !ignoreBracketsInToken(currentToken.standardType)) {
 					let r = BracketsUtils.findNextBracketInToken(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, currentToken.endOffset);
 					if (r) {
 						return this._toFoundBracket(modeBrackets, r);
@@ -862,7 +842,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	private _toFoundBracket(modeBrackets: IRichEditBrackets, r: Range): editorCommon.IFoundBracket {
+	private _toFoundBracket(modeBrackets: RichEditBrackets, r: Range): editorCommon.IFoundBracket {
 		if (!r) {
 			return null;
 		}

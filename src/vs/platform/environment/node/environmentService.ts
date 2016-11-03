@@ -63,7 +63,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get execPath(): string { return this._execPath; }
 
 	@memoize
-	get userHome(): string { return path.join(os.homedir(), product.dataFolderName); }
+	get userHome(): string { return os.homedir(); }
+
+	@memoize
+	get userProductHome(): string { return path.join(this.userHome, product.dataFolderName); }
 
 	@memoize
 	get userDataPath(): string { return parseUserDataDir(this._args, process); }
@@ -78,7 +81,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize
-	get extensionsPath(): string { return path.normalize(this._args['extensions-dir'] || path.join(this.userHome, 'extensions')); }
+	get extensionsPath(): string { return path.normalize(this._args['extensions-dir'] || path.join(this.userProductHome, 'extensions')); }
 
 	@memoize
 	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }

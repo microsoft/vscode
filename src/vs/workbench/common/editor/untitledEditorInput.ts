@@ -75,7 +75,11 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	public isDirty(): boolean {
-		return this.cachedModel && this.cachedModel.isDirty();
+		if (this.cachedModel) {
+			return this.cachedModel.isDirty();
+		}
+
+		return this.hasAssociatedFilePath; // untitled files with associated path are always dirty
 	}
 
 	public confirmSave(): ConfirmResult {

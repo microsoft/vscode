@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall, Serializer, Deserializer } from 'vs/base/parts/ipc/common/ipc';
 import { IURLService } from './url';
 import Event, { filterEvent } from 'vs/base/common/event';
-import { IWindowsService } from 'vs/code/electron-main/windows';
+import { IWindowsMainService } from 'vs/code/electron-main/windows';
 import URI from 'vs/base/common/uri';
 
 const URISerializer: Serializer<URI, any> = uri => uri.toJSON();
@@ -24,7 +24,7 @@ export class URLChannel implements IURLChannel {
 
 	constructor(
 		private service: IURLService,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsMainService private windowsService: IWindowsMainService
 	) { }
 
 	call(command: string, arg?: any): TPromise<any> {

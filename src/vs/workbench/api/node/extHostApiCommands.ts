@@ -183,12 +183,12 @@ export class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.openFolder', (uri?: URI, newWindow?: boolean) => {
+		this._register('vscode.openFolder', (uri?: URI, forceNewWindow?: boolean) => {
 			if (!uri) {
-				return this._commands.executeCommand('_workbench.ipc', 'vscode:openFolderPicker', [newWindow]);
+				return this._commands.executeCommand('_files.openFolderPicker', forceNewWindow);
 			}
 
-			return this._commands.executeCommand('_workbench.ipc', 'vscode:windowOpen', [[uri.fsPath], newWindow]);
+			return this._commands.executeCommand('_files.windowOpen', [uri.fsPath], forceNewWindow);
 		}, {
 				description: 'Open a folder in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder unless the newWindow parameter is set to true.',
 				args: [

@@ -33,7 +33,7 @@ import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickO
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseEditorsInGroupAction, SplitEditorAction, SaveEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
@@ -68,6 +68,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	protected dragged: boolean;
 
 	protected closeEditorAction: CloseEditorAction;
+	protected saveEditorAction: SaveEditorAction;
 	protected pinEditorAction: KeepEditorAction;
 	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
 	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
@@ -79,6 +80,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	private previewEditors: boolean;
 	private showTabs: boolean;
+	protected showTabCloseButton: boolean;
 
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
@@ -154,6 +156,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
 		this.previewEditors = config.workbench && config.workbench.editor && config.workbench.editor.enablePreview;
 		this.showTabs = config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
+		this.showTabCloseButton = config.workbench && config.workbench.editor && config.workbench.editor.showTabCloseButton;
 	}
 
 	private updateSplitActionEnablement(): void {
@@ -229,6 +232,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	private initActions(): void {
 		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
+		this.saveEditorAction = this.instantiationService.createInstance(SaveEditorAction, SaveEditorAction.ID, nls.localize('save', "Save"));
 		this.closeOtherEditorsAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
 		this.closeRightEditorsAction = this.instantiationService.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
 		this.closeEditorsInGroupAction = this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
@@ -491,6 +495,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			this.splitEditorAction,
 			this.showEditorsInGroupAction,
 			this.closeEditorAction,
+			this.saveEditorAction,
 			this.closeRightEditorsAction,
 			this.closeOtherEditorsAction,
 			this.closeEditorsInGroupAction,

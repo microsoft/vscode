@@ -34,7 +34,7 @@ suite('Debug - View Model', () => {
 
 	test('selected expression', () => {
 		assert.equal(model.getSelectedExpression(), null);
-		const expression = new Expression('my expression', false);
+		const expression = new Expression('my expression');
 		model.setSelectedExpression(expression);
 
 		assert.equal(model.getSelectedExpression(), expression);
