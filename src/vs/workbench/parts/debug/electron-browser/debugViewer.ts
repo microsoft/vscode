@@ -1183,6 +1183,7 @@ export class BreakpointsRenderer implements IRenderer {
 				ariaLabel: nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint")
 			});
 		} else {
+			dom.addClass(data.name, 'expression');
 			data.name.textContent = functionBreakpoint.name;
 			data.checkbox.checked = functionBreakpoint.enabled;
 			data.breakpoint.title = functionBreakpoint.name;
