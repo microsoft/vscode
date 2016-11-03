@@ -35,6 +35,7 @@ export interface IWindowsService {
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
 	getWindows(): TPromise<{ id: number; path: string; title: string; }[]>;
+	log(severity: string, ...messages: string[]): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');

@@ -255,18 +255,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		});
 
-		ipc.on('vscode:log', (event, logEntry: ILogEntry) => {
-			const args = [];
-			try {
-				const parsed = JSON.parse(logEntry.arguments);
-				args.push(...Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
-			} catch (error) {
-				args.push(logEntry.arguments);
-			}
-
-			console[logEntry.severity].apply(console, args);
-		});
-
 		ipc.on('vscode:closeExtensionHostWindow', (event, extensionDevelopmentPath: string) => {
 			this.logService.log('IPC#vscode:closeExtensionHostWindow', extensionDevelopmentPath);
 
