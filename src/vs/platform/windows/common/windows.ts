@@ -31,6 +31,7 @@ export interface IWindowsService {
 	// TODO@joao: rename, shouldn't this be openWindow?
 	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void>;
 	openNewWindow(): TPromise<void>;
+	showWindow(windowId: number): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
