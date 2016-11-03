@@ -7,6 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 // TODO@Joao: remove this dependency, move all implementation to this class
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
@@ -16,7 +17,8 @@ export class WindowsService implements IWindowsService {
 	_serviceBrand: any;
 
 	constructor(
-		@IWindowsMainService private windowsMainService: IWindowsMainService
+		@IWindowsMainService private windowsMainService: IWindowsMainService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) { }
 
 	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
@@ -51,6 +53,15 @@ export class WindowsService implements IWindowsService {
 			vscodeWindow.win.webContents.toggleDevTools();
 		}
 
+		return TPromise.as(null);
+	}
+
+	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
+		if (!paths || !paths.length) {
+			return TPromise.as(null);
+		}
+
+		this.windowsMainService.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: forceNewWindow });
 		return TPromise.as(null);
 	}
 }

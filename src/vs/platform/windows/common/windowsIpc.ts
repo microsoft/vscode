@@ -15,6 +15,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'openFolderPicker', args: [number, boolean]): TPromise<void>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
+	call(command: 'windowOpen', arg: [string[], boolean]): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -29,6 +30,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'openFolderPicker': return this.service.openFolderPicker(arg[0], arg[1]);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
+			case 'windowOpen': return this.service.windowOpen(arg[0], arg[1]);
 		}
 	}
 }
@@ -57,5 +59,9 @@ export class WindowsChannelClient implements IWindowsService {
 
 	toggleDevTools(windowId: number): TPromise<void> {
 		return this.channel.call('toggleDevTools', windowId);
+	}
+
+	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {
+		return this.channel.call('windowOpen', [paths, forceNewWindow]);
 	}
 }

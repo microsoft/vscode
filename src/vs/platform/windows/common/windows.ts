@@ -19,6 +19,9 @@ export interface IWindowsService {
 	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
 	reloadWindow(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
+
+	// TODO@joao: rename
+	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
