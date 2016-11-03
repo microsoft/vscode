@@ -160,7 +160,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 		let promise: TPromise<debug.IExpression>;
 		if (process.session.configuration.capabilities.supportsEvaluateForHovers) {
-			const result = new Expression(matchingExpression, true);
+			const result = new Expression(matchingExpression);
 			promise = result.evaluate(process, focusedStackFrame, 'hover').then(() => result);
 		} else {
 			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));

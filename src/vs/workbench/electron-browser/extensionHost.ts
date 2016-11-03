@@ -17,7 +17,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ChildProcess, fork } from 'child_process';
 import { ipcRenderer as ipc } from 'electron';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -25,6 +25,7 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import Event, { Emitter } from 'vs/base/common/event';
+import { WatchDog } from 'vs/base/common/watchDog';
 import { createQueuedSender, IQueuedSender } from 'vs/base/node/processes';
 import { IInitData, IInitConfiguration } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
@@ -55,6 +56,8 @@ export class ExtensionHostProcessWorker {
 	private isExtensionDevelopmentTestFromCli: boolean;
 	private isExtensionDevelopmentDebugging: boolean;
 
+	private extHostWatchDog = new WatchDog(250, 4);
+
 	private _onMessage = new Emitter<any>();
 	public get onMessage(): Event<any> {
 		return this._onMessage.event;
@@ -65,7 +68,7 @@ export class ExtensionHostProcessWorker {
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -110,6 +113,29 @@ export class ExtensionHostProcessWorker {
 
 		// Initialize extension host process with hand shakes
 		this.initializeExtensionHostProcess = this.doInitializeExtensionHostProcess(opts);
+
+		// Check how well the extension host is doing
+		if (this.environmentService.isBuilt) {
+			this.initializeExtensionHostProcess.done(() => {
+				this.extHostWatchDog.start();
+				this.extHostWatchDog.onAlert(() => {
+
+					this.extHostWatchDog.stop();
+
+					// log the identifiers of those extensions that
+					// have code and are loaded in the extension host
+					this.extensionService.getExtensions().then(extensions => {
+						const ids: string[] = [];
+						for (const ext of extensions) {
+							if (ext.main) {
+								ids.push(ext.id);
+							}
+						}
+						this.telemetryService.publicLog('extHostUnresponsive', ids);
+					});
+				});
+			});
+		}
 	}
 
 	public get messagingProtocol(): IMessagePassingProtocol {
@@ -189,6 +215,12 @@ export class ExtensionHostProcessWorker {
 			this.unsentMessages = [];
 			this.extensionHostProcessReady = true;
 			return true;
+		}
+
+		// Heartbeat message
+		if (msg === '__$heartbeat') {
+			this.extHostWatchDog.reset();
+			return false;
 		}
 
 		// Support logging from extension host

@@ -47,11 +47,11 @@ import * as languageConfiguration from 'vs/editor/common/modes/languageConfigura
 
 
 export interface IExtensionApiFactory {
-	(extension: IExtensionDescription): typeof vscode;
+	(extension?: IExtensionDescription): typeof vscode;
 }
 
 function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
-	if (extension.enableProposedApi) {
+	if (extension && extension.enableProposedApi) {
 		return fn;
 	} else {
 		return <any>(() => {
@@ -92,9 +92,9 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
 
-	return function (extension: IExtensionDescription): typeof vscode {
+	return function (extension?: IExtensionDescription): typeof vscode {
 
-		if (extension.enableProposedApi) {
+		if (extension && extension.enableProposedApi) {
 			console.warn(`${extension.name} (${extension.id}) uses PROPOSED API which is subject to change and removal without notice`);
 		}
 
@@ -435,7 +435,7 @@ export function defineAPI(factory: IExtensionApiFactory, extensionService: ExtHo
 	const trie = new TrieMap<IExtensionDescription>(TrieMap.PathSplitter);
 	const extensions = extensionService.getAllExtensionDescriptions();
 	for (const ext of extensions) {
-		if (ext.name) {
+		if (ext.main) {
 			const path = realpathSync(ext.extensionFolderPath);
 			trie.insert(path, ext);
 		}

@@ -56,7 +56,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		dom.addClass(container, 'string');
 	}
 
-	if (showChanged && (<any>expressionOrValue).valueChanged) {
+	if (showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
 		// value changed color has priority over other colors.
 		container.className = 'value changed';
 	}
@@ -502,7 +502,7 @@ export class CallStackRenderer implements IRenderer {
 	}
 
 	private renderProcess(process: debug.IProcess, data: IProcessTemplateData): void {
-		data.process.title = nls.localize('process', "Process");
+		data.process.title = nls.localize({ key: 'process', comment: ['Process is a noun'] }, "Process");
 		data.name.textContent = process.name;
 	}
 

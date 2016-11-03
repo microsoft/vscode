@@ -9,6 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
+import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
 import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
@@ -26,6 +27,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { once } from 'vs/base/common/event';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -77,31 +79,49 @@ export abstract class BaseHistoryService {
 	protected toUnbind: IDisposable[];
 
 	private activeEditorListeners: IDisposable[];
-	private _isPure: boolean;
+	private isPure: boolean;
+	private showFullPath: boolean;
+
+	private static NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 
 	constructor(
 		protected editorGroupService: IEditorGroupService,
 		protected editorService: IWorkbenchEditorService,
 		protected contextService: IWorkspaceContextService,
+		private configurationService: IConfigurationService,
 		private environmentService: IEnvironmentService,
 		integrityService: IIntegrityService
 	) {
 		this.toUnbind = [];
 		this.activeEditorListeners = [];
-		this._isPure = true;
+		this.isPure = true;
 
 		// Window Title
 		window.document.title = this.getWindowTitle(null);
 
+		// Integrity
+		integrityService.isPure().then(r => {
+			if (!r.isPure) {
+				this.isPure = false;
+				window.document.title = this.getWindowTitle(this.editorService.getActiveEditorInput());
+			}
+		});
+
 		// Editor Input Changes
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
-		integrityService.isPure().then((r) => {
-			if (!r.isPure) {
-				this._isPure = false;
-				window.document.title = this.getWindowTitle(null);
-			}
-		});
+		// Configuration Changes
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
+		this.onConfigurationChanged();
+	}
+
+	private onConfigurationChanged(update?: boolean): void {
+		const currentShowPath = this.showFullPath;
+		this.showFullPath = this.configurationService.lookup<boolean>('window.showFullPath').value;
+
+		if (update && currentShowPath !== this.showFullPath) {
+			this.updateWindowTitle(this.editorService.getActiveEditorInput());
+		}
 	}
 
 	private onEditorsChanged(): void {
@@ -163,8 +183,8 @@ export abstract class BaseHistoryService {
 
 	protected getWindowTitle(input?: IEditorInput): string {
 		let title = this.doGetWindowTitle(input);
-		if (!this._isPure) {
-			title += nls.localize('patchedWindowTitle', " [Unsupported]");
+		if (!this.isPure) {
+			title = `${title} ${BaseHistoryService.NLS_UNSUPPORTED}`;
 		}
 
 		// Extension Development Host gets a special title to identify itself
@@ -178,9 +198,19 @@ export abstract class BaseHistoryService {
 	private doGetWindowTitle(input?: IEditorInput): string {
 		const appName = product.nameLong;
 
-		let prefix = input && input.getName();
+		let prefix: string;
+		const fileInput = asFileEditorInput(input);
+		if (fileInput && this.showFullPath) {
+			prefix = labels.getPathLabel(fileInput.getResource());
+			if ((platform.isMacintosh || platform.isLinux) && prefix.indexOf(this.environmentService.userHome) === 0) {
+				prefix = `~${prefix.substr(this.environmentService.userHome.length)}`;
+			}
+		} else {
+			prefix = input && input.getName();
+		}
+
 		if (prefix && input) {
-			if ((<EditorInput>input).isDirty() && !platform.isMacintosh /* Mac has its own decoration in window */) {
+			if (input.isDirty() && !platform.isMacintosh /* Mac has its own decoration in window */) {
 				prefix = nls.localize('prefixDecoration', "\u25cf {0}", prefix);
 			}
 		}
@@ -255,12 +285,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IIntegrityService integrityService: IIntegrityService
 	) {
-		super(editorGroupService, editorService, contextService, environmentService, integrityService);
+		super(editorGroupService, editorService, contextService, configurationService, environmentService, integrityService);
 
 		this.index = -1;
 		this.stack = [];
@@ -364,7 +395,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		openEditorPromise.done(() => {
 			this.blockStackChanges = false;
-		}, (error) => {
+		}, error => {
 			this.blockStackChanges = false;
 			errors.onUnexpectedError(error);
 		});

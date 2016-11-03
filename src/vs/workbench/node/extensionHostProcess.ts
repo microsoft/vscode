@@ -106,6 +106,12 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 				stats.length = 0;
 			}, 1000);
 
+
+			// Send heartbeat
+			setInterval(function () {
+				queuedSender.send('__$heartbeat');
+			}, 250);
+
 			// Tell the outside that we are initialized
 			queuedSender.send('initialized');
 

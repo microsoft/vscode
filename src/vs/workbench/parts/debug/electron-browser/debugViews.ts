@@ -177,7 +177,7 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 			this.tree.refresh().done(() => {
 				return this.toReveal instanceof Expression ? this.tree.reveal(this.toReveal) : TPromise.as(true);
 			}, errors.onUnexpectedError);
-		}, 250);
+		}, 50);
 	}
 
 	public renderHeader(container: HTMLElement): void {

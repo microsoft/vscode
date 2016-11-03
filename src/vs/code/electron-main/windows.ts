@@ -89,9 +89,9 @@ const ReopenFoldersSetting = {
 	NONE: 'none'
 };
 
-export const IWindowsService = createDecorator<IWindowsService>('windowsService');
+export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
-export interface IWindowsService {
+export interface IWindowsMainService {
 	_serviceBrand: any;
 
 	// TODO make proper events
@@ -108,7 +108,7 @@ export interface IWindowsService {
 	open(openConfig: IOpenConfiguration): VSCodeWindow[];
 	openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
 	openFileFolderPicker(forceNewWindow?: boolean): void;
-	openFilePicker(forceNewWindow?: boolean): void;
+	openFilePicker(forceNewWindow?: boolean, path?: string): void;
 	openFolderPicker(forceNewWindow?: boolean): void;
 	openAccessibilityOptions(): void;
 	focusLastActive(cli: ParsedArgs): VSCodeWindow;
@@ -126,7 +126,7 @@ export interface IWindowsService {
 	clearRecentPathsList(): void;
 }
 
-export class WindowsManager implements IWindowsService, IWindowEventService {
+export class WindowsManager implements IWindowsMainService, IWindowEventService {
 
 	_serviceBrand: any;
 
@@ -243,24 +243,6 @@ export class WindowsManager implements IWindowsService, IWindowEventService {
 			}
 		});
 
-		ipc.on('vscode:openFilePicker', (event, forceNewWindow?: boolean, path?: string) => {
-			this.logService.log('IPC#vscode-openFilePicker');
-
-			this.openFilePicker(forceNewWindow, path);
-		});
-
-		ipc.on('vscode:openFolderPicker', (event, forceNewWindow?: boolean) => {
-			this.logService.log('IPC#vscode-openFolderPicker');
-
-			this.openFolderPicker(forceNewWindow);
-		});
-
-		ipc.on('vscode:openFileFolderPicker', (event, forceNewWindow?: boolean) => {
-			this.logService.log('IPC#vscode-openFileFolderPicker');
-
-			this.openFileFolderPicker(forceNewWindow);
-		});
-
 		ipc.on('vscode:closeFolder', (event, windowId: number) => {
 			this.logService.log('IPC#vscode-closeFolder');
 
@@ -274,15 +256,6 @@ export class WindowsManager implements IWindowsService, IWindowEventService {
 			this.logService.log('IPC#vscode-openNewWindow');
 
 			this.openNewWindow();
-		});
-
-		ipc.on('vscode:reloadWindow', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:reloadWindow');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				this.reload(vscodeWindow);
-			}
 		});
 
 		ipc.on('vscode:toggleFullScreen', (event, windowId: number) => {

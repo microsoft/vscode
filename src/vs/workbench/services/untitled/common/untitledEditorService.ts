@@ -186,6 +186,11 @@ export class UntitledEditorService implements IUntitledEditorService {
 		}
 
 		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, restoreResource);
+		if (input.isDirty()) {
+			setTimeout(() => {
+				this._onDidChangeDirty.fire(resource);
+			}, 0 /* prevent race condition between creating input and emitting dirty event */);
+		}
 
 		const contentListener = input.onDidModelChangeContent(() => {
 			this._onDidChangeContent.fire(resource);
