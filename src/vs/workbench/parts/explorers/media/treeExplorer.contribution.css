@@ -17,3 +17,8 @@
 	-webkit-filter: grayscale(1) invert(1);
 	filter: grayscale(1) invert(1);
 }
+
+.custom-viewlet-tree-node-item {
+	height: 22px;
+	line-height: 22px;
+}
