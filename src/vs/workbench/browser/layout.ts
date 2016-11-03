@@ -59,6 +59,7 @@ export interface ILayoutOptions {
  */
 export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
+	private static activityBarWidthSettingsKey = 'workbench.activityBar.width';
 	private static sashXWidthSettingsKey = 'workbench.sidebar.width';
 	private static sashYHeightSettingsKey = 'workbench.panel.height';
 
@@ -76,6 +77,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private workbenchSize: Dimension;
 	private sashX: Sash;
 	private sashY: Sash;
+	private activityBarWidth: number;
 	private startSidebarWidth: number;
 	private sidebarWidth: number;
 	private sidebarHeight: number;
@@ -129,6 +131,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			orientation: Orientation.HORIZONTAL
 		});
 
+		let isActivityBarHidden = this.partService.isActivityBarHidden();
+		this.activityBarWidth = isActivityBarHidden ? 0 : this.storageService.getInteger(WorkbenchLayout.activityBarWidthSettingsKey, StorageScope.GLOBAL, 50);
 		this.sidebarWidth = this.storageService.getInteger(WorkbenchLayout.sashXWidthSettingsKey, StorageScope.GLOBAL, -1);
 		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
 
@@ -168,7 +172,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				if (newSashWidth + HIDE_SIDEBAR_WIDTH_THRESHOLD < this.computedStyles.sidebar.minWidth) {
 					let dragCompensation = DEFAULT_MIN_SIDEBAR_PART_WIDTH - HIDE_SIDEBAR_WIDTH_THRESHOLD;
 					this.partService.setSideBarHidden(true);
-					startX = (sidebarPosition === Position.LEFT) ? Math.max(this.computedStyles.activitybar.minWidth, e.currentX - dragCompensation) : Math.min(e.currentX + dragCompensation, this.workbenchSize.width - this.computedStyles.activitybar.minWidth);
+					startX = (sidebarPosition === Position.LEFT) ? Math.max(this.activityBarWidth, e.currentX - dragCompensation) : Math.min(e.currentX + dragCompensation, this.workbenchSize.width - this.activityBarWidth);
 					this.sidebarWidth = this.startSidebarWidth; // when restoring sidebar, restore to the sidebar width we started from
 				}
 
@@ -442,6 +446,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			editorSize.height = editorMinHeight;
 			panelDimension.height -= diff;
 			panelDimension.height = Math.max(DEFAULT_MIN_PANEL_PART_HEIGHT, panelDimension.height);
+		}
+
+		if (!isActivityBarHidden) {
+			this.activityBarWidth = activityBarSize.width;
+			this.storageService.store(WorkbenchLayout.activityBarWidthSettingsKey, this.activityBarWidth, StorageScope.GLOBAL);
 		}
 
 		if (!isSidebarHidden) {

@@ -113,7 +113,7 @@ export class Workbench implements IPartService {
 	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 
-	private static activityBarVisibleConfigurationKey = 'workbench.activitybar.visible';
+	private static activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
 
 	public _serviceBrand: any;
 
@@ -788,6 +788,9 @@ export class Workbench implements IPartService {
 		}
 		if (this.panelHidden) {
 			this.workbench.addClass('nopanel');
+		}
+		if (this.activityBarHidden) {
+			this.workbench.addClass('noactivitybar');
 		}
 
 		// Apply no-workspace state as CSS class
