@@ -162,7 +162,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return this.gallery && this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
+		return !!this.gallery && this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
 	}
 
 	get telemetryData(): any {
@@ -201,10 +201,6 @@ class Extension implements IExtension {
 		return this.galleryService.getAsset(readmeUrl).then(asText);
 	}
 
-	get hasChangelog(): boolean {
-		return !!(this.changelogUrl);
-	}
-
 	getChangelog(): TPromise<string> {
 		const changelogUrl = this.changelogUrl;
 
@@ -223,11 +219,11 @@ class Extension implements IExtension {
 
 	get dependencies(): string[] {
 		const { local, gallery } = this;
-		if (gallery) {
-			return gallery.properties.dependencies;
-		}
 		if (local && local.manifest.extensionDependencies) {
 			return local.manifest.extensionDependencies;
+		}
+		if (gallery) {
+			return gallery.properties.dependencies;
 		}
 		return [];
 	}
