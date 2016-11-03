@@ -323,7 +323,7 @@ export class ShowStartupPerformance extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super(id, label);
@@ -398,9 +398,8 @@ export class ShowStartupPerformance extends Action {
 		sum['Took (ms)'] = lastEvent.stopTime.getTime() - start;
 		table.push(sum);
 
-
 		// Show dev tools
-		this.windowService.getWindow().openDevTools();
+		this.windowService.openDevTools();
 
 		// Print to console
 		setTimeout(() => {

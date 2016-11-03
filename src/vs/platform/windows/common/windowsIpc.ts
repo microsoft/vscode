@@ -32,6 +32,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'openFilePicker': return this.service.openFilePicker(arg[0], arg[1], arg[2]);
 			case 'openFolderPicker': return this.service.openFolderPicker(arg[0], arg[1]);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
+			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeFolder': return this.service.closeFolder(arg);
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
@@ -61,6 +62,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	reloadWindow(windowId: number): TPromise<void> {
 		return this.channel.call('reloadWindow', windowId);
+	}
+
+	openDevTools(windowId: number): TPromise<void> {
+		return this.channel.call('openDevTools', windowId);
 	}
 
 	toggleDevTools(windowId: number): TPromise<void> {
