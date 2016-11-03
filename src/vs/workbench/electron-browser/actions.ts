@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
 import { Action } from 'vs/base/common/actions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -445,6 +445,7 @@ export class OpenRecentAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		@IWindowsService private windowsService: IWindowsService,
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
@@ -476,11 +477,10 @@ export class OpenRecentAction extends Action {
 			};
 		}
 
-		function runPick(path: string, context): void {
+		const runPick = (path: string, context) => {
 			const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-
-			ipc.send('vscode:windowOpen', [path], newWindow);
-		}
+			this.windowsService.windowOpen([path], newWindow);
+		};
 
 		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true));
 		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false));
@@ -586,14 +586,6 @@ Steps to Reproduce:
 }
 
 // --- commands
-
-CommandsRegistry.registerCommand('_workbench.ipc', function (accessor: ServicesAccessor, ipcMessage: string, ipcArgs: any[]) {
-	if (ipcMessage && Array.isArray(ipcArgs)) {
-		ipc.send(ipcMessage, ...ipcArgs);
-	} else {
-		ipc.send(ipcMessage);
-	}
-});
 
 CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string]) {
 	const editorService = accessor.get(IWorkbenchEditorService);

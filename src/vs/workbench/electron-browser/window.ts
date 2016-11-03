@@ -16,6 +16,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 import { ipcRenderer as ipc, remote } from 'electron';
 
@@ -30,7 +31,8 @@ export class ElectronWindow {
 		shellContainer: HTMLElement,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		this.win = win;
 		this.windowId = win.id;
@@ -80,7 +82,7 @@ export class ElectronWindow {
 								DOM.EventHelper.stop(e, true);
 
 								this.focus(); // make sure this window has focus so that the open call reaches the right window!
-								ipc.send('vscode:windowOpen', draggedExternalResources.map(r => r.fsPath)); // handled from browser process
+								this.windowsService.windowOpen(draggedExternalResources.map(r => r.fsPath));
 
 								cleanUp();
 							})

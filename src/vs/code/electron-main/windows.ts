@@ -219,14 +219,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			crashReporter.start(config);
 		});
 
-		ipc.on('vscode:windowOpen', (event, paths: string[], forceNewWindow?: boolean) => {
-			this.logService.log('IPC#vscode-windowOpen: ', paths);
-
-			if (paths && paths.length) {
-				this.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: forceNewWindow });
-			}
-		});
-
 		ipc.on('vscode:workbenchLoaded', (event, windowId: number) => {
 			this.logService.log('IPC#vscode-workbenchLoaded');
 
