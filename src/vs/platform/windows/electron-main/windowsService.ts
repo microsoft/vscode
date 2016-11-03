@@ -166,4 +166,14 @@ export class WindowsService implements IWindowsService {
 		console[severity].apply(console, ...messages);
 		return TPromise.as(null);
 	}
+
+	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void> {
+		const windowOnExtension = this.windowsMainService.findWindow(null, null, extensionDevelopmentPath);
+
+		if (windowOnExtension) {
+			windowOnExtension.win.close();
+		}
+
+		return TPromise.as(null);
+	}
 }
