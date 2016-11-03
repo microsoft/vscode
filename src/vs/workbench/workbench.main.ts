@@ -57,7 +57,7 @@ import 'vs/workbench/parts/extensions/electron-browser/extensions.contribution';
 import 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // can be packaged separately
 
-import 'vs/workbench/parts/explorers/browser/treeExplorerViewlet.contribution';
+import 'vs/workbench/parts/explorers/browser/treeExplorer.contribution';
 import 'vs/workbench/parts/explorers/common/treeExplorerActions.contribution';
 
 import 'vs/workbench/parts/output/browser/output.contribution';
