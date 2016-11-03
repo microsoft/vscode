@@ -14,13 +14,16 @@ export class CursorMoveConfiguration {
 
 	public readonly tabSize: number;
 	public readonly pageSize: number;
+	public readonly wordSeparators: string;
 
 	constructor(
 		tabSize: number,
-		pageSize: number
+		pageSize: number,
+		wordSeparators: string
 	) {
 		this.tabSize = tabSize;
 		this.pageSize = pageSize;
+		this.wordSeparators = wordSeparators;
 	}
 }
 

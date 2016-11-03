@@ -85,7 +85,7 @@ suite('CursorMove', () => {
 
 	test('visibleColumnFromColumn', () => {
 
-		function testVisibleColumnFromColumn(text:string, tabSize:number, column:number, expected:number): void {
+		function testVisibleColumnFromColumn(text: string, tabSize: number, column: number, expected: number): void {
 			let model = new OneLineModel(text);
 			assert.equal(CursorMoveHelper.visibleColumnFromColumn(model, 1, column, tabSize), expected);
 		}
@@ -145,8 +145,8 @@ suite('CursorMove', () => {
 
 	test('columnFromVisibleColumn', () => {
 
-		function testColumnFromVisibleColumn(text:string, tabSize:number, visibleColumn:number, expected:number): void {
-			let config = new CursorMoveConfiguration(tabSize, 13);
+		function testColumnFromVisibleColumn(text: string, tabSize: number, visibleColumn: number, expected: number): void {
+			let config = new CursorMoveConfiguration(tabSize, 13, null);
 			let model = new OneLineModel(text);
 			assert.equal(CursorMove.columnFromVisibleColumn(config, model, 1, visibleColumn), expected);
 		}
