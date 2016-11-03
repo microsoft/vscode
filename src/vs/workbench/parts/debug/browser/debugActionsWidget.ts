@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import lifecycle = require('vs/base/common/lifecycle');
-import errors = require('vs/base/common/errors');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as errors from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import severity from 'vs/base/common/severity';
-import builder = require('vs/base/browser/builder');
-import dom = require('vs/base/browser/dom');
+import * as builder from 'vs/base/browser/builder';
+import * as dom from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import actions = require('vs/base/common/actions');
-import events = require('vs/base/common/events');
-import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
+import { IAction } from 'vs/base/common/actions';
+import { EventType } from 'vs/base/common/events';
+import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import wbext = require('vs/workbench/common/contributions');
-import debug = require('vs/workbench/parts/debug/common/debug');
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { PauseAction, ContinueAction, StepBackAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -27,14 +27,14 @@ import IDebugService = debug.IDebugService;
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 
-export class DebugActionsWidget implements wbext.IWorkbenchContribution {
+export class DebugActionsWidget implements IWorkbenchContribution {
 	private static ID = 'debug.actionsWidget';
 
 	private $el: builder.Builder;
 	private dragArea: builder.Builder;
 	private toDispose: lifecycle.IDisposable[];
-	private actionBar: actionbar.ActionBar;
-	private actions: actions.IAction[];
+	private actionBar: ActionBar;
+	private actions: IAction[];
 	private pauseAction: PauseAction;
 	private continueAction: ContinueAction;
 	private stepBackAction: StepBackAction;
@@ -59,8 +59,8 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		this.$el.append(actionBarContainter);
 
 		this.toDispose = [];
-		this.actionBar = new actionbar.ActionBar(actionBarContainter, {
-			orientation: actionbar.ActionsOrientation.HORIZONTAL
+		this.actionBar = new ActionBar(actionBarContainter, {
+			orientation: ActionsOrientation.HORIZONTAL
 		});
 
 		this.toDispose.push(this.actionBar);
@@ -74,7 +74,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			this.update();
 		}));
-		this.toDispose.push(this.actionBar.actionRunner.addListener2(events.EventType.RUN, (e: any) => {
+		this.toDispose.push(this.actionBar.actionRunner.addListener2(EventType.RUN, (e: any) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
 				this.messageService.show(severity.Error, e.error);
@@ -162,7 +162,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		this.$el.hide();
 	}
 
-	private getActions(instantiationService: IInstantiationService, state: debug.State): actions.IAction[] {
+	private getActions(instantiationService: IInstantiationService, state: debug.State): IAction[] {
 		if (!this.actions) {
 			this.continueAction = instantiationService.createInstance(ContinueAction, ContinueAction.ID, ContinueAction.LABEL);
 			this.pauseAction = instantiationService.createInstance(PauseAction, PauseAction.ID, PauseAction.LABEL);
