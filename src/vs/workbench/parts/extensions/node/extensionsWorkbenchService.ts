@@ -502,7 +502,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrap(null);
 		}
 
-		return this.extensionEnablementService.setEnablement(extension.identifier, enable, workspace).then(reload => {
+		return this.doSetEnablement(extension, enable, workspace).then(reload => {
 			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
 		});
 	}
@@ -520,6 +520,20 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		return this.extensionService.uninstall(local);
+
+	}
+
+	private doSetEnablement(extension: IExtension, enable: boolean, workspace: boolean): TPromise<boolean> {
+		if (workspace) {
+			return this.extensionEnablementService.setEnablement(extension.identifier, enable, workspace);
+		}
+
+		const globalElablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, false);
+		if (enable && this.workspaceContextService.getWorkspace()) {
+			const workspaceEnablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, true);
+			return TPromise.join([globalElablement, workspaceEnablement]).then(values => values[0] || values[1]);
+		}
+		return globalElablement;
 	}
 
 	private onInstallExtension(event: InstallExtensionEvent): void {
