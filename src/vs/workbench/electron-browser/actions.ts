@@ -80,19 +80,20 @@ export class CloseWindowAction extends Action {
 
 export class SwitchWindow extends Action {
 
-	public static ID = 'workbench.action.switchWindow';
-	public static LABEL = nls.localize('switchWindow', "Switch Window");
+	static ID = 'workbench.action.switchWindow';
+	static LABEL = nls.localize('switchWindow', "Switch Window");
 
 	constructor(
 		id: string,
 		label: string,
+		@IWindowsService private windowsService: IWindowsService,
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		const id = this.windowService.getWindowId();
 		ipc.send('vscode:switchWindow', id);
 		ipc.once('vscode:switchWindow', (event, workspaces) => {
@@ -100,9 +101,7 @@ export class SwitchWindow extends Action {
 				return {
 					label: w.title,
 					description: (id === w.id) ? nls.localize('current', "Current Window") : void 0,
-					run: () => {
-						ipc.send('vscode:showWindow', w.id);
-					}
+					run: () => this.windowsService.showWindow(w.id)
 				};
 			});
 			this.quickOpenService.pick(picks, { placeHolder: nls.localize('switchWindowPlaceHolder', "Select a window") });

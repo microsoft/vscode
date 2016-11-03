@@ -130,4 +130,14 @@ export class WindowsService implements IWindowsService {
 		this.windowsMainService.openNewWindow();
 		return TPromise.as(null);
 	}
+
+	showWindow(windowId: number): TPromise<void> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			vscodeWindow.win.show();
+		}
+
+		return TPromise.as(null);
+	}
 }
