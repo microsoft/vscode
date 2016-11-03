@@ -46,6 +46,16 @@ export class WindowsService implements IWindowsService {
 		return TPromise.as(null);
 	}
 
+	openDevTools(windowId: number): TPromise<void> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			vscodeWindow.win.webContents.openDevTools();
+		}
+
+		return TPromise.as(null);
+	}
+
 	toggleDevTools(windowId: number): TPromise<void> {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 

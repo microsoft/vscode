@@ -163,10 +163,6 @@ export class ElectronWindow {
 		return dialog.showSaveDialog(this.win, options); // https://github.com/electron/electron/issues/4936
 	}
 
-	public openDevTools(): void {
-		ipc.send('vscode:openDevTools', this.windowId); // handled from browser process
-	}
-
 	public setMenuBarVisibility(visible: boolean): void {
 		ipc.send('vscode:setMenuBarVisibility', this.windowId, visible); // handled from browser process
 	}

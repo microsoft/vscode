@@ -33,6 +33,10 @@ export class WindowService implements IWindowService {
 		return this.windowsService.reloadWindow(this.windowId);
 	}
 
+	openDevTools(): TPromise<void> {
+		return this.windowsService.openDevTools(this.windowId);
+	}
+
 	toggleDevTools(): TPromise<void> {
 		return this.windowsService.toggleDevTools(this.windowId);
 	}
