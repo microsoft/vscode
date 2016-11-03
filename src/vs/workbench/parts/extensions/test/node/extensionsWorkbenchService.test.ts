@@ -748,6 +748,29 @@ suite('ExtensionsWorkbenchService Test', () => {
 		assert.ok(!actual.disabledGlobally);
 	});
 
+	test('test enable extension globally when extension is disabled for workspace', () => {
+		instantiationService.get(IExtensionEnablementService).setEnablement('pub.a', false, true);
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
+		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
+
+		testObject.setEnablement(testObject.local[0], true);
+		const actual = testObject.local[0];
+
+		assert.ok(!actual.disabledForWorkspace);
+		assert.ok(!actual.disabledGlobally);
+	});
+
+	test('test disable extension globally should not disable for workspace', () => {
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
+		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
+
+		testObject.setEnablement(testObject.local[0], false);
+		const actual = testObject.local[0];
+
+		assert.ok(!actual.disabledForWorkspace);
+		assert.ok(actual.disabledGlobally);
+	});
+
 	test('test disabled flags are not updated for system extensions', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a', {}, { type: LocalExtensionType.System })]);
 		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);

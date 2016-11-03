@@ -56,25 +56,19 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 			return TPromise.wrap(false);
 		}
 
-		if (this.isDisabled(identifier) === !enable) {
-			return TPromise.wrap(false);
-		}
-
 		if (enable) {
 			if (workspace) {
-				this.enableExtension(identifier, StorageScope.WORKSPACE);
+				return this.enableExtension(identifier, StorageScope.WORKSPACE);
 			} else {
-				this.enableExtension(identifier, StorageScope.GLOBAL);
+				return this.enableExtension(identifier, StorageScope.GLOBAL);
 			}
 		} else {
 			if (workspace) {
-				this.disableExtension(identifier, StorageScope.WORKSPACE);
+				return this.disableExtension(identifier, StorageScope.WORKSPACE);
 			} else {
-				this.disableExtension(identifier, StorageScope.GLOBAL);
+				return this.disableExtension(identifier, StorageScope.GLOBAL);
 			}
 		}
-
-		return TPromise.wrap(true);
 	}
 
 	private getDisabledExtensions(): string[] {
@@ -99,9 +93,13 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 
 	private disableExtension(identifier: string, scope: StorageScope): TPromise<boolean> {
 		let disabledExtensions = this._getDisabledExtensions(scope);
-		disabledExtensions.push(identifier);
-		this._setDisabledExtensions(disabledExtensions, scope, identifier);
-		return TPromise.wrap(true);
+		const index = disabledExtensions.indexOf(identifier);
+		if (index === -1) {
+			disabledExtensions.push(identifier);
+			this._setDisabledExtensions(disabledExtensions, scope, identifier);
+			return TPromise.wrap(true);
+		}
+		return TPromise.wrap(false);
 	}
 
 	private enableExtension(identifier: string, scope: StorageScope): TPromise<boolean> {
@@ -110,8 +108,9 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		if (index !== -1) {
 			disabledExtensions.splice(index, 1);
 			this._setDisabledExtensions(disabledExtensions, scope, identifier);
+			return TPromise.wrap(true);
 		}
-		return TPromise.wrap(true);
+		return TPromise.wrap(false);
 	}
 
 	private _getDisabledExtensions(scope: StorageScope): string[] {
