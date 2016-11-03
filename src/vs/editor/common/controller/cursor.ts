@@ -1052,7 +1052,7 @@ export class Cursor extends EventEmitter {
 
 		if (sorted) {
 			cursors = cursors.sort((a, b) => {
-				return Range.compareRangesUsingStarts(a.getSelection(), b.getSelection());
+				return Range.compareRangesUsingStarts(a.modelState.selection, b.modelState.selection);
 			});
 		}
 
@@ -1112,7 +1112,7 @@ export class Cursor extends EventEmitter {
 	private _getColumnSelectToLineNumber(): number {
 		if (!this._columnSelectToLineNumber) {
 			let primaryCursor = this.cursors.getAll()[0];
-			let primaryPos = primaryCursor.getViewPosition();
+			let primaryPos = primaryCursor.viewState.position;
 			return primaryPos.lineNumber;
 		}
 		return this._columnSelectToLineNumber;
@@ -1122,7 +1122,7 @@ export class Cursor extends EventEmitter {
 	private _getColumnSelectToVisualColumn(): number {
 		if (!this._columnSelectToVisualColumn) {
 			let primaryCursor = this.cursors.getAll()[0];
-			let primaryPos = primaryCursor.getViewPosition();
+			let primaryPos = primaryCursor.viewState.position;
 			return primaryCursor.getViewVisibleColumnFromColumn(primaryPos.lineNumber, primaryPos.column);
 		}
 		return this._columnSelectToVisualColumn;

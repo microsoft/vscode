@@ -33,7 +33,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
-var EDITOR_ID = 0;
+let EDITOR_ID = 0;
 
 export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
 

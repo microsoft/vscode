@@ -13,7 +13,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IExtensionPoint, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ILineTokens, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { TMState } from 'vs/editor/common/modes/TMState';
-import { LineTokens } from 'vs/editor/common/modes/supports';
+import { RawLineTokens } from 'vs/editor/common/modes/supports';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IGrammar, Registry, StackElement, IToken } from 'vscode-textmate';
 import { ModeTransition } from 'vs/editor/common/core/modeTransition';
@@ -430,7 +430,7 @@ class Tokenizer {
 		// Do not attempt to tokenize if a line has over 20k
 		// or if the rule stack contains more than 100 rules (indicator of broken grammar that forgets to pop rules)
 		if (line.length >= 20000 || depth(state.getRuleStack()) > 100) {
-			return new LineTokens(
+			return new RawLineTokens(
 				[new Token(offsetDelta, '')],
 				[new ModeTransition(offsetDelta, state.getModeId())],
 				offsetDelta,
@@ -445,7 +445,7 @@ class Tokenizer {
 	}
 }
 
-export function decodeTextMateTokens(line: string, offsetDelta: number, decodeMap: DecodeMap, resultTokens: IToken[], resultState: TMState): LineTokens {
+export function decodeTextMateTokens(line: string, offsetDelta: number, decodeMap: DecodeMap, resultTokens: IToken[], resultState: TMState): RawLineTokens {
 	const topLevelModeId = resultState.getModeId();
 
 	// Create the result early and fill in the tokens later
@@ -481,7 +481,7 @@ export function decodeTextMateTokens(line: string, offsetDelta: number, decodeMa
 		}
 	}
 
-	return new LineTokens(
+	return new RawLineTokens(
 		tokens,
 		modeTransitions,
 		offsetDelta + line.length,

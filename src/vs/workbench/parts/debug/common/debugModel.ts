@@ -106,59 +106,50 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	private static BASE_CHUNK_SIZE = 100;
 
 	public valueChanged: boolean;
-	private children: TPromise<debug.IExpression[]>;
 	private _value: string;
 
 	constructor(
 		public stackFrame: debug.IStackFrame,
 		public reference: number,
 		private id: string,
-		private cacheChildren: boolean,
 		public namedVariables: number,
 		public indexedVariables: number,
 		private startOfVariables = 0
-	) {
-		// noop
-	}
+	) { }
 
 	public getChildren(): TPromise<debug.IExpression[]> {
-		if (!this.cacheChildren || !this.children) {
-			// only variables with reference > 0 have children.
-			if (this.reference <= 0) {
-				this.children = TPromise.as([]);
-			} else {
-				if (!this.getChildrenInChunks) {
-					return this.fetchVariables(undefined, undefined, undefined);
-				}
-
-				// Check if object has named variables, fetch them independent from indexed variables #9670
-				this.children = (!!this.namedVariables ? this.fetchVariables(undefined, undefined, 'named')
-					: TPromise.as([])).then(childrenArray => {
-						// Use a dynamic chunk size based on the number of elements #9774
-						let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
-						while (this.indexedVariables > chunkSize * ExpressionContainer.BASE_CHUNK_SIZE) {
-							chunkSize *= ExpressionContainer.BASE_CHUNK_SIZE;
-						}
-
-						if (this.indexedVariables > chunkSize) {
-							// There are a lot of children, create fake intermediate values that represent chunks #9537
-							const numberOfChunks = Math.ceil(this.indexedVariables / chunkSize);
-							for (let i = 0; i < numberOfChunks; i++) {
-								const start = this.startOfVariables + i * chunkSize;
-								const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
-								childrenArray.push(new Variable(this.stackFrame, this, this.reference, `[${start}..${start + count - 1}]`, '', '', null, count, null, true, start));
-							}
-
-							return childrenArray;
-						}
-
-						return this.fetchVariables(this.startOfVariables, this.indexedVariables, 'indexed')
-							.then(variables => childrenArray.concat(variables));
-					});
-			}
+		// only variables with reference > 0 have children.
+		if (this.reference <= 0) {
+			return TPromise.as([]);
 		}
 
-		return this.children;
+		if (!this.getChildrenInChunks) {
+			return this.fetchVariables(undefined, undefined, undefined);
+		}
+
+		// Check if object has named variables, fetch them independent from indexed variables #9670
+		return (!!this.namedVariables ? this.fetchVariables(undefined, undefined, 'named') : TPromise.as([])).then(childrenArray => {
+			// Use a dynamic chunk size based on the number of elements #9774
+			let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
+			while (this.indexedVariables > chunkSize * ExpressionContainer.BASE_CHUNK_SIZE) {
+				chunkSize *= ExpressionContainer.BASE_CHUNK_SIZE;
+			}
+
+			if (this.indexedVariables > chunkSize) {
+				// There are a lot of children, create fake intermediate values that represent chunks #9537
+				const numberOfChunks = Math.ceil(this.indexedVariables / chunkSize);
+				for (let i = 0; i < numberOfChunks; i++) {
+					const start = this.startOfVariables + i * chunkSize;
+					const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
+					childrenArray.push(new Variable(this.stackFrame, this, this.reference, `[${start}..${start + count - 1}]`, '', '', null, count, null, true, start));
+				}
+
+				return childrenArray;
+			}
+
+			return this.fetchVariables(this.startOfVariables, this.indexedVariables, 'indexed')
+				.then(variables => childrenArray.concat(variables));
+		});
 	}
 
 	public getId(): string {
@@ -205,10 +196,14 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 	public available: boolean;
 	public type: string;
 
-	constructor(public name: string, cacheChildren: boolean, id = generateUuid()) {
-		super(null, 0, id, cacheChildren, 0, 0);
-		this.value = Expression.DEFAULT_VALUE;
+	constructor(public name: string, id = generateUuid()) {
+		super(null, 0, id, 0, 0);
 		this.available = false;
+		// name is not set if the expression is just being added
+		// in that case do not set default value to prevent flashing #14499
+		if (name) {
+			this.value = Expression.DEFAULT_VALUE;
+		}
 	}
 
 	public evaluate(process: debug.IProcess, stackFrame: debug.IStackFrame, context: string): TPromise<void> {
@@ -265,7 +260,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		public available = true,
 		startOfVariables = 0
 	) {
-		super(stackFrame, reference, `variable:${parent.getId()}:${name}:${reference}`, true, namedVariables, indexedVariables, startOfVariables);
+		super(stackFrame, reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = massageValue(value);
 	}
 
@@ -306,6 +301,9 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 			if (response && response.body) {
 				this.value = response.body.value;
 				this.type = response.body.type || this.type;
+				this.reference = response.body.variablesReference;
+				this.namedVariables = response.body.namedVariables;
+				this.indexedVariables = response.body.indexedVariables;
 			}
 			// TODO@Isidor notify stackFrame that a change has happened so watch expressions get revelauted
 		}, err => {
@@ -324,7 +322,7 @@ export class Scope extends ExpressionContainer implements debug.IScope {
 		namedVariables: number,
 		indexedVariables: number
 	) {
-		super(stackFrame, reference, `scope:${stackFrame.getId()}:${name}:${reference}`, true, namedVariables, indexedVariables);
+		super(stackFrame, reference, `scope:${stackFrame.getId()}:${name}:${reference}`, namedVariables, indexedVariables);
 	}
 }
 
@@ -661,8 +659,11 @@ export class Model implements debug.IModel {
 		return this.processes;
 	}
 
-	public addProcess(name: string, session: debug.ISession & debug.ITreeElement): void {
-		this.processes.push(new Process(name, session));
+	public addProcess(name: string, session: debug.ISession & debug.ITreeElement): Process {
+		const process = new Process(name, session);
+		this.processes.push(process);
+
+		return process;
 	}
 
 	public removeProcess(id: string): void {
@@ -811,7 +812,7 @@ export class Model implements debug.IModel {
 	}
 
 	public addReplExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
-		const expression = new Expression(name, true);
+		const expression = new Expression(name);
 		this.addReplElements([expression]);
 		return expression.evaluate(process, stackFrame, 'repl')
 			.then(() => this._onDidChangeREPLElements.fire());
@@ -886,7 +887,7 @@ export class Model implements debug.IModel {
 	}
 
 	public addWatchExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
-		const we = new Expression(name, false);
+		const we = new Expression(name);
 		this.watchExpressions.push(we);
 		if (!name) {
 			this._onDidChangeWatchExpressions.fire(we);
@@ -927,6 +928,14 @@ export class Model implements debug.IModel {
 
 	public removeWatchExpressions(id: string = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
+		this._onDidChangeWatchExpressions.fire();
+	}
+
+	public moveWatchExpression(id: string, position: number): void {
+		const we = this.watchExpressions.filter(we => we.getId() === id).pop();
+		this.watchExpressions = this.watchExpressions.filter(we => we.getId() !== id);
+		this.watchExpressions = this.watchExpressions.slice(0, position).concat(we, this.watchExpressions.slice(position));
+
 		this._onDidChangeWatchExpressions.fire();
 	}
 

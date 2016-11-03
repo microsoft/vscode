@@ -72,10 +72,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		var prevLanesCount = this._overviewRuler.getLanesCount();
-		var newLanesCount = this._context.configuration.editor.viewInfo.overviewRulerLanes;
+		let prevLanesCount = this._overviewRuler.getLanesCount();
+		let newLanesCount = this._context.configuration.editor.viewInfo.overviewRulerLanes;
 
-		var shouldRender = false;
+		let shouldRender = false;
 
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, false);
@@ -202,17 +202,17 @@ export class DecorationsOverviewRuler extends ViewPart {
 				}
 			}
 
-			var allZones: editorCommon.OverviewRulerZone[] = [];
+			let allZones: editorCommon.OverviewRulerZone[] = [];
 			allZones = allZones.concat(this._zonesFromCursors);
 			allZones = allZones.concat(this._zonesFromDecorations);
 
 			this._overviewRuler.setZones(allZones, false);
 		}
 
-		var hasRendered = this._overviewRuler.render(false);
+		let hasRendered = this._overviewRuler.render(false);
 
 		if (hasRendered && OverviewRulerImpl.hasCanvas && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
-			var ctx2 = this._overviewRuler.getDomNode().getContext('2d');
+			let ctx2 = this._overviewRuler.getDomNode().getContext('2d');
 			ctx2.beginPath();
 			ctx2.lineWidth = 1;
 			ctx2.strokeStyle = 'rgba(197,197,197,0.8)';

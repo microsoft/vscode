@@ -31,7 +31,6 @@ import { ExtHostLanguages } from 'vs/workbench/api/node/extHostLanguages';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
-import Modes = require('vs/editor/common/modes');
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -45,14 +44,15 @@ import * as paths from 'vs/base/common/paths';
 import { realpathSync } from 'fs';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { MainContext, ExtHostContext, InstanceCollection, IInitConfiguration } from './extHost.protocol';
+import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 
 
 export interface IExtensionApiFactory {
-	(extension: IExtensionDescription): typeof vscode;
+	(extension?: IExtensionDescription): typeof vscode;
 }
 
 function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
-	if (extension.enableProposedApi) {
+	if (extension && extension.enableProposedApi) {
 		return fn;
 	} else {
 		return <any>(() => {
@@ -94,9 +94,9 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
 
-	return function (extension: IExtensionDescription): typeof vscode {
+	return function (extension?: IExtensionDescription): typeof vscode {
 
-		if (extension.enableProposedApi) {
+		if (extension && extension.enableProposedApi) {
 			console.warn(`${extension.name} (${extension.id}) uses PROPOSED API which is subject to change and removal without notice`);
 		}
 
@@ -390,7 +390,7 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 			DocumentLink: extHostTypes.DocumentLink,
 			ViewColumn: extHostTypes.ViewColumn,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
-			IndentAction: Modes.IndentAction,
+			IndentAction: languageConfiguration.IndentAction,
 			OverviewRulerLane: EditorCommon.OverviewRulerLane,
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			EndOfLine: extHostTypes.EndOfLine,
@@ -440,7 +440,7 @@ export function defineAPI(factory: IExtensionApiFactory, extensionService: ExtHo
 	const trie = new TrieMap<IExtensionDescription>(TrieMap.PathSplitter);
 	const extensions = extensionService.getAllExtensionDescriptions();
 	for (const ext of extensions) {
-		if (ext.name) {
+		if (ext.main) {
 			const path = realpathSync(ext.extensionFolderPath);
 			trie.insert(path, ext);
 		}

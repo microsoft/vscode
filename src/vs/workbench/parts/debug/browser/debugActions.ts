@@ -549,12 +549,14 @@ class ToggleBreakpointAction extends EditorAction {
 
 		const lineNumber = editor.getPosition().lineNumber;
 		const modelUri = editor.getModel().uri;
-		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			const bp = debugService.getModel().getBreakpoints()
-				.filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === modelUri.toString()).pop();
+		const bp = debugService.getModel().getBreakpoints()
+			.filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === modelUri.toString()).pop();
 
-			return bp ? debugService.removeBreakpoints(bp.getId())
-				: debugService.addBreakpoints(modelUri, [{ lineNumber }]);
+		if (bp) {
+			return debugService.removeBreakpoints(bp.getId());
+		}
+		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+			return debugService.addBreakpoints(modelUri, [{ lineNumber }]);
 		}
 	}
 }

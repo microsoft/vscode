@@ -110,6 +110,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private layoutVertically: boolean;
 
 	private showTabs: boolean;
+	private showTabCloseButton: boolean;
 	private showIcons: boolean;
 
 	private silos: Builder[];
@@ -216,11 +217,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration, refresh?: boolean): void {
+		const showTabCloseButton = this.showTabCloseButton;
+
 		if (config.workbench && config.workbench.editor) {
 			this.showTabs = config.workbench.editor.showTabs;
+			this.showTabCloseButton = config.workbench.editor.showTabCloseButton;
 			this.showIcons = config.workbench.editor.showIcons;
 		} else {
 			this.showTabs = true;
+			this.showTabCloseButton = true;
 			this.showIcons = false;
 		}
 
@@ -259,7 +264,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				}
 
 				// Refresh title when icons change
-				else if (showingIcons !== this.showIcons) {
+				else if (showingIcons !== this.showIcons || showTabCloseButton !== this.showTabCloseButton) {
 					titleControl.refresh(true);
 				}
 			}

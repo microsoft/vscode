@@ -13,7 +13,7 @@ import { IMonarchLanguage } from 'vs/editor/common/modes/monarch/monarchTypes';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { StaticServices } from 'vs/editor/browser/standalone/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
-import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfiguration, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -512,6 +512,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
-		IndentAction: modes.IndentAction
+		IndentAction: IndentAction
 	};
 }

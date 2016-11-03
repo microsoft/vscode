@@ -69,7 +69,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		};
 
 		// This is sync because a widget wants to be in the dom
-		var domNode = widget.getDomNode();
+		let domNode = widget.getDomNode();
 		domNode.style.position = 'absolute';
 		domNode.setAttribute('widgetId', widget.getId());
 		this.domNode.appendChild(domNode);
@@ -78,7 +78,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	}
 
 	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference): boolean {
-		var widgetData = this._widgets[widget.getId()];
+		let widgetData = this._widgets[widget.getId()];
 		if (widgetData.preference === preference) {
 			return false;
 		}
@@ -90,10 +90,10 @@ export class ViewOverlayWidgets extends ViewPart {
 	}
 
 	public removeWidget(widget: IOverlayWidget): void {
-		var widgetId = widget.getId();
+		let widgetId = widget.getId();
 		if (this._widgets.hasOwnProperty(widgetId)) {
-			var widgetData = this._widgets[widgetId];
-			var domNode = widgetData.widget.getDomNode();
+			let widgetData = this._widgets[widgetId];
+			let domNode = widgetData.widget.getDomNode();
 			delete this._widgets[widgetId];
 
 			domNode.parentNode.removeChild(domNode);
@@ -102,12 +102,12 @@ export class ViewOverlayWidgets extends ViewPart {
 	}
 
 	private _renderWidget(widgetData: IWidgetData): void {
-		var _RESTORE_STYLE_TOP = 'data-editor-restoreStyleTop',
-			domNode = widgetData.widget.getDomNode();
+		let _RESTORE_STYLE_TOP = 'data-editor-restoreStyleTop';
+		let domNode = widgetData.widget.getDomNode();
 
 		if (widgetData.preference === null) {
 			if (domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-				var previousTop = domNode.getAttribute(_RESTORE_STYLE_TOP);
+				let previousTop = domNode.getAttribute(_RESTORE_STYLE_TOP);
 				domNode.removeAttribute(_RESTORE_STYLE_TOP);
 				domNode.style.top = previousTop;
 			}
@@ -124,7 +124,7 @@ export class ViewOverlayWidgets extends ViewPart {
 			if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
 				domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
 			}
-			var widgetHeight = domNode.clientHeight;
+			let widgetHeight = domNode.clientHeight;
 			StyleMutator.setTop(domNode, (this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
 			StyleMutator.setRight(domNode, (2 * this._verticalScrollbarWidth));
 		} else if (widgetData.preference === OverlayWidgetPositionPreference.TOP_CENTER) {
