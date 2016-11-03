@@ -118,7 +118,7 @@ export interface IWindowsMainService {
 	getWindowById(windowId: number): VSCodeWindow;
 	getWindows(): VSCodeWindow[];
 	getWindowCount(): number;
-	getRecentPathsList(): IRecentPathsList;
+	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
 	removeFromRecentPathsList(path: string);
 	clearRecentPathsList(): void;
 }
@@ -228,17 +228,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 				// Event
 				this.eventEmitter.emit(EventTypes.READY, win);
-			}
-		});
-
-		ipc.on('vscode:openRecent', (event, windowId: number) => {
-			this.logService.log('IPC#vscode:openRecent');
-
-			const vscodeWindow = this.getWindowById(windowId);
-			if (vscodeWindow) {
-				const recents = this.getRecentPathsList(vscodeWindow.config.workspacePath, vscodeWindow.config.filesToOpen);
-
-				vscodeWindow.send('vscode:openRecent', recents.files, recents.folders);
 			}
 		});
 

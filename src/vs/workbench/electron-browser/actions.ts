@@ -440,23 +440,16 @@ export class OpenRecentAction extends Action {
 		id: string,
 		label: string,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		ipc.send('vscode:openRecent', this.windowService.getWindowId());
-
-		return new TPromise<boolean>((c, e, p) => {
-			ipc.once('vscode:openRecent', (event, files: string[], folders: string[]) => {
-				this.openRecent(files, folders);
-
-				c(true);
-			});
-		});
+	public run(): TPromise<void> {
+		return this.windowService.getRecentlyOpen()
+			.then(({ files, folders }) => this.openRecent(files, folders));
 	}
 
 	private openRecent(recentFiles: string[], recentFolders: string[]): void {
