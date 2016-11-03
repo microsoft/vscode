@@ -81,8 +81,9 @@ function registerListeners(enableDeveloperTools) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB) {
 				ipc.send('vscode:toggleDevTools', windowId);
+				// remote.getCurrentWebContents().toggleDevTools();
 			} else if (key === RELOAD_KB) {
-				ipc.send('vscode:reloadWindow', windowId);
+				remote.getCurrentWindow().reload();
 			}
 		});
 	}

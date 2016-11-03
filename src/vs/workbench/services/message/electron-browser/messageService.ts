@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import nls = require('vs/nls');
 import product from 'vs/platform/product';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -19,7 +19,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 
 	constructor(
 		container: HTMLElement,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(container, telemetryService);
@@ -54,8 +54,8 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		return result === 0 ? true : false;
 	}
 
-	choose(severity: Severity, message: string, options: string[], force: boolean = false): TPromise<number> {
-		if (force) {
+	choose(severity: Severity, message: string, options: string[], modal: boolean = false): TPromise<number> {
+		if (modal) {
 			const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
 			return TPromise.wrap(this.showMessageBox({ message, buttons: options, type }));
 		}

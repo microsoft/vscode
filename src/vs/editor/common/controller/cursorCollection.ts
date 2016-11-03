@@ -82,78 +82,71 @@ export class CursorCollection {
 
 	public getPosition(index: number): Position {
 		if (index === 0) {
-			return this.primaryCursor.getPosition();
+			return this.primaryCursor.modelState.position;
 		} else {
-			return this.secondaryCursors[index - 1].getPosition();
+			return this.secondaryCursors[index - 1].modelState.position;
 		}
 	}
 
 	public getViewPosition(index: number): Position {
 		if (index === 0) {
-			return this.primaryCursor.getViewPosition();
+			return this.primaryCursor.viewState.position;
 		} else {
-			return this.secondaryCursors[index - 1].getViewPosition();
+			return this.secondaryCursors[index - 1].viewState.position;
 		}
 	}
 
 	public getPositions(): Position[] {
 		var result: Position[] = [];
-		result.push(this.primaryCursor.getPosition());
+		result.push(this.primaryCursor.modelState.position);
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result.push(this.secondaryCursors[i].getPosition());
+			result.push(this.secondaryCursors[i].modelState.position);
 		}
 		return result;
 	}
 
 	public getViewPositions(): Position[] {
 		var result: Position[] = [];
-		result.push(this.primaryCursor.getViewPosition());
+		result.push(this.primaryCursor.viewState.position);
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result.push(this.secondaryCursors[i].getViewPosition());
+			result.push(this.secondaryCursors[i].viewState.position);
 		}
 		return result;
 	}
 
 	public getSelection(index: number): Selection {
 		if (index === 0) {
-			return this.primaryCursor.getSelection();
+			return this.primaryCursor.modelState.selection;
 		} else {
-			return this.secondaryCursors[index - 1].getSelection();
+			return this.secondaryCursors[index - 1].modelState.selection;
 		}
 	}
 
 	public getSelections(): Selection[] {
 		var result: Selection[] = [];
-		result.push(this.primaryCursor.getSelection());
+		result.push(this.primaryCursor.modelState.selection);
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result.push(this.secondaryCursors[i].getSelection());
+			result.push(this.secondaryCursors[i].modelState.selection);
 		}
 		return result;
 	}
 
 	public getViewSelections(): Selection[] {
 		var result: Selection[] = [];
-		result.push(this.primaryCursor.getViewSelection());
+		result.push(this.primaryCursor.viewState.selection);
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result.push(this.secondaryCursors[i].getViewSelection());
+			result.push(this.secondaryCursors[i].viewState.selection);
 		}
 		return result;
 	}
 
 	public setSelections(selections: ISelection[], viewSelections?: ISelection[]): void {
-		this.primaryCursor.setSelection(selections[0]);
-		this._setSecondarySelections(selections.slice(1));
-
-		if (viewSelections) {
-			this.primaryCursor.setViewSelection(viewSelections[0]);
-			for (let i = 0; i < this.secondaryCursors.length; i++) {
-				this.secondaryCursors[i].setViewSelection(viewSelections[i + 1]);
-			}
-		}
+		this.primaryCursor.setSelection(selections[0], viewSelections ? viewSelections[0] : null);
+		this._setSecondarySelections(selections.slice(1), viewSelections ? viewSelections.slice(1) : null);
 	}
 
 	public killSecondaryCursors(): boolean {
-		return (this._setSecondarySelections([]) > 0);
+		return (this._setSecondarySelections([], []) > 0);
 	}
 
 	public normalize(): void {
@@ -200,7 +193,7 @@ export class CursorCollection {
 	 * 		- a negative number indicates the number of secondary cursors removed
 	 * 		- 0 indicates that no changes have been done to the secondary cursors list
 	 */
-	private _setSecondarySelections(secondarySelections: ISelection[]): number {
+	private _setSecondarySelections(secondarySelections: ISelection[], viewSelections: ISelection[]): number {
 		var secondaryCursorsLength = this.secondaryCursors.length;
 		var secondarySelectionsLength = secondarySelections.length;
 		var returnValue = secondarySelectionsLength - secondaryCursorsLength;
@@ -219,7 +212,7 @@ export class CursorCollection {
 
 		for (var i = 0; i < secondarySelectionsLength; i++) {
 			if (secondarySelections[i]) {
-				this.secondaryCursors[i].setSelection(secondarySelections[i]);
+				this.secondaryCursors[i].setSelection(secondarySelections[i], viewSelections ? viewSelections[i] : null);
 			}
 		}
 
@@ -247,8 +240,8 @@ export class CursorCollection {
 		for (var i = 0; i < cursors.length; i++) {
 			sortedCursors.push({
 				index: i,
-				selection: cursors[i].getSelection(),
-				viewSelection: cursors[i].getViewSelection()
+				selection: cursors[i].modelState.selection,
+				viewSelection: cursors[i].viewState.selection
 			});
 		}
 

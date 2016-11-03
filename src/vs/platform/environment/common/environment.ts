@@ -17,6 +17,7 @@ export interface IEnvironmentService {
 	appRoot: string;
 
 	userHome: string;
+	userProductHome: string;
 	userDataPath: string;
 
 	appSettingsHome: string;

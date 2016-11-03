@@ -25,7 +25,11 @@ export class Protocol implements IMessagePassingProtocol {
 	}
 
 	send(message: any): void {
-		this.sender.send('ipc:message', message);
+		try {
+			this.sender.send('ipc:message', message);
+		} catch (e) {
+			// systems are going down
+		}
 	}
 
 	dispose(): void {

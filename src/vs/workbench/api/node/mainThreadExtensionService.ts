@@ -11,7 +11,8 @@ import { localize } from 'vs/nls';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
-import { IExtensionRuntimeService, IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
+import { IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
+import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -61,7 +62,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		@IThreadService threadService: IThreadService,
 		@IMessageService messageService: IMessageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IExtensionRuntimeService extensionsRuntimeService: IExtensionRuntimeService
+		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService
 	) {
 		super(false);
 		this._isDev = !environmentService.isBuilt || !!environmentService.extensionDevelopmentPath;
@@ -71,7 +72,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
 
-		const disabledExtensions = [...extensionsRuntimeService.getGloballyDisabledExtensions(), ...extensionsRuntimeService.getWorkspaceDisabledExtensions()];
+		const disabledExtensions = [...extensionEnablementService.getGloballyDisabledExtensions(), ...extensionEnablementService.getWorkspaceDisabledExtensions()];
 		this.scanExtensions().done(extensionDescriptions => {
 			this._onExtensionDescriptions(disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.indexOf(`${e.publisher}.${e.name}`) === -1) : extensionDescriptions);
 		});

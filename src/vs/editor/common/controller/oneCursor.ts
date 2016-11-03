@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
-import { CursorMoveHelper, ICursorMoveHelperModel, IMoveResult, IColumnSelectResult, IViewColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorMoveHelper, CursorMove, CursorMoveConfiguration, ICursorMoveHelperModel, IColumnSelectResult, IViewColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -19,6 +19,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IPostOperationRunnable {
 	(ctx: IOneCursorOperationContext): void;
@@ -119,167 +120,80 @@ export const enum WordNavigationType {
 	WordEnd = 1
 }
 
-export class OneCursor {
-
-	// --- contextual state
-	private editorId: number;
-	public model: editorCommon.IModel;
-	public configuration: editorCommon.IConfiguration;
-	public modeConfiguration: IModeConfiguration;
-	private helper: CursorHelper;
-	private viewModelHelper: IViewModelHelper;
+/**
+ * Represents the cursor state on either the model or on the view model.
+ */
+export class CursorModelState {
+	_cursorModelStateBrand: void;
 
 	// --- selection can start as a range (think double click and drag)
-	private selectionStart: Range;
-	private viewSelectionStart: Range;
-	private selectionStartLeftoverVisibleColumns: number;
-
-	// --- position
-	private position: Position;
-	private viewPosition: Position;
-	private leftoverVisibleColumns: number;
-
-	// --- bracket match decorations
-	private bracketDecorations: string[];
-
-	// --- computed properties
-	private _cachedSelection: Selection;
-	private _cachedViewSelection: Selection;
-	private _selStartMarker: string;
-	private _selEndMarker: string;
-	private _selDirection: SelectionDirection;
+	public readonly selectionStart: Range;
+	public readonly selectionStartLeftoverVisibleColumns: number;
+	public readonly position: Position;
+	public readonly leftoverVisibleColumns: number;
+	public readonly selection: Selection;
 
 	constructor(
-		editorId: number,
-		model: editorCommon.IModel,
-		configuration: editorCommon.IConfiguration,
-		modeConfiguration: IModeConfiguration,
-		viewModelHelper: IViewModelHelper
+		selectionStart: Range,
+		selectionStartLeftoverVisibleColumns: number,
+		position: Position,
+		leftoverVisibleColumns: number,
 	) {
-		this.editorId = editorId;
-		this.model = model;
-		this.configuration = configuration;
-		this.modeConfiguration = modeConfiguration;
-		this.viewModelHelper = viewModelHelper;
-		this.helper = new CursorHelper(this.model, this.configuration);
-
-		this.bracketDecorations = [];
-
-		this._set(
-			new Range(1, 1, 1, 1), 0,
-			new Position(1, 1), 0,
-			new Range(1, 1, 1, 1), new Position(1, 1)
-		);
-	}
-
-	private _set(
-		selectionStart: Range, selectionStartLeftoverVisibleColumns: number,
-		position: Position, leftoverVisibleColumns: number,
-		viewSelectionStart: Range, viewPosition: Position
-	): void {
 		this.selectionStart = selectionStart;
 		this.selectionStartLeftoverVisibleColumns = selectionStartLeftoverVisibleColumns;
-
 		this.position = position;
 		this.leftoverVisibleColumns = leftoverVisibleColumns;
-
-		this.viewSelectionStart = viewSelectionStart;
-		this.viewPosition = viewPosition;
-
-		this._cachedSelection = OneCursor.computeSelection(this.selectionStart, this.position);
-		this._cachedViewSelection = OneCursor.computeSelection(this.viewSelectionStart, this.viewPosition);
-
-		this._selStartMarker = this._ensureMarker(this._selStartMarker, this._cachedSelection.startLineNumber, this._cachedSelection.startColumn, true);
-		this._selEndMarker = this._ensureMarker(this._selEndMarker, this._cachedSelection.endLineNumber, this._cachedSelection.endColumn, false);
-		this._selDirection = this._cachedSelection.getDirection();
+		this.selection = CursorModelState._computeSelection(this.selectionStart, this.position);
 	}
 
-	private _ensureMarker(markerId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
-		if (!markerId) {
-			return this.model._addMarker(lineNumber, column, stickToPreviousCharacter);
-		} else {
-			this.model._changeMarker(markerId, lineNumber, column);
-			this.model._changeMarkerStickiness(markerId, stickToPreviousCharacter);
-			return markerId;
-		}
-	}
-
-	public saveState(): IOneCursorState {
-		return {
-			selectionStart: this.selectionStart,
-			viewSelectionStart: this.viewSelectionStart,
-			position: this.position,
-			viewPosition: this.viewPosition,
-			leftoverVisibleColumns: this.leftoverVisibleColumns,
-			selectionStartLeftoverVisibleColumns: this.selectionStartLeftoverVisibleColumns
-		};
-	}
-
-	public restoreState(state: IOneCursorState): void {
-		let position = this.model.validatePosition(state.position);
-		let selectionStart: Range;
-		if (state.selectionStart) {
-			selectionStart = this.model.validateRange(state.selectionStart);
-		} else {
-			selectionStart = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		}
-
-		let viewPosition = this.viewModelHelper.validateViewPosition(state.viewPosition.lineNumber, state.viewPosition.column, position);
-		let viewSelectionStart: Range;
-		if (state.viewSelectionStart) {
-			viewSelectionStart = this.viewModelHelper.validateViewRange(state.viewSelectionStart.startLineNumber, state.viewSelectionStart.startColumn, state.viewSelectionStart.endLineNumber, state.viewSelectionStart.endColumn, selectionStart);
-		} else {
-			viewSelectionStart = this.viewModelHelper.convertModelRangeToViewRange(selectionStart);
-		}
-
-		this._set(
-			selectionStart, state.selectionStartLeftoverVisibleColumns,
-			position, state.leftoverVisibleColumns,
-			viewSelectionStart, viewPosition
+	public withSelectionStartLeftoverVisibleColumns(selectionStartLeftoverVisibleColumns: number): CursorModelState {
+		return new CursorModelState(
+			this.selectionStart,
+			selectionStartLeftoverVisibleColumns,
+			this.position,
+			this.leftoverVisibleColumns
 		);
 	}
 
-	public updateModeConfiguration(modeConfiguration: IModeConfiguration): void {
-		this.modeConfiguration = modeConfiguration;
-	}
-
-	public duplicate(): OneCursor {
-		let result = new OneCursor(this.editorId, this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
-		result._set(
-			this.selectionStart, this.selectionStartLeftoverVisibleColumns,
-			this.position, this.leftoverVisibleColumns,
-			this.viewSelectionStart, this.viewPosition
+	public withSelectionStart(selectionStart: Range): CursorModelState {
+		return new CursorModelState(
+			selectionStart,
+			0,
+			this.position,
+			this.leftoverVisibleColumns
 		);
-		return result;
 	}
 
-	public dispose(): void {
-		this.model._removeMarker(this._selStartMarker);
-		this.model._removeMarker(this._selEndMarker);
-		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, [], this.editorId);
+	public collapse(): CursorModelState {
+		return new CursorModelState(
+			new Range(this.position.lineNumber, this.position.column, this.position.lineNumber, this.position.column),
+			0,
+			this.position,
+			0
+		);
 	}
 
-	public adjustBracketDecorations(): void {
-		let bracketMatch: [Range, Range] = null;
-		let selection = this.getSelection();
-		if (selection.isEmpty()) {
-			bracketMatch = this.model.matchBracket(this.position);
+	public move(inSelectionMode: boolean, position: Position, leftoverVisibleColumns: number): CursorModelState {
+		if (inSelectionMode) {
+			// move just position
+			return new CursorModelState(
+				this.selectionStart,
+				this.selectionStartLeftoverVisibleColumns,
+				position,
+				leftoverVisibleColumns
+			);
+		} else {
+			// move everything
+			return new CursorModelState(
+				new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+				leftoverVisibleColumns,
+				position,
+				leftoverVisibleColumns
+			);
 		}
-
-		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
-		if (bracketMatch) {
-			let options: editorCommon.IModelDecorationOptions = {
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				className: 'bracket-match'
-			};
-			newDecorations.push({ range: bracketMatch[0], options: options });
-			newDecorations.push({ range: bracketMatch[1], options: options });
-		}
-
-		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, newDecorations, this.editorId);
 	}
 
-	private static computeSelection(selectionStart: Range, position: Position): Selection {
+	private static _computeSelection(selectionStart: Range, position: Position): Selection {
 		let startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number;
 		if (selectionStart.isEmpty()) {
 			startLineNumber = selectionStart.startLineNumber;
@@ -306,56 +220,216 @@ export class OneCursor {
 			endColumn
 		);
 	}
+}
 
-	public setSelection(desiredSelection: editorCommon.ISelection): void {
-		let position = this.model.validatePosition({
-			lineNumber: desiredSelection.positionLineNumber,
-			column: desiredSelection.positionColumn
+export interface IOneCursor {
+	readonly modelState: CursorModelState;
+	readonly viewState: CursorModelState;
+	readonly config: CursorMoveConfiguration;
+}
+
+export class OneCursor implements IOneCursor {
+
+	// --- contextual state
+	private readonly editorId: number;
+	public readonly model: editorCommon.IModel;
+	public readonly viewModel: ICursorMoveHelperModel;
+	public readonly configuration: editorCommon.IConfiguration;
+	private readonly viewModelHelper: IViewModelHelper;
+
+	private readonly _modelOptionsListener: IDisposable;
+	private readonly _configChangeListener: IDisposable;
+
+	public modeConfiguration: IModeConfiguration;
+	private helper: CursorHelper;
+	public config: CursorMoveConfiguration;
+
+	public modelState: CursorModelState;
+	public viewState: CursorModelState;
+
+	// --- bracket match decorations
+	private bracketDecorations: string[];
+
+	// --- computed properties
+	private _selStartMarker: string;
+	private _selEndMarker: string;
+
+	constructor(
+		editorId: number,
+		model: editorCommon.IModel,
+		configuration: editorCommon.IConfiguration,
+		modeConfiguration: IModeConfiguration,
+		viewModelHelper: IViewModelHelper
+	) {
+		this.editorId = editorId;
+		this.model = model;
+		this.configuration = configuration;
+		this.modeConfiguration = modeConfiguration;
+		this.viewModelHelper = viewModelHelper;
+		this.viewModel = viewModelHelper.viewModel;
+
+		this._recreateCursorHelper();
+
+		this._modelOptionsListener = model.onDidChangeOptions(() => this._recreateCursorHelper());
+
+		this._configChangeListener = this.configuration.onDidChange((e) => {
+			if (e.layoutInfo) {
+				// due to pageSize
+				this._recreateCursorHelper();
+			}
 		});
-		let selectionStartPosition = this.model.validatePosition({
-			lineNumber: desiredSelection.selectionStartLineNumber,
-			column: desiredSelection.selectionStartColumn
-		});
-		let selectionStart = new Range(selectionStartPosition.lineNumber, selectionStartPosition.column, selectionStartPosition.lineNumber, selectionStartPosition.column);
 
-		let viewPosition = this.viewModelHelper.convertModelPositionToViewPosition(position.lineNumber, position.column);
-		let viewSelectionStart = this.viewModelHelper.convertModelRangeToViewRange(selectionStart);
+		this.bracketDecorations = [];
 
-		this._set(
-			selectionStart, 0,
-			position, 0,
-			viewSelectionStart, viewPosition
+		this._setState(
+			new CursorModelState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0),
+			new CursorModelState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0)
 		);
 	}
 
-	public setViewSelection(desiredViewSel: editorCommon.ISelection): void {
-		let viewSelectionStart = this.viewModelHelper.validateViewRange(desiredViewSel.selectionStartLineNumber, desiredViewSel.selectionStartColumn, desiredViewSel.selectionStartLineNumber, desiredViewSel.selectionStartColumn, this.selectionStart);
-		let viewPosition = this.viewModelHelper.validateViewPosition(desiredViewSel.positionLineNumber, desiredViewSel.positionColumn, this.position);
+	private _recreateCursorHelper(): void {
+		this.config = new CursorMoveConfiguration(
+			this.model.getOptions().tabSize,
+			this.getPageSize()
+		);
+		this.helper = new CursorHelper(this.model, this.configuration, this.config);
+	}
 
-		this._set(
-			this.selectionStart, 0,
-			this.position, 0,
-			viewSelectionStart, viewPosition
+	private _setState(modelState: CursorModelState, viewState: CursorModelState): void {
+		this.modelState = modelState;
+		this.viewState = viewState;
+
+		this._selStartMarker = this._ensureMarker(this._selStartMarker, this.modelState.selection.startLineNumber, this.modelState.selection.startColumn, true);
+		this._selEndMarker = this._ensureMarker(this._selEndMarker, this.modelState.selection.endLineNumber, this.modelState.selection.endColumn, false);
+	}
+
+	private _ensureMarker(markerId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
+		if (!markerId) {
+			return this.model._addMarker(lineNumber, column, stickToPreviousCharacter);
+		} else {
+			this.model._changeMarker(markerId, lineNumber, column);
+			this.model._changeMarkerStickiness(markerId, stickToPreviousCharacter);
+			return markerId;
+		}
+	}
+
+	public saveState(): IOneCursorState {
+		return {
+			selectionStart: this.modelState.selectionStart,
+			viewSelectionStart: this.viewState.selectionStart,
+			position: this.modelState.position,
+			viewPosition: this.viewState.position,
+			leftoverVisibleColumns: this.modelState.leftoverVisibleColumns,
+			selectionStartLeftoverVisibleColumns: this.modelState.selectionStartLeftoverVisibleColumns
+		};
+	}
+
+	public restoreState(state: IOneCursorState): void {
+		let position = this.model.validatePosition(state.position);
+		let selectionStart: Range;
+		if (state.selectionStart) {
+			selectionStart = this.model.validateRange(state.selectionStart);
+		} else {
+			selectionStart = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		}
+
+		let viewPosition = this.viewModelHelper.validateViewPosition(state.viewPosition.lineNumber, state.viewPosition.column, position);
+		let viewSelectionStart: Range;
+		if (state.viewSelectionStart) {
+			viewSelectionStart = this.viewModelHelper.validateViewRange(state.viewSelectionStart.startLineNumber, state.viewSelectionStart.startColumn, state.viewSelectionStart.endLineNumber, state.viewSelectionStart.endColumn, selectionStart);
+		} else {
+			viewSelectionStart = this.viewModelHelper.convertModelRangeToViewRange(selectionStart);
+		}
+
+		this._setState(
+			new CursorModelState(selectionStart, state.selectionStartLeftoverVisibleColumns, position, state.leftoverVisibleColumns),
+			new CursorModelState(viewSelectionStart, state.selectionStartLeftoverVisibleColumns, viewPosition, state.leftoverVisibleColumns)
+		);
+	}
+
+	public updateModeConfiguration(modeConfiguration: IModeConfiguration): void {
+		this.modeConfiguration = modeConfiguration;
+	}
+
+	public duplicate(): OneCursor {
+		let result = new OneCursor(this.editorId, this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
+		result._setState(
+			this.modelState,
+			this.viewState
+		);
+		return result;
+	}
+
+	public dispose(): void {
+		this._modelOptionsListener.dispose();
+		this._configChangeListener.dispose();
+		this.model._removeMarker(this._selStartMarker);
+		this.model._removeMarker(this._selEndMarker);
+		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, [], this.editorId);
+	}
+
+	public adjustBracketDecorations(): void {
+		let bracketMatch: [Range, Range] = null;
+		let selection = this.modelState.selection;
+		if (selection.isEmpty()) {
+			bracketMatch = this.model.matchBracket(this.modelState.position);
+		}
+
+		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+		if (bracketMatch) {
+			let options: editorCommon.IModelDecorationOptions = {
+				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				className: 'bracket-match'
+			};
+			newDecorations.push({ range: bracketMatch[0], options: options });
+			newDecorations.push({ range: bracketMatch[1], options: options });
+		}
+
+		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, newDecorations, this.editorId);
+	}
+
+
+
+	public setSelection(selection: editorCommon.ISelection, viewSelection: editorCommon.ISelection = null): void {
+		let position = this.model.validatePosition({
+			lineNumber: selection.positionLineNumber,
+			column: selection.positionColumn
+		});
+		let selectionStart = this.model.validatePosition({
+			lineNumber: selection.selectionStartLineNumber,
+			column: selection.selectionStartColumn
+		});
+
+		let viewPosition: Position;
+		let viewSelectionStart: Position;
+
+		if (viewSelection) {
+			viewPosition = this.viewModelHelper.validateViewPosition(viewSelection.positionLineNumber, viewSelection.positionColumn, position);
+			viewSelectionStart = this.viewModelHelper.validateViewPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn, selectionStart);
+		} else {
+			viewPosition = this.viewModelHelper.convertModelPositionToViewPosition(position.lineNumber, position.column);
+			viewSelectionStart = this.viewModelHelper.convertModelPositionToViewPosition(selectionStart.lineNumber, selectionStart.column);
+		}
+
+		this._setState(
+			new CursorModelState(new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column), 0, position, 0),
+			new CursorModelState(new Range(viewSelectionStart.lineNumber, viewSelectionStart.column, viewSelectionStart.lineNumber, viewSelectionStart.column), 0, viewPosition, 0)
 		);
 	}
 
 	// -------------------- START modifications
 
-	public setSelectionStart(rng: Range, viewRng: Range): void {
-		this._set(
-			rng, this.selectionStartLeftoverVisibleColumns,
-			this.position, this.leftoverVisibleColumns,
-			viewRng, this.viewPosition
+	public setSelectionStart(range: Range): void {
+		this._setState(
+			this.modelState.withSelectionStart(range),
+			this.viewState.withSelectionStart(this.viewModelHelper.convertModelRangeToViewRange(range))
 		);
 	}
 
 	public collapseSelection(): void {
-		let selectionStart = new Range(this.position.lineNumber, this.position.column, this.position.lineNumber, this.position.column);
-		let viewSelectionStart = new Range(this.viewPosition.lineNumber, this.viewPosition.column, this.viewPosition.lineNumber, this.viewPosition.column);
-		this._set(
-			selectionStart, 0,
-			this.position, this.leftoverVisibleColumns,
-			viewSelectionStart, this.viewPosition
+		this._setState(
+			this.modelState.collapse(),
+			this.viewState.collapse()
 		);
 	}
 
@@ -391,34 +465,17 @@ export class OneCursor {
 			}
 		}
 
-		this._actualMove(inSelectionMode, new Position(lineNumber, column), new Position(viewLineNumber, viewColumn), leftoverVisibleColumns);
-	}
-
-	private _actualMove(inSelectionMode: boolean, position: Position, viewPosition: Position, leftoverVisibleColumns: number): void {
-		if (inSelectionMode) {
-			// move just position
-			this._set(
-				this.selectionStart, this.selectionStartLeftoverVisibleColumns,
-				position, leftoverVisibleColumns,
-				this.viewSelectionStart, viewPosition
-			);
-		} else {
-			// move everything
-			let selectionStart = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-			let viewSelectionStart = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-			this._set(
-				selectionStart, leftoverVisibleColumns,
-				position, leftoverVisibleColumns,
-				viewSelectionStart, viewPosition
-			);
-		}
+		this._setState(
+			this.modelState.move(inSelectionMode, new Position(lineNumber, column), leftoverVisibleColumns),
+			this.viewState.move(inSelectionMode, new Position(viewLineNumber, viewColumn), leftoverVisibleColumns)
+		);
 	}
 
 	private _recoverSelectionFromMarkers(): Selection {
 		let start = this.model._getMarker(this._selStartMarker);
 		let end = this.model._getMarker(this._selEndMarker);
 
-		if (this._selDirection === SelectionDirection.LTR) {
+		if (this.modelState.selection.getDirection() === SelectionDirection.LTR) {
 			return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
 		}
 
@@ -440,10 +497,9 @@ export class OneCursor {
 		let viewSelectionStart = this.viewModelHelper.convertModelRangeToViewRange(selectionStart);
 		let viewPosition = this.viewModelHelper.convertViewToModelPosition(position.lineNumber, position.column);
 
-		this._set(
-			selectionStart, 0,
-			position, 0,
-			viewSelectionStart, viewPosition
+		this._setState(
+			new CursorModelState(selectionStart, 0, position, 0),
+			new CursorModelState(viewSelectionStart, 0, viewPosition, 0)
 		);
 
 		return true;
@@ -458,40 +514,21 @@ export class OneCursor {
 		return Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2;
 	}
 
-	public getSelectionStart(): Range {
-		return this.selectionStart;
-	}
-	public getPosition(): Position {
-		return this.position;
-	}
-	public getSelection(): Selection {
-		return this._cachedSelection;
-	}
-
-	public getViewPosition(): Position {
-		return this.viewPosition;
-	}
-	public getViewSelection(): Selection {
-		return this._cachedViewSelection;
-	}
 	public getValidViewPosition(): Position {
-		return this.viewModelHelper.validateViewPosition(this.viewPosition.lineNumber, this.viewPosition.column, this.position);
+		return this.viewModelHelper.validateViewPosition(this.viewState.position.lineNumber, this.viewState.position.column, this.modelState.position);
 	}
 
 	public hasSelection(): boolean {
-		return (!this.getSelection().isEmpty() || !this.selectionStart.isEmpty());
+		return (!this.modelState.selection.isEmpty() || !this.modelState.selectionStart.isEmpty());
 	}
 	public getBracketsDecorations(): string[] {
 		return this.bracketDecorations;
 	}
-	public getLeftoverVisibleColumns(): number {
-		return this.leftoverVisibleColumns;
-	}
-	public getSelectionStartLeftoverVisibleColumns(): number {
-		return this.selectionStartLeftoverVisibleColumns;
-	}
 	public setSelectionStartLeftoverVisibleColumns(value: number): void {
-		this.selectionStartLeftoverVisibleColumns = value;
+		this._setState(
+			this.modelState.withSelectionStartLeftoverVisibleColumns(value),
+			this.viewState.withSelectionStartLeftoverVisibleColumns(value)
+		);
 	}
 
 	// -- utils
@@ -559,35 +596,17 @@ export class OneCursor {
 		let visibleLineNumber = visibleRange.endLineNumber - (lineFromBottom - 1);
 		return visibleLineNumber > visibleRange.startLineNumber ? visibleLineNumber : this.getLineFromViewPortTop();
 	}
-	public getLineContent(lineNumber: number): string {
-		return this.model.getLineContent(lineNumber);
-	}
 	public findPreviousWordOnLine(position: Position): IFindWordResult {
 		return this.helper.findPreviousWordOnLine(position);
 	}
 	public findNextWordOnLine(position: Position): IFindWordResult {
 		return this.helper.findNextWordOnLine(position);
 	}
-	public getLeftOfPosition(lineNumber: number, column: number): editorCommon.IPosition {
-		return this.helper.getLeftOfPosition(this.model, lineNumber, column);
-	}
-	public getRightOfPosition(lineNumber: number, column: number): editorCommon.IPosition {
-		return this.helper.getRightOfPosition(this.model, lineNumber, column);
-	}
-	public getPositionUp(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): IMoveResult {
-		return this.helper.getPositionUp(this.model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnFirstLine);
-	}
-	public getPositionDown(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): IMoveResult {
-		return this.helper.getPositionDown(this.model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
-	}
 	public getColumnAtEndOfLine(lineNumber: number, column: number): number {
 		return this.helper.getColumnAtEndOfLine(this.model, lineNumber, column);
 	}
 	public getVisibleColumnFromColumn(lineNumber: number, column: number): number {
 		return this.helper.visibleColumnFromColumn(this.model, lineNumber, column);
-	}
-	public getColumnFromVisibleColumn(lineNumber: number, column: number): number {
-		return this.helper.columnFromVisibleColumn(this.model, lineNumber, column);
 	}
 	public getViewVisibleColumnFromColumn(viewLineNumber: number, viewColumn: number): number {
 		return this.helper.visibleColumnFromColumn(this.viewModelHelper.viewModel, viewLineNumber, viewColumn);
@@ -636,18 +655,6 @@ export class OneCursor {
 	public getViewLineLastNonWhiteSpaceColumn(lineNumber: number): number {
 		return this.viewModelHelper.viewModel.getLineLastNonWhitespaceColumn(lineNumber);
 	}
-	public getLeftOfViewPosition(lineNumber: number, column: number): editorCommon.IPosition {
-		return this.helper.getLeftOfPosition(this.viewModelHelper.viewModel, lineNumber, column);
-	}
-	public getRightOfViewPosition(lineNumber: number, column: number): editorCommon.IPosition {
-		return this.helper.getRightOfPosition(this.viewModelHelper.viewModel, lineNumber, column);
-	}
-	public getViewPositionUp(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): IMoveResult {
-		return this.helper.getPositionUp(this.viewModelHelper.viewModel, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnFirstLine);
-	}
-	public getViewPositionDown(lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): IMoveResult {
-		return this.helper.getPositionDown(this.viewModelHelper.viewModel, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
-	}
 	public getColumnAtBeginningOfViewLine(lineNumber: number, column: number): number {
 		return this.helper.getColumnAtBeginningOfLine(this.viewModelHelper.viewModel, lineNumber, column);
 	}
@@ -665,7 +672,7 @@ export class OneCursor {
 		};
 	}
 	public getNearestRevealViewPositionInViewport(): Position {
-		const position = this.getViewPosition();
+		const position = this.viewState.position;
 		const revealRange = this.getRevealViewLinesRangeInViewport();
 
 		if (position.lineNumber < revealRange.startLineNumber) {
@@ -694,7 +701,7 @@ export class OneCursorOp {
 		let firstBracket = cursor.model.getDecorationRange(bracketDecorations[0]);
 		let secondBracket = cursor.model.getDecorationRange(bracketDecorations[1]);
 
-		let position = cursor.getPosition();
+		let position = cursor.modelState.position;
 
 		if (Utils.isPositionAtRangeEdges(position, firstBracket) || Utils.isPositionInsideRange(position, firstBracket)) {
 			cursor.moveModelPosition(false, secondBracket.endLineNumber, secondBracket.endColumn, 0, false);
@@ -788,7 +795,7 @@ export class OneCursorOp {
 	}
 
 	private static _columnSelectOp(cursor: OneCursor, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
-		let viewStartSelection = cursor.getViewSelection();
+		let viewStartSelection = cursor.viewState.selection;
 		let fromVisibleColumn = cursor.getViewVisibleColumnFromColumn(viewStartSelection.selectionStartLineNumber, viewStartSelection.selectionStartColumn);
 
 		return cursor.columnSelect(viewStartSelection.selectionStartLineNumber, fromVisibleColumn, toViewLineNumber, toViewVisualColumn);
@@ -817,8 +824,8 @@ export class OneCursorOp {
 	public static columnSelectRight(cursor: OneCursor, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
 
 		let maxVisualViewColumn = 0;
-		let minViewLineNumber = Math.min(cursor.getViewPosition().lineNumber, toViewLineNumber);
-		let maxViewLineNumber = Math.max(cursor.getViewPosition().lineNumber, toViewLineNumber);
+		let minViewLineNumber = Math.min(cursor.viewState.position.lineNumber, toViewLineNumber);
+		let maxViewLineNumber = Math.max(cursor.viewState.position.lineNumber, toViewLineNumber);
 		for (let lineNumber = minViewLineNumber; lineNumber <= maxViewLineNumber; lineNumber++) {
 			let lineMaxViewColumn = cursor.getViewLineMaxColumn(lineNumber);
 			let lineMaxVisualViewColumn = cursor.getViewVisibleColumnFromColumn(lineNumber, lineMaxViewColumn);
@@ -860,13 +867,13 @@ export class OneCursorOp {
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move left without selection cancels selection and puts cursor at the beginning of the selection
-			let viewSelection = cursor.getViewSelection();
-			let viewSelectionStart = cursor.validateViewPosition(viewSelection.startLineNumber, viewSelection.startColumn, cursor.getSelection().getStartPosition());
+			let viewSelection = cursor.viewState.selection;
+			let viewSelectionStart = cursor.validateViewPosition(viewSelection.startLineNumber, viewSelection.startColumn, cursor.modelState.selection.getStartPosition());
 			viewLineNumber = viewSelectionStart.lineNumber;
 			viewColumn = viewSelectionStart.column;
 		} else {
 			let validatedViewPosition = cursor.getValidViewPosition();
-			let r = cursor.getLeftOfViewPosition(validatedViewPosition.lineNumber, validatedViewPosition.column - (noOfColumns - 1));
+			let r = CursorMove.left(cursor.config, cursor.viewModel, validatedViewPosition.lineNumber, validatedViewPosition.column - (noOfColumns - 1));
 			viewLineNumber = r.lineNumber;
 			viewColumn = r.column;
 		}
@@ -877,7 +884,7 @@ export class OneCursorOp {
 	}
 
 	public static moveWordLeft(cursor: OneCursor, inSelectionMode: boolean, wordNavigationType: WordNavigationType, ctx: IOneCursorOperationContext): boolean {
-		let position = cursor.getPosition();
+		let position = cursor.modelState.position;
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 
@@ -918,13 +925,13 @@ export class OneCursorOp {
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move right without selection cancels selection and puts cursor at the end of the selection
-			let viewSelection = cursor.getViewSelection();
-			let viewSelectionEnd = cursor.validateViewPosition(viewSelection.endLineNumber, viewSelection.endColumn, cursor.getSelection().getEndPosition());
+			let viewSelection = cursor.viewState.selection;
+			let viewSelectionEnd = cursor.validateViewPosition(viewSelection.endLineNumber, viewSelection.endColumn, cursor.modelState.selection.getEndPosition());
 			viewLineNumber = viewSelectionEnd.lineNumber;
 			viewColumn = viewSelectionEnd.column;
 		} else {
 			let validatedViewPosition = cursor.getValidViewPosition();
-			let r = cursor.getRightOfViewPosition(validatedViewPosition.lineNumber, validatedViewPosition.column + (noOfColumns - 1));
+			let r = CursorMove.right(cursor.config, cursor.viewModel, validatedViewPosition.lineNumber, validatedViewPosition.column + (noOfColumns - 1));
 			viewLineNumber = r.lineNumber;
 			viewColumn = r.column;
 		}
@@ -935,7 +942,7 @@ export class OneCursorOp {
 	}
 
 	public static moveWordRight(cursor: OneCursor, inSelectionMode: boolean, wordNavigationType: WordNavigationType, ctx: IOneCursorOperationContext): boolean {
-		let position = cursor.getPosition();
+		let position = cursor.modelState.position;
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 
@@ -984,8 +991,8 @@ export class OneCursorOp {
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move down acts relative to the end of selection
-			let viewSelection = cursor.getViewSelection();
-			let viewSelectionEnd = cursor.validateViewPosition(viewSelection.endLineNumber, viewSelection.endColumn, cursor.getSelection().getEndPosition());
+			let viewSelection = cursor.viewState.selection;
+			let viewSelectionEnd = cursor.validateViewPosition(viewSelection.endLineNumber, viewSelection.endColumn, cursor.modelState.selection.getEndPosition());
 			viewLineNumber = viewSelectionEnd.lineNumber;
 			viewColumn = viewSelectionEnd.column;
 		} else {
@@ -994,7 +1001,7 @@ export class OneCursorOp {
 			viewColumn = validatedViewPosition.column;
 		}
 
-		let r = cursor.getViewPositionDown(viewLineNumber, viewColumn, cursor.getLeftoverVisibleColumns(), linesCount, true);
+		let r = CursorMove.down(cursor.config, cursor.viewModel, viewLineNumber, viewColumn, cursor.viewState.leftoverVisibleColumns, linesCount, true);
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveViewPosition(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true);
 		return true;
@@ -1006,16 +1013,16 @@ export class OneCursorOp {
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move down acts relative to the end of selection
-			let selection = cursor.getSelection();
+			let selection = cursor.modelState.selection;
 			lineNumber = selection.endLineNumber;
 			column = selection.endColumn;
 		} else {
-			let position = cursor.getPosition();
+			let position = cursor.modelState.position;
 			lineNumber = position.lineNumber;
 			column = position.column;
 		}
 
-		let r = cursor.getPositionDown(lineNumber, column, cursor.getLeftoverVisibleColumns(), linesCount, true);
+		let r = CursorMove.down(cursor.config, cursor.model, lineNumber, column, cursor.modelState.leftoverVisibleColumns, linesCount, true);
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveModelPosition(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true);
 		return true;
@@ -1023,13 +1030,13 @@ export class OneCursorOp {
 
 	public static translateDown(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
 
-		let selection = cursor.getViewSelection();
+		let selection = cursor.viewState.selection;
 
-		let selectionStart = cursor.getViewPositionDown(selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.getSelectionStartLeftoverVisibleColumns(), 1, false);
+		let selectionStart = CursorMove.down(cursor.config, cursor.viewModel, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.viewState.selectionStartLeftoverVisibleColumns, 1, false);
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
-		cursor.moveViewPosition(false, selectionStart.lineNumber, selectionStart.column, cursor.getLeftoverVisibleColumns(), true);
+		cursor.moveViewPosition(false, selectionStart.lineNumber, selectionStart.column, cursor.viewState.leftoverVisibleColumns, true);
 
-		let position = cursor.getViewPositionDown(selection.positionLineNumber, selection.positionColumn, cursor.getLeftoverVisibleColumns(), 1, false);
+		let position = CursorMove.down(cursor.config, cursor.viewModel, selection.positionLineNumber, selection.positionColumn, cursor.viewState.leftoverVisibleColumns, 1, false);
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveViewPosition(true, position.lineNumber, position.column, position.leftoverVisibleColumns, true);
 
@@ -1053,8 +1060,8 @@ export class OneCursorOp {
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move up acts relative to the beginning of selection
-			let viewSelection = cursor.getViewSelection();
-			let viewSelectionStart = cursor.validateViewPosition(viewSelection.startLineNumber, viewSelection.startColumn, cursor.getSelection().getStartPosition());
+			let viewSelection = cursor.viewState.selection;
+			let viewSelectionStart = cursor.validateViewPosition(viewSelection.startLineNumber, viewSelection.startColumn, cursor.modelState.selection.getStartPosition());
 			viewLineNumber = viewSelectionStart.lineNumber;
 			viewColumn = viewSelectionStart.column;
 		} else {
@@ -1063,7 +1070,7 @@ export class OneCursorOp {
 			viewColumn = validatedViewPosition.column;
 		}
 
-		let r = cursor.getViewPositionUp(viewLineNumber, viewColumn, cursor.getLeftoverVisibleColumns(), linesCount, true);
+		let r = CursorMove.up(cursor.config, cursor.viewModel, viewLineNumber, viewColumn, cursor.viewState.leftoverVisibleColumns, linesCount, true);
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveViewPosition(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true);
 
@@ -1076,16 +1083,16 @@ export class OneCursorOp {
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move up acts relative to the beginning of selection
-			let selection = cursor.getSelection();
+			let selection = cursor.modelState.selection;
 			lineNumber = selection.startLineNumber;
 			column = selection.startColumn;
 		} else {
-			let position = cursor.getPosition();
+			let position = cursor.modelState.position;
 			lineNumber = position.lineNumber;
 			column = position.column;
 		}
 
-		let r = cursor.getPositionUp(lineNumber, column, cursor.getLeftoverVisibleColumns(), linesCount, true);
+		let r = CursorMove.up(cursor.config, cursor.model, lineNumber, column, cursor.modelState.leftoverVisibleColumns, linesCount, true);
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveModelPosition(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true);
 
@@ -1094,13 +1101,13 @@ export class OneCursorOp {
 
 	public static translateUp(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
 
-		let selection = cursor.getViewSelection();
+		let selection = cursor.viewState.selection;
 
-		let selectionStart = cursor.getViewPositionUp(selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.getSelectionStartLeftoverVisibleColumns(), 1, false);
+		let selectionStart = CursorMove.up(cursor.config, cursor.viewModel, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.viewState.selectionStartLeftoverVisibleColumns, 1, false);
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
-		cursor.moveViewPosition(false, selectionStart.lineNumber, selectionStart.column, cursor.getLeftoverVisibleColumns(), true);
+		cursor.moveViewPosition(false, selectionStart.lineNumber, selectionStart.column, cursor.viewState.leftoverVisibleColumns, true);
 
-		let position = cursor.getViewPositionUp(selection.positionLineNumber, selection.positionColumn, cursor.getLeftoverVisibleColumns(), 1, false);
+		let position = CursorMove.up(cursor.config, cursor.viewModel, selection.positionLineNumber, selection.positionColumn, cursor.viewState.leftoverVisibleColumns, 1, false);
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveViewPosition(true, position.lineNumber, position.column, position.leftoverVisibleColumns, true);
 
@@ -1133,7 +1140,7 @@ export class OneCursorOp {
 
 	public static expandLineSelection(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
-		let viewSel = cursor.getViewSelection();
+		let viewSel = cursor.viewState.selection;
 
 		let viewStartLineNumber = viewSel.startLineNumber;
 		let viewStartColumn = viewSel.startColumn;
@@ -1146,7 +1153,7 @@ export class OneCursorOp {
 			viewEndColumn = viewEndMaxColumn;
 		} else {
 			// Expand selection with one more line down
-			let moveResult = cursor.getViewPositionDown(viewEndLineNumber, viewEndColumn, 0, 1, true);
+			let moveResult = CursorMove.down(cursor.config, cursor.viewModel, viewEndLineNumber, viewEndColumn, 0, 1, true);
 			viewEndLineNumber = moveResult.lineNumber;
 			viewEndColumn = cursor.getViewLineMaxColumn(viewEndLineNumber);
 		}
@@ -1183,7 +1190,7 @@ export class OneCursorOp {
 			// Toggle between selecting editable range and selecting the entire buffer
 
 			let editableRange = cursor.model.getEditableRange();
-			let selection = cursor.getSelection();
+			let selection = cursor.modelState.selection;
 
 			if (!selection.equalsRange(editableRange)) {
 				// Selection is not editable range => select editable range
@@ -1234,15 +1241,13 @@ export class OneCursorOp {
 			}
 
 			let selectionStartRange = new Range(position.lineNumber, 1, selectToLineNumber, selectToColumn);
-			let r1 = cursor.convertModelPositionToViewPosition(position.lineNumber, 1);
-			let r2 = cursor.convertModelPositionToViewPosition(selectToLineNumber, selectToColumn);
-			cursor.setSelectionStart(selectionStartRange, new Range(r1.lineNumber, r1.column, r2.lineNumber, r2.column));
+			cursor.setSelectionStart(selectionStartRange);
 			cursor.moveModelPosition(cursor.hasSelection(), selectionStartRange.endLineNumber, selectionStartRange.endColumn, 0, false);
 
 			return true;
 		} else {
 			// Continuing line selection
-			let enteringLineNumber = cursor.getSelectionStart().getStartPosition().lineNumber;
+			let enteringLineNumber = cursor.modelState.selectionStart.getStartPosition().lineNumber;
 
 			if (position.lineNumber < enteringLineNumber) {
 
@@ -1260,7 +1265,7 @@ export class OneCursorOp {
 
 			} else {
 
-				let endPositionOfSelectionStart = cursor.getSelectionStart().getEndPosition();
+				let endPositionOfSelectionStart = cursor.modelState.selectionStart.getEndPosition();
 				cursor.moveModelPosition(cursor.hasSelection(), endPositionOfSelectionStart.lineNumber, endPositionOfSelectionStart.column, 0, false);
 
 			}
@@ -1307,9 +1312,7 @@ export class OneCursorOp {
 			}
 
 			let selectionStartRange = new Range(validatedPosition.lineNumber, startColumn, validatedPosition.lineNumber, endColumn);
-			let r1 = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, startColumn);
-			let r2 = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, endColumn);
-			cursor.setSelectionStart(selectionStartRange, new Range(r1.lineNumber, r1.column, r2.lineNumber, r2.column));
+			cursor.setSelectionStart(selectionStartRange);
 			lineNumber = selectionStartRange.endLineNumber;
 			column = selectionStartRange.endColumn;
 		} else {
@@ -1329,17 +1332,17 @@ export class OneCursorOp {
 			}
 
 			lineNumber = validatedPosition.lineNumber;
-			if (validatedPosition.isBeforeOrEqual(cursor.getSelectionStart().getStartPosition())) {
+			if (validatedPosition.isBeforeOrEqual(cursor.modelState.selectionStart.getStartPosition())) {
 				column = startColumn;
 				let possiblePosition = new Position(lineNumber, column);
-				if (cursor.getSelectionStart().containsPosition(possiblePosition)) {
-					column = cursor.getSelectionStart().endColumn;
+				if (cursor.modelState.selectionStart.containsPosition(possiblePosition)) {
+					column = cursor.modelState.selectionStart.endColumn;
 				}
 			} else {
 				column = endColumn;
 				let possiblePosition = new Position(lineNumber, column);
-				if (cursor.getSelectionStart().containsPosition(possiblePosition)) {
-					column = cursor.getSelectionStart().startColumn;
+				if (cursor.modelState.selectionStart.containsPosition(possiblePosition)) {
+					column = cursor.modelState.selectionStart.startColumn;
 				}
 			}
 		}
@@ -1369,11 +1372,11 @@ export class OneCursorOp {
 			return false;
 		}
 
-		return this._enter(cursor, false, ctx, cursor.getPosition(), cursor.getSelection());
+		return this._enter(cursor, false, ctx, cursor.modelState.position, cursor.modelState.selection);
 	}
 
 	public static lineInsertBefore(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let lineNumber = cursor.getPosition().lineNumber;
+		let lineNumber = cursor.modelState.position.lineNumber;
 
 		if (lineNumber === 1) {
 			ctx.executeCommand = new ReplaceCommandWithoutChangingPosition(new Range(1, 1, 1, 1), '\n');
@@ -1387,13 +1390,13 @@ export class OneCursorOp {
 	}
 
 	public static lineInsertAfter(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let position = cursor.getPosition();
+		let position = cursor.modelState.position;
 		let column = cursor.model.getLineMaxColumn(position.lineNumber);
 		return this._enter(cursor, false, ctx, new Position(position.lineNumber, column), new Range(position.lineNumber, column, position.lineNumber, column));
 	}
 
 	public static lineBreakInsert(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._enter(cursor, true, ctx, cursor.getPosition(), cursor.getSelection());
+		return this._enter(cursor, true, ctx, cursor.modelState.position, cursor.modelState.selection);
 	}
 
 	private static _enter(cursor: OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, position: Position, range: Range): boolean {
@@ -1441,13 +1444,13 @@ export class OneCursorOp {
 			return false;
 		}
 
-		let selection = cursor.getSelection();
+		let selection = cursor.modelState.selection;
 
 		if (!selection.isEmpty() || !cursor.modeConfiguration.autoClosingPairsClose.hasOwnProperty(ch)) {
 			return false;
 		}
 
-		let position = cursor.getPosition();
+		let position = cursor.modelState.position;
 
 		let lineText = cursor.model.getLineContent(position.lineNumber);
 		let beforeCharacter = lineText[position.column - 1];
@@ -1466,13 +1469,13 @@ export class OneCursorOp {
 			return false;
 		}
 
-		let selection = cursor.getSelection();
+		let selection = cursor.modelState.selection;
 
 		if (!selection.isEmpty() || !cursor.modeConfiguration.autoClosingPairsOpen.hasOwnProperty(ch)) {
 			return false;
 		}
 
-		let position = cursor.getPosition();
+		let position = cursor.modelState.position;
 		let lineText = cursor.model.getLineContent(position.lineNumber);
 		let beforeCharacter = lineText[position.column - 1];
 
@@ -1514,7 +1517,7 @@ export class OneCursorOp {
 			return false;
 		}
 
-		let selection = cursor.getSelection();
+		let selection = cursor.modelState.selection;
 
 		if (selection.isEmpty() || !cursor.modeConfiguration.surroundingPairs.hasOwnProperty(ch)) {
 			return false;
@@ -1564,7 +1567,7 @@ export class OneCursorOp {
 
 	private static _typeInterceptorElectricCharRunnable(cursor: OneCursor, ctx: IOneCursorOperationContext): void {
 
-		let position = cursor.getPosition();
+		let position = cursor.modelState.position;
 		let lineText = cursor.model.getLineContent(position.lineNumber);
 		let lineTokens = cursor.model.getLineTokens(position.lineNumber, false);
 
@@ -1607,14 +1610,14 @@ export class OneCursorOp {
 					columnDeltaOffset += electricAction.advanceCount;
 				}
 				ctx.shouldPushStackElementAfter = true;
-				ctx.executeCommand = new ReplaceCommandWithOffsetCursorState(cursor.getSelection(), appendText, 0, columnDeltaOffset);
+				ctx.executeCommand = new ReplaceCommandWithOffsetCursorState(cursor.modelState.selection, appendText, 0, columnDeltaOffset);
 			}
 		}
 	}
 
 	public static actualType(cursor: OneCursor, text: string, keepPosition: boolean, ctx: IOneCursorOperationContext, range?: Range): boolean {
 		if (typeof range === 'undefined') {
-			range = cursor.getSelection();
+			range = cursor.modelState.selection;
 		}
 		if (keepPosition) {
 			ctx.executeCommand = new ReplaceCommandWithoutChangingPosition(range, text);
@@ -1650,7 +1653,7 @@ export class OneCursorOp {
 	}
 
 	public static replacePreviousChar(cursor: OneCursor, txt: string, replaceCharCnt: number, ctx: IOneCursorOperationContext): boolean {
-		let pos = cursor.getPosition();
+		let pos = cursor.modelState.position;
 		let range: Range;
 		let startColumn = Math.max(1, pos.column - replaceCharCnt);
 		range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
@@ -1717,7 +1720,7 @@ export class OneCursorOp {
 	}
 
 	public static tab(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let selection = cursor.getSelection();
+		let selection = cursor.modelState.selection;
 
 		if (selection.isEmpty()) {
 
@@ -1750,7 +1753,7 @@ export class OneCursorOp {
 	}
 
 	public static indent(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let selection = cursor.getSelection();
+		let selection = cursor.modelState.selection;
 
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
@@ -1765,7 +1768,7 @@ export class OneCursorOp {
 	}
 
 	public static outdent(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let selection = cursor.getSelection();
+		let selection = cursor.modelState.selection;
 
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
@@ -1780,8 +1783,8 @@ export class OneCursorOp {
 	}
 
 	public static paste(cursor: OneCursor, text: string, pasteOnNewLine: boolean, ctx: IOneCursorOperationContext): boolean {
-		let position = cursor.getPosition();
-		let selection = cursor.getSelection();
+		let position = cursor.modelState.position;
+		let selection = cursor.modelState.selection;
 
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Paste;
 
@@ -1817,11 +1820,11 @@ export class OneCursorOp {
 			return false;
 		}
 
-		if (!cursor.getSelection().isEmpty()) {
+		if (!cursor.modelState.selection.isEmpty()) {
 			return false;
 		}
 
-		let position = cursor.getPosition();
+		let position = cursor.modelState.position;
 
 		let lineText = cursor.model.getLineContent(position.lineNumber);
 		let character = lineText[position.column - 2];
@@ -1854,13 +1857,13 @@ export class OneCursorOp {
 			return true;
 		}
 
-		let deleteSelection: Range = cursor.getSelection();
+		let deleteSelection: Range = cursor.modelState.selection;
 
 		if (deleteSelection.isEmpty()) {
-			let position = cursor.getPosition();
+			let position = cursor.modelState.position;
 
 			if (cursor.configuration.editor.useTabStops && position.column > 1) {
-				let lineContent = cursor.getLineContent(position.lineNumber);
+				let lineContent = cursor.model.getLineContent(position.lineNumber);
 
 				let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
 				let lastIndentationColumn = (
@@ -1872,13 +1875,13 @@ export class OneCursorOp {
 				if (position.column <= lastIndentationColumn) {
 					let fromVisibleColumn = cursor.getVisibleColumnFromColumn(position.lineNumber, position.column);
 					let toVisibleColumn = CursorMoveHelper.prevTabColumn(fromVisibleColumn, cursor.model.getOptions().tabSize);
-					let toColumn = cursor.getColumnFromVisibleColumn(position.lineNumber, toVisibleColumn);
+					let toColumn = CursorMove.columnFromVisibleColumn(cursor.config, cursor.model, position.lineNumber, toVisibleColumn);
 					deleteSelection = new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
 				} else {
 					deleteSelection = new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column);
 				}
 			} else {
-				let leftOfPosition = cursor.getLeftOfPosition(position.lineNumber, position.column);
+				let leftOfPosition = CursorMove.left(cursor.config, cursor.model, position.lineNumber, position.column);
 				deleteSelection = new Range(
 					leftOfPosition.lineNumber,
 					leftOfPosition.column,
@@ -1902,8 +1905,8 @@ export class OneCursorOp {
 	}
 
 	private static deleteWordLeftWhitespace(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let position = cursor.getPosition();
-		let lineContent = cursor.getLineContent(position.lineNumber);
+		let position = cursor.modelState.position;
+		let lineContent = cursor.model.getLineContent(position.lineNumber);
 		let startIndex = position.column - 2;
 		let lastNonWhitespace = strings.lastNonWhitespaceIndex(lineContent, startIndex);
 		if (lastNonWhitespace + 1 < startIndex) {
@@ -1920,10 +1923,10 @@ export class OneCursorOp {
 			return true;
 		}
 
-		let selection = cursor.getSelection();
+		let selection = cursor.modelState.selection;
 
 		if (selection.isEmpty()) {
-			let position = cursor.getPosition();
+			let position = cursor.modelState.position;
 
 			let lineNumber = position.lineNumber;
 			let column = position.column;
@@ -1968,11 +1971,11 @@ export class OneCursorOp {
 
 	public static deleteRight(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
 
-		let deleteSelection: Range = cursor.getSelection();
+		let deleteSelection: Range = cursor.modelState.selection;
 
 		if (deleteSelection.isEmpty()) {
-			let position = cursor.getPosition();
-			let rightOfPosition = cursor.getRightOfPosition(position.lineNumber, position.column);
+			let position = cursor.modelState.position;
+			let rightOfPosition = CursorMove.right(cursor.config, cursor.model, position.lineNumber, position.column);
 			deleteSelection = new Range(
 				rightOfPosition.lineNumber,
 				rightOfPosition.column,
@@ -2006,8 +2009,8 @@ export class OneCursorOp {
 	}
 
 	private static deleteWordRightWhitespace(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let position = cursor.getPosition();
-		let lineContent = cursor.getLineContent(position.lineNumber);
+		let position = cursor.modelState.position;
+		let lineContent = cursor.model.getLineContent(position.lineNumber);
 		let startIndex = position.column - 1;
 		let firstNonWhitespace = this._findFirstNonWhitespaceChar(lineContent, startIndex);
 		if (startIndex + 1 < firstNonWhitespace) {
@@ -2020,10 +2023,10 @@ export class OneCursorOp {
 
 	public static deleteWordRight(cursor: OneCursor, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IOneCursorOperationContext): boolean {
 
-		let selection = cursor.getSelection();
+		let selection = cursor.modelState.selection;
 
 		if (selection.isEmpty()) {
-			let position = cursor.getPosition();
+			let position = cursor.modelState.position;
 
 			let lineNumber = position.lineNumber;
 			let column = position.column;
@@ -2094,10 +2097,10 @@ export class OneCursorOp {
 			return true;
 		}
 
-		let selection = cursor.getSelection();
+		let selection = cursor.modelState.selection;
 
 		if (selection.isEmpty()) {
-			let position = cursor.getPosition();
+			let position = cursor.modelState.position;
 			let lineNumber = position.lineNumber;
 			let column = position.column;
 
@@ -2117,10 +2120,10 @@ export class OneCursorOp {
 	}
 
 	public static deleteAllRight(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let selection = cursor.getSelection();
+		let selection = cursor.modelState.selection;
 
 		if (selection.isEmpty()) {
-			let position = cursor.getPosition();
+			let position = cursor.modelState.position;
 			let lineNumber = position.lineNumber;
 			let column = position.column;
 			let maxColumn = cursor.model.getLineMaxColumn(lineNumber);
@@ -2141,13 +2144,13 @@ export class OneCursorOp {
 	}
 
 	public static cut(cursor: OneCursor, enableEmptySelectionClipboard: boolean, ctx: IOneCursorOperationContext): boolean {
-		let selection = cursor.getSelection();
+		let selection = cursor.modelState.selection;
 
 		if (selection.isEmpty()) {
 			if (enableEmptySelectionClipboard) {
 				// This is a full line cut
 
-				let position = cursor.getPosition();
+				let position = cursor.modelState.position;
 
 				let startLineNumber: number,
 					startColumn: number,
@@ -2203,30 +2206,10 @@ class CursorHelper {
 	private configuration: editorCommon.IConfiguration;
 	private moveHelper: CursorMoveHelper;
 
-	constructor(model: editorCommon.IModel, configuration: editorCommon.IConfiguration) {
+	constructor(model: editorCommon.IModel, configuration: editorCommon.IConfiguration, config: CursorMoveConfiguration) {
 		this.model = model;
 		this.configuration = configuration;
-		this.moveHelper = new CursorMoveHelper({
-			getIndentationOptions: () => {
-				return this.model.getOptions();
-			}
-		});
-	}
-
-	public getLeftOfPosition(model: ICursorMoveHelperModel, lineNumber: number, column: number): editorCommon.IPosition {
-		return this.moveHelper.getLeftOfPosition(model, lineNumber, column);
-	}
-
-	public getRightOfPosition(model: ICursorMoveHelperModel, lineNumber: number, column: number): editorCommon.IPosition {
-		return this.moveHelper.getRightOfPosition(model, lineNumber, column);
-	}
-
-	public getPositionUp(model: ICursorMoveHelperModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): IMoveResult {
-		return this.moveHelper.getPositionUp(model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnFirstLine);
-	}
-
-	public getPositionDown(model: ICursorMoveHelperModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): IMoveResult {
-		return this.moveHelper.getPositionDown(model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
+		this.moveHelper = new CursorMoveHelper(config);
 	}
 
 	public getColumnAtBeginningOfLine(model: ICursorMoveHelperModel, lineNumber: number, column: number): number {
@@ -2243,10 +2226,6 @@ class CursorHelper {
 
 	public visibleColumnFromColumn(model: ICursorMoveHelperModel, lineNumber: number, column: number): number {
 		return this.moveHelper.visibleColumnFromColumn(model, lineNumber, column);
-	}
-
-	public columnFromVisibleColumn(model: ICursorMoveHelperModel, lineNumber: number, column: number): number {
-		return this.moveHelper.columnFromVisibleColumn(model, lineNumber, column);
 	}
 
 	private static _createWord(lineContent: string, wordType: WordType, start: number, end: number): IFindWordResult {
