@@ -142,10 +142,6 @@ export class ElectronWindow {
 		})).then(res => res.some(res => !!res));
 	}
 
-	public openNew(): void {
-		ipc.send('vscode:openNewWindow'); // handled from browser process
-	}
-
 	public close(): void {
 		this.win.close();
 	}

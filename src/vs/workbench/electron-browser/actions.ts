@@ -139,21 +139,19 @@ export class CloseFolderAction extends Action {
 
 export class NewWindowAction extends Action {
 
-	public static ID = 'workbench.action.newWindow';
-	public static LABEL = nls.localize('newWindow', "New Window");
+	static ID = 'workbench.action.newWindow';
+	static LABEL = nls.localize('newWindow', "New Window");
 
 	constructor(
 		id: string,
 		label: string,
-		@IWindowIPCService private windowService: IWindowIPCService
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		this.windowService.getWindow().openNew();
-
-		return TPromise.as(true);
+	run(): TPromise<void> {
+		return this.windowsService.openNewWindow();
 	}
 }
 
