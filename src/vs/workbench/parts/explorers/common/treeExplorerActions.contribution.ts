@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
@@ -17,7 +17,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 
 export class ToggleExtViewletAction extends Action {
 	public static ID = 'workbench.action.customTreeExplorer.toggle';
-	public static LABEL = nls.localize('toggleCustomExplorer', 'Toggle Custom Explorer');
+	public static LABEL = localize('toggleCustomExplorer', 'Toggle Custom Explorer');
 
 	constructor(
 		id: string,
@@ -34,14 +34,15 @@ export class ToggleExtViewletAction extends Action {
 		const picks: IPickOpenEntry[] = [];
 		for (let viewletId in infoForExtViewlets) {
 			const { isEnabled, treeLabel } = infoForExtViewlets[viewletId];
+			const actionLabel = isEnabled ? localize('disable', 'Disable') : localize('enable', 'Enable');
 			picks.push({
 				id: viewletId,
-				label: (isEnabled ? 'Disable ' : 'Enable ') + treeLabel
+				label: `${actionLabel} ${treeLabel}`
 			});
 		}
 
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
-			this.quickOpenService.pick(picks, { placeHolder: 'Select Viewlet to toggle', autoFocus: 2 }).then(pick => {
+			this.quickOpenService.pick(picks, { placeHolder: 'Select Custom Explorer to toggle' }).then(pick => {
 				if (pick) {
 					this.activityService.toggleExtViewlet(pick.id);
 				}
@@ -53,5 +54,5 @@ export class ToggleExtViewletAction extends Action {
 registry.registerWorkbenchAction(
 	new SyncActionDescriptor(ToggleExtViewletAction, ToggleExtViewletAction.ID, ToggleExtViewletAction.LABEL),
 	'View: Toggle Custom Explorer',
-	nls.localize('view', "View")
+	localize('view', "View")
 );
