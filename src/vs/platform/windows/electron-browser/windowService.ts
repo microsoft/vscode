@@ -68,4 +68,8 @@ export class WindowService implements IWindowService {
 	setDocumentEdited(flag: boolean): TPromise<void> {
 		return this.windowsService.setDocumentEdited(this.windowId, flag);
 	}
+
+	toggleMenuBar(): TPromise<void> {
+		return this.windowsService.toggleMenuBar(this.windowId);
+	}
 }

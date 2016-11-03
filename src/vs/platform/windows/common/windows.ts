@@ -27,6 +27,7 @@ export interface IWindowsService {
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
+	toggleMenuBar(windowId: number): TPromise<void>;
 
 	// Global methods
 	// TODO@joao: rename, shouldn't this be openWindow?
@@ -55,4 +56,5 @@ export interface IWindowService {
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
+	toggleMenuBar(): TPromise<void>;
 }
