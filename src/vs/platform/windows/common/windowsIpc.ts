@@ -20,6 +20,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'getRecentlyOpen', arg: number): TPromise<{ files: string[]; folders: string[]; }>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
+	call(command: 'setDocumentEdited', args: [number, boolean]): TPromise<void>;
 	call(command: 'windowOpen', arg: [string[], boolean]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: 'showWindow', arg: number): TPromise<void>;
@@ -44,6 +45,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'getRecentlyOpen': return this.service.getRecentlyOpen(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
+			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
 			case 'windowOpen': return this.service.windowOpen(arg[0], arg[1]);
 			case 'openNewWindow': return this.service.openNewWindow();
 			case 'showWindow': return this.service.showWindow(arg);
@@ -100,6 +102,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	focusWindow(windowId: number): TPromise<void> {
 		return this.channel.call('focusWindow', windowId);
+	}
+
+	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
+		return this.channel.call('setDocumentEdited', [windowId, flag]);
 	}
 
 	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {

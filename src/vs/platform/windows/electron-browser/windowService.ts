@@ -64,4 +64,8 @@ export class WindowService implements IWindowService {
 	focusWindow(): TPromise<void> {
 		return this.windowsService.focusWindow(this.windowId);
 	}
+
+	setDocumentEdited(flag: boolean): TPromise<void> {
+		return this.windowsService.setDocumentEdited(this.windowId, flag);
+	}
 }

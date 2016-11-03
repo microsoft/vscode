@@ -26,6 +26,7 @@ export interface IWindowsService {
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(windowId: number): TPromise<void>;
+	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
 
 	// Global methods
 	// TODO@joao: rename, shouldn't this be openWindow?
@@ -53,4 +54,5 @@ export interface IWindowService {
 	setRepresentedFilename(fileName: string): TPromise<void>;
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
+	setDocumentEdited(flag: boolean): TPromise<void>;
 }
