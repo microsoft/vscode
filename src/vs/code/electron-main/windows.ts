@@ -255,12 +255,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		});
 
-		ipc.on('vscode:showItemInFolder', (event, path: string) => {
-			this.logService.log('IPC#vscode-showItemInFolder');
-
-			shell.showItemInFolder(path);
-		});
-
 		ipc.on('vscode:openExternal', (event, url: string) => {
 			this.logService.log('IPC#vscode-openExternal');
 

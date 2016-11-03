@@ -8,6 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { shell } from 'electron';
 
 // TODO@Joao: remove this dependency, move all implementation to this class
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
@@ -174,6 +175,11 @@ export class WindowsService implements IWindowsService {
 			windowOnExtension.win.close();
 		}
 
+		return TPromise.as(null);
+	}
+
+	showItemInFolder(path: string): TPromise<void> {
+		shell.showItemInFolder(path);
 		return TPromise.as(null);
 	}
 }

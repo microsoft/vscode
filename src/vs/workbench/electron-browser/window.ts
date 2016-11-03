@@ -158,10 +158,6 @@ export class ElectronWindow {
 		return this.windowService.focusWindow();
 	}
 
-	public showItemInFolder(path: string): void {
-		ipc.send('vscode:showItemInFolder', path); // handled from browser process to prevent foreground ordering issues on Windows
-	}
-
 	public openExternal(url: string): void {
 		ipc.send('vscode:openExternal', url); // handled from browser process to prevent foreground ordering issues on Windows
 	}
