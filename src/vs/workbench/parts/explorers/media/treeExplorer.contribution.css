@@ -12,7 +12,7 @@
 	background: url('Refresh_inverse.svg') center center no-repeat;
 }
 
-/* Coerce external icon into a style similar to stock icons */
+/* Coerce extension-contributed viewlet icon into a style similar to stock icons */
 .monaco-workbench > .activitybar .monaco-action-bar .action-item:nth-child(n+6) .action-label {
 	-webkit-filter: grayscale(1) invert(1);
 	filter: grayscale(1) invert(1);
