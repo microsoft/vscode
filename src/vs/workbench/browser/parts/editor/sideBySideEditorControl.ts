@@ -36,6 +36,7 @@ import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitl
 import { IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { extractResources } from 'vs/base/browser/dnd';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export enum Rochade {
 	NONE,
@@ -147,7 +148,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWindowService private windowService: IWindowService
 	) {
 		this.stacks = editorGroupService.getStacksModel();
 		this.toDispose = [];
@@ -1003,10 +1005,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			// Check for URI transfer
 			else {
 				if (droppedResources.length) {
-					window.focus(); // make sure this window has focus so that the open call reaches the right window!
-
-					// Open all
-					editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; }))
+					$this.windowService.focusWindow()
+						.then(() => editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; })))
 						.then(() => {
 							if (splitEditor && splitTo !== freeGroup) {
 								groupService.moveGroup(freeGroup, splitTo);

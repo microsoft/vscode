@@ -104,10 +104,6 @@ export class SelectConfigAction extends AbstractDebugAction {
 		this.debugService.getViewModel().setSelectedConfigurationName(configName);
 		return TPromise.as(null);
 	}
-
-	protected isEnabled(state: debug.State): boolean {
-		return super.isEnabled(state) && state === debug.State.Inactive;
-	}
 }
 
 export class StartAction extends AbstractDebugAction {
@@ -116,14 +112,19 @@ export class StartAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService, @ICommandService private commandService: ICommandService) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
+		this.debugService.getViewModel().onDidSelectConfigurationName(() => {
+			this.updateEnablement();
+		});
 	}
 
 	public run(): TPromise<any> {
 		return this.commandService.executeCommand('_workbench.startDebug', this.debugService.getViewModel().selectedConfigurationName);
 	}
 
+	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: debug.State): boolean {
-		return super.isEnabled(state) && state === debug.State.Inactive;
+		const process = this.debugService.getModel().getProcesses();
+		return super.isEnabled(state) && process.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName);
 	}
 }
 
