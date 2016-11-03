@@ -231,15 +231,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		});
 
-		ipc.on('vscode:closeFolder', (event, windowId: number) => {
-			this.logService.log('IPC#vscode-closeFolder');
-
-			const win = this.getWindowById(windowId);
-			if (win) {
-				this.open({ cli: this.environmentService.args, forceEmpty: true, windowToUse: win });
-			}
-		});
-
 		ipc.on('vscode:openNewWindow', () => {
 			this.logService.log('IPC#vscode-openNewWindow');
 
