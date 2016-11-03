@@ -56,7 +56,7 @@ ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], explore
 			VIEWLET_ID_ROOT + treeExplorerNodeProviderId,
 			treeLabel,
 			treeExplorerNodeProviderId,
-			-1, // External viewlets are ordered by enabling sequence, so order here doesn't matter.
+			-1, // Extension viewlets are ordered by enabling sequence, so order here doesn't matter.
 			true
 		));
 	}

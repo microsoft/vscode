@@ -228,9 +228,9 @@ export class Workbench implements IPartService {
 				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletId); // help developers and restore last view
 			}
 
-			// If external viewlet is the last active viewlet, defer its construction until all extensions are loaded
+			// If extension viewlet is the last active viewlet, defer its construction until all extensions are loaded
 			if (!viewletRegistry.getViewlet(viewletId)) {
-				this.activitybarPart.externalViewletIdToOpen = viewletId;
+				this.activitybarPart.extViewletIdToOpen = viewletId;
 			} else {
 				if (!this.sideBarHidden && !!viewletId) {
 					const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));

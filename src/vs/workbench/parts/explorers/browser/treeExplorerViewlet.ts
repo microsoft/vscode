@@ -24,7 +24,7 @@ export class TreeExplorerViewlet extends Viewlet {
 
 	private viewletState: TreeExplorerViewletState;
 
-	private externalViewletId: string;
+	private extViewletId: string;
 	private treeNodeProviderId: string;
 
 	constructor(
@@ -36,14 +36,14 @@ export class TreeExplorerViewlet extends Viewlet {
 
 		this.viewletState = new TreeExplorerViewletState();
 
-		this.externalViewletId = this.activityService.externalViewletIdToOpen;
-		this.treeNodeProviderId = this.getTreeProviderName(this.externalViewletId);
+		this.extViewletId = this.activityService.extViewletIdToOpen;
+		this.treeNodeProviderId = this.getTreeProviderName(this.extViewletId);
 
 		TreeExplorerViewlet._idCounter++;
 	}
 
 	public getId(): string {
-		return this.externalViewletId;
+		return this.extViewletId;
 	}
 
 	public create(parent: Builder): TPromise<void> {

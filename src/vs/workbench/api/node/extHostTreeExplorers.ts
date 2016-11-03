@@ -18,7 +18,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 	private _proxy: MainThreadTreeExplorersShape;
 
 	private _treeExplorerNodeProviders: { [providerId: string]: TreeExplorerNodeProvider<any> };
-	private _externalNodeMaps: { [providerId: string]: { [id: number]: any } };
+	private _treeExplorerNodeMaps: { [providerId: string]: { [id: number]: any } };
 
 	constructor(
 		threadService: IThreadService,
@@ -29,7 +29,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		this._proxy = threadService.get(MainContext.MainThreadExplorers);
 
 		this._treeExplorerNodeProviders = Object.create(null);
-		this._externalNodeMaps = Object.create(null);
+		this._treeExplorerNodeMaps = Object.create(null);
 	}
 
 	registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable {
@@ -50,10 +50,10 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 
 		return asWinJsPromise(() => provider.provideRootNode()).then(externalRootNode => {
 			const treeNodeMap = Object.create(null);
-			this._externalNodeMaps[providerId] = treeNodeMap;
+			this._treeExplorerNodeMaps[providerId] = treeNodeMap;
 
 			const internalRootNode = new InternalTreeExplorerNode(externalRootNode, provider);
-			this._externalNodeMaps[providerId][internalRootNode.id] = externalRootNode;
+			this._treeExplorerNodeMaps[providerId][internalRootNode.id] = externalRootNode;
 			return internalRootNode;
 		}, err => {
 			return TPromise.wrapError(`TreeExplorerNodeProvider '${providerId}' failed to provide root node.`);
@@ -66,7 +66,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 			return TPromise.wrapError(`No TreeExplorerNodeProvider with id '${providerId}' registered.`);
 		}
 
-		const externalNodeMap = this._externalNodeMaps[providerId];
+		const externalNodeMap = this._treeExplorerNodeMaps[providerId];
 		const externalNode = externalNodeMap[mainThreadNode.id];
 
 		return asWinJsPromise(() => provider.resolveChildren(externalNode)).then(children => {
@@ -85,7 +85,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		const commandConverter = this.commands.converter;
 
 		if (mainThreadNode.clickCommand) {
-			const externalNode = this._externalNodeMaps[providerId][mainThreadNode.id];
+			const externalNode = this._treeExplorerNodeMaps[providerId][mainThreadNode.id];
 
 			const internalCommand = commandConverter.toInternal({
 				title: '',

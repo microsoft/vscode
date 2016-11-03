@@ -15,7 +15,7 @@ import { IActivityService } from 'vs/workbench/services/activity/common/activity
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
-export class ToggleExternalViewletAction extends Action {
+export class ToggleExtViewletAction extends Action {
 	public static ID = 'workbench.action.customTreeExplorer.toggle';
 	public static LABEL = nls.localize('toggleCustomExplorer', 'Toggle Custom Explorer');
 
@@ -29,11 +29,11 @@ export class ToggleExternalViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const infoForExternalViewlets = this.activityService.getInfoForExternalViewlets();
+		const infoForExtViewlets = this.activityService.getInfoForExtViewlets();
 
 		const picks: IPickOpenEntry[] = [];
-		for (let viewletId in infoForExternalViewlets) {
-			const { isEnabled, treeLabel } = infoForExternalViewlets[viewletId];
+		for (let viewletId in infoForExtViewlets) {
+			const { isEnabled, treeLabel } = infoForExtViewlets[viewletId];
 			picks.push({
 				id: viewletId,
 				label: (isEnabled ? 'Disable ' : 'Enable ') + treeLabel
@@ -43,7 +43,7 @@ export class ToggleExternalViewletAction extends Action {
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
 			this.quickOpenService.pick(picks, { placeHolder: 'Select Viewlet to toggle', autoFocus: 2 }).then(pick => {
 				if (pick) {
-					this.activityService.toggleExternalViewlet(pick.id);
+					this.activityService.toggleExtViewlet(pick.id);
 				}
 			});
 		});
@@ -51,7 +51,7 @@ export class ToggleExternalViewletAction extends Action {
 }
 
 registry.registerWorkbenchAction(
-	new SyncActionDescriptor(ToggleExternalViewletAction, ToggleExternalViewletAction.ID, ToggleExternalViewletAction.LABEL),
+	new SyncActionDescriptor(ToggleExtViewletAction, ToggleExtViewletAction.ID, ToggleExtViewletAction.LABEL),
 	'View: Toggle Custom Explorer',
 	nls.localize('view', "View")
 );
