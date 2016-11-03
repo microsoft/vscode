@@ -76,7 +76,9 @@ export interface IViewModelHelper {
 	convertViewRangeToModelRange(viewRange: Range): Range;
 
 	validateViewPosition(viewLineNumber: number, viewColumn: number, modelPosition: Position): Position;
+	validateViewPosition2(viewPosition: Position, modelPosition: Position): Position;
 	validateViewRange(viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range): Range;
+	validateViewRange2(viewRange: Range, modelRange: Range): Range;
 }
 
 export interface IOneCursorState {
@@ -144,6 +146,15 @@ export class CursorModelState {
 		this.position = position;
 		this.leftoverVisibleColumns = leftoverVisibleColumns;
 		this.selection = CursorModelState._computeSelection(this.selectionStart, this.position);
+	}
+
+	public equals(other: CursorModelState) {
+		return (
+			this.selectionStartLeftoverVisibleColumns === other.selectionStartLeftoverVisibleColumns
+			&& this.leftoverVisibleColumns === other.leftoverVisibleColumns
+			&& this.position.equals(other.position)
+			&& this.selectionStart.equalsRange(other.selectionStart)
+		);
 	}
 
 	public withSelectionStartLeftoverVisibleColumns(selectionStartLeftoverVisibleColumns: number): CursorModelState {
@@ -287,6 +298,13 @@ export class OneCursor implements IOneCursor {
 		);
 	}
 
+	/**
+	 * Sometimes, the line mapping changes and the stored view position is stale.
+	 */
+	public ensureValidState(): void {
+		this._setState(this.modelState, this.viewState);
+	}
+
 	private _recreateCursorHelper(): void {
 		this.config = new CursorMoveConfiguration(
 			this.model.getOptions().tabSize,
@@ -296,6 +314,23 @@ export class OneCursor implements IOneCursor {
 	}
 
 	private _setState(modelState: CursorModelState, viewState: CursorModelState): void {
+		// Validate new model state
+		let selectionStart = this.model.validateRange(modelState.selectionStart);
+		let selectionStartLeftoverVisibleColumns = modelState.selectionStart.equalsRange(selectionStart) ? modelState.selectionStartLeftoverVisibleColumns : 0;
+		let position = this.model.validatePosition(modelState.position);
+		let leftoverVisibleColumns = modelState.position.equals(position) ? modelState.leftoverVisibleColumns : 0;
+		modelState = new CursorModelState(selectionStart, selectionStartLeftoverVisibleColumns, position, leftoverVisibleColumns);
+
+		// Validate new view state
+		let viewSelectionStart = this.viewModelHelper.validateViewRange2(viewState.selectionStart, modelState.selectionStart);
+		let viewPosition = this.viewModelHelper.validateViewPosition2(viewState.position, modelState.position);
+		viewState = new CursorModelState(viewSelectionStart, selectionStartLeftoverVisibleColumns, viewPosition, leftoverVisibleColumns);
+
+		if (this.modelState && this.viewState && this.modelState.equals(modelState) && this.viewState.equals(viewState)) {
+			// No-op, early return
+			return;
+		}
+
 		this.modelState = modelState;
 		this.viewState = viewState;
 
@@ -512,10 +547,6 @@ export class OneCursor implements IOneCursor {
 	public getPageSize(): number {
 		let c = this.configuration.editor;
 		return Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2;
-	}
-
-	public getValidViewPosition(): Position {
-		return this.viewModelHelper.validateViewPosition(this.viewState.position.lineNumber, this.viewState.position.column, this.modelState.position);
 	}
 
 	public hasSelection(): boolean {
@@ -742,9 +773,9 @@ export class OneCursorOp {
 		}
 
 		let inSelectionMode = !!moveParams.select;
-		let validatedViewPosition = cursor.getValidViewPosition();
+		let validatedViewPosition = cursor.viewState.position;
 		let viewLineNumber = validatedViewPosition.lineNumber;
-		let viewColumn;
+		let viewColumn: number;
 		switch (moveParams.to) {
 			case editorCommon.CursorMovePosition.Left:
 				return this.moveLeft(cursor, inSelectionMode, editorCommon.CursorMoveByUnit.HalfLine === moveParams.by ? cursor.getViewHalfLineSize(viewLineNumber) : moveParams.value, ctx);
@@ -868,11 +899,10 @@ export class OneCursorOp {
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move left without selection cancels selection and puts cursor at the beginning of the selection
 			let viewSelection = cursor.viewState.selection;
-			let viewSelectionStart = cursor.validateViewPosition(viewSelection.startLineNumber, viewSelection.startColumn, cursor.modelState.selection.getStartPosition());
-			viewLineNumber = viewSelectionStart.lineNumber;
-			viewColumn = viewSelectionStart.column;
+			viewLineNumber = viewSelection.startLineNumber;
+			viewColumn = viewSelection.startColumn;
 		} else {
-			let validatedViewPosition = cursor.getValidViewPosition();
+			let validatedViewPosition = cursor.viewState.position;
 			let r = CursorMove.left(cursor.config, cursor.viewModel, validatedViewPosition.lineNumber, validatedViewPosition.column - (noOfColumns - 1));
 			viewLineNumber = r.lineNumber;
 			viewColumn = r.column;
@@ -926,11 +956,10 @@ export class OneCursorOp {
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move right without selection cancels selection and puts cursor at the end of the selection
 			let viewSelection = cursor.viewState.selection;
-			let viewSelectionEnd = cursor.validateViewPosition(viewSelection.endLineNumber, viewSelection.endColumn, cursor.modelState.selection.getEndPosition());
-			viewLineNumber = viewSelectionEnd.lineNumber;
-			viewColumn = viewSelectionEnd.column;
+			viewLineNumber = viewSelection.endLineNumber;
+			viewColumn = viewSelection.endColumn;
 		} else {
-			let validatedViewPosition = cursor.getValidViewPosition();
+			let validatedViewPosition = cursor.viewState.position;
 			let r = CursorMove.right(cursor.config, cursor.viewModel, validatedViewPosition.lineNumber, validatedViewPosition.column + (noOfColumns - 1));
 			viewLineNumber = r.lineNumber;
 			viewColumn = r.column;
@@ -992,11 +1021,10 @@ export class OneCursorOp {
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move down acts relative to the end of selection
 			let viewSelection = cursor.viewState.selection;
-			let viewSelectionEnd = cursor.validateViewPosition(viewSelection.endLineNumber, viewSelection.endColumn, cursor.modelState.selection.getEndPosition());
-			viewLineNumber = viewSelectionEnd.lineNumber;
-			viewColumn = viewSelectionEnd.column;
+			viewLineNumber = viewSelection.endLineNumber;
+			viewColumn = viewSelection.endColumn;
 		} else {
-			let validatedViewPosition = cursor.getValidViewPosition();
+			let validatedViewPosition = cursor.viewState.position;
 			viewLineNumber = validatedViewPosition.lineNumber;
 			viewColumn = validatedViewPosition.column;
 		}
@@ -1061,11 +1089,10 @@ export class OneCursorOp {
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move up acts relative to the beginning of selection
 			let viewSelection = cursor.viewState.selection;
-			let viewSelectionStart = cursor.validateViewPosition(viewSelection.startLineNumber, viewSelection.startColumn, cursor.modelState.selection.getStartPosition());
-			viewLineNumber = viewSelectionStart.lineNumber;
-			viewColumn = viewSelectionStart.column;
+			viewLineNumber = viewSelection.startLineNumber;
+			viewColumn = viewSelection.startColumn;
 		} else {
-			let validatedViewPosition = cursor.getValidViewPosition();
+			let validatedViewPosition = cursor.viewState.position;
 			viewLineNumber = validatedViewPosition.lineNumber;
 			viewColumn = validatedViewPosition.column;
 		}
@@ -1117,7 +1144,7 @@ export class OneCursorOp {
 	}
 
 	public static moveToBeginningOfLine(cursor: OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
-		let validatedViewPosition = cursor.getValidViewPosition();
+		let validatedViewPosition = cursor.viewState.position;
 		let viewLineNumber = validatedViewPosition.lineNumber;
 		let viewColumn = validatedViewPosition.column;
 
@@ -1128,7 +1155,7 @@ export class OneCursorOp {
 	}
 
 	public static moveToEndOfLine(cursor: OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
-		let validatedViewPosition = cursor.getValidViewPosition();
+		let validatedViewPosition = cursor.viewState.position;
 		let viewLineNumber = validatedViewPosition.lineNumber;
 		let viewColumn = validatedViewPosition.column;
 

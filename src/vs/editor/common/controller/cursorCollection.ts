@@ -49,6 +49,13 @@ export class CursorCollection {
 		this.killSecondaryCursors();
 	}
 
+	public ensureValidState(): void {
+		this.primaryCursor.ensureValidState();
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			this.secondaryCursors[i].ensureValidState();
+		}
+	}
+
 	public saveState(): ICursorCollectionState {
 		return {
 			primary: this.primaryCursor.saveState(),
