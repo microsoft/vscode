@@ -192,17 +192,15 @@ export class ToggleMenuBarAction extends Action {
 
 export class ToggleDevToolsAction extends Action {
 
-	public static ID = 'workbench.action.toggleDevTools';
-	public static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
+	static ID = 'workbench.action.toggleDevTools';
+	static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
 
-	constructor(id: string, label: string, @IWindowIPCService private windowService: IWindowIPCService) {
+	constructor(id: string, label: string, @IWindowService private windowsService: IWindowService) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		ipc.send('vscode:toggleDevTools', this.windowService.getWindowId());
-
-		return TPromise.as(true);
+	run(): TPromise<void> {
+		return this.windowsService.toggleDevTools();
 	}
 }
 

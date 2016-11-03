@@ -32,4 +32,8 @@ export class WindowService implements IWindowService {
 	reloadWindow(): TPromise<void> {
 		return this.windowsService.reloadWindow(this.windowId);
 	}
+
+	toggleDevTools(): TPromise<void> {
+		return this.windowsService.toggleDevTools(this.windowId);
+	}
 }

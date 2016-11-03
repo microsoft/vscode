@@ -80,8 +80,7 @@ function registerListeners(enableDeveloperTools) {
 		window.addEventListener('keydown', function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB) {
-				ipc.send('vscode:toggleDevTools', windowId);
-				// remote.getCurrentWebContents().toggleDevTools();
+				remote.getCurrentWebContents().toggleDevTools();
 			} else if (key === RELOAD_KB) {
 				remote.getCurrentWindow().reload();
 			}
