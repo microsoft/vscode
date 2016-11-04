@@ -380,6 +380,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	public run(): TPromise<any> {
+		this.enabled = false;
 		this.telemetryService.publicLog('replace.action.selected');
 		let elementToFocus = this.getElementToFocusAfterRemoved(this.viewer, this.element);
 		let elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
@@ -388,7 +389,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 			if (elementToFocus) {
 				this.viewer.setFocus(elementToFocus);
 			}
-			this.viewer.DOMFocus();
+				this.viewer.DOMFocus();
 			if (!elementToShowReplacePreview || this.hasToOpenFile()) {
 				this.viewlet.open(this.element, true);
 			} else {
