@@ -12,6 +12,7 @@
 	"functionBreakpointsNotSupported": "Точки останова функций не поддерживаются в этом типе отладки",
 	"loadMoreStackFrames": "Загрузить больше кадров стека",
 	"paused": "приостановлено",
+	"process": "Процесс",
 	"running": "выполняется",
 	"stackFrameAriaLabel": "Кадр стека {0}, строка {1} {2}, стек вызовов, отладка",
 	"thread": "Поток",
