@@ -389,7 +389,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 			if (elementToFocus) {
 				this.viewer.setFocus(elementToFocus);
 			}
-				this.viewer.DOMFocus();
+			this.viewer.DOMFocus();
 			if (!elementToShowReplacePreview || this.hasToOpenFile()) {
 				this.viewlet.open(this.element, true);
 			} else {
