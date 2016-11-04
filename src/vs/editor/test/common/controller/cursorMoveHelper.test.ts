@@ -146,9 +146,7 @@ suite('CursorMove', () => {
 	test('columnFromVisibleColumn', () => {
 
 		function testColumnFromVisibleColumn(text: string, tabSize: number, visibleColumn: number, expected: number): void {
-			let config = new CursorMoveConfiguration(tabSize, 13, null);
-			let model = new OneLineModel(text);
-			assert.equal(CursorMove.columnFromVisibleColumn(config, model, 1, visibleColumn), expected);
+			assert.equal(CursorMove.columnFromVisibleColumn(text, visibleColumn, tabSize), expected);
 		}
 
 		// testColumnFromVisibleColumn('\t\tvar x = 3;', 4, 0, 1);

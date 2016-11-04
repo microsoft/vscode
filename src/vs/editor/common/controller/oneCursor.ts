@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
-import { CursorMoveHelper, CursorMove, CursorMoveConfiguration, ICursorMoveHelperModel, IColumnSelectResult, IViewColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorMoveHelper, CursorMove, CursorMoveConfiguration, ICursorMoveHelperModel, IColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -21,6 +21,8 @@ import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharact
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MoveOperations, MoveOperationResult } from 'vs/editor/common/controller/cursorMoveOperations';
 import { WordType, WordOperations, WordNavigationType } from 'vs/editor/common/controller/cursorWordOperations';
+import { ColumnSelection } from 'vs/editor/common/controller/cursorColumnSelection';
+import { DeleteOperations, EditOperationResult } from 'vs/editor/common/controller/cursorDeleteOperations';
 
 export interface IPostOperationRunnable {
 	(ctx: IOneCursorOperationContext): void;
@@ -218,14 +220,13 @@ export class OneCursor implements IOneCursor {
 	private readonly editorId: number;
 	public readonly model: editorCommon.IModel;
 	public readonly viewModel: ICursorMoveHelperModel;
-	public readonly configuration: editorCommon.IConfiguration;
+	private readonly configuration: editorCommon.IConfiguration;
 	private readonly viewModelHelper: IViewModelHelper;
 
 	private readonly _modelOptionsListener: IDisposable;
 	private readonly _configChangeListener: IDisposable;
 
 	public modeConfiguration: IModeConfiguration;
-	private helper: CursorHelper;
 	public config: CursorMoveConfiguration;
 
 	public modelState: CursorModelState;
@@ -252,22 +253,13 @@ export class OneCursor implements IOneCursor {
 		this.viewModelHelper = viewModelHelper;
 		this.viewModel = viewModelHelper.viewModel;
 
-		this._recreateCursorHelper();
+		this._recreateCursorConfig();
 
-		this._modelOptionsListener = model.onDidChangeOptions(() => this._recreateCursorHelper());
+		this._modelOptionsListener = model.onDidChangeOptions(() => this._recreateCursorConfig());
 
 		this._configChangeListener = this.configuration.onDidChange((e) => {
-			let shouldRecreate = false;
-			if (e.layoutInfo) {
-				// due to pageSize
-				shouldRecreate = true;
-			}
-			if (e.wordSeparators) {
-				shouldRecreate = true;
-			}
-
-			if (shouldRecreate) {
-				this._recreateCursorHelper();
+			if (CursorMoveConfiguration.shouldRecreate(e)) {
+				this._recreateCursorConfig();
 			}
 		});
 
@@ -275,7 +267,8 @@ export class OneCursor implements IOneCursor {
 
 		this._setState(
 			new CursorModelState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0),
-			new CursorModelState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0)
+			new CursorModelState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0),
+			false
 		);
 	}
 
@@ -283,24 +276,39 @@ export class OneCursor implements IOneCursor {
 	 * Sometimes, the line mapping changes and the stored view position is stale.
 	 */
 	public ensureValidState(): void {
-		this._setState(this.modelState, this.viewState);
+		this._setState(this.modelState, this.viewState, false);
 	}
 
-	private _recreateCursorHelper(): void {
+	private _recreateCursorConfig(): void {
 		this.config = new CursorMoveConfiguration(
-			this.model.getOptions().tabSize,
-			this.getPageSize(),
-			this.configuration.editor.wordSeparators
+			this.model.getOptions(),
+			this.configuration,
+			this.modeConfiguration
 		);
-		this.helper = new CursorHelper(this.model, this.config);
 	}
 
-	private _setState(modelState: CursorModelState, viewState: CursorModelState): void {
+	private _ensureInEditableRange(position: Position): Position {
+		let editableRange = this.model.getEditableRange();
+
+		if (position.lineNumber < editableRange.startLineNumber || (position.lineNumber === editableRange.startLineNumber && position.column < editableRange.startColumn)) {
+			return new Position(editableRange.startLineNumber, editableRange.startColumn);
+		} else if (position.lineNumber > editableRange.endLineNumber || (position.lineNumber === editableRange.endLineNumber && position.column > editableRange.endColumn)) {
+			return new Position(editableRange.endLineNumber, editableRange.endColumn);
+		}
+		return position;
+	}
+
+	private _setState(modelState: CursorModelState, viewState: CursorModelState, ensureInEditableRange: boolean): void {
 		// Validate new model state
 		let selectionStart = this.model.validateRange(modelState.selectionStart);
 		let selectionStartLeftoverVisibleColumns = modelState.selectionStart.equalsRange(selectionStart) ? modelState.selectionStartLeftoverVisibleColumns : 0;
+
 		let position = this.model.validatePosition(modelState.position);
+		if (ensureInEditableRange) {
+			position = this._ensureInEditableRange(position);
+		}
 		let leftoverVisibleColumns = modelState.position.equals(position) ? modelState.leftoverVisibleColumns : 0;
+
 		modelState = new CursorModelState(selectionStart, selectionStartLeftoverVisibleColumns, position, leftoverVisibleColumns);
 
 		// Validate new view state
@@ -360,19 +368,22 @@ export class OneCursor implements IOneCursor {
 
 		this._setState(
 			new CursorModelState(selectionStart, state.selectionStartLeftoverVisibleColumns, position, state.leftoverVisibleColumns),
-			new CursorModelState(viewSelectionStart, state.selectionStartLeftoverVisibleColumns, viewPosition, state.leftoverVisibleColumns)
+			new CursorModelState(viewSelectionStart, state.selectionStartLeftoverVisibleColumns, viewPosition, state.leftoverVisibleColumns),
+			false
 		);
 	}
 
 	public updateModeConfiguration(modeConfiguration: IModeConfiguration): void {
 		this.modeConfiguration = modeConfiguration;
+		this._recreateCursorConfig();
 	}
 
 	public duplicate(): OneCursor {
 		let result = new OneCursor(this.editorId, this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
 		result._setState(
 			this.modelState,
-			this.viewState
+			this.viewState,
+			false
 		);
 		return result;
 	}
@@ -430,7 +441,8 @@ export class OneCursor implements IOneCursor {
 
 		this._setState(
 			new CursorModelState(new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column), 0, position, 0),
-			new CursorModelState(new Range(viewSelectionStart.lineNumber, viewSelectionStart.column, viewSelectionStart.lineNumber, viewSelectionStart.column), 0, viewPosition, 0)
+			new CursorModelState(new Range(viewSelectionStart.lineNumber, viewSelectionStart.column, viewSelectionStart.lineNumber, viewSelectionStart.column), 0, viewPosition, 0),
+			false
 		);
 	}
 
@@ -439,14 +451,16 @@ export class OneCursor implements IOneCursor {
 	public setSelectionStart(range: Range): void {
 		this._setState(
 			this.modelState.withSelectionStart(range),
-			this.viewState.withSelectionStart(this.viewModelHelper.convertModelRangeToViewRange(range))
+			this.viewState.withSelectionStart(this.viewModelHelper.convertModelRangeToViewRange(range)),
+			false
 		);
 	}
 
 	public collapseSelection(): void {
 		this._setState(
 			this.modelState.collapse(),
-			this.viewState.collapse()
+			this.viewState.collapse(),
+			false
 		);
 	}
 
@@ -461,30 +475,10 @@ export class OneCursor implements IOneCursor {
 	}
 
 	private _move(inSelectionMode: boolean, lineNumber: number, column: number, viewLineNumber: number, viewColumn: number, leftoverVisibleColumns: number, ensureInEditableRange: boolean): void {
-
-		if (ensureInEditableRange) {
-			let editableRange = this.model.getEditableRange();
-
-			if (lineNumber < editableRange.startLineNumber || (lineNumber === editableRange.startLineNumber && column < editableRange.startColumn)) {
-				lineNumber = editableRange.startLineNumber;
-				column = editableRange.startColumn;
-
-				let viewPosition = this.viewModelHelper.convertModelPositionToViewPosition(lineNumber, column);
-				viewLineNumber = viewPosition.lineNumber;
-				viewColumn = viewPosition.column;
-			} else if (lineNumber > editableRange.endLineNumber || (lineNumber === editableRange.endLineNumber && column > editableRange.endColumn)) {
-				lineNumber = editableRange.endLineNumber;
-				column = editableRange.endColumn;
-
-				let viewPosition = this.viewModelHelper.convertModelPositionToViewPosition(lineNumber, column);
-				viewLineNumber = viewPosition.lineNumber;
-				viewColumn = viewPosition.column;
-			}
-		}
-
 		this._setState(
 			this.modelState.move(inSelectionMode, new Position(lineNumber, column), leftoverVisibleColumns),
-			this.viewState.move(inSelectionMode, new Position(viewLineNumber, viewColumn), leftoverVisibleColumns)
+			this.viewState.move(inSelectionMode, new Position(viewLineNumber, viewColumn), leftoverVisibleColumns),
+			ensureInEditableRange
 		);
 	}
 
@@ -516,7 +510,8 @@ export class OneCursor implements IOneCursor {
 
 		this._setState(
 			new CursorModelState(selectionStart, 0, position, 0),
-			new CursorModelState(viewSelectionStart, 0, viewPosition, 0)
+			new CursorModelState(viewSelectionStart, 0, viewPosition, 0),
+			false
 		);
 
 		return true;
@@ -526,18 +521,14 @@ export class OneCursor implements IOneCursor {
 
 	// -------------------- START reading API
 
-	private getPageSize(): number {
-		let c = this.configuration.editor;
-		return Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2;
-	}
-
 	public getBracketsDecorations(): string[] {
 		return this.bracketDecorations;
 	}
 	public setSelectionStartLeftoverVisibleColumns(value: number): void {
 		this._setState(
 			this.modelState.withSelectionStartLeftoverVisibleColumns(value),
-			this.viewState.withSelectionStartLeftoverVisibleColumns(value)
+			this.viewState.withSelectionStartLeftoverVisibleColumns(value),
+			false
 		);
 	}
 
@@ -607,7 +598,7 @@ export class OneCursor implements IOneCursor {
 		return visibleLineNumber > visibleRange.startLineNumber ? visibleLineNumber : this.getLineFromViewPortTop();
 	}
 	public getColumnAtEndOfLine(lineNumber: number, column: number): number {
-		return this.helper.getColumnAtEndOfLine(this.model, lineNumber, column);
+		return CursorMoveHelper.getColumnAtEndOfLine(this.model, lineNumber, column);
 	}
 
 	// -- view
@@ -654,13 +645,13 @@ export class OneCursor implements IOneCursor {
 		return this.viewModelHelper.viewModel.getLineLastNonWhitespaceColumn(lineNumber);
 	}
 	public getColumnAtBeginningOfViewLine(lineNumber: number, column: number): number {
-		return this.helper.getColumnAtBeginningOfLine(this.viewModelHelper.viewModel, lineNumber, column);
+		return CursorMoveHelper.getColumnAtBeginningOfLine(this.viewModelHelper.viewModel, lineNumber, column);
 	}
 	public getColumnAtEndOfViewLine(lineNumber: number, column: number): number {
-		return this.helper.getColumnAtEndOfLine(this.viewModelHelper.viewModel, lineNumber, column);
+		return CursorMoveHelper.getColumnAtEndOfLine(this.viewModelHelper.viewModel, lineNumber, column);
 	}
 	public columnSelect(fromViewLineNumber: number, fromViewVisibleColumn: number, toViewLineNumber: number, toViewVisibleColumn: number): IColumnSelectResult {
-		let r = this.helper.columnSelect(this.viewModelHelper.viewModel, fromViewLineNumber, fromViewVisibleColumn, toViewLineNumber, toViewVisibleColumn);
+		let r = ColumnSelection.columnSelect(this.config, this.viewModelHelper.viewModel, fromViewLineNumber, fromViewVisibleColumn, toViewLineNumber, toViewVisibleColumn);
 		return {
 			reversed: r.reversed,
 			viewSelections: r.viewSelections,
@@ -949,7 +940,7 @@ export class OneCursorOp {
 	private static _moveUpByViewLines(cursor: OneCursor, inSelectionMode: boolean, linesCount: number, ctx: IOneCursorOperationContext): boolean {
 		return this._applyMoveViewOperation(
 			cursor, ctx,
-			MoveOperations.moveUp(cursor.config, cursor.model, cursor.modelState, inSelectionMode, linesCount)
+			MoveOperations.moveUp(cursor.config, cursor.viewModel, cursor.viewState, inSelectionMode, linesCount)
 		);
 	}
 
@@ -1301,7 +1292,7 @@ export class OneCursorOp {
 	}
 
 	private static _typeInterceptorAutoClosingCloseChar(cursor: OneCursor, ch: string, ctx: IOneCursorOperationContext): boolean {
-		if (!cursor.configuration.editor.autoClosingBrackets) {
+		if (!cursor.config.autoClosingBrackets) {
 			return false;
 		}
 
@@ -1326,7 +1317,7 @@ export class OneCursorOp {
 	}
 
 	private static _typeInterceptorAutoClosingOpenChar(cursor: OneCursor, ch: string, ctx: IOneCursorOperationContext): boolean {
-		if (!cursor.configuration.editor.autoClosingBrackets) {
+		if (!cursor.config.autoClosingBrackets) {
 			return false;
 		}
 
@@ -1374,7 +1365,7 @@ export class OneCursorOp {
 	}
 
 	private static _typeInterceptorSurroundSelection(cursor: OneCursor, ch: string, ctx: IOneCursorOperationContext): boolean {
-		if (!cursor.configuration.editor.autoClosingBrackets) {
+		if (!cursor.config.autoClosingBrackets) {
 			return false;
 		}
 
@@ -1674,334 +1665,56 @@ export class OneCursorOp {
 
 	// -------------------- START delete handlers & co.
 
-	private static _autoClosingPairDelete(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		// Returns true if delete was handled.
-
-		if (!cursor.configuration.editor.autoClosingBrackets) {
-			return false;
+	private static _applyEditOperation(ctx: IOneCursorOperationContext, r: EditOperationResult): boolean {
+		if (r) {
+			ctx.executeCommand = r.command;
+			ctx.shouldPushStackElementBefore = r.shouldPushStackElementBefore;
+			ctx.shouldPushStackElementAfter = r.shouldPushStackElementAfter;
+			ctx.isAutoWhitespaceCommand = r.isAutoWhitespaceCommand;
 		}
-
-		if (!cursor.modelState.selection.isEmpty()) {
-			return false;
-		}
-
-		let position = cursor.modelState.position;
-
-		let lineText = cursor.model.getLineContent(position.lineNumber);
-		let character = lineText[position.column - 2];
-
-		if (!cursor.modeConfiguration.autoClosingPairsOpen.hasOwnProperty(character)) {
-			return false;
-		}
-
-		let afterCharacter = lineText[position.column - 1];
-		let closeCharacter = cursor.modeConfiguration.autoClosingPairsOpen[character];
-
-		if (afterCharacter !== closeCharacter) {
-			return false;
-		}
-
-		let deleteSelection = new Range(
-			position.lineNumber,
-			position.column - 1,
-			position.lineNumber,
-			position.column + 1
-		);
-		ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
-
 		return true;
 	}
 
 	public static deleteLeft(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		if (this._autoClosingPairDelete(cursor, ctx)) {
-			// This was a case for an auto-closing pair delete
-			return true;
-		}
-
-		let deleteSelection: Range = cursor.modelState.selection;
-
-		if (deleteSelection.isEmpty()) {
-			let position = cursor.modelState.position;
-
-			if (cursor.configuration.editor.useTabStops && position.column > 1) {
-				let lineContent = cursor.model.getLineContent(position.lineNumber);
-
-				let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
-				let lastIndentationColumn = (
-					firstNonWhitespaceIndex === -1
-						? /* entire string is whitespace */lineContent.length + 1
-						: firstNonWhitespaceIndex + 1
-				);
-
-				if (position.column <= lastIndentationColumn) {
-					let fromVisibleColumn = CursorMove.visibleColumnFromColumn2(cursor.config, cursor.model, position);
-					let toVisibleColumn = CursorMoveHelper.prevTabColumn(fromVisibleColumn, cursor.model.getOptions().tabSize);
-					let toColumn = CursorMove.columnFromVisibleColumn(cursor.config, cursor.model, position.lineNumber, toVisibleColumn);
-					deleteSelection = new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
-				} else {
-					deleteSelection = new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column);
-				}
-			} else {
-				let leftOfPosition = MoveOperations.left(cursor.config, cursor.model, position.lineNumber, position.column);
-				deleteSelection = new Range(
-					leftOfPosition.lineNumber,
-					leftOfPosition.column,
-					position.lineNumber,
-					position.column
-				);
-			}
-		}
-
-		if (deleteSelection.isEmpty()) {
-			// Probably at beginning of file => ignore
-			return true;
-		}
-
-		if (deleteSelection.startLineNumber !== deleteSelection.endLineNumber) {
-			ctx.shouldPushStackElementBefore = true;
-		}
-
-		ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
-		return true;
-	}
-
-	private static deleteWordLeftWhitespace(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let position = cursor.modelState.position;
-		let lineContent = cursor.model.getLineContent(position.lineNumber);
-		let startIndex = position.column - 2;
-		let lastNonWhitespace = strings.lastNonWhitespaceIndex(lineContent, startIndex);
-		if (lastNonWhitespace + 1 < startIndex) {
-			// bingo
-			ctx.executeCommand = new ReplaceCommand(new Range(position.lineNumber, lastNonWhitespace + 2, position.lineNumber, position.column), '');
-			return true;
-		}
-		return false;
+		return this._applyEditOperation(
+			ctx,
+			DeleteOperations.deleteLeft(cursor.config, cursor.model, cursor.modelState)
+		);
 	}
 
 	public static deleteWordLeft(cursor: OneCursor, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IOneCursorOperationContext): boolean {
-		if (this._autoClosingPairDelete(cursor, ctx)) {
-			// This was a case for an auto-closing pair delete
-			return true;
-		}
-
-		let selection = cursor.modelState.selection;
-
-		if (selection.isEmpty()) {
-			let position = cursor.modelState.position;
-
-			let lineNumber = position.lineNumber;
-			let column = position.column;
-
-			if (lineNumber === 1 && column === 1) {
-				// Ignore deleting at beginning of file
-				return true;
-			}
-
-			if (whitespaceHeuristics && this.deleteWordLeftWhitespace(cursor, ctx)) {
-				return true;
-			}
-
-			let prevWordOnLine = WordOperations.findPreviousWordOnLine(cursor.config, cursor.model, position);
-
-			if (wordNavigationType === WordNavigationType.WordStart) {
-				if (prevWordOnLine) {
-					column = prevWordOnLine.start + 1;
-				} else {
-					column = 1;
-				}
-			} else {
-				if (prevWordOnLine && column <= prevWordOnLine.end + 1) {
-					prevWordOnLine = WordOperations.findPreviousWordOnLine(cursor.config, cursor.model, new Position(lineNumber, prevWordOnLine.start + 1));
-				}
-				if (prevWordOnLine) {
-					column = prevWordOnLine.end + 1;
-				} else {
-					column = 1;
-				}
-			}
-
-			let deleteSelection = new Range(lineNumber, column, lineNumber, position.column);
-			if (!deleteSelection.isEmpty()) {
-				ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
-				return true;
-			}
-		}
-
-		return this.deleteLeft(cursor, ctx);
+		return this._applyEditOperation(
+			ctx,
+			WordOperations.deleteWordLeft(cursor.config, cursor.model, cursor.modelState, whitespaceHeuristics, wordNavigationType)
+		);
 	}
 
 	public static deleteRight(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-
-		let deleteSelection: Range = cursor.modelState.selection;
-
-		if (deleteSelection.isEmpty()) {
-			let position = cursor.modelState.position;
-			let rightOfPosition = MoveOperations.right(cursor.config, cursor.model, position.lineNumber, position.column);
-			deleteSelection = new Range(
-				rightOfPosition.lineNumber,
-				rightOfPosition.column,
-				position.lineNumber,
-				position.column
-			);
-		}
-
-		if (deleteSelection.isEmpty()) {
-			// Probably at end of file => ignore
-			return true;
-		}
-
-		if (deleteSelection.startLineNumber !== deleteSelection.endLineNumber) {
-			ctx.shouldPushStackElementBefore = true;
-		}
-
-		ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
-		return true;
-	}
-
-	private static _findFirstNonWhitespaceChar(str: string, startIndex: number): number {
-		let len = str.length;
-		for (let chIndex = startIndex; chIndex < len; chIndex++) {
-			let ch = str.charAt(chIndex);
-			if (ch !== ' ' && ch !== '\t') {
-				return chIndex;
-			}
-		}
-		return len;
-	}
-
-	private static deleteWordRightWhitespace(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let position = cursor.modelState.position;
-		let lineContent = cursor.model.getLineContent(position.lineNumber);
-		let startIndex = position.column - 1;
-		let firstNonWhitespace = this._findFirstNonWhitespaceChar(lineContent, startIndex);
-		if (startIndex + 1 < firstNonWhitespace) {
-			// bingo
-			ctx.executeCommand = new ReplaceCommand(new Range(position.lineNumber, position.column, position.lineNumber, firstNonWhitespace + 1), '');
-			return true;
-		}
-		return false;
+		return this._applyEditOperation(
+			ctx,
+			DeleteOperations.deleteRight(cursor.config, cursor.model, cursor.modelState)
+		);
 	}
 
 	public static deleteWordRight(cursor: OneCursor, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IOneCursorOperationContext): boolean {
-
-		let selection = cursor.modelState.selection;
-
-		if (selection.isEmpty()) {
-			let position = cursor.modelState.position;
-
-			let lineNumber = position.lineNumber;
-			let column = position.column;
-
-			let lineCount = cursor.model.getLineCount();
-			let maxColumn = cursor.model.getLineMaxColumn(lineNumber);
-			if (lineNumber === lineCount && column === maxColumn) {
-				// Ignore deleting at end of file
-				return true;
-			}
-
-			if (whitespaceHeuristics && this.deleteWordRightWhitespace(cursor, ctx)) {
-				return true;
-			}
-
-			let nextWordOnLine = WordOperations.findNextWordOnLine(cursor.config, cursor.model, position);
-
-			if (wordNavigationType === WordNavigationType.WordEnd) {
-				if (nextWordOnLine) {
-					column = nextWordOnLine.end + 1;
-				} else {
-					if (column < maxColumn || lineNumber === lineCount) {
-						column = maxColumn;
-					} else {
-						lineNumber++;
-						nextWordOnLine = WordOperations.findNextWordOnLine(cursor.config, cursor.model, new Position(lineNumber, 1));
-						if (nextWordOnLine) {
-							column = nextWordOnLine.start + 1;
-						} else {
-							column = cursor.model.getLineMaxColumn(lineNumber);
-						}
-					}
-				}
-			} else {
-				if (nextWordOnLine && column >= nextWordOnLine.start + 1) {
-					nextWordOnLine = WordOperations.findNextWordOnLine(cursor.config, cursor.model, new Position(lineNumber, nextWordOnLine.end + 1));
-				}
-				if (nextWordOnLine) {
-					column = nextWordOnLine.start + 1;
-				} else {
-					if (column < maxColumn || lineNumber === lineCount) {
-						column = maxColumn;
-					} else {
-						lineNumber++;
-						nextWordOnLine = WordOperations.findNextWordOnLine(cursor.config, cursor.model, new Position(lineNumber, 1));
-						if (nextWordOnLine) {
-							column = nextWordOnLine.start + 1;
-						} else {
-							column = cursor.model.getLineMaxColumn(lineNumber);
-						}
-					}
-				}
-			}
-
-			let deleteSelection = new Range(lineNumber, column, position.lineNumber, position.column);
-			if (!deleteSelection.isEmpty()) {
-				ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
-				return true;
-			}
-		}
-		// fall back to normal deleteRight behavior
-		return this.deleteRight(cursor, ctx);
+		return this._applyEditOperation(
+			ctx,
+			WordOperations.deleteWordRight(cursor.config, cursor.model, cursor.modelState, whitespaceHeuristics, wordNavigationType)
+		);
 	}
 
 	public static deleteAllLeft(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		if (this._autoClosingPairDelete(cursor, ctx)) {
-			// This was a case for an auto-closing pair delete
-			return true;
-		}
-
-		let selection = cursor.modelState.selection;
-
-		if (selection.isEmpty()) {
-			let position = cursor.modelState.position;
-			let lineNumber = position.lineNumber;
-			let column = position.column;
-
-			if (column === 1) {
-				// Ignore deleting at beginning of line
-				return true;
-			}
-
-			let deleteSelection = new Range(lineNumber, 1, lineNumber, column);
-			if (!deleteSelection.isEmpty()) {
-				ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
-				return true;
-			}
-		}
-
-		return this.deleteLeft(cursor, ctx);
+		return this._applyEditOperation(
+			ctx,
+			DeleteOperations.deleteAllLeft(cursor.config, cursor.model, cursor.modelState)
+		);
 	}
 
 	public static deleteAllRight(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let selection = cursor.modelState.selection;
-
-		if (selection.isEmpty()) {
-			let position = cursor.modelState.position;
-			let lineNumber = position.lineNumber;
-			let column = position.column;
-			let maxColumn = cursor.model.getLineMaxColumn(lineNumber);
-
-			if (column === maxColumn) {
-				// Ignore deleting at end of file
-				return true;
-			}
-
-			let deleteSelection = new Range(lineNumber, column, lineNumber, maxColumn);
-			if (!deleteSelection.isEmpty()) {
-				ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
-				return true;
-			}
-		}
-
-		return this.deleteRight(cursor, ctx);
+		return this._applyEditOperation(
+			ctx,
+			DeleteOperations.deleteAllRight(cursor.config, cursor.model, cursor.modelState)
+		);
 	}
 
 	public static cut(cursor: OneCursor, enableEmptySelectionClipboard: boolean, ctx: IOneCursorOperationContext): boolean {
@@ -2060,29 +1773,6 @@ export class OneCursorOp {
 	}
 
 	// -------------------- END delete handlers & co.
-}
-
-class CursorHelper {
-	private model: editorCommon.IModel;
-	private config: CursorMoveConfiguration;
-
-	constructor(model: editorCommon.IModel, config: CursorMoveConfiguration) {
-		this.model = model;
-		this.config = config;
-	}
-
-	public getColumnAtBeginningOfLine(model: ICursorMoveHelperModel, lineNumber: number, column: number): number {
-		return CursorMoveHelper.getColumnAtBeginningOfLine(model, lineNumber, column);
-	}
-
-	public getColumnAtEndOfLine(model: ICursorMoveHelperModel, lineNumber: number, column: number): number {
-		return CursorMoveHelper.getColumnAtEndOfLine(model, lineNumber, column);
-	}
-
-	public columnSelect(model: ICursorMoveHelperModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IViewColumnSelectResult {
-		return CursorMoveHelper.columnSelect(this.config, model, fromLineNumber, fromVisibleColumn, toLineNumber, toVisibleColumn);
-	}
-
 }
 
 class Utils {
