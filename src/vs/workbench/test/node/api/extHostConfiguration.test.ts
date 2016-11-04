@@ -55,6 +55,24 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(config.get('nested.config2'), 'Das Pferd frisst kein Reis.');
 	});
 
+	test('getConfiguration vs get', function () {
+
+		const all = createExtHostConfiguration({
+			farboo: {
+				config0: true,
+				config4: '38'
+			}
+		});
+
+		let config = all.getConfiguration('farboo.config0');
+		assert.equal(config.get(''), undefined);
+		assert.equal(config.has(''), false);
+
+		config = all.getConfiguration('farboo');
+		assert.equal(config.get('config0'), true);
+		assert.equal(config.has('config0'), true);
+	});
+
 	test('name vs property', function () {
 		const all = createExtHostConfiguration({
 			farboo: {
