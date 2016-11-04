@@ -318,11 +318,12 @@ export class Cursor extends EventEmitter {
 		var handled = false;
 
 		try {
+			var oldSelections = this.cursors.getSelections();
+			var oldViewSelections = this.cursors.getViewSelections();
+
 			// ensure valid state on all cursors
 			this.cursors.ensureValidState();
 
-			var oldSelections = this.cursors.getSelections();
-			var oldViewSelections = this.cursors.getViewSelections();
 			var prevCursorsState = this.cursors.saveState();
 
 			var eventSource = source;
