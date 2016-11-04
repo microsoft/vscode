@@ -6,29 +6,18 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { join, basename } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/paths';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestTextFileService } from 'vs/test/utils/servicesTestUtils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { IEventService } from 'vs/platform/event/common/event';
-import { ITextFileEditorModel, ITextFileService, LocalFileChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationResult, IFileOperationResult, FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
+import { ITextFileEditorModel, ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
+import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
 
 function toResource(path) {
 	return URI.file(join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
-}
-
-function toStat(resource: URI) {
-	return {
-		resource,
-		isDirectory: false,
-		hasChildren: false,
-		name: basename(resource.fsPath),
-		mtime: Date.now(),
-		etag: 'etag'
-	};
 }
 
 class ServiceAccessor {
@@ -185,52 +174,5 @@ suite('Files - FileEditorInput', () => {
 
 			done();
 		});
-	});
-
-	test('disposes when resource gets deleted - local file changes', function () {
-		const parent = toResource.call(this, '/foo/bar');
-		const resource = toResource.call(this, '/foo/bar/updatefile.js');
-		let input = instantiationService.createInstance(FileEditorInput, resource, void 0);
-
-		assert.ok(!input.isDisposed());
-
-		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(resource)));
-		assert.ok(input.isDisposed());
-
-		input = instantiationService.createInstance(FileEditorInput, resource, void 0);
-
-		const other = toResource.call(this, '/foo/barfoo');
-
-		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(other)));
-		assert.ok(!input.isDisposed());
-
-		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(parent)));
-		assert.ok(input.isDisposed());
-
-		// Move
-		const to = toResource.call(this, '/foo/barfoo/change.js');
-		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(resource), toStat(to)));
-		assert.ok(input.isDisposed());
-	});
-
-	test('disposes when resource gets deleted - remote file changes', function () {
-		const parent = toResource.call(this, '/foo/bar');
-		const resource = toResource.call(this, '/foo/bar/updatefile.js');
-		let input = instantiationService.createInstance(FileEditorInput, resource, void 0);
-
-		assert.ok(!input.isDisposed());
-
-		accessor.eventService.emit(EventType.FILE_CHANGES, new FileChangesEvent([{ resource, type: FileChangeType.DELETED }]));
-		assert.ok(input.isDisposed());
-
-		input = instantiationService.createInstance(FileEditorInput, resource, void 0);
-
-		const other = toResource.call(this, '/foo/barfoo');
-
-		accessor.eventService.emit(EventType.FILE_CHANGES, new FileChangesEvent([{ resource: other, type: FileChangeType.DELETED }]));
-		assert.ok(!input.isDisposed());
-
-		accessor.eventService.emit(EventType.FILE_CHANGES, new FileChangesEvent([{ resource: parent, type: FileChangeType.DELETED }]));
-		assert.ok(input.isDisposed());
 	});
 });
