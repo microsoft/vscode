@@ -129,15 +129,16 @@ export class BackupService implements IBackupService {
 		return this.configuredHotExit && this.contextService.getWorkspace() && !platform.isMacintosh;
 	}
 
-	public backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, confirmCallback: () => boolean | TPromise<boolean>): boolean | TPromise<boolean> {
+	public backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean, confirmCallback: () => boolean | TPromise<boolean>): boolean | TPromise<boolean> {
 		// If there are no dirty files, clean up and exit
 		if (dirtyToBackup.length === 0) {
 			return this.cleanupBackupsBeforeShutdown();
 		}
 
 		return this.backupFileService.getWorkspaceBackupPaths().then(workspaceBackupPaths => {
-			// Only remove the workspace from the backup service if it's not the last one or it's not dirty
-			if (workspaceBackupPaths.length > 1) {
+			// Only remove the workspace's backups if it's not the last one or it's not dirty. The one exception to this
+			// is if quit (all windows) was requested then all windows should be backed up and restored on next launch..
+			if (!quitRequested && workspaceBackupPaths.length > 1) {
 				return confirmCallback(); // confirm save
 			}
 
