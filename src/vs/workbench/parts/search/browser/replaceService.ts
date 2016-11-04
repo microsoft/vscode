@@ -136,7 +136,7 @@ export class ReplaceService implements IReplaceService {
 	constructor(
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEventService private eventService: IEventService,
-		@IEditorService private editorService,
+		@IEditorService private editorService: IWorkbenchEditorService,
 		@IModelService private modelService: IModelService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
 	) {
@@ -148,7 +148,7 @@ export class ReplaceService implements IReplaceService {
 	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
-		let bulkEdit: BulkEdit = createBulkEdit(this.eventService, this.editorService, null);
+		let bulkEdit: BulkEdit = createBulkEdit(this.eventService, this.textModelResolverService, null);
 		bulkEdit.progress(progress);
 
 		if (arg instanceof Match) {
