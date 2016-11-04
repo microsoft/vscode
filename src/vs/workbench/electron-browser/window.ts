@@ -121,8 +121,7 @@ export class ElectronWindow {
 		// Handle window.open() calls
 		const $this = this;
 		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
-			$this.openExternal(url);
-
+			$this.windowsService.openExternal(url);
 			return null;
 		};
 	}
@@ -156,9 +155,5 @@ export class ElectronWindow {
 
 	focus(): TPromise<void> {
 		return this.windowService.focusWindow();
-	}
-
-	public openExternal(url: string): void {
-		ipc.send('vscode:openExternal', url); // handled from browser process to prevent foreground ordering issues on Windows
 	}
 }

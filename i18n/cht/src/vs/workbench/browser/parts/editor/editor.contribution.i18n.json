@@ -6,9 +6,9 @@
 {
 	"allEditorsPicker": "顯示所有開啟的編輯器",
 	"binaryDiffEditor": "二進位 Diff 編輯器",
-	"centerEditorGroupPicker": "在置中群組顯示編輯器",
-	"leftEditorGroupPicker": "在左側群組顯示編輯器",
-	"rightEditorGroupPicker": "在右側群組顯示編輯器",
+	"groupOnePicker": "在第一個群組顯示編輯器",
+	"groupThreePicker": "在第三個群組顯示編輯器",
+	"groupTwoPicker": "在第二個群組顯示編輯器",
 	"textDiffEditor": "文字 Diff 編輯器",
 	"textEditor": "文字編輯器",
 	"view": "檢視"

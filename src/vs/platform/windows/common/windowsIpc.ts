@@ -10,9 +10,9 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService } from './windows';
 
 export interface IWindowsChannel extends IChannel {
-	call(command: 'openFileFolderPicker', args: [number, boolean]): TPromise<void>;
-	call(command: 'openFilePicker', args: [number, boolean, string]): TPromise<void>;
-	call(command: 'openFolderPicker', args: [number, boolean]): TPromise<void>;
+	call(command: 'openFileFolderPicker', arg: [number, boolean]): TPromise<void>;
+	call(command: 'openFilePicker', arg: [number, boolean, string]): TPromise<void>;
+	call(command: 'openFolderPicker', arg: [number, boolean]): TPromise<void>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeFolder', arg: number): TPromise<void>;
@@ -20,15 +20,17 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'getRecentlyOpen', arg: number): TPromise<{ files: string[]; folders: string[]; }>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
-	call(command: 'setDocumentEdited', args: [number, boolean]): TPromise<void>;
-	call(command: 'toggleMenuBar', args: number): TPromise<void>;
+	call(command: 'setDocumentEdited', arg: [number, boolean]): TPromise<void>;
+	call(command: 'toggleMenuBar', arg: number): TPromise<void>;
 	call(command: 'windowOpen', arg: [string[], boolean]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: 'showWindow', arg: number): TPromise<void>;
 	call(command: 'getWindows'): TPromise<{ id: number; path: string; title: string; }[]>;
-	call(command: 'log', args: [string, string[]]): TPromise<void>;
-	call(command: 'closeExtensionHostWindow', args: string): TPromise<void>;
-	call(command: 'showItemInFolder', args: string): TPromise<void>;
+	call(command: 'log', arg: [string, string[]]): TPromise<void>;
+	call(command: 'closeExtensionHostWindow', arg: string): TPromise<void>;
+	call(command: 'showItemInFolder', arg: string): TPromise<void>;
+	call(command: 'openExternal', arg: string): TPromise<void>;
+	call(command: 'startCrashReporter', arg: Electron.CrashReporterStartOptions): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -58,6 +60,8 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'log': return this.service.log(arg[0], arg[1]);
 			case 'closeExtensionHostWindow': return this.service.closeExtensionHostWindow(arg);
 			case 'showItemInFolder': return this.service.showItemInFolder(arg);
+			case 'openExternal': return this.service.openExternal(arg);
+			case 'startCrashReporter': return this.service.startCrashReporter(arg);
 		}
 	}
 }
@@ -146,5 +150,13 @@ export class WindowsChannelClient implements IWindowsService {
 
 	showItemInFolder(path: string): TPromise<void> {
 		return this.channel.call('showItemInFolder', path);
+	}
+
+	openExternal(url: string): TPromise<void> {
+		return this.channel.call('openExternal', url);
+	}
+
+	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
+		return this.channel.call('startCrashReporter', config);
 	}
 }

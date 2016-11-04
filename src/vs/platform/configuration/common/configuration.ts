@@ -25,6 +25,12 @@ export interface IConfigurationService {
 	lookup<T>(key: string): IConfigurationValue<T>;
 
 	/**
+	 * Returns the defined keys of configurations in the different scopes
+	 * the key is defined.
+	 */
+	keys(): IConfigurationKeys;
+
+	/**
 	 * Similar to #getConfiguration() but ensures that the latest configuration
 	 * from disk is fetched.
 	 */
@@ -46,6 +52,11 @@ export interface IConfigurationValue<T> {
 	user: T;
 }
 
+export interface IConfigurationKeys {
+	default: string[];
+	user: string[];
+}
+
 /**
  * A helper function to get the configuration value with a specific settings path (e.g. config.some.setting)
  */
@@ -54,7 +65,7 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 		let current = config;
 		for (let i = 0; i < path.length; i++) {
 			current = current[path[i]];
-			if (!current) {
+			if (typeof current === 'undefined') {
 				return undefined;
 			}
 		}

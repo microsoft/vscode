@@ -5,89 +5,46 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as strings from 'vs/base/common/strings';
-import { CursorMoveHelper, CursorMove, ICursorMoveHelperModel, CursorMoveConfiguration } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 
 suite('CursorMove', () => {
 
 	test('nextTabStop', () => {
-		assert.equal(CursorMoveHelper.nextTabColumn(0, 4), 4);
-		assert.equal(CursorMoveHelper.nextTabColumn(1, 4), 4);
-		assert.equal(CursorMoveHelper.nextTabColumn(2, 4), 4);
-		assert.equal(CursorMoveHelper.nextTabColumn(3, 4), 4);
-		assert.equal(CursorMoveHelper.nextTabColumn(4, 4), 8);
-		assert.equal(CursorMoveHelper.nextTabColumn(5, 4), 8);
-		assert.equal(CursorMoveHelper.nextTabColumn(6, 4), 8);
-		assert.equal(CursorMoveHelper.nextTabColumn(7, 4), 8);
-		assert.equal(CursorMoveHelper.nextTabColumn(8, 4), 12);
+		assert.equal(CursorColumns.nextTabStop(0, 4), 4);
+		assert.equal(CursorColumns.nextTabStop(1, 4), 4);
+		assert.equal(CursorColumns.nextTabStop(2, 4), 4);
+		assert.equal(CursorColumns.nextTabStop(3, 4), 4);
+		assert.equal(CursorColumns.nextTabStop(4, 4), 8);
+		assert.equal(CursorColumns.nextTabStop(5, 4), 8);
+		assert.equal(CursorColumns.nextTabStop(6, 4), 8);
+		assert.equal(CursorColumns.nextTabStop(7, 4), 8);
+		assert.equal(CursorColumns.nextTabStop(8, 4), 12);
 
-		assert.equal(CursorMoveHelper.nextTabColumn(0, 2), 2);
-		assert.equal(CursorMoveHelper.nextTabColumn(1, 2), 2);
-		assert.equal(CursorMoveHelper.nextTabColumn(2, 2), 4);
-		assert.equal(CursorMoveHelper.nextTabColumn(3, 2), 4);
-		assert.equal(CursorMoveHelper.nextTabColumn(4, 2), 6);
-		assert.equal(CursorMoveHelper.nextTabColumn(5, 2), 6);
-		assert.equal(CursorMoveHelper.nextTabColumn(6, 2), 8);
-		assert.equal(CursorMoveHelper.nextTabColumn(7, 2), 8);
-		assert.equal(CursorMoveHelper.nextTabColumn(8, 2), 10);
+		assert.equal(CursorColumns.nextTabStop(0, 2), 2);
+		assert.equal(CursorColumns.nextTabStop(1, 2), 2);
+		assert.equal(CursorColumns.nextTabStop(2, 2), 4);
+		assert.equal(CursorColumns.nextTabStop(3, 2), 4);
+		assert.equal(CursorColumns.nextTabStop(4, 2), 6);
+		assert.equal(CursorColumns.nextTabStop(5, 2), 6);
+		assert.equal(CursorColumns.nextTabStop(6, 2), 8);
+		assert.equal(CursorColumns.nextTabStop(7, 2), 8);
+		assert.equal(CursorColumns.nextTabStop(8, 2), 10);
 
-		assert.equal(CursorMoveHelper.nextTabColumn(0, 1), 1);
-		assert.equal(CursorMoveHelper.nextTabColumn(1, 1), 2);
-		assert.equal(CursorMoveHelper.nextTabColumn(2, 1), 3);
-		assert.equal(CursorMoveHelper.nextTabColumn(3, 1), 4);
-		assert.equal(CursorMoveHelper.nextTabColumn(4, 1), 5);
-		assert.equal(CursorMoveHelper.nextTabColumn(5, 1), 6);
-		assert.equal(CursorMoveHelper.nextTabColumn(6, 1), 7);
-		assert.equal(CursorMoveHelper.nextTabColumn(7, 1), 8);
-		assert.equal(CursorMoveHelper.nextTabColumn(8, 1), 9);
+		assert.equal(CursorColumns.nextTabStop(0, 1), 1);
+		assert.equal(CursorColumns.nextTabStop(1, 1), 2);
+		assert.equal(CursorColumns.nextTabStop(2, 1), 3);
+		assert.equal(CursorColumns.nextTabStop(3, 1), 4);
+		assert.equal(CursorColumns.nextTabStop(4, 1), 5);
+		assert.equal(CursorColumns.nextTabStop(5, 1), 6);
+		assert.equal(CursorColumns.nextTabStop(6, 1), 7);
+		assert.equal(CursorColumns.nextTabStop(7, 1), 8);
+		assert.equal(CursorColumns.nextTabStop(8, 1), 9);
 	});
-
-	class OneLineModel implements ICursorMoveHelperModel {
-		private _line: string;
-
-		constructor(line: string) {
-			this._line = line;
-		}
-
-		getLineCount(): number {
-			return 1;
-		}
-
-		getLineContent(lineNumber: number): string {
-			return this._line;
-		}
-
-		getLineMinColumn(lineNumber: number): number {
-			return 1;
-		}
-
-		getLineMaxColumn(lineNumber: number): number {
-			return this._line.length + 1;
-		}
-
-		getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-			let result = strings.firstNonWhitespaceIndex(this._line);
-			if (result === -1) {
-				return 0;
-			}
-			return result + 1;
-		}
-
-		getLineLastNonWhitespaceColumn(lineNumber: number): number {
-			let result = strings.lastNonWhitespaceIndex(this._line);
-			if (result === -1) {
-				return 0;
-			}
-			return result + 2;
-		}
-
-	}
 
 	test('visibleColumnFromColumn', () => {
 
 		function testVisibleColumnFromColumn(text: string, tabSize: number, column: number, expected: number): void {
-			let model = new OneLineModel(text);
-			assert.equal(CursorMoveHelper.visibleColumnFromColumn(model, 1, column, tabSize), expected);
+			assert.equal(CursorColumns.visibleColumnFromColumn(text, column, tabSize), expected);
 		}
 
 		testVisibleColumnFromColumn('\t\tvar x = 3;', 4, 1, 0);
@@ -146,9 +103,7 @@ suite('CursorMove', () => {
 	test('columnFromVisibleColumn', () => {
 
 		function testColumnFromVisibleColumn(text: string, tabSize: number, visibleColumn: number, expected: number): void {
-			let config = new CursorMoveConfiguration(tabSize, 13, null);
-			let model = new OneLineModel(text);
-			assert.equal(CursorMove.columnFromVisibleColumn(config, model, 1, visibleColumn), expected);
+			assert.equal(CursorColumns.columnFromVisibleColumn(text, visibleColumn, tabSize), expected);
 		}
 
 		// testColumnFromVisibleColumn('\t\tvar x = 3;', 4, 0, 1);
