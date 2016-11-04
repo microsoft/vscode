@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import URI from 'vs/base/common/uri';
@@ -14,6 +13,7 @@ import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { ITextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 
 let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -21,13 +21,16 @@ export class WorkbenchContentProvider implements IWorkbenchContribution {
 
 	private modelService: IModelService;
 	private modeService: IModeService;
+	private textModelResolverService: ITextModelResolverService;
 
 	constructor(
 		@IModelService modelService: IModelService,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IModeService modeService: IModeService
 	) {
 		this.modelService = modelService;
 		this.modeService = modeService;
+		this.textModelResolverService = textModelResolverService;
 
 		this.start();
 	}
@@ -37,7 +40,7 @@ export class WorkbenchContentProvider implements IWorkbenchContribution {
 	}
 
 	private start(): void {
-		ResourceEditorInput.registerResourceContentProvider('vscode', {
+		this.textModelResolverService.registerTextModelContentProvider('vscode', {
 			provideTextContent: (uri: URI): TPromise<IModel> => {
 				if (uri.scheme !== 'vscode') {
 					return null;
@@ -57,4 +60,4 @@ export class WorkbenchContentProvider implements IWorkbenchContribution {
 	}
 }
 
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(WorkbenchContentProvider);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkbenchContentProvider);
