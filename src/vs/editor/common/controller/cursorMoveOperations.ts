@@ -135,7 +135,7 @@ export class MoveOperations {
 				}
 			}
 		} else {
-			column = CursorMove.columnFromVisibleColumn(config, model, lineNumber, currentVisibleColumn);
+			column = CursorMove.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
 			if (CursorMove.isInsideSurrogatePair(model, lineNumber, column)) {
 				column = column - 1;
 			}
@@ -179,7 +179,7 @@ export class MoveOperations {
 				}
 			}
 		} else {
-			column = CursorMove.columnFromVisibleColumn(config, model, lineNumber, currentVisibleColumn);
+			column = CursorMove.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
 			if (CursorMove.isInsideSurrogatePair(model, lineNumber, column)) {
 				column = column - 1;
 			}
