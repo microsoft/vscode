@@ -12,7 +12,7 @@ import { createCSSRule } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/platform';
 import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ITreeExplorerViewletService, TreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
+import { ICustomTreeExplorerService, CustomTreeExplorerService } from 'vs/workbench/parts/explorers/browser/customTreeExplorerService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ITreeExplorer } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -21,7 +21,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
-registerSingleton(ITreeExplorerViewletService, TreeExplorerViewletService);
+registerSingleton(ICustomTreeExplorerService, CustomTreeExplorerService);
 
 const explorerSchema: IJSONSchema = {
 	description: localize('vscode.extension.contributes.explorer', "Contributes custom tree explorer viewlet to the sidebar"),

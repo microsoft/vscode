@@ -11,9 +11,9 @@ import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/w
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import Event, { Emitter } from 'vs/base/common/event';
 
-export const ITreeExplorerViewletService = createDecorator<ITreeExplorerViewletService>('customViewletService');
+export const ICustomTreeExplorerService = createDecorator<ICustomTreeExplorerService>('customTreeExplorerService');
 
-export interface ITreeExplorerViewletService {
+export interface ICustomTreeExplorerService {
 	_serviceBrand: any;
 
 	onTreeExplorerNodeProviderRegistered: Event<String>;
@@ -26,7 +26,7 @@ export interface ITreeExplorerViewletService {
 	executeCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void>;
 }
 
-export class TreeExplorerViewletService implements ITreeExplorerViewletService {
+export class CustomTreeExplorerService implements ICustomTreeExplorerService {
 	public _serviceBrand: any;
 
 	private _onTreeExplorerNodeProviderRegistered = new Emitter<String>();
