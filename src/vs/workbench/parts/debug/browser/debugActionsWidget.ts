@@ -64,6 +64,11 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusProcessAction.ID) {
+					if (!this.focusProcessActionItem) {
+						this.focusProcessActionItem = this.instantiationService.createInstance(FocusProcessActionItem, action);
+						this.toDispose.push(this.focusProcessActionItem);
+					}
+
 					return this.focusProcessActionItem;
 				}
 
@@ -186,11 +191,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 			this.allActions.push(this.instantiationService.createInstance(StepOutAction, StepOutAction.ID, StepOutAction.LABEL));
 			this.allActions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			this.allActions.push(this.instantiationService.createInstance(StepBackAction, StepBackAction.ID, StepBackAction.LABEL));
-			const focusProcesAction = this.instantiationService.createInstance(FocusProcessAction, FocusProcessAction.ID, FocusProcessAction.LABEL);
-			this.allActions.push(focusProcesAction);
-			this.focusProcessActionItem = this.instantiationService.createInstance(FocusProcessActionItem, focusProcesAction);
-
-			this.toDispose.push(this.focusProcessActionItem);
+			this.allActions.push(this.instantiationService.createInstance(FocusProcessAction, FocusProcessAction.ID, FocusProcessAction.LABEL));
 			this.allActions.forEach(a => {
 				this.toDispose.push(a);
 			});

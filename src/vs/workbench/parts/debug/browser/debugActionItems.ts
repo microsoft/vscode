@@ -55,10 +55,9 @@ export class FocusProcessActionItem extends SelectActionItem {
 	) {
 		super(null, action, [], -1);
 
-		this.debugService.getModel().onDidChangeCallStack(() => {
+		this.debugService.getViewModel().onDidFocusProcess(p => {
 			const names = this.debugService.getModel().getProcesses().map(p => p.name);
-			const focusedProcess = this.debugService.getViewModel().focusedProcess;
-			this.setOptions(names, focusedProcess ? names.indexOf(focusedProcess.name) : 0);
+			this.setOptions(names, p ? names.indexOf(p.name) : 0);
 		});
 	}
 }
