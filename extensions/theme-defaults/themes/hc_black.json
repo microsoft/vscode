@@ -220,12 +220,6 @@
 			}
 		},
 		{
-			"scope": "keyword.control.less",
-			"settings": {
-				"foreground": "#d7ba7d"
-			}
-		},
-		{
 			"scope": "keyword.operator",
 			"settings": {
 				"foreground": "#d4d4d4"

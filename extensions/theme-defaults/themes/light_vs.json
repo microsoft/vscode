@@ -261,12 +261,6 @@
 			}
 		},
 		{
-			"scope": "keyword.control.less",
-			"settings": {
-				"foreground": "#800000"
-			}
-		},
-		{
 			"scope": "metatag.php",
 			"settings": {
 				"foreground": "#800000"
