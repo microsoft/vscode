@@ -5,7 +5,7 @@
 'use strict';
 
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { CursorMoveHelper, CursorMove, CursorMoveConfiguration, ICursorMoveHelperModel } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommand, CursorChangeReason } from 'vs/editor/common/editorCommon';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
@@ -61,7 +61,7 @@ export class EditOperationResult {
 
 export class DeleteOperations {
 
-	public static deleteRight(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
 
 		let deleteSelection: Range = cursor.selection;
 
@@ -92,7 +92,7 @@ export class DeleteOperations {
 		});
 	}
 
-	public static deleteAllRight(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteAllRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
 		let selection = cursor.selection;
 
 		if (selection.isEmpty()) {
@@ -115,7 +115,7 @@ export class DeleteOperations {
 		return this.deleteRight(config, model, cursor);
 	}
 
-	public static autoClosingPairDelete(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static autoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
 		if (!config.autoClosingBrackets) {
 			return null;
 		}
@@ -150,7 +150,7 @@ export class DeleteOperations {
 		return new EditOperationResult(new ReplaceCommand(deleteSelection, ''));
 	}
 
-	public static deleteLeft(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
 		let r = this.autoClosingPairDelete(config, model, cursor);
 		if (r) {
 			// This was a case for an auto-closing pair delete
@@ -173,9 +173,9 @@ export class DeleteOperations {
 				);
 
 				if (position.column <= lastIndentationColumn) {
-					let fromVisibleColumn = CursorMove.visibleColumnFromColumn2(config, model, position);
-					let toVisibleColumn = CursorMoveHelper.prevTabColumn(fromVisibleColumn, config.tabSize);
-					let toColumn = CursorMove.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
+					let fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
+					let toVisibleColumn = CursorColumns.prevTabStop(fromVisibleColumn, config.tabSize);
+					let toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
 					deleteSelection = new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
 				} else {
 					deleteSelection = new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column);
@@ -207,7 +207,7 @@ export class DeleteOperations {
 		});
 	}
 
-	public static deleteAllLeft(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteAllLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
 		let r = this.autoClosingPairDelete(config, model, cursor);
 		if (r) {
 			// This was a case for an auto-closing pair delete
@@ -235,7 +235,7 @@ export class DeleteOperations {
 		return this.deleteLeft(config, model, cursor);
 	}
 
-	public static cut(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState, enableEmptySelectionClipboard: boolean): EditOperationResult {
+	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState, enableEmptySelectionClipboard: boolean): EditOperationResult {
 		let selection = cursor.selection;
 
 		if (selection.isEmpty()) {

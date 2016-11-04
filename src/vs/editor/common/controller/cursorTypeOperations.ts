@@ -5,7 +5,7 @@
 'use strict';
 
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { CursorMove, CursorMoveConfiguration, ICursorMoveHelperModel } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/editorCommon';
 import { CursorModelState } from 'vs/editor/common/controller/oneCursor';
@@ -19,7 +19,7 @@ import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 
 export class TypeOperations {
 
-	public static indent(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static indent(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
 		return new EditOperationResult(
 			new ShiftCommand(cursor.selection, {
 				isUnshift: false,
@@ -33,7 +33,7 @@ export class TypeOperations {
 		);
 	}
 
-	public static outdent(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static outdent(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
 		return new EditOperationResult(
 			new ShiftCommand(cursor.selection, {
 				isUnshift: true,
@@ -47,7 +47,7 @@ export class TypeOperations {
 		);
 	}
 
-	public static paste(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState, text: string, pasteOnNewLine: boolean): EditOperationResult {
+	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState, text: string, pasteOnNewLine: boolean): EditOperationResult {
 		let position = cursor.position;
 		let selection = cursor.selection;
 
@@ -79,7 +79,7 @@ export class TypeOperations {
 		});
 	}
 
-	private static _goodIndentForLine(config: CursorMoveConfiguration, model: ITokenizedModel, lineNumber: number): string {
+	private static _goodIndentForLine(config: CursorConfiguration, model: ITokenizedModel, lineNumber: number): string {
 		let lastLineNumber = lineNumber - 1;
 
 		for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
@@ -117,12 +117,12 @@ export class TypeOperations {
 		return result;
 	}
 
-	private static _replaceJumpToNextIndent(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, selection: Selection): ReplaceCommand {
+	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection): ReplaceCommand {
 		let typeText = '';
 
 		let position = selection.getStartPosition();
 		if (config.insertSpaces) {
-			let visibleColumnFromColumn = CursorMove.visibleColumnFromColumn2(config, model, position);
+			let visibleColumnFromColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
 			let tabSize = config.tabSize;
 			let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
 			for (let i = 0; i < spacesCnt; i++) {
@@ -135,7 +135,7 @@ export class TypeOperations {
 		return new ReplaceCommand(selection, typeText);
 	}
 
-	public static tab(config: CursorMoveConfiguration, model: ITokenizedModel, cursor: CursorModelState): EditOperationResult {
+	public static tab(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState): EditOperationResult {
 		let selection = cursor.selection;
 
 		if (selection.isEmpty()) {
