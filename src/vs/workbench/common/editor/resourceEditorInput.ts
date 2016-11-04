@@ -5,10 +5,10 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorModel, EditorInput } from 'vs/workbench/common/editor';
-import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import { ITextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/textModelResolverService';
+import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 
 /**
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
@@ -63,15 +63,19 @@ export class ResourceEditorInput extends EditorInput {
 		}
 	}
 
-	public resolve(refresh?: boolean): TPromise<EditorModel> {
+	public resolve(refresh?: boolean): TPromise<ITextEditorModel> {
 
 		// Use Cached Model
 		if (this.cachedModel) {
-			return TPromise.as<EditorModel>(this.cachedModel);
+			return TPromise.as<ITextEditorModel>(this.cachedModel);
 		}
 
 		// Otherwise Create Model and handle dispose event
-		return this.textModelResolverService.resolve(this.resource).then((model: ResourceEditorModel) => {
+		return this.textModelResolverService.resolve(this.resource).then(model => {
+			if (!(model instanceof ResourceEditorModel)) {
+				return TPromise.wrapError(`Unexpected model for ResourceInput: ${this.resource}`); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
+			}
+
 			this.cachedModel = model;
 
 			const unbind = model.onDispose(() => {
