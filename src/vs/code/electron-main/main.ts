@@ -232,7 +232,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 				items: windowsMainService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
 					return <Electron.JumpListItem>{
 						type: 'task',
-						title: getPathLabel(folder),
+						title: path.basename(folder) || folder, // use the base name to show shorter entries in the list
 						description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
 						program: process.execPath,
 						args: folder, // open folder,
