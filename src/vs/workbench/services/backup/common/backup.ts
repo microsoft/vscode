@@ -22,7 +22,7 @@ export interface IBackupService {
 	_serviceBrand: any;
 
 	isHotExitEnabled: boolean;
-	backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, confirmCallback: () => boolean | TPromise<boolean>): boolean | TPromise<boolean>;
+	backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean, confirmCallback: () => boolean | TPromise<boolean>): boolean | TPromise<boolean>;
 	cleanupBackupsBeforeShutdown(): boolean | TPromise<boolean>;
 
 	doBackup(resource: Uri, content: string, immediate?: boolean): TPromise<void>;

@@ -101,7 +101,7 @@ export abstract class TextFileService implements ITextFileService {
 	private registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
+		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown(event.quitRequested)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration changes
@@ -113,9 +113,9 @@ export abstract class TextFileService implements ITextFileService {
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
 	}
 
-	private beforeShutdown(): boolean | TPromise<boolean> {
+	private beforeShutdown(quitRequested: boolean): boolean | TPromise<boolean> {
 		if (this.backupService.isHotExitEnabled) {
-			return this.backupService.backupBeforeShutdown(this.getDirty(), this.models, this.confirmBeforeShutdown.bind(this));
+			return this.backupService.backupBeforeShutdown(this.getDirty(), this.models, quitRequested, this.confirmBeforeShutdown.bind(this));
 		}
 
 		// Dirty files need treatment on shutdown
