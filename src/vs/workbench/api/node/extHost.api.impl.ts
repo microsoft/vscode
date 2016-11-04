@@ -9,6 +9,7 @@ import { TrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { WorkspaceConfigurationNode } from 'vs/workbench/services/configuration/common/configuration';
 import * as errors from 'vs/base/common/errors';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
@@ -42,7 +43,7 @@ import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
 import { realpathSync } from 'fs';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { MainContext, ExtHostContext, InstanceCollection, IInitConfiguration } from './extHost.protocol';
+import { MainContext, ExtHostContext, InstanceCollection } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 
 
@@ -63,7 +64,7 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 /**
  * This method instantiates and returns the extension API surface
  */
-export function createApiFactory(initDataConfiguration: IInitConfiguration, initTelemetryInfo: ITelemetryInfo, threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService): IExtensionApiFactory {
+export function createApiFactory(initDataConfiguration: WorkspaceConfigurationNode, initTelemetryInfo: ITelemetryInfo, threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService): IExtensionApiFactory {
 
 	// Addressable instances
 	const col = new InstanceCollection();

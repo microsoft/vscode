@@ -10,6 +10,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationTarget, ConfigurationEditingErrorCode, IConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { WorkspaceConfigurationNode, IWorkspaceConfigurationValue } from 'vs/workbench/services/configuration/common/configuration';
 
 suite('ExtHostConfiguration', function () {
 
@@ -21,23 +22,32 @@ suite('ExtHostConfiguration', function () {
 		}
 	};
 
-	function createExtHostConfiguration(data: any = {}, shape?: MainThreadConfigurationShape) {
+	function createExtHostConfiguration(data: WorkspaceConfigurationNode = {}, shape?: MainThreadConfigurationShape) {
 		if (!shape) {
 			shape = new class extends MainThreadConfigurationShape { };
 		}
 		return new ExtHostConfiguration(shape, data);
 	}
 
+	function createConfigurationValue<T>(value: T): IWorkspaceConfigurationValue<T> {
+		return {
+			value,
+			default: value,
+			user: undefined,
+			workspace: undefined
+		};
+	}
+
 	test('has/get', function () {
 
 		const all = createExtHostConfiguration({
 			farboo: {
-				config0: true,
+				config0: createConfigurationValue(true),
 				nested: {
-					config1: 42,
-					config2: 'Das Pferd frisst kein Reis.'
+					config1: createConfigurationValue(42),
+					config2: createConfigurationValue('Das Pferd frisst kein Reis.'),
 				},
-				config4: ''
+				config4: createConfigurationValue('')
 			}
 		});
 
@@ -49,18 +59,22 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(config['config0'], true);
 		assert.equal(config['config4'], '');
 		assert.throws(() => config['config4'] = 'valuevalue');
+
 		assert.ok(config.has('nested.config1'));
 		assert.equal(config.get('nested.config1'), 42);
 		assert.ok(config.has('nested.config2'));
 		assert.equal(config.get('nested.config2'), 'Das Pferd frisst kein Reis.');
+
+		assert.ok(config.has('nested'));
+		assert.deepEqual(config.get('nested'), { config1: 42, config2: 'Das Pferd frisst kein Reis.' });
 	});
 
 	test('getConfiguration vs get', function () {
 
 		const all = createExtHostConfiguration({
 			farboo: {
-				config0: true,
-				config4: '38'
+				config0: createConfigurationValue(true),
+				config4: createConfigurationValue('38')
 			}
 		});
 
@@ -76,7 +90,7 @@ suite('ExtHostConfiguration', function () {
 	test('name vs property', function () {
 		const all = createExtHostConfiguration({
 			farboo: {
-				get: 'get-prop'
+				get: createConfigurationValue('get-prop')
 			}
 		});
 		const config = all.getConfiguration('farboo');
@@ -90,7 +104,7 @@ suite('ExtHostConfiguration', function () {
 	test('udate/section to key', function () {
 
 		const shape = new RecordingShape();
-		const allConfig = createExtHostConfiguration({ foo: { bar: 1, far: 2 } }, shape);
+		const allConfig = createExtHostConfiguration({ foo: { bar: createConfigurationValue(1), far: createConfigurationValue(2) } }, shape);
 
 		let config = allConfig.getConfiguration('foo');
 		config.update('bar', 42, true);
