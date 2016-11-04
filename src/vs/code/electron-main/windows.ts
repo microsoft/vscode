@@ -22,7 +22,7 @@ import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
+import { IUpdateService } from 'vs/code/electron-main/update-manager';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -249,7 +249,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		});
 
-		this.updateService.on('update-downloaded', (update: IUpdate) => {
+		this.updateService.onUpdateReady(update => {
 			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
 
 			this.sendToAll('vscode:update-downloaded', JSON.stringify({
@@ -267,7 +267,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		});
 
-		this.updateService.on('update-not-available', (explicit: boolean) => {
+		this.updateService.onUpdateNotAvailable(explicit => {
 			this.sendToFocused('vscode:telemetry', { eventName: 'update:notAvailable', data: { explicit } });
 
 			if (explicit) {
@@ -275,7 +275,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		});
 
-		this.updateService.on('update-available', (url: string, version: string) => {
+		this.updateService.onUpdateAvailable(({ url, version }) => {
 			if (url) {
 				this.sendToFocused('vscode:update-available', url, version);
 			}

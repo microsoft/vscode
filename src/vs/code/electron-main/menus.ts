@@ -125,7 +125,7 @@ export class VSCodeMenu {
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true /* update menu if changed */));
 
 		// Listen to update service
-		this.updateService.on('change', () => this.updateMenu());
+		this.updateService.onStateChange(() => this.updateMenu());
 	}
 
 	private onConfigurationUpdated(config: IConfiguration, handleMenu?: boolean): void {
