@@ -909,3 +909,17 @@ export class RunAction extends AbstractDebugAction {
 		return super.isEnabled(state) && state === debug.State.Inactive;
 	}
 }
+
+export class FocusProcessAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.focusProcess';
+	static LABEL = nls.localize('focusProcess', "Focus Process");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService, 100);
+	}
+
+	public run(processName: string): TPromise<any> {
+		const process = this.debugService.getModel().getProcesses().filter(p => p.name === processName).pop();
+		return this.debugService.setFocusedStackFrameAndEvaluate(null, process);
+	}
+}
