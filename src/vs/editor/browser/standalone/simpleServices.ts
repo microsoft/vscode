@@ -7,7 +7,7 @@
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position } from 'vs/platform/editor/common/editor';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
 import { IExtensionDescription, IExtensionService } from 'vs/platform/extensions/common/extensions';
@@ -361,5 +361,9 @@ export class SimpleConfigurationService implements IConfigurationService {
 			default: getConfigurationValue<C>(this.getConfiguration(), key),
 			user: getConfigurationValue<C>(this.getConfiguration(), key)
 		};
+	}
+
+	public keys(): IConfigurationKeys {
+		return { default: [], user: [] };
 	}
 }
