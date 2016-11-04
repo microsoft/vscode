@@ -12,6 +12,7 @@ import { CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench
 
 export interface IConfigFile {
 	contents: any;
+	raw?: any;
 	parseError?: any;
 }
 
@@ -24,7 +25,8 @@ export function newConfigFile(value: string): IConfigFile {
 		}
 
 		return {
-			contents: root
+			contents: root,
+			raw: contents
 		};
 	} catch (e) {
 		return {

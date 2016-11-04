@@ -25,6 +25,12 @@ export interface IConfigurationService {
 	lookup<T>(key: string): IConfigurationValue<T>;
 
 	/**
+	 * Returns the defined keys of configurations in the different scopes
+	 * the key is defined.
+	 */
+	keys(): IConfigurationKeys;
+
+	/**
 	 * Similar to #getConfiguration() but ensures that the latest configuration
 	 * from disk is fetched.
 	 */
@@ -44,6 +50,11 @@ export interface IConfigurationValue<T> {
 	value: T;
 	default: T;
 	user: T;
+}
+
+export interface IConfigurationKeys {
+	default: string[];
+	user: string[];
 }
 
 /**
