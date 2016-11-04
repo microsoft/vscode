@@ -65,7 +65,7 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 		let current = config;
 		for (let i = 0; i < path.length; i++) {
 			current = current[path[i]];
-			if (!current) {
+			if (typeof current === 'undefined') {
 				return undefined;
 			}
 		}
