@@ -29,6 +29,7 @@ import * as modes from 'vs/editor/common/modes';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { WorkspaceConfigurationNode } from 'vs/workbench/services/configuration/common/configuration';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -43,10 +44,6 @@ export interface IEnvironment {
 	extensionTestsPath: string;
 }
 
-export interface IInitConfiguration {
-	_initConfigurationBrand: void;
-}
-
 export interface IInitData {
 	parentPid: number;
 	environment: IEnvironment;
@@ -54,7 +51,7 @@ export interface IInitData {
 		workspace: IWorkspace;
 	};
 	extensions: IExtensionDescription[];
-	configuration: IInitConfiguration;
+	configuration: WorkspaceConfigurationNode;
 	telemetryInfo: ITelemetryInfo;
 }
 
@@ -232,7 +229,7 @@ export abstract class ExtHostCommandsShape {
 }
 
 export abstract class ExtHostConfigurationShape {
-	$acceptConfigurationChanged(config: any) { throw ni(); }
+	$acceptConfigurationChanged(config: WorkspaceConfigurationNode) { throw ni(); }
 }
 
 export abstract class ExtHostDiagnosticsShape {
