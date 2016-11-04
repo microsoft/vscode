@@ -9,6 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import severity from 'vs/base/common/severity';
 import * as builder from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
+import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction } from 'vs/base/common/actions';
 import { EventType } from 'vs/base/common/events';
@@ -35,7 +36,9 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 	private dragArea: builder.Builder;
 	private toDispose: lifecycle.IDisposable[];
 	private actionBar: ActionBar;
-	private actions: AbstractDebugAction[];
+	private allActions: AbstractDebugAction[];
+	private activeActions: AbstractDebugAction[];
+
 	private isVisible: boolean;
 	private isBuilt: boolean;
 	private focusProcessActionItem: FocusProcessActionItem;
@@ -56,6 +59,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		this.$el.append(actionBarContainter);
 
 		this.toDispose = [];
+		this.activeActions = [];
 		this.actionBar = new ActionBar(actionBarContainter, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
@@ -142,8 +146,12 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 			return this.hide();
 		}
 
-		this.actionBar.clear();
-		this.actionBar.push(this.getActions(), { icon: true, label: false });
+		const actions = this.getActions();
+		if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
+			this.actionBar.clear();
+			this.actionBar.push(actions, { icon: true, label: false });
+			this.activeActions = actions;
+		}
 		this.show();
 	}
 
@@ -166,24 +174,24 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		this.$el.hide();
 	}
 
-	private getActions(): IAction[] {
-		if (!this.actions) {
-			this.actions = [];
-			this.actions.push(this.instantiationService.createInstance(ContinueAction, ContinueAction.ID, ContinueAction.LABEL));
-			this.actions.push(this.instantiationService.createInstance(PauseAction, PauseAction.ID, PauseAction.LABEL));
-			this.actions.push(this.instantiationService.createInstance(StopAction, StopAction.ID, StopAction.LABEL));
-			this.actions.push(this.instantiationService.createInstance(DisconnectAction, DisconnectAction.ID, DisconnectAction.LABEL));
-			this.actions.push(this.instantiationService.createInstance(StepOverAction, StepOverAction.ID, StepOverAction.LABEL));
-			this.actions.push(this.instantiationService.createInstance(StepIntoAction, StepIntoAction.ID, StepIntoAction.LABEL));
-			this.actions.push(this.instantiationService.createInstance(StepOutAction, StepOutAction.ID, StepOutAction.LABEL));
-			this.actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
-			this.actions.push(this.instantiationService.createInstance(StepBackAction, StepBackAction.ID, StepBackAction.LABEL));
+	private getActions(): AbstractDebugAction[] {
+		if (!this.allActions) {
+			this.allActions = [];
+			this.allActions.push(this.instantiationService.createInstance(ContinueAction, ContinueAction.ID, ContinueAction.LABEL));
+			this.allActions.push(this.instantiationService.createInstance(PauseAction, PauseAction.ID, PauseAction.LABEL));
+			this.allActions.push(this.instantiationService.createInstance(StopAction, StopAction.ID, StopAction.LABEL));
+			this.allActions.push(this.instantiationService.createInstance(DisconnectAction, DisconnectAction.ID, DisconnectAction.LABEL));
+			this.allActions.push(this.instantiationService.createInstance(StepOverAction, StepOverAction.ID, StepOverAction.LABEL));
+			this.allActions.push(this.instantiationService.createInstance(StepIntoAction, StepIntoAction.ID, StepIntoAction.LABEL));
+			this.allActions.push(this.instantiationService.createInstance(StepOutAction, StepOutAction.ID, StepOutAction.LABEL));
+			this.allActions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
+			this.allActions.push(this.instantiationService.createInstance(StepBackAction, StepBackAction.ID, StepBackAction.LABEL));
 			const focusProcesAction = this.instantiationService.createInstance(FocusProcessAction, FocusProcessAction.ID, FocusProcessAction.LABEL);
-			this.actions.push(focusProcesAction);
+			this.allActions.push(focusProcesAction);
 			this.focusProcessActionItem = this.instantiationService.createInstance(FocusProcessActionItem, focusProcesAction);
 
 			this.toDispose.push(this.focusProcessActionItem);
-			this.actions.forEach(a => {
+			this.allActions.forEach(a => {
 				this.toDispose.push(a);
 			});
 		}
@@ -192,7 +200,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		const process = this.debugService.getViewModel().focusedProcess;
 		const attached = process && !strings.equalsIgnoreCase(process.session.configuration.type, 'extensionHost') && process.session.requestType === debug.SessionRequestType.ATTACH;
 
-		return this.actions.filter(a => {
+		return this.allActions.filter(a => {
 			if (a.id === ContinueAction.ID) {
 				return state !== debug.State.Running;
 			}
