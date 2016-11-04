@@ -6,7 +6,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
 import Uri from 'vs/base/common/uri';
 import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -125,8 +124,8 @@ export class BackupService implements IBackupService {
 
 	public get isHotExitEnabled(): boolean {
 		// If hot exit is enabled then save the dirty files in the workspace and then exit
-		// Hot exit is currently disabled for both empty workspaces (#13733) and on Mac (#13305)
-		return this.configuredHotExit && this.contextService.getWorkspace() && !platform.isMacintosh;
+		// Hot exit is currently disabled for empty workspaces (#13733).
+		return this.configuredHotExit && !!this.contextService.getWorkspace();
 	}
 
 	public backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean, confirmCallback: () => boolean | TPromise<boolean>): boolean | TPromise<boolean> {
