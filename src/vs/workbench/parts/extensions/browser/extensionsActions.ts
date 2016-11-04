@@ -668,8 +668,6 @@ export class DisableActionItem extends DropDownMenuActionItem {
 	}
 }
 
-
-
 export class UpdateAllAction extends Action {
 
 	static ID = 'workbench.extensions.action.updateAllExtensions';
@@ -716,7 +714,7 @@ export class ReloadAction extends Action {
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
-	private reloadMessaage: string = '';
+	reloadMessaage: string = '';
 	private throttler: Throttler;
 
 	constructor(

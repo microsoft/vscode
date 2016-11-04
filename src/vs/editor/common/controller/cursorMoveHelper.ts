@@ -7,23 +7,47 @@
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
+import { IViewColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import * as strings from 'vs/base/common/strings';
+import { IModeConfiguration } from 'vs/editor/common/controller/oneCursor';
+import { IConfigurationChangedEvent, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
+
+export interface CharacterMap {
+	[char: string]: string;
+}
 
 export class CursorMoveConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
 	public readonly tabSize: number;
 	public readonly pageSize: number;
+	public readonly useTabStops: boolean;
 	public readonly wordSeparators: string;
+	public readonly autoClosingBrackets: boolean;
+	public readonly autoClosingPairsOpen: CharacterMap;
+
+	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
+		return (
+			e.layoutInfo
+			|| e.wordSeparators
+			|| e.autoClosingBrackets
+			|| e.useTabStops
+		);
+	}
 
 	constructor(
-		tabSize: number,
-		pageSize: number,
-		wordSeparators: string
+		modelOptions: TextModelResolvedOptions,
+		configuration: IConfiguration,
+		modeConfiguration: IModeConfiguration
 	) {
-		this.tabSize = tabSize;
-		this.pageSize = pageSize;
-		this.wordSeparators = wordSeparators;
+		let c = configuration.editor;
+
+		this.tabSize = modelOptions.tabSize;
+		this.pageSize = Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2;
+		this.useTabStops = c.useTabStops;
+		this.wordSeparators = c.wordSeparators;
+		this.autoClosingBrackets = c.autoClosingBrackets;
+		this.autoClosingPairsOpen = modeConfiguration.autoClosingPairsOpen;
 	}
 }
 
@@ -83,7 +107,7 @@ export class CursorMove {
 		return this.visibleColumnFromColumn(model.getLineContent(position.lineNumber), position.column, config.tabSize);
 	}
 
-	private static _columnFromVisibleColumn(lineContent: string, visibleColumn: number, tabSize: number): number {
+	public static columnFromVisibleColumn(lineContent: string, visibleColumn: number, tabSize: number): number {
 		if (visibleColumn <= 0) {
 			return 1;
 		}
@@ -118,8 +142,8 @@ export class CursorMove {
 		return lineLength + 1;
 	}
 
-	public static columnFromVisibleColumn(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, lineNumber: number, visibleColumn: number): number {
-		let result = this._columnFromVisibleColumn(model.getLineContent(lineNumber), visibleColumn, config.tabSize);
+	public static columnFromVisibleColumn2(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, lineNumber: number, visibleColumn: number): number {
+		let result = this.columnFromVisibleColumn(model.getLineContent(lineNumber), visibleColumn, config.tabSize);
 
 		let minColumn = model.getLineMinColumn(lineNumber);
 		if (result < minColumn) {
@@ -143,10 +167,7 @@ export class CursorMove {
 }
 
 
-export interface IViewColumnSelectResult {
-	viewSelections: Selection[];
-	reversed: boolean;
-}
+
 export interface IColumnSelectResult extends IViewColumnSelectResult {
 	selections: Selection[];
 	toLineNumber: number;
@@ -155,53 +176,6 @@ export interface IColumnSelectResult extends IViewColumnSelectResult {
 
 
 export class CursorMoveHelper {
-
-	public static columnSelect(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IViewColumnSelectResult {
-		let lineCount = Math.abs(toLineNumber - fromLineNumber) + 1;
-		let reversed = (fromLineNumber > toLineNumber);
-		let isRTL = (fromVisibleColumn > toVisibleColumn);
-		let isLTR = (fromVisibleColumn < toVisibleColumn);
-
-		let result: Selection[] = [];
-
-		// console.log(`fromVisibleColumn: ${fromVisibleColumn}, toVisibleColumn: ${toVisibleColumn}`);
-
-		for (let i = 0; i < lineCount; i++) {
-			let lineNumber = fromLineNumber + (reversed ? -i : i);
-
-			let startColumn = CursorMove.columnFromVisibleColumn(config, model, lineNumber, fromVisibleColumn);
-			let endColumn = CursorMove.columnFromVisibleColumn(config, model, lineNumber, toVisibleColumn);
-			let visibleStartColumn = this.visibleColumnFromColumn(model, lineNumber, startColumn, config.tabSize);
-			let visibleEndColumn = this.visibleColumnFromColumn(model, lineNumber, endColumn, config.tabSize);
-
-			// console.log(`lineNumber: ${lineNumber}: visibleStartColumn: ${visibleStartColumn}, visibleEndColumn: ${visibleEndColumn}`);
-
-			if (isLTR) {
-				if (visibleStartColumn > toVisibleColumn) {
-					continue;
-				}
-				if (visibleEndColumn < fromVisibleColumn) {
-					continue;
-				}
-			}
-
-			if (isRTL) {
-				if (visibleEndColumn > fromVisibleColumn) {
-					continue;
-				}
-				if (visibleStartColumn < toVisibleColumn) {
-					continue;
-				}
-			}
-
-			result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
-		}
-
-		return {
-			viewSelections: result,
-			reversed: reversed
-		};
-	}
 
 	public static getColumnAtBeginningOfLine(model: ICursorMoveHelperModel, lineNumber: number, column: number): number {
 		var firstNonBlankColumn = model.getLineFirstNonWhitespaceColumn(lineNumber) || 1;

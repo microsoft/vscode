@@ -6,7 +6,7 @@
 {
 	"cannotRunGotoLine": "Aprire prima un file di testo per passare a una riga",
 	"gotoLine": "Vai alla riga...",
-	"gotoLineColumnLabel": "Vai a riga {0} e a colonna {1}",
+	"gotoLineColumnLabel": "Vai a riga {0} e carattere {1}",
 	"gotoLineHandlerAriaLabel": "Digitare un numero di riga a cui passare.",
 	"gotoLineLabel": "Vai a riga {0}",
 	"gotoLineLabelEmpty": "Digitare un numero di riga a cui passare",
