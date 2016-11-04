@@ -156,8 +156,7 @@ export class WorkbenchShell {
 
 		//crash reporting
 		if (!!product.crashReporter) {
-			const crashReporter = instantiationService.createInstance(CrashReporter, pkg.version, product.commit);
-			crashReporter.start(product.crashReporter);
+			instantiationService.createInstance(CrashReporter, product.crashReporter);
 		}
 
 		// Workbench
@@ -212,7 +211,7 @@ export class WorkbenchShell {
 		}
 	}
 
-	private initServiceCollection(container: HTMLElement): [InstantiationService, ServiceCollection] {
+	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
 		const disposables = new Disposables();
 
 		const mainProcessClient = new ElectronIPCClient(String(`window${remote.getCurrentWindow().id}`));

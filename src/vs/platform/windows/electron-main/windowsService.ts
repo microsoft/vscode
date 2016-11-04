@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { shell } from 'electron';
+import { shell, crashReporter } from 'electron';
 
 // TODO@Joao: remove this dependency, move all implementation to this class
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
@@ -185,6 +185,11 @@ export class WindowsService implements IWindowsService {
 
 	openExternal(url: string): TPromise<void> {
 		shell.openExternal(url);
+		return TPromise.as(null);
+	}
+
+	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
+		crashReporter.start(config);
 		return TPromise.as(null);
 	}
 }

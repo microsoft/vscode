@@ -18,7 +18,7 @@ import { EventEmitter } from 'events';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
+import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -212,12 +212,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 				macOpenFiles = [];
 				runningTimeout = null;
 			}, 100);
-		});
-
-		ipc.on('vscode:startCrashReporter', (event: any, config: any) => {
-			this.logService.log('IPC#vscode:startCrashReporter');
-
-			crashReporter.start(config);
 		});
 
 		ipc.on('vscode:workbenchLoaded', (event, windowId: number) => {
