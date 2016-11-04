@@ -50,22 +50,22 @@ suite('Workbench - StringEditorInput', () => {
 		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
 
 		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
-		editorService.resolveEditorModel(input, true).then(resolved => {
+		input.resolve(true).then(resolved => {
 			let resolvedModelA = resolved;
-			return editorService.resolveEditorModel(input, true).then(resolved => {
+			return input.resolve(true).then(resolved => {
 				assert(resolvedModelA === resolved); // assert: Resolved Model cached per instance
 
 				let otherInput = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
-				return editorService.resolveEditorModel(otherInput, true).then(resolved => {
+				return otherInput.resolve(true).then(resolved => {
 					assert(resolvedModelA !== resolved); // NOT assert: Different instance, different model
 
 					input.dispose();
 
-					return editorService.resolveEditorModel(input, true).then(resolved => {
+					return input.resolve(true).then(resolved => {
 						assert(resolvedModelA !== resolved); // Different instance, because input got disposed
 
 						let model = (<any>resolved).textEditorModel;
-						return editorService.resolveEditorModel(input, true).then(againResolved => {
+						return input.resolve(true).then(againResolved => {
 							assert(model === (<any>againResolved).textEditorModel); // Models should not differ because string input is constant
 
 							input.dispose();

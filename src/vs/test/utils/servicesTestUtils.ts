@@ -24,7 +24,7 @@ import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickO
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
-import { IEditorInput, IEditorOptions, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
@@ -469,14 +469,6 @@ export class TestEditorService implements IWorkbenchEditorService {
 		this.activeEditorPosition = position;
 
 		return TPromise.as(null);
-	}
-
-	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
-	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
-	public resolveEditorModel(input: any, refresh?: boolean): Promise {
-		this.callback('resolveEditorModel');
-
-		return input.resolve(refresh);
 	}
 
 	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {

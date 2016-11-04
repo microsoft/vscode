@@ -8,7 +8,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
-import { EditorModel, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput } from 'vs/workbench/parts/files/common/files';
@@ -177,7 +178,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	public resolve(refresh?: boolean): TPromise<EditorModel> {
+	public resolve(refresh?: boolean): TPromise<TextFileEditorModel> {
 		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh).then(null, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model

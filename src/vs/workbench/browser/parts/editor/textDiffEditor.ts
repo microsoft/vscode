@@ -142,7 +142,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		}
 
 		// Different Input (Reload)
-		return this.editorService.resolveEditorModel(input, true /* Reload */).then((resolvedModel: EditorModel) => {
+		return input.resolve(true).then((resolvedModel: EditorModel) => {
 
 			// Assert Model Instance
 			if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {

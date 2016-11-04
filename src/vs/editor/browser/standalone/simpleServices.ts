@@ -162,21 +162,6 @@ export class SimpleEditorService implements IEditorService {
 
 		return model;
 	}
-
-	public resolveEditorModel(typedData: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel> {
-		let model: editorCommon.IModel;
-
-		model = this.editor.withTypedEditor(
-			(editor) => this.findModel(editor, typedData),
-			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), typedData) || this.findModel(diffEditor.getModifiedEditor(), typedData)
-		);
-
-		if (!model) {
-			return TPromise.as(null);
-		}
-
-		return TPromise.as(new SimpleModel(model));
-	}
 }
 
 export class SimpleEditorModelResolverService implements ITextModelResolverService {

@@ -16,7 +16,6 @@ import { EditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/comm
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { workbenchInstantiationService } from 'vs/test/utils/servicesTestUtils';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -313,21 +312,16 @@ suite('Workbench UI Services', () => {
 
 		// Resolve Editor Model (Typed EditorInput)
 		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
-		service.resolveEditorModel(input, true).then((model: StringEditorModel) => {
+		input.resolve(true).then((model: StringEditorModel) => {
 			assert(model instanceof StringEditorModel);
 
 			assert(model.isResolved());
 
-			service.resolveEditorModel(input, false).then((otherModel) => {
+			input.resolve().then((otherModel) => {
 				assert(model === otherModel);
 
 				input.dispose();
 			});
-		});
-
-		// Resolve Editor Model (Untyped Input)
-		service.resolveEditorModel({ resource: toResource.call(this, '/index.html') }, true).then((model) => {
-			assert(model instanceof TextFileEditorModel);
 		});
 	});
 
