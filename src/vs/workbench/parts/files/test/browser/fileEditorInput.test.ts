@@ -13,8 +13,9 @@ import { workbenchInstantiationService, TestTextFileService } from 'vs/test/util
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { IEventService } from 'vs/platform/event/common/event';
-import { ITextFileEditorModel, ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 
 function toResource(path) {
 	return URI.file(join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
@@ -62,17 +63,17 @@ suite('Files - FileEditorInput', () => {
 		const inputToResolve: any = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
 		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
 
-		return accessor.editorService.resolveEditorModel(inputToResolve, true).then(resolved => {
+		return inputToResolve.resolve(true).then(resolved => {
 			const resolvedModelA = resolved;
-			return accessor.editorService.resolveEditorModel(inputToResolve, true).then(resolved => {
+			return inputToResolve.resolve(true).then(resolved => {
 				assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input
 
-				return accessor.editorService.resolveEditorModel(sameOtherInput, true).then(otherResolved => {
+				return sameOtherInput.resolve(true).then(otherResolved => {
 					assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input
 
 					inputToResolve.dispose(false);
 
-					return accessor.editorService.resolveEditorModel(inputToResolve, true).then(resolved => {
+					return inputToResolve.resolve(true).then(resolved => {
 						assert(resolvedModelA === resolved); // Model is still the same because we had 2 clients
 
 						inputToResolve.dispose();
@@ -80,15 +81,15 @@ suite('Files - FileEditorInput', () => {
 
 						resolvedModelA.dispose();
 
-						return accessor.editorService.resolveEditorModel(inputToResolve, true).then(resolved => {
+						return inputToResolve.resolve(true).then(resolved => {
 							assert(resolvedModelA !== resolved); // Different instance, because input got disposed
 
 							let stat = (<any>resolved).versionOnDiskStat;
-							return accessor.editorService.resolveEditorModel(inputToResolve, true).then(resolved => {
+							return inputToResolve.resolve(true).then(resolved => {
 								assert(stat !== (<any>resolved).versionOnDiskStat); // Different stat, because resolve always goes to the server for refresh
 
 								stat = (<any>resolved).versionOnDiskStat;
-								return accessor.editorService.resolveEditorModel(inputToResolve, false).then(resolved => {
+								return inputToResolve.resolve(false).then(resolved => {
 									assert(stat === (<any>resolved).versionOnDiskStat); // Same stat, because not refreshed
 
 									done();
@@ -116,7 +117,7 @@ suite('Files - FileEditorInput', () => {
 		input.setEncoding('utf16', EncodingMode.Encode);
 		assert.equal(input.getEncoding(), 'utf16');
 
-		return accessor.editorService.resolveEditorModel(input, true).then((resolved: ITextFileEditorModel) => {
+		return input.resolve(true).then((resolved: TextFileEditorModel) => {
 			assert.equal(input.getEncoding(), resolved.getEncoding());
 
 			resolved.dispose();
@@ -128,7 +129,7 @@ suite('Files - FileEditorInput', () => {
 	test('save', function (done) {
 		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), void 0);
 
-		return accessor.editorService.resolveEditorModel(input, true).then((resolved: ITextFileEditorModel) => {
+		return input.resolve(true).then((resolved: TextFileEditorModel) => {
 			resolved.textEditorModel.setValue('changed');
 			assert.ok(input.isDirty());
 
@@ -145,7 +146,7 @@ suite('Files - FileEditorInput', () => {
 	test('revert', function (done) {
 		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), void 0);
 
-		return accessor.editorService.resolveEditorModel(input, true).then((resolved: ITextFileEditorModel) => {
+		return input.resolve(true).then((resolved: TextFileEditorModel) => {
 			resolved.textEditorModel.setValue('changed');
 			assert.ok(input.isDirty());
 
@@ -167,7 +168,7 @@ suite('Files - FileEditorInput', () => {
 			fileOperationResult: FileOperationResult.FILE_IS_BINARY
 		});
 
-		return accessor.editorService.resolveEditorModel(input, true).then(resolved => {
+		return input.resolve(true).then(resolved => {
 			assert.ok(resolved);
 
 			resolved.dispose();
