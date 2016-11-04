@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
+import { ReplaceCommand, ReplaceCommandWithoutChangingPosition, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
 import { CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { CursorChangeReason } from 'vs/editor/common/editorCommon';
+import { CursorChangeReason, ICommand } from 'vs/editor/common/editorCommon';
 import { CursorModelState } from 'vs/editor/common/controller/oneCursor';
 import * as strings from 'vs/base/common/strings';
 import { EditOperationResult } from 'vs/editor/common/controller/cursorDeleteOperations';
@@ -170,5 +170,63 @@ export class TypeOperations {
 
 			return this.indent(config, model, cursor);
 		}
+	}
+
+	public static replacePreviousChar(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState, txt: string, replaceCharCnt: number): EditOperationResult {
+		let pos = cursor.position;
+		let startColumn = Math.max(1, pos.column - replaceCharCnt);
+		let range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
+		return new EditOperationResult(new ReplaceCommand(range, txt));
+	}
+
+	public static typeCommand(range: Range, text: string, keepPosition: boolean): ICommand {
+		if (keepPosition) {
+			return new ReplaceCommandWithoutChangingPosition(range, text);
+		} else {
+			return new ReplaceCommand(range, text);
+		}
+	}
+
+	static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): EditOperationResult {
+
+		let r = LanguageConfigurationRegistry.getEnterActionAtPosition(model, range.startLineNumber, range.startColumn);
+		let enterAction = r.enterAction;
+		let indentation = r.indentation;
+
+		let executeCommand: ICommand;
+		if (enterAction.indentAction === IndentAction.None) {
+			// Nothing special
+			executeCommand = TypeOperations.typeCommand(range, '\n' + config.normalizeIndentation(indentation + enterAction.appendText), keepPosition);
+
+		} else if (enterAction.indentAction === IndentAction.Indent) {
+			// Indent once
+			executeCommand = TypeOperations.typeCommand(range, '\n' + config.normalizeIndentation(indentation + enterAction.appendText), keepPosition);
+
+		} else if (enterAction.indentAction === IndentAction.IndentOutdent) {
+			// Ultra special
+			let normalIndent = config.normalizeIndentation(indentation);
+			let increasedIndent = config.normalizeIndentation(indentation + enterAction.appendText);
+
+			let typeText = '\n' + increasedIndent + '\n' + normalIndent;
+
+			if (keepPosition) {
+				executeCommand = new ReplaceCommandWithoutChangingPosition(range, typeText);
+			} else {
+				executeCommand = new ReplaceCommandWithOffsetCursorState(range, typeText, -1, increasedIndent.length - normalIndent.length);
+			}
+		} else if (enterAction.indentAction === IndentAction.Outdent) {
+			let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + 1, config.tabSize);
+			let actualIndentation = '';
+			for (let i = 0; i < desiredIndentCount; i++) {
+				actualIndentation += '\t';
+			}
+			executeCommand = TypeOperations.typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + enterAction.appendText), keepPosition);
+		}
+
+		return new EditOperationResult(executeCommand, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: false,
+			isAutoWhitespaceCommand: true
+		});
 	}
 }

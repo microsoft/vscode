@@ -7,7 +7,6 @@
 import { onUnexpectedError, illegalArgument } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { CursorMoveHelper, IColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
 import { CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
@@ -15,7 +14,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CharCode } from 'vs/base/common/charCode';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
@@ -1227,7 +1225,7 @@ export class OneCursorOp {
 			return false;
 		}
 
-		return this._enter(cursor, false, ctx, cursor.modelState.position, cursor.modelState.selection);
+		return this._enter(cursor, false, ctx, cursor.modelState.selection);
 	}
 
 	public static lineInsertBefore(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
@@ -1241,57 +1239,24 @@ export class OneCursorOp {
 		lineNumber--;
 		let column = cursor.model.getLineMaxColumn(lineNumber);
 
-		return this._enter(cursor, false, ctx, new Position(lineNumber, column), new Range(lineNumber, column, lineNumber, column));
+		return this._enter(cursor, false, ctx, new Range(lineNumber, column, lineNumber, column));
 	}
 
 	public static lineInsertAfter(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
 		let position = cursor.modelState.position;
 		let column = cursor.model.getLineMaxColumn(position.lineNumber);
-		return this._enter(cursor, false, ctx, new Position(position.lineNumber, column), new Range(position.lineNumber, column, position.lineNumber, column));
+		return this._enter(cursor, false, ctx, new Range(position.lineNumber, column, position.lineNumber, column));
 	}
 
 	public static lineBreakInsert(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._enter(cursor, true, ctx, cursor.modelState.position, cursor.modelState.selection);
+		return this._enter(cursor, true, ctx, cursor.modelState.selection);
 	}
 
-	private static _enter(cursor: OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, position: Position, range: Range): boolean {
-		ctx.shouldPushStackElementBefore = true;
-
-		let r = LanguageConfigurationRegistry.getEnterActionAtPosition(cursor.model, range.startLineNumber, range.startColumn);
-		let enterAction = r.enterAction;
-		let indentation = r.indentation;
-
-		ctx.isAutoWhitespaceCommand = true;
-		if (enterAction.indentAction === IndentAction.None) {
-			// Nothing special
-			this.actualType(cursor, '\n' + cursor.model.normalizeIndentation(indentation + enterAction.appendText), keepPosition, ctx, range);
-
-		} else if (enterAction.indentAction === IndentAction.Indent) {
-			// Indent once
-			this.actualType(cursor, '\n' + cursor.model.normalizeIndentation(indentation + enterAction.appendText), keepPosition, ctx, range);
-
-		} else if (enterAction.indentAction === IndentAction.IndentOutdent) {
-			// Ultra special
-			let normalIndent = cursor.model.normalizeIndentation(indentation);
-			let increasedIndent = cursor.model.normalizeIndentation(indentation + enterAction.appendText);
-
-			let typeText = '\n' + increasedIndent + '\n' + normalIndent;
-
-			if (keepPosition) {
-				ctx.executeCommand = new ReplaceCommandWithoutChangingPosition(range, typeText);
-			} else {
-				ctx.executeCommand = new ReplaceCommandWithOffsetCursorState(range, typeText, -1, increasedIndent.length - normalIndent.length);
-			}
-		} else if (enterAction.indentAction === IndentAction.Outdent) {
-			let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + 1, cursor.model.getOptions().tabSize);
-			let actualIndentation = '';
-			for (let i = 0; i < desiredIndentCount; i++) {
-				actualIndentation += '\t';
-			}
-			this.actualType(cursor, '\n' + cursor.model.normalizeIndentation(actualIndentation + enterAction.appendText), keepPosition, ctx, range);
-		}
-
-		return true;
+	private static _enter(cursor: OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, range: Range): boolean {
+		return this._applyEditOperation(
+			ctx,
+			TypeOperations._enter(cursor.config, cursor.model, keepPosition, range)
+		);
 	}
 
 	private static _typeInterceptorAutoClosingCloseChar(cursor: OneCursor, ch: string, ctx: IOneCursorOperationContext): boolean {
@@ -1417,7 +1382,8 @@ export class OneCursorOp {
 
 		ctx.postOperationRunnable = (postOperationCtx: IOneCursorOperationContext) => this._typeInterceptorElectricCharRunnable(cursor, postOperationCtx);
 
-		return this.actualType(cursor, ch, false, ctx);
+		ctx.executeCommand = TypeOperations.typeCommand(cursor.modelState.selection, ch, false);
+		return true;
 	}
 
 	private static _typeInterceptorElectricCharRunnable(cursor: OneCursor, ctx: IOneCursorOperationContext): void {
@@ -1470,15 +1436,8 @@ export class OneCursorOp {
 		}
 	}
 
-	public static actualType(cursor: OneCursor, text: string, keepPosition: boolean, ctx: IOneCursorOperationContext, range?: Range): boolean {
-		if (typeof range === 'undefined') {
-			range = cursor.modelState.selection;
-		}
-		if (keepPosition) {
-			ctx.executeCommand = new ReplaceCommandWithoutChangingPosition(range, text);
-		} else {
-			ctx.executeCommand = new ReplaceCommand(range, text);
-		}
+	public static actualType(cursor: OneCursor, text: string, keepPosition: boolean, ctx: IOneCursorOperationContext): boolean {
+		ctx.executeCommand = TypeOperations.typeCommand(cursor.modelState.selection, text, keepPosition);
 		return true;
 	}
 
@@ -1504,16 +1463,15 @@ export class OneCursorOp {
 			return true;
 		}
 
-		return this.actualType(cursor, ch, false, ctx);
+		ctx.executeCommand = TypeOperations.typeCommand(cursor.modelState.selection, ch, false);
+		return true;
 	}
 
 	public static replacePreviousChar(cursor: OneCursor, txt: string, replaceCharCnt: number, ctx: IOneCursorOperationContext): boolean {
-		let pos = cursor.modelState.position;
-		let range: Range;
-		let startColumn = Math.max(1, pos.column - replaceCharCnt);
-		range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
-		ctx.executeCommand = new ReplaceCommand(range, txt);
-		return true;
+		return this._applyEditOperation(
+			ctx,
+			TypeOperations.replacePreviousChar(cursor.config, cursor.model, cursor.modelState, txt, replaceCharCnt)
+		);
 	}
 
 	public static tab(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
