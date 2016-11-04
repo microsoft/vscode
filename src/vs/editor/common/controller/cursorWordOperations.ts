@@ -270,7 +270,7 @@ export class WordOperations {
 		let lastNonWhitespace = strings.lastNonWhitespaceIndex(lineContent, startIndex);
 		if (lastNonWhitespace + 1 < startIndex) {
 			let deleteRange = new Range(position.lineNumber, lastNonWhitespace + 2, position.lineNumber, position.column);
-			return new EditOperationResult(new ReplaceCommand(deleteRange, ''), false, false, false);
+			return new EditOperationResult(new ReplaceCommand(deleteRange, ''));
 		}
 		return null;
 	}
@@ -323,7 +323,7 @@ export class WordOperations {
 
 			let deleteSelection = new Range(lineNumber, column, lineNumber, position.column);
 			if (!deleteSelection.isEmpty()) {
-				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), false, false, false);
+				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''));
 			}
 		}
 
@@ -349,7 +349,7 @@ export class WordOperations {
 		if (startIndex + 1 < firstNonWhitespace) {
 			// bingo
 			let deleteRange = new Range(position.lineNumber, position.column, position.lineNumber, firstNonWhitespace + 1);
-			return new EditOperationResult(new ReplaceCommand(deleteRange, ''), false, false, false);
+			return new EditOperationResult(new ReplaceCommand(deleteRange, ''));
 		}
 		return null;
 	}
@@ -419,7 +419,7 @@ export class WordOperations {
 
 			let deleteSelection = new Range(lineNumber, column, position.lineNumber, position.column);
 			if (!deleteSelection.isEmpty()) {
-				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), false, false, false);
+				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''));
 			}
 		}
 

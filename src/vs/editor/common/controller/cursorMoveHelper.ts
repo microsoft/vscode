@@ -11,6 +11,7 @@ import { IViewColumnSelectResult } from 'vs/editor/common/controller/cursorColum
 import * as strings from 'vs/base/common/strings';
 import { IModeConfiguration } from 'vs/editor/common/controller/oneCursor';
 import { IConfigurationChangedEvent, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 export interface CharacterMap {
 	[char: string]: string;
@@ -20,6 +21,8 @@ export class CursorMoveConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
 	public readonly tabSize: number;
+	public readonly insertSpaces: boolean;
+	public readonly oneIndent: string;
 	public readonly pageSize: number;
 	public readonly useTabStops: boolean;
 	public readonly wordSeparators: string;
@@ -36,6 +39,7 @@ export class CursorMoveConfiguration {
 	}
 
 	constructor(
+		oneIndent: string,
 		modelOptions: TextModelResolvedOptions,
 		configuration: IConfiguration,
 		modeConfiguration: IModeConfiguration
@@ -43,11 +47,17 @@ export class CursorMoveConfiguration {
 		let c = configuration.editor;
 
 		this.tabSize = modelOptions.tabSize;
+		this.insertSpaces = modelOptions.insertSpaces;
+		this.oneIndent = oneIndent;
 		this.pageSize = Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2;
 		this.useTabStops = c.useTabStops;
 		this.wordSeparators = c.wordSeparators;
 		this.autoClosingBrackets = c.autoClosingBrackets;
 		this.autoClosingPairsOpen = modeConfiguration.autoClosingPairsOpen;
+	}
+
+	public normalizeIndentation(str: string): string {
+		return TextModel.normalizeIndentation(str, this.tabSize, this.insertSpaces);
 	}
 }
 

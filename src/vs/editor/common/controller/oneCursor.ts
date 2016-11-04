@@ -23,6 +23,7 @@ import { MoveOperations, MoveOperationResult } from 'vs/editor/common/controller
 import { WordType, WordOperations, WordNavigationType } from 'vs/editor/common/controller/cursorWordOperations';
 import { ColumnSelection } from 'vs/editor/common/controller/cursorColumnSelection';
 import { DeleteOperations, EditOperationResult } from 'vs/editor/common/controller/cursorDeleteOperations';
+import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 
 export interface IPostOperationRunnable {
 	(ctx: IOneCursorOperationContext): void;
@@ -281,6 +282,7 @@ export class OneCursor implements IOneCursor {
 
 	private _recreateCursorConfig(): void {
 		this.config = new CursorMoveConfiguration(
+			this.model.getOneIndent(),
 			this.model.getOptions(),
 			this.configuration,
 			this.modeConfiguration
@@ -1513,152 +1515,32 @@ export class OneCursorOp {
 		return true;
 	}
 
-	private static _goodIndentForLine(cursor: OneCursor, lineNumber: number): string {
-		let lastLineNumber = lineNumber - 1;
-
-		for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
-			let lineText = cursor.model.getLineContent(lastLineNumber);
-			let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineText);
-			if (nonWhitespaceIdx >= 0) {
-				break;
-			}
-		}
-
-		if (lastLineNumber < 1) {
-			// No previous line with content found
-			return '\t';
-		}
-
-		let r = LanguageConfigurationRegistry.getEnterActionAtPosition(cursor.model, lastLineNumber, cursor.model.getLineMaxColumn(lastLineNumber));
-
-		let indentation: string;
-		if (r.enterAction.indentAction === IndentAction.Outdent) {
-			let modelOpts = cursor.model.getOptions();
-			let desiredIndentCount = ShiftCommand.unshiftIndentCount(r.indentation, r.indentation.length, modelOpts.tabSize);
-			indentation = '';
-			for (let i = 0; i < desiredIndentCount; i++) {
-				indentation += '\t';
-			}
-			indentation = cursor.model.normalizeIndentation(indentation);
-		} else {
-			indentation = r.indentation;
-		}
-
-		let result = indentation + r.enterAction.appendText;
-		if (result.length === 0) {
-			// good position is at column 1, but we gotta do something...
-			return '\t';
-		}
-		return result;
-	}
-
-	private static _replaceJumpToNextIndent(cursor: OneCursor, selection: Selection): ReplaceCommand {
-		let typeText = '';
-
-		let position = selection.getStartPosition();
-		let modelOpts = cursor.model.getOptions();
-		if (modelOpts.insertSpaces) {
-			let visibleColumnFromColumn = CursorMove.visibleColumnFromColumn2(cursor.config, cursor.model, position);
-			let tabSize = modelOpts.tabSize;
-			let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
-			for (let i = 0; i < spacesCnt; i++) {
-				typeText += ' ';
-			}
-		} else {
-			typeText = '\t';
-		}
-
-		return new ReplaceCommand(selection, typeText);
-	}
-
 	public static tab(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let selection = cursor.modelState.selection;
-
-		if (selection.isEmpty()) {
-
-			ctx.isAutoWhitespaceCommand = true;
-
-
-			let lineText = cursor.model.getLineContent(selection.startLineNumber);
-
-			if (/^\s*$/.test(lineText)) {
-				let possibleTypeText = cursor.model.normalizeIndentation(this._goodIndentForLine(cursor, selection.startLineNumber));
-				if (!strings.startsWith(lineText, possibleTypeText)) {
-					ctx.executeCommand = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText);
-					return true;
-				}
-			}
-
-			ctx.executeCommand = this._replaceJumpToNextIndent(cursor, selection);
-			return true;
-		} else {
-			if (selection.startLineNumber === selection.endLineNumber) {
-				let lineMaxColumn = cursor.model.getLineMaxColumn(selection.startLineNumber);
-				if (selection.startColumn !== 1 || selection.endColumn !== lineMaxColumn) {
-					// This is a single line selection that is not the entire line
-					ctx.executeCommand = this._replaceJumpToNextIndent(cursor, selection);
-					return true;
-				}
-			}
-			return this.indent(cursor, ctx);
-		}
+		return this._applyEditOperation(
+			ctx,
+			TypeOperations.tab(cursor.config, cursor.model, cursor.modelState)
+		);
 	}
 
 	public static indent(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let selection = cursor.modelState.selection;
-
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-		ctx.executeCommand = new ShiftCommand(selection, {
-			isUnshift: false,
-			tabSize: cursor.model.getOptions().tabSize,
-			oneIndent: cursor.model.getOneIndent()
-		});
-		ctx.shouldRevealHorizontal = false;
-
-		return true;
+		return this._applyEditOperation(
+			ctx,
+			TypeOperations.indent(cursor.config, cursor.model, cursor.modelState)
+		);
 	}
 
 	public static outdent(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let selection = cursor.modelState.selection;
-
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-		ctx.executeCommand = new ShiftCommand(selection, {
-			isUnshift: true,
-			tabSize: cursor.model.getOptions().tabSize,
-			oneIndent: cursor.model.getOneIndent()
-		});
-		ctx.shouldRevealHorizontal = false;
-
-		return true;
+		return this._applyEditOperation(
+			ctx,
+			TypeOperations.outdent(cursor.config, cursor.model, cursor.modelState)
+		);
 	}
 
 	public static paste(cursor: OneCursor, text: string, pasteOnNewLine: boolean, ctx: IOneCursorOperationContext): boolean {
-		let position = cursor.modelState.position;
-		let selection = cursor.modelState.selection;
-
-		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Paste;
-
-		if (pasteOnNewLine && text.indexOf('\n') !== text.length - 1) {
-			pasteOnNewLine = false;
-		}
-		if (pasteOnNewLine && selection.startLineNumber !== selection.endLineNumber) {
-			pasteOnNewLine = false;
-		}
-		if (pasteOnNewLine && selection.startColumn === cursor.model.getLineMinColumn(selection.startLineNumber) && selection.endColumn === cursor.model.getLineMaxColumn(selection.startLineNumber)) {
-			pasteOnNewLine = false;
-		}
-
-		if (pasteOnNewLine) {
-			// Paste entire line at the beginning of line
-
-			let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
-			ctx.executeCommand = new ReplaceCommand(typeSelection, text);
-			return true;
-		}
-		ctx.executeCommand = new ReplaceCommand(selection, text);
-		return true;
+		return this._applyEditOperation(
+			ctx,
+			TypeOperations.paste(cursor.config, cursor.model, cursor.modelState, text, pasteOnNewLine)
+		);
 	}
 
 	// -------------------- END type interceptors & co.
@@ -1671,6 +1553,8 @@ export class OneCursorOp {
 			ctx.shouldPushStackElementBefore = r.shouldPushStackElementBefore;
 			ctx.shouldPushStackElementAfter = r.shouldPushStackElementAfter;
 			ctx.isAutoWhitespaceCommand = r.isAutoWhitespaceCommand;
+			ctx.shouldRevealHorizontal = r.shouldRevealHorizontal;
+			ctx.cursorPositionChangeReason = r.cursorPositionChangeReason;
 		}
 		return true;
 	}
@@ -1718,80 +1602,16 @@ export class OneCursorOp {
 	}
 
 	public static cut(cursor: OneCursor, enableEmptySelectionClipboard: boolean, ctx: IOneCursorOperationContext): boolean {
-		let selection = cursor.modelState.selection;
-
-		if (selection.isEmpty()) {
-			if (enableEmptySelectionClipboard) {
-				// This is a full line cut
-
-				let position = cursor.modelState.position;
-
-				let startLineNumber: number,
-					startColumn: number,
-					endLineNumber: number,
-					endColumn: number;
-
-				if (position.lineNumber < cursor.model.getLineCount()) {
-					// Cutting a line in the middle of the model
-					startLineNumber = position.lineNumber;
-					startColumn = 1;
-					endLineNumber = position.lineNumber + 1;
-					endColumn = 1;
-				} else if (position.lineNumber > 1) {
-					// Cutting the last line & there are more than 1 lines in the model
-					startLineNumber = position.lineNumber - 1;
-					startColumn = cursor.model.getLineMaxColumn(position.lineNumber - 1);
-					endLineNumber = position.lineNumber;
-					endColumn = cursor.model.getLineMaxColumn(position.lineNumber);
-				} else {
-					// Cutting the single line that the model contains
-					startLineNumber = position.lineNumber;
-					startColumn = 1;
-					endLineNumber = position.lineNumber;
-					endColumn = cursor.model.getLineMaxColumn(position.lineNumber);
-				}
-
-				let deleteSelection = new Range(
-					startLineNumber,
-					startColumn,
-					endLineNumber,
-					endColumn
-				);
-
-				if (!deleteSelection.isEmpty()) {
-					ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
-				}
-			} else {
-				// Cannot cut empty selection
-				return false;
-			}
-		} else {
-			// Delete left or right, they will both result in the selection being deleted
-			this.deleteRight(cursor, ctx);
-		}
-		return true;
+		return this._applyEditOperation(
+			ctx,
+			DeleteOperations.cut(cursor.config, cursor.model, cursor.modelState, enableEmptySelectionClipboard)
+		);
 	}
 
 	// -------------------- END delete handlers & co.
 }
 
 class Utils {
-
-	/**
-	 * Range contains position (including edges)?
-	 */
-	static rangeContainsPosition(range: editorCommon.IRange, position: editorCommon.IPosition): boolean {
-		if (position.lineNumber < range.startLineNumber || position.lineNumber > range.endLineNumber) {
-			return false;
-		}
-		if (position.lineNumber === range.startLineNumber && position.column < range.startColumn) {
-			return false;
-		}
-		if (position.lineNumber === range.endLineNumber && position.column > range.endColumn) {
-			return false;
-		}
-		return true;
-	}
 
 	/**
 	 * Tests if position is contained inside range.
