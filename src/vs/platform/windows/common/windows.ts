@@ -40,9 +40,12 @@ export interface IWindowsService {
 	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void>;
 	showItemInFolder(path: string): TPromise<void>;
 
-	// TODO: this needs to be handled from browser process to prevent
+	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
 	openExternal(url: string): TPromise<void>;
+
+	// TODO: this is a bit backwards
+	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
