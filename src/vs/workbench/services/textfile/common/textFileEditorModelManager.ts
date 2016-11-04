@@ -171,7 +171,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		return this.mapResourceToModel[resource.toString()];
 	}
 
-	public loadOrCreate(resource: URI, encoding: string, refresh?: boolean): TPromise<ITextFileEditorModel> {
+	public loadOrCreate(resource: URI, encoding?: string, refresh?: boolean): TPromise<ITextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders[resource.toString()];
