@@ -8,7 +8,7 @@
 	"array": "tableaux ({0})",
 	"boolean": "booléens ({0})",
 	"cannotRunGotoSymbol": "Ouvrir d'abord un fichier texte pour atteindre un symbole",
-	"cannotRunGotoSymbolInFile": "Malheureusement, nous n'avons pas d'informations de symboles pour le fichier",
+	"cannotRunGotoSymbolInFile": "Aucune information sur les symboles pour le fichier",
 	"class": "classes ({0})",
 	"entryAriaLabel": "{0}, symboles",
 	"enum": "énumérations ({0})",

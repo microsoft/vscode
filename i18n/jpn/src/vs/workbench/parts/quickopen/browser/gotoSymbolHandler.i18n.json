@@ -8,7 +8,7 @@
 	"array": "配列 ({0})",
 	"boolean": "ブール値 ({0})",
 	"cannotRunGotoSymbol": "まずテキスト ファイルを開いてからシンボルへ移動します",
-	"cannotRunGotoSymbolInFile": "残念ながらファイルのシンボル情報がありません",
+	"cannotRunGotoSymbolInFile": "ファイルのシンボル情報がありません",
 	"class": "クラス ({0})",
 	"entryAriaLabel": "{0}、シンボル",
 	"enum": "列挙型 ({0})",

@@ -38,6 +38,7 @@
 	"selectEOL": "Seleccionar secuencia de fin de línea",
 	"selectEncoding": "Seleccionar Encoding",
 	"selectLanguageMode": "Seleccionar modo de lenguaje",
+	"showLanguageExtensions": "Buscar extensiones de Marketplace para '{0}'...",
 	"singleSelection": "Lín. {0}, Col. {1}",
 	"singleSelectionRange": "Lín. {0}, Col. {1} ({2} seleccionada)",
 	"spacesSize": "Espacios: {0}",

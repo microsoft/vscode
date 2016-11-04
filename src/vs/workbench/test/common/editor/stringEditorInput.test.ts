@@ -10,7 +10,6 @@ import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { createMockModelService, TestEditorService } from 'vs/test/utils/servicesTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -51,22 +50,22 @@ suite('Workbench - StringEditorInput', () => {
 		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
 
 		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
-		editorService.resolveEditorModel(input, true).then(resolved => {
+		input.resolve(true).then(resolved => {
 			let resolvedModelA = resolved;
-			return editorService.resolveEditorModel(input, true).then(resolved => {
+			return input.resolve(true).then(resolved => {
 				assert(resolvedModelA === resolved); // assert: Resolved Model cached per instance
 
 				let otherInput = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
-				return editorService.resolveEditorModel(otherInput, true).then(resolved => {
+				return otherInput.resolve(true).then(resolved => {
 					assert(resolvedModelA !== resolved); // NOT assert: Different instance, different model
 
 					input.dispose();
 
-					return editorService.resolveEditorModel(input, true).then(resolved => {
+					return input.resolve(true).then(resolved => {
 						assert(resolvedModelA !== resolved); // Different instance, because input got disposed
 
 						let model = (<any>resolved).textEditorModel;
-						return editorService.resolveEditorModel(input, true).then(againResolved => {
+						return input.resolve(true).then(againResolved => {
 							assert(model === (<any>againResolved).textEditorModel); // Models should not differ because string input is constant
 
 							input.dispose();
@@ -108,18 +107,5 @@ suite('Workbench - StringEditorInput', () => {
 
 		assert.strictEqual(promiseEditorInput.matches(promiseEditorInput2), true);
 		assert.strictEqual(stringEditorInput.matches(stringEditorInput2), true);
-	});
-
-	test('ResourceEditorInput', function (done) {
-		let resource = URI.from({ scheme: 'inMemory', authority: null, path: 'thePath' });
-		modelService.createModel('function test() {}', modeService.getOrCreateMode('text'), resource);
-		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
-
-		input.resolve().then((model: ResourceEditorModel) => {
-			assert.ok(model);
-			assert.equal(model.getValue(), 'function test() {}');
-
-			done();
-		});
 	});
 });

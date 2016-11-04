@@ -1,7 +1,18 @@
 [
 	{
-		"c": ":root",
-		"t": "attribute-name.css.entity.other.pseudo-element",
+		"c": ":",
+		"t": "attribute-name.css.definition.entity.other.pseudo-class.punctuation",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name.css rgb(215, 186, 125)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name.css rgb(128, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name.css rgb(215, 186, 125)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name.css rgb(128, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name.css rgb(215, 186, 125)"
+		}
+	},
+	{
+		"c": "root",
+		"t": "attribute-name.css.entity.other.pseudo-class",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name.css rgb(215, 186, 125)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name.css rgb(128, 0, 0)",
@@ -23,7 +34,7 @@
 	},
 	{
 		"c": "{",
-		"t": "brace.curly.less.meta",
+		"t": "begin.css.meta.property-list.punctuation.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -34,7 +45,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "",
+		"t": "css.meta.property-list",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -45,7 +56,7 @@
 	},
 	{
 		"c": "--spacing-unit",
-		"t": "less.other.variable",
+		"t": "css.less.meta.other.property-list.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -56,7 +67,7 @@
 	},
 	{
 		"c": ":",
-		"t": "",
+		"t": "css.key-value.meta.property-list.punctuation.separator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -66,8 +77,19 @@
 		}
 	},
 	{
-		"c": " 6",
-		"t": "constant.css.numeric",
+		"c": " ",
+		"t": "css.meta.property-list",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "6",
+		"t": "constant.css.meta.numeric.property-list.property-value",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
@@ -78,7 +100,7 @@
 	},
 	{
 		"c": "px",
-		"t": "css.keyword.other.unit",
+		"t": "css.keyword.meta.other.property-list.property-value.unit",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.other.unit rgb(181, 206, 168)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.other.unit rgb(9, 136, 90)",
@@ -89,7 +111,7 @@
 	},
 	{
 		"c": ";",
-		"t": "",
+		"t": "css.meta.property-list.punctuation.rule.terminator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -100,7 +122,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "",
+		"t": "css.meta.property-list",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -111,7 +133,7 @@
 	},
 	{
 		"c": "--cell-padding",
-		"t": "less.other.variable",
+		"t": "css.less.meta.other.property-list.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -121,8 +143,19 @@
 		}
 	},
 	{
-		"c": ": ",
-		"t": "",
+		"c": ":",
+		"t": "css.key-value.meta.property-list.punctuation.separator",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": " ",
+		"t": "css.meta.property-list",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -133,7 +166,7 @@
 	},
 	{
 		"c": "(",
-		"t": "brace.less.meta.round",
+		"t": "brace.css.meta.property-list.property-value.round",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -144,7 +177,7 @@
 	},
 	{
 		"c": "4",
-		"t": "constant.css.numeric",
+		"t": "constant.css.meta.numeric.property-list.property-value",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
@@ -155,7 +188,7 @@
 	},
 	{
 		"c": " ",
-		"t": "",
+		"t": "css.meta.property-list.property-value",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -166,7 +199,7 @@
 	},
 	{
 		"c": "*",
-		"t": "keyword.less.operator",
+		"t": "css.keyword.less.meta.operator.property-list.property-value",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
@@ -177,7 +210,7 @@
 	},
 	{
 		"c": " ",
-		"t": "",
+		"t": "css.meta.property-list.property-value",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -188,18 +221,18 @@
 	},
 	{
 		"c": "var",
-		"t": "control.elements.html.keyword",
+		"t": "css.entity.meta.name.property-list.property-value.tag",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag rgb(128, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag rgb(128, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": "(",
-		"t": "brace.less.meta.round",
+		"t": "brace.css.meta.property-list.property-value.round",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -210,7 +243,7 @@
 	},
 	{
 		"c": "--spacing-unit",
-		"t": "less.other.variable",
+		"t": "css.less.meta.other.property-list.property-value.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -221,7 +254,7 @@
 	},
 	{
 		"c": "))",
-		"t": "brace.less.meta.round",
+		"t": "brace.css.meta.property-list.property-value.round",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -232,7 +265,7 @@
 	},
 	{
 		"c": ";",
-		"t": "",
+		"t": "css.meta.property-list.punctuation.rule.terminator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -243,7 +276,7 @@
 	},
 	{
 		"c": "}",
-		"t": "brace.curly.less.meta",
+		"t": "css.end.meta.property-list.punctuation.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -254,13 +287,13 @@
 	},
 	{
 		"c": "body",
-		"t": "control.elements.html.keyword",
+		"t": "css.entity.name.tag",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag rgb(128, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag rgb(128, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag rgb(86, 156, 214)"
 		}
 	},
 	{
@@ -276,7 +309,7 @@
 	},
 	{
 		"c": "{",
-		"t": "brace.curly.less.meta",
+		"t": "begin.css.meta.property-list.punctuation.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -287,7 +320,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "",
+		"t": "css.meta.property-list",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -298,7 +331,7 @@
 	},
 	{
 		"c": "padding-left",
-		"t": "css.property-name.support.type",
+		"t": "css.meta.property-list.property-name.support.type",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.type.property-name rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.type.property-name.css rgb(255, 0, 0)",
@@ -308,8 +341,8 @@
 		}
 	},
 	{
-		"c": ": calc",
-		"t": "",
+		"c": ":",
+		"t": "css.key-value.meta.property-list.punctuation.separator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -319,8 +352,30 @@
 		}
 	},
 	{
+		"c": " ",
+		"t": "css.meta.property-list",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "calc",
+		"t": "any-method.builtin.css.function.less.meta.property-list.property-value.support",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.property-value rgb(206, 145, 120)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.property-value rgb(4, 81, 165)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.property-value rgb(4, 81, 165)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
 		"c": "(",
-		"t": "brace.less.meta.round",
+		"t": "brace.css.meta.property-list.property-value.round",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -331,7 +386,7 @@
 	},
 	{
 		"c": "4",
-		"t": "constant.css.numeric",
+		"t": "constant.css.meta.numeric.property-list.property-value",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
@@ -342,7 +397,7 @@
 	},
 	{
 		"c": " ",
-		"t": "",
+		"t": "css.meta.property-list.property-value",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -353,7 +408,7 @@
 	},
 	{
 		"c": "*",
-		"t": "keyword.less.operator",
+		"t": "css.keyword.less.meta.operator.property-list.property-value",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
@@ -364,7 +419,7 @@
 	},
 	{
 		"c": " ",
-		"t": "",
+		"t": "css.meta.property-list.property-value",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -375,18 +430,18 @@
 	},
 	{
 		"c": "var",
-		"t": "control.elements.html.keyword",
+		"t": "css.entity.meta.name.property-list.property-value.tag",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag rgb(128, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag rgb(128, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": "(",
-		"t": "brace.less.meta.round",
+		"t": "brace.css.meta.property-list.property-value.round",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -397,7 +452,7 @@
 	},
 	{
 		"c": "--spacing-unit",
-		"t": "less.other.variable",
+		"t": "css.less.meta.other.property-list.property-value.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -408,7 +463,7 @@
 	},
 	{
 		"c": ",",
-		"t": "",
+		"t": "css.list.meta.property-list.property-value.punctuation.separator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -418,8 +473,19 @@
 		}
 	},
 	{
-		"c": " 5",
-		"t": "constant.css.numeric",
+		"c": " ",
+		"t": "css.meta.property-list.property-value",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "5",
+		"t": "constant.css.meta.numeric.property-list.property-value",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
@@ -430,7 +496,7 @@
 	},
 	{
 		"c": "px",
-		"t": "css.keyword.other.unit",
+		"t": "css.keyword.meta.other.property-list.property-value.unit",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.other.unit rgb(181, 206, 168)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.other.unit rgb(9, 136, 90)",
@@ -441,7 +507,7 @@
 	},
 	{
 		"c": "))",
-		"t": "brace.less.meta.round",
+		"t": "brace.css.meta.property-list.property-value.round",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -452,7 +518,7 @@
 	},
 	{
 		"c": ";",
-		"t": "",
+		"t": "css.meta.property-list.punctuation.rule.terminator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -463,7 +529,7 @@
 	},
 	{
 		"c": "}",
-		"t": "brace.curly.less.meta",
+		"t": "css.end.meta.property-list.punctuation.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",

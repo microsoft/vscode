@@ -627,6 +627,7 @@ suite('TelemetryService', () => {
 						user: getConfigurationValue(this.getConfiguration(), key)
 					};
 				},
+				keys() { return { default: [], user: [] }; },
 				onDidUpdateConfiguration: emitter.event
 			});
 

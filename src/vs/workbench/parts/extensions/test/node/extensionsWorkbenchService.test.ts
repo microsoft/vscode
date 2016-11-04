@@ -17,18 +17,13 @@ import {
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import { TestEnvironmentService, TestWorkspace } from 'vs/test/utils/servicesTestUtils';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -55,11 +50,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 
-		instantiationService.stub(IWorkspaceContextService, WorkspaceContextService);
-		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', TestWorkspace);
-		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IStorageService, instantiationService.createInstance(StorageService, new InMemoryLocalStorage(), new InMemoryLocalStorage()));
-		instantiationService.stub(IExtensionEnablementService, instantiationService.createInstance(ExtensionEnablementService));
+		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 	});
 
 	teardown(() => {
@@ -746,6 +737,29 @@ suite('ExtensionsWorkbenchService Test', () => {
 
 		assert.ok(actual.disabledForWorkspace);
 		assert.ok(!actual.disabledGlobally);
+	});
+
+	test('test enable extension globally when extension is disabled for workspace', () => {
+		instantiationService.get(IExtensionEnablementService).setEnablement('pub.a', false, true);
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
+		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
+
+		testObject.setEnablement(testObject.local[0], true);
+		const actual = testObject.local[0];
+
+		assert.ok(!actual.disabledForWorkspace);
+		assert.ok(!actual.disabledGlobally);
+	});
+
+	test('test disable extension globally should not disable for workspace', () => {
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
+		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
+
+		testObject.setEnablement(testObject.local[0], false);
+		const actual = testObject.local[0];
+
+		assert.ok(!actual.disabledForWorkspace);
+		assert.ok(actual.disabledGlobally);
 	});
 
 	test('test disabled flags are not updated for system extensions', () => {

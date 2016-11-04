@@ -19,7 +19,7 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 
@@ -193,18 +193,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public closeAllEditors(except?: Position): TPromise<void> {
 		return this.editorPart.closeAllEditors(except);
-	}
-
-	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
-	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
-	public resolveEditorModel(input: any, refresh?: boolean): TPromise<IEditorModel> {
-		return this.createInput(input).then(typedInput => {
-			if (typedInput instanceof EditorInput) {
-				return typedInput.resolve(!!refresh);
-			}
-
-			return TPromise.as<IEditorModel>(null);
-		});
 	}
 
 	public createInput(input: EditorInput): TPromise<EditorInput>;

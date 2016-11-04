@@ -6,7 +6,8 @@
 {
 	"entryAriaLabel": "{0}, selector del grupo de editores",
 	"groupLabel": "Grupo: {0}",
-	"noOpenedEditors": "La lista de editores abiertos actualmente está vacía",
+	"noOpenedEditors": "La lista de editores abiertos está vacía actualmente en el grupo.",
+	"noOpenedEditorsAllGroups": "La lista de editores abiertos está vacía actualmente.",
 	"noResultsFound": "No se encontró un editor abierto coincidente",
 	"noResultsFoundInGroup": "No se encontró un editor abierto coincidente en el grupo"
 }

@@ -17,7 +17,7 @@ import { OpenerService } from 'vs/platform/opener/browser/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/browser/standalone/colorizer';
-import { SimpleEditorService } from 'vs/editor/browser/standalone/simpleServices';
+import { SimpleEditorService, SimpleEditorModelResolverService } from 'vs/editor/browser/standalone/simpleServices';
 import * as modes from 'vs/editor/common/modes';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
@@ -30,6 +30,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 
 /**
  * @internal
@@ -48,6 +49,12 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 		services.set(IEditorService, simpleEditorService);
 	}
 
+	let simpleEditorModelResolverService: SimpleEditorModelResolverService = null;
+	if (!services.has(ITextModelResolverService)) {
+		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
+		services.set(ITextModelResolverService, simpleEditorModelResolverService);
+	}
+
 	if (!services.has(IOpenerService)) {
 		services.set(IOpenerService, new OpenerService(services.get(IEditorService), services.get(ICommandService)));
 	}
@@ -56,6 +63,10 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 
 	if (simpleEditorService) {
 		simpleEditorService.setEditor(result);
+	}
+
+	if (simpleEditorModelResolverService) {
+		simpleEditorModelResolverService.setEditor(result);
 	}
 
 	return result;

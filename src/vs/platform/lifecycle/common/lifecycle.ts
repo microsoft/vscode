@@ -61,6 +61,7 @@ export interface ILifecycleService {
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
 	willShutdown: false,
+	quitRequested: false,
 	onWillShutdown: () => ({ dispose() { } }),
 	onShutdown: () => ({ dispose() { } })
 };

@@ -21,7 +21,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -44,14 +43,13 @@ export class TextFileService extends AbstractTextFileService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IModelService private modelService: IModelService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IBackupService backupService: IBackupService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService, backupService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {

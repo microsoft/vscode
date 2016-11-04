@@ -17,7 +17,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { clipboard } from 'electron';
 
@@ -26,7 +25,7 @@ export class RevealInOSAction extends Action {
 
 	constructor(
 		resource: uri,
-		@IWindowIPCService private windowService: IWindowIPCService
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		super('workbench.action.files.revealInWindows', platform.isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : (platform.isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")));
 
@@ -36,7 +35,7 @@ export class RevealInOSAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.windowService.getWindow().showItemInFolder(paths.normalize(this.resource.fsPath, true));
+		this.windowsService.showItemInFolder(paths.normalize(this.resource.fsPath, true));
 
 		return TPromise.as(true);
 	}
@@ -51,7 +50,7 @@ export class GlobalRevealInOSAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowsService private windowsService: IWindowsService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
@@ -60,7 +59,7 @@ export class GlobalRevealInOSAction extends Action {
 	public run(): TPromise<any> {
 		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
-			this.windowService.getWindow().showItemInFolder(paths.normalize(fileInput.getResource().fsPath, true));
+			this.windowsService.showItemInFolder(paths.normalize(fileInput.getResource().fsPath, true));
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
 		}
