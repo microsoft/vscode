@@ -270,7 +270,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					let getContentPromise: TPromise<IRawText>;
 					if (backupExists) {
 						const restoreResource = this.backupFileService.getBackupResource(this.resource);
-						const restoreOptions = { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding };
+						const restoreOptions = { acceptTextOnly: true, encoding: 'utf-8' };
 						getContentPromise = this.textFileService.resolveTextContent(restoreResource, restoreOptions).then(content => content.value);
 					} else {
 						getContentPromise = TPromise.as(content.value);
