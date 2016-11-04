@@ -182,4 +182,9 @@ export class WindowsService implements IWindowsService {
 		shell.showItemInFolder(path);
 		return TPromise.as(null);
 	}
+
+	openExternal(url: string): TPromise<void> {
+		shell.openExternal(url);
+		return TPromise.as(null);
+	}
 }
