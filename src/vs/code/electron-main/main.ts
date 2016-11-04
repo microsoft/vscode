@@ -77,7 +77,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const environmentService = accessor.get(IEnvironmentService);
 	const windowsMainService = accessor.get(IWindowsMainService);
 	const lifecycleService = accessor.get(ILifecycleService);
-	const updateService = accessor.get(IUpdateService);
 	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
 	const windowEventChannel = new WindowEventChannel(windowsMainService);
 
@@ -254,9 +253,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 			logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 		}
 	}
-
-	// Setup auto update
-	updateService.initialize();
 
 	// Open our first window
 	if (environmentService.args['new-window'] && environmentService.args._.length === 0) {

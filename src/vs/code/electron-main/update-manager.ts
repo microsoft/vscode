@@ -8,7 +8,7 @@
 import * as fs from 'original-fs';
 import * as path from 'path';
 import * as electron from 'electron';
-import { EventEmitter } from 'events';
+import Event, { Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.linux';
@@ -37,7 +37,7 @@ export interface IUpdate {
 	quitAndUpdate: () => void;
 }
 
-interface IAutoUpdater extends NodeJS.EventEmitter {
+interface IRawAutoUpdater extends NodeJS.EventEmitter {
 	setFeedURL(url: string): void;
 	checkForUpdates(): void;
 }
@@ -46,27 +46,47 @@ export const IUpdateService = createDecorator<IUpdateService>('updateService');
 
 export interface IUpdateService {
 	_serviceBrand: any;
-	feedUrl: string;
-	channel: string;
-	initialize(): void;
-	state: State;
-	availableUpdate: IUpdate;
-	lastCheckDate: Date;
+
+	readonly onError: Event<any>;
+	readonly onCheckForUpdate: Event<void>;
+	readonly onUpdateAvailable: Event<{ url: string; version: string; }>;
+	readonly onUpdateNotAvailable: Event<boolean>;
+	readonly onUpdateReady: Event<IUpdate>;
+	readonly onStateChange: Event<void>;
+
+	readonly state: State;
+	readonly availableUpdate: IUpdate;
 	checkForUpdates(explicit: boolean): void;
-	on(event: string, listener: Function): this;
 }
 
-export class UpdateManager extends EventEmitter implements IUpdateService {
+export class UpdateManager implements IUpdateService {
 
 	_serviceBrand: any;
 
 	private _state: State;
 	private explicitState: ExplicitState;
 	private _availableUpdate: IUpdate;
-	private _lastCheckDate: Date;
-	private raw: IAutoUpdater;
+	private raw: IRawAutoUpdater;
 	private _feedUrl: string;
 	private _channel: string;
+
+	private _onError = new Emitter<any>();
+	get onError(): Event<any> { return this._onError.event; }
+
+	private _onCheckForUpdate = new Emitter<void>();
+	get onCheckForUpdate(): Event<void> { return this._onCheckForUpdate.event; }
+
+	private _onUpdateAvailable = new Emitter<{ url: string; version: string; }>();
+	get onUpdateAvailable(): Event<{ url: string; version: string; }> { return this._onUpdateAvailable.event; }
+
+	private _onUpdateNotAvailable = new Emitter<boolean>();
+	get onUpdateNotAvailable(): Event<boolean> { return this._onUpdateNotAvailable.event; }
+
+	private _onUpdateReady = new Emitter<IUpdate>();
+	get onUpdateReady(): Event<IUpdate> { return this._onUpdateReady.event; }
+
+	private _onStateChange = new Emitter<void>();
+	get onStateChange(): Event<void> { return this._onStateChange.event; }
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -74,12 +94,9 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IRequestService requestService: IRequestService
 	) {
-		super();
-
 		this._state = State.Uninitialized;
 		this.explicitState = ExplicitState.Implicit;
 		this._availableUpdate = null;
-		this._lastCheckDate = null;
 		this._feedUrl = null;
 		this._channel = null;
 
@@ -91,24 +108,23 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 			this.raw = electron.autoUpdater;
 		}
 
-		if (this.raw) {
-			this.initRaw();
+		if (!this.raw) {
+			return;
 		}
-	}
 
-	private initRaw(): void {
 		this.raw.on('error', (event: any, message: string) => {
-			this.emit('error', event, message);
+			// TODO: improve
+			console.error(message);
 			this.setState(State.Idle);
 		});
 
 		this.raw.on('checking-for-update', () => {
-			this.emit('checking-for-update');
+			this._onCheckForUpdate.fire();
 			this.setState(State.CheckingForUpdate);
 		});
 
 		this.raw.on('update-available', (event, url: string, version: string) => {
-			this.emit('update-available', url, version);
+			this._onUpdateAvailable.fire({ url, version });
 
 			let data: IUpdate = null;
 
@@ -125,7 +141,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		});
 
 		this.raw.on('update-not-available', () => {
-			this.emit('update-not-available', this.explicitState === ExplicitState.Explicit);
+			this._onUpdateNotAvailable.fire(this.explicitState === ExplicitState.Explicit);
 			this.setState(State.Idle);
 		});
 
@@ -137,40 +153,9 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 				quitAndUpdate: () => this.quitAndUpdate(rawQuitAndUpdate)
 			};
 
-			this.emit('update-downloaded', data);
+			this._onUpdateReady.fire(data);
 			this.setState(State.UpdateDownloaded, data);
 		});
-	}
-
-	private quitAndUpdate(rawQuitAndUpdate: () => void): void {
-		this.lifecycleService.quit(true /* from update */).done(vetod => {
-			if (vetod) {
-				return;
-			}
-
-			// for some reason updating on Mac causes the local storage not to be flushed.
-			// we workaround this issue by forcing an explicit flush of the storage data.
-			// see also https://github.com/Microsoft/vscode/issues/172
-			if (process.platform === 'darwin') {
-				electron.session.defaultSession.flushStorageData();
-			}
-
-			rawQuitAndUpdate();
-		});
-	}
-
-	public get feedUrl(): string {
-		return this._feedUrl;
-	}
-
-	public get channel(): string {
-		return this._channel;
-	}
-
-	public initialize(): void {
-		if (this.feedUrl) {
-			return; // already initialized
-		}
 
 		const channel = this.getUpdateChannel();
 		const feedUrl = this.getUpdateFeedUrl(channel);
@@ -194,39 +179,46 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		let timer = setTimeout(() => this.checkForUpdates(), 30 * 1000);
 
 		// Clear timer when checking for update
-		this.on('error', (error: any, message: string) => console.error(error, message));
-
-		// Clear timer when checking for update
-		this.on('checking-for-update', () => clearTimeout(timer));
+		this.onCheckForUpdate(() => clearTimeout(timer));
 
 		// If update not found, try again in 1 hour
-		this.on('update-not-available', () => {
-			timer = setTimeout(() => this.checkForUpdates(), 60 * 60 * 1000);
+		this.onUpdateNotAvailable(() => timer = setTimeout(() => this.checkForUpdates(), 60 * 60 * 1000));
+	}
+
+	private quitAndUpdate(rawQuitAndUpdate: () => void): void {
+		this.lifecycleService.quit(true /* from update */).done(vetod => {
+			if (vetod) {
+				return;
+			}
+
+			// for some reason updating on Mac causes the local storage not to be flushed.
+			// we workaround this issue by forcing an explicit flush of the storage data.
+			// see also https://github.com/Microsoft/vscode/issues/172
+			if (process.platform === 'darwin') {
+				electron.session.defaultSession.flushStorageData();
+			}
+
+			rawQuitAndUpdate();
 		});
 	}
 
-	public get state(): State {
+	get state(): State {
 		return this._state;
 	}
 
-	public get availableUpdate(): IUpdate {
+	get availableUpdate(): IUpdate {
 		return this._availableUpdate;
 	}
 
-	public get lastCheckDate(): Date {
-		return this._lastCheckDate;
-	}
-
-	public checkForUpdates(explicit = false): void {
+	checkForUpdates(explicit = false): void {
 		this.explicitState = explicit ? ExplicitState.Explicit : ExplicitState.Implicit;
-		this._lastCheckDate = new Date();
 		this.raw.checkForUpdates();
 	}
 
 	private setState(state: State, availableUpdate: IUpdate = null): void {
 		this._state = state;
 		this._availableUpdate = availableUpdate;
-		this.emit('change');
+		this._onStateChange.fire();
 	}
 
 	private getUpdateChannel(): string {
