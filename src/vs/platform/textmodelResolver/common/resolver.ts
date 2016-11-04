@@ -13,14 +13,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const ITextModelResolverService = createDecorator<ITextModelResolverService>('textModelResolverService');
 
-export interface IResolveOptions {
-	encoding?: string;
-}
-
 export interface ITextModelResolverService {
 	_serviceBrand: any;
 
-	resolve(resource: URI, options?: IResolveOptions): TPromise<ITextEditorModel>;
+	resolve(resource: URI): TPromise<ITextEditorModel>;
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable;
 }
