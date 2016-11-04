@@ -18,7 +18,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 const entries = [
 	{
-		text: nls.localize('watermark.showCommands', "Command Palette"),
+		text: nls.localize('watermark.showCommands', "Show All Commands"),
 		ids: ['workbench.action.showCommands']
 	},
 	{
