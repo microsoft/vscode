@@ -6,28 +6,16 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { ITextEditorModel } from 'vs/platform/editor/common/editor';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { sequence } from 'vs/base/common/async';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-
-export const ITextModelResolverService = createDecorator<ITextModelResolverService>('textModelResolverService');
-
-export interface ITextModelResolverService {
-	_serviceBrand: any;
-
-	resolve(resource: URI): TPromise<ITextEditorModel>;
-
-	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable;
-}
-
-export interface ITextModelContentProvider {
-
-	provideTextContent(resource: URI): TPromise<IModel>;
-}
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import network = require('vs/base/common/network');
+import { ITextModelResolverService, ITextModelContentProvider, IResolveOptions } from 'vs/platform/textmodelResolver/common/textModelResolverService';
 
 export class TextModelResolverService implements ITextModelResolverService {
 
@@ -37,12 +25,20 @@ export class TextModelResolverService implements ITextModelResolverService {
 	private contentProviderRegistry: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
 
 	constructor(
+		@ITextFileService private textFileService: ITextFileService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModelService private modelService: IModelService
 	) {
 	}
 
-	public resolve(resource: URI): TPromise<ITextEditorModel> {
+	public resolve(resource: URI, options?: IResolveOptions): TPromise<ITextEditorModel> {
+
+		// File Schema: use text file service
+		if (resource.scheme === network.Schemas.file) {
+			return this.textFileService.models.loadOrCreate(resource, options && options.encoding, false /* refresh */);
+		}
+
+		// Any other resource: use registry
 		return this.resolveTextModelContent(this.modelService, resource).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
 	}
 

@@ -12,7 +12,7 @@ import paths = require('vs/base/common/paths');
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
-import { EditorModel } from 'vs/workbench/common/editor';
+import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { EditorInputAction } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -29,7 +29,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/textModelResolverService';
 
 // A handler for save error happening with conflict resolution actions
 export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
@@ -198,7 +198,7 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 		return this.lastModified;
 	}
 
-	public resolve(refresh?: boolean): TPromise<EditorModel> {
+	public resolve(refresh?: boolean): TPromise<ITextEditorModel> {
 
 		// Make sure our file from disk is resolved up to date
 		return this.textFileService.resolveTextContent(this.fileResource).then(content => {
