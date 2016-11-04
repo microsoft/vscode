@@ -23,7 +23,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/textModelResolverService';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 import { IEditorInput, IEditorOptions, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel } from 'vs/platform/editor/common/editor';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -116,7 +116,7 @@ export class TestTextFileService extends TextFileService {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService);
 	}
 
 	public setPromptPath(path: string): void {

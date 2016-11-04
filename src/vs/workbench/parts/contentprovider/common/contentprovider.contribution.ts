@@ -13,7 +13,7 @@ import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/textModelResolverService';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 
 let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
 

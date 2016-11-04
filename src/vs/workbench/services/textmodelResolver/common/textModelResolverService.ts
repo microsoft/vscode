@@ -7,15 +7,22 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModel } from 'vs/editor/common/editorCommon';
-import { ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor } from 'vs/editor/common/editorCommon';
+import { IDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextEditorModel, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { sequence } from 'vs/base/common/async';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import network = require('vs/base/common/network');
-import { ITextModelResolverService, ITextModelContentProvider, IResolveOptions } from 'vs/platform/textmodelResolver/common/textModelResolverService';
+import { ITextModelResolverService, ITextModelContentProvider, IResolveOptions } from 'vs/platform/textmodelResolver/common/resolver';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import types = require('vs/base/common/types');
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor';
 
 export class TextModelResolverService implements ITextModelResolverService {
 
@@ -26,6 +33,8 @@ export class TextModelResolverService implements ITextModelResolverService {
 
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModelService private modelService: IModelService
 	) {
@@ -38,8 +47,75 @@ export class TextModelResolverService implements ITextModelResolverService {
 			return this.textFileService.models.loadOrCreate(resource, options && options.encoding, false /* refresh */);
 		}
 
+		// Untitled Schema: go through cached input
+		if (resource.scheme === UntitledEditorInput.SCHEMA) {
+			return this.untitledEditorService.createOrGet(resource).resolve();
+		}
+
+		// In Memory: only works on the active editor
+		if (resource.scheme === network.Schemas.inMemory) {
+			return this.resolveInMemory(resource);
+		}
+
 		// Any other resource: use registry
 		return this.resolveTextModelContent(this.modelService, resource).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
+	}
+
+	private resolveInMemory(resource: URI): TPromise<ITextEditorModel> {
+
+		// For in-memory resources we only support to resolve the input from the current active editor
+		// because the workbench does not track editor models by in memory URL. This concept is only
+		// being used in the code editor.
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			const control = <ICommonEditor>activeEditor.getControl();
+			if (types.isFunction(control.getEditorType)) {
+
+				// Single Editor: If code editor model matches, return input from editor
+				if (control.getEditorType() === EditorType.ICodeEditor) {
+					const codeEditor = <ICodeEditor>control;
+					const model = this.findModel(codeEditor, resource);
+					if (model) {
+						return this.resolveFromInput(activeEditor.input);
+					}
+				}
+
+				// Diff Editor: If left or right code editor model matches, return associated input
+				else if (control.getEditorType() === EditorType.IDiffEditor) {
+					const diffInput = <DiffEditorInput>activeEditor.input;
+					const diffCodeEditor = <IDiffEditor>control;
+
+					const originalModel = this.findModel(diffCodeEditor.getOriginalEditor(), resource);
+					if (originalModel) {
+						return this.resolveFromInput(diffInput.originalInput);
+					}
+
+					const modifiedModel = this.findModel(diffCodeEditor.getModifiedEditor(), resource);
+					if (modifiedModel) {
+						return this.resolveFromInput(diffInput.modifiedInput);
+					}
+				}
+			}
+		}
+
+		return TPromise.as(null);
+	}
+
+	private resolveFromInput(input: IEditorInput): TPromise<ITextEditorModel> {
+		if (input instanceof EditorInput) {
+			return input.resolve();
+		}
+
+		return TPromise.as(null);
+	}
+
+	private findModel(editor: ICommonCodeEditor, resource: URI): IModel {
+		const model = editor.getModel();
+		if (!model) {
+			return null;
+		}
+
+		return model.uri.toString() === resource.toString() ? model : null;
 	}
 
 	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {

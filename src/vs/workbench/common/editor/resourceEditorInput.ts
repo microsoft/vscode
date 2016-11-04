@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/textModelResolverService';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 
 /**
