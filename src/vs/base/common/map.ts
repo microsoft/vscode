@@ -310,7 +310,7 @@ interface Node<E> {
  */
 export class TrieMap<E> {
 
-	static PathSplitter = s => s.split(/[\\/]/);
+	static PathSplitter = s => s.split(/[\\/]/).filter(s => !!s);
 
 	private _splitter: (s: string) => string[];
 	private _root: Node<E> = { children: Object.create(null) };
@@ -345,6 +345,22 @@ export class TrieMap<E> {
 		node.element = element;
 	}
 
+	lookUp(path: string): E {
+		const parts = this._splitter(path);
+
+		let {children} = this._root;
+		let node: Node<E>;
+		for (const part of parts) {
+			node = children[part];
+			if (!node) {
+				return;
+			}
+			children = node.children;
+		}
+
+		return node.element;
+	}
+
 	findSubstr(path: string): E {
 		const parts = this._splitter(path);
 
@@ -366,5 +382,23 @@ export class TrieMap<E> {
 		if (lastNode) {
 			return lastNode.element;
 		}
+	}
+
+	findSuperstr(path: string): TrieMap<E> {
+		const parts = this._splitter(path);
+
+		let {children} = this._root;
+		let node: Node<E>;
+		for (const part of parts) {
+			node = children[part];
+			if (!node) {
+				return;
+			}
+			children = node.children;
+		}
+
+		const result = new TrieMap<E>(this._splitter);
+		result._root = node;
+		return result;
 	}
 }

@@ -24,29 +24,29 @@ This project incorporates components from the projects listed below. The origina
 17.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 18.	language-docker (https://github.com/docker/docker)
 19.	language-go version 0.39.0 (https://github.com/atom/language-go)
-20.	language-php version 0.29.0 (https://github.com/atom/language-php)
-21.	language-rust version 0.4.4 (https://github.com/zargony/atom-language-rust)
-22.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
-23.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
-24.	mmcgrana/textmate-clojure (https://github.com/mmcgrana/textmate-clojure)
-25.	octicons-code version 3.1.0 (https://octicons.github.com)
-26.	octicons-font version 3.1.0 (https://octicons.github.com)
-27.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
-28.	string_scorer version 0.1.20 (https://github.com/joshaven/string_score)
-29.	sublimehq/Packages (https://github.com/sublimehq/Packages)
-30.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
-31.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-32.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-33.	textmate/coffee-script.tmbundle (https://github.com/textmate/coffee-script.tmbundle)
-34.	textmate/css.tmbundle (https://github.com/textmate/css.tmbundle)
-35.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-36.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-37.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-38.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-39.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-40.	textmate/java.tmbundle (https://github.com/textmate/java.tmbundle)
-41.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-42.	textmate/less.tmbundle (https://github.com/textmate/less.tmbundle)
+20.	language-less (https://github.com/atom/language-less)
+21.	language-php version 0.29.0 (https://github.com/atom/language-php)
+22.	language-rust version 0.4.4 (https://github.com/zargony/atom-language-rust)
+23.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
+24.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
+25.	mmcgrana/textmate-clojure (https://github.com/mmcgrana/textmate-clojure)
+26.	octicons-code version 3.1.0 (https://octicons.github.com)
+27.	octicons-font version 3.1.0 (https://octicons.github.com)
+28.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
+29.	string_scorer version 0.1.20 (https://github.com/joshaven/string_score)
+30.	sublimehq/Packages (https://github.com/sublimehq/Packages)
+31.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
+32.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+33.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+34.	textmate/coffee-script.tmbundle (https://github.com/textmate/coffee-script.tmbundle)
+35.	textmate/css.tmbundle (https://github.com/textmate/css.tmbundle)
+36.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+37.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+38.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+39.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+40.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+41.	textmate/java.tmbundle (https://github.com/textmate/java.tmbundle)
+42.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
 43.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
 44.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
 45.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
@@ -810,6 +810,58 @@ THE SOFTWARE.
 =========================================
 END OF language-go NOTICES AND INFORMATION
 
+%% language-less NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright (c) 2014 GitHub Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+This package was derived from a TextMate bundle located at
+https://github.com/textmate/less.tmbundle and distributed under the following
+license, located in `LICENSE.md`:
+
+Copyright (c) 2010 Scott Kyle and Rasmus Andersson
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+=========================================
+END OF language-less NOTICES AND INFORMATION
+
 %% language-php NOTICES AND INFORMATION BEGIN HERE
 =========================================
 The MIT License (MIT)
@@ -1521,29 +1573,6 @@ to the base-name name of the original file, and an extension of txt, html, or si
 "tidy" is accompanied by "tidy-license.txt".
 =========================================
 END OF textmate/javascript.tmbundle NOTICES AND INFORMATION
-
-%% textmate/less.tmbundle NOTICES AND INFORMATION BEGIN HERE
-=========================================
-The MIT License (MIT)
-
-Copyright (c) 2010 Scott Kyle and Rasmus Andersson
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-and associated documentation files (the "Software"), to deal in the Software without restriction,
-including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
-and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial
-portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
-LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
-EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-USE OR OTHER DEALINGS IN THE SOFTWARE.
-=========================================
-END OF textmate/less.tmbundle NOTICES AND INFORMATION
 
 %% textmate/lua.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================

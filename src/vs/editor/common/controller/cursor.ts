@@ -16,7 +16,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IColumnSelectResult, CursorMove } from 'vs/editor/common/controller/cursorMoveHelper';
+import { IColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { WordNavigationType } from 'vs/editor/common/controller/cursorWordOperations';
 
@@ -317,11 +318,12 @@ export class Cursor extends EventEmitter {
 		var handled = false;
 
 		try {
+			var oldSelections = this.cursors.getSelections();
+			var oldViewSelections = this.cursors.getViewSelections();
+
 			// ensure valid state on all cursors
 			this.cursors.ensureValidState();
 
-			var oldSelections = this.cursors.getSelections();
-			var oldViewSelections = this.cursors.getViewSelections();
 			var prevCursorsState = this.cursors.saveState();
 
 			var eventSource = source;
@@ -1127,7 +1129,7 @@ export class Cursor extends EventEmitter {
 		if (!this._columnSelectToVisualColumn) {
 			let primaryCursor = this.cursors.getAll()[0];
 			let primaryPos = primaryCursor.viewState.position;
-			return CursorMove.visibleColumnFromColumn2(primaryCursor.config, primaryCursor.viewModel, primaryPos);
+			return CursorColumns.visibleColumnFromColumn2(primaryCursor.config, primaryCursor.viewModel, primaryPos);
 		}
 		return this._columnSelectToVisualColumn;
 	}

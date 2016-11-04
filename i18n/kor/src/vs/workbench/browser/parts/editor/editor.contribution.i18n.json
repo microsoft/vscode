@@ -6,9 +6,9 @@
 {
 	"allEditorsPicker": "열려 있는 모든 편집기 표시",
 	"binaryDiffEditor": "이진 Diff 편집기",
-	"centerEditorGroupPicker": "센터 그룹의 편집기 표시",
-	"leftEditorGroupPicker": "왼쪽 그룹의 편집기 표시",
-	"rightEditorGroupPicker": "오른쪽 그룹의 편집기 표시",
+	"groupOnePicker": "첫 번째 그룹에 편집기 표시",
+	"groupThreePicker": "세 번째 그룹에 편집기 표시",
+	"groupTwoPicker": "두 번째 그룹에 편집기 표시",
 	"textDiffEditor": "텍스트 Diff 편집기",
 	"textEditor": "텍스트 편집기",
 	"view": "보기"

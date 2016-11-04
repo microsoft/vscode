@@ -6,9 +6,9 @@
 {
 	"allEditorsPicker": "Mostrar todos los editores abiertos",
 	"binaryDiffEditor": "Editor de diferencias binario",
-	"centerEditorGroupPicker": "Mostrar los editores del grupo central",
-	"leftEditorGroupPicker": "Mostrar editores del grupo izquierdo",
-	"rightEditorGroupPicker": "Mostrar editores del grupo derecho",
+	"groupOnePicker": "Mostrar editores del primer grupo",
+	"groupThreePicker": "Mostrar editores del tercer grupo",
+	"groupTwoPicker": "Mostrar editores del segundo grupo",
 	"textDiffEditor": "Editor de diferencias de texto",
 	"textEditor": "Editor de texto",
 	"view": "Ver"

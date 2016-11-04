@@ -17,18 +17,13 @@ import {
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import { TestWorkspace } from 'vs/test/utils/servicesTestUtils';
 import { Emitter } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 suite('ExtensionsActions Test => ', () => {
@@ -55,14 +50,8 @@ suite('ExtensionsActions Test => ', () => {
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 
-		instantiationService.stub(IWorkspaceContextService, WorkspaceContextService);
-		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', TestWorkspace);
-		instantiationService.stub(IEnvironmentService, { disableExtensions: false });
-		instantiationService.stub(IStorageService, instantiationService.createInstance(StorageService, new InMemoryLocalStorage(), new InMemoryLocalStorage()));
-		instantiationService.stub(IExtensionEnablementService, instantiationService.createInstance(ExtensionEnablementService));
-
+		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-
 		instantiationService.stub(IExtensionService, { getExtensions: () => TPromise.wrap([]) });
 	});
 

@@ -38,6 +38,7 @@
 	"selectEOL": "选择行尾序列",
 	"selectEncoding": "选择编码",
 	"selectLanguageMode": "选择语言模式",
+	"showLanguageExtensions": "搜索“{0}”的应用市场扩展程序...",
 	"singleSelection": "行 {0}，列 {1}",
 	"singleSelectionRange": "行 {0}，列 {1} (已选择{2})",
 	"spacesSize": "空格: {0}",

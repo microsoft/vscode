@@ -8,11 +8,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
-import { EditorModel, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { IFileOperationResult, FileOperationResult, FileChangesEvent, EventType, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput } from 'vs/workbench/parts/files/common/files';
-import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, LocalFileChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -64,23 +65,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
 		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
 		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
-
-		// File changes
-		this.toUnbind.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
-	}
-
-	private onLocalFileChange(e: LocalFileChangeEvent): void {
-		const movedTo = e.gotMoved() && e.getAfter() && e.getAfter().resource;
-		if (e.gotDeleted() || movedTo) {
-			this.disposeIfRelated(e.getBefore().resource, movedTo);
-		}
-	}
-
-	private onFileChanges(e: FileChangesEvent): void {
-		if (e.gotDeleted()) {
-			this.disposeIfRelated(e);
-		}
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
@@ -194,7 +178,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	public resolve(refresh?: boolean): TPromise<EditorModel> {
+	public resolve(refresh?: boolean): TPromise<TextFileEditorModel> {
 		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh).then(null, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
@@ -205,30 +189,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 			// Bubble any other error up
 			return TPromise.wrapError(error);
 		});
-	}
-
-	private disposeIfRelated(arg1: URI | FileChangesEvent, movedTo?: URI): void {
-		if (this.isDirty()) {
-			return; // we never dispose dirty files
-		}
-
-		// Special case: a resource was renamed to the same path with different casing. Since our paths
-		// API is treating the paths as equal (they are on disk), we end up disposing the input we just
-		// renamed. The workaround is to detect that we do not dispose any input we are moving the file to
-		if (movedTo && movedTo.fsPath === this.resource.fsPath) {
-			return;
-		}
-
-		let matches = false;
-		if (arg1 instanceof FileChangesEvent) {
-			matches = arg1.contains(this.resource, FileChangeType.DELETED);
-		} else {
-			matches = paths.isEqualOrParent(this.resource.toString(), arg1.toString());
-		}
-
-		if (matches) {
-			this.dispose();
-		}
 	}
 
 	public dispose(): void {

@@ -290,4 +290,34 @@ suite('Map', () => {
 		assert.equal(map.findSubstr('/user/foo/bar/far/boo'), 1);
 
 	});
+
+	test('TrieMap - lookup', function () {
+
+		const map = new TrieMap<number>(TrieMap.PathSplitter);
+		map.insert('/user/foo/bar', 1);
+		map.insert('/user/foo', 2);
+		map.insert('/user/foo/flip/flop', 3);
+
+		assert.equal(map.lookUp('/foo'), undefined);
+		assert.equal(map.lookUp('/user'), undefined);
+		assert.equal(map.lookUp('/user/foo'), 2);
+		assert.equal(map.lookUp('/user/foo/bar'), 1);
+		assert.equal(map.lookUp('/user/foo/bar/boo'), undefined);
+	});
+
+	test('TrieMap - superstr', function () {
+
+		const map = new TrieMap<number>(TrieMap.PathSplitter);
+		map.insert('/user/foo/bar', 1);
+		map.insert('/user/foo', 2);
+		map.insert('/user/foo/flip/flop', 3);
+
+		const supMap = map.findSuperstr('/user');
+
+		assert.equal(supMap.lookUp('foo'), 2);
+		assert.equal(supMap.lookUp('foo/bar'), 1);
+		assert.equal(supMap.lookUp('foo/flip/flop'), 3);
+		assert.equal(supMap.lookUp('foo/flip/flop/bar'), undefined);
+		assert.equal(supMap.lookUp('user'), undefined);
+	});
 });
