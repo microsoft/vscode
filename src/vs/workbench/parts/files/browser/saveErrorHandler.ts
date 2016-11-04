@@ -29,6 +29,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { ITextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 
 // A handler for save error happening with conflict resolution actions
 export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
@@ -179,15 +180,16 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 		fileResource: URI,
 		name: string,
 		description: string,
-		@IModelService modelService: IModelService,
+		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		// We create a new resource URI here that is different from the file resource because we represent the state of
 		// the file as it is on disk and not as it is (potentially cached) in Code. That allows us to have a different
 		// model for the left-hand comparision compared to the conflicting one in Code to the right.
-		super(name, description, URI.from({ scheme: 'disk', path: fileResource.fsPath }), modelService, instantiationService);
+		super(name, description, URI.from({ scheme: 'disk', path: fileResource.fsPath }), textModelResolverService);
 
 		this.fileResource = fileResource;
 	}

@@ -10,7 +10,6 @@ import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { createMockModelService, TestEditorService } from 'vs/test/utils/servicesTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -108,18 +107,5 @@ suite('Workbench - StringEditorInput', () => {
 
 		assert.strictEqual(promiseEditorInput.matches(promiseEditorInput2), true);
 		assert.strictEqual(stringEditorInput.matches(stringEditorInput2), true);
-	});
-
-	test('ResourceEditorInput', function (done) {
-		let resource = URI.from({ scheme: 'inMemory', authority: null, path: 'thePath' });
-		modelService.createModel('function test() {}', modeService.getOrCreateMode('text'), resource);
-		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
-
-		input.resolve().then((model: ResourceEditorModel) => {
-			assert.ok(model);
-			assert.equal(model.getValue(), 'function test() {}');
-
-			done();
-		});
 	});
 });
