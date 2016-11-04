@@ -15,7 +15,7 @@ import { sequence } from 'vs/base/common/async';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import network = require('vs/base/common/network');
-import { ITextModelResolverService, ITextModelContentProvider, IResolveOptions } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService, ITextModelContentProvider } from 'vs/platform/textmodelResolver/common/resolver';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -37,11 +37,11 @@ export class TextModelResolverService implements ITextModelResolverService {
 	) {
 	}
 
-	public resolve(resource: URI, options?: IResolveOptions): TPromise<ITextEditorModel> {
+	public resolve(resource: URI): TPromise<ITextEditorModel> {
 
 		// File Schema: use text file service
 		if (resource.scheme === network.Schemas.file) {
-			return this.textFileService.models.loadOrCreate(resource, options && options.encoding, false /* refresh */);
+			return this.textFileService.models.loadOrCreate(resource);
 		}
 
 		// Untitled Schema: go through cached input
@@ -60,7 +60,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 			});
 		}
 
-		// Any other resource: use registry
+		// Any other resource: use content provider registry
 		return this.resolveTextModelContent(this.modelService, resource).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
 	}
 
