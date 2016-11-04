@@ -8,7 +8,7 @@
 	"array": "陣列 ({0})",
 	"boolean": "布林值 ({0})",
 	"cannotRunGotoSymbol": "先開啟文字檔以移至某一個符號",
-	"cannotRunGotoSymbolInFile": "很抱歉，我們沒有此檔案的符號資訊",
+	"cannotRunGotoSymbolInFile": "檔案沒有任何符號資訊",
 	"class": "類別 ({0})",
 	"entryAriaLabel": "{0}，符號",
 	"enum": "列舉 ({0})",

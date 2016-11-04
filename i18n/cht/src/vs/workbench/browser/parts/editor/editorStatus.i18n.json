@@ -38,6 +38,7 @@
 	"selectEOL": "選取行尾順序",
 	"selectEncoding": "選取編碼",
 	"selectLanguageMode": "選取語言模式",
+	"showLanguageExtensions": "在 Marketplace 搜尋延伸模組 '{0}'...",
 	"singleSelection": "第 {0} 行，第 {1} 欄",
 	"singleSelectionRange": "第 {0} 行，第 {1} 欄 (已選取 {2})",
 	"spacesSize": "空格: {0}",
