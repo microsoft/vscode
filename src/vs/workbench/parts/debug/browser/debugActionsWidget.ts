@@ -16,7 +16,8 @@ import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/acti
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusProcessAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { FocusProcessActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -37,6 +38,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 	private actions: AbstractDebugAction[];
 	private isVisible: boolean;
 	private isBuilt: boolean;
+	private focusProcessActionItem: FocusProcessActionItem;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -55,7 +57,14 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 
 		this.toDispose = [];
 		this.actionBar = new ActionBar(actionBarContainter, {
-			orientation: ActionsOrientation.HORIZONTAL
+			orientation: ActionsOrientation.HORIZONTAL,
+			actionItemProvider: (action: IAction) => {
+				if (action.id === FocusProcessAction.ID) {
+					return this.focusProcessActionItem;
+				}
+
+				return null;
+			}
 		});
 
 		this.toDispose.push(this.actionBar);
@@ -169,6 +178,11 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 			this.actions.push(this.instantiationService.createInstance(StepOutAction, StepOutAction.ID, StepOutAction.LABEL));
 			this.actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			this.actions.push(this.instantiationService.createInstance(StepBackAction, StepBackAction.ID, StepBackAction.LABEL));
+			const focusProcesAction = this.instantiationService.createInstance(FocusProcessAction, FocusProcessAction.ID, FocusProcessAction.LABEL);
+			this.actions.push(focusProcesAction);
+			this.focusProcessActionItem = this.instantiationService.createInstance(FocusProcessActionItem, focusProcesAction);
+
+			this.toDispose.push(this.focusProcessActionItem);
 			this.actions.forEach(a => {
 				this.toDispose.push(a);
 			});
@@ -193,6 +207,9 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 			}
 			if (a.id === StopAction.ID) {
 				return !attached;
+			}
+			if (a.id === FocusProcessAction.ID) {
+				return this.debugService.getModel().getProcesses().length > 1;
 			}
 
 			return true;

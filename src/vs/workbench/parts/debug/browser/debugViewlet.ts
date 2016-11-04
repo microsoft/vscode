@@ -140,7 +140,7 @@ export class DebugViewlet extends Viewlet {
 
 	public getActionItem(action: actions.IAction): actionbar.IActionItem {
 		if (action.id === debugactions.SelectConfigAction.ID) {
-			return this.instantiationService.createInstance(dbgactionitems.DebugSelectActionItem, action);
+			return this.instantiationService.createInstance(dbgactionitems.SelectConfigurationActionItem, action);
 		}
 
 		return null;
