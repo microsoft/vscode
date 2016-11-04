@@ -19,19 +19,11 @@ let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registr
 
 export class WorkbenchContentProvider implements IWorkbenchContribution {
 
-	private modelService: IModelService;
-	private modeService: IModeService;
-	private textModelResolverService: ITextModelResolverService;
-
 	constructor(
-		@IModelService modelService: IModelService,
-		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
-		@IModeService modeService: IModeService
+		@IModelService private modelService: IModelService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@IModeService private modeService: IModeService
 	) {
-		this.modelService = modelService;
-		this.modeService = modeService;
-		this.textModelResolverService = textModelResolverService;
-
 		this.start();
 	}
 
