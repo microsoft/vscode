@@ -28,7 +28,48 @@ suite('ExtHostConfiguration', function () {
 		return new ExtHostConfiguration(shape, data);
 	}
 
-	test('udate / section to key', function () {
+	test('has/get', function () {
+
+		const all = createExtHostConfiguration({
+			farboo: {
+				config0: true,
+				nested: {
+					config1: 42,
+					config2: 'Das Pferd frisst kein Reis.'
+				},
+				config4: ''
+			}
+		});
+
+		const config = all.getConfiguration('farboo');
+
+		assert.ok(config.has('config0'));
+		assert.equal(config.get('config0'), true);
+		assert.equal(config.get('config4'), '');
+		assert.equal(config['config0'], true);
+		assert.equal(config['config4'], '');
+		assert.throws(() => config['config4'] = 'valuevalue');
+		assert.ok(config.has('nested.config1'));
+		assert.equal(config.get('nested.config1'), 42);
+		assert.ok(config.has('nested.config2'));
+		assert.equal(config.get('nested.config2'), 'Das Pferd frisst kein Reis.');
+	});
+
+	test('name vs property', function () {
+		const all = createExtHostConfiguration({
+			farboo: {
+				get: 'get-prop'
+			}
+		});
+		const config = all.getConfiguration('farboo');
+
+		assert.ok(config.has('get'));
+		assert.equal(config.get('get'), 'get-prop');
+		assert.deepEqual(config['get'], config.get);
+		assert.throws(() => config['get'] = <any>'get-prop');
+	});
+
+	test('udate/section to key', function () {
 
 		const shape = new RecordingShape();
 		const allConfig = createExtHostConfiguration({ foo: { bar: 1, far: 2 } }, shape);
@@ -47,7 +88,7 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(shape.lastArgs[1], 'foo.bar');
 	});
 
-	test('update / error-state not OK', function () {
+	test('update/error-state not OK', function () {
 
 		const shape = new class extends MainThreadConfigurationShape {
 			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<any> {
