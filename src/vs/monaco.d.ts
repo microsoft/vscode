@@ -3424,6 +3424,8 @@ declare module monaco.editor {
         ScrollLineDown: string;
         ScrollPageUp: string;
         ScrollPageDown: string;
+        TextUpperCase: string;
+        TextLowerCase: string;
         RevealLine: string;
     };
 

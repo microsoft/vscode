@@ -4611,6 +4611,9 @@ export var Handler = {
 	ScrollPageUp: 'scrollPageUp',
 	ScrollPageDown: 'scrollPageDown',
 
+	TextUpperCase: 'textUpperCase',
+	TextLowerCase: 'textLowerCase',
+
 	RevealLine: 'revealLine'
 };
 

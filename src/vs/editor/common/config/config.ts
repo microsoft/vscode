@@ -494,6 +494,29 @@ registerCommand(new CoreCommand({
 	}
 }));
 
+
+registerCommand(new CoreCommand({
+	id: H.TextUpperCase,
+	precondition: ContextKeyExpr.and(EditorContextKeys.Writable, EditorContextKeys.HasNonEmptySelection),
+	kbOpts: {
+		weight: CORE_WEIGHT,
+		// kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: null,
+		primary: KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_U
+	}
+}));
+registerCommand(new CoreCommand({
+	id: H.TextLowerCase,
+	precondition: ContextKeyExpr.and(EditorContextKeys.Writable, EditorContextKeys.HasNonEmptySelection),
+	kbOpts: {
+		weight: CORE_WEIGHT,
+		// kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: null,
+		primary: KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_L
+	}
+}));
+
+
 registerCoreAPICommand(H.RevealLine, D.RevealLine);
 
 registerCommand(new CoreCommand({
