@@ -236,6 +236,7 @@ export interface IViewModel extends ITreeElement {
 	setSelectedConfigurationName(name: string): void;
 
 	onDidFocusStackFrame: Event<IStackFrame>;
+	onDidFocusProcess: Event<IProcess>;
 	onDidSelectExpression: Event<IExpression>;
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
 	/**
