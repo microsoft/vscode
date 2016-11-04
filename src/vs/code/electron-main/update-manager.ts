@@ -8,7 +8,11 @@
 import * as fs from 'original-fs';
 import * as path from 'path';
 import * as electron from 'electron';
-import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import Event, { Emitter, once } from 'vs/base/common/event';
+import { always, Throttler } from 'vs/base/common/async';
+import { memoize } from 'vs/base/common/decorators';
+import { fromEventEmitter } from 'vs/base/node/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.linux';
@@ -16,6 +20,7 @@ import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestService } from 'vs/platform/request/common/request';
 import product from 'vs/platform/product';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export enum State {
 	Uninitialized,
@@ -30,11 +35,27 @@ export enum ExplicitState {
 	Explicit
 }
 
-export interface IUpdate {
+export interface IRawUpdate {
 	releaseNotes: string;
 	version: string;
 	date: Date;
 	quitAndUpdate: () => void;
+}
+
+export interface IRawAvailableUpdate {
+	url: string;
+	version: string;
+}
+
+export interface IUpdate {
+	version: string;
+	url?: string;
+	releaseNotes?: string;
+	date?: Date;
+}
+
+interface IRawUpdate2 extends IUpdate {
+	quitAndUpdate?: () => void;
 }
 
 interface IRawAutoUpdater extends NodeJS.EventEmitter {
@@ -48,27 +69,24 @@ export interface IUpdateService {
 	_serviceBrand: any;
 
 	readonly onError: Event<any>;
-	readonly onCheckForUpdate: Event<void>;
 	readonly onUpdateAvailable: Event<{ url: string; version: string; }>;
 	readonly onUpdateNotAvailable: Event<boolean>;
-	readonly onUpdateReady: Event<IUpdate>;
+	readonly onUpdateReady: Event<IRawUpdate>;
 	readonly onStateChange: Event<void>;
 
 	readonly state: State;
-	readonly availableUpdate: IUpdate;
-	checkForUpdates(explicit: boolean): void;
+	readonly availableUpdate: IRawUpdate;
+	checkForUpdates(explicit: boolean): TPromise<IUpdate>;
 }
 
 export class UpdateManager implements IUpdateService {
 
 	_serviceBrand: any;
 
-	private _state: State;
-	private explicitState: ExplicitState;
-	private _availableUpdate: IUpdate;
+	private _state: State = State.Uninitialized;
+	private _availableUpdate: IRawUpdate = null;
 	private raw: IRawAutoUpdater;
-	private _feedUrl: string;
-	private _channel: string;
+	private throttler: Throttler = new Throttler();
 
 	private _onError = new Emitter<any>();
 	get onError(): Event<any> { return this._onError.event; }
@@ -82,11 +100,49 @@ export class UpdateManager implements IUpdateService {
 	private _onUpdateNotAvailable = new Emitter<boolean>();
 	get onUpdateNotAvailable(): Event<boolean> { return this._onUpdateNotAvailable.event; }
 
-	private _onUpdateReady = new Emitter<IUpdate>();
-	get onUpdateReady(): Event<IUpdate> { return this._onUpdateReady.event; }
+	private _onUpdateReady = new Emitter<IRawUpdate>();
+	get onUpdateReady(): Event<IRawUpdate> { return this._onUpdateReady.event; }
 
 	private _onStateChange = new Emitter<void>();
 	get onStateChange(): Event<void> { return this._onStateChange.event; }
+
+	@memoize
+	private get onRawError(): Event<string> {
+		return fromEventEmitter<string>(this.raw, 'error', (_, message) => message);
+	}
+
+	@memoize
+	private get onRawUpdateNotAvailable(): Event<void> {
+		return fromEventEmitter<void>(this.raw, 'update-not-available');
+	}
+
+	@memoize
+	private get onRawUpdateAvailable(): Event<IRawAvailableUpdate> {
+		return fromEventEmitter<IRawAvailableUpdate>(this.raw, 'update-available', (_, url, version) => ({ url, version }));
+	}
+
+	@memoize
+	private get onRawUpdateDownloaded(): Event<IRawUpdate> {
+		return fromEventEmitter<IRawUpdate>(this.raw, 'update-not-available', (_, releaseNotes, version, date, url, rawQuitAndUpdate) => ({
+			releaseNotes,
+			version,
+			date,
+			quitAndUpdate: () => this.quitAndUpdate(rawQuitAndUpdate)
+		}));
+	}
+
+	get state(): State {
+		return this._state;
+	}
+
+	set state(state: State) {
+		this._state = state;
+		this._onStateChange.fire();
+	}
+
+	get availableUpdate(): IRawUpdate {
+		return this._availableUpdate;
+	}
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -94,68 +150,15 @@ export class UpdateManager implements IUpdateService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IRequestService requestService: IRequestService
 	) {
-		this._state = State.Uninitialized;
-		this.explicitState = ExplicitState.Implicit;
-		this._availableUpdate = null;
-		this._feedUrl = null;
-		this._channel = null;
-
 		if (process.platform === 'win32') {
 			this.raw = instantiationService.createInstance(Win32AutoUpdaterImpl);
 		} else if (process.platform === 'linux') {
 			this.raw = instantiationService.createInstance(LinuxAutoUpdaterImpl);
 		} else if (process.platform === 'darwin') {
 			this.raw = electron.autoUpdater;
-		}
-
-		if (!this.raw) {
+		} else {
 			return;
 		}
-
-		this.raw.on('error', (event: any, message: string) => {
-			// TODO: improve
-			console.error(message);
-			this.setState(State.Idle);
-		});
-
-		this.raw.on('checking-for-update', () => {
-			this._onCheckForUpdate.fire();
-			this.setState(State.CheckingForUpdate);
-		});
-
-		this.raw.on('update-available', (event, url: string, version: string) => {
-			this._onUpdateAvailable.fire({ url, version });
-
-			let data: IUpdate = null;
-
-			if (url) {
-				data = {
-					releaseNotes: '',
-					version: '',
-					date: new Date(),
-					quitAndUpdate: () => electron.shell.openExternal(url)
-				};
-			}
-
-			this.setState(State.UpdateAvailable, data);
-		});
-
-		this.raw.on('update-not-available', () => {
-			this._onUpdateNotAvailable.fire(this.explicitState === ExplicitState.Explicit);
-			this.setState(State.Idle);
-		});
-
-		this.raw.on('update-downloaded', (event: any, releaseNotes: string, version: string, date: Date, url: string, rawQuitAndUpdate: () => void) => {
-			const data: IUpdate = {
-				releaseNotes: releaseNotes,
-				version: version,
-				date: date,
-				quitAndUpdate: () => this.quitAndUpdate(rawQuitAndUpdate)
-			};
-
-			this._onUpdateReady.fire(data);
-			this.setState(State.UpdateDownloaded, data);
-		});
 
 		const channel = this.getUpdateChannel();
 		const feedUrl = this.getUpdateFeedUrl(channel);
@@ -170,55 +173,77 @@ export class UpdateManager implements IUpdateService {
 			return; // application not signed
 		}
 
-		this._channel = channel;
-		this._feedUrl = feedUrl;
+		this.state = State.Idle;
 
-		this.setState(State.Idle);
-
-		// Check for updates on startup after 30 seconds
-		let timer = setTimeout(() => this.checkForUpdates(), 30 * 1000);
-
-		// Clear timer when checking for update
-		this.onCheckForUpdate(() => clearTimeout(timer));
-
-		// If update not found, try again in 1 hour
-		this.onUpdateNotAvailable(() => timer = setTimeout(() => this.checkForUpdates(), 60 * 60 * 1000));
+		// Start checking for updates after 30 seconds
+		this.scheduleCheckForUpdates(30 * 1000)
+			.done(null, err => console.error(err));
 	}
 
-	private quitAndUpdate(rawQuitAndUpdate: () => void): void {
-		this.lifecycleService.quit(true /* from update */).done(vetod => {
-			if (vetod) {
-				return;
+	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): TPromise<void> {
+		return TPromise.timeout(delay)
+			.then(() => this.checkForUpdates())
+			.then(update => {
+				if (update) {
+					// Update found, no need to check more
+					return TPromise.as(null);
+				}
+
+				// Check again after 1 hour
+				return this.scheduleCheckForUpdates(60 * 60 * 1000);
+			});
+	}
+
+	checkForUpdates(explicit = false): TPromise<IUpdate> {
+		return this.throttler.queue(() => this._checkForUpdates(explicit));
+	}
+
+	private _checkForUpdates(explicit: boolean): TPromise<IUpdate> {
+		this._onCheckForUpdate.fire();
+		this.state = State.CheckingForUpdate;
+
+		const listeners: IDisposable[] = [];
+		const result = new TPromise<IRawUpdate2>((c, e) => {
+			once(this.onRawError)(e, null, listeners);
+			once(this.onRawUpdateNotAvailable)(() => c(null), null, listeners);
+			once(this.onRawUpdateAvailable)(({ url, version }) => url && c({ url, version }), null, listeners);
+			once(this.onRawUpdateDownloaded)(({ version, date, releaseNotes, quitAndUpdate }) => c({ version, date, releaseNotes, quitAndUpdate }), null, listeners);
+
+			this.raw.checkForUpdates();
+		}).then(update => {
+			if (!update) {
+				this._onUpdateNotAvailable.fire(explicit);
+				this.state = State.Idle;
+
+			} else if (update.url) {
+				const data: IRawUpdate = {
+					releaseNotes: '',
+					version: '',
+					date: new Date(),
+					quitAndUpdate: () => electron.shell.openExternal(update.url)
+				};
+
+				this._availableUpdate = data;
+				this._onUpdateAvailable.fire({ url: update.url, version: update.version });
+				this.state = State.UpdateAvailable;
+
+			} else {
+				const data: IRawUpdate = {
+					releaseNotes: update.releaseNotes,
+					version: update.version,
+					date: update.date,
+					quitAndUpdate: () => this.quitAndUpdate(update.quitAndUpdate)
+				};
+
+				this._availableUpdate = data;
+				this._onUpdateReady.fire(data);
+				this.state = State.UpdateDownloaded;
 			}
 
-			// for some reason updating on Mac causes the local storage not to be flushed.
-			// we workaround this issue by forcing an explicit flush of the storage data.
-			// see also https://github.com/Microsoft/vscode/issues/172
-			if (process.platform === 'darwin') {
-				electron.session.defaultSession.flushStorageData();
-			}
-
-			rawQuitAndUpdate();
+			return update;
 		});
-	}
 
-	get state(): State {
-		return this._state;
-	}
-
-	get availableUpdate(): IUpdate {
-		return this._availableUpdate;
-	}
-
-	checkForUpdates(explicit = false): void {
-		this.explicitState = explicit ? ExplicitState.Explicit : ExplicitState.Implicit;
-		this.raw.checkForUpdates();
-	}
-
-	private setState(state: State, availableUpdate: IUpdate = null): void {
-		this._state = state;
-		this._availableUpdate = availableUpdate;
-		this._onStateChange.fire();
+		return always(result, () => dispose(listeners));
 	}
 
 	private getUpdateChannel(): string {
@@ -244,5 +269,22 @@ export class UpdateManager implements IUpdateService {
 		const platform = process.platform === 'linux' ? `linux-${process.arch}` : process.platform;
 
 		return `${product.updateUrl}/api/update/${platform}/${channel}/${product.commit}`;
+	}
+
+	private quitAndUpdate(rawQuitAndUpdate: () => void): void {
+		this.lifecycleService.quit(true /* from update */).done(vetod => {
+			if (vetod) {
+				return;
+			}
+
+			// for some reason updating on Mac causes the local storage not to be flushed.
+			// we workaround this issue by forcing an explicit flush of the storage data.
+			// see also https://github.com/Microsoft/vscode/issues/172
+			if (process.platform === 'darwin') {
+				electron.session.defaultSession.flushStorageData();
+			}
+
+			rawQuitAndUpdate();
+		});
 	}
 }
