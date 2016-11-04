@@ -27,6 +27,8 @@
 	"menuContexts": "菜单上下文",
 	"name": "扩展名",
 	"noChangelog": "无可用的更改日志。",
+	"noContributions": "没有发布内容",
+	"noDependencies": "没有依赖项",
 	"noReadme": "无可用自述文件。",
 	"publisher": "发布服务器名称",
 	"rating": "评级",

@@ -38,6 +38,7 @@
 	"selectEOL": "改行コードの選択",
 	"selectEncoding": "エンコードの選択",
 	"selectLanguageMode": "言語モードの選択",
+	"showLanguageExtensions": "'{0}' の Marketplace の拡張機能を検索する ...",
 	"singleSelection": "行 {0}、列 {1}",
 	"singleSelectionRange": "行 {0}、列 {1} ({2} 個選択)",
 	"spacesSize": "スペース: {0}",

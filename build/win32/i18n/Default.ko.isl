@@ -127,7 +127,7 @@ SelectDirBrowseLabel=계속하려면 [다음]을 클릭하세요. 다른 폴더를 선택하려면 [찾�
 DiskSpaceMBLabel=적어도 [mb]MB의 여유 디스크 공간이 필요합니다.
 CannotInstallToNetworkDrive=설치 프로그램은 네트워크 드라이브에 설치할 수 없습니다.
 CannotInstallToUNCPath=설치 프로그램은 UNC 경로에 설치할 수 없습니다.
-InvalidPath=드라이브 문자와 함께 전체 경로를 입력해야 합니다. 예:%n%nC:APP%n%n또는 다음 형태의 UNC 경로:%n%nservershare
+InvalidPath=드라이브 문자와 함께 전체 경로를 입력해야 합니다. 예:%n%nC:\APP%n%n또는 다음 형태의 UNC 경로:%n%n\server\share
 InvalidDrive=선택한 드라이브나 UNC 공유가 없거나 이 두 항목에 액세스할 수 없습니다. 다른 드라이브나 UNC 공유를 선택하세요.
 DiskSpaceWarningTitle=디스크 공간 부족
 DiskSpaceWarning=설치 프로그램을 설치하려면 여유 설치 공간이 적어도 %1KB가 필요하지만 선택한 드라이브의 가용 공간은 %2KB밖에 없습니다.%n%n그래도 계속하시겠습니까?
@@ -231,9 +231,9 @@ ErrorFunctionFailed=%1 실패, 코드 %2
 ErrorFunctionFailedWithMessage=%1 실패, 코드 %2.%n%3
 ErrorExecutingProgram=파일을 실행할 수 없음:%n%1
 ; *** Registry errors
-ErrorRegOpenKey=레지스트리 키를 여는 중 오류 발생:%n%1%2
-ErrorRegCreateKey=레지스트리 키를 만드는 중 오류 발생:%n%1%2
-ErrorRegWriteKey=레지스트리 키에 기록하는 중 오류 발생:%n%1%2
+ErrorRegOpenKey=레지스트리 키를 여는 중 오류 발생:%n%1\%2
+ErrorRegCreateKey=레지스트리 키를 만드는 중 오류 발생:%n%1\%2
+ErrorRegWriteKey=레지스트리 키에 기록하는 중 오류 발생:%n%1\%2
 ; *** INI errors
 ErrorIniEntry=파일 "%1"에 INI 항목을 만드는 중에 오류가 발생했습니다. 
 ; *** File copying errors
