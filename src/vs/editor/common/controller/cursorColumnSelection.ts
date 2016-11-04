@@ -6,7 +6,7 @@
 
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { CursorMove, CursorMoveConfiguration, ICursorMoveHelperModel } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 
 export interface IViewColumnSelectResult {
 	viewSelections: Selection[];
@@ -14,7 +14,7 @@ export interface IViewColumnSelectResult {
 }
 
 export class ColumnSelection {
-	public static columnSelect(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IViewColumnSelectResult {
+	public static columnSelect(config: CursorConfiguration, model: ICursorSimpleModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IViewColumnSelectResult {
 		let lineCount = Math.abs(toLineNumber - fromLineNumber) + 1;
 		let reversed = (fromLineNumber > toLineNumber);
 		let isRTL = (fromVisibleColumn > toVisibleColumn);
@@ -27,10 +27,10 @@ export class ColumnSelection {
 		for (let i = 0; i < lineCount; i++) {
 			let lineNumber = fromLineNumber + (reversed ? -i : i);
 
-			let startColumn = CursorMove.columnFromVisibleColumn2(config, model, lineNumber, fromVisibleColumn);
-			let endColumn = CursorMove.columnFromVisibleColumn2(config, model, lineNumber, toVisibleColumn);
-			let visibleStartColumn = CursorMove.visibleColumnFromColumn2(config, model, new Position(lineNumber, startColumn));
-			let visibleEndColumn = CursorMove.visibleColumnFromColumn2(config, model, new Position(lineNumber, endColumn));
+			let startColumn = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, fromVisibleColumn);
+			let endColumn = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, toVisibleColumn);
+			let visibleStartColumn = CursorColumns.visibleColumnFromColumn2(config, model, new Position(lineNumber, startColumn));
+			let visibleEndColumn = CursorColumns.visibleColumnFromColumn2(config, model, new Position(lineNumber, endColumn));
 
 			// console.log(`lineNumber: ${lineNumber}: visibleStartColumn: ${visibleStartColumn}, visibleEndColumn: ${visibleEndColumn}`);
 

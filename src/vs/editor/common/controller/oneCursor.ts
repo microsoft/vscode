@@ -9,7 +9,8 @@ import * as strings from 'vs/base/common/strings';
 import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
-import { CursorMoveHelper, CursorMove, CursorMoveConfiguration, ICursorMoveHelperModel, IColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorMoveHelper, IColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -67,7 +68,7 @@ export interface CursorMoveArguments extends editorCommon.CursorMoveArguments {
 
 export interface IViewModelHelper {
 
-	viewModel: ICursorMoveHelperModel;
+	viewModel: ICursorSimpleModel;
 
 	getCurrentCompletelyVisibleViewLinesRangeInViewport(): Range;
 	getCurrentCompletelyVisibleModelLinesRangeInViewport(): Range;
@@ -212,7 +213,7 @@ export class CursorModelState {
 export interface IOneCursor {
 	readonly modelState: CursorModelState;
 	readonly viewState: CursorModelState;
-	readonly config: CursorMoveConfiguration;
+	readonly config: CursorConfiguration;
 }
 
 export class OneCursor implements IOneCursor {
@@ -220,7 +221,7 @@ export class OneCursor implements IOneCursor {
 	// --- contextual state
 	private readonly editorId: number;
 	public readonly model: editorCommon.IModel;
-	public readonly viewModel: ICursorMoveHelperModel;
+	public readonly viewModel: ICursorSimpleModel;
 	private readonly configuration: editorCommon.IConfiguration;
 	private readonly viewModelHelper: IViewModelHelper;
 
@@ -228,7 +229,7 @@ export class OneCursor implements IOneCursor {
 	private readonly _configChangeListener: IDisposable;
 
 	public modeConfiguration: IModeConfiguration;
-	public config: CursorMoveConfiguration;
+	public config: CursorConfiguration;
 
 	public modelState: CursorModelState;
 	public viewState: CursorModelState;
@@ -259,7 +260,7 @@ export class OneCursor implements IOneCursor {
 		this._modelOptionsListener = model.onDidChangeOptions(() => this._recreateCursorConfig());
 
 		this._configChangeListener = this.configuration.onDidChange((e) => {
-			if (CursorMoveConfiguration.shouldRecreate(e)) {
+			if (CursorConfiguration.shouldRecreate(e)) {
 				this._recreateCursorConfig();
 			}
 		});
@@ -281,7 +282,7 @@ export class OneCursor implements IOneCursor {
 	}
 
 	private _recreateCursorConfig(): void {
-		this.config = new CursorMoveConfiguration(
+		this.config = new CursorConfiguration(
 			this.model.getOneIndent(),
 			this.model.getOptions(),
 			this.configuration,
@@ -787,7 +788,7 @@ export class OneCursorOp {
 
 	private static _columnSelectOp(cursor: OneCursor, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
 		let viewStartSelection = cursor.viewState.selection;
-		let fromVisibleColumn = CursorMove.visibleColumnFromColumn2(cursor.config, cursor.viewModel, new Position(viewStartSelection.selectionStartLineNumber, viewStartSelection.selectionStartColumn));
+		let fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(cursor.config, cursor.viewModel, new Position(viewStartSelection.selectionStartLineNumber, viewStartSelection.selectionStartColumn));
 
 		return cursor.columnSelect(viewStartSelection.selectionStartLineNumber, fromVisibleColumn, toViewLineNumber, toViewVisualColumn);
 	}
@@ -819,7 +820,7 @@ export class OneCursorOp {
 		let maxViewLineNumber = Math.max(cursor.viewState.position.lineNumber, toViewLineNumber);
 		for (let lineNumber = minViewLineNumber; lineNumber <= maxViewLineNumber; lineNumber++) {
 			let lineMaxViewColumn = cursor.getViewLineMaxColumn(lineNumber);
-			let lineMaxVisualViewColumn = CursorMove.visibleColumnFromColumn2(cursor.config, cursor.viewModel, new Position(lineNumber, lineMaxViewColumn));
+			let lineMaxVisualViewColumn = CursorColumns.visibleColumnFromColumn2(cursor.config, cursor.viewModel, new Position(lineNumber, lineMaxViewColumn));
 			maxVisualViewColumn = Math.max(maxVisualViewColumn, lineMaxVisualViewColumn);
 		}
 

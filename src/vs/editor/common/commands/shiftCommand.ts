@@ -5,7 +5,7 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { CursorMoveHelper } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
@@ -22,9 +22,9 @@ export class ShiftCommand implements ICommand {
 
 	public static unshiftIndentCount(line: string, column: number, tabSize: number): number {
 		// Determine the visible column where the content starts
-		let contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(line, column, tabSize);
+		let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
 
-		let desiredTabStop = CursorMoveHelper.prevTabColumn(contentStartVisibleColumn, tabSize);
+		let desiredTabStop = CursorColumns.prevTabStop(contentStartVisibleColumn, tabSize);
 
 		// The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
 		return desiredTabStop / tabSize;
@@ -32,9 +32,9 @@ export class ShiftCommand implements ICommand {
 
 	public static shiftIndentCount(line: string, column: number, tabSize: number): number {
 		// Determine the visible column where the content starts
-		let contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(line, column, tabSize);
+		let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
 
-		let desiredTabStop = CursorMoveHelper.nextTabColumn(contentStartVisibleColumn, tabSize);
+		let desiredTabStop = CursorColumns.nextTabStop(contentStartVisibleColumn, tabSize);
 
 		// The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
 		return desiredTabStop / tabSize;
@@ -97,7 +97,7 @@ export class ShiftCommand implements ICommand {
 			}
 
 			if (lineNumber > 1) {
-				let contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(lineText, indentationEndIndex + 1, tabSize);
+				let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(lineText, indentationEndIndex + 1, tabSize);
 				if (contentStartVisibleColumn % tabSize !== 0) {
 					// The current line is "miss-aligned", so let's see if this is expected...
 					// This can only happen when it has trailing commas in the indent
