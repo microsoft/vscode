@@ -19,6 +19,9 @@ import { DirtyFilesTracker } from 'vs/workbench/parts/files/electron-browser/dir
 import { OpenFolderAction, OpenFileAction, OpenFileFolderAction, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, GlobalCopyPathAction, CopyPathAction, RevealInOSAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 
 class FileViewerActionContributor extends ActionBarContributor {
 
@@ -77,3 +80,14 @@ actionsRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionContr
 (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
 	DirtyFilesTracker
 );
+
+// Register Commands
+CommandsRegistry.registerCommand('_files.openFolderPicker', (accessor: ServicesAccessor, forceNewWindow: boolean) => {
+	const windowService = accessor.get(IWindowService);
+	windowService.openFolderPicker(forceNewWindow);
+});
+
+CommandsRegistry.registerCommand('_files.windowOpen', (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
+	const windowsService = accessor.get(IWindowsService);
+	windowsService.windowOpen(paths, forceNewWindow);
+});

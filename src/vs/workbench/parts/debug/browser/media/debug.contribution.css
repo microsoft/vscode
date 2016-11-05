@@ -133,11 +133,19 @@
 	position: absolute;
 	z-index: 200;
 	height: 32px;
-	padding-top: 3px;
 	left: 50%;
 	margin-left: -96px;
 	display: flex;
 	padding-left: 7px;
+}
+
+.monaco-workbench .debug-actions-widget .monaco-action-bar .action-item.select-container {
+	margin-right: 7px;
+}
+
+.monaco-workbench .debug-actions-widget .monaco-action-bar .action-item .select-box {
+	background-color: initial;
+	margin-top: 6px;
 }
 
 .monaco-workbench .debug-actions-widget .drag-area {

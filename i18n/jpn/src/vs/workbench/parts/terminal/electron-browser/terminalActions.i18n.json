@@ -17,6 +17,8 @@
 	"workbench.action.terminal.runSelectedText": "アクティブな端末で選択したテキストを実行",
 	"workbench.action.terminal.scrollDown": "下にスクロール (行)",
 	"workbench.action.terminal.scrollDownPage": "スクロール ダウン (ページ)",
+	"workbench.action.terminal.scrollToBottom": "一番下にスクロール",
+	"workbench.action.terminal.scrollToTop": "一番上にスクロール",
 	"workbench.action.terminal.scrollUp": "上にスクロール (行)",
 	"workbench.action.terminal.scrollUpPage": "スクロール アップ (ページ)",
 	"workbench.action.terminal.switchTerminalInstance": "スイッチ端末インスタンス",

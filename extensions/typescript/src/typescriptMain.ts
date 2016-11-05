@@ -148,7 +148,7 @@ class LanguageProvider {
 		let renameProvider = new RenameProvider(client);
 		this.formattingProvider = new FormattingProvider(client);
 		this.formattingProvider.updateConfiguration(config);
-		if (this.formattingProvider.isEnabled) {
+		if (this.formattingProvider.isEnabled()) {
 			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
 		}
 

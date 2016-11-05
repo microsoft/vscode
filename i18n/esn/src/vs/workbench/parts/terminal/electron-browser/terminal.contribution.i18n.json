@@ -14,9 +14,10 @@
 	"terminal.integrated.setLocaleVariables": "Controla si las variables de configuración regional se definen al inicio del terminal. El valor predeterminado es true en OS X y false en las demás plataformas.",
 	"terminal.integrated.shell.linux": "La ruta de acceso del shell que el terminal usa en Linux.",
 	"terminal.integrated.shell.osx": "La ruta de acceso del shell que el terminal usa en OS X.",
-	"terminal.integrated.shell.windows": "Ruta de acceso del shell que el terminal utiliza en Windows. Cuando se usan shells incluidos en Windows (cmd, PowerShell o Bash en Ubuntu), se recomienda C:Windowssysnative en lugar de C:WindowsSystem32 para usar las versiones de 64 bits.",
+	"terminal.integrated.shell.windows": "Ruta de acceso del shell que el terminal utiliza en Windows. Cuando se usan shells incluidos en Windows (cmd, PowerShell o Bash en Ubuntu), se recomienda C:\\Windows\\sysnative en lugar de C:\\Windows\\System32 para usar las versiones de 64 bits.",
 	"terminal.integrated.shellArgs.linux": "Los argumentos de la línea de comandos que se usarán en el terminal de Linux.",
 	"terminal.integrated.shellArgs.osx": "Los argumentos de la línea de comandos que se usarán en el terminal de OS X.",
+	"terminal.integrated.shellArgs.windows": "Argumentos de la línea de comandos que se usan cuando se utiliza el terminal Windows.",
 	"terminalCategory": "Terminal",
 	"terminalIntegratedConfigurationTitle": "Terminal integrado",
 	"viewCategory": "Ver"

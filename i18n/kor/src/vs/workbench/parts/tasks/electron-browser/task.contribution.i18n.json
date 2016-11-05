@@ -83,6 +83,7 @@
 	"TerminateAction.noProcess": "시작된 프로세스가 더 이상 존재하지 않습니다. 작업에서 생성된, VS 코드를 끝내는 백그라운드 작업이 분리된 프로세스가 될 수 있습니다.",
 	"TestAction.label": "테스트 작업 실행",
 	"manyMarkers": "99+",
+	"problems": "문제",
 	"taskCommands": "작업 실행",
 	"tasks": "작업",
 	"tasksCategory": "작업"

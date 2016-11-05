@@ -71,6 +71,7 @@
 
 /* Drag Cursor */
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title,
+.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title.tabs .scrollbar .slider,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title .monaco-icon-label::before,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title .title-label a,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title .title-label span {
@@ -80,6 +81,7 @@
 #monaco-workbench-editor-move-overlay,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title,
+.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title.tabs .scrollbar .slider,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title .monaco-icon-label::before,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title .title-label a,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title .title-label span {

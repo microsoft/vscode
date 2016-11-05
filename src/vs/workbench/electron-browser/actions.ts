@@ -9,7 +9,8 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
 import { Action } from 'vs/base/common/actions';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -27,14 +28,14 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
 import { isMacintosh } from 'vs/base/common/platform';
-import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry, ISeparator } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 
 import * as os from 'os';
-import { ipcRenderer as ipc, webFrame, remote, shell } from 'electron';
+import { ipcRenderer as ipc, webFrame, remote } from 'electron';
 
 // --- actions
 
@@ -66,7 +67,7 @@ export class CloseWindowAction extends Action {
 	public static ID = 'workbench.action.closeWindow';
 	public static LABEL = nls.localize('closeWindow', "Close Window");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(id: string, label: string, @IWindowIPCService private windowService: IWindowIPCService) {
 		super(id, label);
 	}
 
@@ -79,42 +80,39 @@ export class CloseWindowAction extends Action {
 
 export class SwitchWindow extends Action {
 
-	public static ID = 'workbench.action.switchWindow';
-	public static LABEL = nls.localize('switchWindow', "Switch Window");
+	static ID = 'workbench.action.switchWindow';
+	static LABEL = nls.localize('switchWindow', "Switch Window");
 
 	constructor(
 		id: string,
 		label: string,
+		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		const id = this.windowService.getWindowId();
-		ipc.send('vscode:switchWindow', id);
-		ipc.once('vscode:switchWindow', (event, workspaces) => {
-			const picks: IPickOpenEntry[] = workspaces.map(w => {
-				return {
-					label: w.title,
-					description: (id === w.id) ? nls.localize('current', "Current Window") : void 0,
-					run: () => {
-						ipc.send('vscode:showWindow', w.id);
-					}
-				};
-			});
-			this.quickOpenService.pick(picks, { placeHolder: nls.localize('switchWindowPlaceHolder', "Select a window") });
-		});
+	run(): TPromise<void> {
+		const currentWindowId = this.windowService.getCurrentWindowId();
 
-		return TPromise.as(true);
+		return this.windowsService.getWindows().then(workspaces => {
+			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window");
+			const picks = workspaces.map(w => ({
+				label: w.title,
+				description: (currentWindowId === w.id) ? nls.localize('current', "Current Window") : void 0,
+				run: () => this.windowsService.showWindow(w.id)
+			}));
+
+			this.quickOpenService.pick(picks, { placeHolder });
+		});
 	}
 }
 
 export class CloseFolderAction extends Action {
 
-	public static ID = 'workbench.action.closeFolder';
-	public static LABEL = nls.localize('closeFolder', "Close Folder");
+	static ID = 'workbench.action.closeFolder';
+	static LABEL = nls.localize('closeFolder', "Close Folder");
 
 	constructor(
 		id: string,
@@ -126,50 +124,45 @@ export class CloseFolderAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		if (this.contextService.getWorkspace()) {
-			ipc.send('vscode:closeFolder', this.windowService.getWindowId()); // handled from browser process
-		} else {
+	run(): TPromise<void> {
+		if (!this.contextService.getWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('noFolderOpened', "There is currently no folder opened in this instance to close."));
+			return TPromise.as(null);
 		}
 
-		return TPromise.as(true);
+		return this.windowService.closeFolder();
 	}
 }
 
 export class NewWindowAction extends Action {
 
-	public static ID = 'workbench.action.newWindow';
-	public static LABEL = nls.localize('newWindow', "New Window");
+	static ID = 'workbench.action.newWindow';
+	static LABEL = nls.localize('newWindow', "New Window");
 
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		this.windowService.getWindow().openNew();
-
-		return TPromise.as(true);
+	run(): TPromise<void> {
+		return this.windowsService.openNewWindow();
 	}
 }
 
 export class ToggleFullScreenAction extends Action {
 
-	public static ID = 'workbench.action.toggleFullScreen';
-	public static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
+	static ID = 'workbench.action.toggleFullScreen';
+	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
 
 	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		ipc.send('vscode:toggleFullScreen', this.windowService.getWindowId());
-
-		return TPromise.as(true);
+	run(): TPromise<void> {
+		return this.windowService.toggleFullScreen();
 	}
 }
 
@@ -178,7 +171,7 @@ export class ToggleMenuBarAction extends Action {
 	public static ID = 'workbench.action.toggleMenuBar';
 	public static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(id: string, label: string, @IWindowIPCService private windowService: IWindowIPCService) {
 		super(id, label);
 	}
 
@@ -191,17 +184,15 @@ export class ToggleMenuBarAction extends Action {
 
 export class ToggleDevToolsAction extends Action {
 
-	public static ID = 'workbench.action.toggleDevTools';
-	public static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
+	static ID = 'workbench.action.toggleDevTools';
+	static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(id: string, label: string, @IWindowService private windowsService: IWindowService) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		ipc.send('vscode:toggleDevTools', this.windowService.getWindowId());
-
-		return TPromise.as(true);
+	run(): TPromise<void> {
+		return this.windowsService.toggleDevTools();
 	}
 }
 
@@ -405,9 +396,8 @@ export class ShowStartupPerformance extends Action {
 		sum['Took (ms)'] = lastEvent.stopTime.getTime() - start;
 		table.push(sum);
 
-
 		// Show dev tools
-		this.windowService.getWindow().openDevTools();
+		this.windowService.openDevTools();
 
 		// Print to console
 		setTimeout(() => {
@@ -421,8 +411,8 @@ export class ShowStartupPerformance extends Action {
 
 export class ReloadWindowAction extends Action {
 
-	public static ID = 'workbench.action.reloadWindow';
-	public static LABEL = nls.localize('reloadWindow', "Reload Window");
+	static ID = 'workbench.action.reloadWindow';
+	static LABEL = nls.localize('reloadWindow', "Reload Window");
 
 	constructor(
 		id: string,
@@ -433,11 +423,9 @@ export class ReloadWindowAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		this.partService.setRestoreSidebar(); // we want the same sidebar after a reload restored
-		this.windowService.getWindow().reload();
-
-		return TPromise.as(true);
+		return this.windowService.reloadWindow().then(() => true);
 	}
 }
 
@@ -449,6 +437,7 @@ export class OpenRecentAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
@@ -456,16 +445,9 @@ export class OpenRecentAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		ipc.send('vscode:openRecent', this.windowService.getWindowId());
-
-		return new TPromise<boolean>((c, e, p) => {
-			ipc.once('vscode:openRecent', (event, files: string[], folders: string[]) => {
-				this.openRecent(files, folders);
-
-				c(true);
-			});
-		});
+	public run(): TPromise<void> {
+		return this.windowService.getRecentlyOpen()
+			.then(({ files, folders }) => this.openRecent(files, folders));
 	}
 
 	private openRecent(recentFiles: string[], recentFolders: string[]): void {
@@ -480,11 +462,10 @@ export class OpenRecentAction extends Action {
 			};
 		}
 
-		function runPick(path: string, context): void {
+		const runPick = (path: string, context) => {
 			const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-
-			ipc.send('vscode:windowOpen', [path], newWindow);
-		}
+			this.windowsService.windowOpen([path], newWindow);
+		};
 
 		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true));
 		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false));
@@ -549,7 +530,7 @@ export class ReportIssueAction extends Action {
 			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
 				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, extensions);
 
-				shell.openExternal(issueUrl);
+				window.open(issueUrl);
 
 				return TPromise.as(true);
 			});
@@ -590,14 +571,6 @@ Steps to Reproduce:
 }
 
 // --- commands
-
-CommandsRegistry.registerCommand('_workbench.ipc', function (accessor: ServicesAccessor, ipcMessage: string, ipcArgs: any[]) {
-	if (ipcMessage && Array.isArray(ipcArgs)) {
-		ipc.send(ipcMessage, ...ipcArgs);
-	} else {
-		ipc.send(ipcMessage);
-	}
-});
 
 CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string]) {
 	const editorService = accessor.get(IWorkbenchEditorService);

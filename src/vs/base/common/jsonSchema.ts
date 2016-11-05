@@ -42,6 +42,7 @@ export interface IJSONSchema {
 
 	defaultSnippets?: { label?: string; description?: string; body: any; }[]; // VSCode extension
 	errorMessage?: string; // VSCode extension
+	deprecatedMessage?: string; // VSCode extension
 }
 
 export interface IJSONSchemaMap {

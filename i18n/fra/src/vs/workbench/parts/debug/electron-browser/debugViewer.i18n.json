@@ -12,6 +12,7 @@
 	"functionBreakpointsNotSupported": "Les points d'arrêt de fonction ne sont pas pris en charge par ce type de débogage",
 	"loadMoreStackFrames": "Charger plus de frames de pile",
 	"paused": "en pause",
+	"process": "Processus",
 	"running": "en cours d'exécution",
 	"stackFrameAriaLabel": "Frame de pile {0}, ligne {1} {2}, pile des appels, débogage",
 	"thread": "Thread",

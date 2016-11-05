@@ -77,7 +77,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private static GROUP_CENTER = nls.localize('groupTwoVertical', "Center");
 	private static GROUP_RIGHT = nls.localize('groupThreeVertical', "Right");
 	private static GROUP_TOP = nls.localize('groupOneHorizontal', "Top");
-	private static GROUP_MIDDLE = nls.localize('groupTwoHorizontal', "Middle");
+	private static GROUP_MIDDLE = nls.localize('groupTwoHorizontal', "Center");
 	private static GROUP_BOTTOM = nls.localize('groupThreeHorizontal', "Bottom");
 
 	private static EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';

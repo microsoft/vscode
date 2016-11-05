@@ -8,5 +8,5 @@
 	"actions.goToDeclToSide.label": "打开侧边的定义",
 	"actions.previewDecl.label": "查看定义",
 	"meta.title": " – {0} 定义",
-	"multipleResults": "单击此处显示找到的 {0} 个定义。"
+	"multipleResults": "单击显示 {0} 个定义。"
 }

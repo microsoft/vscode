@@ -58,7 +58,7 @@ var ALL_EDITOR_TASKS = [
 	'tslint',
 	'hygiene',
 ];
-var runningEditorTasks = process.argv.length > 2 && process.argv.slice(2).every(function(arg) { return (ALL_EDITOR_TASKS.indexOf(arg) !== -1); });
+var runningEditorTasks = process.argv.length > 2 && process.argv.slice(2).every(function (arg) { return (ALL_EDITOR_TASKS.indexOf(arg) !== -1); });
 
 if (runningEditorTasks) {
 	require(`./build/gulpfile.editor`);
@@ -67,5 +67,5 @@ if (runningEditorTasks) {
 	// Load all the gulpfiles only if running tasks other than the editor tasks
 	const build = path.join(__dirname, 'build');
 	require('glob').sync('gulpfile.*.js', { cwd: build })
-		.forEach(f => require(`./build/${ f }`));
+		.forEach(f => require(`./build/${f}`));
 }

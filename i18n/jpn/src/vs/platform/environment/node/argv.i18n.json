@@ -6,6 +6,7 @@
 {
 	"diff": "差分エディターを開きます。引数として 2 つのファイル パスを渡す必要があります。",
 	"disableExtensions": "インストールされたすべての拡張機能を無効にします。",
+	"disableGPU": "GPU ハードウェア アクセラレータを無効にします。",
 	"extensionHomePath": "拡張機能のルート パスを設定します。",
 	"goto": "指定の行と列のパスのファイルを開きます (パスに :line[:column] を追加します)。",
 	"gotoValidation": "`--goto` モードの引数は `FILE(:LINE(:COLUMN))` の形式にする必要があります。",
@@ -19,6 +20,7 @@
 	"paths": "パス",
 	"performance": "'Developer: Startup Performance' コマンドを有効にして開始します。",
 	"reuseWindow": "最後のアクティブ ウィンドウにファイルまたはフォルダーを強制的に開きます。",
+	"showVersions": "--list-extension の使用時に、インストール済みの拡張機能のバージョンを表示します。",
 	"uninstallExtension": "拡張機能をアンインストールします。",
 	"usage": "使用法",
 	"userDataDir": "ユーザー データを保持するディレクトリを指定します。ルートで実行している場合に役立ちます。",

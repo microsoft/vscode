@@ -26,7 +26,7 @@ suite('Debug - View Model', () => {
 		const process = new Process('mockProcess', mockSession);
 		const thread = new Thread(process, 'myThread', 1);
 		const frame = new StackFrame(thread, 1, null, 'app.js', 1, 1);
-		model.setFocusedStackFrame(frame);
+		model.setFocusedStackFrame(frame, process);
 
 		assert.equal(model.focusedStackFrame, frame);
 		assert.equal(model.focusedThread.threadId, 1);
@@ -34,7 +34,7 @@ suite('Debug - View Model', () => {
 
 	test('selected expression', () => {
 		assert.equal(model.getSelectedExpression(), null);
-		const expression = new Expression('my expression', false);
+		const expression = new Expression('my expression');
 		model.setSelectedExpression(expression);
 
 		assert.equal(model.getSelectedExpression(), expression);

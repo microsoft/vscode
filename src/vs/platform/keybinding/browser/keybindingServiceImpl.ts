@@ -182,7 +182,7 @@ export abstract class KeybindingService implements IKeybindingService {
 				e.preventDefault();
 			}
 			let commandId = resolveResult.commandId.replace(/^\^/, '');
-			this._commandService.executeCommand(commandId, {}).done(undefined, err => {
+			this._commandService.executeCommand(commandId, resolveResult.commandArgs || {}).done(undefined, err => {
 				this._messageService.show(Severity.Warning, err);
 			});
 		}

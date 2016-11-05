@@ -127,7 +127,7 @@ SelectDirBrowseLabel=若要繼續，請按一下 [下一步]。若要選取其他資料夾，請按一下 [
 DiskSpaceMBLabel=至少須有 [mb] MB 的可用磁碟空間。
 CannotInstallToNetworkDrive=安裝程式無法安裝到網路磁碟機。
 CannotInstallToUNCPath=安裝程式無法安裝到 UNC 路徑。
-InvalidPath=必須輸入包含磁碟機代號的完整路徑，例如:%n%nC:APP%n%n或輸入下列格式的 UNC 路徑:%n%n伺服器共用
+InvalidPath=必須輸入包含磁碟機代號的完整路徑，例如:%n%nC:\APP%n%n或輸入下列格式的 UNC 路徑:%n%n\伺服器\共用
 InvalidDrive=選取的磁碟機或 UNC 共用不存在或無法存取。請選取其他磁碟機或 UNC 共用。
 DiskSpaceWarningTitle=磁碟空間不足
 DiskSpaceWarning=安裝程式至少需要 %1 KB 的可用空間才能安裝，但所選磁碟機的可用空間只有 %2 KB。%n%n仍要繼續嗎?
@@ -231,9 +231,9 @@ ErrorFunctionFailed=%1 失敗; 代碼 %2
 ErrorFunctionFailedWithMessage=%1 失敗; 代碼 %2。%n%3
 ErrorExecutingProgram=無法執行檔案:%n%1
 ; *** Registry errors
-ErrorRegOpenKey=開啟登錄機碼時發生錯誤:%n%1%2
-ErrorRegCreateKey=建立登錄機碼時發生錯誤:%n%1%2
-ErrorRegWriteKey=寫入登錄機碼時發生錯誤:%n%1%2
+ErrorRegOpenKey=開啟登錄機碼時發生錯誤:%n%1\%2
+ErrorRegCreateKey=建立登錄機碼時發生錯誤:%n%1\%2
+ErrorRegWriteKey=寫入登錄機碼時發生錯誤:%n%1\%2
 ; *** INI errors
 ErrorIniEntry=在檔案 "%1" 中建立 INI 項目時發生錯誤。
 ; *** File copying errors

@@ -8,5 +8,5 @@
 	"actions.goToDeclToSide.label": "Открыть определение сбоку",
 	"actions.previewDecl.label": "Показать определение",
 	"meta.title": " — определения {0}",
-	"multipleResults": "Щелкните, чтобы отобразить найденные определения ({0})."
+	"multipleResults": "Щелкните, чтобы отобразить определения ({0})."
 }

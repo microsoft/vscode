@@ -19,11 +19,9 @@ import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperati
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
-import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -53,7 +51,6 @@ export abstract class TextFileService implements ITextFileService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService protected fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService
@@ -441,21 +438,27 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
+
 		// create the target file empty if it does not exist already
 		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.createFile(target)).then(stat => {
-			// resolve a model for the file (which can be binary if the file is not a text file)
-			return this.editorService.resolveEditorModel({ resource: target }).then((targetModel: ITextFileEditorModel) => {
-				// binary model: delete the file and run the operation again
-				if (targetModel instanceof BinaryEditorModel) {
-					return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
-				}
 
-				// text model: take over encoding and model value from source model
+			// resolve a model for the file (which can be binary if the file is not a text file)
+			return this.models.loadOrCreate(target).then((targetModel: ITextFileEditorModel) => {
+
+				// take over encoding and model value from source model
 				targetModel.updatePreferredEncoding(sourceModel.getEncoding());
 				targetModel.textEditorModel.setValue(sourceModel.getValue());
 
 				// save model
 				return targetModel.save();
+			}, error => {
+
+				// binary model: delete the file and run the operation again
+				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+					return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
+				}
+
+				return TPromise.wrapError(error);
 			});
 		});
 	}

@@ -175,6 +175,10 @@
 	text-align: center;
 }
 
+.monaco-workbench .debug-viewlet .monaco-tree-row .expression {
+	white-space: pre;
+}
+
 .debug-viewlet .debug-call-stack .error {
 	font-style: italic;
 	text-overflow: ellipsis;

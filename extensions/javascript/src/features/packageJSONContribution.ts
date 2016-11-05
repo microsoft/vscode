@@ -211,13 +211,11 @@ export class PackageJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			let pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
-				let htmlContent: MarkedString[] = [];
-				htmlContent.push(localize('json.npm.package.hover', '{0}', pack));
 				return this.getInfo(pack).then(infos => {
-					infos.forEach(info => {
-						htmlContent.push(textToMarkedString(info));
-					});
-					return htmlContent;
+					if (infos.length) {
+						return [infos.map(textToMarkedString).join('\n\n')];
+					}
+					return null;
 				});
 			}
 		}
