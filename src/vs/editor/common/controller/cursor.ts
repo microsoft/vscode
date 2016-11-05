@@ -11,7 +11,7 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/controller/cursorCollection';
-import { IOneCursorOperationContext, IPostOperationRunnable, IViewModelHelper, OneCursor, OneCursorOp } from 'vs/editor/common/controller/oneCursor';
+import { IOneCursorOperationContext, IViewModelHelper, OneCursor, OneCursorOp } from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -45,7 +45,6 @@ interface IMultipleCursorOperationContext {
 	isCursorUndo: boolean;
 	executeCommands: editorCommon.ICommand[];
 	isAutoWhitespaceCommand: boolean[];
-	postOperationRunnables: IPostOperationRunnable[];
 	setColumnSelectToLineNumber: number;
 	setColumnSelectToVisualColumn: number;
 }
@@ -295,7 +294,6 @@ export class Cursor extends EventEmitter {
 			isAutoWhitespaceCommand: [],
 			hasExecutedCommands: false,
 			isCursorUndo: false,
-			postOperationRunnables: [],
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false,
 			setColumnSelectToLineNumber: 0,
@@ -418,34 +416,12 @@ export class Cursor extends EventEmitter {
 		this._columnSelectToLineNumber = ctx.setColumnSelectToLineNumber;
 		this._columnSelectToVisualColumn = ctx.setColumnSelectToVisualColumn;
 
-		ctx.hasExecutedCommands = this._internalExecuteCommands(ctx.executeCommands, ctx.isAutoWhitespaceCommand, ctx.postOperationRunnables) || ctx.hasExecutedCommands;
+		ctx.hasExecutedCommands = this._internalExecuteCommands(ctx.executeCommands, ctx.isAutoWhitespaceCommand) || ctx.hasExecutedCommands;
 		ctx.executeCommands = [];
 
 		if (ctx.shouldPushStackElementAfter) {
 			this.model.pushStackElement();
 			ctx.shouldPushStackElementAfter = false;
-		}
-
-		var hasPostOperationRunnables = false;
-		for (var i = 0, len = ctx.postOperationRunnables.length; i < len; i++) {
-			if (ctx.postOperationRunnables[i]) {
-				hasPostOperationRunnables = true;
-				break;
-			}
-		}
-
-		if (hasPostOperationRunnables) {
-			var postOperationRunnables = ctx.postOperationRunnables.slice(0);
-			ctx.postOperationRunnables = [];
-
-			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
-				if (postOperationRunnables[cursorIndex]) {
-					postOperationRunnables[cursorIndex](oneCtx);
-				}
-				return false;
-			});
-
-			this._interpretHandlerContext(ctx);
 		}
 	}
 
@@ -613,7 +589,7 @@ export class Cursor extends EventEmitter {
 		return loserCursorsMap;
 	}
 
-	private _collapseDeleteCommands(rawCmds: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _collapseDeleteCommands(rawCmds: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
 		if (rawCmds.length === 1) {
 			return;
 		}
@@ -638,7 +614,6 @@ export class Cursor extends EventEmitter {
 		var cursors = commands.map((cmd, i) => {
 			return {
 				range: commands[i].getRange(),
-				postOperationRunnable: postOperationRunnables[i],
 				order: i
 			};
 		});
@@ -669,15 +644,15 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
-	private _internalExecuteCommands(commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _internalExecuteCommands(commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
 		var ctx: IExecContext = {
 			selectionStartMarkers: [],
 			positionMarkers: []
 		};
 
-		this._collapseDeleteCommands(commands, isAutoWhitespaceCommand, postOperationRunnables);
+		this._collapseDeleteCommands(commands, isAutoWhitespaceCommand);
 
-		var r = this._innerExecuteCommands(ctx, commands, isAutoWhitespaceCommand, postOperationRunnables);
+		var r = this._innerExecuteCommands(ctx, commands, isAutoWhitespaceCommand);
 		for (var i = 0; i < ctx.selectionStartMarkers.length; i++) {
 			this.model._removeMarker(ctx.selectionStartMarkers[i]);
 			this.model._removeMarker(ctx.positionMarkers[i]);
@@ -698,7 +673,7 @@ export class Cursor extends EventEmitter {
 		return true;
 	}
 
-	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
 
 		if (this.configuration.editor.readOnly) {
 			return false;
@@ -799,7 +774,6 @@ export class Cursor extends EventEmitter {
 		// Remove losing cursors
 		for (var i = 0; i < losingCursors.length; i++) {
 			selectionsAfter.splice(losingCursors[i], 1);
-			postOperationRunnables.splice(losingCursors[i], 1);
 		}
 
 		return this._interpretCommandResult(selectionsAfter);
@@ -1075,7 +1049,6 @@ export class Cursor extends EventEmitter {
 				shouldRevealHorizontal: true,
 				executeCommand: null,
 				isAutoWhitespaceCommand: false,
-				postOperationRunnable: null,
 				shouldPushStackElementBefore: false,
 				shouldPushStackElementAfter: false
 			};
@@ -1094,7 +1067,6 @@ export class Cursor extends EventEmitter {
 
 			ctx.executeCommands[i] = context.executeCommand;
 			ctx.isAutoWhitespaceCommand[i] = context.isAutoWhitespaceCommand;
-			ctx.postOperationRunnables[i] = context.postOperationRunnable;
 		}
 
 		return result;
