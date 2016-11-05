@@ -217,14 +217,14 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.overloads = dom.append(wrapper, $('.overloads'));
 
-		const body = dom.append(wrapper, $('.body'));
+		const body = $('.body');
+		this.scrollbar = new DomScrollableElement(body, { canUseTranslate3d: false });
+		this.disposables.push(this.scrollbar);
+		wrapper.appendChild(this.scrollbar.getDomNode());
 
 		this.signature = dom.append(body, $('.signature'));
 
-		this.docs = $('.docs');
-		this.scrollbar = new DomScrollableElement(this.docs, { canUseTranslate3d: false });
-		this.disposables.push(this.scrollbar);
-		body.appendChild(this.scrollbar.getDomNode());
+		this.docs = dom.append(body, $('.docs'));
 
 		this.currentSignature = 0;
 
@@ -295,6 +295,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.docs.innerHTML = '';
 
 		const signature = this.hints.signatures[this.currentSignature];
+
+		if (!signature) {
+			return;
+		}
 
 		const code = dom.append(this.signature, $('.code'));
 		const hasParameters = signature.parameters.length > 0;

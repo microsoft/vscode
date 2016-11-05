@@ -13,6 +13,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 export interface IResolveResult {
 	enterChord: number;
 	commandId: string;
+	commandArgs: any;
 }
 
 export interface IBoundCommands {
@@ -31,11 +32,13 @@ interface ICommandEntry {
 	when: ContextKeyExpr;
 	keybinding: number;
 	commandId: string;
+	commandArgs: any;
 }
 
 export class NormalizedKeybindingItem {
 	keybinding: number;
 	command: string;
+	commandArgs: any;
 	when: ContextKeyExpr;
 	isDefault: boolean;
 	actualCommand: string;
@@ -45,12 +48,13 @@ export class NormalizedKeybindingItem {
 		if (source.when) {
 			when = source.when.normalize();
 		}
-		return new NormalizedKeybindingItem(source.keybinding, source.command, when, isDefault);
+		return new NormalizedKeybindingItem(source.keybinding, source.command, source.commandArgs, when, isDefault);
 	}
 
-	constructor(keybinding: number, command: string, when: ContextKeyExpr, isDefault: boolean) {
+	constructor(keybinding: number, command: string, commandArgs: any, when: ContextKeyExpr, isDefault: boolean) {
 		this.keybinding = keybinding;
 		this.command = command;
+		this.commandArgs = commandArgs;
 		this.actualCommand = this.command ? this.command.replace(/^\^/, '') : this.command;
 		this.when = when;
 		this.isDefault = isDefault;
@@ -97,7 +101,8 @@ export class KeybindingResolver {
 			let entry: ICommandEntry = {
 				when: k.when,
 				keybinding: k.keybinding,
-				commandId: k.command
+				commandId: k.command,
+				commandArgs: k.commandArgs
 			};
 
 			if (BinaryKeybindings.hasChord(k.keybinding)) {
@@ -313,13 +318,15 @@ export class KeybindingResolver {
 		if (currentChord === 0 && BinaryKeybindings.hasChord(result.keybinding)) {
 			return {
 				enterChord: keypress,
-				commandId: null
+				commandId: null,
+				commandArgs: null
 			};
 		}
 
 		return {
 			enterChord: 0,
-			commandId: result.commandId
+			commandId: result.commandId,
+			commandArgs: result.commandArgs
 		};
 	}
 
@@ -424,9 +431,15 @@ export class IOSupport {
 			command = input.command;
 		}
 
+		let commandArgs: any = null;
+		if (typeof input.args !== 'undefined') {
+			commandArgs = input.args;
+		}
+
 		return {
 			keybinding: key,
 			command: command,
+			commandArgs: commandArgs,
 			when: when,
 			weight1: 1000,
 			weight2: index

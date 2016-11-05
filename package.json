@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "electronVersion": "1.3.8",
-  "distro": "d0dac3a2a226f976eb5922a930734dd5450d1d17",
+  "distro": "cc6a2710b81e898b8cde2b51ba29e178980009e8",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -12,6 +12,7 @@
     "test": "mocha",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
+    "compile": "gulp compile",
     "watch": "gulp watch",
     "monaco-editor-setup": "node scripts/monaco-editor-setup.js",
     "monaco-editor-test": "mocha --only-monaco-editor"
@@ -31,8 +32,8 @@
     "native-keymap": "0.3.0",
     "pty.js": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
     "semver": "4.3.6",
-    "vscode-debugprotocol": "1.13.0",
-    "vscode-textmate": "2.2.0",
+    "vscode-debugprotocol": "1.14.0",
+    "vscode-textmate": "2.3.0",
     "winreg": "1.2.0",
     "xterm": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.7",
     "yauzl": "2.3.1"
@@ -88,7 +89,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^3.3.0",
-    "typescript": "^2.0.3",
+    "typescript": "2.0.3",
     "typescript-formatter": "3.1.0",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",

@@ -127,13 +127,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			// Listen to content changes
 			this.textModelChangeListener = this.textEditorModel.onDidChangeContent(e => this.onModelContentChanged());
 
-			// Emit initial dirty event if we are
-			if (this.dirty) {
-				setTimeout(() => {
-					this._onDidChangeDirty.fire();
-				}, 0 /* prevent race condition between creating model and emitting dirty event */);
-			}
-
 			return model;
 		});
 	}

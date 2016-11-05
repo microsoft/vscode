@@ -129,7 +129,8 @@
 			}
 		},
 		{
-			"scope": "meta.tag",
+			"name": "brackets of XML/HTML tags",
+			"scope": "punctuation.definition.tag",
 			"settings": {
 				"foreground": "#808080"
 			}
@@ -216,12 +217,6 @@
 			"scope": "keyword.control",
 			"settings": {
 				"foreground": "#569cd6"
-			}
-		},
-		{
-			"scope": "keyword.control.less",
-			"settings": {
-				"foreground": "#d7ba7d"
 			}
 		},
 		{

@@ -36,7 +36,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import * as semver from 'semver';
-import { shell } from 'electron';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import Event from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
@@ -411,7 +410,6 @@ export class GitService extends EventEmitter
 	private reactiveStatusDelayer: PeriodThrottledDelayer<IModel>;
 	private autoFetcher: AutoFetcher;
 	private isStatusPending = false;
-	private isFocused = true;
 
 	private _allowHugeRepositories: boolean;
 	get allowHugeRepositories(): boolean { return this._allowHugeRepositories; }
@@ -483,7 +481,7 @@ export class GitService extends EventEmitter
 							message: localize('updateGit', "You seem to have git {0} installed. Code works best with git >=2.0.0.", version),
 							actions: [
 								new Action('downloadLatest', localize('download', "Download"), '', true, () => {
-									shell.openExternal('https://git-scm.com/');
+									window.open('https://git-scm.com/');
 									return null;
 								}),
 								new Action('neverShowAgain', localize('neverShowAgain', "Don't show again"), null, true, () => {
@@ -519,15 +517,10 @@ export class GitService extends EventEmitter
 
 		const focusEvent = domEvent(window, 'focus');
 		this.toDispose.push(focusEvent(() => {
-			this.isFocused = true;
-
 			if (this.isStatusPending) {
 				this.triggerAutoStatus();
 			}
 		}));
-
-		const blurEvent = domEvent(window, 'blur');
-		this.toDispose.push(blurEvent(() => this.isFocused = false));
 	}
 
 	private onTextFileChange(e: TextFileModelChangeEvent): void {
@@ -616,7 +609,7 @@ export class GitService extends EventEmitter
 	private triggerAutoStatus(force = false): void {
 		this.isStatusPending = true;
 
-		if (!this.isFocused && !force) {
+		if (!document.hasFocus() && !force) {
 			return;
 		}
 

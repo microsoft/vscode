@@ -108,7 +108,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 	// ---- begin view event handlers
 
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		var shouldRender = super.onConfigurationChanged(e);
+		let shouldRender = super.onConfigurationChanged(e);
 		if (e.wrappingInfo) {
 			this._maxLineWidth = 0;
 		}
@@ -133,13 +133,13 @@ export class ViewLines extends ViewLayer<ViewLine> {
 	}
 
 	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		var shouldRender = super.onLayoutChanged(layoutInfo);
+		let shouldRender = super.onLayoutChanged(layoutInfo);
 		this._maxLineWidth = 0;
 		return shouldRender;
 	}
 
 	public onModelFlushed(): boolean {
-		var shouldRender = super.onModelFlushed();
+		let shouldRender = super.onModelFlushed();
 		this._maxLineWidth = 0;
 		return shouldRender;
 	}
@@ -157,7 +157,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 	}
 
 	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
-		var newScrollTop = this._computeScrollTopToRevealRange(this._layoutProvider.getCurrentViewport(), e.range, e.verticalType);
+		let newScrollTop = this._computeScrollTopToRevealRange(this._layoutProvider.getCurrentViewport(), e.range, e.verticalType);
 
 		if (e.revealHorizontal) {
 			this._lastCursorRevealRangeHorizontallyEvent = e;
@@ -403,9 +403,9 @@ export class ViewLines extends ViewLayer<ViewLine> {
 			this.onDidRender();
 
 			// compute new scroll position
-			var newScrollLeft = this._computeScrollLeftToRevealRange(revealHorizontalRange);
+			let newScrollLeft = this._computeScrollLeftToRevealRange(revealHorizontalRange);
 
-			var isViewportWrapping = this._isViewportWrapping;
+			let isViewportWrapping = this._isViewportWrapping;
 			if (!isViewportWrapping) {
 				// ensure `scrollWidth` is large enough
 				this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
@@ -444,11 +444,11 @@ export class ViewLines extends ViewLayer<ViewLine> {
 	}
 
 	private _computeScrollTopToRevealRange(viewport: editorCommon.Viewport, range: Range, verticalType: editorCommon.VerticalRevealType): number {
-		var viewportStartY = viewport.top,
-			viewportHeight = viewport.height,
-			viewportEndY = viewportStartY + viewportHeight,
-			boxStartY: number,
-			boxEndY: number;
+		let viewportStartY = viewport.top;
+		let viewportHeight = viewport.height;
+		let viewportEndY = viewportStartY + viewportHeight;
+		let boxStartY: number;
+		let boxEndY: number;
 
 		// Have a box that includes one extra line height (for the horizontal scrollbar)
 		boxStartY = this._layoutProvider.getVerticalOffsetForLineNumber(range.startLineNumber);
@@ -458,7 +458,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 			boxEndY += this._lineHeight;
 		}
 
-		var newScrollTop: number;
+		let newScrollTop: number;
 
 		if (verticalType === editorCommon.VerticalRevealType.Center || verticalType === editorCommon.VerticalRevealType.CenterIfOutsideViewport) {
 			if (verticalType === editorCommon.VerticalRevealType.CenterIfOutsideViewport && viewportStartY <= boxStartY && boxEndY <= viewportEndY) {
@@ -466,7 +466,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 				newScrollTop = viewportStartY;
 			} else {
 				// Box is outside the viewport... center it
-				var boxMiddleY = (boxStartY + boxEndY) / 2;
+				let boxMiddleY = (boxStartY + boxEndY) / 2;
 				newScrollTop = Math.max(0, boxMiddleY - viewportHeight / 2);
 			}
 		} else {
@@ -478,7 +478,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 
 	private _computeScrollLeftToRevealRange(range: Range): { scrollLeft: number; maxHorizontalOffset: number; } {
 
-		var maxHorizontalOffset = 0;
+		let maxHorizontalOffset = 0;
 
 		if (range.startLineNumber !== range.endLineNumber) {
 			// Two or more lines? => scroll to base (That's how you see most of the two lines)
@@ -488,13 +488,13 @@ export class ViewLines extends ViewLayer<ViewLine> {
 			};
 		}
 
-		var viewport = this._layoutProvider.getCurrentViewport(),
-			viewportStartX = viewport.left,
-			viewportEndX = viewportStartX + viewport.width;
+		let viewport = this._layoutProvider.getCurrentViewport();
+		let viewportStartX = viewport.left;
+		let viewportEndX = viewportStartX + viewport.width;
 
-		var visibleRanges = this.visibleRangesForRange2(range, 0),
-			boxStartX = Number.MAX_VALUE,
-			boxEndX = 0;
+		let visibleRanges = this.visibleRangesForRange2(range, 0);
+		let boxStartX = Number.MAX_VALUE;
+		let boxEndX = 0;
 
 		if (!visibleRanges) {
 			// Unknown
@@ -504,11 +504,8 @@ export class ViewLines extends ViewLayer<ViewLine> {
 			};
 		}
 
-		var i: number,
-			visibleRange: VisibleRange;
-
-		for (i = 0; i < visibleRanges.length; i++) {
-			visibleRange = visibleRanges[i];
+		for (let i = 0; i < visibleRanges.length; i++) {
+			let visibleRange = visibleRanges[i];
 			if (visibleRange.left < boxStartX) {
 				boxStartX = visibleRange.left;
 			}
@@ -522,7 +519,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 		boxStartX = Math.max(0, boxStartX - ViewLines.HORIZONTAL_EXTRA_PX);
 		boxEndX += this._revealHorizontalRightPadding;
 
-		var newScrollLeft = this._computeMinimumScrolling(viewportStartX, viewportEndX, boxStartX, boxEndX);
+		let newScrollLeft = this._computeMinimumScrolling(viewportStartX, viewportEndX, boxStartX, boxEndX);
 		return {
 			scrollLeft: newScrollLeft,
 			maxHorizontalOffset: maxHorizontalOffset

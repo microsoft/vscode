@@ -14,9 +14,10 @@
 	"terminal.integrated.setLocaleVariables": "로캘 변수가 터미널 시작 시 설정되는지 여부를 제어하며, 기본값은 OS X에서 true이고 기타 플랫폼에서 false입니다.",
 	"terminal.integrated.shell.linux": "터미널이 Linux에서 사용하는 셸의 경로입니다.",
 	"terminal.integrated.shell.osx": "터미널이 OS X에서 사용하는 셸의 경로입니다.",
-	"terminal.integrated.shell.windows": "터미널이 Windows에서 사용하는 셸의 경로입니다. Windows와 함께 제공되는 셸을 사용하는 경우(cmd, PowerShell 또는 Ubuntu의 Bash) 64비트 버전을 사용하려면 C:WindowsSystem32보다 C:Windowssysnative가 더 좋습니다.",
+	"terminal.integrated.shell.windows": "터미널이 Windows에서 사용하는 셸의 경로입니다. Windows와 함께 제공되는 셸을 사용하는 경우(cmd, PowerShell 또는 Ubuntu의 Bash) 64비트 버전을 사용하려면 C:\\Windows\\System32보다 C:\\Windows\\sysnative가 더 좋습니다.",
 	"terminal.integrated.shellArgs.linux": "Linux 터미널에 있을 때 사용할 명령줄 인수입니다.",
 	"terminal.integrated.shellArgs.osx": "OS X 터미널에 있을 때 사용할 명령줄 인수입니다.",
+	"terminal.integrated.shellArgs.windows": "Windows 터미널에 있을 때 사용할 명령줄 인수입니다.",
 	"terminalCategory": "터미널",
 	"terminalIntegratedConfigurationTitle": "통합 터미널",
 	"viewCategory": "보기"

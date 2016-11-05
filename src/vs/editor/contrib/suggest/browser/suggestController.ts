@@ -113,6 +113,7 @@ export class SuggestController implements IEditorContribution {
 
 	triggerSuggest(): void {
 		this.model.trigger(false, false);
+		this.editor.revealLine(this.editor.getPosition().lineNumber);
 		this.editor.focus();
 	}
 

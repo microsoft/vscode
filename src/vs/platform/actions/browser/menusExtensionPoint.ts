@@ -11,7 +11,7 @@ import { join } from 'vs/base/common/paths';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
-import { IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 
@@ -35,7 +35,7 @@ namespace schema {
 		}
 	}
 
-	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: IExtensionMessageCollector): boolean {
+	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
 		if (!Array.isArray(menu)) {
 			collector.error(localize('requirearry', "menu items must be an arry"));
 			return false;
@@ -123,7 +123,7 @@ namespace schema {
 
 	export type IUserFriendlyIcon = string | { light: string; dark: string; };
 
-	export function isValidCommand(command: IUserFriendlyCommand, collector: IExtensionMessageCollector): boolean {
+	export function isValidCommand(command: IUserFriendlyCommand, collector: ExtensionMessageCollector): boolean {
 		if (!command) {
 			collector.error(localize('nonempty', "expected non-empty value."));
 			return false;
@@ -146,7 +146,7 @@ namespace schema {
 		return true;
 	}
 
-	function isValidIcon(icon: IUserFriendlyIcon, collector: IExtensionMessageCollector): boolean {
+	function isValidIcon(icon: IUserFriendlyIcon, collector: ExtensionMessageCollector): boolean {
 		if (typeof icon === 'undefined') {
 			return true;
 		}
@@ -208,7 +208,7 @@ namespace schema {
 	};
 }
 
-ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>('commands', schema.commandsContribution).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>('commands', [], schema.commandsContribution).setHandler(extensions => {
 
 	const ids = new IdGenerator('contrib-cmd-icon-');
 
@@ -251,7 +251,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 });
 
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>('menus', schema.menusContribtion).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>('menus', [], schema.menusContribtion).setHandler(extensions => {
 	for (let extension of extensions) {
 		const {value, collector} = extension;
 

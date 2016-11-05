@@ -8,7 +8,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import Event, { Emitter } from 'vs/base/common/event';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -30,7 +29,7 @@ import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickO
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 // debuggers extension point
-export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
+export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', [], {
 	description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ type: '', extensions: [] }] }],
@@ -122,7 +121,7 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 });
 
 // breakpoints extension point #9037
-export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawBreakpointContribution[]>('breakpoints', {
+export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawBreakpointContribution[]>('breakpoints', [], {
 	description: nls.localize('vscode.extension.contributes.breakpoints', 'Contributes breakpoints.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ language: '' }] }],
@@ -159,7 +158,12 @@ const schema: IJSONSchema = {
 				'type': 'object',
 				oneOf: []
 			}
-		}
+		},
+		// TODO@Isidor remove support for this in December
+		debugServer: {
+			type: 'number',
+			description: nls.localize('app.launch.json.debugServer', "DEPRECATED: please move debugServer inside a configuration.")
+		},
 	}
 };
 
@@ -169,7 +173,6 @@ jsonRegistry.registerSchema(schemaId, schema);
 export class ConfigurationManager implements debug.IConfigurationManager {
 	private adapters: Adapter[];
 	private allModeIdsForBreakpoints: { [key: string]: boolean };
-	private _onDidConfigurationChange: Emitter<debug.IConfig>;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -181,7 +184,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this._onDidConfigurationChange = new Emitter<debug.IConfig>();
 		this.adapters = [];
 		this.registerListeners();
 		this.allModeIdsForBreakpoints = {};
@@ -243,63 +245,56 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		});
 	}
 
-	public get onDidConfigurationChange(): Event<debug.IConfig> {
-		return this._onDidConfigurationChange.event;
-	}
-
 	public getAdapter(type: string): Adapter {
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, type)).pop();
 	}
 
 	public getConfiguration(nameOrConfig: string | debug.IConfig): TPromise<debug.IConfig> {
-		return this.loadLaunchConfig().then(config => {
-			let result: debug.IConfig = null;
-			if (types.isObject(nameOrConfig)) {
-				result = objects.deepClone(nameOrConfig) as debug.IConfig;
-			} else {
-				if (!config || !config.configurations) {
-					return result;
-				}
-				// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
-				const filtered = config.configurations.filter(cfg => cfg.name === nameOrConfig);
+		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
 
-				result = filtered.length === 1 ? filtered[0] : config.configurations[0];
-				result = objects.deepClone(result);
-				if (config && result) {
-					result.debugServer = config.debugServer;
-				}
+		let result: debug.IConfig = null;
+		if (types.isObject(nameOrConfig)) {
+			result = objects.deepClone(nameOrConfig) as debug.IConfig;
+		} else {
+			if (!config || !config.configurations) {
+				return TPromise.as(null);
 			}
+			// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
+			const filtered = config.configurations.filter(cfg => cfg.name === nameOrConfig);
 
-			if (result) {
-				// Set operating system specific properties #1873
-				if (isWindows && result.windows) {
-					Object.keys(result.windows).forEach(key => {
-						result[key] = result.windows[key];
-					});
-				}
-				if (isMacintosh && result.osx) {
-					Object.keys(result.osx).forEach(key => {
-						result[key] = result.osx[key];
-					});
-				}
-				if (isLinux && result.linux) {
-					Object.keys(result.linux).forEach(key => {
-						result[key] = result.linux[key];
-					});
-				}
+			result = filtered.length === 1 ? filtered[0] : config.configurations[0];
+			result = objects.deepClone(result);
+			if (config && result && config.debugServer) {
+				result.debugServer = config.debugServer;
+			}
+		}
 
-				// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-				Object.keys(result).forEach(key => {
-					result[key] = this.configurationResolverService.resolveAny(result[key]);
+		if (result) {
+			// Set operating system specific properties #1873
+			if (isWindows && result.windows) {
+				Object.keys(result.windows).forEach(key => {
+					result[key] = result.windows[key];
 				});
-
-				const adapter = this.getAdapter(result.type);
-				return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 			}
-		}).then(result => {
-			this._onDidConfigurationChange.fire(result);
-			return result;
-		});
+			if (isMacintosh && result.osx) {
+				Object.keys(result.osx).forEach(key => {
+					result[key] = result.osx[key];
+				});
+			}
+			if (isLinux && result.linux) {
+				Object.keys(result.linux).forEach(key => {
+					result[key] = result.linux[key];
+				});
+			}
+
+			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
+			Object.keys(result).forEach(key => {
+				result[key] = this.configurationResolverService.resolveAny(result[key]);
+			});
+
+			const adapter = this.getAdapter(result.type);
+			return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
+		}
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
@@ -347,9 +342,5 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		const modeId = mode ? mode.getId() : null;
 
 		return !!this.allModeIdsForBreakpoints[modeId];
-	}
-
-	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {
-		return TPromise.as(this.configurationService.getConfiguration<debug.IGlobalConfig>('launch'));
 	}
 }

@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import editor = require('vs/editor/common/editorCommon');
+import { IModel as EditorIModel, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -53,8 +53,8 @@ export interface ITreeElement {
 }
 
 export interface IExpressionContainer extends ITreeElement {
-	reference: number;
 	stackFrame: IStackFrame;
+	hasChildren: boolean;
 	getChildren(debugService: IDebugService): TPromise<IExpression[]>;
 }
 
@@ -72,7 +72,6 @@ export enum SessionRequestType {
 }
 
 export interface ISession {
-	// TODO@Isidor consider removing this - feels ugly
 	requestType: SessionRequestType;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
@@ -99,9 +98,9 @@ export interface ISession {
 
 export interface IProcess extends ITreeElement {
 	name: string;
+	session: ISession;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
-	session: ISession;
 }
 
 export interface IThread extends ITreeElement {
@@ -182,7 +181,6 @@ export interface IEnablement extends ITreeElement {
 }
 
 export interface IRawBreakpoint {
-	uri: uri;
 	lineNumber: number;
 	enabled?: boolean;
 	condition?: string;
@@ -190,7 +188,7 @@ export interface IRawBreakpoint {
 }
 
 export interface IBreakpoint extends IEnablement {
-	source: Source;
+	uri: uri;
 	lineNumber: number;
 	desiredLineNumber: number;
 	condition: string;
@@ -238,6 +236,7 @@ export interface IViewModel extends ITreeElement {
 	setSelectedConfigurationName(name: string): void;
 
 	onDidFocusStackFrame: Event<IStackFrame>;
+	onDidFocusProcess: Event<IProcess>;
 	onDidSelectExpression: Event<IExpression>;
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
 	/**
@@ -299,12 +298,6 @@ export interface IEnvConfig {
 	configurationNames?: string[];
 }
 
-export interface IExtHostConfig extends IEnvConfig {
-	port?: number;
-	sourceMaps?: boolean;
-	outDir?: string;
-}
-
 export interface IConfig extends IEnvConfig {
 	windows?: IEnvConfig;
 	osx?: IEnvConfig;
@@ -350,13 +343,10 @@ export interface IConfigurationManager {
 	 */
 	openConfigFile(sideBySide: boolean): TPromise<boolean>;
 
-	// TODO@Isidor remove this from the interface
-	loadLaunchConfig(): TPromise<IGlobalConfig>;
-
 	/**
 	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
 	 */
-	canSetBreakpointsIn(model: editor.IModel): boolean;
+	canSetBreakpointsIn(model: EditorIModel): boolean;
 }
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
@@ -382,12 +372,12 @@ export interface IDebugService {
 	/**
 	 * Sets the focused stack frame and evaluates all expresions against the newly focused stack frame,
 	 */
-	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): TPromise<void>;
+	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess): TPromise<void>;
 
 	/**
-	 * Adds new breakpoints to the model. Notifies debug adapter of breakpoint changes.
+	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
+	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
@@ -455,6 +445,11 @@ export interface IDebugService {
 	renameWatchExpression(id: string, newName: string): TPromise<void>;
 
 	/**
+	 * Moves a watch expression to a new possition. Used for reordering watch expressions.
+	 */
+	moveWatchExpression(id: string, position: number): void;
+
+	/**
 	 * Removes all watch expressions. If id is passed only removes the watch expression with the passed id.
 	 */
 	removeWatchExpressions(id?: string): void;
@@ -482,11 +477,11 @@ export interface IDebugService {
 	/**
 	 * Opens a new or reveals an already visible editor showing the source.
 	 */
-	openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
+	openOrRevealSource(sourceOrUri: Source | uri, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
 }
 
 // Editor interfaces
-export interface IDebugEditorContribution extends editor.IEditorContribution {
+export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void>;
 }
 

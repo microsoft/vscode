@@ -19,8 +19,6 @@ export interface IExtensionsViewlet extends IViewlet {
 export enum ExtensionState {
 	Installing,
 	Installed,
-	Enabled,
-	Disabled,
 	Uninstalling,
 	Uninstalled
 }
@@ -43,12 +41,12 @@ export interface IExtension {
 	rating: number;
 	ratingCount: number;
 	outdated: boolean;
-	reload: boolean;
+	disabledGlobally: boolean;
+	disabledForWorkspace: boolean;
 	dependencies: string[];
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
-	hasChangelog: boolean;
 	getChangelog(): TPromise<string>;
 }
 

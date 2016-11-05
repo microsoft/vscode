@@ -118,7 +118,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 
 		// Different Input (Reload)
-		return this.editorService.resolveEditorModel(input, true /* Reload */).then(resolvedModel => {
+		return input.resolve(true).then(resolvedModel => {
 
 			// There is a special case where the text editor has to handle binary file editor input: if a binary file
 			// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
@@ -145,18 +145,15 @@ export class TextFileEditor extends BaseTextEditor {
 			const textEditor = this.getControl();
 			textEditor.setModel(textFileModel.textEditorModel);
 
-			// TextOptions (avoiding instanceof here for a reason, do not change!)
-			let optionsGotApplied = false;
-			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-				optionsGotApplied = (<TextEditorOptions>options).apply(textEditor);
+			// Always restore View State if any associated
+			const editorViewState = this.loadTextEditorViewState(this.storageService, this.getInput().getResource().toString());
+			if (editorViewState) {
+				textEditor.restoreViewState(editorViewState);
 			}
 
-			// Otherwise restore View State
-			if (!optionsGotApplied) {
-				const editorViewState = this.loadTextEditorViewState(this.storageService, this.getInput().getResource().toString());
-				if (editorViewState) {
-					textEditor.restoreViewState(editorViewState);
-				}
+			// TextOptions (avoiding instanceof here for a reason, do not change!)
+			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+				(<TextEditorOptions>options).apply(textEditor);
 			}
 		}, (error) => {
 

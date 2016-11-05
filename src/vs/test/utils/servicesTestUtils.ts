@@ -11,9 +11,10 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
+import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
+import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
@@ -21,7 +22,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IEditorInput, IEditorOptions, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
@@ -113,7 +116,7 @@ export class TestTextFileService extends TextFileService {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -178,6 +181,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
+	instantiationService.stub(ITextModelResolverService, <ITextModelResolverService>instantiationService.createInstance(TextModelResolverService));
 
 	return instantiationService;
 }
@@ -273,13 +277,13 @@ export class TestEventService extends EventEmitter implements IEventService {
 export class TestStorageService extends EventEmitter implements IStorageService {
 	public _serviceBrand: any;
 
-	private storage: Storage;
+	private storage: StorageService;
 
 	constructor() {
 		super();
 
 		let context = new TestContextService();
-		this.storage = new Storage(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -467,14 +471,6 @@ export class TestEditorService implements IWorkbenchEditorService {
 		return TPromise.as(null);
 	}
 
-	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
-	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
-	public resolveEditorModel(input: any, refresh?: boolean): Promise {
-		this.callback('resolveEditorModel');
-
-		return input.resolve(refresh);
-	}
-
 	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {
 		this.callback('closeEditor');
 
@@ -619,4 +615,14 @@ export class TestLifecycleService implements ILifecycleService {
 export function createMockModelService(instantiationService: TestInstantiationService): IModelService {
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	return instantiationService.createInstance(ModelServiceImpl);
+}
+
+export function onError(error: Error, done: () => void): void {
+	assert.fail(error);
+
+	done();
+}
+
+export function toResource(path) {
+	return URI.file(paths.join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
 }

@@ -14,9 +14,10 @@
 	"terminal.integrated.setLocaleVariables": "Управляет заданием переменных при запуске терминала, значение по умолчанию: \"True\" для OS X и \"False\" для других платформ.",
 	"terminal.integrated.shell.linux": "Путь оболочки, который используется терминалом в Linux.",
 	"terminal.integrated.shell.osx": "Путь оболочки, который используется терминалом в OS X.",
-	"terminal.integrated.shell.windows": "Путь оболочки, который используется терминалом в Windows. При работе с оболочкой, поставляемой с Windows (cmd, PowerShell или Bash на Ubuntu), укажите C:Windowssysnative вместо C:WindowsSystem32 для использования 64-разрядных версий.",
+	"terminal.integrated.shell.windows": "Путь оболочки, который используется терминалом в Windows. При работе с оболочкой, поставляемой с Windows (cmd, PowerShell или Bash на Ubuntu), укажите C:\\Windows\\sysnative вместо C:\\Windows\\System32 для использования 64-разрядных версий.",
 	"terminal.integrated.shellArgs.linux": "Аргументы командной строки, которые следует использовать в терминале Linux.",
 	"terminal.integrated.shellArgs.osx": "Аргументы командной строки, которые следует использовать в терминале OS X.",
+	"terminal.integrated.shellArgs.windows": "Аргументы командной строки, используемые в терминале Windows.",
 	"terminalCategory": "Терминал",
 	"terminalIntegratedConfigurationTitle": "Интегрированный терминал",
 	"viewCategory": "Просмотреть"

@@ -10,7 +10,7 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import {
 	IStatusModel, IStatusSummary, IRawFileStatus, ModelEvents,
 	IFileStatus, IStatusGroup, Status, StatusType,
-	IBranch, IRef, IRemote, IModel, IRawStatus
+	IBranch, IRef, IRemote, IModel, IRawStatus, RefType
 } from 'vs/workbench/parts/git/common/git';
 
 export class FileStatus implements IFileStatus {
@@ -389,9 +389,9 @@ export class Model extends EventEmitter implements IModel {
 			return '';
 		}
 
-		const ref = this.getRefs().filter(iref => iref.commit === this.HEAD.commit)[0];
-		const refName = ref && ref.name;
-		const head = refName || this.HEAD.name || this.HEAD.commit.substr(0, 8);
+		const tag = this.getRefs().filter(iref => iref.type === RefType.Tag && iref.commit === this.HEAD.commit)[0];
+		const tagName = tag && tag.name;
+		const head = this.HEAD.name || tagName || this.HEAD.commit.substr(0, 8);
 
 		const statusSummary = this.getStatus().getSummary();
 

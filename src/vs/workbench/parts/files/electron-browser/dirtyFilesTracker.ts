@@ -11,8 +11,8 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { platform, Platform } from 'vs/base/common/platform';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { Position } from 'vs/platform/editor/common/editor';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IEditorStacksModel } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -22,8 +22,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import arrays = require('vs/base/common/arrays');
-
-import { ipcRenderer as ipc } from 'electron';
 
 export class DirtyFilesTracker implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
@@ -161,7 +159,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 			const hasDirtyFiles = this.textFileService.isDirty();
 			this.isDocumentedEdited = hasDirtyFiles;
 
-			ipc.send('vscode:setDocumentEdited', this.windowService.getWindowId(), hasDirtyFiles); // handled from browser process
+			this.windowService.setDocumentEdited(hasDirtyFiles);
 		}
 	}
 

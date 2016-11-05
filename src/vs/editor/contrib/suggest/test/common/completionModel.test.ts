@@ -74,17 +74,10 @@ suite('CompletionModel', function () {
 		assert.ok(itemsNow !== itemsThen);
 	});
 
-	test('top score', function () {
-
-		assert.equal(model.topScoreIdx, 0);
-
-		model.lineContext = { leadingLineContent: 'Foo', characterCountDelta: 0 };
-		assert.equal(model.topScoreIdx, 1);
-	});
 
 	test('complete/incomplete', function () {
 
-		assert.equal(model.incomplete.length, 0);
+		assert.equal(model.incomplete, false);
 
 		let incompleteModel = new CompletionModel([
 			createSuggestItem('foo', 3, true),
@@ -93,7 +86,7 @@ suite('CompletionModel', function () {
 				leadingLineContent: 'foo',
 				characterCountDelta: 0
 			});
-		assert.equal(incompleteModel.incomplete.length, 1);
+		assert.equal(incompleteModel.incomplete, true);
 	});
 
 	test('replaceIncomplete', function () {
@@ -102,16 +95,57 @@ suite('CompletionModel', function () {
 		const incompleteItem = createSuggestItem('foofoo', 1, true, { lineNumber: 1, column: 2 });
 
 		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: 'foo', characterCountDelta: 0 });
-		assert.equal(model.incomplete.length, 1);
-		assert.equal(model.incomplete[0], incompleteItem.support);
+		assert.equal(model.incomplete, true);
 		assert.equal(model.items.length, 2);
 
-		const newCompleteItem = [
-			createSuggestItem('foofoo', 1, false, { lineNumber: 1, column: 3 }),
-			createSuggestItem('foofoo2', 1, false, { lineNumber: 1, column: 3 })
-		];
-		model.replaceIncomplete(newCompleteItem, (a, b) => 0);
-		assert.equal(model.incomplete.length, 0);
-		assert.equal(model.items.length, 3);
+		const {complete, incomplete} = model.resolveIncompleteInfo();
+
+		assert.equal(incomplete.length, 1);
+		assert.ok(incomplete[0] === incompleteItem.support);
+		assert.equal(complete.length, 1);
+		assert.ok(complete[0] === completeItem);
+	});
+
+	function assertTopScore(lineContent: string, expected: number, ...suggestionLabels: string[]): void {
+
+		const model = new CompletionModel(
+			suggestionLabels.map(label => createSuggestItem(label, lineContent.length)),
+			lineContent.length,
+			{
+				characterCountDelta: 0,
+				leadingLineContent: lineContent
+			}
+		);
+
+		assert.equal(model.topScoreIdx, expected, `${lineContent}, ACTUAL: ${model.items[model.topScoreIdx].suggestion.label} <> EXPECTED: ${model.items[expected].suggestion.label}`);
+
+	}
+
+	test('top score', function () {
+
+		assertTopScore('Foo', 1, 'foo', 'Foo', 'foo');
+
+		assertTopScore('CC', 1, 'camelCase', 'CamelCase');
+		assertTopScore('cC', 0, 'camelCase', 'CamelCase');
+		assertTopScore('cC', 1, 'ccfoo', 'camelCase');
+		assertTopScore('cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
+
+		// issue #14583
+		assertTopScore('log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
+		assertTopScore('e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
+
+		// issue #14446
+		assertTopScore('workbench.sideb', 1, 'workbench.editor.defaultSideBySideLayout', 'workbench.sideBar.location');
+
+		// issue #11423
+		assertTopScore('editor.r', 3, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		assertTopScore('editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		assertTopScore('Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+
+		assertTopScore('-mo', 1, '-ms-ime-mode', '-moz-columns');
+		// dupe, issue #14861
+		assertTopScore('convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
+		// dupe, issue #14942
+		assertTopScore('is', 0, 'isValidViewletId', 'import statement');
 	});
 });
