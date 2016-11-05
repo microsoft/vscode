@@ -26,6 +26,9 @@ export class CursorConfiguration {
 	public readonly wordSeparators: string;
 	public readonly autoClosingBrackets: boolean;
 	public readonly autoClosingPairsOpen: CharacterMap;
+	public readonly autoClosingPairsClose: CharacterMap;
+	public readonly surroundingPairs: CharacterMap;
+	public readonly electricChars: { [key: string]: boolean; };
 
 	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
 		return (
@@ -52,6 +55,9 @@ export class CursorConfiguration {
 		this.wordSeparators = c.wordSeparators;
 		this.autoClosingBrackets = c.autoClosingBrackets;
 		this.autoClosingPairsOpen = modeConfiguration.autoClosingPairsOpen;
+		this.autoClosingPairsClose = modeConfiguration.autoClosingPairsClose;
+		this.surroundingPairs = modeConfiguration.surroundingPairs;
+		this.electricChars = modeConfiguration.electricChars;
 	}
 
 	public normalizeIndentation(str: string): string {
