@@ -5,8 +5,8 @@
 'use strict';
 
 import { illegalArgument } from 'vs/base/common/errors';
-import { CursorMoveHelper, IColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
-import { EditOperationResult, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { CursorMoveHelper } from 'vs/editor/common/controller/cursorMoveHelper';
+import { EditOperationResult, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -14,7 +14,6 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MoveOperations, MoveOperationResult } from 'vs/editor/common/controller/cursorMoveOperations';
 import { WordType, WordOperations, WordNavigationType } from 'vs/editor/common/controller/cursorWordOperations';
-import { ColumnSelection } from 'vs/editor/common/controller/cursorColumnSelection';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 
@@ -65,12 +64,9 @@ export interface IViewModelHelper {
 
 	convertViewToModelPosition(lineNumber: number, column: number): Position;
 	convertViewSelectionToModelSelection(viewSelection: Selection): Selection;
-	convertViewRangeToModelRange(viewRange: Range): Range;
 
-	validateViewPosition(viewLineNumber: number, viewColumn: number, modelPosition: Position): Position;
-	validateViewPosition2(viewPosition: Position, modelPosition: Position): Position;
-	validateViewRange(viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range): Range;
-	validateViewRange2(viewRange: Range, modelRange: Range): Range;
+	validateViewPosition(viewPosition: Position, modelPosition: Position): Position;
+	validateViewRange(viewRange: Range, modelRange: Range): Range;
 }
 
 export interface IOneCursorState {
@@ -215,7 +211,7 @@ export class OneCursor implements IOneCursor {
 	private readonly _modelOptionsListener: IDisposable;
 	private readonly _configChangeListener: IDisposable;
 
-	public modeConfiguration: IModeConfiguration;
+	private modeConfiguration: IModeConfiguration;
 	public config: CursorConfiguration;
 
 	public modelState: CursorModelState;
@@ -302,8 +298,8 @@ export class OneCursor implements IOneCursor {
 		modelState = new CursorModelState(selectionStart, selectionStartLeftoverVisibleColumns, position, leftoverVisibleColumns);
 
 		// Validate new view state
-		let viewSelectionStart = this.viewModelHelper.validateViewRange2(viewState.selectionStart, modelState.selectionStart);
-		let viewPosition = this.viewModelHelper.validateViewPosition2(viewState.position, modelState.position);
+		let viewSelectionStart = this.viewModelHelper.validateViewRange(viewState.selectionStart, modelState.selectionStart);
+		let viewPosition = this.viewModelHelper.validateViewPosition(viewState.position, modelState.position);
 		viewState = new CursorModelState(viewSelectionStart, selectionStartLeftoverVisibleColumns, viewPosition, leftoverVisibleColumns);
 
 		if (this.modelState && this.viewState && this.modelState.equals(modelState) && this.viewState.equals(viewState)) {
@@ -348,10 +344,10 @@ export class OneCursor implements IOneCursor {
 			selectionStart = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		}
 
-		let viewPosition = this.viewModelHelper.validateViewPosition(state.viewPosition.lineNumber, state.viewPosition.column, position);
+		let viewPosition = this.viewModelHelper.validateViewPosition(new Position(state.viewPosition.lineNumber, state.viewPosition.column), position);
 		let viewSelectionStart: Range;
 		if (state.viewSelectionStart) {
-			viewSelectionStart = this.viewModelHelper.validateViewRange(state.viewSelectionStart.startLineNumber, state.viewSelectionStart.startColumn, state.viewSelectionStart.endLineNumber, state.viewSelectionStart.endColumn, selectionStart);
+			viewSelectionStart = this.viewModelHelper.validateViewRange(new Range(state.viewSelectionStart.startLineNumber, state.viewSelectionStart.startColumn, state.viewSelectionStart.endLineNumber, state.viewSelectionStart.endColumn), selectionStart);
 		} else {
 			viewSelectionStart = this.viewModelHelper.convertModelRangeToViewRange(selectionStart);
 		}
@@ -422,8 +418,8 @@ export class OneCursor implements IOneCursor {
 		let viewSelectionStart: Position;
 
 		if (viewSelection) {
-			viewPosition = this.viewModelHelper.validateViewPosition(viewSelection.positionLineNumber, viewSelection.positionColumn, position);
-			viewSelectionStart = this.viewModelHelper.validateViewPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn, selectionStart);
+			viewPosition = this.viewModelHelper.validateViewPosition(new Position(viewSelection.positionLineNumber, viewSelection.positionColumn), position);
+			viewSelectionStart = this.viewModelHelper.validateViewPosition(new Position(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn), selectionStart);
 		} else {
 			viewPosition = this.viewModelHelper.convertModelPositionToViewPosition(position.lineNumber, position.column);
 			viewSelectionStart = this.viewModelHelper.convertModelPositionToViewPosition(selectionStart.lineNumber, selectionStart.column);
@@ -527,15 +523,12 @@ export class OneCursor implements IOneCursor {
 		return this.model.validatePosition(position);
 	}
 	public validateViewPosition(viewLineNumber: number, viewColumn: number, modelPosition: Position): Position {
-		return this.viewModelHelper.validateViewPosition(viewLineNumber, viewColumn, modelPosition);
-	}
-	public convertViewToModelPosition(lineNumber: number, column: number): editorCommon.IPosition {
-		return this.viewModelHelper.convertViewToModelPosition(lineNumber, column);
+		return this.viewModelHelper.validateViewPosition(new Position(viewLineNumber, viewColumn), modelPosition);
 	}
 	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
 		return this.viewModelHelper.convertViewSelectionToModelSelection(viewSelection);
 	}
-	public convertModelPositionToViewPosition(lineNumber: number, column: number): editorCommon.IPosition {
+	public convertModelPositionToViewPosition(lineNumber: number, column: number): Position {
 		return this.viewModelHelper.convertModelPositionToViewPosition(lineNumber, column);
 	}
 
@@ -610,13 +603,10 @@ export class OneCursor implements IOneCursor {
 		}
 		return visibleRange;
 	}
-	public getViewLineCount(): number {
-		return this.viewModelHelper.viewModel.getLineCount();
-	}
-	public getViewLineMaxColumn(lineNumber: number): number {
+	private getViewLineMaxColumn(lineNumber: number): number {
 		return this.viewModelHelper.viewModel.getLineMaxColumn(lineNumber);
 	}
-	public getViewLineMinColumn(lineNumber: number): number {
+	private getViewLineMinColumn(lineNumber: number): number {
 		return this.viewModelHelper.viewModel.getLineMinColumn(lineNumber);
 	}
 	public getViewLineCenterColumn(lineNumber: number): number {
@@ -639,16 +629,6 @@ export class OneCursor implements IOneCursor {
 	}
 	public getColumnAtEndOfViewLine(lineNumber: number, column: number): number {
 		return CursorMoveHelper.getColumnAtEndOfLine(this.viewModelHelper.viewModel, lineNumber, column);
-	}
-	public columnSelect(fromViewLineNumber: number, fromViewVisibleColumn: number, toViewLineNumber: number, toViewVisibleColumn: number): IColumnSelectResult {
-		let r = ColumnSelection.columnSelect(this.config, this.viewModelHelper.viewModel, fromViewLineNumber, fromViewVisibleColumn, toViewLineNumber, toViewVisibleColumn);
-		return {
-			reversed: r.reversed,
-			viewSelections: r.viewSelections,
-			selections: r.viewSelections.map(sel => this.convertViewSelectionToModelSelection(sel)),
-			toLineNumber: toViewLineNumber,
-			toVisualColumn: toViewVisibleColumn
-		};
 	}
 	public getNearestRevealViewPositionInViewport(): Position {
 		const position = this.viewState.position;
@@ -734,7 +714,7 @@ export class OneCursorOp {
 			case editorCommon.CursorMovePosition.Down:
 				return this.moveDown(cursor, moveParams, ctx);
 			case editorCommon.CursorMovePosition.WrappedLineStart:
-				viewColumn = cursor.getViewLineMinColumn(viewLineNumber);
+				viewColumn = cursor.viewModel.getLineMinColumn(viewLineNumber);
 				break;
 			case editorCommon.CursorMovePosition.WrappedLineFirstNonWhitespaceCharacter:
 				viewColumn = cursor.getViewLineFirstNonWhiteSpaceColumn(viewLineNumber);
@@ -743,7 +723,7 @@ export class OneCursorOp {
 				viewColumn = cursor.getViewLineCenterColumn(viewLineNumber);
 				break;
 			case editorCommon.CursorMovePosition.WrappedLineEnd:
-				viewColumn = cursor.getViewLineMaxColumn(viewLineNumber);
+				viewColumn = cursor.viewModel.getLineMaxColumn(viewLineNumber);
 				break;
 			case editorCommon.CursorMovePosition.WrappedLineLastNonWhitespaceCharacter:
 				viewColumn = cursor.getViewLineLastNonWhiteSpaceColumn(viewLineNumber);
@@ -771,73 +751,6 @@ export class OneCursorOp {
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveViewPosition(inSelectionMode, viewLineNumber, viewColumn, 0, true);
 		return true;
-	}
-
-	private static _columnSelectOp(cursor: OneCursor, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
-		let viewStartSelection = cursor.viewState.selection;
-		let fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(cursor.config, cursor.viewModel, new Position(viewStartSelection.selectionStartLineNumber, viewStartSelection.selectionStartColumn));
-
-		return cursor.columnSelect(viewStartSelection.selectionStartLineNumber, fromVisibleColumn, toViewLineNumber, toViewVisualColumn);
-	}
-
-	public static columnSelectMouse(cursor: OneCursor, position: editorCommon.IPosition, viewPosition: editorCommon.IPosition, toViewVisualColumn: number): IColumnSelectResult {
-		let validatedPosition = cursor.model.validatePosition(position);
-		let validatedViewPosition: editorCommon.IPosition;
-		if (viewPosition) {
-			validatedViewPosition = cursor.validateViewPosition(viewPosition.lineNumber, viewPosition.column, validatedPosition);
-		} else {
-			validatedViewPosition = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
-		}
-
-		return this._columnSelectOp(cursor, validatedViewPosition.lineNumber, toViewVisualColumn);
-	}
-
-	public static columnSelectLeft(cursor: OneCursor, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
-		if (toViewVisualColumn > 1) {
-			toViewVisualColumn--;
-		}
-
-		return this._columnSelectOp(cursor, toViewLineNumber, toViewVisualColumn);
-	}
-
-	public static columnSelectRight(cursor: OneCursor, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
-
-		let maxVisualViewColumn = 0;
-		let minViewLineNumber = Math.min(cursor.viewState.position.lineNumber, toViewLineNumber);
-		let maxViewLineNumber = Math.max(cursor.viewState.position.lineNumber, toViewLineNumber);
-		for (let lineNumber = minViewLineNumber; lineNumber <= maxViewLineNumber; lineNumber++) {
-			let lineMaxViewColumn = cursor.getViewLineMaxColumn(lineNumber);
-			let lineMaxVisualViewColumn = CursorColumns.visibleColumnFromColumn2(cursor.config, cursor.viewModel, new Position(lineNumber, lineMaxViewColumn));
-			maxVisualViewColumn = Math.max(maxVisualViewColumn, lineMaxVisualViewColumn);
-		}
-
-		if (toViewVisualColumn < maxVisualViewColumn) {
-			toViewVisualColumn++;
-		}
-
-		return this._columnSelectOp(cursor, toViewLineNumber, toViewVisualColumn);
-	}
-
-	public static columnSelectUp(isPaged: boolean, cursor: OneCursor, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
-		let linesCount = isPaged ? cursor.config.pageSize : 1;
-
-		toViewLineNumber -= linesCount;
-		if (toViewLineNumber < 1) {
-			toViewLineNumber = 1;
-		}
-
-		return this._columnSelectOp(cursor, toViewLineNumber, toViewVisualColumn);
-	}
-
-	public static columnSelectDown(isPaged: boolean, cursor: OneCursor, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
-		let linesCount = isPaged ? cursor.config.pageSize : 1;
-
-		toViewLineNumber += linesCount;
-		if (toViewLineNumber > cursor.getViewLineCount()) {
-			toViewLineNumber = cursor.getViewLineCount();
-		}
-
-		return this._columnSelectOp(cursor, toViewLineNumber, toViewVisualColumn);
 	}
 
 	private static _applyMoveModelOperation(cursor: OneCursor, ctx: IOneCursorOperationContext, r: MoveOperationResult): boolean {
@@ -989,7 +902,7 @@ export class OneCursorOp {
 		let viewEndLineNumber = viewSel.endLineNumber;
 		let viewEndColumn = viewSel.endColumn;
 
-		let viewEndMaxColumn = cursor.getViewLineMaxColumn(viewEndLineNumber);
+		let viewEndMaxColumn = cursor.viewModel.getLineMaxColumn(viewEndLineNumber);
 		if (viewStartColumn !== 1 || viewEndColumn !== viewEndMaxColumn) {
 			viewStartColumn = 1;
 			viewEndColumn = viewEndMaxColumn;
@@ -997,7 +910,7 @@ export class OneCursorOp {
 			// Expand selection with one more line down
 			let moveResult = MoveOperations.down(cursor.config, cursor.viewModel, viewEndLineNumber, viewEndColumn, 0, 1, true);
 			viewEndLineNumber = moveResult.lineNumber;
-			viewEndColumn = cursor.getViewLineMaxColumn(viewEndLineNumber);
+			viewEndColumn = cursor.viewModel.getLineMaxColumn(viewEndLineNumber);
 		}
 
 		cursor.moveViewPosition(false, viewStartLineNumber, viewStartColumn, 0, true);
@@ -1099,9 +1012,9 @@ export class OneCursorOp {
 
 				let selectToViewLineNumber = viewPosition.lineNumber + 1;
 				let selectToViewColumn = 1;
-				if (selectToViewLineNumber > cursor.getViewLineCount()) {
-					selectToViewLineNumber = cursor.getViewLineCount();
-					selectToViewColumn = cursor.getViewLineMaxColumn(selectToViewLineNumber);
+				if (selectToViewLineNumber > cursor.viewModel.getLineCount()) {
+					selectToViewLineNumber = cursor.viewModel.getLineCount();
+					selectToViewColumn = cursor.viewModel.getLineMaxColumn(selectToViewLineNumber);
 				}
 				cursor.moveViewPosition(cursor.modelState.hasSelection(), selectToViewLineNumber, selectToViewColumn, 0, false);
 
