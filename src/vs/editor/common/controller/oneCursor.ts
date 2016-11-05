@@ -24,10 +24,6 @@ import { ColumnSelection } from 'vs/editor/common/controller/cursorColumnSelecti
 import { DeleteOperations, EditOperationResult } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 
-export interface IPostOperationRunnable {
-	(ctx: IOneCursorOperationContext): void;
-}
-
 export interface IOneCursorOperationContext {
 	cursorPositionChangeReason: editorCommon.CursorChangeReason;
 	shouldReveal: boolean;
@@ -37,7 +33,6 @@ export interface IOneCursorOperationContext {
 	shouldPushStackElementAfter: boolean;
 	executeCommand: editorCommon.ICommand;
 	isAutoWhitespaceCommand: boolean;
-	postOperationRunnable: IPostOperationRunnable;
 }
 
 export interface IModeConfiguration {
@@ -1380,60 +1375,51 @@ export class OneCursorOp {
 			return false;
 		}
 
-		ctx.postOperationRunnable = (postOperationCtx: IOneCursorOperationContext) => this._typeInterceptorElectricCharRunnable(cursor, postOperationCtx);
-
-		ctx.executeCommand = TypeOperations.typeCommand(cursor.modelState.selection, ch, false);
-		return true;
-	}
-
-	private static _typeInterceptorElectricCharRunnable(cursor: OneCursor, ctx: IOneCursorOperationContext): void {
-
 		let position = cursor.modelState.position;
-		let lineText = cursor.model.getLineContent(position.lineNumber);
 		let lineTokens = cursor.model.getLineTokens(position.lineNumber, false);
 
 		let electricAction: IElectricAction;
 		try {
-			electricAction = LanguageConfigurationRegistry.onElectricCharacter(lineTokens, position.column - 2);
+			electricAction = LanguageConfigurationRegistry.onElectricCharacter(ch, lineTokens, position.column);
 		} catch (e) {
 			onUnexpectedError(e);
 		}
 
-		if (electricAction) {
-			let matchOpenBracket = electricAction.matchOpenBracket;
-			let appendText = electricAction.appendText;
-			if (matchOpenBracket) {
-				let match = cursor.model.findMatchingBracketUp(matchOpenBracket, {
-					lineNumber: position.lineNumber,
-					column: position.column - matchOpenBracket.length
-				});
-				if (match) {
-					let matchLineNumber = match.startLineNumber;
-					let matchLine = cursor.model.getLineContent(matchLineNumber);
-					let matchLineIndentation = strings.getLeadingWhitespace(matchLine);
-					let newIndentation = cursor.model.normalizeIndentation(matchLineIndentation);
+		if (!electricAction) {
+			return false;
+		}
 
-					let lineFirstNonBlankColumn = cursor.model.getLineFirstNonWhitespaceColumn(position.lineNumber) || position.column;
-					let oldIndentation = lineText.substring(0, lineFirstNonBlankColumn - 1);
+		if (electricAction.appendText) {
+			ctx.shouldPushStackElementAfter = true;
+			ctx.executeCommand = new ReplaceCommandWithOffsetCursorState(cursor.modelState.selection, ch + electricAction.appendText, 0, -electricAction.appendText.length);
+			return true;
+		}
 
-					if (oldIndentation !== newIndentation) {
-						let prefix = lineText.substring(lineFirstNonBlankColumn - 1, position.column - 1);
-						let typeText = newIndentation + prefix;
+		if (electricAction.matchOpenBracket) {
+			let match = cursor.model.findMatchingBracketUp(electricAction.matchOpenBracket, {
+				lineNumber: position.lineNumber,
+				column: position.column
+			});
 
-						let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, position.column);
-						ctx.shouldPushStackElementAfter = true;
-						ctx.executeCommand = new ReplaceCommand(typeSelection, typeText);
-					}
-				}
-			} else if (appendText) {
-				let columnDeltaOffset = -appendText.length;
-				if (electricAction.advanceCount) {
-					columnDeltaOffset += electricAction.advanceCount;
-				}
+			if (match) {
+				let matchLine = cursor.model.getLineContent(match.startLineNumber);
+				let matchLineIndentation = strings.getLeadingWhitespace(matchLine);
+				let newIndentation = cursor.model.normalizeIndentation(matchLineIndentation);
+
+				let lineText = cursor.model.getLineContent(position.lineNumber);
+				let lineFirstNonBlankColumn = cursor.model.getLineFirstNonWhitespaceColumn(position.lineNumber) || position.column;
+
+				let prefix = lineText.substring(lineFirstNonBlankColumn - 1, position.column - 1);
+				let typeText = newIndentation + prefix + ch;
+
+				let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, position.column);
 				ctx.shouldPushStackElementAfter = true;
-				ctx.executeCommand = new ReplaceCommandWithOffsetCursorState(cursor.modelState.selection, appendText, 0, columnDeltaOffset);
+				ctx.executeCommand = new ReplaceCommand(typeSelection, typeText);
+				return true;
 			}
 		}
+
+		return false;
 	}
 
 	public static actualType(cursor: OneCursor, text: string, keepPosition: boolean, ctx: IOneCursorOperationContext): boolean {
