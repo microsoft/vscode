@@ -538,7 +538,7 @@ export class Workbench implements IPartService {
 		return true; // any other part cannot be hidden
 	}
 
-	private isTitleBarHidden(): boolean {
+	public isTitleBarHidden(): boolean {
 		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
 
 		return (windowConfig && windowConfig.window && windowConfig.window.titleBarStyle === 'native');

@@ -36,6 +36,14 @@
 	-webkit-app-region: drag;
 }
 
+.monaco-workbench.fullscreen.titlebar-style-custom .quick-open-widget {
+	top: 0;
+}
+
+.monaco-workbench.titlebar-style-custom .quick-open-widget {
+	top: 22px; /* push down quick open when we have a custom title bar */
+}
+
 /* Theming */
 
 .vs .monaco-workbench > .part.titlebar {
