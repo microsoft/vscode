@@ -236,7 +236,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 	constructor(
 		private _editorService: IWorkbenchEditorService,
 		private _historyService: IHistoryService,
-		private _configurationService: IConfigurationService
+		protected _configurationService: IConfigurationService
 	) {
 		super();
 	}
