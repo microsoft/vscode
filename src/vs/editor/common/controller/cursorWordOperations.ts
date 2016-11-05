@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { EditOperationResult, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { MoveOperationResult } from 'vs/editor/common/controller/cursorMoveOperations';
 import { CursorChangeReason } from 'vs/editor/common/editorCommon';
 import { CursorModelState } from 'vs/editor/common/controller/oneCursor';
-import { DeleteOperations, EditOperationResult } from 'vs/editor/common/controller/cursorDeleteOperations';
+import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';

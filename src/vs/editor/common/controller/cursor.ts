@@ -1402,7 +1402,7 @@ export class Cursor extends EventEmitter {
 
 			}
 		} else {
-			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.actualType(oneCursor, text, false, oneCtx));
+			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.actualType(oneCursor, text, oneCtx));
 		}
 
 		return true;

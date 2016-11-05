@@ -4,24 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { onUnexpectedError, illegalArgument } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
-import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
+import { illegalArgument } from 'vs/base/common/errors';
 import { CursorMoveHelper, IColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { EditOperationResult, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { CharCode } from 'vs/base/common/charCode';
-import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MoveOperations, MoveOperationResult } from 'vs/editor/common/controller/cursorMoveOperations';
 import { WordType, WordOperations, WordNavigationType } from 'vs/editor/common/controller/cursorWordOperations';
 import { ColumnSelection } from 'vs/editor/common/controller/cursorColumnSelection';
-import { DeleteOperations, EditOperationResult } from 'vs/editor/common/controller/cursorDeleteOperations';
+import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 
 export interface IOneCursorOperationContext {
@@ -1218,235 +1212,39 @@ export class OneCursorOp {
 
 
 	public static lineInsertBefore(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let lineNumber = cursor.modelState.position.lineNumber;
+		return this._applyEditOperation(
+			ctx,
+			TypeOperations.lineInsertBefore(cursor.config, cursor.model, cursor.modelState)
+		);
 
-		if (lineNumber === 1) {
-			ctx.executeCommand = new ReplaceCommandWithoutChangingPosition(new Range(1, 1, 1, 1), '\n');
-			return true;
-		}
-
-		lineNumber--;
-		let column = cursor.model.getLineMaxColumn(lineNumber);
-
-		return this._enter(cursor, false, ctx, new Range(lineNumber, column, lineNumber, column));
 	}
 
 	public static lineInsertAfter(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		let position = cursor.modelState.position;
-		let column = cursor.model.getLineMaxColumn(position.lineNumber);
-		return this._enter(cursor, false, ctx, new Range(position.lineNumber, column, position.lineNumber, column));
-	}
-
-	public static lineBreakInsert(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._enter(cursor, true, ctx, cursor.modelState.selection);
-	}
-
-	private static _enter(cursor: OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, range: Range): boolean {
 		return this._applyEditOperation(
 			ctx,
-			TypeOperations._enter(cursor.config, cursor.model, keepPosition, range)
+			TypeOperations.lineInsertAfter(cursor.config, cursor.model, cursor.modelState)
 		);
 	}
 
-	private static _typeInterceptorEnter(config: CursorConfiguration, model: editorCommon.ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
-		if (ch !== '\n') {
-			return null;
-		}
-
-		return TypeOperations._enter(config, model, false, cursor.selection);
+	public static lineBreakInsert(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
+		return this._applyEditOperation(
+			ctx,
+			TypeOperations.lineBreakInsert(cursor.config, cursor.model, cursor.modelState)
+		);
 	}
 
-	private static _typeInterceptorAutoClosingCloseChar(config: CursorConfiguration, model: editorCommon.ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
-		if (!config.autoClosingBrackets) {
-			return null;
-		}
-
-		let selection = cursor.selection;
-
-		if (!selection.isEmpty() || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
-			return null;
-		}
-
-		let position = cursor.position;
-
-		let lineText = model.getLineContent(position.lineNumber);
-		let beforeCharacter = lineText.charAt(position.column - 1);
-
-		if (beforeCharacter !== ch) {
-			return null;
-		}
-
-		let typeSelection = new Range(position.lineNumber, position.column, position.lineNumber, position.column + 1);
-		return new EditOperationResult(new ReplaceCommand(typeSelection, ch));
-	}
-
-	private static _typeInterceptorAutoClosingOpenChar(config: CursorConfiguration, model: editorCommon.ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
-		if (!config.autoClosingBrackets) {
-			return null;
-		}
-
-		let selection = cursor.selection;
-
-		if (!selection.isEmpty() || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
-			return null;
-		}
-
-		let position = cursor.position;
-		let lineText = model.getLineContent(position.lineNumber);
-		let beforeCharacter = lineText.charAt(position.column - 1);
-
-		// Only consider auto closing the pair if a space follows or if another autoclosed pair follows
-		if (beforeCharacter) {
-			let isBeforeCloseBrace = false;
-			for (let closeBrace in config.autoClosingPairsClose) {
-				if (beforeCharacter === closeBrace) {
-					isBeforeCloseBrace = true;
-					break;
-				}
-			}
-			if (!isBeforeCloseBrace && !/\s/.test(beforeCharacter)) {
-				return null;
-			}
-		}
-
-		let lineTokens = model.getLineTokens(position.lineNumber, false);
-
-		let shouldAutoClosePair = false;
-		try {
-			shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(ch, lineTokens, position.column);
-		} catch (e) {
-			onUnexpectedError(e);
-		}
-
-		if (!shouldAutoClosePair) {
-			return null;
-		}
-
-		let closeCharacter = config.autoClosingPairsOpen[ch];
-		return new EditOperationResult(new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length), {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: false
-		});
-	}
-
-	private static _typeInterceptorSurroundSelection(config: CursorConfiguration, model: editorCommon.ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
-		if (!config.autoClosingBrackets) {
-			return null;
-		}
-
-		let selection = cursor.selection;
-
-		if (selection.isEmpty() || !config.surroundingPairs.hasOwnProperty(ch)) {
-			return null;
-		}
-
-		let selectionContainsOnlyWhitespace = true;
-
-		for (let lineNumber = selection.startLineNumber; lineNumber <= selection.endLineNumber; lineNumber++) {
-			let lineText = model.getLineContent(lineNumber);
-			let startIndex = (lineNumber === selection.startLineNumber ? selection.startColumn - 1 : 0);
-			let endIndex = (lineNumber === selection.endLineNumber ? selection.endColumn - 1 : lineText.length);
-			for (let charIndex = startIndex; charIndex < endIndex; charIndex++) {
-				let charCode = lineText.charCodeAt(charIndex);
-				if (charCode !== CharCode.Tab && charCode !== CharCode.Space) {
-					selectionContainsOnlyWhitespace = false;
-
-					// Break outer loop
-					lineNumber = selection.endLineNumber + 1;
-
-					// Break inner loop
-					charIndex = endIndex;
-				}
-			}
-		}
-
-		if (selectionContainsOnlyWhitespace) {
-			return null;
-		}
-
-		let closeCharacter = config.surroundingPairs[ch];
-
-		return new EditOperationResult(new SurroundSelectionCommand(selection, ch, closeCharacter), {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
-		});
-	}
-
-	private static _typeInterceptorElectricChar(config: CursorConfiguration, model: editorCommon.ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
-		if (!config.electricChars.hasOwnProperty(ch)) {
-			return null;
-		}
-
-		let position = cursor.position;
-		let lineTokens = model.getLineTokens(position.lineNumber, false);
-
-		let electricAction: IElectricAction;
-		try {
-			electricAction = LanguageConfigurationRegistry.onElectricCharacter(ch, lineTokens, position.column);
-		} catch (e) {
-			onUnexpectedError(e);
-		}
-
-		if (!electricAction) {
-			return null;
-		}
-
-		if (electricAction.appendText) {
-			return new EditOperationResult(new ReplaceCommandWithOffsetCursorState(cursor.selection, ch + electricAction.appendText, 0, -electricAction.appendText.length), {
-				shouldPushStackElementBefore: false,
-				shouldPushStackElementAfter: true
-			});
-		}
-
-		if (electricAction.matchOpenBracket) {
-			let match = model.findMatchingBracketUp(electricAction.matchOpenBracket, {
-				lineNumber: position.lineNumber,
-				column: position.column
-			});
-
-			if (match) {
-				let matchLine = model.getLineContent(match.startLineNumber);
-				let matchLineIndentation = strings.getLeadingWhitespace(matchLine);
-				let newIndentation = config.normalizeIndentation(matchLineIndentation);
-
-				let lineText = model.getLineContent(position.lineNumber);
-				let lineFirstNonBlankColumn = model.getLineFirstNonWhitespaceColumn(position.lineNumber) || position.column;
-
-				let prefix = lineText.substring(lineFirstNonBlankColumn - 1, position.column - 1);
-				let typeText = newIndentation + prefix + ch;
-
-				let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, position.column);
-
-				return new EditOperationResult(new ReplaceCommand(typeSelection, typeText), {
-					shouldPushStackElementBefore: false,
-					shouldPushStackElementAfter: true
-				});
-			}
-		}
-
-		return null;
-	}
-
-	public static actualType(cursor: OneCursor, text: string, keepPosition: boolean, ctx: IOneCursorOperationContext): boolean {
-		ctx.executeCommand = TypeOperations.typeCommand(cursor.modelState.selection, text, keepPosition);
-		return true;
+	public static actualType(cursor: OneCursor, text: string, ctx: IOneCursorOperationContext): boolean {
+		return this._applyEditOperation(
+			ctx,
+			TypeOperations.typeWithoutInterceptors(cursor.config, cursor.model, cursor.modelState, text)
+		);
 	}
 
 	public static type(cursor: OneCursor, ch: string, ctx: IOneCursorOperationContext): boolean {
-		let r: EditOperationResult = null;
-
-		r = r || this._typeInterceptorEnter(cursor.config, cursor.model, cursor.modelState, ch);
-		r = r || this._typeInterceptorAutoClosingCloseChar(cursor.config, cursor.model, cursor.modelState, ch);
-		r = r || this._typeInterceptorAutoClosingOpenChar(cursor.config, cursor.model, cursor.modelState, ch);
-		r = r || this._typeInterceptorSurroundSelection(cursor.config, cursor.model, cursor.modelState, ch);
-		r = r || this._typeInterceptorElectricChar(cursor.config, cursor.model, cursor.modelState, ch);
-
-		if (r) {
-			return this._applyEditOperation(ctx, r);
-		}
-
-		ctx.executeCommand = TypeOperations.typeCommand(cursor.modelState.selection, ch, false);
-		return true;
+		return this._applyEditOperation(
+			ctx,
+			TypeOperations.typeWithInterceptors(cursor.config, cursor.model, cursor.modelState, ch)
+		);
 	}
 
 	public static replacePreviousChar(cursor: OneCursor, txt: string, replaceCharCnt: number, ctx: IOneCursorOperationContext): boolean {
