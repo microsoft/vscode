@@ -12,7 +12,8 @@ export enum Parts {
 	SIDEBAR_PART,
 	PANEL_PART,
 	EDITOR_PART,
-	STATUSBAR_PART
+	STATUSBAR_PART,
+	TITLEBAR_PART
 }
 
 export enum Position {
