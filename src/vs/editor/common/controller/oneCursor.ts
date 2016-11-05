@@ -1312,7 +1312,7 @@ export class OneCursorOp {
 
 		let shouldAutoClosePair = false;
 		try {
-			shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(ch, lineTokens, position.column - 1);
+			shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(ch, lineTokens, position.column);
 		} catch (e) {
 			onUnexpectedError(e);
 		}

@@ -207,13 +207,13 @@ export class LanguageConfigurationRegistryImpl {
 		return characterPairSupport.getSurroundingPairs();
 	}
 
-	public shouldAutoClosePair(character: string, context: LineTokens, offset: number): boolean {
-		let scopedLineTokens = createScopedLineTokens(context, offset);
+	public shouldAutoClosePair(character: string, context: LineTokens, column: number): boolean {
+		let scopedLineTokens = createScopedLineTokens(context, column - 1);
 		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.modeId);
 		if (!characterPairSupport) {
 			return false;
 		}
-		return characterPairSupport.shouldAutoClosePair(character, scopedLineTokens, offset - scopedLineTokens.firstCharOffset);
+		return characterPairSupport.shouldAutoClosePair(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
 	}
 
 	// end characterPair
