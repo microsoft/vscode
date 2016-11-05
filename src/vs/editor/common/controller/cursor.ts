@@ -16,10 +16,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { WordNavigationType } from 'vs/editor/common/controller/cursorWordOperations';
+import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 
 export interface ITypingListener {
 	(): void;
@@ -1107,45 +1107,57 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _columnSelectMouse(ctx: IMultipleCursorOperationContext): boolean {
-		let cursors = this.cursors.getAll();
-		let result = OneCursorOp.columnSelectMouse(cursors[0], ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventData.mouseColumn - 1);
+		let primary = this.cursors.getAll()[0];
+
+		// validate `eventData`
+		let validatedPosition = primary.model.validatePosition(ctx.eventData.position);
+		let validatedViewPosition: Position;
+		if (ctx.eventData.viewPosition) {
+			validatedViewPosition = primary.validateViewPosition(ctx.eventData.viewPosition.lineNumber, ctx.eventData.viewPosition.column, validatedPosition);
+		} else {
+			validatedViewPosition = primary.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
+		}
+
+		let result = ColumnSelection.columnSelect(primary.config, primary.viewModel, primary.viewState.selection.getStartPosition(), validatedViewPosition.lineNumber, ctx.eventData.mouseColumn - 1);
+		let selections = result.viewSelections.map(viewSel => primary.convertViewSelectionToModelSelection(viewSel));
 
 		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
 		ctx.shouldReveal = true;
 		ctx.setColumnSelectToLineNumber = result.toLineNumber;
 		ctx.setColumnSelectToVisualColumn = result.toVisualColumn;
 
-		this.cursors.setSelections(result.selections, result.viewSelections);
+		this.cursors.setSelections(selections, result.viewSelections);
 		return true;
 	}
 
 	private _columnSelectOp(ctx: IMultipleCursorOperationContext, op: (cursor: OneCursor, toViewLineNumber: number, toViewVisualColumn: number) => IColumnSelectResult): boolean {
 		let primary = this.cursors.getAll()[0];
 		let result = op(primary, this._getColumnSelectToLineNumber(), this._getColumnSelectToVisualColumn());
+		let selections = result.viewSelections.map(viewSel => primary.convertViewSelectionToModelSelection(viewSel));
 
 		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
 		ctx.shouldReveal = true;
 		ctx.setColumnSelectToLineNumber = result.toLineNumber;
 		ctx.setColumnSelectToVisualColumn = result.toVisualColumn;
 
-		this.cursors.setSelections(result.selections, result.viewSelections);
+		this.cursors.setSelections(selections, result.viewSelections);
 		return true;
 	}
 
 	private _columnSelectLeft(ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectLeft(cursor, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectLeft(cursor.config, cursor.viewModel, cursor.viewState, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _columnSelectRight(ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectRight(cursor, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectRight(cursor.config, cursor.viewModel, cursor.viewState, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _columnSelectUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectUp(isPaged, cursor, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectUp(cursor.config, cursor.viewModel, cursor.viewState, isPaged, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _columnSelectDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectDown(isPaged, cursor, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectDown(cursor.config, cursor.viewModel, cursor.viewState, isPaged, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _createCursor(ctx: IMultipleCursorOperationContext): boolean {

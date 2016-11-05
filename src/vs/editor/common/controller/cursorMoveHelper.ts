@@ -4,15 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Selection } from 'vs/editor/common/core/selection';
-import { IViewColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
-
-export interface IColumnSelectResult extends IViewColumnSelectResult {
-	selections: Selection[];
-	toLineNumber: number;
-	toVisualColumn: number;
-}
 
 export class CursorMoveHelper {
 
