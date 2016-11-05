@@ -7,16 +7,25 @@
 	box-sizing: border-box;
 	z-index: 80;
 	width: 100%;
-	height: 22px;
 	font-size: 12px;
 	padding: 0 70px;
 	overflow: hidden;
-	display: flex;
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
 	-webkit-user-select: none;
 	-webkit-app-region: drag;
+}
+
+.monaco-workbench > .part.titlebar,
+.monaco-workbench.fullscreen.titlebar-style-custom > .part.titlebar {
+	height: 0; /* needs extra class to be enabled (also disabled in fullscreen mode) */
+	display: none;
+}
+
+.monaco-workbench.titlebar-style-custom > .part.titlebar {
+	height: 22px;
+	display: flex;
 }
 
 .monaco-workbench > .part.titlebar > .window-title {
@@ -30,7 +39,7 @@
 /* Theming */
 
 .vs .monaco-workbench > .part.titlebar {
-	background: #ddd;
+	background: #eee;
 	color: #333333;
 }
 

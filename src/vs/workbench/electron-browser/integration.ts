@@ -55,6 +55,8 @@ export class ElectronIntegration {
 
 	private static AUTO_SAVE_SETTING = 'files.autoSave';
 
+	private usesCustomTitleBar: boolean;
+
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWindowIPCService private windowService: IWindowIPCService,
@@ -70,6 +72,8 @@ export class ElectronIntegration {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
+		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+		this.usesCustomTitleBar = windowConfig && windowConfig.window && windowConfig.window.titleBarStyle !== 'native';
 	}
 
 	public integrate(shellContainer: HTMLElement): void {
@@ -134,12 +138,20 @@ export class ElectronIntegration {
 		ipc.on('vscode:enterFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				this.partService.addClass('fullscreen');
+
+				if (this.usesCustomTitleBar) {
+					this.partService.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
+				}
 			});
 		});
 
 		ipc.on('vscode:leaveFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				this.partService.removeClass('fullscreen');
+
+				if (this.usesCustomTitleBar) {
+					this.partService.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
+				}
 			});
 		});
 

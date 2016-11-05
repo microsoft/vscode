@@ -161,6 +161,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
+		},
+		'window.titleBarStyle': {
+			'type': 'string',
+			'enum': ['native', 'custom'],
+			'default': 'native',
+			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 		}
 	}
 });

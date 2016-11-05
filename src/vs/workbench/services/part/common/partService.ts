@@ -21,6 +21,11 @@ export enum Position {
 	RIGHT
 }
 
+export interface ILayoutOptions {
+	forceStyleRecompute?: boolean;
+	toggleMaximizedPanel?: boolean;
+}
+
 export const IPartService = createDecorator<IPartService>('partService');
 
 export interface IPartService {
@@ -29,7 +34,7 @@ export interface IPartService {
 	/**
 	 * Asks the part service to layout all parts.
 	 */
-	layout(): void;
+	layout(options?: ILayoutOptions): void;
 
 	/**
 	 * Asks the part service to if all parts have been created.
