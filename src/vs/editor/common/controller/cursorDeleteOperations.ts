@@ -5,15 +5,14 @@
 'use strict';
 
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { EditOperationResult, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { SingleCursorState, EditOperationResult, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
-import { CursorModelState } from 'vs/editor/common/controller/oneCursor';
 import * as strings from 'vs/base/common/strings';
 
 export class DeleteOperations {
 
-	public static deleteRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 
 		let deleteSelection: Range = cursor.selection;
 
@@ -44,7 +43,7 @@ export class DeleteOperations {
 		});
 	}
 
-	public static deleteAllRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteAllRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		let selection = cursor.selection;
 
 		if (selection.isEmpty()) {
@@ -70,7 +69,7 @@ export class DeleteOperations {
 		return this.deleteRight(config, model, cursor);
 	}
 
-	public static autoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static autoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		if (!config.autoClosingBrackets) {
 			return null;
 		}
@@ -108,7 +107,7 @@ export class DeleteOperations {
 		});
 	}
 
-	public static deleteLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		let r = this.autoClosingPairDelete(config, model, cursor);
 		if (r) {
 			// This was a case for an auto-closing pair delete
@@ -165,7 +164,7 @@ export class DeleteOperations {
 		});
 	}
 
-	public static deleteAllLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteAllLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		let r = this.autoClosingPairDelete(config, model, cursor);
 		if (r) {
 			// This was a case for an auto-closing pair delete
@@ -196,7 +195,7 @@ export class DeleteOperations {
 		return this.deleteLeft(config, model, cursor);
 	}
 
-	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState, enableEmptySelectionClipboard: boolean): EditOperationResult {
+	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, enableEmptySelectionClipboard: boolean): EditOperationResult {
 		let selection = cursor.selection;
 
 		if (selection.isEmpty()) {
