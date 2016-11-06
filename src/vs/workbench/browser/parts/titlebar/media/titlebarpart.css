@@ -19,12 +19,12 @@
 }
 
 .monaco-workbench > .part.titlebar,
-.monaco-workbench.fullscreen.titlebar-style-custom > .part.titlebar {
+.titlebar-style-custom .monaco-workbench.fullscreen > .part.titlebar {
 	height: 0; /* needs extra class to be enabled (also disabled in fullscreen mode) */
 	display: none;
 }
 
-.monaco-workbench.titlebar-style-custom > .part.titlebar {
+.titlebar-style-custom .monaco-workbench > .part.titlebar {
 	height: 22px;
 	line-height: 22px;
 	display: flex;
@@ -40,12 +40,14 @@
 	zoom: 1; /* prevent zooming */
 }
 
-.monaco-workbench.fullscreen.titlebar-style-custom .quick-open-widget {
+.titlebar-style-custom .monaco-workbench.fullscreen .quick-open-widget,
+.titlebar-style-custom .global-message-list {
 	top: 0;
 }
 
-.monaco-workbench.titlebar-style-custom .quick-open-widget {
-	top: 22px; /* push down quick open when we have a custom title bar */
+.titlebar-style-custom .monaco-workbench .quick-open-widget,
+.titlebar-style-custom .global-message-list {
+	top: 22px; /* push down quick open and messages when we have a custom title bar */
 }
 
 /* Theming */

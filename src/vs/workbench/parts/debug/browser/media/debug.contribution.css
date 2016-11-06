@@ -140,11 +140,11 @@
 	padding-left: 7px;
 }
 
-.monaco-workbench.fullscreen.titlebar-style-custom .debug-actions-widget {
+.titlebar-style-custom .monaco-workbench.fullscreen .debug-actions-widget {
 	top: 0;
 }
 
-.monaco-workbench.titlebar-style-custom .debug-actions-widget {
+.titlebar-style-custom .monaco-workbench .debug-actions-widget {
 	top: 22px; /* push down debug toolbar when we have a custom title bar */
 }
 

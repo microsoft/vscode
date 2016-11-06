@@ -121,6 +121,7 @@ export class Workbench implements IPartService {
 
 	public _serviceBrand: any;
 
+	private parent: HTMLElement;
 	private container: HTMLElement;
 	private workbenchParams: WorkbenchParams;
 	private workbenchContainer: Builder;
@@ -155,6 +156,7 @@ export class Workbench implements IPartService {
 	private hasFilesToCreateOpenOrDiff: boolean;
 
 	constructor(
+		parent: HTMLElement,
 		container: HTMLElement,
 		workspace: IWorkspace,
 		options: IOptions,
@@ -169,6 +171,7 @@ export class Workbench implements IPartService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
+		this.parent = parent;
 		this.container = container;
 
 		this.workbenchParams = {
@@ -786,7 +789,7 @@ export class Workbench implements IPartService {
 
 		// Apply title style if shown
 		if (!this.isTitleBarHidden()) {
-			this.workbench.addClass('titlebar-style-custom');
+			DOM.addClass(this.parent, 'titlebar-style-custom');
 		}
 
 		// Create Parts

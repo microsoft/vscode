@@ -160,7 +160,7 @@ export class WorkbenchShell {
 		}
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
 		this.workbench.startup({
 			onWorkbenchStarted: (customKeybindingsCount) => {
 				this.onWorkbenchStarted(customKeybindingsCount);
