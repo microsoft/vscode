@@ -15,6 +15,7 @@
 	justify-content: center;
 	-webkit-user-select: none;
 	-webkit-app-region: drag;
+	zoom: 1; /* prevent zooming */
 }
 
 .monaco-workbench > .part.titlebar,
@@ -25,6 +26,7 @@
 
 .monaco-workbench.titlebar-style-custom > .part.titlebar {
 	height: 22px;
+	line-height: 22px;
 	display: flex;
 }
 
@@ -32,8 +34,10 @@
 	flex: 0 1 auto;
 	overflow: hidden;
 	white-space: nowrap;
+	line-height: 22px;
 	text-overflow: ellipsis;
 	-webkit-app-region: drag;
+	zoom: 1; /* prevent zooming */
 }
 
 .monaco-workbench.fullscreen.titlebar-style-custom .quick-open-widget {

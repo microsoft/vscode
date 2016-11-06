@@ -6,9 +6,10 @@
 'use strict';
 
 import 'vs/css!./media/titlebarpart';
-import { Builder, $ } from 'vs/base/browser/builder';
+import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+import { getZoomFactor } from 'vs/base/browser/browser';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -17,6 +18,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private titleContainer: Builder;
 	private title: Builder;
 	private pendingTitle: string;
+	private initialTitleFontSize: number;
 
 	public createContentArea(parent: Builder): Builder {
 		this.titleContainer = $(parent);
@@ -41,5 +43,16 @@ export class TitlebarPart extends Part implements ITitleService {
 		} else {
 			this.pendingTitle = title;
 		}
+	}
+
+	public layout(dimension: Dimension): Dimension[] {
+
+		// To prevent zooming we need to adjust the font size with the zoom factor
+		if (typeof this.initialTitleFontSize !== 'number') {
+			this.initialTitleFontSize = parseInt(this.titleContainer.getComputedStyle().fontSize, 10);
+		}
+		this.titleContainer.style({ fontSize: `${this.initialTitleFontSize / getZoomFactor()}px` });
+
+		return super.layout(dimension);
 	}
 }
