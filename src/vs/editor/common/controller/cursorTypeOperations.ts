@@ -167,7 +167,10 @@ export class TypeOperations {
 				let lineMaxColumn = model.getLineMaxColumn(selection.startLineNumber);
 				if (selection.startColumn !== 1 || selection.endColumn !== lineMaxColumn) {
 					// This is a single line selection that is not the entire line
-					return new EditOperationResult(this._replaceJumpToNextIndent(config, model, selection));
+					return new EditOperationResult(this._replaceJumpToNextIndent(config, model, selection), {
+						shouldPushStackElementBefore: false,
+						shouldPushStackElementAfter: false
+					});
 				}
 			}
 
@@ -179,7 +182,10 @@ export class TypeOperations {
 		let pos = cursor.position;
 		let startColumn = Math.max(1, pos.column - replaceCharCnt);
 		let range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
-		return new EditOperationResult(new ReplaceCommand(range, txt));
+		return new EditOperationResult(new ReplaceCommand(range, txt), {
+			shouldPushStackElementBefore: false,
+			shouldPushStackElementAfter: false
+		});
 	}
 
 	public static typeCommand(range: Range, text: string, keepPosition: boolean): ICommand {
@@ -262,7 +268,10 @@ export class TypeOperations {
 		}
 
 		let typeSelection = new Range(position.lineNumber, position.column, position.lineNumber, position.column + 1);
-		return new EditOperationResult(new ReplaceCommand(typeSelection, ch));
+		return new EditOperationResult(new ReplaceCommand(typeSelection, ch), {
+			shouldPushStackElementBefore: false,
+			shouldPushStackElementAfter: false
+		});
 	}
 
 	private static _typeInterceptorAutoClosingOpenChar(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
@@ -426,14 +435,20 @@ export class TypeOperations {
 	}
 
 	public static typeWithoutInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState, str: string): EditOperationResult {
-		return new EditOperationResult(TypeOperations.typeCommand(cursor.selection, str, false));
+		return new EditOperationResult(TypeOperations.typeCommand(cursor.selection, str, false), {
+			shouldPushStackElementBefore: false,
+			shouldPushStackElementAfter: false
+		});
 	}
 
 	public static lineInsertBefore(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState): EditOperationResult {
 		let lineNumber = cursor.position.lineNumber;
 
 		if (lineNumber === 1) {
-			return new EditOperationResult(new ReplaceCommandWithoutChangingPosition(new Range(1, 1, 1, 1), '\n'));
+			return new EditOperationResult(new ReplaceCommandWithoutChangingPosition(new Range(1, 1, 1, 1), '\n'), {
+				shouldPushStackElementBefore: true,
+				shouldPushStackElementAfter: true
+			});
 		}
 
 		lineNumber--;

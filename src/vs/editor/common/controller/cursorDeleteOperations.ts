@@ -60,7 +60,10 @@ export class DeleteOperations {
 
 			let deleteSelection = new Range(lineNumber, column, lineNumber, maxColumn);
 			if (!deleteSelection.isEmpty()) {
-				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''));
+				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+					shouldPushStackElementBefore: false,
+					shouldPushStackElementAfter: false
+				});
 			}
 		}
 
@@ -99,7 +102,10 @@ export class DeleteOperations {
 			position.column + 1
 		);
 
-		return new EditOperationResult(new ReplaceCommand(deleteSelection, ''));
+		return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+			shouldPushStackElementBefore: false,
+			shouldPushStackElementAfter: false
+		});
 	}
 
 	public static deleteLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
@@ -180,7 +186,10 @@ export class DeleteOperations {
 
 			let deleteSelection = new Range(lineNumber, 1, lineNumber, column);
 			if (!deleteSelection.isEmpty()) {
-				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''));
+				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+					shouldPushStackElementBefore: false,
+					shouldPushStackElementAfter: false
+				});
 			}
 		}
 
@@ -229,7 +238,10 @@ export class DeleteOperations {
 				);
 
 				if (!deleteSelection.isEmpty()) {
-					return new EditOperationResult(new ReplaceCommand(deleteSelection, ''));
+					return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+						shouldPushStackElementBefore: true,
+						shouldPushStackElementAfter: true
+					});
 				} else {
 					return null;
 				}

@@ -6,7 +6,7 @@
 
 import { illegalArgument } from 'vs/base/common/errors';
 import { CursorMoveHelper } from 'vs/editor/common/controller/cursorMoveHelper';
-import { EditOperationResult, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -14,8 +14,6 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MoveOperations, MoveOperationResult } from 'vs/editor/common/controller/cursorMoveOperations';
 import { WordType, WordOperations, WordNavigationType } from 'vs/editor/common/controller/cursorWordOperations';
-import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
-import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 
 export interface IOneCursorOperationContext {
 	cursorPositionChangeReason: editorCommon.CursorChangeReason;
@@ -1117,150 +1115,6 @@ export class OneCursorOp {
 	}
 
 	// -------------------- STOP handlers that simply change cursor state
-
-
-
-	// -------------------- START type interceptors & co.
-
-
-
-	public static lineInsertBefore(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			TypeOperations.lineInsertBefore(cursor.config, cursor.model, cursor.modelState)
-		);
-
-	}
-
-	public static lineInsertAfter(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			TypeOperations.lineInsertAfter(cursor.config, cursor.model, cursor.modelState)
-		);
-	}
-
-	public static lineBreakInsert(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			TypeOperations.lineBreakInsert(cursor.config, cursor.model, cursor.modelState)
-		);
-	}
-
-	public static actualType(cursor: OneCursor, text: string, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			TypeOperations.typeWithoutInterceptors(cursor.config, cursor.model, cursor.modelState, text)
-		);
-	}
-
-	public static type(cursor: OneCursor, ch: string, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			TypeOperations.typeWithInterceptors(cursor.config, cursor.model, cursor.modelState, ch)
-		);
-	}
-
-	public static replacePreviousChar(cursor: OneCursor, txt: string, replaceCharCnt: number, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			TypeOperations.replacePreviousChar(cursor.config, cursor.model, cursor.modelState, txt, replaceCharCnt)
-		);
-	}
-
-	public static tab(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			TypeOperations.tab(cursor.config, cursor.model, cursor.modelState)
-		);
-	}
-
-	public static indent(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			TypeOperations.indent(cursor.config, cursor.model, cursor.modelState)
-		);
-	}
-
-	public static outdent(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			TypeOperations.outdent(cursor.config, cursor.model, cursor.modelState)
-		);
-	}
-
-	public static paste(cursor: OneCursor, text: string, pasteOnNewLine: boolean, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			TypeOperations.paste(cursor.config, cursor.model, cursor.modelState, text, pasteOnNewLine)
-		);
-	}
-
-	// -------------------- END type interceptors & co.
-
-	// -------------------- START delete handlers & co.
-
-	private static _applyEditOperation(ctx: IOneCursorOperationContext, r: EditOperationResult): boolean {
-		if (r) {
-			ctx.executeCommand = r.command;
-			ctx.shouldPushStackElementBefore = r.shouldPushStackElementBefore;
-			ctx.shouldPushStackElementAfter = r.shouldPushStackElementAfter;
-			ctx.isAutoWhitespaceCommand = r.isAutoWhitespaceCommand;
-			ctx.shouldRevealHorizontal = r.shouldRevealHorizontal;
-			ctx.cursorPositionChangeReason = r.cursorPositionChangeReason;
-		}
-		return true;
-	}
-
-	public static deleteLeft(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			DeleteOperations.deleteLeft(cursor.config, cursor.model, cursor.modelState)
-		);
-	}
-
-	public static deleteWordLeft(cursor: OneCursor, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			WordOperations.deleteWordLeft(cursor.config, cursor.model, cursor.modelState, whitespaceHeuristics, wordNavigationType)
-		);
-	}
-
-	public static deleteRight(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			DeleteOperations.deleteRight(cursor.config, cursor.model, cursor.modelState)
-		);
-	}
-
-	public static deleteWordRight(cursor: OneCursor, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			WordOperations.deleteWordRight(cursor.config, cursor.model, cursor.modelState, whitespaceHeuristics, wordNavigationType)
-		);
-	}
-
-	public static deleteAllLeft(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			DeleteOperations.deleteAllLeft(cursor.config, cursor.model, cursor.modelState)
-		);
-	}
-
-	public static deleteAllRight(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			DeleteOperations.deleteAllRight(cursor.config, cursor.model, cursor.modelState)
-		);
-	}
-
-	public static cut(cursor: OneCursor, enableEmptySelectionClipboard: boolean, ctx: IOneCursorOperationContext): boolean {
-		return this._applyEditOperation(
-			ctx,
-			DeleteOperations.cut(cursor.config, cursor.model, cursor.modelState, enableEmptySelectionClipboard)
-		);
-	}
-
-	// -------------------- END delete handlers & co.
 }
 
 class Utils {
