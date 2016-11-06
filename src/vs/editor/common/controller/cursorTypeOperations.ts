@@ -6,10 +6,9 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ReplaceCommand, ReplaceCommandWithoutChangingPosition, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
-import { EditOperationResult, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { SingleCursorState, EditOperationResult, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICommand } from 'vs/editor/common/editorCommon';
-import { CursorModelState } from 'vs/editor/common/controller/oneCursor';
 import * as strings from 'vs/base/common/strings';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -22,7 +21,7 @@ import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharact
 
 export class TypeOperations {
 
-	public static indent(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static indent(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		return new EditOperationResult(
 			new ShiftCommand(cursor.selection, {
 				isUnshift: false,
@@ -36,7 +35,7 @@ export class TypeOperations {
 		);
 	}
 
-	public static outdent(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static outdent(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		return new EditOperationResult(
 			new ShiftCommand(cursor.selection, {
 				isUnshift: true,
@@ -50,7 +49,7 @@ export class TypeOperations {
 		);
 	}
 
-	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState, text: string, pasteOnNewLine: boolean): EditOperationResult {
+	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, text: string, pasteOnNewLine: boolean): EditOperationResult {
 		let position = cursor.position;
 		let selection = cursor.selection;
 
@@ -138,7 +137,7 @@ export class TypeOperations {
 		return new ReplaceCommand(selection, typeText);
 	}
 
-	public static tab(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState): EditOperationResult {
+	public static tab(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState): EditOperationResult {
 		let selection = cursor.selection;
 
 		if (selection.isEmpty()) {
@@ -178,7 +177,7 @@ export class TypeOperations {
 		}
 	}
 
-	public static replacePreviousChar(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState, txt: string, replaceCharCnt: number): EditOperationResult {
+	public static replacePreviousChar(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, txt: string, replaceCharCnt: number): EditOperationResult {
 		let pos = cursor.position;
 		let startColumn = Math.max(1, pos.column - replaceCharCnt);
 		let range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
@@ -239,7 +238,7 @@ export class TypeOperations {
 		});
 	}
 
-	private static _typeInterceptorEnter(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
+	private static _typeInterceptorEnter(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
 		if (ch !== '\n') {
 			return null;
 		}
@@ -247,7 +246,7 @@ export class TypeOperations {
 		return TypeOperations._enter(config, model, false, cursor.selection);
 	}
 
-	private static _typeInterceptorAutoClosingCloseChar(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
+	private static _typeInterceptorAutoClosingCloseChar(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
 		if (!config.autoClosingBrackets) {
 			return null;
 		}
@@ -274,7 +273,7 @@ export class TypeOperations {
 		});
 	}
 
-	private static _typeInterceptorAutoClosingOpenChar(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
+	private static _typeInterceptorAutoClosingOpenChar(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
 		if (!config.autoClosingBrackets) {
 			return null;
 		}
@@ -323,7 +322,7 @@ export class TypeOperations {
 		});
 	}
 
-	private static _typeInterceptorSurroundSelection(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
+	private static _typeInterceptorSurroundSelection(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
 		if (!config.autoClosingBrackets) {
 			return null;
 		}
@@ -366,7 +365,7 @@ export class TypeOperations {
 		});
 	}
 
-	private static _typeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
+	private static _typeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
 		if (!config.electricChars.hasOwnProperty(ch)) {
 			return null;
 		}
@@ -421,7 +420,7 @@ export class TypeOperations {
 		return null;
 	}
 
-	public static typeWithInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState, ch: string): EditOperationResult {
+	public static typeWithInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
 		let r: EditOperationResult = null;
 
 		r = r || this._typeInterceptorEnter(config, model, cursor, ch);
@@ -434,14 +433,14 @@ export class TypeOperations {
 		return r;
 	}
 
-	public static typeWithoutInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState, str: string): EditOperationResult {
+	public static typeWithoutInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, str: string): EditOperationResult {
 		return new EditOperationResult(TypeOperations.typeCommand(cursor.selection, str, false), {
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false
 		});
 	}
 
-	public static lineInsertBefore(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState): EditOperationResult {
+	public static lineInsertBefore(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState): EditOperationResult {
 		let lineNumber = cursor.position.lineNumber;
 
 		if (lineNumber === 1) {
@@ -457,13 +456,13 @@ export class TypeOperations {
 		return this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
 	}
 
-	public static lineInsertAfter(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState): EditOperationResult {
+	public static lineInsertAfter(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState): EditOperationResult {
 		let position = cursor.position;
 		let column = model.getLineMaxColumn(position.lineNumber);
 		return this._enter(config, model, false, new Range(position.lineNumber, column, position.lineNumber, column));
 	}
 
-	public static lineBreakInsert(config: CursorConfiguration, model: ITokenizedModel, cursor: CursorModelState): EditOperationResult {
+	public static lineBreakInsert(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState): EditOperationResult {
 		return this._enter(config, model, true, cursor.selection);
 	}
 }

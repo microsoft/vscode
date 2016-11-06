@@ -6,8 +6,7 @@
 
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
-import { CursorModelState } from 'vs/editor/common/controller/oneCursor';
+import { SingleCursorState, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 
 export interface IColumnSelectResult {
 	viewSelections: Selection[];
@@ -72,7 +71,7 @@ export class ColumnSelection {
 		return ColumnSelection._columnSelect(config, model, fromViewPosition.lineNumber, fromViewVisibleColumn, toViewLineNumber, toViewVisualColumn);
 	}
 
-	public static columnSelectLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
+	public static columnSelectLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
 		if (toViewVisualColumn > 1) {
 			toViewVisualColumn--;
 		}
@@ -80,7 +79,7 @@ export class ColumnSelection {
 		return this.columnSelect(config, model, cursor.selection.getStartPosition(), toViewLineNumber, toViewVisualColumn);
 	}
 
-	public static columnSelectRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
+	public static columnSelectRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
 		let maxVisualViewColumn = 0;
 		let minViewLineNumber = Math.min(cursor.position.lineNumber, toViewLineNumber);
 		let maxViewLineNumber = Math.max(cursor.position.lineNumber, toViewLineNumber);
@@ -97,7 +96,7 @@ export class ColumnSelection {
 		return this.columnSelect(config, model, cursor.selection.getStartPosition(), toViewLineNumber, toViewVisualColumn);
 	}
 
-	public static columnSelectUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState, isPaged: boolean, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
+	public static columnSelectUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, isPaged: boolean, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
 		let linesCount = isPaged ? config.pageSize : 1;
 
 		toViewLineNumber -= linesCount;
@@ -108,7 +107,7 @@ export class ColumnSelection {
 		return this.columnSelect(config, model, cursor.selection.getStartPosition(), toViewLineNumber, toViewVisualColumn);
 	}
 
-	public static columnSelectDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState, isPaged: boolean, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
+	public static columnSelectDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, isPaged: boolean, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
 		let linesCount = isPaged ? config.pageSize : 1;
 
 		toViewLineNumber += linesCount;
