@@ -86,7 +86,7 @@ export class EditOperationResult {
 
 	constructor(
 		command: ICommand,
-		opts?: {
+		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
 			isAutoWhitespaceCommand?: boolean;
@@ -95,28 +95,20 @@ export class EditOperationResult {
 		}
 	) {
 		this.command = command;
-		this.shouldPushStackElementBefore = false;
-		this.shouldPushStackElementAfter = false;
+		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
+		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
 		this.isAutoWhitespaceCommand = false;
 		this.shouldRevealHorizontal = true;
 		this.cursorPositionChangeReason = CursorChangeReason.NotSet;
 
-		if (typeof opts !== 'undefined') {
-			if (typeof opts.shouldPushStackElementBefore !== 'undefined') {
-				this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
-			}
-			if (typeof opts.shouldPushStackElementAfter !== 'undefined') {
-				this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
-			}
-			if (typeof opts.isAutoWhitespaceCommand !== 'undefined') {
-				this.isAutoWhitespaceCommand = opts.isAutoWhitespaceCommand;
-			}
-			if (typeof opts.shouldRevealHorizontal !== 'undefined') {
-				this.shouldRevealHorizontal = opts.shouldRevealHorizontal;
-			}
-			if (typeof opts.cursorPositionChangeReason !== 'undefined') {
-				this.cursorPositionChangeReason = opts.cursorPositionChangeReason;
-			}
+		if (typeof opts.isAutoWhitespaceCommand !== 'undefined') {
+			this.isAutoWhitespaceCommand = opts.isAutoWhitespaceCommand;
+		}
+		if (typeof opts.shouldRevealHorizontal !== 'undefined') {
+			this.shouldRevealHorizontal = opts.shouldRevealHorizontal;
+		}
+		if (typeof opts.cursorPositionChangeReason !== 'undefined') {
+			this.cursorPositionChangeReason = opts.cursorPositionChangeReason;
 		}
 	}
 }
