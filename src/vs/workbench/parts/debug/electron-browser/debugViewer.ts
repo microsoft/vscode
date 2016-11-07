@@ -226,9 +226,7 @@ export class CallStackController extends BaseDebugController {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		if (element instanceof StackFrame) {
-			this.focusStackFrame(element, event, true);
-		}
+		this.focusStackFrame(element, event, true);
 
 		return super.onLeftClick(tree, element, event);
 	}
@@ -238,9 +236,7 @@ export class CallStackController extends BaseDebugController {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		if (element instanceof StackFrame) {
-			this.focusStackFrame(element, event, false);
-		}
+		this.focusStackFrame(element, event, false);
 
 		return super.onEnter(tree, event);
 	}
@@ -285,8 +281,21 @@ export class CallStackController extends BaseDebugController {
 		return true;
 	}
 
-	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
-		this.debugService.setFocusedStackFrameAndEvaluate(stackFrame).done(null, errors.onUnexpectedError);
+	private focusStackFrame(element: any, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+		let stackFrame: debug.IStackFrame;
+		let process: debug.IProcess;
+		if (element instanceof StackFrame) {
+			stackFrame = element;
+			process = element.thread.process;
+		}
+		if (element instanceof Thread) {
+			process = element.process;
+		}
+		if (element instanceof Process) {
+			process = element;
+		}
+
+		this.debugService.setFocusedStackFrameAndEvaluate(stackFrame, process).done(null, errors.onUnexpectedError);
 
 		if (stackFrame) {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
