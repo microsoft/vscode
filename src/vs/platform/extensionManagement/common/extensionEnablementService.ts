@@ -11,7 +11,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensions/disabled';
@@ -20,7 +19,6 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 
 	_serviceBrand: any;
 
-	private workspace: IWorkspace;
 	private disposables: IDisposable[] = [];
 
 	private _onEnablementChanged = new Emitter<string>();
@@ -28,25 +26,36 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IMessageService private messageService: IMessageService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
-		this.workspace = contextService.getWorkspace();
 		extensionManagementService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 	}
 
+	private get workspace(): IWorkspace {
+		return this.contextService.getWorkspace();
+	}
+
 	public getGloballyDisabledExtensions(): string[] {
-		return this.getDisabledExtensionsFromStorage(StorageScope.GLOBAL);
+		return this.getDisabledExtensions(StorageScope.GLOBAL);
 	}
 
 	public getWorkspaceDisabledExtensions(): string[] {
-		return this.getDisabledExtensionsFromStorage(StorageScope.WORKSPACE);
+		return this.getDisabledExtensions(StorageScope.WORKSPACE);
 	}
 
 	public canEnable(identifier: string): boolean {
-		return !this.environmentService.disableExtensions && this.isDisabled(identifier);
+		if (this.environmentService.disableExtensions) {
+			return false;
+		}
+		if (this.getGloballyDisabledExtensions().indexOf(identifier) !== -1) {
+			return true;
+		}
+		if (this.getWorkspaceDisabledExtensions().indexOf(identifier) !== -1) {
+			return true;
+		}
+		return false;
 	}
 
 	public setEnablement(identifier: string, enable: boolean, workspace: boolean = false): TPromise<boolean> {
@@ -58,70 +67,52 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 			return TPromise.wrap(false);
 		}
 
-		if (this.isDisabled(identifier) === !enable) {
-			return TPromise.wrap(false);
-		}
-
 		if (enable) {
 			if (workspace) {
-				this.enableExtension(identifier, StorageScope.WORKSPACE);
+				return this.enableExtension(identifier, StorageScope.WORKSPACE);
 			} else {
-				this.enableExtension(identifier, StorageScope.GLOBAL);
+				return this.enableExtension(identifier, StorageScope.GLOBAL);
 			}
 		} else {
 			if (workspace) {
-				this.disableExtension(identifier, StorageScope.WORKSPACE);
+				return this.disableExtension(identifier, StorageScope.WORKSPACE);
 			} else {
-				this.disableExtension(identifier, StorageScope.GLOBAL);
+				return this.disableExtension(identifier, StorageScope.GLOBAL);
 			}
 		}
-
-		return TPromise.wrap(true);
-	}
-
-	private getDisabledExtensions(): string[] {
-		const globalDisabledExtensions = this.getGloballyDisabledExtensions();
-		const workspaceDisabledExtensions = this.getWorkspaceDisabledExtensions();
-		return distinct([...workspaceDisabledExtensions, ...globalDisabledExtensions]);
-	}
-
-	private isDisabled(identifier: string): boolean {
-		return this.getDisabledExtensions().indexOf(identifier) !== -1;
-	}
-
-	private getDisabledExtensionsFromStorage(scope?: StorageScope): string[] {
-		if (scope !== void 0) {
-			return this._getDisabledExtensions(scope);
-		}
-
-		const globallyDisabled = this._getDisabledExtensions(StorageScope.GLOBAL);
-		const workspaceDisabled = this._getDisabledExtensions(StorageScope.WORKSPACE);
-		return [...globallyDisabled, ...workspaceDisabled];
 	}
 
 	private disableExtension(identifier: string, scope: StorageScope): TPromise<boolean> {
-		let disabledExtensions = this._getDisabledExtensions(scope);
-		disabledExtensions.push(identifier);
-		this._setDisabledExtensions(disabledExtensions, scope, identifier);
-		return TPromise.wrap(true);
+		let disabledExtensions = this.getDisabledExtensions(scope);
+		const index = disabledExtensions.indexOf(identifier);
+		if (index === -1) {
+			disabledExtensions.push(identifier);
+			this.setDisabledExtensions(disabledExtensions, scope, identifier);
+			return TPromise.wrap(true);
+		}
+		return TPromise.wrap(false);
 	}
 
 	private enableExtension(identifier: string, scope: StorageScope): TPromise<boolean> {
-		let disabledExtensions = this._getDisabledExtensions(scope);
+		let disabledExtensions = this.getDisabledExtensions(scope);
 		const index = disabledExtensions.indexOf(identifier);
 		if (index !== -1) {
 			disabledExtensions.splice(index, 1);
-			this._setDisabledExtensions(disabledExtensions, scope, identifier);
+			this.setDisabledExtensions(disabledExtensions, scope, identifier);
+			return TPromise.wrap(true);
 		}
-		return TPromise.wrap(true);
+		return TPromise.wrap(false);
 	}
 
-	private _getDisabledExtensions(scope: StorageScope): string[] {
+	private getDisabledExtensions(scope: StorageScope): string[] {
+		if (scope === StorageScope.WORKSPACE && !this.workspace) {
+			return [];
+		}
 		const value = this.storageService.get(DISABLED_EXTENSIONS_STORAGE_PATH, scope, '');
 		return value ? distinct(value.split(',')) : [];
 	}
 
-	private _setDisabledExtensions(disabledExtensions: string[], scope: StorageScope, extension: string): void {
+	private setDisabledExtensions(disabledExtensions: string[], scope: StorageScope, extension: string): void {
 		if (disabledExtensions.length) {
 			this.storageService.store(DISABLED_EXTENSIONS_STORAGE_PATH, disabledExtensions.join(','), scope);
 		} else {

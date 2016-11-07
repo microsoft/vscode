@@ -9,7 +9,7 @@ import { merge } from 'vs/base/common/arrays';
 import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventType as FileEventType, FileChangesEvent, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -157,7 +157,7 @@ class SourceModelEditTask extends EditTask {
 
 class BulkEditModel {
 
-	private _editorService: IEditorService;
+	private _textModelResolverService: ITextModelResolverService;
 	private _numberOfResourcesToModify: number = 0;
 	private _numberOfChanges: number = 0;
 	private _edits: IStringDictionary<IResourceEdit[]> = Object.create(null);
@@ -166,8 +166,8 @@ class BulkEditModel {
 	private _sourceSelections: Selection[];
 	private _sourceModelTask: SourceModelEditTask;
 
-	constructor(editorService: IEditorService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[], private progress: IProgressRunner = null) {
-		this._editorService = editorService;
+	constructor(textModelResolverService: ITextModelResolverService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[], private progress: IProgressRunner = null) {
+		this._textModelResolverService = textModelResolverService;
 		this._sourceModel = sourceModel;
 		this._sourceSelections = sourceSelections;
 		this._sourceModelTask = null;
@@ -209,7 +209,7 @@ class BulkEditModel {
 		}
 
 		forEach(this._edits, entry => {
-			var promise = this._editorService.resolveEditorModel({ resource: URI.parse(entry.key) }).then(model => {
+			var promise = this._textModelResolverService.resolve(URI.parse(entry.key)).then(model => {
 				if (!model || !model.textEditorModel) {
 					throw new Error(`Cannot load file ${entry.key}`);
 				}
@@ -260,14 +260,14 @@ export interface BulkEdit {
 	finish(): TPromise<ISelection>;
 }
 
-export function bulkEdit(eventService: IEventService, editorService: IEditorService, editor: ICommonCodeEditor, edits: IResourceEdit[], progress: IProgressRunner = null): TPromise<any> {
-	let bulk = createBulkEdit(eventService, editorService, editor);
+export function bulkEdit(eventService: IEventService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor, edits: IResourceEdit[], progress: IProgressRunner = null): TPromise<any> {
+	let bulk = createBulkEdit(eventService, textModelResolverService, editor);
 	bulk.add(edits);
 	bulk.progress(progress);
 	return bulk.finish();
 }
 
-export function createBulkEdit(eventService: IEventService, editorService: IEditorService, editor: ICommonCodeEditor): BulkEdit {
+export function createBulkEdit(eventService: IEventService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor): BulkEdit {
 
 	let all: IResourceEdit[] = [];
 	let recording = new ChangeRecorder(eventService).start();
@@ -315,7 +315,7 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 			selections = editor.getSelections();
 		}
 
-		let model = new BulkEditModel(editorService, uri, selections, all, progressRunner);
+		let model = new BulkEditModel(textModelResolverService, uri, selections, all, progressRunner);
 
 		return model.prepare().then(_ => {
 

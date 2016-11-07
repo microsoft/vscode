@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
 import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -23,9 +22,6 @@ export interface IElectricAction {
 
 	// The text will be appended after the electric character.
 	appendText?: string;
-
-	// The number of characters to advance the cursor, useful with appendText
-	advanceCount?: number;
 }
 
 export class BracketElectricCharacterSupport {
@@ -67,86 +63,79 @@ export class BracketElectricCharacterSupport {
 		return result;
 	}
 
-	public onElectricCharacter(context: ScopedLineTokens, offset: number): IElectricAction {
-		if (context.getTokenCount() === 0) {
-			return null;
-		}
-
-		return (this._onElectricAutoClose(context, offset) ||
-			this._onElectricAutoIndent(context, offset));
+	public onElectricCharacter(character: string, context: ScopedLineTokens, column: number): IElectricAction {
+		return (this._onElectricAutoClose(character, context, column) ||
+			this._onElectricAutoIndent(character, context, column));
 	}
 
-	private _onElectricAutoIndent(context: ScopedLineTokens, offset: number): IElectricAction {
+	private _onElectricAutoIndent(character: string, context: ScopedLineTokens, column: number): IElectricAction {
 
 		if (!this._richEditBrackets || this._richEditBrackets.brackets.length === 0) {
 			return null;
 		}
 
-		let reversedBracketRegex = this._richEditBrackets.reversedRegex;
-
-		let lineText = context.getLineContent();
-		let tokenIndex = context.findTokenIndexAtOffset(offset);
-		let tokenStart = context.getTokenStartOffset(tokenIndex);
-		let tokenEnd = offset + 1;
-
-		var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(context.getLineContent());
-		if (firstNonWhitespaceIndex !== -1 && firstNonWhitespaceIndex < tokenStart) {
+		let tokenIndex = context.findTokenIndexAtOffset(column - 1);
+		if (ignoreBracketsInToken(context.getStandardTokenType(tokenIndex))) {
 			return null;
 		}
 
-		if (!ignoreBracketsInToken(context.getStandardTokenType(tokenIndex))) {
-			let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, 1, lineText, tokenStart, tokenEnd);
-			if (r) {
-				let text = lineText.substring(r.startColumn - 1, r.endColumn - 1);
-				text = text.toLowerCase();
+		let reversedBracketRegex = this._richEditBrackets.reversedRegex;
+		let text = context.getLineContent().substring(0, column - 1) + character;
 
-				let isOpen = this._richEditBrackets.textIsOpenBracket[text];
-				if (!isOpen) {
-					return {
-						matchOpenBracket: text
-					};
-				}
-			}
+		let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, 1, text, 0, text.length);
+		if (!r) {
+			return null;
 		}
 
-		return null;
+		let bracketText = text.substring(r.startColumn - 1, r.endColumn - 1);
+		bracketText = bracketText.toLowerCase();
+
+		let isOpen = this._richEditBrackets.textIsOpenBracket[bracketText];
+		if (isOpen) {
+			return null;
+		}
+
+		return {
+			matchOpenBracket: bracketText
+		};
 	}
 
-	private _onElectricAutoClose(context: ScopedLineTokens, offset: number): IElectricAction {
-
+	private _onElectricAutoClose(character: string, context: ScopedLineTokens, column: number): IElectricAction {
 		if (!this._complexAutoClosePairs.length) {
 			return null;
 		}
 
-		var line = context.getLineContent();
-		var char: string = line[offset];
+		let line = context.getLineContent();
 
-		for (let i = 0; i < this._complexAutoClosePairs.length; i++) {
+		for (let i = 0, len = this._complexAutoClosePairs.length; i < len; i++) {
 			let pair = this._complexAutoClosePairs[i];
 
 			// See if the right electric character was pressed
-			if (char !== pair.open.charAt(pair.open.length - 1)) {
-				continue;
-			}
-
-			// If this line already contains the closing tag, do nothing.
-			if (line.indexOf(pair.close, offset) >= 0) {
+			if (character !== pair.open.charAt(pair.open.length - 1)) {
 				continue;
 			}
 
 			// check if the full open bracket matches
-			let lastTokenIndex = context.findTokenIndexAtOffset(offset);
-			if (line.substring(context.getTokenStartOffset(lastTokenIndex), offset + 1/* include electric char*/) !== pair.open) {
+			let actual = line.substring(line.length - pair.open.length + 1) + character;
+			if (actual !== pair.open) {
 				continue;
 			}
 
+			let lastTokenIndex = context.findTokenIndexAtOffset(column - 1);
+			let lastTokenStandardType = context.getStandardTokenType(lastTokenIndex);
 			// If we're in a scope listed in 'notIn', do nothing
-			if (!pair.isOK(context.getStandardTokenType(lastTokenIndex))) {
+			if (!pair.isOK(lastTokenStandardType)) {
+				continue;
+			}
+
+			// If this line already contains the closing tag, do nothing.
+			if (line.indexOf(pair.close, column - 1) >= 0) {
 				continue;
 			}
 
 			return { appendText: pair.close };
 		}
 
+		return null;
 	}
 }

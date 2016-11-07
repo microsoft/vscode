@@ -23,7 +23,7 @@ import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
 import * as url from 'url';
-import { getMachineId } from 'vs/base/node/id';
+import { getCommonHTTPHeaders } from 'vs/platform/environment/common/http';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -262,12 +262,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	private extensionsGalleryUrl: string;
 
 	@memoize
-	private get commonHeaders(): TPromise<{ [key: string]: string; }> {
-		return getMachineId().then(machineId => ({
-			'X-Market-Client-Id': `VSCode ${pkg.version}`,
-			'User-Agent': `VSCode ${pkg.version}`,
-			'X-Market-User-Id': machineId
-		}));
+	private get commonHTTPHeaders(): TPromise<{ [key: string]: string; }> {
+		return getCommonHTTPHeaders();
 	}
 
 	constructor(
@@ -288,7 +284,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	getRequestHeaders(): TPromise<{ [key: string]: string; }> {
-		return this.commonHeaders;
+		return this.commonHTTPHeaders;
 	}
 
 	query(options: IQueryOptions = {}): TPromise<IPager<IGalleryExtension>> {
@@ -338,7 +334,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
-		return this.commonHeaders
+		return this.commonHTTPHeaders
 			.then(headers => {
 				const data = JSON.stringify(query.raw);
 
@@ -478,7 +474,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		parsedUrl.search = undefined;
 		parsedUrl.query['redirect'] = 'true';
 
-		return this.commonHeaders.then(headers => {
+		return this.commonHTTPHeaders.then(headers => {
 			headers = assign({}, headers, options.headers || {});
 			options = assign({}, options, { headers });
 

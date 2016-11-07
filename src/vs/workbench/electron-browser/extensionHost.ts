@@ -15,6 +15,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { findFreePort } from 'vs/base/node/ports';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
@@ -27,9 +28,9 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import Event, { Emitter } from 'vs/base/common/event';
 import { WatchDog } from 'vs/base/common/watchDog';
 import { createQueuedSender, IQueuedSender } from 'vs/base/node/processes';
-import { IInitData, IInitConfiguration } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationService, getWorkspaceConfigurationTree } from 'vs/workbench/services/configuration/common/configuration';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -68,6 +69,7 @@ export class ExtensionHostProcessWorker {
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService,
+		@IWindowsService private windowsService: IWindowsService,
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -131,7 +133,7 @@ export class ExtensionHostProcessWorker {
 								ids.push(ext.id);
 							}
 						}
-						this.telemetryService.publicLog('extHostUnresponsive', ids);
+						this.telemetryService.publicLog('extHostUnresponsive', { extensionIds: ids });
 					});
 				});
 			});
@@ -256,7 +258,7 @@ export class ExtensionHostProcessWorker {
 					workspace: this.contextService.getWorkspace()
 				},
 				extensions: extensionDescriptions,
-				configuration: this.configurationService.getConfiguration<IInitConfiguration>(),
+				configuration: getWorkspaceConfigurationTree(this.configurationService),
 				telemetryInfo
 			};
 			this.extensionHostProcessQueuedSender.send(stringify(initData));
@@ -289,7 +291,7 @@ export class ExtensionHostProcessWorker {
 
 		// Log on main side if running tests from cli
 		if (this.isExtensionDevelopmentTestFromCli) {
-			ipc.send('vscode:log', logEntry);
+			this.windowsService.log(logEntry.severity, ...args);
 		}
 
 		// Broadcast to other windows if we are in development mode

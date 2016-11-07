@@ -7,8 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput, IEditorModel } from 'vs/platform/editor/common/editor';
-import { ITextEditorModel } from 'vs/workbench/common/editor';
+import { IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput } from 'vs/platform/editor/common/editor';
 
 export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
 
@@ -85,18 +84,6 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 * Closes all editors across all groups. The optional position allows to keep one group alive.
 	 */
 	closeAllEditors(except?: Position): TPromise<void>;
-
-	/**
-	 * Resolves an input to its model representation. The optional parameter refresh allows to specify
-	 * if a cached model should be returned (false) or a new version (true). The default is returning a
-	 * cached version.
-	 */
-	resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
-
-	/**
-	 * Specific overload to resolve a IResourceInput to an editor model with a text representation.
-	 */
-	resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
 
 	/**
 	 * Allows to resolve an untyped input to a workbench typed instanceof editor input

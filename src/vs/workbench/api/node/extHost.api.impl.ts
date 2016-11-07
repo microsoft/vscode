@@ -9,6 +9,7 @@ import { TrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { WorkspaceConfigurationNode } from 'vs/workbench/services/configuration/common/configuration';
 import * as errors from 'vs/base/common/errors';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
@@ -42,16 +43,16 @@ import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
 import { realpathSync } from 'fs';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { MainContext, ExtHostContext, InstanceCollection, IInitConfiguration } from './extHost.protocol';
+import { MainContext, ExtHostContext, InstanceCollection } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 
 
 export interface IExtensionApiFactory {
-	(extension?: IExtensionDescription): typeof vscode;
+	(extension: IExtensionDescription): typeof vscode;
 }
 
 function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
-	if (extension && extension.enableProposedApi) {
+	if (extension.enableProposedApi) {
 		return fn;
 	} else {
 		return <any>(() => {
@@ -63,7 +64,7 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 /**
  * This method instantiates and returns the extension API surface
  */
-export function createApiFactory(initDataConfiguration: IInitConfiguration, initTelemetryInfo: ITelemetryInfo, threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService): IExtensionApiFactory {
+export function createApiFactory(initDataConfiguration: WorkspaceConfigurationNode, initTelemetryInfo: ITelemetryInfo, threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService): IExtensionApiFactory {
 
 	// Addressable instances
 	const col = new InstanceCollection();
@@ -92,9 +93,9 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
 
-	return function (extension?: IExtensionDescription): typeof vscode {
+	return function (extension: IExtensionDescription): typeof vscode {
 
-		if (extension && extension.enableProposedApi) {
+		if (extension.enableProposedApi) {
 			console.warn(`${extension.name} (${extension.id}) uses PROPOSED API which is subject to change and removal without notice`);
 		}
 
@@ -204,7 +205,7 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 				return languageFeatures.registerSignatureHelpProvider(selector, provider, triggerCharacters);
 			},
 			registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, ...triggerCharacters: string[]): vscode.Disposable {
-				return languageFeatures.registerCompletionItemProvider(selector, provider, triggerCharacters);
+				return languageFeatures.registerCompletionItemProvider(selector, provider, triggerCharacters, extension.id);
 			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return languageFeatures.registerDocumentLinkProvider(selector, provider);
@@ -460,8 +461,23 @@ export function defineAPI(factory: IExtensionApiFactory, extensionService: ExtHo
 
 		// fall back to a default implementation
 		if (!defaultApiImpl) {
-			defaultApiImpl = factory(undefined);
+			defaultApiImpl = factory(nullExtensionDescription);
 		}
 		return defaultApiImpl;
 	};
 }
+
+const nullExtensionDescription: IExtensionDescription = {
+	id: 'nullExtensionDescription',
+	name: 'Null Extension Description',
+	publisher: 'vscode',
+	activationEvents: undefined,
+	contributes: undefined,
+	enableProposedApi: false,
+	engines: undefined,
+	extensionDependencies: undefined,
+	extensionFolderPath: undefined,
+	isBuiltin: false,
+	main: undefined,
+	version: undefined
+};

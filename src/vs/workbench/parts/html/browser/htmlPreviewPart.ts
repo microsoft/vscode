@@ -16,11 +16,11 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 import Webview from './webview';
 
 /**
@@ -30,7 +30,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	static ID: string = 'workbench.editor.htmlPreviewPart';
 
-	private _editorService: IWorkbenchEditorService;
+	private _textModelResolverService: ITextModelResolverService;
 	private _themeService: IThemeService;
 	private _openerService: IOpenerService;
 	private _webview: Webview;
@@ -45,14 +45,14 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IThemeService themeService: IThemeService,
 		@IOpenerService openerService: IOpenerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService);
 
-		this._editorService = editorService;
+		this._textModelResolverService = textModelResolverService;
 		this._themeService = themeService;
 		this._openerService = openerService;
 		this._baseUrl = contextService.toResource('/');
@@ -150,7 +150,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 		return super.setInput(input, options).then(() => {
 			let resourceUri = (<HtmlInput>input).getResource();
-			return this._editorService.resolveEditorModel({ resource: resourceUri }).then(model => {
+			return this._textModelResolverService.resolve(resourceUri).then(model => {
 				if (model instanceof BaseTextEditorModel) {
 					this._model = model.textEditorModel;
 				}

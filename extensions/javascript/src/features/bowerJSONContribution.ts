@@ -170,13 +170,11 @@ export class BowerJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			let pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
-				let htmlContent: MarkedString[] = [];
-				htmlContent.push(localize('json.bower.package.hover', '{0}', pack));
 				return this.getInfo(pack).then(documentation => {
 					if (documentation) {
-						htmlContent.push(textToMarkedString(documentation));
+						return [textToMarkedString(documentation)];
 					}
-					return htmlContent;
+					return null;
 				});
 			}
 		}

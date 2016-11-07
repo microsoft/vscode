@@ -8,7 +8,7 @@
 	"array": "数组({0})",
 	"boolean": "布尔值({0})",
 	"cannotRunGotoSymbol": "首先打开文本文件以转到符号",
-	"cannotRunGotoSymbolInFile": "很遗憾，我们没有该文件的任何符号信息",
+	"cannotRunGotoSymbolInFile": "没有该文件的任何符号信息",
 	"class": "类({0})",
 	"entryAriaLabel": "{0}，符号",
 	"enum": "枚举({0})",

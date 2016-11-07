@@ -67,6 +67,8 @@ export class MessageList {
 	private _onMessagesShowing: Emitter<void>;
 	private _onMessagesCleared: Emitter<void>;
 
+	private initialTopPosition: number;
+
 	constructor(container: HTMLElement, usageLogger?: IUsageLogger, options: IMessageListOptions = { purgeInterval: MessageList.DEFAULT_MESSAGE_PURGER_INTERVAL, maxMessages: MessageList.DEFAULT_MAX_MESSAGES, maxMessageLength: MessageList.DEFAULT_MAX_MESSAGE_LENGTH }) {
 		this.messages = [];
 		this.messageListPurger = null;
@@ -169,6 +171,7 @@ export class MessageList {
 		// Lazily create, otherwise clear old
 		if (!this.messageListContainer) {
 			this.messageListContainer = $('.global-message-list').appendTo(container);
+			this.initialTopPosition = parseInt(this.messageListContainer.getComputedStyle().getPropertyValue('top'), 10) || 0;
 		} else {
 			$(this.messageListContainer).empty();
 			$(this.messageListContainer).removeClass('transition');
@@ -196,7 +199,7 @@ export class MessageList {
 			if (animate) {
 				setTimeout(() => {
 					$(this.messageListContainer).addClass('transition');
-					$(this.messageListContainer).style('top', '0');
+					$(this.messageListContainer).style('top', `${this.initialTopPosition}px`);
 				}, 50 /* Need this delay to reliably get the animation on some browsers */);
 			}
 		});

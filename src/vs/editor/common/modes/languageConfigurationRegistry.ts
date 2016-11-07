@@ -162,13 +162,13 @@ export class LanguageConfigurationRegistryImpl {
 	/**
 	 * Should return opening bracket type to match indentation with
 	 */
-	public onElectricCharacter(context: LineTokens, offset: number): IElectricAction {
-		let scopedLineTokens = createScopedLineTokens(context, offset);
+	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction {
+		let scopedLineTokens = createScopedLineTokens(context, column - 1);
 		let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.modeId);
 		if (!electricCharacterSupport) {
 			return null;
 		}
-		return electricCharacterSupport.onElectricCharacter(scopedLineTokens, offset - scopedLineTokens.firstCharOffset);
+		return electricCharacterSupport.onElectricCharacter(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
 	}
 
 	// end electricCharacter
@@ -207,13 +207,13 @@ export class LanguageConfigurationRegistryImpl {
 		return characterPairSupport.getSurroundingPairs();
 	}
 
-	public shouldAutoClosePair(character: string, context: LineTokens, offset: number): boolean {
-		let scopedLineTokens = createScopedLineTokens(context, offset);
+	public shouldAutoClosePair(character: string, context: LineTokens, column: number): boolean {
+		let scopedLineTokens = createScopedLineTokens(context, column - 1);
 		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.modeId);
 		if (!characterPairSupport) {
 			return false;
 		}
-		return characterPairSupport.shouldAutoClosePair(character, scopedLineTokens, offset - scopedLineTokens.firstCharOffset);
+		return characterPairSupport.shouldAutoClosePair(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
 	}
 
 	// end characterPair

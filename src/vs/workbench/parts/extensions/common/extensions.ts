@@ -47,7 +47,6 @@ export interface IExtension {
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
-	hasChangelog: boolean;
 	getChangelog(): TPromise<string>;
 }
 

@@ -118,7 +118,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 
 		// Different Input (Reload)
-		return this.editorService.resolveEditorModel(input, true /* Reload */).then(resolvedModel => {
+		return input.resolve(true).then(resolvedModel => {
 
 			// There is a special case where the text editor has to handle binary file editor input: if a binary file
 			// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
