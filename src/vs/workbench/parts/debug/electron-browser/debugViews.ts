@@ -268,7 +268,7 @@ export class CallStackView extends CollapsibleViewletView {
 			this.tree.expandAll([thread.process, thread]).done(() => {
 				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 				this.tree.setSelection([focusedStackFrame]);
-				if (thread.stoppedDetails && thread.stoppedDetails.reason && this.debugService.getModel().getProcesses().length === 1) {
+				if (thread.stoppedDetails && thread.stoppedDetails.reason && !this.debugService.getViewModel().isMultiProcessView()) {
 					this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason));
 					if (thread.stoppedDetails.text) {
 						this.pauseMessageLabel.title(thread.stoppedDetails.text);
@@ -286,7 +286,7 @@ export class CallStackView extends CollapsibleViewletView {
 		this.onCallStackChangeScheduler = new RunOnceScheduler(() => {
 			let newTreeInput: any = this.debugService.getModel();
 			const processes = this.debugService.getModel().getProcesses();
-			if (processes.length === 1) {
+			if (!this.debugService.getViewModel().isMultiProcessView() && processes.length) {
 				const threads = processes[0].getAllThreads();
 				// Only show the threads in the call stack if there is more than 1 thread.
 				newTreeInput = threads.length === 1 ? threads[0] : processes[0];

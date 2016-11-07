@@ -17,6 +17,7 @@ export class ViewModel implements debug.IViewModel {
 	private _onDidSelectExpression: Emitter<debug.IExpression>;
 	private _onDidSelectFunctionBreakpoint: Emitter<debug.IFunctionBreakpoint>;
 	private _onDidSelectConfigurationName: Emitter<string>;
+	private multiProcessView: boolean;
 	public changedWorkbenchViewState: boolean;
 
 	constructor(private _selectedConfigurationName: string) {
@@ -92,6 +93,14 @@ export class ViewModel implements debug.IViewModel {
 	public setSelectedConfigurationName(configurationName: string): void {
 		this._selectedConfigurationName = configurationName;
 		this._onDidSelectConfigurationName.fire(configurationName);
+	}
+
+	public isMultiProcessView(): boolean {
+		return this.multiProcessView;
+	}
+
+	public setMultiProcessView(isMultiProcessView: boolean): void {
+		this.multiProcessView = isMultiProcessView;
 	}
 
 	public get onDidSelectConfigurationName(): Event<string> {
