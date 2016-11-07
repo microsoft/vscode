@@ -6,6 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import platform = require('vs/base/common/platform');
 import Uri from 'vs/base/common/uri';
 import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -135,9 +136,11 @@ export class BackupService implements IBackupService {
 		}
 
 		return this.backupFileService.getWorkspaceBackupPaths().then(workspaceBackupPaths => {
-			// Only remove the workspace's backups if it's not the last one or it's not dirty. The one exception to this
-			// is if quit (all windows) was requested then all windows should be backed up and restored on next launch..
-			if (!quitRequested && workspaceBackupPaths.length > 1) {
+			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
+			// When quit is not requested the confirm callback should be shown when the window being
+			// closed is the only VS Code window open, except for on Mac where hot exit is only
+			// ever activated when quit is requested.
+			if (!quitRequested && (workspaceBackupPaths.length > 1 || platform.isMacintosh)) {
 				return confirmCallback(); // confirm save
 			}
 
