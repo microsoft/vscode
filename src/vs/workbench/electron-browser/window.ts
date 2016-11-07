@@ -18,7 +18,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 
-import { ipcRenderer as ipc, remote } from 'electron';
+import { remote } from 'electron';
 
 const dialog = remote.dialog;
 
@@ -136,11 +136,6 @@ export class ElectronWindow {
 		this.win.close();
 	}
 
-	public reload(): void {
-		this.partService.setRestoreSidebar(); // we want the same sidebar after a reload restored
-		ipc.send('vscode:reloadWindow', this.windowId);
-	}
-
 	public showMessageBox(options: Electron.ShowMessageBoxOptions): number {
 		return dialog.showMessageBox(this.win, options);
 	}
@@ -153,7 +148,7 @@ export class ElectronWindow {
 		return dialog.showSaveDialog(this.win, options); // https://github.com/electron/electron/issues/4936
 	}
 
-	focus(): TPromise<void> {
+	public focus(): TPromise<void> {
 		return this.windowService.focusWindow();
 	}
 }
