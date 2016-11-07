@@ -51,8 +51,8 @@ export interface IUpdateService {
 	readonly onUpdateNotAvailable: Event<boolean>;
 	readonly onUpdateReady: Event<IRawUpdate>;
 	readonly onStateChange: Event<State>;
-
 	readonly state: State;
+
 	checkForUpdates(explicit: boolean): TPromise<IUpdate>;
 	quitAndInstall(): TPromise<void>;
 }
