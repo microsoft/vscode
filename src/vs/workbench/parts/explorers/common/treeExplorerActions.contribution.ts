@@ -30,17 +30,13 @@ export class ToggleExtViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const viewletDescriptors = this.viewletService.getViewletDescriptors();
+		const viewlets = this.viewletService.getExtViewlets();
+		const enabledViewletIds = this.viewletService.getEnabledViewletIds();
 
-		const picks: IPickOpenEntry[] = viewletDescriptors.map((d) => {
-			return {
-				id: d.id,
-				label: d.name
-			};
-		});
+		const picks: IPickOpenEntry[] = [];
 
-		viewletDescriptors.forEach(vd => {
-			const isEnabled = true;
+		viewlets.forEach(vd => {
+			const isEnabled = enabledViewletIds.indexOf(vd.id) !== -1;
 			const actionLabel = isEnabled ? localize('disable', 'Disable') : localize('enable', 'Enable');
 			picks.push({
 				id: vd.name,

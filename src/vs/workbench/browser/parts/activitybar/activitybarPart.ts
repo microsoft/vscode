@@ -13,9 +13,8 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import { ActionsOrientation, ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Registry } from 'vs/platform/platform';
 import { IComposite } from 'vs/workbench/common/composite';
-import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
+import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Part } from 'vs/workbench/browser/part';
 import { ActivityAction, ActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
@@ -23,8 +22,6 @@ import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 export class ActivitybarPart extends Part implements IActivityService {
 	public _serviceBrand: any;
@@ -32,9 +29,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private viewletSwitcherBar: ActionBar;
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
-
-	private enabledExtViewlets: string[];
-	private extViewlets: { [viewletId: string]: ViewletDescriptor; };
 
 	// Serves two purposes:
 	// 1. Expose the viewletId that will be assigned to an extension viewlet,
@@ -45,25 +39,17 @@ export class ActivitybarPart extends Part implements IActivityService {
 	public get extViewletIdToOpen() { return this._extViewletIdToOpen; };
 	public set extViewletIdToOpen(viewletId: string) { this._extViewletIdToOpen = viewletId; };
 
-	private static ENABLED_EXT_VIEWLETS = 'workbench.activityBar.enabledExtViewlets';
-
 	constructor(
 		id: string,
 		@IViewletService private viewletService: IViewletService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService,
-		@IStorageService private storageService: IStorageService,
-		@IExtensionService private extensionService: IExtensionService
+		@IPartService private partService: IPartService
 	) {
 		super(id);
 
 		this.activityActionItems = {};
 		this.compositeIdToActions = {};
-
-		const enabledExtViewletsJson = this.storageService.get(ActivitybarPart.ENABLED_EXT_VIEWLETS);
-		this.enabledExtViewlets = enabledExtViewletsJson ? JSON.parse(enabledExtViewletsJson) : [];
-		this.extViewlets = {};
 
 		this.registerListeners();
 	}
@@ -76,24 +62,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
 
-		// Update activity bar on registering extension viewlets
-		this.extensionService.onReady().then(() => {
-			const viewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
-			this.onExtensionServiceReady(viewlets);
-		});
-	}
-
-	private onExtensionServiceReady(viewlets: ViewletDescriptor[]): void {
-		viewlets.forEach(v => {
-			if (v.isExtension) {
-				this.extViewlets[v.id] = v;
-			}
-		});
-
-		this.viewletSwitcherBar.push(this.getAllEnabledExtViewlets().map(d => this.toAction(d)), { label: true, icon: true });
-		if (this._extViewletIdToOpen) {
-			this.compositeIdToActions[this._extViewletIdToOpen].run().done();
-		}
+		this.toUnbind.push(this.viewletService.onDidViewletRegister(() => this.onDidViewletRegister()));
 	}
 
 	private onActiveCompositeChanged(composite: IComposite): void {
@@ -108,36 +77,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		}
 	}
 
-	public getInfoForExtViewlets(): {
-		[viewletId: string]: {
-			isEnabled: boolean;
-			treeLabel: string;
-		}
-	} {
-		const result = {};
-		for (let viewletId in this.extViewlets) {
-			result[viewletId] = {
-				isEnabled: (this.enabledExtViewlets.indexOf(viewletId) !== -1),
-				treeLabel: this.extViewlets[viewletId].name
-			};
-		}
-		return result;
-	}
-
-	public toggleExtViewlet(viewletId: string): void {
-		const index = this.enabledExtViewlets.indexOf(viewletId);
-		if (index === -1) {
-			this.enabledExtViewlets.push(viewletId);
-		} else {
-			this.enabledExtViewlets.splice(index, 1);
-		}
-
-		this.setEnabledExtViewlets();
+	private onDidViewletRegister(): void {
 		this.refreshViewletSwitcher();
-	}
-
-	private setEnabledExtViewlets(): void {
-		this.storageService.store(ActivitybarPart.ENABLED_EXT_VIEWLETS, JSON.stringify(this.enabledExtViewlets));
 	}
 
 	public showActivity(compositeId: string, badge: IBadge, clazz?: string): void {
@@ -171,36 +112,17 @@ export class ActivitybarPart extends Part implements IActivityService {
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
 		});
 
-		const allStockViewlets = this.getAllStockViewlets();
-		this.fillViewletSwitcher(allStockViewlets);
+		this.fillViewletSwitcher(this.viewletService.getAllViewlets());
 	}
 
 	private refreshViewletSwitcher(): void {
 		this.viewletSwitcherBar.clear();
-
-		const allStockViewlets = this.getAllStockViewlets();
-		const allEnabledExtViewlets = this.getAllEnabledExtViewlets();
-		this.fillViewletSwitcher(allStockViewlets.concat(allEnabledExtViewlets));
+		this.fillViewletSwitcher(this.viewletService.getAllViewlets());
 	}
 
 	private fillViewletSwitcher(viewlets: ViewletDescriptor[]) {
 		const viewletActions = viewlets.map(v => this.toAction(v));
 		this.viewletSwitcherBar.push(viewletActions, { label: true, icon: true });
-	}
-
-	// Get an ordered list of all stock viewlets
-	private getAllStockViewlets(): ViewletDescriptor[] {
-		return (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets))
-			.getViewlets()
-			.filter(viewlet => !viewlet.isExtension)
-			.sort((v1, v2) => v1.order - v2.order);
-	}
-
-	// Get a list of all enabled extension viewlets, ordered by the enabling sequence
-	private getAllEnabledExtViewlets(): ViewletDescriptor[] {
-		return this.enabledExtViewlets
-			.filter(viewletId => this.extViewlets[viewletId])
-			.map(viewletId => this.extViewlets[viewletId]);
 	}
 
 	private toAction(composite: ViewletDescriptor): ActivityAction {

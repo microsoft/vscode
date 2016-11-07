@@ -16,8 +16,8 @@ export interface IViewletService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	onDidViewletOpen: Event<IViewlet>;
-
 	onDidViewletClose: Event<IViewlet>;
+	onDidViewletRegister: Event<ViewletDescriptor>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
@@ -29,13 +29,20 @@ export interface IViewletService {
 	 */
 	toggleViewlet(id: string): TPromise<IViewlet>;
 
+
+	getExtViewlets(): ViewletDescriptor[];
+
+	getEnabledViewletIds(): string[];
+
+	/**
+	 * Get all registered viewlets, ordered by
+	 * - Stock Viewlet: order
+	 * - External Viewlet: enabliing sequence
+	 */
+	getAllViewlets(): ViewletDescriptor[];
+
 	/**
 	 * Returns the current active viewlet or null if none.
 	 */
 	getActiveViewlet(): IViewlet;
-
-	/**
-	 * Returns all registered viewlets.
-	 */
-	getViewletDescriptors(): ViewletDescriptor[];
 }
