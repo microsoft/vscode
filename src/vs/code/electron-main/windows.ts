@@ -756,11 +756,15 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		if (!vscodeWindow) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 
+			const sideBarPosition = this.configurationService.lookup<string>('workbench.sideBar.location').value;
+			const allowMacOSInlineStyle = sideBarPosition === 'left';
+			const macOSTitlebarStyle = windowConfig && allowMacOSInlineStyle ? windowConfig.macOSTitlebarStyle : 'default';
+
 			vscodeWindow = this.instantiationService.createInstance(VSCodeWindow, {
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen),
-				macOSTitlebarStyle: windowConfig && windowConfig.macOSTitlebarStyle
+				macOSTitlebarStyle: macOSTitlebarStyle
 			});
 
 			WindowsManager.WINDOWS.push(vscodeWindow);

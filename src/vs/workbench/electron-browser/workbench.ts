@@ -753,7 +753,8 @@ export class Workbench implements IPartService {
 		// Mac specific UI changes
 		if (isMacintosh) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
-			if (windowConfig && windowConfig.window.macOSTitlebarStyle === 'inline') {
+			const sideBarPosition = this.configurationService.lookup<string>(Workbench.sidebarPositionConfigurationKey).value;
+			if (windowConfig && windowConfig.window.macOSTitlebarStyle === 'inline' && sideBarPosition === 'left') {
 				this.workbench.addClass('use-inline-toolbar');
 			}
 		}
