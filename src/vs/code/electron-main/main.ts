@@ -118,10 +118,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	}
 
 	// Register Main IPC services
-	const updateService = accessor.get(IUpdateService);
-	const updateChannel = new UpdateChannel(updateService);
-	mainIpcServer.registerChannel('update', updateChannel);
-
 	const launchService = instantiationService.createInstance(LaunchService);
 	const launchChannel = new LaunchChannel(launchService);
 	mainIpcServer.registerChannel('launch', launchChannel);
@@ -134,6 +130,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const electronIpcServer = new ElectronIPCServer();
 
 	// Register Electron IPC services
+	const updateService = accessor.get(IUpdateService);
+	const updateChannel = new UpdateChannel(updateService);
+	electronIpcServer.registerChannel('update', updateChannel);
+
 	const urlService = accessor.get(IURLService);
 	const urlChannel = instantiationService.createInstance(URLChannel, urlService);
 	electronIpcServer.registerChannel('url', urlChannel);

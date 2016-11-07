@@ -9,7 +9,7 @@ import * as fs from 'original-fs';
 import * as path from 'path';
 import * as electron from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import Event, { Emitter, once, filterEvent } from 'vs/base/common/event';
 import { always, Throttler } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';
 import { fromEventEmitter } from 'vs/base/node/event';
@@ -72,7 +72,7 @@ export class UpdateService implements IUpdateService {
 
 	@memoize
 	private get onRawUpdateAvailable(): Event<{ url: string; version: string; }> {
-		return fromEventEmitter(this.raw, 'update-available', (_, url, version) => ({ url, version }));
+		return filterEvent(fromEventEmitter(this.raw, 'update-available', (_, url, version) => ({ url, version })), ({ url }) => !!url);
 	}
 
 	@memoize
@@ -148,6 +148,10 @@ export class UpdateService implements IUpdateService {
 	}
 
 	private _checkForUpdates(explicit: boolean): TPromise<IUpdate> {
+		if (this.state !== State.Idle) {
+			return TPromise.as(null);
+		}
+
 		this._onCheckForUpdate.fire();
 		this.state = State.CheckingForUpdate;
 
@@ -220,12 +224,12 @@ export class UpdateService implements IUpdateService {
 
 	quitAndInstall(): TPromise<void> {
 		if (!this._availableUpdate) {
-			return;
+			return TPromise.as(null);
 		}
 
 		if (this._availableUpdate.url) {
 			electron.shell.openExternal(this._availableUpdate.url);
-			return;
+			return TPromise.as(null);
 		}
 
 		this.lifecycleService.quit(true /* from update */).done(vetod => {
@@ -242,5 +246,7 @@ export class UpdateService implements IUpdateService {
 
 			this.raw.quitAndInstall();
 		});
+
+		return TPromise.as(null);
 	}
 }
