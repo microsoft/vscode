@@ -29,20 +29,25 @@ export interface IViewletService {
 	 */
 	toggleViewlet(id: string): TPromise<IViewlet>;
 
-
-	getExtViewlets(): ViewletDescriptor[];
-
-	getEnabledViewletIds(): string[];
-
-	/**
-	 * Get all registered viewlets, ordered by
-	 * - Stock Viewlet: order
-	 * - External Viewlet: enabliing sequence
-	 */
-	getAllViewlets(): ViewletDescriptor[];
-
 	/**
 	 * Returns the current active viewlet or null if none.
 	 */
 	getActiveViewlet(): IViewlet;
+
+	/**
+	 * Returns all registered viewlets
+	 */
+	getAllViewlets(): ViewletDescriptor[];
+
+	/**
+	 * Returns all viewlets that should be displayed, ordered by:
+	 * - Stock Viewlets: order attribute
+	 * - Extension Viewlets: enabling sequence
+	 */
+	getAllViewletsToDisplay(): ViewletDescriptor[];
+
+	/**
+	 * Checks if an extension is enabled
+	 */
+	isViewletEnabled(id: string): boolean;
 }

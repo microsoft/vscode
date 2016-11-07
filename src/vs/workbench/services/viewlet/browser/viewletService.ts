@@ -22,7 +22,7 @@ export class ViewletService implements IViewletService {
 
 	private sidebarPart: ISidebar;
 	private enabledExtViewletIds: string[];
-	private extViewlets: { [viewletId: string]: ViewletDescriptor; };
+	private extViewlets: ViewletDescriptor[];
 	private _onDidViewletRegister = new Emitter<ViewletDescriptor>();
 
 	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; };
@@ -38,7 +38,7 @@ export class ViewletService implements IViewletService {
 
 		const enabledExtViewletsJson = this.storageService.get(ViewletService.ENABLED_EXT_VIEWLETS);
 		this.enabledExtViewletIds = enabledExtViewletsJson ? JSON.parse(enabledExtViewletsJson) : [];
-		this.extViewlets = {};
+		this.extViewlets = [];
 
 		this.extensionService.onReady().then(() => {
 			const viewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
@@ -49,7 +49,7 @@ export class ViewletService implements IViewletService {
 	private onExtensionServiceReady(viewlets: ViewletDescriptor[]): void {
 		viewlets.forEach(v => {
 			if (v.isExtension) {
-				this.extViewlets[v.id] = v;
+				this.extViewlets.push(v);
 			}
 		});
 
@@ -79,28 +79,29 @@ export class ViewletService implements IViewletService {
 
 	public getAllViewlets(): ViewletDescriptor[] {
 		const stockViewlets = this.getStockViewlets();
-		const extViewlets = this.getExtViewlets();
-		return stockViewlets.concat(extViewlets);
+		return stockViewlets.concat(this.extViewlets);
+	}
+
+	public getAllViewletsToDisplay(): ViewletDescriptor[] {
+		const stockViewlets = this.getStockViewlets();
+		const enabledExtViewlets = this.extViewlets
+			.filter(v => this.enabledExtViewletIds.indexOf(v.id) !== -1)
+			.sort((v1, v2) => {
+				return this.enabledExtViewletIds.indexOf(v1.id) - this.enabledExtViewletIds.indexOf(v2.id);
+			});
+		return stockViewlets.concat(enabledExtViewlets);
+	}
+
+	public isViewletEnabled(id: string): boolean {
+		return this.enabledExtViewletIds.indexOf(id) !== -1;
 	}
 
 	// Get an ordered list of all stock viewlets
-	public getStockViewlets(): ViewletDescriptor[] {
+	private getStockViewlets(): ViewletDescriptor[] {
 		return (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets))
 			.getViewlets()
 			.filter(viewlet => !viewlet.isExtension)
 			.sort((v1, v2) => v1.order - v2.order);
-	}
-
-	public getExtViewlets(): ViewletDescriptor[] {
-		const result = [];
-		for (let id in this.extViewlets) {
-			result.push(this.extViewlets[id]);
-		}
-		return result;
-	}
-
-	public getEnabledViewletIds(): string[] {
-		return this.enabledExtViewletIds;
 	}
 
 	private setEnabledExtViewlets(): void {

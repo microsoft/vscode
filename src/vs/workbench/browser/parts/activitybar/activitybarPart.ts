@@ -112,12 +112,12 @@ export class ActivitybarPart extends Part implements IActivityService {
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
 		});
 
-		this.fillViewletSwitcher(this.viewletService.getAllViewlets());
+		this.fillViewletSwitcher(this.viewletService.getAllViewletsToDisplay());
 	}
 
 	private refreshViewletSwitcher(): void {
 		this.viewletSwitcherBar.clear();
-		this.fillViewletSwitcher(this.viewletService.getAllViewlets());
+		this.fillViewletSwitcher(this.viewletService.getAllViewletsToDisplay());
 	}
 
 	private fillViewletSwitcher(viewlets: ViewletDescriptor[]) {
