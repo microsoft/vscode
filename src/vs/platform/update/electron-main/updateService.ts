@@ -23,6 +23,16 @@ import product from 'vs/platform/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUpdateService, State, IAutoUpdater, IUpdate, IRawUpdate } from 'vs/platform/update/common/update';
 
+// TODO@Joao: add telemetry
+//
+// this.updateService.onUpdateReady(update => {
+// 	this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
+// });
+
+// this.updateService.onUpdateNotAvailable(explicit => {
+// 	this.sendToFocused('vscode:telemetry', { eventName: 'update:notAvailable', data: { explicit } });
+// });
+
 export class UpdateService implements IUpdateService {
 
 	_serviceBrand: any;
