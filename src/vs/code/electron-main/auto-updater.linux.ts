@@ -67,4 +67,8 @@ export class LinuxAutoUpdaterImpl extends EventEmitter {
 			})
 			.then(() => this.currentRequest = null);
 	}
+
+	quitAndInstall(): void {
+		// noop
+	}
 }

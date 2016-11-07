@@ -39,28 +39,19 @@ export interface IRawUpdate {
 	releaseNotes: string;
 	version: string;
 	date: Date;
-	quitAndUpdate: () => void;
-}
-
-export interface IRawAvailableUpdate {
-	url: string;
-	version: string;
 }
 
 export interface IUpdate {
 	version: string;
-	url?: string;
-	releaseNotes?: string;
 	date?: Date;
-}
-
-interface IRawUpdate2 extends IUpdate {
-	quitAndUpdate?: () => void;
+	releaseNotes?: string;
+	url?: string;
 }
 
 interface IRawAutoUpdater extends NodeJS.EventEmitter {
 	setFeedURL(url: string): void;
 	checkForUpdates(): void;
+	quitAndInstall(): void;
 }
 
 export const IUpdateService = createDecorator<IUpdateService>('updateService');
@@ -75,8 +66,8 @@ export interface IUpdateService {
 	readonly onStateChange: Event<void>;
 
 	readonly state: State;
-	readonly availableUpdate: IRawUpdate;
 	checkForUpdates(explicit: boolean): TPromise<IUpdate>;
+	quitAndInstall(): void;
 }
 
 export class UpdateManager implements IUpdateService {
@@ -84,7 +75,7 @@ export class UpdateManager implements IUpdateService {
 	_serviceBrand: any;
 
 	private _state: State = State.Uninitialized;
-	private _availableUpdate: IRawUpdate = null;
+	private _availableUpdate: IUpdate = null;
 	private raw: IRawAutoUpdater;
 	private throttler: Throttler = new Throttler();
 
@@ -100,15 +91,15 @@ export class UpdateManager implements IUpdateService {
 	private _onUpdateNotAvailable = new Emitter<boolean>();
 	get onUpdateNotAvailable(): Event<boolean> { return this._onUpdateNotAvailable.event; }
 
-	private _onUpdateReady = new Emitter<IRawUpdate>();
-	get onUpdateReady(): Event<IRawUpdate> { return this._onUpdateReady.event; }
+	private _onUpdateReady = new Emitter<IUpdate>();
+	get onUpdateReady(): Event<IUpdate> { return this._onUpdateReady.event; }
 
 	private _onStateChange = new Emitter<void>();
 	get onStateChange(): Event<void> { return this._onStateChange.event; }
 
 	@memoize
 	private get onRawError(): Event<string> {
-		return fromEventEmitter<string>(this.raw, 'error', (_, message) => message);
+		return fromEventEmitter(this.raw, 'error', (_, message) => message);
 	}
 
 	@memoize
@@ -117,18 +108,13 @@ export class UpdateManager implements IUpdateService {
 	}
 
 	@memoize
-	private get onRawUpdateAvailable(): Event<IRawAvailableUpdate> {
-		return fromEventEmitter<IRawAvailableUpdate>(this.raw, 'update-available', (_, url, version) => ({ url, version }));
+	private get onRawUpdateAvailable(): Event<{ url: string; version: string; }> {
+		return fromEventEmitter(this.raw, 'update-available', (_, url, version) => ({ url, version }));
 	}
 
 	@memoize
 	private get onRawUpdateDownloaded(): Event<IRawUpdate> {
-		return fromEventEmitter<IRawUpdate>(this.raw, 'update-not-available', (_, releaseNotes, version, date, url, rawQuitAndUpdate) => ({
-			releaseNotes,
-			version,
-			date,
-			quitAndUpdate: () => this.quitAndUpdate(rawQuitAndUpdate)
-		}));
+		return fromEventEmitter(this.raw, 'update-downloaded', (_, releaseNotes, version, date, url) => ({ releaseNotes, version, date }));
 	}
 
 	get state(): State {
@@ -140,7 +126,7 @@ export class UpdateManager implements IUpdateService {
 		this._onStateChange.fire();
 	}
 
-	get availableUpdate(): IRawUpdate {
+	get availableUpdate(): IUpdate {
 		return this._availableUpdate;
 	}
 
@@ -203,11 +189,11 @@ export class UpdateManager implements IUpdateService {
 		this.state = State.CheckingForUpdate;
 
 		const listeners: IDisposable[] = [];
-		const result = new TPromise<IRawUpdate2>((c, e) => {
+		const result = new TPromise<IUpdate>((c, e) => {
 			once(this.onRawError)(e, null, listeners);
 			once(this.onRawUpdateNotAvailable)(() => c(null), null, listeners);
 			once(this.onRawUpdateAvailable)(({ url, version }) => url && c({ url, version }), null, listeners);
-			once(this.onRawUpdateDownloaded)(({ version, date, releaseNotes, quitAndUpdate }) => c({ version, date, releaseNotes, quitAndUpdate }), null, listeners);
+			once(this.onRawUpdateDownloaded)(({ version, date, releaseNotes }) => c({ version, date, releaseNotes }), null, listeners);
 
 			this.raw.checkForUpdates();
 		}).then(update => {
@@ -216,11 +202,10 @@ export class UpdateManager implements IUpdateService {
 				this.state = State.Idle;
 
 			} else if (update.url) {
-				const data: IRawUpdate = {
+				const data: IUpdate = {
 					releaseNotes: '',
 					version: '',
-					date: new Date(),
-					quitAndUpdate: () => electron.shell.openExternal(update.url)
+					date: new Date()
 				};
 
 				this._availableUpdate = data;
@@ -228,11 +213,10 @@ export class UpdateManager implements IUpdateService {
 				this.state = State.UpdateAvailable;
 
 			} else {
-				const data: IRawUpdate = {
+				const data: IUpdate = {
 					releaseNotes: update.releaseNotes,
 					version: update.version,
-					date: update.date,
-					quitAndUpdate: () => this.quitAndUpdate(update.quitAndUpdate)
+					date: update.date
 				};
 
 				this._availableUpdate = data;
@@ -271,7 +255,16 @@ export class UpdateManager implements IUpdateService {
 		return `${product.updateUrl}/api/update/${platform}/${channel}/${product.commit}`;
 	}
 
-	private quitAndUpdate(rawQuitAndUpdate: () => void): void {
+	quitAndInstall(): void {
+		if (!this._availableUpdate) {
+			return;
+		}
+
+		if (this._availableUpdate.url) {
+			electron.shell.openExternal(this._availableUpdate.url);
+			return;
+		}
+
 		this.lifecycleService.quit(true /* from update */).done(vetod => {
 			if (vetod) {
 				return;
@@ -284,7 +277,7 @@ export class UpdateManager implements IUpdateService {
 				electron.session.defaultSession.flushStorageData();
 			}
 
-			rawQuitAndUpdate();
+			this.raw.quitAndInstall();
 		});
 	}
 }

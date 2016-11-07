@@ -30,17 +30,15 @@ export interface IUpdate {
 
 export class Win32AutoUpdaterImpl extends EventEmitter {
 
-	private url: string;
-	private currentRequest: Promise;
+	private url: string = null;
+	private currentRequest: Promise = null;
+	private updatePackagePath: string = null;
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IRequestService private requestService: IRequestService
 	) {
 		super();
-
-		this.url = null;
-		this.currentRequest = null;
 	}
 
 	get cachePath(): TPromise<string> {
@@ -91,13 +89,14 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 								.then(() => updatePackagePath);
 						});
 					}).then(updatePackagePath => {
+						this.updatePackagePath = updatePackagePath;
+
 						this.emit('update-downloaded',
 							{},
 							update.releaseNotes,
 							update.productVersion,
 							new Date(),
-							this.url,
-							() => this.quitAndUpdate(updatePackagePath)
+							this.url
 						);
 					});
 				});
@@ -117,19 +116,6 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${product.quality}-${version}.exe`));
 	}
 
-	private quitAndUpdate(updatePackagePath: string): void {
-		this.lifecycleService.quit().done(vetod => {
-			if (vetod) {
-				return;
-			}
-
-			spawn(updatePackagePath, ['/silent', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
-				detached: true,
-				stdio: ['ignore', 'ignore', 'ignore']
-			});
-		});
-	}
-
 	private cleanup(exceptVersion: string = null): Promise {
 		const filter = exceptVersion ? one => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
@@ -140,5 +126,16 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 					.map(one => pfs.unlink(path.join(cachePath, one)).then(null, () => null))
 				))
 			);
+	}
+
+	quitAndInstall(): void {
+		if (!this.updatePackagePath) {
+			return;
+		}
+
+		spawn(this.updatePackagePath, ['/silent', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+			detached: true,
+			stdio: ['ignore', 'ignore', 'ignore']
+		});
 	}
 }

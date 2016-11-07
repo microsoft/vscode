@@ -261,10 +261,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 		ipc.on('vscode:update-apply', () => {
 			this.logService.log('IPC#vscode:update-apply');
-
-			if (this.updateService.availableUpdate) {
-				this.updateService.availableUpdate.quitAndUpdate();
-			}
+			this.updateService.quitAndInstall();
 		});
 
 		this.updateService.onUpdateNotAvailable(explicit => {
