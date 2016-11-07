@@ -60,6 +60,17 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 				} else {
 					return this._proxy.$removeConfigurationOption(target, key);
 				}
+			},
+			inspect(key: string) {
+				let result = ExtHostConfiguration._lookUp(key, <WorkspaceConfigurationNode>config);
+				if (isConfigurationValue(result)) {
+					return {
+						key: section ? `${section}.${key}` : key,
+						defaultValue: result.default,
+						globalValue: result.user,
+						workspaceValue: result.workspace
+					};
+				}
 			}
 		};
 
