@@ -228,7 +228,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		if (folders.length > 0) {
 			jumpList.push({
 				type: 'custom',
-				name: 'Recent Folders',
+				name: nls.localize('recentFolders', "Recent Folders"),
 				items: windowsMainService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
 					return <Electron.JumpListItem>{
 						type: 'task',
