@@ -18,6 +18,7 @@ import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
+import * as browser from 'vs/base/browser/browser';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
@@ -86,7 +87,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
-import { remote } from 'electron';
+import { remote, webFrame } from 'electron';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -363,6 +364,9 @@ export class WorkbenchShell {
 		errors.setUnexpectedErrorHandler((error: any) => {
 			this.onUnexpectedError(error);
 		});
+
+		// Ensure others can listen to zoom level changes
+		browser.setZoomLevel(webFrame.getZoomLevel());
 
 		// Shell Class for CSS Scoping
 		$(this.container).addClass('monaco-shell');
