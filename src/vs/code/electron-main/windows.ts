@@ -22,7 +22,7 @@ import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUpdateService } from 'vs/code/electron-main/update-manager';
+import { IUpdateService } from 'vs/platform/update/common/update';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

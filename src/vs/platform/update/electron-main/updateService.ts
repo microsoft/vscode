@@ -14,69 +14,22 @@ import { always, Throttler } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Win32AutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.win32';
-import { LinuxAutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.linux';
+import { Win32AutoUpdaterImpl } from './auto-updater.win32';
+import { LinuxAutoUpdaterImpl } from './auto-updater.linux';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestService } from 'vs/platform/request/common/request';
 import product from 'vs/platform/product';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IUpdateService, State, IAutoUpdater, IUpdate, IRawUpdate } from 'vs/platform/update/common/update';
 
-export enum State {
-	Uninitialized,
-	Idle,
-	CheckingForUpdate,
-	UpdateAvailable,
-	UpdateDownloaded
-}
-
-export enum ExplicitState {
-	Implicit,
-	Explicit
-}
-
-export interface IRawUpdate {
-	releaseNotes: string;
-	version: string;
-	date: Date;
-}
-
-export interface IUpdate {
-	version: string;
-	date?: Date;
-	releaseNotes?: string;
-	url?: string;
-}
-
-interface IRawAutoUpdater extends NodeJS.EventEmitter {
-	setFeedURL(url: string): void;
-	checkForUpdates(): void;
-	quitAndInstall(): void;
-}
-
-export const IUpdateService = createDecorator<IUpdateService>('updateService');
-
-export interface IUpdateService {
-	_serviceBrand: any;
-
-	readonly onError: Event<any>;
-	readonly onUpdateAvailable: Event<{ url: string; version: string; }>;
-	readonly onUpdateNotAvailable: Event<boolean>;
-	readonly onUpdateReady: Event<IRawUpdate>;
-	readonly onStateChange: Event<void>;
-
-	readonly state: State;
-	checkForUpdates(explicit: boolean): TPromise<IUpdate>;
-	quitAndInstall(): void;
-}
-
-export class UpdateManager implements IUpdateService {
+export class UpdateService implements IUpdateService {
 
 	_serviceBrand: any;
 
 	private _state: State = State.Uninitialized;
 	private _availableUpdate: IUpdate = null;
-	private raw: IRawAutoUpdater;
+	private raw: IAutoUpdater;
 	private throttler: Throttler = new Throttler();
 
 	private _onError = new Emitter<any>();

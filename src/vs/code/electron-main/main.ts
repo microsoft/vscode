@@ -19,7 +19,8 @@ import { WindowsService } from 'vs/platform/windows/electron-main/windowsService
 import { WindowEventChannel } from 'vs/code/common/windowsIpc';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
-import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
+import { IUpdateService } from 'vs/platform/update/common/update';
+import { UpdateService } from 'vs/platform/update/electron-main/updateService';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -454,7 +455,7 @@ function start(): void {
 	services.set(IStorageService, new SyncDescriptor(StorageService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IUpdateService, new SyncDescriptor(UpdateManager));
+	services.set(IUpdateService, new SyncDescriptor(UpdateService));
 	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
 
 	const instantiationService = new InstantiationService(services);
