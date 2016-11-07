@@ -133,7 +133,7 @@ export class ExtensionHostProcessWorker {
 								ids.push(ext.id);
 							}
 						}
-						this.telemetryService.publicLog('extHostUnresponsive', ids);
+						this.telemetryService.publicLog('extHostUnresponsive', { extensionIds: ids });
 					});
 				});
 			});
