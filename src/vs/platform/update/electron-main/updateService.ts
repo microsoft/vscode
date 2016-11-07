@@ -47,8 +47,8 @@ export class UpdateService implements IUpdateService {
 	private _onUpdateReady = new Emitter<IUpdate>();
 	get onUpdateReady(): Event<IUpdate> { return this._onUpdateReady.event; }
 
-	private _onStateChange = new Emitter<void>();
-	get onStateChange(): Event<void> { return this._onStateChange.event; }
+	private _onStateChange = new Emitter<State>();
+	get onStateChange(): Event<State> { return this._onStateChange.event; }
 
 	@memoize
 	private get onRawError(): Event<string> {
@@ -76,7 +76,7 @@ export class UpdateService implements IUpdateService {
 
 	set state(state: State) {
 		this._state = state;
-		this._onStateChange.fire();
+		this._onStateChange.fire(state);
 	}
 
 	get availableUpdate(): IUpdate {
@@ -208,7 +208,7 @@ export class UpdateService implements IUpdateService {
 		return `${product.updateUrl}/api/update/${platform}/${channel}/${product.commit}`;
 	}
 
-	quitAndInstall(): void {
+	quitAndInstall(): TPromise<void> {
 		if (!this._availableUpdate) {
 			return;
 		}

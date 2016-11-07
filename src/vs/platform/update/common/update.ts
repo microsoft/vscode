@@ -50,9 +50,9 @@ export interface IUpdateService {
 	readonly onUpdateAvailable: Event<{ url: string; version: string; }>;
 	readonly onUpdateNotAvailable: Event<boolean>;
 	readonly onUpdateReady: Event<IRawUpdate>;
-	readonly onStateChange: Event<void>;
+	readonly onStateChange: Event<State>;
 
 	readonly state: State;
 	checkForUpdates(explicit: boolean): TPromise<IUpdate>;
-	quitAndInstall(): void;
+	quitAndInstall(): TPromise<void>;
 }
