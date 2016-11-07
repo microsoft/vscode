@@ -81,6 +81,8 @@ import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
+import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
@@ -349,6 +351,10 @@ export class WorkbenchShell {
 
 		const integrityService = instantiationService.createInstance(IntegrityServiceImpl);
 		serviceCollection.set(IIntegrityService, integrityService);
+
+		const updateChannel = mainProcessClient.getChannel('update');
+		const updateChannelClient = new UpdateChannelClient(updateChannel);
+		serviceCollection.set(IUpdateService, updateChannelClient);
 
 		const urlChannel = mainProcessClient.getChannel('url');
 		const urlChannelClient = new URLChannelClient(urlChannel, windowIPCService.getWindowId());
