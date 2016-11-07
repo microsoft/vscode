@@ -748,11 +748,10 @@ export class VSCodeMenu {
 				return [];
 
 			case UpdateState.UpdateDownloaded:
-				const update = this.updateService.availableUpdate;
 				return [new MenuItem({
 					label: nls.localize('miRestartToUpdate', "Restart To Update..."), click: () => {
 						this.reportMenuActionTelemetry('RestartToUpdate');
-						update.quitAndUpdate();
+						this.updateService.quitAndInstall();
 					}
 				})];
 
@@ -761,10 +760,9 @@ export class VSCodeMenu {
 
 			case UpdateState.UpdateAvailable:
 				if (platform.isLinux) {
-					const update = this.updateService.availableUpdate;
 					return [new MenuItem({
 						label: nls.localize('miDownloadUpdate', "Download Available Update"), click: () => {
-							update.quitAndUpdate();
+							this.updateService.quitAndInstall();
 						}
 					})];
 				}
