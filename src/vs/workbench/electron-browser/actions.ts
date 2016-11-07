@@ -189,7 +189,7 @@ export class ToggleDevToolsAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<void> {
+	public run(): TPromise<void> {
 		return this.windowsService.toggleDevTools();
 	}
 }
