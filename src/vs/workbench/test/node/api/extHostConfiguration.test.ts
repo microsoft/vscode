@@ -91,8 +91,8 @@ suite('ExtHostConfiguration', function () {
 
 		const all = createExtHostConfiguration({
 			farboo: {
-				config0: true,
-				config4: '38'
+				config0: createConfigurationValue(true),
+				config4: createConfigurationValue('38')
 			}
 		});
 
