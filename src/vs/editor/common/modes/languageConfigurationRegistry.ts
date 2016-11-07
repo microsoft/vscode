@@ -4,84 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {
-	ICommentsConfiguration, IRichEditBrackets, IRichEditCharacterPair, IAutoClosingPair,
-	IAutoClosingPairConditional, IRichEditOnEnter, CharacterPair,
-	IRichEditElectricCharacter, EnterAction, IndentAction
-} from 'vs/editor/common/modes';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
-import { BracketElectricCharacterSupport, IBracketElectricCharacterContribution } from 'vs/editor/common/modes/supports/electricCharacter';
-import { IndentationRule, OnEnterRule, IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
+import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
+import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITokenizedModel } from 'vs/editor/common/editorCommon';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
+import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
+import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 
 /**
- * Describes how comments for a language work.
+ * Interface used to support insertion of mode specific comments.
  */
-export interface CommentRule {
-	/**
-	 * The line comment token, like `// this is a comment`
-	 */
-	lineComment?: string;
-	/**
-	 * The block comment character pair, like `/* block comment *&#47;`
-	 */
-	blockComment?: CharacterPair;
-}
-
-/**
- * The language configuration interface defines the contract between extensions and
- * various editor features, like automatic bracket insertion, automatic indentation etc.
- */
-export interface LanguageConfiguration {
-	/**
-	 * The language's comment settings.
-	 */
-	comments?: CommentRule;
-	/**
-	 * The language's brackets.
-	 * This configuration implicitly affects pressing Enter around these brackets.
-	 */
-	brackets?: CharacterPair[];
-	/**
-	 * The language's word definition.
-	 * If the language supports Unicode identifiers (e.g. JavaScript), it is preferable
-	 * to provide a word definition that uses exclusion of known separators.
-	 * e.g.: A regex that matches anything except known separators (and dot is allowed to occur in a floating point number):
-	 *   /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
-	 */
-	wordPattern?: RegExp;
-	/**
-	 * The language's indentation settings.
-	 */
-	indentationRules?: IndentationRule;
-	/**
-	 * The language's rules to be evaluated when pressing Enter.
-	 */
-	onEnterRules?: OnEnterRule[];
-	/**
-	 * The language's auto closing pairs. The 'close' character is automatically inserted with the
-	 * 'open' character is typed. If not set, the configured brackets will be used.
-	 */
-	autoClosingPairs?: IAutoClosingPairConditional[];
-	/**
-	 * The language's surrounding pairs. When the 'open' character is typed on a selection, the
-	 * selected string is surrounded by the open and close characters. If not set, the autoclosing pairs
-	 * settings will be used.
-	 */
-	surroundingPairs?: IAutoClosingPair[];
-	/**
-	 * **Deprecated** Do not use.
-	 *
-	 * @deprecated Will be replaced by a better API soon.
-	 */
-	__electricCharacterSupport?: IBracketElectricCharacterContribution;
+export interface ICommentsConfiguration {
+	lineCommentToken?: string;
+	blockCommentStartToken?: string;
+	blockCommentEndToken?: string;
 }
 
 export class RichEditSupport {
@@ -90,10 +33,10 @@ export class RichEditSupport {
 
 	public electricCharacter: BracketElectricCharacterSupport;
 	public comments: ICommentsConfiguration;
-	public characterPair: IRichEditCharacterPair;
+	public characterPair: CharacterPairSupport;
 	public wordDefinition: RegExp;
-	public onEnter: IRichEditOnEnter;
-	public brackets: IRichEditBrackets;
+	public onEnter: OnEnterSupport;
+	public brackets: RichEditBrackets;
 
 	constructor(modeId: string, previous: RichEditSupport, rawConf: LanguageConfiguration) {
 
@@ -112,8 +55,8 @@ export class RichEditSupport {
 
 		this._handleComments(modeId, this._conf);
 
-		this.characterPair = new CharacterPairSupport(LanguageConfigurationRegistry, modeId, this._conf);
-		this.electricCharacter = new BracketElectricCharacterSupport(LanguageConfigurationRegistry, modeId, this.brackets, this.characterPair.getAutoClosingPairs(), this._conf.__electricCharacterSupport);
+		this.characterPair = new CharacterPairSupport(this._conf);
+		this.electricCharacter = new BracketElectricCharacterSupport(this.brackets, this.characterPair.getAutoClosingPairs(), this._conf.__electricCharacterSupport);
 
 		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
 	}
@@ -150,7 +93,7 @@ export class RichEditSupport {
 		}
 
 		if (!empty) {
-			this.onEnter = new OnEnterSupport(LanguageConfigurationRegistry, modeId, onEnter);
+			this.onEnter = new OnEnterSupport(onEnter);
 		}
 	}
 
@@ -198,13 +141,37 @@ export class LanguageConfigurationRegistryImpl {
 		return this._entries[modeId];
 	}
 
-	public getElectricCharacterSupport(modeId: string): IRichEditElectricCharacter {
+	// begin electricCharacter
+
+	private _getElectricCharacterSupport(modeId: string): BracketElectricCharacterSupport {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
 		}
 		return value.electricCharacter || null;
 	}
+
+	public getElectricCharacters(modeId: string): string[] {
+		let electricCharacterSupport = this._getElectricCharacterSupport(modeId);
+		if (!electricCharacterSupport) {
+			return [];
+		}
+		return electricCharacterSupport.getElectricCharacters();
+	}
+
+	/**
+	 * Should return opening bracket type to match indentation with
+	 */
+	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction {
+		let scopedLineTokens = createScopedLineTokens(context, column - 1);
+		let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.modeId);
+		if (!electricCharacterSupport) {
+			return null;
+		}
+		return electricCharacterSupport.onElectricCharacter(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
+	}
+
+	// end electricCharacter
 
 	public getComments(modeId: string): ICommentsConfiguration {
 		let value = this._getRichEditSupport(modeId);
@@ -214,7 +181,9 @@ export class LanguageConfigurationRegistryImpl {
 		return value.comments || null;
 	}
 
-	public getCharacterPairSupport(modeId: string): IRichEditCharacterPair {
+	// begin characterPair
+
+	private _getCharacterPairSupport(modeId: string): CharacterPairSupport {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
@@ -222,15 +191,44 @@ export class LanguageConfigurationRegistryImpl {
 		return value.characterPair || null;
 	}
 
+	public getAutoClosingPairs(modeId: string): IAutoClosingPair[] {
+		let characterPairSupport = this._getCharacterPairSupport(modeId);
+		if (!characterPairSupport) {
+			return [];
+		}
+		return characterPairSupport.getAutoClosingPairs();
+	}
+
+	public getSurroundingPairs(modeId: string): IAutoClosingPair[] {
+		let characterPairSupport = this._getCharacterPairSupport(modeId);
+		if (!characterPairSupport) {
+			return [];
+		}
+		return characterPairSupport.getSurroundingPairs();
+	}
+
+	public shouldAutoClosePair(character: string, context: LineTokens, column: number): boolean {
+		let scopedLineTokens = createScopedLineTokens(context, column - 1);
+		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.modeId);
+		if (!characterPairSupport) {
+			return false;
+		}
+		return characterPairSupport.shouldAutoClosePair(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
+	}
+
+	// end characterPair
+
 	public getWordDefinition(modeId: string): RegExp {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
-			return null;
+			return ensureValidWordDefinition(null);
 		}
-		return value.wordDefinition || null;
+		return ensureValidWordDefinition(value.wordDefinition || null);
 	}
 
-	public getOnEnterSupport(modeId: string): IRichEditOnEnter {
+	// begin onEnter
+
+	private _getOnEnterSupport(modeId: string): OnEnterSupport {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
@@ -239,18 +237,35 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	public getRawEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): EnterAction {
-		let result: EnterAction;
+		let lineTokens = model.getLineTokens(lineNumber, false);
+		let scopedLineTokens = createScopedLineTokens(lineTokens, column - 1);
+		let onEnterSupport = this._getOnEnterSupport(scopedLineTokens.modeId);
+		if (!onEnterSupport) {
+			return null;
+		}
 
-		let onEnterSupport = this.getOnEnterSupport(model.getMode().getId());
+		let scopedLineText = scopedLineTokens.getLineContent();
+		let beforeEnterText = scopedLineText.substr(0, column - 1 - scopedLineTokens.firstCharOffset);
+		let afterEnterText = scopedLineText.substr(column - 1 - scopedLineTokens.firstCharOffset);
 
-		if (onEnterSupport) {
-			try {
-				result = onEnterSupport.onEnter(model, new Position(lineNumber, column));
-			} catch (e) {
-				onUnexpectedError(e);
+		let oneLineAboveText = '';
+		if (lineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
+			// This is not the first line and the entire line belongs to this mode
+			let oneLineAboveLineTokens = model.getLineTokens(lineNumber - 1, false);
+			let oneLineAboveMaxColumn = model.getLineMaxColumn(lineNumber - 1);
+			let oneLineAboveScopedLineTokens = createScopedLineTokens(oneLineAboveLineTokens, oneLineAboveMaxColumn - 1);
+			if (oneLineAboveScopedLineTokens.modeId === scopedLineTokens.modeId) {
+				// The line above ends with text belonging to the same mode
+				oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
 			}
 		}
 
+		let result: EnterAction = null;
+		try {
+			result = onEnterSupport.onEnter(oneLineAboveText, beforeEnterText, afterEnterText);
+		} catch (e) {
+			onUnexpectedError(e);
+		}
 		return result;
 	}
 
@@ -290,7 +305,9 @@ export class LanguageConfigurationRegistryImpl {
 		};
 	}
 
-	public getBracketsSupport(modeId: string): IRichEditBrackets {
+	// end onEnter
+
+	public getBracketsSupport(modeId: string): RichEditBrackets {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;

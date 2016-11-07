@@ -7,5 +7,5 @@
 	"actions.repl.acceptInput": "REPL - Aceptar entrada",
 	"actions.repl.historyNext": "Historial siguiente",
 	"actions.repl.historyPrevious": "Historial anterior",
-	"replAriaLabel": "Panel del bucle de lectura-evaluación-impresión"
+	"replAriaLabel": "Panel de read–eval–print loop"
 }

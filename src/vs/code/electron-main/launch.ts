@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWindowsService } from 'vs/code/electron-main/windows';
+import { IWindowsMainService } from 'vs/code/electron-main/windows';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -63,7 +63,7 @@ export class LaunchService implements ILaunchService {
 
 	constructor(
 		@ILogService private logService: ILogService,
-		@IWindowsService private windowsService: IWindowsService,
+		@IWindowsMainService private windowsService: IWindowsMainService,
 		@IURLService private urlService: IURLService
 	) { }
 

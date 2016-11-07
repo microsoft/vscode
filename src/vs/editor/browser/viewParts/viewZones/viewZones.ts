@@ -200,7 +200,7 @@ export class ViewZones extends ViewPart {
 
 	public removeZone(id: number): boolean {
 		if (this._zones.hasOwnProperty(id.toString())) {
-			var zone = this._zones[id.toString()];
+			let zone = this._zones[id.toString()];
 			delete this._zones[id.toString()];
 			this._whitespaceManager.removeWhitespace(zone.whitespaceId);
 
@@ -234,7 +234,7 @@ export class ViewZones extends ViewPart {
 
 	public shouldSuppressMouseDownOnViewZone(id: number): boolean {
 		if (this._zones.hasOwnProperty(id.toString())) {
-			var zone = this._zones[id.toString()];
+			let zone = this._zones[id.toString()];
 			return zone.delegate.suppressMouseDown;
 		}
 		return false;

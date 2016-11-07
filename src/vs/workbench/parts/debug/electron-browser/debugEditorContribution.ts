@@ -63,7 +63,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 				nls.localize('addBreakpoint', "Add Breakpoint"),
 				null,
 				true,
-				() => this.debugService.addBreakpoints([{ uri, lineNumber }])
+				() => this.debugService.addBreakpoints(uri, [{ lineNumber }])
 			));
 			actions.push(this.instantiationService.createInstance(debugactions.AddConditionalBreakpointAction, debugactions.AddConditionalBreakpointAction.ID, debugactions.AddConditionalBreakpointAction.LABEL, this.editor, lineNumber));
 		}
@@ -76,16 +76,18 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 			if (e.target.type !== editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail) {
 				return;
 			}
-			if (!this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
-				return;
-			}
+			const canSetBreakpoints = this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel());
 
 			const lineNumber = e.target.position.lineNumber;
 			const uri = this.editor.getModel().uri;
 
 			if (e.event.rightButton || (env.isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
+				if (!canSetBreakpoints) {
+					return;
+				}
+
 				const anchor = { x: e.event.posx + 1, y: e.event.posy };
-				const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+				const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop();
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
@@ -94,12 +96,12 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 				});
 			} else {
 				const breakpoint = this.debugService.getModel().getBreakpoints()
-					.filter(bp => bp.source.uri.toString() === uri.toString() && bp.lineNumber === lineNumber).pop();
+					.filter(bp => bp.uri.toString() === uri.toString() && bp.lineNumber === lineNumber).pop();
 
 				if (breakpoint) {
 					this.debugService.removeBreakpoints(breakpoint.getId());
-				} else {
-					this.debugService.addBreakpoints([{ uri, lineNumber }]);
+				} else if (canSetBreakpoints) {
+					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
 				}
 			}
 		}));

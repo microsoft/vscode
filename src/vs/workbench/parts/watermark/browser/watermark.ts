@@ -7,24 +7,46 @@
 import 'vs/css!./watermark';
 import { $ } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { Registry } from 'vs/platform/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
-const entries = [
+interface WatermarkEntry {
+	text: string;
+	ids: string[];
+	folder?: boolean;
+}
+
+const entries: WatermarkEntry[] = [
 	{
-		text: nls.localize('watermark.showCommands', "Command Palette"),
+		text: nls.localize('watermark.showCommands', "Show All Commands"),
 		ids: ['workbench.action.showCommands']
 	},
 	{
 		text: nls.localize('watermark.quickOpen', "Go to File"),
-		ids: ['workbench.action.quickOpen']
+		ids: ['workbench.action.quickOpen'],
+		folder: true
 	},
+	isMacintosh ?
+		{
+			text: nls.localize('watermark.openFileFolder', "Open File or Folder"),
+			ids: ['workbench.action.files.openFileFolder'],
+			folder: false
+		}
+		:
+		{
+			text: nls.localize('watermark.openFile', "Open File"),
+			ids: ['workbench.action.files.openFile'],
+			folder: false
+		}
+	,
 	{
 		text: nls.localize('watermark.moveLines', "Move Lines Up/Down"),
 		ids: ['editor.action.moveLinesUpAction', 'editor.action.moveLinesDownAction']
@@ -49,6 +71,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService private keybindingService: IKeybindingService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		if (telemetryService.getExperiments().showCommandsWatermark) {
@@ -70,10 +93,12 @@ export class WatermarkContribution implements IWorkbenchContribution {
 			.div({ 'class': 'watermark' });
 		const box = $(watermark)
 			.div({ 'class': 'watermark-box' });
+		const folder = !!this.contextService.getWorkspace();
+		const selected = entries.filter(entry => !('folder' in entry) || entry.folder === folder);
 		const update = () => {
 			const builder = $(box);
 			builder.clearChildren();
-			entries.map(entry => {
+			selected.map(entry => {
 				builder.element('dl', {}, dl => {
 					dl.element('dt', {}, dt => dt.text(entry.text));
 					dl.element('dd', {}, dd => dd.innerHtml(

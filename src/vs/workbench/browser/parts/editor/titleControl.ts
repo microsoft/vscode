@@ -79,6 +79,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	private previewEditors: boolean;
 	private showTabs: boolean;
+	protected showTabCloseButton: boolean;
 
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
@@ -154,6 +155,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
 		this.previewEditors = config.workbench && config.workbench.editor && config.workbench.editor.enablePreview;
 		this.showTabs = config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
+		this.showTabCloseButton = config.workbench && config.workbench.editor && config.workbench.editor.showTabCloseButton;
 	}
 
 	private updateSplitActionEnablement(): void {

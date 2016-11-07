@@ -14,9 +14,10 @@
 	"terminal.integrated.setLocaleVariables": "控制是否在终端启动时设置区域设置变量，在 OS X 上默认设置为 true，在其他平台上为 false。",
 	"terminal.integrated.shell.linux": "终端在 Linux 上使用的 shell 的路径。",
 	"terminal.integrated.shell.osx": "终端在 OS X 上使用的 shell 的路径。",
-	"terminal.integrated.shell.windows": "终端在 Windows 上使用的 shell 的路径。使用随 Windows 一起提供的 shell 时(cmd、PowerShell 或 Ubuntu 上的 Bash)，相对 C:WindowsSystem32，首选 C:Windowssysnative 以使用 64 位版本。",
+	"terminal.integrated.shell.windows": "终端在 Windows 上使用的 shell 的路径。使用随 Windows 一起提供的 shell 时(cmd、PowerShell 或 Ubuntu 上的 Bash)，相对 C:\\Windows\\System32，首选 C:\\Windows\\sysnative 以使用 64 位版本。",
 	"terminal.integrated.shellArgs.linux": "在 Linux 终端上时要使用的命令行参数。",
 	"terminal.integrated.shellArgs.osx": "在 OS X 终端上时要使用的命令行参数。",
+	"terminal.integrated.shellArgs.windows": "在 Windows 终端上时使用的命令行参数。",
 	"terminalCategory": "终端",
 	"terminalIntegratedConfigurationTitle": "集成终端",
 	"viewCategory": "查看"

@@ -68,7 +68,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 		}
 	}
 
-	public setProcessId(processId: number): void {
+	public _setProcessId(processId: number): void {
 		this._pidPromiseComplete(processId);
 		this._pidPromiseComplete = null;
 	}
@@ -123,7 +123,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
 		let terminal = this._getTerminalById(id);
-		terminal.setProcessId(processId);
+		terminal._setProcessId(processId);
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {

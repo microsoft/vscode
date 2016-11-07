@@ -17,6 +17,8 @@
 	"restoreFullscreen": "Controla si una ventana se debe restaurar al modo de pantalla completa si se salió de ella en dicho modo.",
 	"showEditorTabs": "Controla si los editores abiertos se deben mostrar o no en pestañas.",
 	"showIcons": "Controla si los editores abiertos deben mostrarse o no con un icono. Requiere que también se habilite un tema de icono.",
+	"sideBarLocation": "Controla la ubicación de la barra lateral. Puede mostrarse a la izquierda o a la derecha del área de trabajo.",
+	"statusBarVisibility": "Controla la visibilidad de la barra de estado en la parte inferior del área de trabajo.",
 	"updateChannel": "Configure si recibirá actualizaciones automáticas de un canal de actualización. Es necesario reiniciar tras el cambio.",
 	"updateConfigurationTitle": "Actualización",
 	"view": "Ver",

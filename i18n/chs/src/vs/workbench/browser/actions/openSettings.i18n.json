@@ -7,6 +7,7 @@
 	"defaultKeybindings": "默认键盘快捷方式",
 	"defaultKeybindingsHeader": "通过将键绑定放入键绑定文件中来覆盖键绑定。",
 	"defaultName": "默认设置",
+	"defaultSettingsEditor": "默认设置编辑器",
 	"defaultSettingsHeader": "通过将设置放入设置文件中来覆盖设置。",
 	"defaultSettingsHeader2": "请参阅 http://go.microsoft.com/fwlink/?LinkId=808995 以了解最常用的设置。",
 	"emptyKeybindingsHeader": "将键绑定放入此文件中以覆盖默认值",

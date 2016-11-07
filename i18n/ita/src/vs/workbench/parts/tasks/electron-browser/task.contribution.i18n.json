@@ -83,6 +83,7 @@
 	"TerminateAction.noProcess": "Il processo avviato non esiste più. Se l'attività implica la generazione di attività in background, uscendo da Visual Studio Code potrebbero essere presenti processi orfani.",
 	"TestAction.label": "Esegui attività di test",
 	"manyMarkers": "Più di 99",
+	"problems": "Problemi",
 	"taskCommands": "Esegui attività",
 	"tasks": "Attività",
 	"tasksCategory": "Attività"

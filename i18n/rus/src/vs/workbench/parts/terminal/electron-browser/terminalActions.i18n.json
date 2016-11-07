@@ -17,6 +17,8 @@
 	"workbench.action.terminal.runSelectedText": "Запуск выбранного текста в активном терминале",
 	"workbench.action.terminal.scrollDown": "Прокрутка вниз (построчно)",
 	"workbench.action.terminal.scrollDownPage": "Прокрутить вниз (страницу)",
+	"workbench.action.terminal.scrollToBottom": "Прокрутить до нижней границы",
+	"workbench.action.terminal.scrollToTop": "Прокрутить до верхней границы",
 	"workbench.action.terminal.scrollUp": "Прокрутка вверх (построчно)",
 	"workbench.action.terminal.scrollUpPage": "Прокрутить вверх (страницу)",
 	"workbench.action.terminal.switchTerminalInstance": "Переключить экземпляр терминала",

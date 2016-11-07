@@ -77,6 +77,13 @@
 			"settings": {
 				"foreground": "#0451a5"
 			}
+		},
+		{
+			"name": "JSX Tag names, workaround for flattening match with function",
+			"scope": "entity.name.function.tag",
+			"settings": {
+				"foreground": "#800000"
+			}
 		}
 	]
 }

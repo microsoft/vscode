@@ -16,7 +16,6 @@ import { EditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/comm
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { workbenchInstantiationService } from 'vs/test/utils/servicesTestUtils';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -40,7 +39,7 @@ let openedEditorOptions;
 let openedEditorPosition;
 
 function toResource(path) {
-	return URI.file(paths.join('C:\\', path));
+	return URI.file(paths.join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
 }
 
 class TestEditorPart implements IEditorPart {
@@ -272,7 +271,7 @@ suite('Workbench UI Services', () => {
 	test('WorkbenchEditorService', function () {
 		let instantiationService = workbenchInstantiationService();
 
-		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), void 0);
+		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/something.js'), void 0);
 
 		let testEditorPart = new TestEditorPart();
 		testEditorPart.setActiveEditorInput(activeInput);
@@ -299,12 +298,12 @@ suite('Workbench UI Services', () => {
 		});
 
 		// Open Untyped Input
-		service.openEditor({ resource: toResource('/index.html'), options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
+		service.openEditor({ resource: toResource.call(this, '/index.html'), options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
 			assert.strictEqual(editor, activeEditor);
 
 			assert(openedEditorInput instanceof FileEditorInput);
 			let contentInput = <FileEditorInput>openedEditorInput;
-			assert.strictEqual(contentInput.getResource().fsPath, toResource('/index.html').fsPath);
+			assert.strictEqual(contentInput.getResource().fsPath, toResource.call(this, '/index.html').fsPath);
 
 			assert(openedEditorOptions instanceof TextEditorOptions);
 			let textEditorOptions = <TextEditorOptions>openedEditorOptions;
@@ -313,27 +312,22 @@ suite('Workbench UI Services', () => {
 
 		// Resolve Editor Model (Typed EditorInput)
 		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
-		service.resolveEditorModel(input, true).then((model: StringEditorModel) => {
+		input.resolve(true).then((model: StringEditorModel) => {
 			assert(model instanceof StringEditorModel);
 
 			assert(model.isResolved());
 
-			service.resolveEditorModel(input, false).then((otherModel) => {
+			input.resolve().then((otherModel) => {
 				assert(model === otherModel);
 
 				input.dispose();
 			});
 		});
-
-		// Resolve Editor Model (Untyped Input)
-		service.resolveEditorModel({ resource: toResource('/index.html') }, true).then((model) => {
-			assert(model instanceof TextFileEditorModel);
-		});
 	});
 
 	test('DelegatingWorkbenchEditorService', function () {
 		let instantiationService = workbenchInstantiationService();
-		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), void 0);
+		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/something.js'), void 0);
 
 		let testEditorPart = new TestEditorPart();
 		testEditorPart.setActiveEditorInput(activeInput);

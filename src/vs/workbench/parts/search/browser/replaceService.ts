@@ -21,13 +21,18 @@ import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 
 class EditorInputCache {
 
 	private cache: Map.LinkedMap<URI, TPromise<DiffEditorInput>>;
 
-	constructor(private replaceService: ReplaceService, private editorService: IWorkbenchEditorService,
-		private modelService: IModelService) {
+	constructor(
+		private replaceService: ReplaceService,
+		private editorService: IWorkbenchEditorService,
+		private modelService: IModelService,
+		private textModelResolverService: ITextModelResolverService
+	) {
 		this.cache = new Map.LinkedMap<URI, TPromise<DiffEditorInput>>();
 	}
 
@@ -52,10 +57,12 @@ class EditorInputCache {
 		if (editorInputPromise) {
 			editorInputPromise.done(() => {
 				if (reloadFromSource) {
-					this.editorService.resolveEditorModel({ resource: fileMatch.resource() }).then(value => {
-						let replaceResource = this.getReplaceResource(fileMatch.resource());
-						this.modelService.getModel(replaceResource).setValue(value.textEditorModel.getValue());
-						this.replaceService.replace(fileMatch, null, replaceResource);
+					this.textModelResolverService.resolve(fileMatch.resource()).then(editorModel => {
+						if (editorModel.textEditorModel) {
+							let replaceResource = this.getReplaceResource(fileMatch.resource());
+							this.modelService.getModel(replaceResource).setValue(editorModel.textEditorModel.getValue());
+							this.replaceService.replace(fileMatch, null, replaceResource);
+						}
 					});
 				} else {
 					let replaceResource = this.getReplaceResource(fileMatch.resource());
@@ -101,7 +108,7 @@ class EditorInputCache {
 
 	private createRightInput(element: FileMatch): TPromise<IEditorInput> {
 		return new TPromise((c, e, p) => {
-			this.editorService.resolveEditorModel({ resource: element.resource() }).then(value => {
+			this.textModelResolverService.resolve(element.resource()).then(value => {
 				let model = value.textEditorModel;
 				let replaceResource = this.getReplaceResource(element.resource());
 				this.modelService.createModel(model.getValue(), model.getMode(), replaceResource);
@@ -126,8 +133,14 @@ export class ReplaceService implements IReplaceService {
 
 	private cache: EditorInputCache;
 
-	constructor( @ITelemetryService private telemetryService: ITelemetryService, @IEventService private eventService: IEventService, @IEditorService private editorService, @IModelService private modelService: IModelService) {
-		this.cache = new EditorInputCache(this, editorService, modelService);
+	constructor(
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IEventService private eventService: IEventService,
+		@IEditorService private editorService: IWorkbenchEditorService,
+		@IModelService private modelService: IModelService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+	) {
+		this.cache = new EditorInputCache(this, editorService, modelService, textModelResolverService);
 	}
 
 	public replace(match: Match): TPromise<any>
@@ -135,7 +148,7 @@ export class ReplaceService implements IReplaceService {
 	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
-		let bulkEdit: BulkEdit = createBulkEdit(this.eventService, this.editorService, null);
+		let bulkEdit: BulkEdit = createBulkEdit(this.eventService, this.textModelResolverService, null);
 		bulkEdit.progress(progress);
 
 		if (arg instanceof Match) {

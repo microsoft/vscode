@@ -37,7 +37,7 @@ import { MainThreadFileSystemEventService } from './mainThreadFileSystemEventSer
 import { MainProcessTextMateSyntax } from 'vs/editor/node/textMate/TMSyntax';
 import { MainProcessTextMateSnippet } from 'vs/editor/node/textMate/TMSnippets';
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
-import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfiguration';
+import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfigurationExtensionPoint';
 import { SaveParticipant } from './mainThreadSaveParticipant';
 
 // --- registers itself as service

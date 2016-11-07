@@ -7,8 +7,8 @@
 import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionDescription, IExtensionService, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionDescription, IExtensionService, IExtensionsStatus, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
+import { IExtensionPoint, onWillActivate } from 'vs/platform/extensions/common/extensionsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -35,6 +35,7 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 	protected _activatedExtensions: IActivatedExtensionMap<T>;
 	private _onReady: TPromise<boolean>;
 	private _onReadyC: (v: boolean) => void;
+	protected _registry: ExtensionDescriptionRegistry;
 
 	constructor(isReadyByDefault: boolean) {
 		if (isReadyByDefault) {
@@ -49,6 +50,7 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 		}
 		this._activatingExtensions = {};
 		this._activatedExtensions = {};
+		this._registry = new ExtensionDescriptionRegistry();
 	}
 
 	protected _triggerOnReady(): void {
@@ -57,6 +59,29 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 
 	public onReady(): TPromise<boolean> {
 		return this._onReady;
+	}
+
+	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
+		return this.onReady().then(() => {
+			let availableExtensions = this._registry.getAllExtensionDescriptions();
+
+			let result: ExtensionPointContribution<T>[] = [], resultLen = 0;
+			for (let i = 0, len = availableExtensions.length; i < len; i++) {
+				let desc = availableExtensions[i];
+
+				if (desc.contributes && hasOwnProperty.call(desc.contributes, extPoint.name)) {
+					result[resultLen++] = new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name]);
+				}
+			}
+
+			return result;
+		});
+	}
+
+	public getExtensions(): TPromise<IExtensionDescription[]> {
+		return this.onReady().then(() => {
+			return this._registry.getAllExtensionDescriptions();
+		});
 	}
 
 	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
@@ -69,15 +94,15 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
 		return this._onReady.then(() => {
-			ExtensionsRegistry.triggerActivationEventListeners(activationEvent);
-			let activateExtensions = ExtensionsRegistry.getExtensionDescriptionsForActivationEvent(activationEvent);
+			onWillActivate.fire(activationEvent);
+			let activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
 			return this._activateExtensions(activateExtensions, 0);
 		});
 	}
 
 	public activateById(extensionId: string): TPromise<void> {
 		return this._onReady.then(() => {
-			let desc = ExtensionsRegistry.getExtensionDescription(extensionId);
+			let desc = this._registry.getExtensionDescription(extensionId);
 			if (!desc) {
 				throw new Error('Extension `' + extensionId + '` is not known');
 			}
@@ -96,7 +121,7 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 
 		for (let j = 0, lenJ = depIds.length; j < lenJ; j++) {
 			let depId = depIds[j];
-			let depDesc = ExtensionsRegistry.getExtensionDescription(depId);
+			let depDesc = this._registry.getExtensionDescription(depId);
 
 			if (!depDesc) {
 				// Error condition 1: unknown dependency
@@ -205,4 +230,62 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 	protected abstract _createFailedExtension(): T;
 
 	protected abstract _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<T>;
+}
+
+
+interface IExtensionDescriptionMap {
+	[extensionId: string]: IExtensionDescription;
+}
+
+export class ExtensionDescriptionRegistry {
+	private _extensionsMap: IExtensionDescriptionMap;
+	private _extensionsArr: IExtensionDescription[];
+	private _activationMap: { [activationEvent: string]: IExtensionDescription[]; };
+
+	constructor() {
+		this._extensionsMap = {};
+		this._extensionsArr = [];
+		this._activationMap = {};
+	}
+
+	public registerExtensions(extensionDescriptions: IExtensionDescription[]): void {
+		for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
+			let extensionDescription = extensionDescriptions[i];
+
+			if (hasOwnProperty.call(this._extensionsMap, extensionDescription.id)) {
+				// No overwriting allowed!
+				console.error('Extension `' + extensionDescription.id + '` is already registered');
+				continue;
+			}
+
+			this._extensionsMap[extensionDescription.id] = extensionDescription;
+			this._extensionsArr.push(extensionDescription);
+
+			if (Array.isArray(extensionDescription.activationEvents)) {
+				for (let j = 0, lenJ = extensionDescription.activationEvents.length; j < lenJ; j++) {
+					let activationEvent = extensionDescription.activationEvents[j];
+					this._activationMap[activationEvent] = this._activationMap[activationEvent] || [];
+					this._activationMap[activationEvent].push(extensionDescription);
+				}
+			}
+		}
+	}
+
+	public getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {
+		if (!hasOwnProperty.call(this._activationMap, activationEvent)) {
+			return [];
+		}
+		return this._activationMap[activationEvent].slice(0);
+	}
+
+	public getAllExtensionDescriptions(): IExtensionDescription[] {
+		return this._extensionsArr.slice(0);
+	}
+
+	public getExtensionDescription(extensionId: string): IExtensionDescription {
+		if (!hasOwnProperty.call(this._extensionsMap, extensionId)) {
+			return null;
+		}
+		return this._extensionsMap[extensionId];
+	}
 }

@@ -21,7 +21,7 @@ import errors = require('vs/base/common/errors');
 import { IConfigFile, consolidate, newConfigFile } from 'vs/workbench/services/configuration/common/model';
 import { IConfigurationServiceEvent, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService as BaseConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IWorkspaceConfigurationService, IWorkspaceConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationService, IWorkspaceConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { EventType as FileEventType, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -52,6 +52,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 
 	private cachedConfig: any;
 	private cachedWorkspaceConfig: any;
+	private cachedWorkspaceKeys: string[];
 
 	private bulkFetchFromWorkspacePromise: TPromise<any>;
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IConfigFile> };
@@ -125,6 +126,16 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		};
 	}
 
+	public keys() {
+		const keys = this.baseConfigurationService.keys();
+
+		return {
+			default: keys.default,
+			user: keys.user,
+			workspace: this.cachedWorkspaceKeys
+		};
+	}
+
 	public reloadConfiguration(section?: string): TPromise<any> {
 
 		// Reset caches to ensure we are hitting the disk
@@ -143,6 +154,22 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 			// Consolidate (support *.json files in the workspace settings folder)
 			const workspaceConfig = consolidate(workspaceConfigFiles).contents;
 			this.cachedWorkspaceConfig = workspaceConfig;
+
+			// Cache keys
+			const workspaceConfigKeys = [];
+			Object.keys(workspaceConfigFiles).forEach(path => {
+				if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
+					workspaceConfigKeys.push(...Object.keys(workspaceConfigFiles[path].raw));
+				} else {
+					const workspaceConfigs = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
+					workspaceConfigs.forEach(workspaceConfig => {
+						if (path === WORKSPACE_STANDALONE_CONFIGURATIONS[workspaceConfig]) {
+							workspaceConfigKeys.push(...Object.keys(workspaceConfigFiles[path].raw).map(key => `${workspaceConfig}.${key}`));
+						}
+					});
+				}
+			});
+			this.cachedWorkspaceKeys = workspaceConfigKeys;
 
 			// Override base (global < user) with workspace locals (global < user < workspace)
 			return objects.mixin(
@@ -172,14 +199,21 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 			return TPromise.as(Object.create(null));
 		}
 
-		// once: when invoked for the first time we fetch *all* json files using the bulk stats and content routes
+		// once: when invoked for the first time we fetch json files that contribute settings
 		if (!this.bulkFetchFromWorkspacePromise) {
 			this.bulkFetchFromWorkspacePromise = resolveStat(this.contextService.toResource(this.workspaceSettingsRootFolder)).then(stat => {
 				if (!stat.isDirectory) {
 					return TPromise.as([]);
 				}
 
-				return resolveContents(stat.children.filter(stat => paths.extname(stat.resource.fsPath) === '.json').map(stat => stat.resource));
+				return resolveContents(stat.children.filter(stat => {
+					const isJson = paths.extname(stat.resource.fsPath) === '.json';
+					if (!isJson) {
+						return false; // only JSON files
+					}
+
+					return this.isWorkspaceConfigurationFile(this.contextService.toWorkspaceRelativePath(stat.resource)); // only workspace config files
+				}).map(stat => stat.resource));
 			}, (err) => {
 				if (err) {
 					return []; // never fail this call
@@ -200,7 +234,13 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 
 		// Find changes that affect workspace configuration files
 		for (let i = 0, len = events.length; i < len; i++) {
-			const workspacePath = this.contextService.toWorkspaceRelativePath(events[i].resource);
+			const resource = events[i].resource;
+			const isJson = paths.extname(resource.fsPath) === '.json';
+			if (!isJson) {
+				continue; // only JSON files
+			}
+
+			const workspacePath = this.contextService.toWorkspaceRelativePath(resource);
 			if (!workspacePath) {
 				continue; // event is not inside workspace
 			}
@@ -211,8 +251,8 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 				affectedByChanges = true;
 			}
 
-			// outside my folder or not a *.json file
-			if (paths.extname(workspacePath) !== '.json' || !paths.isEqualOrParent(workspacePath, this.workspaceSettingsRootFolder)) {
+			// only valid workspace config files
+			if (!this.isWorkspaceConfigurationFile(workspacePath)) {
 				continue;
 			}
 
@@ -224,7 +264,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 					break;
 				case FileChangeType.UPDATED:
 				case FileChangeType.ADDED:
-					this.workspaceFilePathToConfiguration[workspacePath] = resolveContent(events[i].resource).then(content => newConfigFile(content.value), errors.onUnexpectedError);
+					this.workspaceFilePathToConfiguration[workspacePath] = resolveContent(resource).then(content => newConfigFile(content.value), errors.onUnexpectedError);
 					affectedByChanges = true;
 			}
 		}
@@ -233,6 +273,10 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		if (affectedByChanges && !this.reloadConfigurationScheduler.isScheduled()) {
 			this.reloadConfigurationScheduler.schedule();
 		}
+	}
+
+	private isWorkspaceConfigurationFile(workspaceRelativePath: string): boolean {
+		return [WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS.launch, WORKSPACE_STANDALONE_CONFIGURATIONS.tasks].some(p => p === workspaceRelativePath);
 	}
 
 	public set telemetryService(value: ITelemetryService) {

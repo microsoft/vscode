@@ -7,10 +7,11 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtensionHostMain, IInitData, exit } from 'vs/workbench/node/extensionHostMain';
+import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
 import { create as createIPC, IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import marshalling = require('vs/base/common/marshalling');
 import { createQueuedSender } from 'vs/base/node/processes';
+import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 
 interface IRendererConnection {
 	remoteCom: IMainProcessExtHostIPC;
@@ -104,6 +105,12 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 				}
 				stats.length = 0;
 			}, 1000);
+
+
+			// Send heartbeat
+			setInterval(function () {
+				queuedSender.send('__$heartbeat');
+			}, 250);
 
 			// Tell the outside that we are initialized
 			queuedSender.send('initialized');

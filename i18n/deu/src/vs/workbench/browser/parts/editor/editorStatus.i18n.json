@@ -38,6 +38,7 @@
 	"selectEOL": "Zeilenendesequenz auswählen",
 	"selectEncoding": "Codierung auswählen",
 	"selectLanguageMode": "Sprachmodus auswählen",
+	"showLanguageExtensions": "Marketplace-Erweiterungen für \"{0}\" durchsuchen...",
 	"singleSelection": "Zeile {0}, Spalte {1}",
 	"singleSelectionRange": "Zeile {0}, Spalte {1} ({2} ausgewählt)",
 	"spacesSize": "Leerzeichen: {0}",
