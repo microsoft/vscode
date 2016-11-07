@@ -10,16 +10,17 @@ import { isString } from 'vs/base/common/types';
 import { Promise } from 'vs/base/common/winjs.base';
 import { asJson } from 'vs/base/node/request';
 import { IRequestService } from 'vs/platform/request/common/request';
+import { IAutoUpdater } from 'vs/platform/update/common/update';
 import product from 'vs/platform/product';
 
-export interface IUpdate {
+interface IUpdate {
 	url: string;
 	name: string;
 	releaseNotes?: string;
 	version?: string;
 }
 
-export class LinuxAutoUpdaterImpl extends EventEmitter {
+export class LinuxAutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 
 	private url: string;
 	private currentRequest: Promise;

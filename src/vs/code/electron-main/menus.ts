@@ -15,7 +15,7 @@ import { IPath, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
-import { IUpdateService, State as UpdateState } from 'vs/code/electron-main/update-manager';
+import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import { Keybinding } from 'vs/base/common/keybinding';
 import product from 'vs/platform/product';
 
