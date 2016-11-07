@@ -8,7 +8,12 @@ Packager: Visual Studio Code Team <vscode-linux@microsoft.com>
 License:  MIT
 URL:      https://code.visualstudio.com/
 Icon:     @@NAME@@.xpm
-Requires: glibc >= 2.15, libXss.so.1
+Requires: glibc >= 2.15
+%ifarch x86_64
+Requires: libXss.so.1()(64bit)
+%else
+Requires: libXss.so.1
+%endif
 AutoReq:  0
 
 %description
