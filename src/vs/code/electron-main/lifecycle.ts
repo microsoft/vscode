@@ -140,9 +140,11 @@ export class LifecycleService implements ILifecycleService {
 			this.unload(vscodeWindow).done(veto => {
 				if (!veto) {
 					// Clear out any workspace backups from workspaces.json that don't have any backups
-					const workspaceResource = Uri.file(vscodeWindow.openedWorkspacePath);
-					if (!this.backupService.doesWorkspaceHaveBackups(workspaceResource)) {
-						this.backupService.removeWorkspaceBackupPathSync(workspaceResource);
+					if (vscodeWindow.openedWorkspacePath) {
+						const workspaceResource = Uri.file(vscodeWindow.openedWorkspacePath);
+						if (!this.backupService.doesWorkspaceHaveBackups(workspaceResource)) {
+							this.backupService.removeWorkspaceBackupPathSync(workspaceResource);
+						}
 					}
 
 					this.windowToCloseRequest[windowId] = true;
