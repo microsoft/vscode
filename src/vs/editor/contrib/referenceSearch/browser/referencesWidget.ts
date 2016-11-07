@@ -26,7 +26,6 @@ import { LeftRightWidget } from 'vs/base/browser/ui/leftRightWidget/leftRightWid
 import * as tree from 'vs/base/parts/tree/browser/tree';
 import { DefaultController, LegacyRenderer } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -38,6 +37,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 
 class DecorationsManager implements IDisposable {
 
@@ -165,7 +165,7 @@ class DecorationsManager implements IDisposable {
 class DataSource implements tree.IDataSource {
 
 	constructor(
-		@IEditorService private _editorService: IEditorService
+		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService
 	) {
 		//
 	}
@@ -193,7 +193,7 @@ class DataSource implements tree.IDataSource {
 		if (element instanceof ReferencesModel) {
 			return TPromise.as(element.groups);
 		} else if (element instanceof FileReferences) {
-			return element.resolve(this._editorService).then(val => {
+			return element.resolve(this._textModelResolverService).then(val => {
 				if (element.failure) {
 					// refresh the element on failure so that
 					// we can update its rendering
@@ -501,7 +501,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	constructor(
 		editor: ICodeEditor,
 		public layoutData: LayoutData,
-		private _editorService: IEditorService,
+		private _textModelResolverService: ITextModelResolverService,
 		private _contextService: IWorkspaceContextService,
 		private _instantiationService: IInstantiationService
 	) {
@@ -716,7 +716,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		}
 
 		return TPromise.join([
-			this._editorService.resolveEditorModel({ resource: reference.uri }),
+			this._textModelResolverService.resolve(reference.uri),
 			this._tree.reveal(reference)
 		]).then(values => {
 			if (!this._model) {

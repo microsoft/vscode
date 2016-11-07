@@ -235,7 +235,10 @@ export interface IViewModel extends ITreeElement {
 	selectedConfigurationName: string;
 	setSelectedConfigurationName(name: string): void;
 
+	isMultiProcessView(): boolean;
+
 	onDidFocusStackFrame: Event<IStackFrame>;
+	onDidFocusProcess: Event<IProcess>;
 	onDidSelectExpression: Event<IExpression>;
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
 	/**
@@ -371,7 +374,7 @@ export interface IDebugService {
 	/**
 	 * Sets the focused stack frame and evaluates all expresions against the newly focused stack frame,
 	 */
-	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): TPromise<void>;
+	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess): TPromise<void>;
 
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.

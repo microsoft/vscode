@@ -6,7 +6,10 @@
 'use strict';
 
 import nls = require('vs/nls');
+import { Registry } from 'vs/platform/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
@@ -34,8 +37,10 @@ import { IPath, IOpenFileRequest, IWindowConfiguration } from 'vs/workbench/elec
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import URI from 'vs/base/common/uri';
+import { ReloadWindowAction, ToggleDevToolsAction, ShowStartupPerformance } from 'vs/workbench/electron-browser/actions';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 import { ipcRenderer as ipc, webFrame, remote } from 'electron';
 
@@ -69,8 +74,8 @@ export class ElectronIntegration {
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 	}
 
@@ -136,17 +141,22 @@ export class ElectronIntegration {
 		ipc.on('vscode:enterFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				this.partService.addClass('fullscreen');
+
+				if (!this.partService.isTitleBarHidden()) {
+					this.partService.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
+				}
 			});
 		});
 
 		ipc.on('vscode:leaveFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				this.partService.removeClass('fullscreen');
+
+				if (!this.partService.isTitleBarHidden()) {
+					this.partService.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
+				}
 			});
 		});
-
-		// Ensure others can listen to zoom level changes
-		browser.setZoomLevel(webFrame.getZoomLevel());
 
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
@@ -168,6 +178,7 @@ export class ElectronIntegration {
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
 				webFrame.setZoomLevel(newZoomLevel);
 				browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+				browser.setZoomFactor(webFrame.getZoomFactor());
 			}
 		});
 
@@ -195,12 +206,15 @@ export class ElectronIntegration {
 			}
 		});
 
-		// Extra request headers
-		this.extensionGalleryService.getRequestHeaders().done(headers => {
-			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
-
-			ipc.send('vscode:setHeaders', this.windowService.getWindowId(), urls, headers);
-		});
+		// Developer related actions
+		const developerCategory = nls.localize('developer', "Developer");
+		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+		const isDeveloping = !this.environmentService.isBuilt || !!this.environmentService.extensionDevelopmentPath;
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyCode.KEY_R } : void 0), 'Reload Window');
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : void 0), 'Developer: Toggle Developer Tools', developerCategory);
+		if (this.environmentService.performance) {
+			workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
+		}
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {

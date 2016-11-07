@@ -34,7 +34,8 @@ export class AbstractDebugAction extends Action {
 	constructor(
 		id: string, label: string, cssClass: string,
 		@IDebugService protected debugService: IDebugService,
-		@IKeybindingService protected keybindingService: IKeybindingService
+		@IKeybindingService protected keybindingService: IKeybindingService,
+		public weight?: number
 	) {
 		super(id, label, cssClass, false);
 		this.debugService = debugService;
@@ -104,10 +105,6 @@ export class SelectConfigAction extends AbstractDebugAction {
 		this.debugService.getViewModel().setSelectedConfigurationName(configName);
 		return TPromise.as(null);
 	}
-
-	protected isEnabled(state: debug.State): boolean {
-		return super.isEnabled(state) && state === debug.State.Inactive;
-	}
 }
 
 export class StartAction extends AbstractDebugAction {
@@ -116,14 +113,19 @@ export class StartAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService, @ICommandService private commandService: ICommandService) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
+		this.debugService.getViewModel().onDidSelectConfigurationName(() => {
+			this.updateEnablement();
+		});
 	}
 
 	public run(): TPromise<any> {
 		return this.commandService.executeCommand('_workbench.startDebug', this.debugService.getViewModel().selectedConfigurationName);
 	}
 
+	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: debug.State): boolean {
-		return super.isEnabled(state) && state === debug.State.Inactive;
+		const process = this.debugService.getModel().getProcesses();
+		return super.isEnabled(state) && process.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName);
 	}
 }
 
@@ -133,7 +135,7 @@ export class RestartAction extends AbstractDebugAction {
 	static RECONNECT_LABEL = nls.localize('reconnectDebug', "Reconnect");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action restart', debugService, keybindingService);
+		super(id, label, 'debug-action restart', debugService, keybindingService, 70);
 		this.setLabel(this.debugService.getViewModel().focusedProcess);
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedProcess)));
 	}
@@ -157,7 +159,7 @@ export class StepOverAction extends AbstractDebugAction {
 	static LABEL = nls.localize('stepOverDebug', "Step Over");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action step-over', debugService, keybindingService);
+		super(id, label, 'debug-action step-over', debugService, keybindingService, 20);
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
@@ -178,7 +180,7 @@ export class StepIntoAction extends AbstractDebugAction {
 	static LABEL = nls.localize('stepIntoDebug', "Step Into");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action step-into', debugService, keybindingService);
+		super(id, label, 'debug-action step-into', debugService, keybindingService, 30);
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
@@ -199,7 +201,7 @@ export class StepOutAction extends AbstractDebugAction {
 	static LABEL = nls.localize('stepOutDebug', "Step Out");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action step-out', debugService, keybindingService);
+		super(id, label, 'debug-action step-out', debugService, keybindingService, 40);
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
@@ -220,7 +222,7 @@ export class StepBackAction extends AbstractDebugAction {
 	static LABEL = nls.localize('stepBackDebug', "Step Back");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action step-back', debugService, keybindingService);
+		super(id, label, 'debug-action step-back', debugService, keybindingService, 50);
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
@@ -243,7 +245,7 @@ export class StopAction extends AbstractDebugAction {
 	static LABEL = nls.localize('stopDebug', "Stop");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action stop', debugService, keybindingService);
+		super(id, label, 'debug-action stop', debugService, keybindingService, 80);
 	}
 
 	public run(): TPromise<any> {
@@ -261,7 +263,7 @@ export class DisconnectAction extends AbstractDebugAction {
 	static LABEL = nls.localize('disconnectDebug', "Disconnect");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action disconnect', debugService, keybindingService);
+		super(id, label, 'debug-action disconnect', debugService, keybindingService, 80);
 	}
 
 	public run(): TPromise<any> {
@@ -279,7 +281,7 @@ export class ContinueAction extends AbstractDebugAction {
 	static LABEL = nls.localize('continueDebug', "Continue");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action continue', debugService, keybindingService);
+		super(id, label, 'debug-action continue', debugService, keybindingService, 10);
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
@@ -300,7 +302,7 @@ export class PauseAction extends AbstractDebugAction {
 	static LABEL = nls.localize('pauseDebug', "Pause");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action pause', debugService, keybindingService);
+		super(id, label, 'debug-action pause', debugService, keybindingService, 10);
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
@@ -905,5 +907,19 @@ export class RunAction extends AbstractDebugAction {
 
 	protected isEnabled(state: debug.State): boolean {
 		return super.isEnabled(state) && state === debug.State.Inactive;
+	}
+}
+
+export class FocusProcessAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.focusProcess';
+	static LABEL = nls.localize('focusProcess', "Focus Process");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService, 100);
+	}
+
+	public run(processName: string): TPromise<any> {
+		const process = this.debugService.getModel().getProcesses().filter(p => p.name === processName).pop();
+		return this.debugService.setFocusedStackFrameAndEvaluate(null, process);
 	}
 }

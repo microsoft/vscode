@@ -6,6 +6,7 @@
 .global-message-list {
 	font-size: 12px;
 	position: absolute;
+	top: 0;
 	z-index: 300;
 	color: #eee;
 	list-style-type: none;

@@ -139,7 +139,7 @@ suite('viewLineRenderer.renderLine', () => {
 	test('typical line', () => {
 		let lineText = '\t    export class Game { // http://test.com     ';
 		let lineParts = [
-			createPart(0, 'block meta ts leading whitespace'),
+			createPart(0, 'block meta ts vs-whitespace'),
 			createPart(5, 'block declaration meta modifier object storage ts'),
 			createPart(11, 'block declaration meta object ts'),
 			createPart(12, 'block declaration meta object storage type ts'),
@@ -150,10 +150,10 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(24, 'block body declaration meta object ts'),
 			createPart(25, 'block body comment declaration line meta object ts'),
 			createPart(28, 'block body comment declaration line meta object ts detected-link'),
-			createPart(43, 'block body comment declaration line meta object ts trailing whitespace'),
+			createPart(43, 'block body comment declaration line meta object ts vs-whitespace'),
 		];
 		let expectedOutput = [
-			'<span class="token block meta ts leading whitespace" style="width:80px">&rarr;&nbsp;&nbsp;&nbsp;&middot;&middot;&middot;&middot;</span>',
+			'<span class="token block meta ts vs-whitespace" style="width:80px">&rarr;&nbsp;&nbsp;&nbsp;&middot;&middot;&middot;&middot;</span>',
 			'<span class="token block declaration meta modifier object storage ts">export</span>',
 			'<span class="token block declaration meta object ts">&nbsp;</span>',
 			'<span class="token block declaration meta object storage type ts">class</span>',
@@ -164,7 +164,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="token block body declaration meta object ts">&nbsp;</span>',
 			'<span class="token block body comment declaration line meta object ts">//&nbsp;</span>',
 			'<span class="token block body comment declaration line meta object ts detected-link">http://test.com</span>',
-			'<span class="token block body comment declaration line meta object ts trailing whitespace" style="width:50px">&middot;&middot;&middot;&middot;&middot;</span>'
+			'<span class="token block body comment declaration line meta object ts vs-whitespace" style="width:50px">&middot;&middot;&middot;&middot;&middot;</span>'
 		].join('');
 		let expectedOffsetsArr = [
 			[0, 4, 5, 6, 7],

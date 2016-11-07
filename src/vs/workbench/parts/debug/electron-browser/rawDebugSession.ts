@@ -307,7 +307,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
 		// Give a 1s timeout to give a chance for some promises to complete.
 		setTimeout(() => {
-			this.sentPromises.forEach(p => p.cancel());
+			this.sentPromises.forEach(p => p && p.cancel());
 			this.sentPromises = [];
 		}, 1000);
 

@@ -13,11 +13,10 @@ const path = require('path');
 const electron = require('electron');
 const remote = electron.remote;
 const ipc = electron.ipcRenderer;
-const windowId = remote.getCurrentWindow().id;
 
 function onError(error, enableDeveloperTools) {
 	if (enableDeveloperTools) {
-		ipc.send('vscode:openDevTools', windowId);
+		remote.getCurrentWebContents().openDevTools();
 	}
 
 	console.error('[uncaught exception]: ' + error);
@@ -63,6 +62,7 @@ function uriFromPath(_path) {
 function registerListeners(enableDeveloperTools) {
 
 	// Devtools & reload support
+	var listener;
 	if (enableDeveloperTools) {
 		const extractKey = function (e) {
 			return [
@@ -77,18 +77,25 @@ function registerListeners(enableDeveloperTools) {
 		const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
 		const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
-		window.addEventListener('keydown', function (e) {
+		listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB) {
-				ipc.send('vscode:toggleDevTools', windowId);
-				// remote.getCurrentWebContents().toggleDevTools();
+				remote.getCurrentWebContents().toggleDevTools();
 			} else if (key === RELOAD_KB) {
 				remote.getCurrentWindow().reload();
 			}
-		});
+		};
+		window.addEventListener('keydown', listener);
 	}
 
 	process.on('uncaughtException', function (error) { onError(error, enableDeveloperTools) });
+
+	return function () {
+		if (listener) {
+			window.removeEventListener('keydown', listener);
+			listener = void 0;
+		}
+	}
 }
 
 function main() {
@@ -119,7 +126,7 @@ function main() {
 	window.document.documentElement.setAttribute('lang', locale);
 
 	const enableDeveloperTools = process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath;
-	registerListeners(enableDeveloperTools);
+	const unbind = registerListeners(enableDeveloperTools);
 
 	// disable pinch zoom & apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
@@ -171,7 +178,11 @@ function main() {
 
 			require('vs/workbench/electron-browser/main')
 				.startup(configuration)
-				.done(null, function (error) { onError(error, enableDeveloperTools); });
+				.done(function () {
+					unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
+				}, function (error) {
+					onError(error, enableDeveloperTools);
+				});
 		});
 	});
 }

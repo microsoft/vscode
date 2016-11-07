@@ -32,6 +32,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
+import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -90,20 +91,21 @@ export abstract class BaseHistoryService {
 		protected contextService: IWorkspaceContextService,
 		private configurationService: IConfigurationService,
 		private environmentService: IEnvironmentService,
-		integrityService: IIntegrityService
+		integrityService: IIntegrityService,
+		private titleService: ITitleService
 	) {
 		this.toUnbind = [];
 		this.activeEditorListeners = [];
 		this.isPure = true;
 
 		// Window Title
-		window.document.title = this.getWindowTitle(null);
+		this.titleService.updateTitle(this.getWindowTitle(null));
 
 		// Integrity
 		integrityService.isPure().then(r => {
 			if (!r.isPure) {
 				this.isPure = false;
-				window.document.title = this.getWindowTitle(this.editorService.getActiveEditorInput());
+				this.titleService.updateTitle(this.getWindowTitle(this.editorService.getActiveEditorInput()));
 			}
 		});
 
@@ -174,7 +176,7 @@ export abstract class BaseHistoryService {
 			windowTitle = this.getWindowTitle(null);
 		}
 
-		window.document.title = windowTitle;
+		this.titleService.updateTitle(windowTitle);
 	}
 
 	protected abstract handleEditorSelectionChangeEvent(editor?: IBaseEditor): void;
@@ -289,9 +291,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IIntegrityService integrityService: IIntegrityService
+		@IIntegrityService integrityService: IIntegrityService,
+		@ITitleService titleService: ITitleService
 	) {
-		super(editorGroupService, editorService, contextService, configurationService, environmentService, integrityService);
+		super(editorGroupService, editorService, contextService, configurationService, environmentService, integrityService, titleService);
 
 		this.index = -1;
 		this.stack = [];

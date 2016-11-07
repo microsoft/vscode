@@ -8,9 +8,9 @@ import errors = require('vs/base/common/errors');
 import { IAction } from 'vs/base/common/actions';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugService, State, IGlobalConfig } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IGlobalConfig } from 'vs/workbench/parts/debug/common/debug';
 
-export class DebugSelectActionItem extends SelectActionItem {
+export class SelectConfigurationActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
@@ -25,15 +25,11 @@ export class DebugSelectActionItem extends SelectActionItem {
 		this.toDispose.push(this.debugService.getViewModel().onDidSelectConfigurationName(name => {
 			this.updateOptions(false);
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			this.enabled = this.debugService.state === State.Inactive;
-		}));
 	}
 
 	public render(container: HTMLElement): void {
 		super.render(container);
 		this.updateOptions(true);
-		this.enabled = this.debugService.state === State.Inactive;
 	}
 
 	private updateOptions(changeDebugConfiguration: boolean): void {
@@ -49,5 +45,19 @@ export class DebugSelectActionItem extends SelectActionItem {
 		if (changeDebugConfiguration) {
 			this.actionRunner.run(this._action, this.getSelected()).done(null, errors.onUnexpectedError);
 		}
+	}
+}
+
+export class FocusProcessActionItem extends SelectActionItem {
+	constructor(
+		action: IAction,
+		@IDebugService private debugService: IDebugService
+	) {
+		super(null, action, [], -1);
+
+		this.debugService.getViewModel().onDidFocusProcess(p => {
+			const names = this.debugService.getModel().getProcesses().map(p => p.name);
+			this.setOptions(names, p ? names.indexOf(p.name) : 0);
+		});
 	}
 }

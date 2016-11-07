@@ -19,8 +19,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IModeService } from 'vs/editor/common/services/modeService';
-
-import { ipcRenderer as ipc } from 'electron';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import fs = require('fs');
 
 class OpenSnippetsAction extends actions.Action {
@@ -33,13 +32,14 @@ class OpenSnippetsAction extends actions.Action {
 		label: string,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(id, label);
 	}
 
-	private openFile(filePath: string): void {
-		ipc.send('vscode:windowOpen', [filePath]); // handled from browser process
+	private openFile(filePath: string): winjs.TPromise<void> {
+		return this.windowsService.windowOpen([filePath]);
 	}
 
 	public run(): winjs.Promise {
@@ -60,8 +60,7 @@ class OpenSnippetsAction extends actions.Action {
 				var snippetPath = paths.join(this.environmentService.appSettingsHome, 'snippets', language.id + '.json');
 				return fileExists(snippetPath).then((success) => {
 					if (success) {
-						this.openFile(snippetPath);
-						return winjs.TPromise.as(null);
+						return this.openFile(snippetPath);
 					}
 					var defaultContent = [
 						'{',
@@ -82,7 +81,7 @@ class OpenSnippetsAction extends actions.Action {
 						'}'
 					].join('\n');
 					return createFile(snippetPath, defaultContent).then(() => {
-						this.openFile(snippetPath);
+						return this.openFile(snippetPath);
 					}, (err) => {
 						errors.onUnexpectedError(nls.localize('openSnippet.errorOnCreate', 'Unable to create {0}', snippetPath));
 					});

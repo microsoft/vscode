@@ -11,10 +11,10 @@ import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService } from 'vs/platform/editor/common/editor';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel, IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { Location } from 'vs/editor/common/modes';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 
 export class OneReference {
 
@@ -128,13 +128,13 @@ export class FileReferences {
 		return this._loadFailure;
 	}
 
-	public resolve(editorService: IEditorService): TPromise<FileReferences> {
+	public resolve(textModelResolverService: ITextModelResolverService): TPromise<FileReferences> {
 
 		if (this._resolved) {
 			return TPromise.as(this);
 		}
 
-		return editorService.resolveEditorModel({ resource: this._uri }).then(model => {
+		return textModelResolverService.resolve(this._uri).then(model => {
 			if (!model) {
 				throw new Error();
 			}

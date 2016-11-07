@@ -16,6 +16,7 @@ import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
+import { getCommonHTTPHeaders } from 'vs/platform/environment/common/http';
 
 export interface IWindowState {
 	width?: number;
@@ -29,6 +30,7 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	allowFullscreen?: boolean;
+	titleBarStyle?: 'native' | 'custom';
 }
 
 export enum WindowMode {
@@ -107,6 +109,7 @@ export interface IWindowSettings {
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
 	zoomLevel: number;
+	titleBarStyle: 'native' | 'custom';
 }
 
 export class VSCodeWindow {
@@ -176,9 +179,31 @@ export class VSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
+		if (this.options.titleBarStyle === 'custom' && platform.isMacintosh) {
+			const isDev = !this.environmentService.isBuilt || this.environmentService.extensionDevelopmentPath;
+			if (!isDev) {
+				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+			}
+		}
+
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
+
+		// TODO@joao: hook this up to some initialization routine
+		// this causes a race between setting the headers and doing
+		// a request that needs them. chances are low
+		getCommonHTTPHeaders().done(headers => {
+			if (!this._win) {
+				return;
+			}
+
+			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+
+			this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
+			});
+		});
 
 		if (isFullscreenOrMaximized) {
 			this.win.maximize();

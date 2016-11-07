@@ -11,14 +11,14 @@ import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import DOM = require('vs/base/browser/dom');
-import { Box, Builder, $ } from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer } from 'vs/base/common/async';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IOptions } from 'vs/workbench/common/options';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -30,7 +30,8 @@ import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
-import { WorkbenchLayout, LayoutOptions } from 'vs/workbench/browser/layout';
+import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import { WorkbenchLayout } from 'vs/workbench/browser/layout';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actionBarRegistry';
 import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
@@ -39,7 +40,7 @@ import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEdi
 import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { WorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { Position, Parts, IPartService } from 'vs/workbench/services/part/common/partService';
+import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -58,6 +59,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/node/configurationResolverService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -67,6 +69,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TextFileService } from 'vs/workbench/services/textfile/electron-browser/textFileService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -76,6 +80,7 @@ import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWindowConfiguration } from 'vs/workbench/electron-browser/common';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -94,6 +99,7 @@ export interface IWorkbenchCallbacks {
 
 const Identifiers = {
 	WORKBENCH_CONTAINER: 'workbench.main.container',
+	TITLEBAR_PART: 'workbench.parts.titlebar',
 	ACTIVITYBAR_PART: 'workbench.parts.activitybar',
 	SIDEBAR_PART: 'workbench.parts.sidebar',
 	PANEL_PART: 'workbench.parts.panel',
@@ -117,6 +123,7 @@ export class Workbench implements IPartService {
 
 	public _serviceBrand: any;
 
+	private parent: HTMLElement;
 	private container: HTMLElement;
 	private workbenchParams: WorkbenchParams;
 	private workbenchContainer: Builder;
@@ -128,6 +135,7 @@ export class Workbench implements IPartService {
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
 	private configurationEditingService: IConfigurationEditingService;
+	private titlebarPart: TitlebarPart;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
@@ -151,6 +159,7 @@ export class Workbench implements IPartService {
 	private hasFilesToCreateOpenOrDiff: boolean;
 
 	constructor(
+		parent: HTMLElement,
 		container: HTMLElement,
 		workspace: IWorkspace,
 		options: IOptions,
@@ -165,6 +174,7 @@ export class Workbench implements IPartService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
+		this.parent = parent;
 		this.container = container;
 
 		this.workbenchParams = {
@@ -345,6 +355,12 @@ export class Workbench implements IPartService {
 		// Services we contribute
 		serviceCollection.set(IPartService, this);
 
+		// Title bar
+		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
+		this.toDispose.push(this.titlebarPart);
+		this.toShutdown.push(this.titlebarPart);
+		serviceCollection.set(ITitleService, this.titlebarPart);
+
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
 		this.toDispose.push(this.statusbarPart);
@@ -399,6 +415,9 @@ export class Workbench implements IPartService {
 
 		// Text File Service
 		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
+
+		// Text Model Resolver Service
+		serviceCollection.set(ITextModelResolverService, this.instantiationService.createInstance(TextModelResolverService));
 
 		// Configuration Editing
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);
@@ -493,6 +512,9 @@ export class Workbench implements IPartService {
 	public getContainer(part: Parts): HTMLElement {
 		let container: Builder = null;
 		switch (part) {
+			case Parts.TITLEBAR_PART:
+				container = this.titlebarPart.getContainer();
+				break;
 			case Parts.ACTIVITYBAR_PART:
 				container = this.activitybarPart.getContainer();
 				break;
@@ -514,6 +536,8 @@ export class Workbench implements IPartService {
 
 	public isVisible(part: Parts): boolean {
 		switch (part) {
+			case Parts.TITLEBAR_PART:
+				return this.isTitleBarHidden();
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
@@ -527,6 +551,21 @@ export class Workbench implements IPartService {
 		return true; // any other part cannot be hidden
 	}
 
+	public isTitleBarHidden(): boolean {
+		if (!isMacintosh) {
+			return true; // custom title bar is only supported on Mac currently
+		}
+
+		const isDev = !this.environmentService.isBuilt || this.environmentService.extensionDevelopmentPath;
+		if (isDev) {
+			return true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+		}
+
+		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+
+		return (windowConfig && windowConfig.window && windowConfig.window.titleBarStyle === 'native');
+	}
+
 	public isStatusBarHidden(): boolean {
 		return this.statusBarHidden;
 	}
@@ -536,7 +575,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout({ forceStyleReCompute: true });
+			this.workbenchLayout.layout({ forceStyleRecompute: true });
 		}
 	}
 
@@ -556,7 +595,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout({ forceStyleReCompute: true });
+			this.workbenchLayout.layout({ forceStyleRecompute: true });
 		}
 	}
 
@@ -576,7 +615,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout({ forceStyleReCompute: true });
+			this.workbenchLayout.layout({ forceStyleRecompute: true });
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
@@ -623,7 +662,7 @@ export class Workbench implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout({ forceStyleReCompute: true });
+			this.workbenchLayout.layout({ forceStyleRecompute: true });
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
@@ -651,7 +690,7 @@ export class Workbench implements IPartService {
 	}
 
 	public toggleMaximizedPanel(): void {
-		this.workbenchLayout.layout({ forceStyleReCompute: true, toggleMaximizedPanel: true });
+		this.workbenchLayout.layout({ forceStyleRecompute: true, toggleMaximizedPanel: true });
 	}
 
 	public getSideBarPosition(): Position {
@@ -674,7 +713,7 @@ export class Workbench implements IPartService {
 		this.sidebarPart.getContainer().addClass(newPositionValue);
 
 		// Layout
-		this.workbenchLayout.layout({ forceStyleReCompute: true });
+		this.workbenchLayout.layout({ forceStyleRecompute: true });
 	}
 
 	public dispose(): void {
@@ -690,9 +729,9 @@ export class Workbench implements IPartService {
 	 * Asks the workbench and all its UI components inside to lay out according to
 	 * the containers dimension the workbench is living in.
 	 */
-	public layout(): void {
+	public layout(options?: ILayoutOptions): void {
 		if (this.isStarted()) {
-			this.workbenchLayout.layout();
+			this.workbenchLayout.layout(options);
 		}
 	}
 
@@ -753,21 +792,18 @@ export class Workbench implements IPartService {
 	}
 
 	private createWorkbenchLayout(): void {
-		const options = new LayoutOptions();
-		options.setMargin(new Box(0, 0, 0, 0));
-
 		this.workbenchLayout = this.instantiationService.createInstance(WorkbenchLayout,
 			$(this.container),							// Parent
 			this.workbench,								// Workbench Container
 			{
+				titlebar: this.titlebarPart,			// Title Bar
 				activitybar: this.activitybarPart,		// Activity Bar
 				editor: this.editorPart,				// Editor
 				sidebar: this.sidebarPart,				// Sidebar
 				panel: this.panelPart,					// Panel Part
 				statusbar: this.statusbarPart,			// Statusbar
 			},
-			this.quickOpen,								// Quickopen
-			options										// Layout Options
+			this.quickOpen								// Quickopen
 		);
 
 		this.toDispose.push(this.workbenchLayout);
@@ -798,7 +834,13 @@ export class Workbench implements IPartService {
 			this.workbench.addClass('no-workspace');
 		}
 
+		// Apply title style if shown
+		if (!this.isTitleBarHidden()) {
+			DOM.addClass(this.parent, 'titlebar-style-custom');
+		}
+
 		// Create Parts
+		this.createTitlebarPart();
 		this.createActivityBarPart();
 		this.createSidebarPart();
 		this.createEditorPart();
@@ -807,6 +849,16 @@ export class Workbench implements IPartService {
 
 		// Add Workbench to DOM
 		this.workbenchContainer.build(this.container);
+	}
+
+	private createTitlebarPart(): void {
+		const titlebarContainer = $(this.workbench).div({
+			'class': ['part', 'titlebar'],
+			id: Identifiers.TITLEBAR_PART,
+			role: 'contentinfo'
+		});
+
+		this.titlebarPart.create(titlebarContainer);
 	}
 
 	private createActivityBarPart(): void {

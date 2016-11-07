@@ -203,56 +203,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const menu = instantiationService.createInstance(VSCodeMenu);
 	menu.ready();
 
-	// Install JumpList on Windows
+	// Install JumpList on Windows (keep updated when windows open)
 	if (platform.isWindows) {
-		const jumpList: Electron.JumpListCategory[] = [];
-
-		// Tasks
-		jumpList.push({
-			type: 'tasks',
-			items: [
-				{
-					type: 'task',
-					title: nls.localize('newWindow', "New Window"),
-					description: nls.localize('newWindowDesc', "Opens a new window"),
-					program: process.execPath,
-					args: '-n', // force new window
-					iconPath: process.execPath,
-					iconIndex: 0
-				}
-			]
-		});
-
-		// Recent Folders
-		const folders = windowsMainService.getRecentPathsList().folders;
-		if (folders.length > 0) {
-			jumpList.push({
-				type: 'custom',
-				name: 'Recent Folders',
-				items: windowsMainService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
-					return <Electron.JumpListItem>{
-						type: 'task',
-						title: getPathLabel(folder),
-						description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
-						program: process.execPath,
-						args: folder, // open folder,
-						iconPath: 'explorer.exe', // simulate folder icon
-						iconIndex: 0
-					};
-				})
-			});
-		}
-
-		// Recent
-		jumpList.push({
-			type: 'recent' // this enables to show files in the "recent" category
-		});
-
-		try {
-			app.setJumpList(jumpList);
-		} catch (error) {
-			logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
-		}
+		updateJumpList(windowsMainService, logService);
+		windowsMainService.onOpen(() => updateJumpList(windowsMainService, logService));
 	}
 
 	// Setup auto update
@@ -265,6 +219,57 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		windowsMainService.open({ cli: environmentService.args, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
 		windowsMainService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff }); // default: read paths from cli
+	}
+}
+
+function updateJumpList(windowsMainService: IWindowsMainService, logService: ILogService): void {
+	const jumpList: Electron.JumpListCategory[] = [];
+
+	// Tasks
+	jumpList.push({
+		type: 'tasks',
+		items: [
+			{
+				type: 'task',
+				title: nls.localize('newWindow', "New Window"),
+				description: nls.localize('newWindowDesc', "Opens a new window"),
+				program: process.execPath,
+				args: '-n', // force new window
+				iconPath: process.execPath,
+				iconIndex: 0
+			}
+		]
+	});
+
+	// Recent Folders
+	const folders = windowsMainService.getRecentPathsList().folders;
+	if (folders.length > 0) {
+		jumpList.push({
+			type: 'custom',
+			name: nls.localize('recentFolders', "Recent Folders"),
+			items: windowsMainService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
+				return <Electron.JumpListItem>{
+					type: 'task',
+					title: path.basename(folder) || folder, // use the base name to show shorter entries in the list
+					description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
+					program: process.execPath,
+					args: `"${folder}"`, // open folder (use quotes to support paths with whitespaces),
+					iconPath: 'explorer.exe', // simulate folder icon
+					iconIndex: 0
+				};
+			})
+		});
+	}
+
+	// Recent
+	jumpList.push({
+		type: 'recent' // this enables to show files in the "recent" category
+	});
+
+	try {
+		app.setJumpList(jumpList);
+	} catch (error) {
+		logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 	}
 }
 

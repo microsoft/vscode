@@ -6,9 +6,9 @@
 {
 	"allEditorsPicker": "Показать все открытые редакторы",
 	"binaryDiffEditor": "Редактор двоичных несовпадений",
-	"centerEditorGroupPicker": "Показать редакторы в центральной группе",
-	"leftEditorGroupPicker": "Показать редакторы в левой группе",
-	"rightEditorGroupPicker": "Показать редакторы в правой группе",
+	"groupOnePicker": "Показать редакторы в первой группе",
+	"groupThreePicker": "Показать редакторы в третьей группе",
+	"groupTwoPicker": "Показать редакторы во второй группе",
 	"textDiffEditor": "Редактор текстовых несовпадений",
 	"textEditor": "Текстовый редактор",
 	"view": "Просмотреть"
