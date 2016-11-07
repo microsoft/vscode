@@ -180,7 +180,10 @@ export class VSCodeWindow {
 		}
 
 		if (this.options.titleBarStyle === 'custom' && platform.isMacintosh) {
-			options.titleBarStyle = 'hidden';
+			const isDev = !this.environmentService.isBuilt || this.environmentService.extensionDevelopmentPath;
+			if (!isDev) {
+				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+			}
 		}
 
 		// Create the browser window.

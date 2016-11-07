@@ -546,6 +546,11 @@ export class Workbench implements IPartService {
 			return true; // custom title bar is only supported on Mac currently
 		}
 
+		const isDev = !this.environmentService.isBuilt || this.environmentService.extensionDevelopmentPath;
+		if (isDev) {
+			return true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+		}
+
 		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
 
 		return (windowConfig && windowConfig.window && windowConfig.window.titleBarStyle === 'native');
