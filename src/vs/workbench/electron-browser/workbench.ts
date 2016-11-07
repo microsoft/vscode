@@ -18,7 +18,7 @@ import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IOptions } from 'vs/workbench/common/options';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -542,6 +542,10 @@ export class Workbench implements IPartService {
 	}
 
 	public isTitleBarHidden(): boolean {
+		if (!isMacintosh) {
+			return true; // custom title bar is only supported on Mac currently
+		}
+
 		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
 
 		return (windowConfig && windowConfig.window && windowConfig.window.titleBarStyle === 'native');

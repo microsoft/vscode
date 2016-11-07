@@ -179,12 +179,8 @@ export class VSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
-		if (this.options.titleBarStyle === 'custom') {
-			if (platform.isMacintosh) {
-				options.titleBarStyle = 'hidden';
-			} else {
-				options.frame = false;
-			}
+		if (this.options.titleBarStyle === 'custom' && platform.isMacintosh) {
+			options.titleBarStyle = 'hidden';
 		}
 
 		// Create the browser window.
