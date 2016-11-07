@@ -18,7 +18,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
 import { CollapsibleViewletView, AdaptiveCollapsibleViewletView, CollapseAction } from 'vs/workbench/browser/viewlet';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
+import { Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import * as viewer from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, AddFunctionBreakpointAction, ToggleBreakpointsActivatedAction, RemoveAllBreakpointsAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -233,7 +233,6 @@ export class CallStackView extends CollapsibleViewletView {
 	private pauseMessage: builder.Builder;
 	private pauseMessageLabel: builder.Builder;
 	private onCallStackChangeScheduler: RunOnceScheduler;
-	private onStackFrameFocusScheduler: RunOnceScheduler;
 
 	constructor(
 		actionRunner: IActionRunner,
@@ -247,33 +246,7 @@ export class CallStackView extends CollapsibleViewletView {
 	) {
 		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, keybindingService, contextMenuService);
 
-		// Create schedulers to prevent unnecessary flashing of tree when reacting to changes
-		this.onStackFrameFocusScheduler = new RunOnceScheduler(() => {
-			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-			if (!stackFrame) {
-				this.pauseMessage.hide();
-				return;
-			}
-
-			const thread = stackFrame.thread;
-			this.tree.expandAll([thread.process, thread]).done(() => {
-				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				this.tree.setSelection([focusedStackFrame]);
-				if (thread.stoppedDetails && thread.stoppedDetails.reason && !this.debugService.getViewModel().isMultiProcessView()) {
-					this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason));
-					if (thread.stoppedDetails.text) {
-						this.pauseMessageLabel.title(thread.stoppedDetails.text);
-					}
-					thread.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
-					this.pauseMessage.show();
-				} else {
-					this.pauseMessage.hide();
-				}
-
-				return this.tree.reveal(focusedStackFrame);
-			}, errors.onUnexpectedError);
-		}, 100);
-
+		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
 		this.onCallStackChangeScheduler = new RunOnceScheduler(() => {
 			let newTreeInput: any = this.debugService.getModel();
 			const processes = this.debugService.getModel().getProcesses();
@@ -283,11 +256,31 @@ export class CallStackView extends CollapsibleViewletView {
 				newTreeInput = threads.length === 1 ? threads[0] : processes[0];
 			}
 
-			if (this.tree.getInput() === newTreeInput) {
-				this.tree.refresh().done(null, errors.onUnexpectedError);
+			// Only show the global pause message if we do not display threads.
+			// Otherwsie there will be a pause message per thread and there is no need for a global one.
+			if (newTreeInput instanceof Thread && newTreeInput.stoppedDetails) {
+				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", newTreeInput.stoppedDetails.reason));
+				if (newTreeInput.stoppedDetails.text) {
+					this.pauseMessageLabel.title(newTreeInput.stoppedDetails.text);
+				}
+				newTreeInput.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
+				this.pauseMessage.show();
 			} else {
-				this.tree.setInput(newTreeInput).done(null, errors.onUnexpectedError);
+				this.pauseMessage.hide();
 			}
+
+			(this.tree.getInput() === newTreeInput ? this.tree.refresh() : this.tree.setInput(newTreeInput)).done(() => {
+				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+				if (!stackFrame) {
+					return;
+				}
+
+				const thread = stackFrame.thread;
+				return this.tree.expandAll([thread.process, thread]).done(() => {
+					this.tree.setSelection([stackFrame]);
+					return this.tree.reveal(stackFrame);
+				});
+			}, errors.onUnexpectedError);
 		}, 50);
 	}
 
@@ -312,12 +305,6 @@ export class CallStackView extends CollapsibleViewletView {
 			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider),
 			controller: new viewer.CallStackController(this.debugService, this.contextMenuService, actionProvider)
 		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack")));
-
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
-			if (!this.onStackFrameFocusScheduler.isScheduled()) {
-				this.onStackFrameFocusScheduler.schedule();
-			}
-		}));
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => {
 			if (!this.onCallStackChangeScheduler.isScheduled()) {
