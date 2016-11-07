@@ -22,7 +22,6 @@ import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUpdateService } from 'vs/platform/update/common/update';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -152,7 +151,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IUpdateService private updateService: IUpdateService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
@@ -246,35 +244,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 				} else {
 					this.sendToAll('vscode:broadcast', broadcast, [windowId]);
 				}
-			}
-		});
-
-		this.updateService.onUpdateReady(update => {
-			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
-
-			this.sendToAll('vscode:update-downloaded', JSON.stringify({
-				releaseNotes: update.releaseNotes,
-				version: update.version,
-				date: update.date
-			}));
-		});
-
-		ipc.on('vscode:update-apply', () => {
-			this.logService.log('IPC#vscode:update-apply');
-			this.updateService.quitAndInstall();
-		});
-
-		this.updateService.onUpdateNotAvailable(explicit => {
-			this.sendToFocused('vscode:telemetry', { eventName: 'update:notAvailable', data: { explicit } });
-
-			if (explicit) {
-				this.sendToFocused('vscode:update-not-available', '');
-			}
-		});
-
-		this.updateService.onUpdateAvailable(({ url, version }) => {
-			if (url) {
-				this.sendToFocused('vscode:update-available', url, version);
 			}
 		});
 
