@@ -30,19 +30,17 @@ export class ToggleExtViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const viewlets = this.viewletService.getExtViewlets();
-		const enabledViewletIds = this.viewletService.getEnabledViewletIds();
+		const extViewlets = this.viewletService.getAllViewlets().filter(viewlet => viewlet.isExtension);
 
 		const picks: IPickOpenEntry[] = [];
 
-		viewlets.forEach(vd => {
-			const isEnabled = enabledViewletIds.indexOf(vd.id) !== -1;
+		extViewlets.forEach(viewlet => {
+			const isEnabled = this.viewletService.isViewletEnabled(viewlet.id);
 			const actionLabel = isEnabled ? localize('disable', 'Disable') : localize('enable', 'Enable');
 			picks.push({
-				id: vd.name,
-				label: `${actionLabel} ${vd.name}`
+				id: viewlet.id,
+				label: `${actionLabel} ${viewlet.name}`
 			});
-
 		});
 
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
