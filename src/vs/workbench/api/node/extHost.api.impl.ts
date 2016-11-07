@@ -47,11 +47,11 @@ import * as languageConfiguration from 'vs/editor/common/modes/languageConfigura
 
 
 export interface IExtensionApiFactory {
-	(extension?: IExtensionDescription): typeof vscode;
+	(extension: IExtensionDescription): typeof vscode;
 }
 
 function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
-	if (extension && extension.enableProposedApi) {
+	if (extension.enableProposedApi) {
 		return fn;
 	} else {
 		return <any>(() => {
@@ -92,9 +92,9 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
 
-	return function (extension?: IExtensionDescription): typeof vscode {
+	return function (extension: IExtensionDescription): typeof vscode {
 
-		if (extension && extension.enableProposedApi) {
+		if (extension.enableProposedApi) {
 			console.warn(`${extension.name} (${extension.id}) uses PROPOSED API which is subject to change and removal without notice`);
 		}
 
@@ -204,7 +204,7 @@ export function createApiFactory(initDataConfiguration: IInitConfiguration, init
 				return languageFeatures.registerSignatureHelpProvider(selector, provider, triggerCharacters);
 			},
 			registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, ...triggerCharacters: string[]): vscode.Disposable {
-				return languageFeatures.registerCompletionItemProvider(selector, provider, triggerCharacters);
+				return languageFeatures.registerCompletionItemProvider(selector, provider, triggerCharacters, extension.id);
 			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return languageFeatures.registerDocumentLinkProvider(selector, provider);
@@ -460,8 +460,23 @@ export function defineAPI(factory: IExtensionApiFactory, extensionService: ExtHo
 
 		// fall back to a default implementation
 		if (!defaultApiImpl) {
-			defaultApiImpl = factory(undefined);
+			defaultApiImpl = factory(nullExtensionDescription);
 		}
 		return defaultApiImpl;
 	};
 }
+
+const nullExtensionDescription: IExtensionDescription = {
+	id: 'nullExtensionDescription',
+	name: 'Null Extension Description',
+	publisher: 'vscode',
+	activationEvents: undefined,
+	contributes: undefined,
+	enableProposedApi: false,
+	engines: undefined,
+	extensionDependencies: undefined,
+	extensionFolderPath: undefined,
+	isBuiltin: false,
+	main: undefined,
+	version: undefined
+};
