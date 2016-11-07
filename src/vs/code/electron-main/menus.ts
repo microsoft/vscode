@@ -136,21 +136,19 @@ export class VSCodeMenu {
 			updateMenu = true;
 		}
 
-		if (config && config.workbench) {
-			const newSidebarLocation = config.workbench.sideBar && config.workbench.sideBar.location || 'left';
-			if (newSidebarLocation !== this.currentSidebarLocation) {
-				this.currentSidebarLocation = newSidebarLocation;
-				updateMenu = true;
-			}
+		const newSidebarLocation = config && config.workbench && config.workbench.sideBar && config.workbench.sideBar.location || 'left';
+		if (newSidebarLocation !== this.currentSidebarLocation) {
+			this.currentSidebarLocation = newSidebarLocation;
+			updateMenu = true;
+		}
 
-			let newStatusbarVisible = config.workbench.statusBar && config.workbench.statusBar.visible;
-			if (typeof newStatusbarVisible !== 'boolean') {
-				newStatusbarVisible = true;
-			}
-			if (newStatusbarVisible !== this.currentStatusbarVisible) {
-				this.currentStatusbarVisible = newStatusbarVisible;
-				updateMenu = true;
-			}
+		let newStatusbarVisible = config && config.workbench && config.workbench.statusBar && config.workbench.statusBar.visible;
+		if (typeof newStatusbarVisible !== 'boolean') {
+			newStatusbarVisible = true;
+		}
+		if (newStatusbarVisible !== this.currentStatusbarVisible) {
+			this.currentStatusbarVisible = newStatusbarVisible;
+			updateMenu = true;
 		}
 
 		if (handleMenu && updateMenu) {
