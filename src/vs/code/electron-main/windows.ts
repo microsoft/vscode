@@ -759,7 +759,8 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			vscodeWindow = this.instantiationService.createInstance(VSCodeWindow, {
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
-				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen)
+				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen),
+				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
 			});
 
 			WindowsManager.WINDOWS.push(vscodeWindow);

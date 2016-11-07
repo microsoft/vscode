@@ -161,7 +161,7 @@ export class WorkbenchShell {
 		}
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
 		this.workbench.startup({
 			onWorkbenchStarted: (customKeybindingsCount) => {
 				this.onWorkbenchStarted(customKeybindingsCount);
@@ -367,6 +367,7 @@ export class WorkbenchShell {
 
 		// Ensure others can listen to zoom level changes
 		browser.setZoomLevel(webFrame.getZoomLevel());
+		browser.setZoomFactor(webFrame.getZoomFactor());
 
 		// Shell Class for CSS Scoping
 		$(this.container).addClass('monaco-shell');

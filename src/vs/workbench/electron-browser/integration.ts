@@ -141,12 +141,20 @@ export class ElectronIntegration {
 		ipc.on('vscode:enterFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				this.partService.addClass('fullscreen');
+
+				if (!this.partService.isTitleBarHidden()) {
+					this.partService.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
+				}
 			});
 		});
 
 		ipc.on('vscode:leaveFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				this.partService.removeClass('fullscreen');
+
+				if (!this.partService.isTitleBarHidden()) {
+					this.partService.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
+				}
 			});
 		});
 
@@ -170,6 +178,7 @@ export class ElectronIntegration {
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
 				webFrame.setZoomLevel(newZoomLevel);
 				browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+				browser.setZoomFactor(webFrame.getZoomFactor());
 			}
 		});
 

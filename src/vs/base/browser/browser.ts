@@ -14,6 +14,8 @@ class ZoomManager {
 	public static INSTANCE = new ZoomManager();
 
 	private _zoomLevel: number = 0;
+	private _zoomFactor: number = 0;
+
 	private _pixelRatioCache: number = 0;
 	private _pixelRatioComputed: boolean = false;
 
@@ -32,6 +34,14 @@ class ZoomManager {
 		this._zoomLevel = zoomLevel;
 		this._pixelRatioComputed = false;
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
+	}
+
+	public getZoomFactor(): number {
+		return this._zoomFactor;
+	}
+
+	public setZoomFactor(zoomFactor: number): void {
+		this._zoomFactor = zoomFactor;
 	}
 
 	public getPixelRatio(): number {
@@ -54,14 +64,22 @@ class ZoomManager {
 	}
 }
 
+/** A zoom index, e.g. 1, 2, 3 */
 export function getZoomLevel(): number {
 	return ZoomManager.INSTANCE.getZoomLevel();
+}
+/** The zoom scale for an index, e.g. 1, 1.2, 1.4 */
+export function getZoomFactor(): number {
+	return ZoomManager.INSTANCE.getZoomFactor();
 }
 export function getPixelRatio(): number {
 	return ZoomManager.INSTANCE.getPixelRatio();
 }
 export function setZoomLevel(zoomLevel: number): void {
 	ZoomManager.INSTANCE.setZoomLevel(zoomLevel);
+}
+export function setZoomFactor(zoomFactor: number): void {
+	ZoomManager.INSTANCE.setZoomFactor(zoomFactor);
 }
 export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
 	return ZoomManager.INSTANCE.onDidChangeZoomLevel(callback);
