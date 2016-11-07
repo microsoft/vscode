@@ -30,27 +30,36 @@ suite('ExtensionsWorkbenchService Test', () => {
 	let instantiationService: TestInstantiationService;
 	let testObject: IExtensionsWorkbenchService;
 
-	const installEvent: Emitter<InstallExtensionEvent> = new Emitter(),
-		didInstallEvent: Emitter<DidInstallExtensionEvent> = new Emitter(),
-		uninstallEvent: Emitter<string> = new Emitter(),
-		didUninstallEvent: Emitter<DidUninstallExtensionEvent> = new Emitter();
+	let installEvent: Emitter<InstallExtensionEvent>,
+		didInstallEvent: Emitter<DidInstallExtensionEvent>,
+		uninstallEvent: Emitter<string>,
+		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
-	setup(() => {
+	suiteSetup(() => {
+		installEvent = new Emitter();
+		didInstallEvent = new Emitter();
+		uninstallEvent = new Emitter();
+		didUninstallEvent = new Emitter();
+
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+	});
+
+	setup(() => {
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		(<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).reset();
 	});
 
 	teardown(() => {

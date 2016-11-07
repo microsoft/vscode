@@ -35,6 +35,11 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IEnvironmentService) || instantiationService.stub(IEnvironmentService, TestEnvironmentService),
 			instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: new Emitter() }));
 	}
+
+	public reset(): void {
+		this.getGloballyDisabledExtensions().forEach(d => this.setEnablement(d, true));
+		this.getWorkspaceDisabledExtensions().forEach(d => this.setEnablement(d, true, true));
+	}
 }
 
 suite('ExtensionEnablementService Test', () => {
