@@ -13,12 +13,12 @@ import * as errors from 'vs/base/common/errors';
 import { EventType } from 'vs/base/common/events';
 import { IActionRunner, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
-import { ITreeOptions, IFocusEvent, IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
+import { ITreeOptions, IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
 import { CollapsibleViewletView, AdaptiveCollapsibleViewletView, CollapseAction } from 'vs/workbench/browser/viewlet';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { StackFrame, Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
+import { Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import * as viewer from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, AddFunctionBreakpointAction, ToggleBreakpointsActivatedAction, RemoveAllBreakpointsAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -116,15 +116,6 @@ export class VariablesView extends CollapsibleViewletView {
 		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			const state = this.debugService.state;
 			collapseAction.enabled = state === debug.State.Running || state === debug.State.Stopped;
-		}));
-
-		this.toDispose.push(this.tree.addListener2(EventType.FOCUS, (e: IFocusEvent) => {
-			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
-			const isVariableType = (e.focus instanceof Variable);
-
-			if (isMouseClick && isVariableType) {
-				this.telemetryService.publicLog('debug/variables/selected');
-			}
 		}));
 
 		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
@@ -321,15 +312,6 @@ export class CallStackView extends CollapsibleViewletView {
 			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider),
 			controller: new viewer.CallStackController(this.debugService, this.contextMenuService, actionProvider)
 		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack")));
-
-		this.toDispose.push(this.tree.addListener2(EventType.FOCUS, (e: IFocusEvent) => {
-			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
-			const isStackFrameType = (e.focus instanceof StackFrame);
-
-			if (isMouseClick && isStackFrameType) {
-				this.telemetryService.publicLog('debug/callStack/selected');
-			}
-		}));
 
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
 			if (!this.onStackFrameFocusScheduler.isScheduled()) {
