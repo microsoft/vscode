@@ -20,6 +20,7 @@ import { WindowEventChannel } from 'vs/code/common/windowsIpc';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { IUpdateService } from 'vs/platform/update/common/update';
+import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { UpdateService } from 'vs/platform/update/electron-main/updateService';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
@@ -117,6 +118,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	}
 
 	// Register Main IPC services
+	const updateService = accessor.get(IUpdateService);
+	const updateChannel = new UpdateChannel(updateService);
+	mainIpcServer.registerChannel('update', updateChannel);
+
 	const launchService = instantiationService.createInstance(LaunchService);
 	const launchChannel = new LaunchChannel(launchService);
 	mainIpcServer.registerChannel('launch', launchChannel);
