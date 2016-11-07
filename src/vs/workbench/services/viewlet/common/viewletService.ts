@@ -8,6 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 
 export const IViewletService = createDecorator<IViewletService>('viewletService');
 
@@ -24,7 +25,17 @@ export interface IViewletService {
 	openViewlet(id: string, focus?: boolean): TPromise<IViewlet>;
 
 	/**
-	 * Returns the current active viewlet or null if none
+	 * Toggles a viewlet with the given identifier.
+	 */
+	toggleViewlet(id: string): TPromise<IViewlet>;
+
+	/**
+	 * Returns the current active viewlet or null if none.
 	 */
 	getActiveViewlet(): IViewlet;
+
+	/**
+	 * Returns all registered viewlets.
+	 */
+	getViewletDescriptors(): ViewletDescriptor[];
 }

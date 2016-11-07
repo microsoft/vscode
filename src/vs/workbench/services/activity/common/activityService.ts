@@ -71,19 +71,4 @@ export interface IActivityService {
 	 * Clears activity shown in the activitybar for the given viewlet or panel.
 	 */
 	clearActivity(compositeId: string): void;
-
-	/**
-	 * Get registered extension viewlets' info for populating 'Toggle Custom Explorer' command picks.
-	 */
-	getInfoForExtViewlets(): {
-		[viewletId: string]: {
-			isEnabled: boolean;
-			treeLabel: string;
-		}
-	};
-
-	/**
-	 * Enable/disable an extension viewlet.
-	 */
-	toggleExtViewlet(viewletId: string): void;
 }

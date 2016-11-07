@@ -11,7 +11,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { toCustomViewletActionId } from 'vs/workbench/parts/explorers/common/treeExplorer';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -24,28 +24,35 @@ export class ToggleExtViewletAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IActivityService private activityService: IActivityService
+		@IViewletService private viewletService: IViewletService
 	) {
 		super(id, name);
 	}
 
 	run(): TPromise<any> {
-		const infoForExtViewlets = this.activityService.getInfoForExtViewlets();
+		const viewletDescriptors = this.viewletService.getViewletDescriptors();
 
-		const picks: IPickOpenEntry[] = [];
-		for (let viewletId in infoForExtViewlets) {
-			const { isEnabled, treeLabel } = infoForExtViewlets[viewletId];
+		const picks: IPickOpenEntry[] = viewletDescriptors.map((d) => {
+			return {
+				id: d.id,
+				label: d.name
+			};
+		});
+
+		viewletDescriptors.forEach(vd => {
+			const isEnabled = true;
 			const actionLabel = isEnabled ? localize('disable', 'Disable') : localize('enable', 'Enable');
 			picks.push({
-				id: viewletId,
-				label: `${actionLabel} ${treeLabel}`
+				id: vd.name,
+				label: `${actionLabel} ${vd.name}`
 			});
-		}
+
+		});
 
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
 			this.quickOpenService.pick(picks, { placeHolder: 'Select Custom Explorer to toggle' }).then(pick => {
 				if (pick) {
-					this.activityService.toggleExtViewlet(pick.id);
+					this.viewletService.toggleViewlet(pick.id);
 				}
 			});
 		});
