@@ -213,6 +213,13 @@
 			}
 		},
 		{
+			"name": "JavaScript string interpolation ${}",
+			"scope": "string.template-expression",
+			"settings": {
+				"foreground": "#0000ff"
+			}
+		},
+		{
 			"scope": "support.property-value",
 			"settings": {
 				"foreground": "#0451a5"
