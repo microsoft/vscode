@@ -35,7 +35,7 @@ import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 
 import * as os from 'os';
-import { ipcRenderer as ipc, webFrame, remote } from 'electron';
+import { webFrame, remote } from 'electron';
 
 // --- actions
 
@@ -168,17 +168,15 @@ export class ToggleFullScreenAction extends Action {
 
 export class ToggleMenuBarAction extends Action {
 
-	public static ID = 'workbench.action.toggleMenuBar';
-	public static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
+	static ID = 'workbench.action.toggleMenuBar';
+	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
-	constructor(id: string, label: string, @IWindowIPCService private windowService: IWindowIPCService) {
+	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		ipc.send('vscode:toggleMenuBar', this.windowService.getWindowId());
-
-		return TPromise.as(true);
+	run(): TPromise<void> {
+		return this.windowService.toggleMenuBar();
 	}
 }
 
@@ -191,7 +189,7 @@ export class ToggleDevToolsAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<void> {
+	public run(): TPromise<void> {
 		return this.windowsService.toggleDevTools();
 	}
 }

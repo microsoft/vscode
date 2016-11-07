@@ -554,18 +554,23 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 	public removeFromRecentPathsList(path: string): void {
 		const mru = this.getRecentPathsList();
+		let update = false;
 
 		let index = mru.files.indexOf(path);
 		if (index >= 0) {
 			mru.files.splice(index, 1);
+			update = true;
 		}
 
 		index = mru.folders.indexOf(path);
 		if (index >= 0) {
 			mru.folders.splice(index, 1);
+			update = true;
 		}
 
-		this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
+		if (update) {
+			this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
+		}
 	}
 
 	public clearRecentPathsList(): void {
@@ -678,6 +683,8 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 					{ workspacePath: candidate };
 			}
 		} catch (error) {
+			this.removeFromRecentPathsList(candidate); // since file does not seem to exist anymore, remove from recent
+
 			if (ignoreFileNotFound) {
 				return { filePath: candidate, createFilePath: true }; // assume this is a file that does not yet exist
 			}
