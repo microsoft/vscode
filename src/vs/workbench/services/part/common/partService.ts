@@ -12,12 +12,18 @@ export enum Parts {
 	SIDEBAR_PART,
 	PANEL_PART,
 	EDITOR_PART,
-	STATUSBAR_PART
+	STATUSBAR_PART,
+	TITLEBAR_PART
 }
 
 export enum Position {
 	LEFT,
 	RIGHT
+}
+
+export interface ILayoutOptions {
+	forceStyleRecompute?: boolean;
+	toggleMaximizedPanel?: boolean;
 }
 
 export const IPartService = createDecorator<IPartService>('partService');
@@ -28,7 +34,7 @@ export interface IPartService {
 	/**
 	 * Asks the part service to layout all parts.
 	 */
-	layout(): void;
+	layout(options?: ILayoutOptions): void;
 
 	/**
 	 * Asks the part service to if all parts have been created.
@@ -54,6 +60,11 @@ export interface IPartService {
 	 * Returns iff the part is visible.
 	 */
 	isVisible(part: Parts): boolean;
+
+	/**
+	 * Returns iff the titlebar part is currently hidden or not.
+	 */
+	isTitleBarHidden(): boolean;
 
 	/**
 	 * Checks if the statusbar is currently hidden or not

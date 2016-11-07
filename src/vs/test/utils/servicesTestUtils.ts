@@ -239,6 +239,10 @@ export class TestPartService implements IPartService {
 		return null;
 	}
 
+	public isTitleBarHidden(): boolean {
+		return false;
+	}
+
 	public isStatusBarHidden(): boolean {
 		return false;
 	}
