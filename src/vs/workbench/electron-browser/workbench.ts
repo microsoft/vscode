@@ -552,7 +552,7 @@ export class Workbench implements IPartService {
 	}
 
 	public isTitleBarHidden(): boolean {
-		return !this.getCustomTitleBarStyle() || browser.isFullscreen();
+		return this.getCustomTitleBarStyle() !== 'custom' || browser.isFullscreen();
 	}
 
 	public getTitleBarOffset(): number {
