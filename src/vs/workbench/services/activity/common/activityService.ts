@@ -60,7 +60,6 @@ export const IActivityService = createDecorator<IActivityService>('activityServi
 
 export interface IActivityService {
 	_serviceBrand: any;
-	extViewletIdToOpen: string;
 
 	/**
 	 * Show activity in the activitybar for the given viewlet or panel.

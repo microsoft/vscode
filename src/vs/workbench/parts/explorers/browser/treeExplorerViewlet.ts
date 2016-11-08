@@ -14,36 +14,31 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/treeExplorerView';
 import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
-import { toCustomViewletId } from 'vs/workbench/parts/explorers/common/treeExplorer';
 
 export class TreeExplorerViewlet extends Viewlet {
-	private static _idCounter = 1;
 
 	private viewletContainer: Builder;
 	private view: IViewletView;
 
 	private viewletState: TreeExplorerViewletState;
-
-	private extViewletId: string;
+	private viewletId: string;
 	private treeNodeProviderId: string;
 
 	constructor(
+		viewletId: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IActivityService private activityService: IActivityService
 	) {
-		super(toCustomViewletId(TreeExplorerViewlet._idCounter.toString()), telemetryService);
+		super(viewletId, telemetryService);
 
 		this.viewletState = new TreeExplorerViewletState();
-
-		this.extViewletId = this.activityService.extViewletIdToOpen;
-		this.treeNodeProviderId = this.getTreeProviderName(this.extViewletId);
-
-		TreeExplorerViewlet._idCounter++;
+		this.viewletId = viewletId;
+		this.treeNodeProviderId = this.getTreeProviderName(viewletId);
 	}
 
 	public getId(): string {
-		return this.extViewletId;
+		return this.viewletId;
 	}
 
 	public create(parent: Builder): TPromise<void> {
