@@ -10,7 +10,6 @@ import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import URI from 'vs/base/common/uri';
@@ -172,12 +171,12 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 
 export class DownloadAction extends Action {
 
-	constructor(private url: string, @IWindowsService private windowsService: IWindowsService) {
+	constructor(private url: string, @IUpdateService private updateService: IUpdateService) {
 		super('update.download', nls.localize('downloadNow', "Download Now"), null, true);
 	}
 
 	run(): TPromise<void> {
-		return this.windowsService.openExternal(this.url);
+		return this.updateService.quitAndInstall();
 	}
 }
 
