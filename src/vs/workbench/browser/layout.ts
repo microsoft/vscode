@@ -29,7 +29,7 @@ const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
 
 interface ComputedStyles {
-	titlebar: { height: number; };
+	titlebar: { height: number; display: string; };
 	activitybar: { width: number; };
 	sidebar: { minWidth: number; };
 	panel: { minHeight: number; };
@@ -295,7 +295,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		// Determine styles by looking into their CSS
 		this.computedStyles = {
 			titlebar: {
-				height: parseInt(titlebarStyle.getPropertyValue('height'), 10)
+				height: parseInt(titlebarStyle.getPropertyValue('height'), 10),
+				display: titlebarStyle.getPropertyValue('display')
 			},
 			activitybar: {
 				width: parseInt(activitybarStyle.getPropertyValue('width'), 10)
@@ -352,7 +353,12 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		this.statusbarHeight = isStatusbarHidden ? 0 : this.computedStyles.statusbar.height;
-		this.titlebarHeight = this.initialComputedStyles.titlebar.height / getZoomFactor(); // adjust for zoom prevention
+
+		if (this.computedStyles.titlebar.display === 'none') {
+			this.titlebarHeight = 0; // custom title bar is hidden
+		} else {
+			this.titlebarHeight = this.initialComputedStyles.titlebar.height / getZoomFactor(); // adjust for zoom prevention
+		}
 
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
 		let sidebarSize = new Dimension(sidebarWidth, this.sidebarHeight);
