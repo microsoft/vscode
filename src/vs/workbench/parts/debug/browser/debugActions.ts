@@ -54,8 +54,8 @@ export class AbstractDebugAction extends Action {
 	}
 
 	public dispose(): void {
-		this.debugService = null;
 		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.debugService = null;
 
 		super.dispose();
 	}
