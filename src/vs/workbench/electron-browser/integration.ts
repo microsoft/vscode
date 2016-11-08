@@ -140,6 +140,7 @@ export class ElectronIntegration {
 		// Fullscreen Events
 		ipc.on('vscode:enterFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
+				browser.setFullscreen(true);
 				this.partService.addClass('fullscreen');
 
 				if (!this.partService.isTitleBarHidden()) {
@@ -150,6 +151,7 @@ export class ElectronIntegration {
 
 		ipc.on('vscode:leaveFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
+				browser.setFullscreen(false);
 				this.partService.removeClass('fullscreen');
 
 				if (!this.partService.isTitleBarHidden()) {

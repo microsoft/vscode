@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./messageList';
+import 'vs/css!./media/messageList';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';

@@ -9,6 +9,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
 import { IOptions } from 'vs/workbench/common/options';
+import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
@@ -29,6 +30,8 @@ import fs = require('fs');
 import gracefulFs = require('graceful-fs');
 import { IPath, IOpenFileRequest } from 'vs/workbench/electron-browser/common';
 
+import { webFrame } from 'electron';
+
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 const timers = (<any>window).MonacoEnvironment.timers;
@@ -40,9 +43,17 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	userEnv: any; /* vs/code/electron-main/env/IProcessEnvironment*/
 
 	workspacePath?: string;
+
+	zoomLevel?: number;
+	fullscreen?: boolean;
 }
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
+
+	// Ensure others can listen to zoom level changes
+	browser.setZoomLevel(webFrame.getZoomLevel());
+	browser.setZoomFactor(webFrame.getZoomFactor());
+	browser.setFullscreen(!!configuration.fullscreen);
 
 	// Shell Options
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
