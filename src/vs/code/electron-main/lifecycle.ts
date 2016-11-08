@@ -139,14 +139,6 @@ export class LifecycleService implements ILifecycleService {
 			e.preventDefault();
 			this.unload(vscodeWindow).done(veto => {
 				if (!veto) {
-					// Clear out any workspace backups from workspaces.json that don't have any backups
-					if (vscodeWindow.openedWorkspacePath) {
-						const workspaceResource = Uri.file(vscodeWindow.openedWorkspacePath);
-						if (!this.backupService.doesWorkspaceHaveBackups(workspaceResource)) {
-							this.backupService.removeWorkspaceBackupPathSync(workspaceResource);
-						}
-					}
-
 					this.windowToCloseRequest[windowId] = true;
 					vscodeWindow.win.close();
 				} else {
@@ -172,6 +164,14 @@ export class LifecycleService implements ILifecycleService {
 			const oneTimeCancelEvent = 'vscode:cancel' + oneTimeEventToken;
 
 			ipc.once(oneTimeOkEvent, () => {
+				// Clear out any workspace backups from workspaces.json that don't have any backups
+				if (vscodeWindow.openedWorkspacePath) {
+					const workspaceResource = Uri.file(vscodeWindow.openedWorkspacePath);
+					if (!this.backupService.doesWorkspaceHaveBackups(workspaceResource)) {
+						this.backupService.removeWorkspaceBackupPathSync(workspaceResource);
+					}
+				}
+
 				c(false); // no veto
 			});
 
