@@ -22,7 +22,6 @@ import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -153,7 +152,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IUpdateService private updateService: IUpdateService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
@@ -247,38 +245,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 				} else {
 					this.sendToAll('vscode:broadcast', broadcast, [windowId]);
 				}
-			}
-		});
-
-		this.updateService.on('update-downloaded', (update: IUpdate) => {
-			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
-
-			this.sendToAll('vscode:update-downloaded', JSON.stringify({
-				releaseNotes: update.releaseNotes,
-				version: update.version,
-				date: update.date
-			}));
-		});
-
-		ipc.on('vscode:update-apply', () => {
-			this.logService.log('IPC#vscode:update-apply');
-
-			if (this.updateService.availableUpdate) {
-				this.updateService.availableUpdate.quitAndUpdate();
-			}
-		});
-
-		this.updateService.on('update-not-available', (explicit: boolean) => {
-			this.sendToFocused('vscode:telemetry', { eventName: 'update:notAvailable', data: { explicit } });
-
-			if (explicit) {
-				this.sendToFocused('vscode:update-not-available', '');
-			}
-		});
-
-		this.updateService.on('update-available', (url: string, version: string) => {
-			if (url) {
-				this.sendToFocused('vscode:update-available', url, version);
 			}
 		});
 
