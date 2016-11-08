@@ -245,7 +245,7 @@ export class TestPartService implements IPartService {
 		return null;
 	}
 
-	public hasCustomTitleBar(): boolean {
+	public isTitleBarHidden(): boolean {
 		return false;
 	}
 
