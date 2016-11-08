@@ -7,6 +7,16 @@
       "from": "applicationinsights@0.15.6",
       "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.15.6.tgz"
     },
+    "semver": {
+      "version": "4.3.6",
+      "from": "semver@4.3.6",
+      "resolved": "https://registry.npmjs.org/semver/-/semver-4.3.6.tgz"
+    },
+    "typescript": {
+      "version": "2.0.7",
+      "from": "typescript@2.0.7",
+      "resolved": "https://registry.npmjs.org/typescript/-/typescript-2.0.7.tgz"
+    },
     "vscode-extension-telemetry": {
       "version": "0.0.5",
       "from": "vscode-extension-telemetry@>=0.0.5 <0.0.6",
@@ -14,8 +24,8 @@
     },
     "vscode-nls": {
       "version": "2.0.1",
-      "from": "vscode-nls@>=1.0.4 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
+      "from": "vscode-nls@>=2.0.1 <3.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.1.tgz"
     },
     "winreg": {
       "version": "0.0.13",

@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
@@ -15,7 +15,7 @@ interface IJSONValidationExtensionPoint {
 	url: string;
 }
 
-let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>('jsonValidation', {
+let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>('jsonValidation', [], {
 	description: nls.localize('contributes.jsonValidation', 'Contributes json schema configuration.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ fileMatch: '{{file.json}}', url: '{{url}}' }] }],

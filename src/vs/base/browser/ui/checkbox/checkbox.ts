@@ -8,9 +8,9 @@
 import 'vs/css!./checkbox';
 
 import DOM = require('vs/base/browser/dom');
-import {KeyCode} from 'vs/base/common/keyCodes';
-import {Widget} from 'vs/base/browser/ui/widget';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export interface ICheckboxOpts {
 	actionClassName: string;

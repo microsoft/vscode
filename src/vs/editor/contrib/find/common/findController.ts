@@ -5,19 +5,19 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {HistoryNavigator} from 'vs/base/common/history';
-import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
-import {Disposable} from 'vs/base/common/lifecycle';
-import {ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import { HistoryNavigator } from 'vs/base/common/history';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {editorAction, commonEditorContribution, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding} from 'vs/editor/contrib/find/common/findModel';
-import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
-import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
-import {RunOnceScheduler, Delayer} from 'vs/base/common/async';
+import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
+import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/common/findState';
+import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
+import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -474,7 +474,7 @@ export interface IMultiCursorFindResult {
 	currentMatch: Selection;
 }
 
-function multiCursorFind(editor: editorCommon.ICommonCodeEditor, changeFindSearchString: boolean): IMultiCursorFindResult {
+function multiCursorFind(editor: editorCommon.ICommonCodeEditor, changeFindSearchString: boolean, allowMultiline: boolean): IMultiCursorFindResult {
 	let controller = CommonFindController.get(editor);
 	if (!controller) {
 		return null;
@@ -498,8 +498,8 @@ function multiCursorFind(editor: editorCommon.ICommonCodeEditor, changeFindSearc
 		// Selection owns what is searched for
 		let s = editor.getSelection();
 
-		if (s.startLineNumber !== s.endLineNumber) {
-			// Cannot search for multiline string... yet...
+		if (s.startLineNumber !== s.endLineNumber && !allowMultiline) {
+			// multiline forbidden
 			return null;
 		}
 
@@ -529,7 +529,7 @@ function multiCursorFind(editor: editorCommon.ICommonCodeEditor, changeFindSearc
 
 export abstract class SelectNextFindMatchAction extends EditorAction {
 	protected _getNextMatch(editor: editorCommon.ICommonCodeEditor): Selection {
-		let r = multiCursorFind(editor, true);
+		let r = multiCursorFind(editor, /*changeFindSearchString*/true, /*allowMultiline*/true);
 		if (!r) {
 			return null;
 		}
@@ -552,7 +552,7 @@ export abstract class SelectNextFindMatchAction extends EditorAction {
 
 export abstract class SelectPreviousFindMatchAction extends EditorAction {
 	protected _getPreviousMatch(editor: editorCommon.ICommonCodeEditor): Selection {
-		let r = multiCursorFind(editor, true);
+		let r = multiCursorFind(editor, /*changeFindSearchString*/true, /*allowMultiline*/true);
 		if (!r) {
 			return null;
 		}
@@ -683,7 +683,7 @@ export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMa
 
 export abstract class AbstractSelectHighlightsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		let r = multiCursorFind(editor, true);
+		let r = multiCursorFind(editor, /*changeFindSearchString*/true, /*allowMultiline*/true);
 		if (!r) {
 			return;
 		}
@@ -805,7 +805,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			return;
 		}
 
-		let r = multiCursorFind(this.editor, false);
+		let r = multiCursorFind(this.editor, /*changeFindSearchString*/false, /*allowMultiline*/false);
 		if (!r) {
 			this.removeDecorations();
 			return;

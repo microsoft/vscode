@@ -91,6 +91,10 @@ code > div {
 	overflow: auto;
 }
 
+.monaco-tokenized-source {
+	white-space: pre;
+}
+
 /** Theming */
 
 .vscode-light {

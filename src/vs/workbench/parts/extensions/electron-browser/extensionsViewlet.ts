@@ -24,15 +24,19 @@ import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { append, $, addStandardDisposableListener, EventType, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
-import { PagedModel } from 'vs/base/common/paging';
+import { PagedModel, IPagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Delegate, Renderer } from './extensionsList';
-import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState, filterOutdatedExtensions } from './extensions';
-import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, InstallVSIXAction, ConfigureWorkspaceRecommendedExtensionsAction } from './extensionsActions';
+import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extensionsList';
+import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
+import {
+	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
+	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction
+} from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionsInput } from './extensionsInput';
+import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { Query } from '../common/extensionQuery';
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -41,6 +45,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -54,6 +59,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private root: HTMLElement;
 	private searchBox: HTMLInputElement;
 	private extensionsBox: HTMLElement;
+	private messageBox: HTMLElement;
 	private list: PagedList<IExtension>;
 	private primaryActions: IAction[];
 	private secondaryActions: IAction[];
@@ -62,7 +68,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@IExtensionManagementService private extensionService: IExtensionManagementService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IProgressService private progressService: IProgressService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -70,7 +76,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IMessageService private messageService: IMessageService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
@@ -89,7 +96,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		this.searchBox.placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
 		this.disposables.push(addStandardDisposableListener(this.searchBox, EventType.FOCUS, () => addClass(this.searchBox, 'synthetic-focus')));
 		this.disposables.push(addStandardDisposableListener(this.searchBox, EventType.BLUR, () => removeClass(this.searchBox, 'synthetic-focus')));
+
 		this.extensionsBox = append(this.root, $('.extensions'));
+		this.messageBox = append(this.root, $('.message'));
 
 		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
@@ -118,14 +127,14 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return TPromise.as(null);
 	}
 
-	setVisible(visible:boolean): TPromise<void> {
+	setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible).then(() => {
 			if (visible) {
 				this.searchBox.focus();
 				this.searchBox.setSelectionRange(0, this.searchBox.value.length);
 				this.triggerSearch(this.searchBox.value, true, true);
 			} else {
-				this.list.model = new PagedModel([]);
+				this.setModel(new PagedModel([]));
 			}
 		});
 	}
@@ -134,7 +143,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		this.searchBox.focus();
 	}
 
-	layout({ height, width }: Dimension):void {
+	layout({ height, width }: Dimension): void {
 		this.list.layout(height - 38);
 		toggleClass(this.root, 'narrow', width <= 300);
 	}
@@ -156,10 +165,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	getSecondaryActions(): IAction[] {
 		if (!this.secondaryActions) {
 			this.secondaryActions = [
-				this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL),
-				new Separator(),
 				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, ShowWorkspaceRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
@@ -170,12 +178,26 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..asc', localize('ascending', "Sort Order: ↑"), this.onSearchChange, undefined, 'asc'),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc'),
 				new Separator(),
-				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL),
-				this.instantiationService.createInstance(ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction.ID, ConfigureWorkspaceRecommendedExtensionsAction.LABEL)
+				this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL),
+				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL)
 			];
 		}
 
 		return this.secondaryActions;
+	}
+
+	private setModel(model: IPagedModel<IExtension>) {
+		this.list.model = model;
+		this.list.scrollTop = 0;
+
+		toggleClass(this.extensionsBox, 'hidden', model.length === 0);
+		toggleClass(this.messageBox, 'hidden', model.length > 0);
+
+		if (model.length === 0 && this.isVisible()) {
+			this.messageBox.textContent = localize('no extensions found', "No extensions found.");
+		} else {
+			this.messageBox.textContent = '';
+		}
 	}
 
 	search(value: string): void {
@@ -195,32 +217,41 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return this.progress(this.query(value))
 			.then(model => {
 				if (!value && model.length === 0 && suggestPopular) {
-					return this.search('@sort:installs');
+					return this.search('@sort:installs ');
 				}
 
-				this.list.model = model;
-				this.list.scrollTop = 0;
+				this.setModel(model);
 			});
 	}
 
-	private query(value: string): TPromise<PagedModel<IExtension>> {
+	private query(value: string): TPromise<IPagedModel<IExtension>> {
 		if (!value) {
 			// Show installed extensions
 			return this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(result => result.filter(e => e.type === LocalExtensionType.User))
 				.then(result => new PagedModel(result));
 		}
 
 		if (/@outdated/i.test(value)) {
 			return this.extensionsWorkbenchService.queryLocal()
-				.then(extensions => filterOutdatedExtensions(extensions))
+				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
+				.then(extensions => extensions.filter(extension => extension.outdated))
+				.then(result => new PagedModel(result));
+		}
+
+		if (/@disabled/i.test(value)) {
+			return this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
+				.then(result => this.extensionService.getExtensions()
+					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.identifier))))
 				.then(result => new PagedModel(result));
 		}
 
 		const query = Query.parse(value);
 		let options: IQueryOptions = {};
 
-		switch(query.sortBy) {
+		switch (query.sortBy) {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
 			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
 		}
@@ -231,53 +262,61 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		}
 
 		if (/@recommended:workspace/i.test(query.value)) {
-			return this.queryWorkspaceRecommendedExtensions();
+			return this.getWorkspaceRecommendationsModel(query, options);
+		} else if (/@recommended/i.test(query.value)) {
+			return this.getRecommendationsModel(query, options);
 		}
 
-		if (/@recommended/i.test(query.value)) {
-			const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
+		const text = value = query.value
+			.replace(/\bext:([^\s]+)\b/g, 'tag:"__ext_$1"')
+			.substr(0, 200);
 
-			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.filter(e => e.type === LocalExtensionType.User))
-				.then(local => {
-					const names = this.tipsService.getRecommendations()
-						.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name))
-						.filter(name => name.toLowerCase().indexOf(value) > -1);
-
-					this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
-
-					if (!names.length) {
-						return new PagedModel([]);
-					}
-
-					return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-						.then(result => new PagedModel(result));
-				});
-		}
-
-		if (query.value) {
-			options = assign(options, { text: query.value.substr(0, 200) });
+		if (text) {
+			options = assign(options, { text });
 		}
 
 		return this.extensionsWorkbenchService.queryGallery(options)
 			.then(result => new PagedModel(result));
 	}
 
-	private queryWorkspaceRecommendedExtensions(): TPromise<PagedModel<IExtension>> {
-		let names = this.tipsService.getWorkspaceRecommendations();
+	private getRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
+		const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
+
+		return this.extensionsWorkbenchService.queryLocal()
+			.then(result => result.filter(e => e.type === LocalExtensionType.User))
+			.then(local => {
+				const names = this.tipsService.getRecommendations()
+					.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
+					.filter(name => name.toLowerCase().indexOf(value) > -1);
+
+				this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
+
+				if (!names.length) {
+					return TPromise.as(new PagedModel([]));
+				}
+
+				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+					.then(result => new PagedModel(result));
+			});
+	}
+
+	private getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
+		const value = query.value.replace(/@recommended:workspace/g, '').trim().toLowerCase();
+		const names = this.tipsService.getWorkspaceRecommendations()
+			.filter(name => name.toLowerCase().indexOf(value) > -1);
 
 		this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
 
 		if (!names.length) {
 			return TPromise.as(new PagedModel([]));
 		}
-		return this.extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
-				.then(result => new PagedModel(result));
+
+		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+			.then(result => new PagedModel(result));
 	}
 
 	private openExtension(extension: IExtension): void {
-		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
-			.done(null, err => this.onError(err));
+		this.extensionsWorkbenchService.open(extension).done(null, err => this.onError(err));
 	}
 
 	private onEnter(): void {
@@ -380,14 +419,13 @@ export class StatusUpdater implements IWorkbenchContribution {
 			return;
 		}
 
-		filterOutdatedExtensions(this.extensionsWorkbenchService.local).then(outdated => {
-			if (outdated.length > 0) {
-				const badge = new NumberBadge(outdated.length, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
-				this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
-			} else {
-				this.activityService.showActivity(VIEWLET_ID, null, 'extensions-badge');
-			}
-		});
+		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
+		if (outdated > 0) {
+			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
+			this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
+		} else {
+			this.activityService.showActivity(VIEWLET_ID, null, 'extensions-badge');
+		}
 	}
 
 	dispose(): void {

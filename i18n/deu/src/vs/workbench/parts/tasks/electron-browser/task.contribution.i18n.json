@@ -83,6 +83,7 @@
 	"TerminateAction.noProcess": "Der gestartete Prozess ist nicht mehr vorhanden. Wenn der Task Hintergrundtasks erzeugt hat, kann das Beenden von VS Code ggf. zu verwaisten Prozessen führen.",
 	"TestAction.label": "Testtask ausführen",
 	"manyMarkers": "mehr als 99",
+	"problems": "Probleme",
 	"taskCommands": "Task ausführen",
 	"tasks": "Tasks",
 	"tasksCategory": "Aufgaben"

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Registry} from 'vs/platform/platform';
+import { Registry } from 'vs/platform/platform';
 import types = require('vs/base/common/types');
-import {IConfigurationNode, IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 export function setNode(root: any, key: string, value: any): void {
 	const segments = key.split('.');
@@ -22,12 +22,14 @@ export function setNode(root: any, key: string, value: any): void {
 			case 'object':
 				break;
 			default:
-				console.log('Conflicting configuration setting: ' + key + ' at ' + s + ' with ' + JSON.stringify(obj));
+				console.error(`Conflicting configuration setting: ${key} at ${s} with ${JSON.stringify(obj)}`);
 		}
 		curr = obj;
 	});
 
-	curr[last] = value;
+	if (typeof curr === 'object') {
+		curr[last] = value; // workaround https://github.com/Microsoft/vscode/issues/13606
+	}
 }
 
 function processDefaultValues(withConfig: (config: IConfigurationNode, isTop?: boolean) => boolean): void {

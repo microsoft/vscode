@@ -7,9 +7,9 @@
 
 import * as assert from 'assert';
 import 'vs/workbench/browser/parts/editor/editor.contribution'; // make sure to load all contributed editor things into tests
-import {TestQuickOpenService} from 'vs/test/utils/servicesTestUtils';
-import {Registry} from 'vs/platform/platform';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction} from 'vs/workbench/browser/quickopen';
+import { TestQuickOpenService } from 'vs/test/utils/servicesTestUtils';
+import { Registry } from 'vs/platform/platform';
+import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 
 suite('Workbench QuickOpen', () => {
 

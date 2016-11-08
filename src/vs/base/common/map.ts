@@ -6,7 +6,7 @@
 'use strict';
 
 export interface Key {
-	toString():string;
+	toString(): string;
 }
 
 export interface Entry<K, T> {
@@ -86,7 +86,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	public delete(k: K): T {
-		let value:T= this.get(k);
+		let value: T = this.get(k);
 		if (value) {
 			this.pop(k);
 			return value;
@@ -115,7 +115,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	protected peek(k: K): T {
-		const entry= this.map[k.toString()];
+		const entry = this.map[k.toString()];
 		return entry ? entry.value : null;
 	}
 }
@@ -294,5 +294,111 @@ export class LRUCache<T> extends BoundedLinkedMap<T> {
 
 
 		return null;
+	}
+}
+
+// --- trie'ish datastructure
+
+interface Node<E> {
+	element?: E;
+	children: { [key: string]: Node<E> };
+}
+
+/**
+ * A trie map that allows for fast look up when keys are substrings
+ * to the actual search keys (dir/subdir-problem).
+ */
+export class TrieMap<E> {
+
+	static PathSplitter = s => s.split(/[\\/]/).filter(s => !!s);
+
+	private _splitter: (s: string) => string[];
+	private _root: Node<E> = { children: Object.create(null) };
+
+	constructor(splitter: (s: string) => string[]) {
+		this._splitter = splitter;
+	}
+
+	insert(path: string, element: E): void {
+		const parts = this._splitter(path);
+		let i = 0;
+
+		// find insertion node
+		let node = this._root;
+		for (; i < parts.length; i++) {
+			let child = node.children[parts[i]];
+			if (child) {
+				node = child;
+				continue;
+			}
+			break;
+		}
+
+		// create new nodes
+		let newNode: Node<E>;
+		for (; i < parts.length; i++) {
+			newNode = { children: Object.create(null) };
+			node.children[parts[i]] = newNode;
+			node = newNode;
+		}
+
+		node.element = element;
+	}
+
+	lookUp(path: string): E {
+		const parts = this._splitter(path);
+
+		let {children} = this._root;
+		let node: Node<E>;
+		for (const part of parts) {
+			node = children[part];
+			if (!node) {
+				return;
+			}
+			children = node.children;
+		}
+
+		return node.element;
+	}
+
+	findSubstr(path: string): E {
+		const parts = this._splitter(path);
+
+		let lastNode: Node<E>;
+		let {children} = this._root;
+		for (const part of parts) {
+			const node = children[part];
+			if (!node) {
+				break;
+			}
+			if (node.element) {
+				lastNode = node;
+			}
+			children = node.children;
+		}
+
+		// return the last matching node
+		// that had an element
+		if (lastNode) {
+			return lastNode.element;
+		}
+	}
+
+	findSuperstr(path: string): TrieMap<E> {
+		const parts = this._splitter(path);
+
+		let {children} = this._root;
+		let node: Node<E>;
+		for (const part of parts) {
+			node = children[part];
+			if (!node) {
+				return;
+			}
+			children = node.children;
+		}
+
+		const result = new TrieMap<E>(this._splitter);
+		result._root = node;
+		return result;
 	}
 }

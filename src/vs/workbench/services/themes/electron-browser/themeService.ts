@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
-import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {ExtensionsRegistry, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IThemeService, IThemeData, IThemeSetting, IThemeDocument} from 'vs/workbench/services/themes/common/themeService';
-import {TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution} from 'vs/workbench/services/themes/electron-browser/stylesContributions';
-import {getBaseThemeId} from 'vs/platform/theme/common/themes';
-import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {Registry} from 'vs/platform/platform';
-import {Extensions as JSONExtensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoint';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IThemeService, IThemeData, IThemeSetting, IThemeDocument } from 'vs/workbench/services/themes/common/themeService';
+import { TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
+import { getBaseThemeId } from 'vs/platform/theme/common/themes';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Registry } from 'vs/platform/platform';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import {$} from 'vs/base/browser/builder';
-import Event, {Emitter} from 'vs/base/common/event';
+import { $ } from 'vs/base/browser/builder';
+import Event, { Emitter } from 'vs/base/common/event';
 
 import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
@@ -41,7 +41,7 @@ let defaultBaseTheme = getBaseThemeId(DEFAULT_THEME_ID);
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
-function validateThemeId(theme: string) : string {
+function validateThemeId(theme: string): string {
 	// migrations
 	switch (theme) {
 		case 'vs': return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
@@ -53,7 +53,7 @@ function validateThemeId(theme: string) : string {
 	return theme;
 }
 
-let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', {
+let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', [], {
 	description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
 	type: 'array',
 	items: {
@@ -77,7 +77,7 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 	}
 });
 
-let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('iconThemes', {
+let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('iconThemes', [], {
 	description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
 	type: 'array',
 	items: {
@@ -104,6 +104,9 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 interface IInternalThemeData extends IThemeData {
 	styleSheetContent?: string;
 	extensionId: string;
+	extensionPublisher: string;
+	extensionName: string;
+	extensionIsBuiltin: boolean;
 }
 
 interface IconDefinition {
@@ -119,25 +122,32 @@ interface FontDefinition {
 	weight: string;
 	style: string;
 	size: string;
-	src: { path:string; format:string; }[];
+	src: { path: string; format: string; }[];
 }
 
 interface IconsAssociation {
 	folder?: string;
 	file?: string;
 	folderExpanded?: string;
-	folderNames?: {[folderName:string]: string; };
-	folderNamesExpanded?: {[folderName:string]: string; };
-	fileExtensions?: {[extension:string]: string; };
-	fileNames?: {[fileName:string]: string; };
-	languageIds?: {[languageId:string]: string; };
+	folderNames?: { [folderName: string]: string; };
+	folderNamesExpanded?: { [folderName: string]: string; };
+	fileExtensions?: { [extension: string]: string; };
+	fileNames?: { [fileName: string]: string; };
+	languageIds?: { [languageId: string]: string; };
 }
 
 interface IconThemeDocument extends IconsAssociation {
-	iconDefinitions: { [key:string]: IconDefinition };
+	iconDefinitions: { [key: string]: IconDefinition };
 	fonts: FontDefinition[];
 	light?: IconsAssociation;
 	highContrast?: IconsAssociation;
+}
+
+interface ExtensionData {
+	extensionId: string;
+	extensionPublisher: string;
+	extensionName: string;
+	extensionIsBuiltin: boolean;
 }
 
 export class ThemeService implements IThemeService {
@@ -152,10 +162,10 @@ export class ThemeService implements IThemeService {
 	private currentIconTheme: string;
 
 	constructor(
-			@IExtensionService private extensionService: IExtensionService,
-			@IWindowService private windowService: IWindowService,
-			@IStorageService private storageService: IStorageService,
-			@ITelemetryService private telemetryService: ITelemetryService) {
+		@IExtensionService private extensionService: IExtensionService,
+		@IWindowIPCService private windowService: IWindowIPCService,
+		@IStorageService private storageService: IStorageService,
+		@ITelemetryService private telemetryService: ITelemetryService) {
 
 		this.knownColorThemes = [];
 		this.onColorThemeChange = new Emitter<string>();
@@ -164,7 +174,13 @@ export class ThemeService implements IThemeService {
 
 		themesExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
-				this.onThemes(ext.description.extensionFolderPath, ext.description.id, ext.value, ext.collector);
+				let extensionData = {
+					extensionId: ext.description.id,
+					extensionPublisher: ext.description.publisher,
+					extensionName: ext.description.name,
+					extensionIsBuiltin: ext.description.isBuiltin
+				};
+				this.onThemes(ext.description.extensionFolderPath, extensionData, ext.value, ext.collector);
 			}
 		});
 
@@ -176,7 +192,13 @@ export class ThemeService implements IThemeService {
 
 		iconThemeExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
-				this.onIconThemes(ext.description.extensionFolderPath, ext.description.id, ext.value, ext.collector);
+				let extensionData = {
+					extensionId: ext.description.id,
+					extensionPublisher: ext.description.publisher,
+					extensionName: ext.description.name,
+					extensionIsBuiltin: ext.description.isBuiltin
+				};
+				this.onIconThemes(ext.description.extensionFolderPath, extensionData, ext.value, ext.collector);
 			}
 		});
 
@@ -207,7 +229,7 @@ export class ThemeService implements IThemeService {
 
 	}
 
-	public setColorTheme(themeId: string, broadcastToAllWindows: boolean) : TPromise<boolean> {
+	public setColorTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean> {
 		if (!themeId) {
 			return TPromise.as(false);
 		}
@@ -250,19 +272,19 @@ export class ThemeService implements IThemeService {
 		return this.getColorThemes().then(allThemes => {
 			let themes = allThemes.filter(t => t.id === themeId);
 			if (themes.length > 0) {
-				return <IInternalThemeData> themes[0];
+				return <IInternalThemeData>themes[0];
 			}
 			if (defaultId) {
 				let themes = allThemes.filter(t => t.id === defaultId);
 				if (themes.length > 0) {
-					return <IInternalThemeData> themes[0];
+					return <IInternalThemeData>themes[0];
 				}
 			}
 			return null;
 		});
 	}
 
-	private applyThemeCSS(themeId: string, defaultId: string, onApply: (theme:IInternalThemeData) => void): TPromise<boolean> {
+	private applyThemeCSS(themeId: string, defaultId: string, onApply: (theme: IInternalThemeData) => void): TPromise<boolean> {
 		return this.findThemeData(themeId, defaultId).then(theme => {
 			if (theme) {
 				return applyTheme(theme, onApply);
@@ -277,7 +299,7 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	private onThemes(extensionFolderPath: string, extensionId: string, themes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
+	private onThemes(extensionFolderPath: string, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(themes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -302,18 +324,21 @@ export class ThemeService implements IThemeService {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
 
-			let themeSelector = toCSSSelector(extensionId + '-' + Paths.normalize(theme.path));
+			let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
 			this.knownColorThemes.push({
 				id: `${theme.uiTheme || defaultBaseTheme} ${themeSelector}`,
 				label: theme.label || Paths.basename(theme.path),
 				description: theme.description,
 				path: normalizedAbsolutePath,
-				extensionId: extensionId
+				extensionId: extensionData.extensionId,
+				extensionPublisher: extensionData.extensionPublisher,
+				extensionName: extensionData.extensionName,
+				extensionIsBuiltin: extensionData.extensionIsBuiltin
 			});
 		});
 	}
 
-	private onIconThemes(extensionFolderPath: string, extensionId: string, iconThemes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
+	private onIconThemes(extensionFolderPath: string, extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(iconThemes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -348,11 +373,14 @@ export class ThemeService implements IThemeService {
 			}
 
 			this.knownIconThemes.push({
-				id: extensionId + '-' + iconTheme.id,
+				id: extensionData.extensionId + '-' + iconTheme.id,
 				label: iconTheme.label || Paths.basename(iconTheme.path),
 				description: iconTheme.description,
 				path: normalizedAbsolutePath,
-				extensionId: extensionId
+				extensionId: extensionData.extensionId,
+				extensionPublisher: extensionData.extensionPublisher,
+				extensionName: extensionData.extensionName,
+				extensionIsBuiltin: extensionData.extensionIsBuiltin
 			});
 		});
 	}
@@ -360,17 +388,14 @@ export class ThemeService implements IThemeService {
 	private themeExtensionsActivated = {};
 	private sendTelemetry(themeData: IInternalThemeData) {
 		if (!this.themeExtensionsActivated[themeData.extensionId]) {
-			let description = ExtensionsRegistry.getExtensionDescription(themeData.extensionId);
-			if (description) {
-				this.telemetryService.publicLog('activatePlugin', {
-					id: description.id,
-					name: description.name,
-					isBuiltin: description.isBuiltin,
-					publisherDisplayName: description.publisher,
-					themeId: themeData.id
-				});
-				this.themeExtensionsActivated[themeData.extensionId] = true;
-			}
+			this.telemetryService.publicLog('activatePlugin', {
+				id: themeData.extensionId,
+				name: themeData.extensionName,
+				isBuiltin: themeData.extensionIsBuiltin,
+				publisherDisplayName: themeData.extensionPublisher,
+				themeId: themeData.id
+			});
+			this.themeExtensionsActivated[themeData.extensionId] = true;
 		}
 	}
 
@@ -384,7 +409,7 @@ export class ThemeService implements IThemeService {
 		return this.currentIconTheme || this.storageService.get(ICON_THEME_PREF, StorageScope.GLOBAL, '');
 	}
 
-	public setFileIconTheme(iconTheme: string, broadcastToAllWindows: boolean) : TPromise<boolean> {
+	public setFileIconTheme(iconTheme: string, broadcastToAllWindows: boolean): TPromise<boolean> {
 		iconTheme = iconTheme || '';
 		if (iconTheme === this.currentIconTheme) {
 			if (broadcastToAllWindows) {
@@ -407,12 +432,12 @@ export class ThemeService implements IThemeService {
 		return this._updateIconTheme(onApply);
 	}
 
-	private _updateIconTheme(onApply: (theme:IInternalThemeData) => void) : TPromise<boolean> {
+	private _updateIconTheme(onApply: (theme: IInternalThemeData) => void): TPromise<boolean> {
 		return this.getFileIconThemes().then(allIconSets => {
 			let iconSetData;
 			for (let iconSet of allIconSets) {
 				if (iconSet.id === this.currentIconTheme) {
-					iconSetData = <IInternalThemeData> iconSet;
+					iconSetData = <IInternalThemeData>iconSet;
 					break;
 				}
 			}
@@ -421,7 +446,7 @@ export class ThemeService implements IThemeService {
 	}
 }
 
-function _applyIconTheme(data: IInternalThemeData, onApply: (theme:IInternalThemeData) => void): TPromise<boolean> {
+function _applyIconTheme(data: IInternalThemeData, onApply: (theme: IInternalThemeData) => void): TPromise<boolean> {
 	if (!data) {
 		_applyRules('', iconThemeRulesClassName);
 		onApply(data);
@@ -444,10 +469,10 @@ function _applyIconTheme(data: IInternalThemeData, onApply: (theme:IInternalThem
 	});
 }
 
-function _loadIconThemeDocument(fileSetPath: string) : TPromise<IconThemeDocument> {
+function _loadIconThemeDocument(fileSetPath: string): TPromise<IconThemeDocument> {
 	return pfs.readFile(fileSetPath).then(content => {
 		let errors: Json.ParseError[] = [];
-		let contentValue = <IThemeDocument> Json.parse(content.toString(), errors);
+		let contentValue = <IThemeDocument>Json.parse(content.toString(), errors);
 		if (errors.length > 0) {
 			return TPromise.wrapError(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
 		}
@@ -455,11 +480,11 @@ function _loadIconThemeDocument(fileSetPath: string) : TPromise<IconThemeDocumen
 	});
 }
 
-function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, iconThemeDocument: IconThemeDocument) : string {
+function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, iconThemeDocument: IconThemeDocument): string {
 	if (!iconThemeDocument.iconDefinitions) {
 		return '';
 	}
-	let selectorByDefinitionId : {[def:string]:string[]} = {};
+	let selectorByDefinitionId: { [def: string]: string[] } = {};
 
 	function resolvePath(path: string) {
 		return Paths.join(Paths.dirname(iconThemeDocumentPath), path);
@@ -534,7 +559,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 	}
 	collectSelectors(iconThemeDocument);
 	collectSelectors(iconThemeDocument.light, '.vs');
-	collectSelectors(iconThemeDocument.highContrast, '.hc_black');
+	collectSelectors(iconThemeDocument.highContrast, '.hc-black');
 
 	let cssRules: string[] = [];
 
@@ -588,7 +613,7 @@ function toCSSSelector(str: string) {
 	return str;
 }
 
-function applyTheme(theme: IInternalThemeData, onApply: (theme:IInternalThemeData) => void): TPromise<boolean> {
+function applyTheme(theme: IInternalThemeData, onApply: (theme: IInternalThemeData) => void): TPromise<boolean> {
 	if (theme.styleSheetContent) {
 		_applyRules(theme.styleSheetContent, colorThemeRulesClassName);
 		onApply(theme);
@@ -605,11 +630,11 @@ function applyTheme(theme: IInternalThemeData, onApply: (theme:IInternalThemeDat
 	});
 }
 
-function _loadThemeDocument(themePath: string) : TPromise<IThemeDocument> {
+function _loadThemeDocument(themePath: string): TPromise<IThemeDocument> {
 	return pfs.readFile(themePath).then(content => {
 		if (Paths.extname(themePath) === '.json') {
 			let errors: Json.ParseError[] = [];
-			let contentValue = <IThemeDocument> Json.parse(content.toString(), errors);
+			let contentValue = <IThemeDocument>Json.parse(content.toString(), errors);
 			if (errors.length > 0) {
 				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
 			}
@@ -631,12 +656,13 @@ function _loadThemeDocument(themePath: string) : TPromise<IThemeDocument> {
 
 function _processThemeObject(themeId: string, themeDocument: IThemeDocument): string {
 	let cssRules: string[] = [];
-	let themeSettings : IThemeSetting[] = themeDocument.settings;
+	let themeSettings: IThemeSetting[] = themeDocument.settings;
 
 	if (Array.isArray(themeSettings)) {
 		new TokenStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 		new EditorStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 		new SearchViewStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
+		new TerminalStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 	}
 
 	return cssRules.join('\n');

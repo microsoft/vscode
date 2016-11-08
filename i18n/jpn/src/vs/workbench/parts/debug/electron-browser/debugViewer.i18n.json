@@ -12,6 +12,7 @@
 	"functionBreakpointsNotSupported": "このデバッグの種類では関数ブレークポイントはサポートされていません",
 	"loadMoreStackFrames": "スタック フレームをさらに読み込む",
 	"paused": "一時停止",
+	"process": "プロセス",
 	"running": "実行中",
 	"stackFrameAriaLabel": "スタック フレーム {0} 行 {1} {2}、呼び出しスタック、デバッグ",
 	"thread": "スレッド",

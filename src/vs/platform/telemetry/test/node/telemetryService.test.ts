@@ -5,14 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Emitter} from 'vs/base/common/event';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {TelemetryService} from 'vs/platform/telemetry/common/telemetryService';
+import { Emitter } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import Telemetry = require('vs/platform/telemetry/common/telemetry');
 import Errors = require('vs/base/common/errors');
 import * as sinon from 'sinon';
-import {getConfigurationValue} from 'vs/platform/configuration/common/configuration';
+import { getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 
 const optInStatusEventName: string = 'optInStatus';
 
@@ -433,6 +433,68 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
+	test('Unexpected Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(function () {
+
+		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+
+		try {
+			let settings = new ErrorTestingSettings();
+			let testAppender = new TestTelemetryAppender();
+			let service = new TelemetryService({ appender: testAppender, piiPaths: [ settings.personalInfo + '/resources/app/' ] }, undefined);
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			let dangerousPathWithImportantInfoError: any = new Error(settings.dangerousPathWithImportantInfo);
+			dangerousPathWithImportantInfoError.stack = settings.stack;
+
+			// Test that important information remains but personal info does not
+			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.importantInfo), -1);
+			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.importantInfo), -1);
+			assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
+			assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
+			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
+			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+
+			errorTelemetry.dispose();
+			service.dispose();
+		}
+		finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Uncaught Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(function () {
+		let errorStub = this.stub(window, 'onerror');
+		let settings = new ErrorTestingSettings();
+		let testAppender = new TestTelemetryAppender();
+		let service = new TelemetryService({ appender: testAppender, piiPaths: [ settings.personalInfo + '/resources/app/' ] }, undefined);
+		const errorTelemetry = new ErrorTelemetry(service);
+
+		let dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
+		dangerousPathWithImportantInfoError.stack = settings.stack;
+		(<any>window.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+		assert.equal(errorStub.callCount, 1);
+		// Test that important information remains but personal info does not
+		assert.notEqual(testAppender.events[0].data.message.indexOf(settings.importantInfo), -1);
+		assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
+		assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
+		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.importantInfo), -1);
+		assert.equal(testAppender.events[0].data.stack.indexOf(settings.personalInfo), -1);
+		assert.equal(testAppender.events[0].data.stack.indexOf(settings.filePrefix), -1);
+		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
+		assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
+
+		errorTelemetry.dispose();
+		service.dispose();
+	}));
+
 	test('Unexpected Error Telemetry removes PII but preserves Missing Model error message', sinon.test(function () {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
@@ -627,8 +689,9 @@ suite('TelemetryService', () => {
 						user: getConfigurationValue(this.getConfiguration(), key)
 					};
 				},
+				keys() { return { default: [], user: [] }; },
 				onDidUpdateConfiguration: emitter.event
-		});
+			});
 
 		assert.equal(service.isOptedIn, false);
 

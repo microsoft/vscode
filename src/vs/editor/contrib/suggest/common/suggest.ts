@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {sequence, asWinJsPromise} from 'vs/base/common/async';
-import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {compare} from 'vs/base/common/strings';
-import {assign} from 'vs/base/common/objects';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
-import {ISnippetsRegistry, Extensions} from 'vs/editor/common/modes/snippetsRegistry';
-import {Position} from 'vs/editor/common/core/position';
-import {Registry} from 'vs/platform/platform';
-import {RawContextKey} from 'vs/platform/contextkey/common/contextkey';
-import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
+import { sequence, asWinJsPromise } from 'vs/base/common/async';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { compare } from 'vs/base/common/strings';
+import { assign } from 'vs/base/common/objects';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IReadOnlyModel, IPosition } from 'vs/editor/common/editorCommon';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry } from 'vs/editor/common/modes';
+import { ISnippetsRegistry, Extensions } from 'vs/editor/common/modes/snippetsRegistry';
+import { Position } from 'vs/editor/common/core/position';
+import { Registry } from 'vs/platform/platform';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
@@ -45,21 +45,25 @@ export const snippetSuggestSupport: ISuggestSupport = {
 	provideCompletionItems(model: IReadOnlyModel, position: Position): ISuggestResult {
 		const suggestions = Registry.as<ISnippetsRegistry>(Extensions.Snippets).getSnippetCompletions(model, position);
 		if (suggestions) {
-			return { suggestions, currentWord: '' };
+			return { suggestions };
 		}
 	}
 };
 
 export function provideSuggestionItems(model: IReadOnlyModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[]): TPromise<ISuggestionItem[]> {
 
-	const result: ISuggestionItem[] = [];
+	const allSuggestions: ISuggestionItem[] = [];
 	const acceptSuggestion = createSuggesionFilter(snippetConfig);
 
 	position = position.clone();
 
 	// get provider groups, always add snippet suggestion provider
 	const supports = SuggestRegistry.orderedGroups(model);
-	supports.unshift([snippetSuggestSupport]);
+
+	// add snippets provider unless turned off
+	if (snippetConfig !== 'none') {
+		supports.unshift([snippetSuggestSupport]);
+	}
 
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
@@ -79,7 +83,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 
 				return asWinJsPromise(token => support.provideCompletionItems(model, position, token)).then(container => {
 
-					const len = result.length;
+					const len = allSuggestions.length;
 
 					if (container && !isFalsyOrEmpty(container.suggestions)) {
 						for (let suggestion of container.suggestions) {
@@ -87,7 +91,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 
 								fixOverwriteBeforeAfter(suggestion, container);
 
-								result.push({
+								allSuggestions.push({
 									position,
 									container,
 									suggestion,
@@ -98,7 +102,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 						}
 					}
 
-					if (len !== result.length && support !== snippetSuggestSupport) {
+					if (len !== allSuggestions.length && support !== snippetSuggestSupport) {
 						hasResult = true;
 					}
 
@@ -107,12 +111,21 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 		};
 	});
 
-	return sequence(factory).then(() => result.sort(getSuggestionComparator(snippetConfig)));
+	const result = sequence(factory).then(() => allSuggestions.sort(getSuggestionComparator(snippetConfig)));
+
+	// result.then(items => {
+	// 	console.log(model.getWordUntilPosition(position), items.map(item => `${item.suggestion.label}, type=${item.suggestion.type}, incomplete?${item.container.incomplete}, overwriteBefore=${item.suggestion.overwriteBefore}`));
+	// 	return items;
+	// }, err => {
+	// 	console.warn(model.getWordUntilPosition(position), err);
+	// });
+
+	return result;
 }
 
 function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestResult): void {
 	if (typeof suggestion.overwriteBefore !== 'number') {
-		suggestion.overwriteBefore = container.currentWord.length;
+		suggestion.overwriteBefore = 0;
 	}
 	if (typeof suggestion.overwriteAfter !== 'number' || suggestion.overwriteAfter < 0) {
 		suggestion.overwriteAfter = 0;
@@ -197,5 +210,19 @@ export function getSuggestionComparator(snippetConfig: SnippetConfig): (a: ISugg
 }
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {
-	return provideSuggestionItems(model, position);
+
+	const result: ISuggestResult = {
+		incomplete: false,
+		suggestions: []
+	};
+
+	return provideSuggestionItems(model, position).then(items => {
+
+		for (const {container, suggestion} of items) {
+			result.incomplete = result.incomplete || container.incomplete;
+			result.suggestions.push(suggestion);
+		}
+
+		return result;
+	});
 });

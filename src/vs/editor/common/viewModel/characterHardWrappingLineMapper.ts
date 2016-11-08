@@ -5,11 +5,11 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {WrappingIndent} from 'vs/editor/common/editorCommon';
-import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
-import {ILineMapperFactory, ILineMapping, OutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
-import {CharCode} from 'vs/base/common/charCode';
-import {CharacterClassifier} from 'vs/editor/common/core/characterClassifier';
+import { WrappingIndent } from 'vs/editor/common/editorCommon';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { ILineMapperFactory, ILineMapping, OutputPosition } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { CharCode } from 'vs/base/common/charCode';
+import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -21,7 +21,7 @@ const enum CharacterClass {
 
 class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 
-	constructor(BREAK_BEFORE:string, BREAK_AFTER:string, BREAK_OBTRUSIVE:string) {
+	constructor(BREAK_BEFORE: string, BREAK_AFTER: string, BREAK_OBTRUSIVE: string) {
 		super(CharacterClass.NONE);
 
 		for (let i = 0; i < BREAK_BEFORE.length; i++) {
@@ -37,7 +37,7 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 		}
 	}
 
-	public get(charCode:number): CharacterClass {
+	public get(charCode: number): CharacterClass {
 		// Initialize CharacterClass.BREAK_IDEOGRAPHIC for these Unicode ranges:
 		// 1. CJK Unified Ideographs (0x4E00 -- 0x9FFF)
 		// 2. CJK Unified Ideographs Extension A (0x3400 -- 0x4DBF)
@@ -56,14 +56,14 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 
 export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactory {
 
-	private classifier:WrappingCharacterClassifier;
+	private classifier: WrappingCharacterClassifier;
 
-	constructor(breakBeforeChars:string, breakAfterChars:string, breakObtrusiveChars:string) {
+	constructor(breakBeforeChars: string, breakAfterChars: string, breakObtrusiveChars: string) {
 		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars, breakObtrusiveChars);
 	}
 
 	// TODO@Alex -> duplicated in lineCommentCommand
-	private static nextVisibleColumn(currentVisibleColumn:number, tabSize:number, isTab:boolean, columnSize:number): number {
+	private static nextVisibleColumn(currentVisibleColumn: number, tabSize: number, isTab: boolean, columnSize: number): number {
 		currentVisibleColumn = +currentVisibleColumn; //@perf
 		tabSize = +tabSize; //@perf
 		columnSize = +columnSize; //@perf
@@ -74,7 +74,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		return currentVisibleColumn + columnSize;
 	}
 
-	public createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar:number, hardWrappingIndent:WrappingIndent): ILineMapping {
+	public createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): ILineMapping {
 		if (breakingColumn === -1) {
 			return null;
 		}
@@ -100,7 +100,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, true, 1);
 				}
 				// Force sticking to beginning of line if indentColumn > 66% breakingColumn
-				if (wrappedTextIndentVisibleColumn > 1/2 * breakingColumn) {
+				if (wrappedTextIndentVisibleColumn > 1 / 2 * breakingColumn) {
 					wrappedTextIndent = '';
 					wrappedTextIndentVisibleColumn = 0;
 				}
@@ -109,11 +109,11 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 		let classifier = this.classifier;
 		let lastBreakingOffset = 0; // Last 0-based offset in the lineText at which a break happened
-		let breakingLengths:number[] = []; // The length of each broken-up line text
-		let breakingLengthsIndex:number = 0; // The count of breaks already done
+		let breakingLengths: number[] = []; // The length of each broken-up line text
+		let breakingLengthsIndex: number = 0; // The count of breaks already done
 		let visibleColumn = 0; // Visible column since the beginning of the current line
-		let breakBeforeOffset:number; // 0-based offset in the lineText before which breaking
-		let restoreVisibleColumnFrom:number;
+		let breakBeforeOffset: number; // 0-based offset in the lineText before which breaking
+		let restoreVisibleColumnFrom: number;
 		let niceBreakOffset = -1; // Last index of a character that indicates a break should happen before it (more desirable)
 		let niceBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `niceBreakOffset`
 		let obtrusiveBreakOffset = -1; // Last index of a character that indicates a break should happen before it (less desirable)
@@ -241,10 +241,10 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 export class CharacterHardWrappingLineMapping implements ILineMapping {
 
-	private _prefixSums:PrefixSumComputer;
-	private _wrappedLinesIndent:string;
+	private _prefixSums: PrefixSumComputer;
+	private _wrappedLinesIndent: string;
 
-	constructor(prefixSums:PrefixSumComputer, wrappedLinesIndent:string) {
+	constructor(prefixSums: PrefixSumComputer, wrappedLinesIndent: string) {
 		this._prefixSums = prefixSums;
 		this._wrappedLinesIndent = wrappedLinesIndent;
 	}
@@ -257,7 +257,7 @@ export class CharacterHardWrappingLineMapping implements ILineMapping {
 		return this._wrappedLinesIndent;
 	}
 
-	public getInputOffsetOfOutputPosition(outputLineIndex:number, outputOffset:number): number {
+	public getInputOffsetOfOutputPosition(outputLineIndex: number, outputOffset: number): number {
 		if (outputLineIndex === 0) {
 			return outputOffset;
 		} else {
@@ -265,7 +265,7 @@ export class CharacterHardWrappingLineMapping implements ILineMapping {
 		}
 	}
 
-	public getOutputPositionOfInputOffset(inputOffset:number): OutputPosition {
+	public getOutputPositionOfInputOffset(inputOffset: number): OutputPosition {
 		let r = this._prefixSums.getIndexOf(inputOffset);
 		return new OutputPosition(r.index, r.remainder);
 	}

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
-import {ISuggestResult, ISuggestSupport} from 'vs/editor/common/modes';
-import {IFilter, matchesPrefix, fuzzyContiguousFilter} from 'vs/base/common/filters';
-import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {CancellationToken} from 'vs/base/common/cancellation';
-import {wireCancellationToken} from 'vs/base/common/async';
-import {Position} from 'vs/editor/common/core/position';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
+import { IFilter, matchesPrefix } from 'vs/base/common/filters';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { wireCancellationToken } from 'vs/base/common/async';
+import { Position } from 'vs/editor/common/core/position';
 
 export class TextualSuggestSupport implements ISuggestSupport {
 
@@ -31,22 +31,10 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		this._configurationService = configurationService;
 	}
 
-	public provideCompletionItems(model:IReadOnlyModel, position:Position, token:CancellationToken): Thenable<ISuggestResult> {
+	public provideCompletionItems(model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<ISuggestResult> {
 		let config = this._configurationService.getConfiguration<{ wordBasedSuggestions: boolean }>('editor');
 		if (!config || config.wordBasedSuggestions) {
 			return wireCancellationToken(token, this._editorWorkerService.textualSuggest(model.uri, position));
 		}
 	}
-}
-
-export function filterSuggestions(value: ISuggestResult): ISuggestResult {
-	if (!value) {
-		return;
-	}
-
-	return {
-		currentWord: value.currentWord,
-		suggestions: value.suggestions.filter((element) => !!fuzzyContiguousFilter(value.currentWord, element.label)),
-		incomplete: value.incomplete
-	};
 }

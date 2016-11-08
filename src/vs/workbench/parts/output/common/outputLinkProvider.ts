@@ -5,15 +5,15 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import {RunOnceScheduler, wireCancellationToken} from 'vs/base/common/async';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {LinkProviderRegistry, ILink} from 'vs/editor/common/modes';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {OUTPUT_MODE_ID} from 'vs/workbench/parts/output/common/output';
-import {MonacoWebWorker, createWebWorker} from 'vs/editor/common/services/webWorker';
-import {ICreateData, OutputLinkComputer} from 'vs/workbench/parts/output/common/outputLinkComputer';
+import { RunOnceScheduler, wireCancellationToken } from 'vs/base/common/async';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { LinkProviderRegistry, ILink } from 'vs/editor/common/modes';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { OUTPUT_MODE_ID } from 'vs/workbench/parts/output/common/output';
+import { MonacoWebWorker, createWebWorker } from 'vs/editor/common/services/webWorker';
+import { ICreateData, OutputLinkComputer } from 'vs/workbench/parts/output/common/outputLinkComputer';
 
 export class OutputLinkProvider {
 
@@ -26,7 +26,7 @@ export class OutputLinkProvider {
 	private _disposeWorker: RunOnceScheduler;
 
 	constructor(
-		contextService:IWorkspaceContextService,
+		contextService: IWorkspaceContextService,
 		modelService: IModelService
 	) {
 		let workspace = contextService.getWorkspace();
@@ -56,7 +56,7 @@ export class OutputLinkProvider {
 	private _getOrCreateWorker(): MonacoWebWorker<OutputLinkComputer> {
 		this._disposeWorker.schedule();
 		if (!this._worker) {
-			let createData:ICreateData = {
+			let createData: ICreateData = {
 				workspaceResourceUri: this._workspaceResource.toString()
 			};
 			this._worker = createWebWorker<OutputLinkComputer>(this._modelService, {
@@ -68,7 +68,7 @@ export class OutputLinkProvider {
 		return this._worker;
 	}
 
-	private _provideLinks(modelUri:URI): TPromise<ILink[]> {
+	private _provideLinks(modelUri: URI): TPromise<ILink[]> {
 		return this._getOrCreateWorker().withSyncedResources([modelUri]).then((linkComputer) => {
 			return linkComputer.computeLinks(modelUri.toString());
 		});

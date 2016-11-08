@@ -5,9 +5,9 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {AbstractThreadService} from 'vs/workbench/services/thread/common/abstractThreadService';
-import {IThreadService, ProxyIdentifier} from 'vs/workbench/services/thread/common/threadService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { AbstractThreadService } from 'vs/workbench/services/thread/common/abstractThreadService';
+import { IThreadService, ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 
 export function OneGetThreadService(thing: any): IThreadService {
 	return {
@@ -56,7 +56,7 @@ export class TestThreadService extends AbstractThreadService implements IThreadS
 			if (!this._idle) {
 				this._idle = new TPromise<any>((c, e) => {
 					this._completeIdle = c;
-				}, function() {
+				}, function () {
 					// no cancel
 				});
 			}
@@ -64,13 +64,13 @@ export class TestThreadService extends AbstractThreadService implements IThreadS
 		});
 	}
 
-	private _testInstances: {[id:string]:any;} = Object.create(null);
-	setTestInstance<T>(identifier:ProxyIdentifier<T>, value:T): T {
+	private _testInstances: { [id: string]: any; } = Object.create(null);
+	setTestInstance<T>(identifier: ProxyIdentifier<T>, value: T): T {
 		this._testInstances[identifier.id] = value;
 		return value;
 	}
 
-	get<T>(identifier:ProxyIdentifier<T>): T {
+	get<T>(identifier: ProxyIdentifier<T>): T {
 		let id = identifier.id;
 		if (this._locals[id]) {
 			return this._locals[id];
@@ -78,7 +78,7 @@ export class TestThreadService extends AbstractThreadService implements IThreadS
 		return super.get(identifier);
 	}
 
-	protected _callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any> {
+	protected _callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any> {
 		this._callCount++;
 
 		return new TPromise<any>((c) => {

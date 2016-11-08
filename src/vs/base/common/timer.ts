@@ -7,7 +7,7 @@
 import Platform = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import precision = require('vs/base/common/stopwatch');
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export var ENABLE_TIMER = false;
 var msWriteProfilerMark = Platform.globals['msWriteProfilerMark'];
@@ -171,7 +171,7 @@ export class TimeKeeper {
 		return ENABLE_TIMER;
 	}
 
-	public start(topic: Topic|string, name: string, start?: Date, description?: string): ITimerEvent {
+	public start(topic: Topic | string, name: string, start?: Date, description?: string): ITimerEvent {
 		if (!this.isEnabled()) {
 			return nullEvent;
 		}
@@ -284,7 +284,7 @@ export class TimeKeeper {
 var timeKeeper = new TimeKeeper();
 export var nullEvent: ITimerEvent = new NullTimerEvent();
 
-export function start(topic: Topic|string, name: string, start?: Date, description?: string): ITimerEvent {
+export function start(topic: Topic | string, name: string, start?: Date, description?: string): ITimerEvent {
 	return timeKeeper.start(topic, name, start, description);
 }
 

@@ -5,11 +5,11 @@
 
 'use strict';
 
-import {IPosition, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import { IPosition, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
-import {Range} from 'vs/editor/common/core/range';
-import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
+import { Range } from 'vs/editor/common/core/range';
+import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 
 
 import emmet = require('emmet');
@@ -80,12 +80,21 @@ export class EditorAccessor implements emmet.Editor {
 		let startPosition = this.getPositionFromOffset(start);
 		let endPosition = this.getPositionFromOffset(end);
 
-		// test if < or </ are located before the replace range. Either replace these too, or block the expansion
+		// test if < or </ are located before or > after the replace range. Either replace these too, or block the expansion
 		var currentLine = this._editor.getModel().getLineContent(startPosition.lineNumber).substr(0, startPosition.column - 1); // content before the replaced range
 		var match = currentLine.match(/<[/]?$/);
 		if (match) {
 			if (strings.startsWith(value, match[0])) {
 				startPosition = { lineNumber: startPosition.lineNumber, column: startPosition.column - match[0].length };
+			} else {
+				return; // ignore
+			}
+		}
+
+		// test if > is located after the replace range. Either replace these too, or block the expansion
+		if (this._editor.getModel().getLineContent(endPosition.lineNumber).substr(endPosition.column - 1, endPosition.column) === '>') {
+			if (strings.endsWith(value, '>')) {
+				endPosition = { lineNumber: endPosition.lineNumber, column: endPosition.column + 1 };
 			} else {
 				return; // ignore
 			}

@@ -8,10 +8,11 @@ import objects = require('vs/base/common/objects');
 import types = require('vs/base/common/types');
 import json = require('vs/base/common/json');
 import model = require('vs/platform/configuration/common/model');
-import {CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_DEFAULT_PATH} from 'vs/workbench/services/configuration/common/configuration';
+import { CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 
 export interface IConfigFile {
 	contents: any;
+	raw?: any;
 	parseError?: any;
 }
 
@@ -24,7 +25,8 @@ export function newConfigFile(value: string): IConfigFile {
 		}
 
 		return {
-			contents: root
+			contents: root,
+			raw: contents
 		};
 	} catch (e) {
 		return {
@@ -51,7 +53,7 @@ export function merge(base: any, add: any, overwrite: boolean): void {
 export function consolidate(configMap: { [key: string]: IConfigFile; }): { contents: any; parseErrors: string[]; } {
 	const finalConfig: any = Object.create(null);
 	const parseErrors: string[] = [];
-	const regexp = /\/(team\.)?([^\.]*)*\.json/;
+	const regexp = /\/([^\.]*)*\.json/;
 
 	// We want to use the default settings file as base and let all other config
 	// files overwrite the base one
@@ -69,15 +71,12 @@ export function consolidate(configMap: { [key: string]: IConfigFile; }): { conte
 			return;
 		}
 
-		// If a file is team.foo.json, it indicates team settings, strip this away
-		const isTeamSetting = !!matches[1];
-
 		// Extract the config key from the file name (except for settings.json which is the default)
 		let configElement: any = finalConfig;
-		if (matches && matches[2] && matches[2] !== CONFIG_DEFAULT_NAME) {
+		if (matches && matches[1] && matches[1] !== CONFIG_DEFAULT_NAME) {
 
 			// Use the name of the file as top level config section for all settings inside
-			const configSection = matches[2];
+			const configSection = matches[1];
 			let element = configElement[configSection];
 			if (!element) {
 				element = Object.create(null);
@@ -86,7 +85,7 @@ export function consolidate(configMap: { [key: string]: IConfigFile; }): { conte
 			configElement = element;
 		}
 
-		merge(configElement, config.contents, !isTeamSetting /* user settings overrule team settings */);
+		merge(configElement, config.contents, true);
 		if (config.parseError) {
 			parseErrors.push(configFileName);
 		}

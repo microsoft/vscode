@@ -9,8 +9,10 @@ import {
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, RequestType
 } from 'vscode-languageserver';
 
-import {getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet} from 'vscode-css-languageservice';
-import {getLanguageModelCache} from './languageModelCache';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
+import { getLanguageModelCache } from './languageModelCache';
+import Uri from 'vscode-uri';
+import { isEmbeddedContentUri, getHostDocumentUri } from './embeddedContentUri';
 
 namespace ColorSymbolRequest {
 	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
@@ -62,7 +64,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	};
 });
 
-let languageServices : { [id:string]: LanguageService} = {
+let languageServices: { [id: string]: LanguageService } = {
 	css: getCSSLanguageService(),
 	scss: getSCSSLanguageService(),
 	less: getLESSLanguageService()
@@ -90,7 +92,7 @@ function updateConfiguration(settings: Settings) {
 	documents.all().forEach(triggerValidation);
 }
 
-let pendingValidationRequests : { [uri:string]: NodeJS.Timer } = {};
+let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
 const validationDelayMs = 200;
 
 // The content of a text document has changed. This event is emitted
@@ -125,7 +127,9 @@ function validateTextDocument(textDocument: TextDocument): void {
 	let stylesheet = stylesheets.get(textDocument);
 	let diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet);
 	// Send the computed diagnostics to VSCode.
-	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+	let uri = Uri.parse(textDocument.uri);
+	let diagnosticsTarget = isEmbeddedContentUri(uri) ? getHostDocumentUri(uri) : textDocument.uri;
+	connection.sendDiagnostics({ uri: diagnosticsTarget, diagnostics });
 }
 
 connection.onCompletion(textDocumentPosition => {
@@ -172,8 +176,11 @@ connection.onCodeAction(codeActionParams => {
 
 connection.onRequest(ColorSymbolRequest.type, uri => {
 	let document = documents.get(uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).findColorSymbols(document, stylesheet);
+	if (document) {
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).findColorSymbols(document, stylesheet);
+	}
+	return [];
 });
 
 connection.onRenameRequest(renameParameters => {

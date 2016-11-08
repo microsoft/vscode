@@ -16,8 +16,7 @@ const $ = builder.$;
 
 export class NoWorkspaceView
 	extends ee.EventEmitter
-	implements view.IView
-{
+	implements view.IView {
 	public ID = 'noworkspace';
 	private _element: HTMLElement;
 
@@ -46,7 +45,7 @@ export class NoWorkspaceView
 		return;
 	}
 
-	public setVisible(visible:boolean): winjs.TPromise<void> {
+	public setVisible(visible: boolean): winjs.TPromise<void> {
 		return winjs.TPromise.as(null);
 	}
 

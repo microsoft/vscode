@@ -9,14 +9,14 @@ import 'vs/css!./inputBox';
 import nls = require('vs/nls');
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import aria = require('vs/base/browser/ui/aria/aria');
-import {IAction} from 'vs/base/common/actions';
-import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IContextViewProvider, AnchorAlignment} from 'vs/base/browser/ui/contextview/contextview';
-import Event, {Emitter} from 'vs/base/common/event';
-import {Widget} from 'vs/base/browser/ui/widget';
+import { IAction } from 'vs/base/common/actions';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Widget } from 'vs/base/browser/ui/widget';
 
 const $ = dom.$;
 

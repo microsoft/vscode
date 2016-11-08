@@ -6,7 +6,7 @@
 {
 	"cannotRunGotoLine": "Чтобы перейти к строке, сначала откройте текстовый файл",
 	"gotoLine": "Перейти к строке...",
-	"gotoLineColumnLabel": "Перейти к строке {0} и столбцу {1}",
+	"gotoLineColumnLabel": "Перейти к строке {0} и символу {1}",
 	"gotoLineHandlerAriaLabel": "Введите номер строки, к которой нужно перейти.",
 	"gotoLineLabel": "Перейти к строке {0}",
 	"gotoLineLabelEmpty": "Введите номер строки для перехода",

@@ -4,207 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {MarkedString} from 'vs/base/common/htmlContent';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { MarkedString } from 'vs/base/common/htmlContent';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IFilter} from 'vs/base/common/filters';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFilter } from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {Token} from 'vs/editor/common/core/token';
+import { ModeTransition } from 'vs/editor/common/core/modeTransition';
+import { Token } from 'vs/editor/common/core/token';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-import {CancellationToken} from 'vs/base/common/cancellation';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import Event, {Emitter} from 'vs/base/common/event';
-
-/**
- * @internal
- */
-export interface ITokenizationResult {
-	type?:string;
-	dontMergeWithPrev?:boolean;
-	nextState?:IState;
-}
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import Event, { Emitter } from 'vs/base/common/event';
 
 /**
  * @internal
  */
 export interface IState {
-	clone():IState;
-	equals(other:IState):boolean;
-	getModeId():string;
-	tokenize(stream:IStream):ITokenizationResult;
+	clone(): IState;
+	equals(other: IState): boolean;
+	getModeId(): string;
 	getStateData(): IState;
-	setStateData(state:IState):void;
-}
-
-/**
- * An IStream is a character & token stream abstraction over a line of text. It
- *  is never multi-line. The stream can be navigated character by character, or
- *  token by token, given some token rules.
- * @internal
- */
-export interface IStream {
-
-	/**
-	 * Returns the current character position of the stream on the line.
-	 */
-	pos():number;
-
-	/**
-	 * Returns true iff the stream is at the end of the line.
-	 */
-	eos():boolean;
-
-	/**
-	 * Returns the next character in the stream.
-	 */
-	peek():string;
-
-	/**
-	 * Returns the next character in the stream, and advances it by one character.
-	 */
-	next(): string;
-	next2(): void;
-
-	/**
-	 * Advances the stream by `n` characters.
-	 */
-	advance(n:number):string;
-
-	/**
-	 * Advances the stream until the end of the line.
-	 */
-	advanceToEOS():string;
-
-	/**
-	 * Brings the stream back `n` characters.
-	 */
-	goBack(n:number):void;
-
-	/**
-	 *  Advances the stream if the next characters validate a condition. A condition can be
-	 *
-	 *      - a regular expression (always starting with ^)
-	 * 			EXAMPLES: /^\d+/, /^function|var|interface|class/
-	 *
-	 *  	- a string
-	 * 			EXAMPLES: "1954", "albert"
-	 */
-	advanceIfCharCode(charCode: number): string;
-	advanceIfCharCode2(charCode:number): number;
-
-	advanceIfString(condition: string): string;
-	advanceIfString2(condition: string): number;
-
-	advanceIfStringCaseInsensitive(condition: string): string;
-	advanceIfStringCaseInsensitive2(condition: string): number;
-
-	advanceIfRegExp(condition: RegExp): string;
-	advanceIfRegExp2(condition:RegExp): number;
-
-
-	/**
-	 * Advances the stream while the next characters validate a condition. Check #advanceIf for
-	 * details on the possible types for condition.
-	 */
-	advanceWhile(condition:string):string;
-	advanceWhile(condition:RegExp):string;
-
-	/**
-	 * Advances the stream until the some characters validate a condition. Check #advanceIf for
-	 * details on the possible types for condition. The `including` boolean value indicates
-	 * whether the stream will advance the characters that matched the condition as well, or not.
-	 */
-	advanceUntil(condition: string, including: boolean): string;
-	advanceUntil(condition: RegExp, including: boolean): string;
-
-	advanceUntilString(condition: string, including: boolean): string;
-	advanceUntilString2(condition: string, including: boolean): number;
-
-	/**
-	 * The token rules define how consecutive characters should be put together as a token,
-	 * or separated into two different tokens. They are given through a separator characters
-	 * string and a whitespace characters string. A separator is always one token. Consecutive
-	 * whitespace is always one token. Everything in between these two token types, is also a token.
-	 *
-	 * 	EXAMPLE: stream.setTokenRules("+-", " ");
-	 * 	Setting these token rules defines the tokens for the string "123+456 -    7" as being
-	 * 		["123", "+", "456", " ", "-", "    ", "7"]
-	 */
-	setTokenRules(separators:string, whitespace:string):void;
-
-	/**
-	 * Returns the next token, given that the stream was configured with token rules.
-	 */
-	peekToken():string;
-
-	/**
-	 * Returns the next token, given that the stream was configured with token rules, and advances the
-	 * stream by the exact length of the found token.
-	 */
-	nextToken():string;
-
-	/**
-	 * Returns the next whitespace, if found. Returns an empty string otherwise.
-	 */
-	peekWhitespace():string;
-
-	/**
-	 * Returns the next whitespace, if found, and advances the stream by the exact length of the found
-	 * whitespace. Returns an empty string otherwise.
-	 */
-	skipWhitespace(): string;
-	skipWhitespace2(): number;
+	setStateData(state: IState): void;
 }
 
 /**
  * @internal
  */
 export interface IModeDescriptor {
-	id:string;
-}
-
-/**
- * @internal
- */
-export interface ILineContext {
-	/**
-	 * Get the content of the line.
-	 */
-	getLineContent(): string;
-
-	/**
-	 * The mode transitions on this line.
-	 */
-	modeTransitions: ModeTransition[];
-
-	/**
-	 * Get the number of tokens on this line.
-	 */
-	getTokenCount(): number;
-
-	/**
-	 * Get the start offset of the token at `tokenIndex`.
-	 */
-	getTokenStartOffset(tokenIndex:number): number;
-
-	/**
-	 * Get the type of the token at `tokenIndex`.
-	 */
-	getTokenType(tokenIndex:number): string;
-
-	/**
-	 * Find the token containing offset `offset`.
-	 *    For example, with the following tokens [0, 5), [5, 9), [9, infinity)
-	 *    Searching for 0, 1, 2, 3 or 4 will return 0.
-	 *    Searching for 5, 6, 7 or 8 will return 1.
-	 *    Searching for 9, 10, 11, ... will return 2.
-	 * @param offset The search offset
-	 * @return The index of the token containing the offset.
-	 */
-	findIndexOfOffset(offset:number): number;
+	id: string;
 }
 
 /**
@@ -231,11 +60,11 @@ export interface ILineTokens {
  */
 export interface ITokenizationSupport {
 
-	getInitialState():IState;
+	getInitialState(): IState;
 
 	// add offsetDelta to each of the returned indices
 	// stop tokenizing at absolute value stopAtOffset (i.e. stream.pos() + offsetDelta > stopAtOffset)
-	tokenize(line:string, state:IState, offsetDelta?:number, stopAtOffset?:number):ILineTokens;
+	tokenize(line: string, state: IState, offsetDelta?: number, stopAtOffset?: number): ILineTokens;
 }
 
 /**
@@ -243,7 +72,7 @@ export interface ITokenizationSupport {
  */
 export interface IToken2 {
 	startIndex: number;
-	scopes: string|string[];
+	scopes: string | string[];
 }
 /**
  * The result of a line tokenization.
@@ -269,8 +98,8 @@ export interface ILineTokens2 {
  * The model will clone the previous line's state and pass it in to tokenize the next line.
  */
 export interface IState2 {
-	clone():IState2;
-	equals(other:IState2):boolean;
+	clone(): IState2;
+	equals(other: IState2): boolean;
 }
 /**
  * A "manual" provider of tokens.
@@ -283,7 +112,7 @@ export interface TokensProvider {
 	/**
 	 * Tokenize a line given the state at the beginning of the line.
 	 */
-	tokenize(line:string, state:IState2): ILineTokens2;
+	tokenize(line: string, state: IState2): ILineTokens2;
 }
 
 /**
@@ -314,7 +143,7 @@ export interface HoverProvider {
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Hover | Thenable<Hover>;
+	provideHover(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
 }
 
 /**
@@ -357,14 +186,14 @@ export interface ISuggestion {
 	additionalTextEdits?: editorCommon.ISingleEditOperation[];
 	command?: Command;
 	isTMSnippet?: boolean;
+	_extensionId?: string;
 }
 
 /**
  * @internal
  */
 export interface ISuggestResult {
-	currentWord: string;
-	suggestions:ISuggestion[];
+	suggestions: ISuggestion[];
 	incomplete?: boolean;
 }
 
@@ -377,9 +206,9 @@ export interface ISuggestSupport {
 
 	filter?: IFilter;
 
-	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
+	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
 
-	resolveCompletionItem?(model:editorCommon.IReadOnlyModel, position:Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
+	resolveCompletionItem?(model: editorCommon.IReadOnlyModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
 /**
@@ -398,7 +227,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model:editorCommon.IReadOnlyModel, range:Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 }
 
 /**
@@ -533,7 +362,7 @@ export interface ReferenceProvider {
 	/**
 	 * Provide a set of project-wide references for the given position and document.
 	 */
-	provideReferences(model:editorCommon.IReadOnlyModel, position:Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
+	provideReferences(model: editorCommon.IReadOnlyModel, position: Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
 }
 
 /**
@@ -565,7 +394,7 @@ export interface DefinitionProvider {
 	/**
 	 * Provide the definition of the symbol at the given position and document.
 	 */
-	provideDefinition(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Definition | Thenable<Definition>;
+	provideDefinition(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 }
 
 
@@ -724,7 +553,7 @@ export interface DocumentSymbolProvider {
 	/**
 	 * Provide symbol information for the given document.
 	 */
-	provideDocumentSymbols(model:editorCommon.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
+	provideDocumentSymbols(model: editorCommon.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
 }
 
 /**
@@ -734,11 +563,11 @@ export interface FormattingOptions {
 	/**
 	 * Size of a tab in spaces.
 	 */
-	tabSize:number;
+	tabSize: number;
 	/**
 	 * Prefer spaces over tabs.
 	 */
-	insertSpaces:boolean;
+	insertSpaces: boolean;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -785,7 +614,7 @@ export interface OnTypeFormattingEditProvider {
  */
 export interface IInplaceReplaceSupportResult {
 	value: string;
-	range:editorCommon.IRange;
+	range: editorCommon.IRange;
 }
 
 /**
@@ -814,7 +643,7 @@ export interface WorkspaceEdit {
 	rejectReason?: string;
 }
 export interface RenameProvider {
-	provideRenameEdits(model:editorCommon.IReadOnlyModel, position:Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
+	provideRenameEdits(model: editorCommon.IReadOnlyModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
 }
 
 
@@ -829,131 +658,8 @@ export interface ICodeLensSymbol {
 	command?: Command;
 }
 export interface CodeLensProvider {
-	provideCodeLenses(model:editorCommon.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
-	resolveCodeLens?(model:editorCommon.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
-}
-
-/**
- * A tuple of two characters, like a pair of
- * opening and closing brackets.
- */
-export type CharacterPair = [string, string];
-
-export interface IAutoClosingPairConditional extends IAutoClosingPair {
-	notIn?: string[];
-
-}
-
-/**
- * Interface used to support electric characters
- * @internal
- */
-export interface IElectricAction {
-	// Only one of the following properties should be defined:
-
-	// The line will be indented at the same level of the line
-	// which contains the matching given bracket type.
-	matchOpenBracket?:string;
-
-	// The text will be appended after the electric character.
-	appendText?:string;
-
-	// The number of characters to advance the cursor, useful with appendText
-	advanceCount?:number;
-}
-
-/**
- * Describes what to do with the indentation when pressing Enter.
- */
-export enum IndentAction {
-	/**
-	 * Insert new line and copy the previous line's indentation.
-	 */
-	None = 0,
-	/**
-	 * Insert new line and indent once (relative to the previous line's indentation).
-	 */
-	Indent = 1,
-	/**
-	 * Insert two new lines:
-	 *  - the first one indented which will hold the cursor
-	 *  - the second one at the same indentation level
-	 */
-	IndentOutdent = 2,
-	/**
-	 * Insert new line and outdent once (relative to the previous line's indentation).
-	 */
-	Outdent = 3
-}
-
-/**
- * Describes what to do when pressing Enter.
- */
-export interface EnterAction {
-	/**
-	 * Describe what to do with the indentation.
-	 */
-	indentAction:IndentAction;
-	/**
-	 * Describes text to be appended after the new line and after the indentation.
-	 */
-	appendText?:string;
-	/**
-	 * Describes the number of characters to remove from the new line's indentation.
-	 */
-	removeText?:number;
-}
-
-/**
- * @internal
- */
-export interface IRichEditElectricCharacter {
-	getElectricCharacters():string[];
-	// Should return opening bracket type to match indentation with
-	onElectricCharacter(context:ILineContext, offset:number):IElectricAction;
-}
-
-/**
- * @internal
- */
-export interface IRichEditOnEnter {
-	onEnter(model:editorCommon.ITokenizedModel, position: editorCommon.IPosition): EnterAction;
-}
-
-/**
- * Interface used to support insertion of mode specific comments.
- * @internal
- */
-export interface ICommentsConfiguration {
-	lineCommentToken?:string;
-	blockCommentStartToken?:string;
-	blockCommentEndToken?:string;
-}
-
-export interface IAutoClosingPair {
-	open:string;
-	close:string;
-}
-
-/**
- * @internal
- */
-export interface IRichEditCharacterPair {
-	getAutoClosingPairs():IAutoClosingPairConditional[];
-	shouldAutoClosePair(character:string, context:ILineContext, offset:number):boolean;
-	getSurroundingPairs():IAutoClosingPair[];
-}
-
-/**
- * @internal
- */
-export interface IRichEditBrackets {
-	maxBracketLength: number;
-	forwardRegex: RegExp;
-	reversedRegex: RegExp;
-	brackets: editorCommon.IRichEditBracket[];
-	textIsBracket: {[text:string]:editorCommon.IRichEditBracket;};
-	textIsOpenBracket: {[text:string]:boolean;};
+	provideCodeLenses(model: editorCommon.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
+	resolveCodeLens?(model: editorCommon.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
 }
 
 // --- feature registries ------
@@ -1040,7 +746,7 @@ export interface ITokenizationSupportChangedEvent {
  */
 export class TokenizationRegistryImpl {
 
-	private _map: {[languageId:string]:ITokenizationSupport};
+	private _map: { [languageId: string]: ITokenizationSupport };
 
 	private _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
 	public onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
@@ -1053,11 +759,11 @@ export class TokenizationRegistryImpl {
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	public fire(languageId:string): void {
+	public fire(languageId: string): void {
 		this._onDidChange.fire({ languageId: languageId });
 	}
 
-	public register(languageId:string, support:ITokenizationSupport): IDisposable {
+	public register(languageId: string, support: ITokenizationSupport): IDisposable {
 		this._map[languageId] = support;
 		this.fire(languageId);
 		return {
@@ -1071,7 +777,7 @@ export class TokenizationRegistryImpl {
 		};
 	}
 
-	public get(languageId:string): ITokenizationSupport {
+	public get(languageId: string): ITokenizationSupport {
 		return (this._map[languageId] || null);
 	}
 }

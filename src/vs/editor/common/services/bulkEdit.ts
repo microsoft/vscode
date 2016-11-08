@@ -5,19 +5,19 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {merge} from 'vs/base/common/arrays';
-import {IStringDictionary, forEach, values} from 'vs/base/common/collections';
+import { merge } from 'vs/base/common/arrays';
+import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
-import {EventType as FileEventType, FileChangesEvent, IFileChange} from 'vs/platform/files/common/files';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
-import {IIdentifiedSingleEditOperation, IModel, IRange, ISelection} from 'vs/editor/common/editorCommon';
-import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {IProgressRunner} from 'vs/platform/progress/common/progress';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { IEventService } from 'vs/platform/event/common/event';
+import { EventType as FileEventType, FileChangesEvent, IFileChange } from 'vs/platform/files/common/files';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export interface IResourceEdit {
 	resource: URI;
@@ -43,7 +43,7 @@ class ChangeRecorder {
 
 		var changes: IStringDictionary<IFileChange[]> = Object.create(null);
 
-		var stop = this._eventService.addListener2(FileEventType.FILE_CHANGES,(event: FileChangesEvent) => {
+		var stop = this._eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
 			event.changes.forEach(change => {
 
 				var key = String(change.resource),
@@ -109,7 +109,7 @@ class EditTask {
 		return [initialSelection];
 	}
 
-	private _getEndCursorSelections(inverseEditOperations:IIdentifiedSingleEditOperation[]): Selection[] {
+	private _getEndCursorSelections(inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] {
 		var relevantEditIndex = 0;
 		for (var i = 0; i < inverseEditOperations.length; i++) {
 			var editRange = inverseEditOperations[i].range;
@@ -143,9 +143,9 @@ class EditTask {
 
 class SourceModelEditTask extends EditTask {
 
-	private _knownInitialSelections:Selection[];
+	private _knownInitialSelections: Selection[];
 
-	constructor(model: IModel, initialSelections:Selection[]) {
+	constructor(model: IModel, initialSelections: Selection[]) {
 		super(model);
 		this._knownInitialSelections = initialSelections;
 	}
@@ -157,7 +157,7 @@ class SourceModelEditTask extends EditTask {
 
 class BulkEditModel {
 
-	private _editorService: IEditorService;
+	private _textModelResolverService: ITextModelResolverService;
 	private _numberOfResourcesToModify: number = 0;
 	private _numberOfChanges: number = 0;
 	private _edits: IStringDictionary<IResourceEdit[]> = Object.create(null);
@@ -166,8 +166,8 @@ class BulkEditModel {
 	private _sourceSelections: Selection[];
 	private _sourceModelTask: SourceModelEditTask;
 
-	constructor(editorService: IEditorService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[], private progress: IProgressRunner= null) {
-		this._editorService = editorService;
+	constructor(textModelResolverService: ITextModelResolverService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[], private progress: IProgressRunner = null) {
+		this._textModelResolverService = textModelResolverService;
 		this._sourceModel = sourceModel;
 		this._sourceSelections = sourceSelections;
 		this._sourceModelTask = null;
@@ -209,7 +209,7 @@ class BulkEditModel {
 		}
 
 		forEach(this._edits, entry => {
-			var promise = this._editorService.resolveEditorModel({ resource: URI.parse(entry.key) }).then(model => {
+			var promise = this._textModelResolverService.resolve(URI.parse(entry.key)).then(model => {
 				if (!model || !model.textEditorModel) {
 					throw new Error(`Cannot load file ${entry.key}`);
 				}
@@ -217,7 +217,7 @@ class BulkEditModel {
 				var textEditorModel = <IModel>model.textEditorModel,
 					task: EditTask;
 
-				if (this._sourceModel && textEditorModel.uri.toString() ===  this._sourceModel.toString()) {
+				if (this._sourceModel && textEditorModel.uri.toString() === this._sourceModel.toString()) {
 					this._sourceModelTask = new SourceModelEditTask(textEditorModel, this._sourceSelections);
 					task = this._sourceModelTask;
 				} else {
@@ -260,21 +260,21 @@ export interface BulkEdit {
 	finish(): TPromise<ISelection>;
 }
 
-export function bulkEdit(eventService:IEventService, editorService:IEditorService, editor:ICommonCodeEditor, edits:IResourceEdit[], progress: IProgressRunner= null):TPromise<any> {
-	let bulk = createBulkEdit(eventService, editorService, editor);
+export function bulkEdit(eventService: IEventService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor, edits: IResourceEdit[], progress: IProgressRunner = null): TPromise<any> {
+	let bulk = createBulkEdit(eventService, textModelResolverService, editor);
 	bulk.add(edits);
 	bulk.progress(progress);
 	return bulk.finish();
 }
 
-export function createBulkEdit(eventService: IEventService, editorService: IEditorService, editor: ICommonCodeEditor): BulkEdit {
+export function createBulkEdit(eventService: IEventService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor): BulkEdit {
 
 	let all: IResourceEdit[] = [];
 	let recording = new ChangeRecorder(eventService).start();
 	let progressRunner: IProgressRunner;
 
 	function progress(progress: IProgressRunner) {
-		progressRunner= progress;
+		progressRunner = progress;
 	}
 
 	function add(edits: IResourceEdit[]): void {
@@ -315,7 +315,7 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 			selections = editor.getSelections();
 		}
 
-		let model = new BulkEditModel(editorService, uri, selections, all, progressRunner);
+		let model = new BulkEditModel(textModelResolverService, uri, selections, all, progressRunner);
 
 		return model.prepare().then(_ => {
 

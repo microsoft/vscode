@@ -12,6 +12,9 @@ import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestContext } from 'vs/base/node/request';
 
+export const EXTENSION_IDENTIFIER_PATTERN = '^[a-z0-9A-Z][a-z0-9\-A-Z]*\\.[a-z0-9A-Z][a-z0-9\-A-Z]*$';
+export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+
 export interface ICommand {
 	command: string;
 	title: string;
@@ -21,6 +24,7 @@ export interface ICommand {
 export interface IConfigurationProperty {
 	description: string;
 	type: string | string[];
+	default?: any;
 }
 
 export interface IConfiguration {
@@ -95,6 +99,7 @@ export interface IExtensionManifest {
 	icon?: string;
 	categories?: string[];
 	activationEvents?: string[];
+	extensionDependencies?: string[];
 	contributes?: IExtensionContributions;
 }
 
@@ -111,6 +116,7 @@ export interface IGalleryExtensionProperties {
 export interface IGalleryExtensionAssets {
 	manifest: string;
 	readme: string;
+	changelog: string;
 	download: string;
 	icon: string;
 	iconFallback: string;
@@ -132,17 +138,12 @@ export interface IGalleryExtension {
 	ratingCount: number;
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
-	downloadHeaders: { [key: string]: string; };
-	/** We need this check until all extension in the market place contain engine property */
-	compatibilityChecked: boolean;
-	isCompatible: boolean;
 }
 
 export interface IGalleryMetadata {
 	id: string;
 	publisherId: string;
 	publisherDisplayName: string;
-	dependenciesInstalled: boolean;
 }
 
 export enum LocalExtensionType {
@@ -191,6 +192,7 @@ export interface IQueryOptions {
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
+	getRequestHeaders(): TPromise<{ [key: string]: string; }>;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension): TPromise<string>;
 	getAsset(url: string): TPromise<IRequestContext>;
@@ -212,18 +214,63 @@ export interface DidInstallExtensionEvent {
 	error?: Error;
 }
 
+export interface DidUninstallExtensionEvent {
+	id: string;
+	error?: Error;
+}
+
 export interface IExtensionManagementService {
 	_serviceBrand: any;
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
 	onUninstallExtension: Event<string>;
-	onDidUninstallExtension: Event<string>;
+	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	install(zipPath: string): TPromise<void>;
-	installFromGallery(extension: IGalleryExtension): TPromise<void>;
+	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: ILocalExtension): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
+}
+
+export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');
+
+// TODO: @sandy: Merge this into IExtensionManagementService when we have a storage service available in Shared process
+export interface IExtensionEnablementService {
+	_serviceBrand: any;
+
+	/**
+	 * Event to listen on for extension enablement changes
+	 */
+	onEnablementChanged: Event<string>;
+
+	/**
+	 * Returns all globally disabled extension identifiers.
+	 * Returns an empty array if none exist.
+	 */
+	getGloballyDisabledExtensions(): string[];
+
+	/**
+	 * Returns all workspace disabled extension identifiers.
+	 * Returns an empty array if none exist or workspace does not exist.
+	 */
+	getWorkspaceDisabledExtensions(): string[];
+
+	/**
+	 * Returns `true` if given extension can be enabled by calling `setEnablement`, otherwise false`.
+	 */
+	canEnable(identifier: string): boolean;
+
+	/**
+	 * Enable or disable the given extension.
+	 * if `workspace` is `true` then enablement is done for workspace, otherwise globally.
+	 *
+	 * Returns a promise that resolves to boolean value.
+	 * if resolves to `true` then requires restart for the change to take effect.
+	 *
+	 * Throws error if enablement is requested for workspace and there is no workspace
+	 */
+	setEnablement(identifier: string, enable: boolean, workspace?: boolean): TPromise<boolean>;
 }
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');

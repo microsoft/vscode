@@ -6,6 +6,7 @@
 {
 	"closePanel": "Chiudi",
 	"focusPanel": "Sposta lo stato attivo nel pannello",
-	"togglePanel": "Attiva/Disattiva la visibilità del pannello",
+	"toggleMaximizedPanel": "Attiva/Disattiva pannello ingrandito",
+	"togglePanel": "Attiva/Disattiva pannello",
 	"view": "Visualizza"
 }

@@ -6,6 +6,7 @@
 {
 	"closePanel": "Schließen",
 	"focusPanel": "Fokus im Bereich",
-	"togglePanel": "Sichtbarkeit des Bereichs umschalten",
+	"toggleMaximizedPanel": "Bereich maximieren/reduzieren",
+	"togglePanel": "Bereich umschalten",
 	"view": "Anzeigen"
 }

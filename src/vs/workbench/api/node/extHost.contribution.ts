@@ -5,41 +5,43 @@
 
 'use strict';
 
-import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {Registry} from 'vs/platform/platform';
-import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
-import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext, InstanceCollection} from './extHost.protocol';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { Registry } from 'vs/platform/platform';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { MainContext, InstanceCollection } from './extHost.protocol';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 // --- addressable
-import {MainThreadCommands} from './mainThreadCommands';
-import {MainThreadConfiguration} from './mainThreadConfiguration';
-import {MainThreadDiagnostics} from './mainThreadDiagnostics';
-import {MainThreadDocuments} from './mainThreadDocuments';
-import {MainThreadEditors} from './mainThreadEditors';
-import {MainThreadErrors} from './mainThreadErrors';
-import {MainThreadLanguageFeatures} from './mainThreadLanguageFeatures';
-import {MainThreadLanguages} from './mainThreadLanguages';
-import {MainThreadMessageService} from './mainThreadMessageService';
-import {MainThreadOutputService} from './mainThreadOutputService';
-import {MainThreadQuickOpen} from './mainThreadQuickOpen';
-import {MainThreadStatusBar} from './mainThreadStatusBar';
-import {MainThreadStorage} from './mainThreadStorage';
-import {MainThreadTelemetry} from './mainThreadTelemetry';
-import {MainThreadTerminalService} from './mainThreadTerminalService';
-import {MainThreadWorkspace} from './mainThreadWorkspace';
-import {MainProcessExtensionService} from './mainThreadExtensionService';
-import {MainThreadFileSystemEventService} from './mainThreadFileSystemEventService';
-import {MainThreadHeapService} from './mainThreadHeapService';
+import { MainThreadCommands } from './mainThreadCommands';
+import { MainThreadConfiguration } from './mainThreadConfiguration';
+import { MainThreadDiagnostics } from './mainThreadDiagnostics';
+import { MainThreadDocuments } from './mainThreadDocuments';
+import { MainThreadEditors } from './mainThreadEditors';
+import { MainThreadErrors } from './mainThreadErrors';
+import { MainThreadLanguageFeatures } from './mainThreadLanguageFeatures';
+import { MainThreadLanguages } from './mainThreadLanguages';
+import { MainThreadMessageService } from './mainThreadMessageService';
+import { MainThreadOutputService } from './mainThreadOutputService';
+import { MainThreadQuickOpen } from './mainThreadQuickOpen';
+import { MainThreadStatusBar } from './mainThreadStatusBar';
+import { MainThreadStorage } from './mainThreadStorage';
+import { MainThreadTelemetry } from './mainThreadTelemetry';
+import { MainThreadTerminalService } from './mainThreadTerminalService';
+import { MainThreadWorkspace } from './mainThreadWorkspace';
+import { MainProcessExtensionService } from './mainThreadExtensionService';
+import { MainThreadFileSystemEventService } from './mainThreadFileSystemEventService';
 
 // --- other interested parties
-import {MainProcessTextMateSyntax} from 'vs/editor/node/textMate/TMSyntax';
-import {MainProcessTextMateSnippet} from 'vs/editor/node/textMate/TMSnippets';
-import {JSONValidationExtensionPoint} from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
-import {LanguageConfigurationFileHandler} from 'vs/editor/node/languageConfiguration';
-import {SaveParticipant} from './mainThreadSaveParticipant';
+import { MainProcessTextMateSyntax } from 'vs/editor/node/textMate/TMSyntax';
+import { MainProcessTextMateSnippet } from 'vs/editor/node/textMate/TMSnippets';
+import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
+import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfigurationExtensionPoint';
+import { SaveParticipant } from './mainThreadSaveParticipant';
+
+// --- registers itself as service
+import './mainThreadHeapService';
 
 export class ExtHostContribution implements IWorkbenchContribution {
 
@@ -84,12 +86,11 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.finish(true, this.threadService);
 
 		// Other interested parties
-		create(MainProcessTextMateSyntax);
+		let tmSyntax = create(MainProcessTextMateSyntax);
 		create(MainProcessTextMateSnippet);
 		create(JSONValidationExtensionPoint);
-		create(LanguageConfigurationFileHandler);
+		this.instantiationService.createInstance(LanguageConfigurationFileHandler, tmSyntax);
 		create(MainThreadFileSystemEventService);
-		create(MainThreadHeapService);
 		create(SaveParticipant);
 	}
 }

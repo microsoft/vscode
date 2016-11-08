@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import DOM = require('vs/base/browser/dom');
-import lifecycle = require('vs/base/common/lifecycle');
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
 import { Action, IAction } from 'vs/base/common/actions';
@@ -35,7 +34,6 @@ export class TerminalPanel extends Panel {
 	private _parentDomElement: HTMLElement;
 	private _terminalContainer: HTMLElement;
 	private _themeStyleElement: HTMLElement;
-	private _toDispose: lifecycle.IDisposable[];
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService,
@@ -47,8 +45,6 @@ export class TerminalPanel extends Panel {
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
-
-		this._toDispose = [];
 	}
 
 	public create(parent: Builder): TPromise<any> {
@@ -68,8 +64,8 @@ export class TerminalPanel extends Panel {
 
 		this._terminalService.setContainers(this.getContainer(), this._terminalContainer);
 
-		this._toDispose.push(this._themeService.onDidColorThemeChange(this._updateTheme.bind(this)));
-		this._toDispose.push(this._configurationService.onDidUpdateConfiguration(this._updateConfig.bind(this)));
+		this._register(this._themeService.onDidColorThemeChange(this._updateTheme.bind(this)));
+		this._register(this._configurationService.onDidUpdateConfiguration(this._updateConfig.bind(this)));
 		this._updateTheme();
 		this._updateConfig();
 
@@ -111,7 +107,7 @@ export class TerminalPanel extends Panel {
 				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
 			];
 			this._actions.forEach(a => {
-				this._toDispose.push(a);
+				this._register(a);
 			});
 		}
 		return this._actions;
@@ -126,7 +122,7 @@ export class TerminalPanel extends Panel {
 				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste"))
 			];
 			this._contextMenuActions.forEach(a => {
-				this._toDispose.push(a);
+				this._register(a);
 			});
 		}
 		return this._contextMenuActions;
@@ -145,7 +141,7 @@ export class TerminalPanel extends Panel {
 	}
 
 	private _attachEventListeners(): void {
-		this._toDispose.push(DOM.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
+		this._register(DOM.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
 			}
@@ -176,7 +172,7 @@ export class TerminalPanel extends Panel {
 				});
 			}
 		}));
-		this._toDispose.push(DOM.addDisposableListener(this._parentDomElement, 'click', (event) => {
+		this._register(DOM.addDisposableListener(this._parentDomElement, 'click', (event) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
 			}
@@ -185,7 +181,7 @@ export class TerminalPanel extends Panel {
 				this._terminalService.getActiveInstance().focus();
 			}
 		}));
-		this._toDispose.push(DOM.addDisposableListener(this._parentDomElement, 'keyup', (event: KeyboardEvent) => {
+		this._register(DOM.addDisposableListener(this._parentDomElement, 'keyup', (event: KeyboardEvent) => {
 			if (event.keyCode === 27) {
 				// Keep terminal open on escape
 				event.stopPropagation();

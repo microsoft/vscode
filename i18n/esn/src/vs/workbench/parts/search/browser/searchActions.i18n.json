@@ -10,7 +10,10 @@
 	"RemoveAction.label": "Quitar",
 	"file.replaceAll.label": "Reemplazar todo",
 	"findInFolder": "Buscar en carpeta",
+	"focusNextInputBox": "Enfocar cuadro de entrada siguiente",
+	"focusPreviousInputBox": "Enfocar cuadro de entrada anterior",
 	"match.replace.label": "Reemplazar",
-	"replaceInFiles": "Reemplazar en archivos",
-	"showSearchViewlet": "Mostrar búsqueda"
+	"nextSearchTerm": "Mostrar término de búsqueda siguiente",
+	"previousSearchTerm": "Mostrar término de búsqueda anterior",
+	"replaceInFiles": "Reemplazar en archivos"
 }

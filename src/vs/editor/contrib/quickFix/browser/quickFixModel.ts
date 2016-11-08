@@ -14,8 +14,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommonCodeEditor, IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeActionProviderRegistry } from 'vs/editor/common/modes';
-import { IQuickFix2, getCodeActions } from '../common/quickFix';
+import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
+import { getCodeActions } from '../common/quickFix';
 
 
 class QuickFixOracle {
@@ -98,7 +98,7 @@ export interface QuickFixComputeEvent {
 	type: 'auto' | 'manual';
 	range: IRange;
 	position: IPosition;
-	fixes: TPromise<IQuickFix2[]>;
+	fixes: TPromise<CodeAction[]>;
 }
 
 export class QuickFixModel {
@@ -122,6 +122,7 @@ export class QuickFixModel {
 
 	dispose(): void {
 		this._disposables = dispose(this._disposables);
+		dispose(this._quickFixOracle);
 	}
 
 	get onDidChangeFixes(): Event<QuickFixComputeEvent> {
@@ -129,7 +130,11 @@ export class QuickFixModel {
 	}
 
 	private _update(): void {
-		dispose(this._quickFixOracle);
+
+		if (this._quickFixOracle) {
+			dispose(this._quickFixOracle);
+			this._onDidChangeFixes.fire(undefined);
+		}
 
 		if (this._editor.getModel()
 			&& CodeActionProviderRegistry.has(this._editor.getModel())

@@ -7,8 +7,8 @@
 
 import * as nls from 'vs/nls';
 import * as defaultPlatform from 'vs/base/common/platform';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {KeyCode, KeyMod, KeyChord, KeyCodeUtils, BinaryKeybindings, USER_SETTINGS} from 'vs/base/common/keyCodes';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { KeyCode, KeyMod, KeyChord, KeyCodeUtils, BinaryKeybindings, USER_SETTINGS } from 'vs/base/common/keyCodes';
 
 export interface ISimplifiedPlatform {
 	isMacintosh: boolean;
@@ -20,35 +20,35 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	private static _toUSLabel(value:number, Platform:ISimplifiedPlatform): string {
+	private static _toUSLabel(value: number, Platform: ISimplifiedPlatform): string {
 		return _asString(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for placing in an aria-label.
 	 */
-	private static _toUSAriaLabel(value:number, Platform:ISimplifiedPlatform): string {
+	private static _toUSAriaLabel(value: number, Platform: ISimplifiedPlatform): string {
 		return _asString(value, AriaKeyLabelProvider.INSTANCE, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	private static _toUSHTMLLabel(value:number, Platform:ISimplifiedPlatform): IHTMLContentElement[] {
+	private static _toUSHTMLLabel(value: number, Platform: ISimplifiedPlatform): IHTMLContentElement[] {
 		return _asHTML(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	private static _toCustomLabel(value:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform): string {
+	private static _toCustomLabel(value: number, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
 		return _asString(value, labelProvider, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	private static _toCustomHTMLLabel(value:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform): IHTMLContentElement[] {
+	private static _toCustomHTMLLabel(value: number, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): IHTMLContentElement[] {
 		return _asHTML(value, labelProvider, Platform);
 	}
 
@@ -56,7 +56,7 @@ export class Keybinding {
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
 	 */
-	private static _toElectronAccelerator(value:number, Platform:ISimplifiedPlatform): string {
+	private static _toElectronAccelerator(value: number, Platform: ISimplifiedPlatform): string {
 		if (BinaryKeybindings.hasChord(value)) {
 			// Electron cannot handle chords
 			return null;
@@ -75,7 +75,7 @@ export class Keybinding {
 			let mod = '((ctrl|shift|alt|cmd|win|meta)\\+)*';
 			let keybinding = '(' + mod + key + ')';
 
-			this._cachedKeybindingRegex = '"\\s*(' + keybinding + '(\\s+' + keybinding +')?' + ')\\s*"';
+			this._cachedKeybindingRegex = '"\\s*(' + keybinding + '(\\s+' + keybinding + ')?' + ')\\s*"';
 		}
 		return this._cachedKeybindingRegex;
 	}
@@ -83,7 +83,7 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for the user settings file.
 	 */
-	public static toUserSettingsLabel(value:number, Platform:ISimplifiedPlatform = defaultPlatform): string {
+	public static toUserSettingsLabel(value: number, Platform: ISimplifiedPlatform = defaultPlatform): string {
 		let result = _asString(value, UserSettingsKeyLabelProvider.INSTANCE, Platform);
 		result = result.toLowerCase();
 
@@ -106,7 +106,7 @@ export class Keybinding {
 			shift = false,
 			alt = false,
 			winCtrl = false,
-			key:string = '';
+			key: string = '';
 
 		while (/^(ctrl|shift|alt|meta|win|cmd)(\+|\-)/.test(input)) {
 			if (/^ctrl(\+|\-)/.test(input)) {
@@ -180,9 +180,9 @@ export class Keybinding {
 		return KeyChord(result, chord);
 	}
 
-	public value:number;
+	public value: number;
 
-	constructor(keybinding:number) {
+	constructor(keybinding: number) {
 		this.value = keybinding;
 	}
 
@@ -209,35 +209,35 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public _toUSLabel(Platform:ISimplifiedPlatform = defaultPlatform): string {
+	public _toUSLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return Keybinding._toUSLabel(this.value, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for placing in an aria-label.
 	 */
-	public _toUSAriaLabel(Platform:ISimplifiedPlatform = defaultPlatform): string {
+	public _toUSAriaLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return Keybinding._toUSAriaLabel(this.value, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public _toUSHTMLLabel(Platform:ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+	public _toUSHTMLLabel(Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
 		return Keybinding._toUSHTMLLabel(this.value, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public toCustomLabel(labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform = defaultPlatform): string {
+	public toCustomLabel(labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return Keybinding._toCustomLabel(this.value, labelProvider, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public toCustomHTMLLabel(labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+	public toCustomHTMLLabel(labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
 		return Keybinding._toCustomHTMLLabel(this.value, labelProvider, Platform);
 	}
 
@@ -245,27 +245,27 @@ export class Keybinding {
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
 	 */
-	public _toElectronAccelerator(Platform:ISimplifiedPlatform = defaultPlatform): string {
+	public _toElectronAccelerator(Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return Keybinding._toElectronAccelerator(this.value, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for the user settings file.
 	 */
-	public toUserSettingsLabel(Platform:ISimplifiedPlatform = defaultPlatform): string {
+	public toUserSettingsLabel(Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return Keybinding.toUserSettingsLabel(this.value, Platform);
 	}
 
 }
 
 export interface IKeyBindingLabelProvider {
-	ctrlKeyLabel:string;
-	shiftKeyLabel:string;
-	altKeyLabel:string;
-	cmdKeyLabel:string;
-	windowsKeyLabel:string;
-	modifierSeparator:string;
-	getLabelForKey(keyCode:KeyCode): string;
+	ctrlKeyLabel: string;
+	shiftKeyLabel: string;
+	altKeyLabel: string;
+	cmdKeyLabel: string;
+	windowsKeyLabel: string;
+	modifierSeparator: string;
+	getLabelForKey(keyCode: KeyCode): string;
 }
 
 /**
@@ -281,7 +281,7 @@ export class ElectronAcceleratorLabelProvider implements IKeyBindingLabelProvide
 	public windowsKeyLabel = 'Super';
 	public modifierSeparator = '+';
 
-	public getLabelForKey(keyCode:KeyCode): string {
+	public getLabelForKey(keyCode: KeyCode): string {
 		switch (keyCode) {
 			case KeyCode.UpArrow:
 				return 'Up';
@@ -315,7 +315,7 @@ export class MacUIKeyLabelProvider implements IKeyBindingLabelProvider {
 	public windowsKeyLabel = nls.localize('windowsKey', "Windows");
 	public modifierSeparator = '';
 
-	public getLabelForKey(keyCode:KeyCode): string {
+	public getLabelForKey(keyCode: KeyCode): string {
 		switch (keyCode) {
 			case KeyCode.LeftArrow:
 				return MacUIKeyLabelProvider.leftArrowUnicodeLabel;
@@ -344,7 +344,7 @@ export class AriaKeyLabelProvider implements IKeyBindingLabelProvider {
 	public windowsKeyLabel = nls.localize('windowsKey.long', "Windows");
 	public modifierSeparator = '+';
 
-	public getLabelForKey(keyCode:KeyCode): string {
+	public getLabelForKey(keyCode: KeyCode): string {
 		return KeyCodeUtils.toString(keyCode);
 	}
 }
@@ -362,7 +362,7 @@ export class ClassicUIKeyLabelProvider implements IKeyBindingLabelProvider {
 	public windowsKeyLabel = nls.localize('windowsKey', "Windows");
 	public modifierSeparator = '+';
 
-	public getLabelForKey(keyCode:KeyCode): string {
+	public getLabelForKey(keyCode: KeyCode): string {
 		return KeyCodeUtils.toString(keyCode);
 	}
 }
@@ -381,13 +381,13 @@ class UserSettingsKeyLabelProvider implements IKeyBindingLabelProvider {
 
 	public modifierSeparator = '+';
 
-	public getLabelForKey(keyCode:KeyCode): string {
+	public getLabelForKey(keyCode: KeyCode): string {
 		return USER_SETTINGS.fromKeyCode(keyCode);
 	}
 }
 
-function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform): string {
-	let result:string[] = [],
+function _asString(keybinding: number, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
+	let result: string[] = [],
 		ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding),
 		shift = BinaryKeybindings.hasShift(keybinding),
 		alt = BinaryKeybindings.hasAlt(keybinding),
@@ -433,7 +433,7 @@ function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider, Pl
 	return actualResult;
 }
 
-function _pushKey(result:IHTMLContentElement[], str:string): void {
+function _pushKey(result: IHTMLContentElement[], str: string): void {
 	if (result.length > 0) {
 		result.push({
 			tagName: 'span',
@@ -447,8 +447,8 @@ function _pushKey(result:IHTMLContentElement[], str:string): void {
 	});
 }
 
-function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform, isChord:boolean = false): IHTMLContentElement[] {
-	let result:IHTMLContentElement[] = [],
+function _asHTML(keybinding: number, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform, isChord: boolean = false): IHTMLContentElement[] {
+	let result: IHTMLContentElement[] = [],
 		ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding),
 		shift = BinaryKeybindings.hasShift(keybinding),
 		alt = BinaryKeybindings.hasAlt(keybinding),

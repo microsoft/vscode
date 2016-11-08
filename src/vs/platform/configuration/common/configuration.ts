@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
@@ -23,6 +23,12 @@ export interface IConfigurationService {
 	 * the setting is defined.
 	 */
 	lookup<T>(key: string): IConfigurationValue<T>;
+
+	/**
+	 * Returns the defined keys of configurations in the different scopes
+	 * the key is defined.
+	 */
+	keys(): IConfigurationKeys;
 
 	/**
 	 * Similar to #getConfiguration() but ensures that the latest configuration
@@ -46,6 +52,11 @@ export interface IConfigurationValue<T> {
 	user: T;
 }
 
+export interface IConfigurationKeys {
+	default: string[];
+	user: string[];
+}
+
 /**
  * A helper function to get the configuration value with a specific settings path (e.g. config.some.setting)
  */
@@ -54,7 +65,7 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 		let current = config;
 		for (let i = 0; i < path.length; i++) {
 			current = current[path[i]];
-			if (!current) {
+			if (typeof current === 'undefined') {
 				return undefined;
 			}
 		}

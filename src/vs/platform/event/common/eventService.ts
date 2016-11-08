@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IEventService} from './event';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { IEventService } from './event';
 
 // --- implementation ------------------------------------------
 

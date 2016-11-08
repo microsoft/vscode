@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import events = require('vs/base/common/events');
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { isLinux } from 'vs/base/common/platform';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -191,19 +192,6 @@ export class FileChangesEvent extends events.Event {
 			return false;
 		}
 
-		return this.containsAny([resource], type);
-	}
-
-	/**
-	 * Returns true if this change event contains any of the provided files with the given change type. In case of
-	 * type DELETED, this method will also return true if a folder got deleted that is the parent of any of the
-	 * provided file paths.
-	 */
-	public containsAny(resources: URI[], type: FileChangeType): boolean {
-		if (!resources || !resources.length) {
-			return false;
-		}
-
 		return this._changes.some((change) => {
 			if (change.type !== type) {
 				return false;
@@ -211,22 +199,10 @@ export class FileChangesEvent extends events.Event {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return resources.some((a: URI) => {
-					if (!a) {
-						return false;
-					}
-
-					return paths.isEqualOrParent(a.fsPath, change.resource.fsPath);
-				});
+				return isEqual(resource.fsPath, change.resource.fsPath) || isParent(resource.fsPath, change.resource.fsPath);
 			}
 
-			return resources.some((a: URI) => {
-				if (!a) {
-					return false;
-				}
-
-				return a.fsPath === change.resource.fsPath;
-			});
+			return isEqual(resource.fsPath, change.resource.fsPath);
 		});
 	}
 
@@ -283,6 +259,24 @@ export class FileChangesEvent extends events.Event {
 	}
 }
 
+export function isEqual(path1: string, path2: string) {
+	const identityEquals = (path1 === path2);
+	if (isLinux || identityEquals) {
+		return identityEquals;
+	}
+
+	return path1.toLowerCase() === path2.toLowerCase();
+}
+
+export function isParent(path: string, candidate: string): boolean {
+	if (!isLinux) {
+		path = path.toLowerCase();
+		candidate = candidate.toLowerCase();
+	}
+
+	return path.indexOf(candidate + paths.nativeSep) === 0;
+}
+
 export interface IBaseStat {
 
 	/**
@@ -307,12 +301,6 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
-
-	/**
-	 * The mime type string. Applicate for files
-	 * only.
-	 */
-	mime: string;
 }
 
 /**
@@ -322,7 +310,7 @@ export interface IFileStat extends IBaseStat {
 
 	/**
 	 * The resource is a directory. Iff {{true}}
-	 * {{mime}} and {{encoding}} have no meaning.
+	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;
 

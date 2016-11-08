@@ -11,10 +11,12 @@ import { EditorInput } from 'vs/workbench/common/editor';
 
 export class ReleaseNotesInput extends EditorInput {
 
-	static get ID()  { return 'workbench.releaseNotes.input'; }
-	get version(): string { return this._version; }
+	static get ID() { return 'workbench.releaseNotes.input'; }
 
-	constructor(private _version: string) {
+	get version(): string { return this._version; }
+	get text(): string { return this._text; }
+
+	constructor(private _version: string, private _text: string) {
 		super();
 	}
 

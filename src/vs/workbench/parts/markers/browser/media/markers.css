@@ -3,13 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Activity Bar */
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.markersPanel {
-	background: url('markers.svg') center center no-repeat;
-	background-position: 50% !important;
-	background-size: 32px;
-}
-
 .monaco-action-bar .action-item.markers-panel-action-filter {
 	max-width: 400px;
 	min-width: 100px;

@@ -10,7 +10,7 @@
 		"bash_logout",
 		".textmate_init"
 	],
-	"firstLineMatch": "^#!.*\\b(bash|zsh|sh|tcsh)|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
+	"firstLineMatch": "^#!.*\\b(bash|zsh|sh|tcsh)|^#.*-\\*-.*\\bshell-script\\b.*-\\*-",
 	"keyEquivalent": "^~S",
 	"name": "Shell Script (Bash)",
 	"patterns": [
@@ -124,6 +124,16 @@
 			},
 			"end": "(?!\\G)",
 			"patterns": [
+				{
+					"begin": "^(#!)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.comment.line.shebang.shell"
+						}
+					},
+					"end": "\\n",
+					"name": "comment.line.shebang.shell"
+				},
 				{
 					"begin": "#",
 					"beginCaptures": {
@@ -264,7 +274,7 @@
 		"heredoc": {
 			"patterns": [
 				{
-					"begin": "(<<)-(\"|'|)(RUBY)\\2",
+					"begin": "(<<)-\\s*(\"|'|)(RUBY)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -293,7 +303,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)(RUBY)\\2",
+					"begin": "(<<)\\s*(\"|'|)(RUBY)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -322,7 +332,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)(PYTHON)\\2",
+					"begin": "(<<)-\\s*(\"|'|)(PYTHON)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -351,7 +361,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)(PYTHON)\\2",
+					"begin": "(<<)\\s*(\"|'|)(PYTHON)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -380,7 +390,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)(APPLESCRIPT)\\2",
+					"begin": "(<<)-\\s*(\"|'|)(APPLESCRIPT)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -409,7 +419,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)(APPLESCRIPT)\\2",
+					"begin": "(<<)\\s*(\"|'|)(APPLESCRIPT)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -438,7 +448,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)(HTML)\\2",
+					"begin": "(<<)-\\s*(\"|'|)(HTML)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -467,7 +477,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)(HTML)\\2",
+					"begin": "(<<)\\s*(\"|'|)(HTML)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -496,7 +506,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)(MARKDOWN)\\2",
+					"begin": "(<<)-\\s*(\"|'|)(MARKDOWN)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -525,7 +535,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)(MARKDOWN)\\2",
+					"begin": "(<<)\\s*(\"|'|)(MARKDOWN)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -554,7 +564,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)(TEXTILE)\\2",
+					"begin": "(<<)-\\s*(\"|'|)(TEXTILE)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -583,7 +593,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)(TEXTILE)\\2",
+					"begin": "(<<)\\s*(\"|'|)(TEXTILE)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -612,7 +622,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)\\\\?(\\w+)\\2",
+					"begin": "(<<)-\\s*(\"|'|)\\\\?(\\w+)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -635,7 +645,7 @@
 					"name": "string.unquoted.heredoc.no-indent.shell"
 				},
 				{
-					"begin": "(<<)(\"|'|)\\\\?(\\w+)\\2",
+					"begin": "(<<)\\s*(\"|'|)\\\\?(\\w+)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -676,7 +686,7 @@
 							"name": "punctuation.definition.string.end.shell"
 						}
 					},
-					"match": "(<<<)((')[^']*('))",
+					"match": "(<<<)\\s*((')[^']*('))",
 					"name": "meta.herestring.shell"
 				},
 				{
@@ -694,7 +704,7 @@
 							"name": "punctuation.definition.string.end.shell"
 						}
 					},
-					"match": "(<<<)((\")(\\\\(\"|\\\\)|[^\"])*(\"))",
+					"match": "(<<<)\\s*((\")(\\\\(\"|\\\\)|[^\"])*(\"))",
 					"name": "meta.herestring.shell"
 				},
 				{
@@ -706,7 +716,7 @@
 							"name": "string.unquoted.herestring.shell"
 						}
 					},
-					"match": "(<<<)(([^\\s\\\\]|\\\\.)+)",
+					"match": "(<<<)\\s*(([^\\s\\\\]|\\\\.)+)",
 					"name": "meta.herestring.shell"
 				}
 			]
@@ -782,7 +792,7 @@
 		"keyword": {
 			"patterns": [
 				{
-					"match": "(?<=^|;|&|\\s)(?:if|then|else|elif|fi|for|in|do|done|select|case|continue|esac|while|until|return)(?=\\s|;|&|$)",
+					"match": "(?<=^|;|&|\\s)(?:if|then|else|elif|fi|for|in|do|done|select|case|continue|esac|while|until|return|coproc)(?=\\s|;|&|$)",
 					"name": "keyword.control.shell"
 				},
 				{
@@ -830,7 +840,7 @@
 					]
 				},
 				{
-					"begin": "(?<=^|;|&|\\s)(for)\\s+((?:[^\\s\\\\]|\\\\.)+)(?=\\s|;|&|$)",
+					"begin": "(?<=^|;|&|\\s)(for)\\s+([^\\s\\\\]+)(?=\\s|;|&|$)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
@@ -868,7 +878,7 @@
 					]
 				},
 				{
-					"begin": "(?<=^|;|&|\\s)(select)\\s+((?:[^\\s\\\\]|\\\\.)+)(?=\\s|;|&|$)",
+					"begin": "(?<=^|;|&|\\s)(select)\\s+([^\\s\\\\]+)(?=\\s|;|&|$)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
@@ -1142,7 +1152,7 @@
 					"name": "support.function.builtin.shell"
 				},
 				{
-					"match": "(?<=^|;|&|\\s)(?:alias|bg|bind|break|builtin|caller|cd|command|compgen|complete|dirs|disown|echo|enable|eval|exec|exit|false|fc|fg|getopts|hash|help|history|jobs|kill|let|logout|popd|printf|pushd|pwd|read|readonly|set|shift|shopt|source|suspend|test|times|trap|true|type|ulimit|umask|unalias|unset|wait)(?=\\s|;|&|$)",
+					"match": "(?<=^|;|&|\\s)(?:alias|bg|bind|break|builtin|caller|cd|command|compgen|complete|dirs|disown|echo|enable|eval|exec|exit|false|fc|fg|getopts|hash|help|history|jobs|kill|let|logout|mapfile|popd|printf|pushd|pwd|read(array)?|readonly|set|shift|shopt|source|suspend|test|times|trap|true|type|ulimit|umask|unalias|unset|wait)(?=\\s|;|&|$)",
 					"name": "support.function.builtin.shell"
 				}
 			]
@@ -1217,5 +1227,5 @@
 	},
 	"scopeName": "source.shell",
 	"uuid": "DDEEA3ED-6B1C-11D9-8B10-000D93589AF6",
-	"version": "https://github.com/textmate/shellscript.tmbundle/commit/887a69bdd7558f7aa2ecba28ffb224881bad6cb3"
+	"version": "https://github.com/textmate/shellscript.tmbundle/commit/2677fdc83ed9d6a517d5d204e003f49141fc72e4"
 }

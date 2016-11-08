@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {PPromise, TPromise} from 'vs/base/common/winjs.base';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
-import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ID = 'searchService';
 

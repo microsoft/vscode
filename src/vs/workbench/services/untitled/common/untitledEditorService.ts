@@ -5,10 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import arrays = require('vs/base/common/arrays');
-import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import Event, {Emitter, once} from 'vs/base/common/event';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import Event, { Emitter, once } from 'vs/base/common/event';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
@@ -76,7 +76,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private _onDidChangeDirty: Emitter<URI>;
 	private _onDidChangeEncoding: Emitter<URI>;
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 		this._onDidChangeDirty = new Emitter<URI>();
 		this._onDidChangeEncoding = new Emitter<URI>();
 	}
@@ -162,6 +162,11 @@ export class UntitledEditorService implements IUntitledEditorService {
 		}
 
 		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
+		if (input.isDirty()) {
+			setTimeout(() => {
+				this._onDidChangeDirty.fire(resource);
+			}, 0 /* prevent race condition between creating input and emitting dirty event */);
+		}
 
 		const dirtyListener = input.onDidChangeDirty(() => {
 			this._onDidChangeDirty.fire(resource);

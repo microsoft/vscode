@@ -6,6 +6,9 @@
 {
 	"ascending": "Sortierreihenfolge: ↑",
 	"descending": "Sortierreihenfolge: ↓",
+	"extensions": "Extensions",
+	"no extensions found": "Es wurden keine Erweiterungen gefunden.",
+	"outdatedExtensions": "{0} veraltete Extensions",
 	"searchExtensions": "Nach Extensions in Marketplace suchen",
 	"sort by installs": "Sortieren nach: Installationsanzahl",
 	"sort by rating": "Sortieren nach: Bewertung",

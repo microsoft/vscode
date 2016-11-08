@@ -5,8 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {CharacterClassifier} from 'vs/editor/common/core/characterClassifier';
-import {CharCode} from 'vs/base/common/charCode';
+import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
+import { CharCode } from 'vs/base/common/charCode';
 
 suite('CharacterClassifier', () => {
 

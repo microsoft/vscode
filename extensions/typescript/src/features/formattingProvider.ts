@@ -11,6 +11,7 @@ import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 
 interface Configuration {
+	enable: boolean;
 	insertSpaceAfterCommaDelimiter: boolean;
 	insertSpaceAfterSemicolonInForStatements: boolean;
 	insertSpaceBeforeAndAfterBinaryOperators: boolean;
@@ -18,6 +19,8 @@ interface Configuration {
 	insertSpaceAfterFunctionKeywordForAnonymousFunctions: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: boolean;
+	insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: boolean;
+	insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: boolean;
 	placeOpenBraceOnNewLineForFunctions: boolean;
 	placeOpenBraceOnNewLineForControlBlocks: boolean;
 }
@@ -30,6 +33,8 @@ namespace Configuration {
 	export const insertSpaceAfterFunctionKeywordForAnonymousFunctions: string = 'insertSpaceAfterFunctionKeywordForAnonymousFunctions';
 	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis';
 	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets';
+	export const insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces';
+	export const insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces';
 	export const placeOpenBraceOnNewLineForFunctions: string = 'placeOpenBraceOnNewLineForFunctions';
 	export const placeOpenBraceOnNewLineForControlBlocks: string = 'placeOpenBraceOnNewLineForControlBlocks';
 
@@ -46,6 +51,7 @@ namespace Configuration {
 
 	export function def(): Configuration {
 		let result: Configuration = Object.create(null);
+		result.enable = true;
 		result.insertSpaceAfterCommaDelimiter = true;
 		result.insertSpaceAfterSemicolonInForStatements = true;
 		result.insertSpaceBeforeAndAfterBinaryOperators = true;
@@ -53,6 +59,8 @@ namespace Configuration {
 		result.insertSpaceAfterFunctionKeywordForAnonymousFunctions = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets = false;
+		result.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = false;
+		result.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces = false;
 		result.placeOpenBraceOnNewLineForFunctions = false;
 		result.placeOpenBraceOnNewLineForControlBlocks = false;
 		return result;
@@ -63,7 +71,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 
 	private client: ITypescriptServiceClient;
 	private config: Configuration;
-	private formatOptions: { [key: string]: Proto.FormatOptions; };
+	private formatOptions: { [key: string]: Proto.FormatCodeSettings; };
 
 	public constructor(client: ITypescriptServiceClient) {
 		this.client = client;
@@ -80,7 +88,11 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 		}
 	}
 
-	private ensureFormatOptions(document: TextDocument, options: FormattingOptions, token: CancellationToken): Promise<Proto.FormatOptions> {
+	public isEnabled(): boolean {
+		return this.config.enable;
+	}
+
+	private ensureFormatOptions(document: TextDocument, options: FormattingOptions, token: CancellationToken): Promise<Proto.FormatCodeSettings> {
 		let key = document.uri.toString();
 		let currentOptions = this.formatOptions[key];
 		if (currentOptions && currentOptions.tabSize === options.tabSize && currentOptions.indentSize === options.tabSize && currentOptions.convertTabsToSpaces === options.insertSpaces) {
@@ -161,7 +173,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			edit.newText);
 	}
 
-	private getFormatOptions(options: FormattingOptions): Proto.FormatOptions {
+	private getFormatOptions(options: FormattingOptions): Proto.FormatCodeSettings {
 		return {
 			tabSize: options.tabSize,
 			indentSize: options.tabSize,
@@ -175,6 +187,8 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			insertSpaceAfterFunctionKeywordForAnonymousFunctions: this.config.insertSpaceAfterFunctionKeywordForAnonymousFunctions,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets,
+			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
+			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
 			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,
 			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks
 		};

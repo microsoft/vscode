@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import DOM = require('vs/base/browser/dom');
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import cp = require('child_process');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -26,12 +26,15 @@ import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper, IShell } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export class TerminalInstance implements ITerminalInstance {
-	private static EOL_REGEX = /\r?\n/g;
+	/** The amount of time to consider terminal errors to be related to the launch */
+	private static readonly LAUNCHING_DURATION = 500;
+	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _idCounter = 1;
 
 	private _id: number;
 	private _isExiting: boolean;
+	private _isLaunching: boolean;
 	private _isVisible: boolean;
 	private _onDisposed: Emitter<TerminalInstance>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
@@ -65,6 +68,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._toDispose = [];
 		this._skipTerminalKeybindings = [];
 		this._isExiting = false;
+		this._isLaunching = true;
 		this._isVisible = false;
 		this._id = TerminalInstance._idCounter++;
 
@@ -97,11 +101,11 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.open(this._xtermElement);
 
 		this._process.on('message', (message) => {
+			if (!this._xterm) {
+				return;
+			}
 			if (message.type === 'data') {
 				this._xterm.write(message.content);
-			} else if (message.type === 'pid') {
-				this._processId = message.content;
-				this._onProcessIdReady.fire(this);
 			}
 		});
 		this._xterm.on('data', (data) => {
@@ -172,6 +176,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public dispose(): void {
+		this._isExiting = true;
 		if (this._wrapperElement) {
 			this._container.removeChild(this._wrapperElement);
 			this._wrapperElement = null;
@@ -182,7 +187,6 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		if (this._process) {
 			if (this._process.connected) {
-				this._process.disconnect();
 				this._process.kill();
 			}
 			this._process = null;
@@ -228,7 +232,11 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public scrollDownPage(): void {
-		this._xterm.scrollDisp(this._xterm.rows - 1);
+		this._xterm.scrollPages(1);
+	}
+
+	public scrollToBottom(): void {
+		this._xterm.scrollToBottom();
 	}
 
 	public scrollUpLine(): void {
@@ -236,7 +244,11 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public scrollUpPage(): void {
-		this._xterm.scrollDisp(-(this._xterm.rows - 1));
+		this._xterm.scrollPages(-1);
+	}
+
+	public scrollToTop(): void {
+		this._xterm.scrollToTop();
 	}
 
 	public clear(): void {
@@ -267,16 +279,29 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			});
 		}
+		this._process.on('message', (message) => {
+			if (message.type === 'pid') {
+				this._processId = message.content;
+				this._onProcessIdReady.fire(this);
+			}
+		});
 		this._process.on('exit', (exitCode) => {
 			// Prevent dispose functions being triggered multiple times
 			if (!this._isExiting) {
-				this._isExiting = true;
 				this.dispose();
 				if (exitCode) {
-					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
+					if (this._isLaunching) {
+						const args = shell.args && shell.args.length ? ' ' + shell.args.map(a => a.indexOf(' ') !== -1 ? `'${a}'` : a).join(' ') : '';
+						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', shell.executable, args, exitCode));
+					} else {
+						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
+					}
 				}
 			}
 		});
+		setTimeout(() => {
+			this._isLaunching = false;
+		}, TerminalInstance.LAUNCHING_DURATION);
 	}
 
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
@@ -342,6 +367,12 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		if (!dimension.height) { // Minimized
 			return;
+		} else {
+			// Trigger scroll event manually so that the viewport's scroll area is synced. This
+			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
+			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
+			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
+			this._xterm.emit('scroll', this._xterm.ydisp);
 		}
 		let leftPadding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
 		let innerWidth = dimension.width - leftPadding;

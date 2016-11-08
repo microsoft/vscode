@@ -4,14 +4,66 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult} from 'vscode-languageserver';
+import {
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, FormattingOptions, RequestType, NotificationType,
+	CompletionList, Position, Hover
+} from 'vscode-languageserver';
 
-import {HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration} from 'vscode-html-languageservice';
-import {getLanguageModelCache} from './languageModelCache';
-
+import { HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration, DocumentContext, TextDocument } from 'vscode-html-languageservice';
+import { getLanguageModelCache } from './languageModelCache';
+import { getEmbeddedContent, getEmbeddedLanguageAtPosition, hasEmbeddedContent } from './embeddedSupport';
+import * as url from 'url';
+import * as path from 'path';
+import uri from 'vscode-uri';
 
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
+
+interface EmbeddedCompletionParams {
+	uri: string;
+	version: number;
+	embeddedLanguageId: string;
+	position: Position;
+}
+
+namespace EmbeddedCompletionRequest {
+	export const type: RequestType<EmbeddedCompletionParams, CompletionList, any> = { get method() { return 'embedded/completion'; } };
+}
+
+interface EmbeddedHoverParams {
+	uri: string;
+	version: number;
+	embeddedLanguageId: string;
+	position: Position;
+}
+
+namespace EmbeddedHoverRequest {
+	export const type: RequestType<EmbeddedCompletionParams, Hover, any> = { get method() { return 'embedded/hover'; } };
+}
+
+interface EmbeddedContentParams {
+	uri: string;
+	embeddedLanguageId: string;
+}
+
+interface EmbeddedContent {
+	content: string;
+	version: number;
+}
+
+namespace EmbeddedContentRequest {
+	export const type: RequestType<EmbeddedContentParams, EmbeddedContent, any> = { get method() { return 'embedded/content'; } };
+}
+
+interface EmbeddedContentChangedParams {
+	uri: string;
+	version: number;
+	embeddedLanguageIds: string[];
+}
+
+namespace EmbeddedContentChangedNotification {
+	export const type: NotificationType<EmbeddedContentChangedParams> = { get method() { return 'embedded/contentchanged'; } };
+}
 
 // Create a connection for the server
 let connection: IConnection = createConnection();
@@ -35,19 +87,21 @@ connection.onShutdown(() => {
 });
 
 let workspacePath: string;
+let embeddedLanguages: { [languageId: string]: boolean };
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspacePath = params.rootPath;
+	embeddedLanguages = params.initializationOptions.embeddedLanguages;
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
 			completionProvider: { resolveProvider: false, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
+			hoverProvider: true,
 			documentHighlightProvider: true,
-			documentRangeFormattingProvider: true,
-			documentFormattingProvider: true,
+			documentRangeFormattingProvider: params.initializationOptions['format.enable'],
 			documentLinkProvider: true
 		}
 	};
@@ -74,11 +128,86 @@ connection.onDidChangeConfiguration((change) => {
 	languageSettings = settings.html;
 });
 
+let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
+const validationDelayMs = 200;
+
+// The content of a text document has changed. This event is emitted
+// when the text document first opened or when its content has changed.
+documents.onDidChangeContent(change => {
+	triggerValidation(change.document);
+});
+
+// a document has closed: clear all diagnostics
+documents.onDidClose(event => {
+	cleanPendingValidation(event.document);
+	//connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+	if (embeddedLanguages) {
+		connection.sendNotification(EmbeddedContentChangedNotification.type, { uri: event.document.uri, version: event.document.version, embeddedLanguageIds: [] });
+	}
+});
+
+function cleanPendingValidation(textDocument: TextDocument): void {
+	let request = pendingValidationRequests[textDocument.uri];
+	if (request) {
+		clearTimeout(request);
+		delete pendingValidationRequests[textDocument.uri];
+	}
+}
+
+function triggerValidation(textDocument: TextDocument): void {
+	cleanPendingValidation(textDocument);
+	pendingValidationRequests[textDocument.uri] = setTimeout(() => {
+		delete pendingValidationRequests[textDocument.uri];
+		validateTextDocument(textDocument);
+	}, validationDelayMs);
+}
+
+function validateTextDocument(textDocument: TextDocument): void {
+	let htmlDocument = htmlDocuments.get(textDocument);
+	//let diagnostics = languageService.doValidation(textDocument, htmlDocument);
+	// Send the computed diagnostics to VSCode.
+	//connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+	if (embeddedLanguages) {
+		let embeddedLanguageIds = hasEmbeddedContent(languageService, textDocument, htmlDocument, embeddedLanguages);
+		let p = { uri: textDocument.uri, version: textDocument.version, embeddedLanguageIds };
+		connection.sendNotification(EmbeddedContentChangedNotification.type, p);
+	}
+}
+
 connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let htmlDocument = htmlDocuments.get(document);
 	let options = languageSettings && languageSettings.suggest;
-	return languageService.doComplete(document, textDocumentPosition.position, htmlDocument, options);
+	let list = languageService.doComplete(document, textDocumentPosition.position, htmlDocument, options);
+	if (list.items.length === 0 && embeddedLanguages) {
+		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
+		if (embeddedLanguageId && embeddedLanguages[embeddedLanguageId]) {
+			return connection.sendRequest(EmbeddedCompletionRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
+		}
+	}
+	return list;
+});
+
+connection.onHover(textDocumentPosition => {
+	let document = documents.get(textDocumentPosition.textDocument.uri);
+	let htmlDocument = htmlDocuments.get(document);
+	let hover = languageService.doHover(document, textDocumentPosition.position, htmlDocument);
+	if (!hover && embeddedLanguages) {
+		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
+		if (embeddedLanguageId && embeddedLanguages[embeddedLanguageId]) {
+			return connection.sendRequest(EmbeddedHoverRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
+		}
+	}
+	return hover;
+});
+
+connection.onRequest(EmbeddedContentRequest.type, parms => {
+	let document = documents.get(parms.uri);
+	if (document) {
+		let htmlDocument = htmlDocuments.get(document);
+		return { content: getEmbeddedContent(languageService, document, htmlDocument, parms.embeddedLanguageId), version: document.version };
+	}
+	return void 0;
 });
 
 connection.onDocumentHighlight(documentHighlightParams => {
@@ -96,7 +225,7 @@ function merge(src: any, dst: any): any {
 	return dst;
 }
 
-function getFormattingOptions(formatParams: any) {
+function getFormattingOptions(formatParams: FormattingOptions) {
 	let formatSettings = languageSettings && languageSettings.format;
 	if (!formatSettings) {
 		return formatParams;
@@ -104,19 +233,22 @@ function getFormattingOptions(formatParams: any) {
 	return merge(formatParams, merge(formatSettings, {}));
 }
 
-connection.onDocumentFormatting(formatParams => {
-	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, null, getFormattingOptions(formatParams));
-});
-
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, formatParams.range, getFormattingOptions(formatParams));
+	return languageService.format(document, formatParams.range, getFormattingOptions(formatParams.options));
 });
 
 connection.onDocumentLinks(documentLinkParam => {
 	let document = documents.get(documentLinkParam.textDocument.uri);
-	return languageService.findDocumentLinks(document, workspacePath);
+	let documentContext: DocumentContext = {
+		resolveReference: ref => {
+			if (ref[0] === '/') {
+				return uri.file(path.join(workspacePath, ref)).toString();
+			}
+			return url.resolve(document.uri, ref);
+		}
+	};
+	return languageService.findDocumentLinks(document, documentContext);
 });
 
 

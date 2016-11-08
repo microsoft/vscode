@@ -33,7 +33,7 @@ suite('Arrays', () => {
 		assert.equal(array[idx], 1);
 	});
 
-	test('binarySearch', function() {
+	test('binarySearch', function () {
 		function compare(a: number, b: number): number {
 			return a - b;
 		}
@@ -49,7 +49,7 @@ suite('Arrays', () => {
 
 	});
 
-	test('distinct', function() {
+	test('distinct', function () {
 		function compare(a: string): string {
 			return a;
 		}

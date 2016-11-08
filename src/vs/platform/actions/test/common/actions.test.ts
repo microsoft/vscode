@@ -7,10 +7,10 @@
 import assert = require('assert');
 import WinJS = require('vs/base/common/winjs.base');
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import {DeferredAction} from 'vs/platform/actions/common/actions';
+import { DeferredAction } from 'vs/platform/actions/common/actions';
 import Actions = require('vs/base/common/actions');
-import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IEventService} from 'vs/platform/event/common/event';
+import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IEventService } from 'vs/platform/event/common/event';
 
 export class TestAction extends Actions.Action {
 	private service;
@@ -34,7 +34,7 @@ suite('Platform actions', () => {
 
 	test('DeferredAction', (done) => {
 
-		let instantiationService: TestInstantiationService= new TestInstantiationService();
+		let instantiationService: TestInstantiationService = new TestInstantiationService();
 		instantiationService.stub(IEventService);
 
 		let action = new DeferredAction(

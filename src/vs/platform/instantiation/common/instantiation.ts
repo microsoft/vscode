@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ServiceCollection} from './serviceCollection';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ServiceCollection } from './serviceCollection';
 import * as descriptors from './descriptors';
 
 // ------ internal util
@@ -185,7 +185,7 @@ function storeServiceDependency(id: Function, target: Function, index: number, o
  */
 export function createDecorator<T>(serviceId: string): { (...args: any[]): void; type: T; } {
 
-	let id = function(target: Function, key: string, index: number): any {
+	let id = function (target: Function, key: string, index: number): any {
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
 		}
@@ -202,7 +202,7 @@ export function createDecorator<T>(serviceId: string): { (...args: any[]): void;
  */
 export function optional<T>(serviceIdentifier: ServiceIdentifier<T>) {
 
-	return function (target: Function, key: string, index: number){
+	return function (target: Function, key: string, index: number) {
 		if (arguments.length !== 3) {
 			throw new Error('@optional-decorator can only be used to decorate a parameter');
 		}

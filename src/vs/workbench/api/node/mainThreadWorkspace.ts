@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {isPromiseCanceledError} from 'vs/base/common/errors';
-import {ISearchService, QueryType} from 'vs/platform/search/common/search';
-import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {bulkEdit, IResourceEdit} from 'vs/editor/common/services/bulkEdit';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Uri} from 'vscode';
-import {MainThreadWorkspaceShape} from './extHost.protocol';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { ISearchService, QueryType } from 'vs/platform/search/common/search';
+import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Uri } from 'vscode';
+import { MainThreadWorkspaceShape } from './extHost.protocol';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 
 export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 
@@ -22,14 +23,16 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 	private _searchService: ISearchService;
 	private _workspace: IWorkspace;
 	private _textFileService: ITextFileService;
-	private _editorService:IWorkbenchEditorService;
-	private _eventService:IEventService;
+	private _editorService: IWorkbenchEditorService;
+	private _textModelResolverService: ITextModelResolverService;
+	private _eventService: IEventService;
 
 	constructor(
 		@ISearchService searchService: ISearchService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITextFileService textFileService,
 		@IWorkbenchEditorService editorService,
+		@ITextModelResolverService textModelResolverService,
 		@IEventService eventService
 	) {
 		super();
@@ -39,6 +42,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		this._textFileService = textFileService;
 		this._editorService = editorService;
 		this._eventService = eventService;
+		this._textModelResolverService = textModelResolverService;
 	}
 
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<Uri[]> {
@@ -88,14 +92,14 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		let codeEditor: ICommonCodeEditor;
 		let editor = this._editorService.getActiveEditor();
 		if (editor) {
-			let candidate = <ICommonCodeEditor> editor.getControl();
+			let candidate = <ICommonCodeEditor>editor.getControl();
 			if (typeof candidate.getEditorType === 'function') {
 				// enough proof
 				codeEditor = candidate;
 			}
 		}
 
-		return bulkEdit(this._eventService, this._editorService, codeEditor, edits)
+		return bulkEdit(this._eventService, this._textModelResolverService, codeEditor, edits)
 			.then(() => true);
 	}
 }

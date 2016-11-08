@@ -4,27 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {toErrorMessage} from 'vs/base/common/errorMessage';
-import {EmitterEvent} from 'vs/base/common/eventEmitter';
-import {IModelService} from 'vs/editor/common/services/modelService';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { EmitterEvent } from 'vs/base/common/eventEmitter';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import URI from 'vs/base/common/uri';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {TextFileModelChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IFileService} from 'vs/platform/files/common/files';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape} from './extHost.protocol';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from './extHost.protocol';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 
 export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _modelService: IModelService;
 	private _modeService: IModeService;
+	private _textModelResolverService: ITextModelResolverService;
 	private _textFileService: ITextFileService;
 	private _editorService: IWorkbenchEditorService;
 	private _fileService: IFileService;
@@ -44,11 +45,13 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		@ITextFileService textFileService: ITextFileService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IFileService fileService: IFileService,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
 		super();
 		this._modelService = modelService;
 		this._modeService = modeService;
+		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
 		this._editorService = editorService;
 		this._fileService = fileService;
@@ -147,7 +150,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			}
 		}
 		if (changedEvents.length > 0) {
-			this._proxy.$acceptModelChanged(modelUrl.toString(), changedEvents);
+			this._proxy.$acceptModelChanged(modelUrl.toString(), changedEvents, this._textFileService.isDirty(modelUrl));
 		}
 	}
 
@@ -184,7 +187,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	}
 
 	private _handleAsResourceInput(uri: URI): TPromise<boolean> {
-		return this._editorService.resolveEditorModel({ resource: uri }).then(model => {
+		return this._textModelResolverService.resolve(uri).then(model => {
 			return !!model;
 		});
 	}
@@ -198,7 +201,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			let input = this._untitledEditorService.createOrGet(asFileUri);
 			return input.resolve(true).then(model => {
 				if (input.getResource().toString() !== uri.toString()) {
-					throw new Error(`expected URI ${uri.toString() } BUT GOT ${input.getResource().toString() }`);
+					throw new Error(`expected URI ${uri.toString()} BUT GOT ${input.getResource().toString()}`);
 				}
 				if (!this._modelIsSynced[uri.toString()]) {
 					throw new Error(`expected URI ${uri.toString()} to have come to LIFE`);
@@ -212,8 +215,8 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 
 	// --- virtual document logic
 
-	$registerTextContentProvider(handle:number, scheme: string): void {
-		this._resourceContentProvider[handle] = ResourceEditorInput.registerResourceContentProvider(scheme, {
+	$registerTextContentProvider(handle: number, scheme: string): void {
+		this._resourceContentProvider[handle] = this._textModelResolverService.registerTextModelContentProvider(scheme, {
 			provideTextContent: (uri: URI): TPromise<editorCommon.IModel> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
@@ -251,6 +254,10 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			return this._editorService.createInput({ resource }).then(input => {
 				if (!this._editorService.isVisible(input, true)) {
 					toBeDisposed.push(resource);
+				}
+
+				if (input) {
+					input.dispose();
 				}
 			});
 		})).then(() => {

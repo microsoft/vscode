@@ -6,49 +6,57 @@
 'use strict';
 
 import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
+import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {Storage, InMemoryLocalStorage} from 'vs/workbench/common/storage';
-import {EditorInputEvent, IEditorGroup, ConfirmResult} from 'vs/workbench/common/editor';
-import Event, {Emitter} from 'vs/base/common/event';
+import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/storage/common/storageService';
+import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
+import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import {IConfigurationService, getConfigurationValue, IConfigurationValue} from 'vs/platform/configuration/common/configuration';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IEditorInput, IEditorOptions, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
-import {IWorkspace, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
-import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
-import {TextFileService} from 'vs/workbench/parts/files/common/textFileService';
-import {IFileService, IResolveContentOptions, IFileOperationResult} from 'vs/platform/files/common/files';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
-import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
-import {RawText} from 'vs/editor/common/model/textModel';
-import {parseArgs} from 'vs/platform/environment/node/argv';
-import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {IHistoryService} from 'vs/workbench/services/history/common/history';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
+import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
+import { TextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
+import { IFileService, IResolveContentOptions, IFileOperationResult } from 'vs/platform/files/common/files';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { RawText } from 'vs/editor/common/model/textModel';
+import { parseArgs } from 'vs/platform/environment/node/argv';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
 	name: 'Test Workspace',
 	uid: Date.now()
 };
+
+export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
+	return instantiationService.createInstance(FileEditorInput, resource, void 0);
+}
 
 export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
 
@@ -108,7 +116,7 @@ export class TestTextFileService extends TextFileService {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -139,7 +147,6 @@ export class TestTextFileService extends TextFileService {
 				name: content.name,
 				mtime: content.mtime,
 				etag: content.etag,
-				mime: content.mime,
 				encoding: content.encoding,
 				value: raw,
 				valueLogicalHash: null
@@ -174,6 +181,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
+	instantiationService.stub(ITextModelResolverService, <ITextModelResolverService>instantiationService.createInstance(TextModelResolverService));
 
 	return instantiationService;
 }
@@ -227,11 +235,17 @@ export class TestPartService implements IPartService {
 		return true;
 	}
 
-	public isStatusBarHidden(): boolean {
+	public getContainer(part): HTMLElement {
+		return null;
+	}
+
+	public isTitleBarHidden(): boolean {
 		return false;
 	}
 
-	public setStatusBarHidden(hidden: boolean): void { }
+	public isStatusBarHidden(): boolean {
+		return false;
+	}
 
 	public isSideBarHidden(): boolean {
 		return false;
@@ -245,14 +259,19 @@ export class TestPartService implements IPartService {
 
 	public setPanelHidden(hidden: boolean): void { }
 
+	public toggleMaximizedPanel(): void { }
+
 	public getSideBarPosition() {
 		return 0;
 	}
 
-	public setSideBarPosition(position): void { }
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
 	public getWorkbenchElementId(): string { return ''; }
+
+	public setRestoreSidebar(): void {
+
+	}
 }
 
 export class TestEventService extends EventEmitter implements IEventService {
@@ -262,13 +281,13 @@ export class TestEventService extends EventEmitter implements IEventService {
 export class TestStorageService extends EventEmitter implements IStorageService {
 	public _serviceBrand: any;
 
-	private storage: Storage;
+	private storage: StorageService;
 
 	constructor() {
 		super();
 
 		let context = new TestContextService();
-		this.storage = new Storage(new InMemoryLocalStorage(), null, context);
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context, TestEnvironmentService);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -302,14 +321,14 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private stacksModel: EditorStacksModel;
 
 	private _onEditorsChanged: Emitter<void>;
-	private _onEditorOpening: Emitter<EditorInputEvent>;
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
+	private _onGroupOrientationChanged: Emitter<void>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
-		this._onEditorOpening = new Emitter<EditorInputEvent>();
+		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
 
 		let services = new ServiceCollection();
@@ -333,16 +352,16 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this._onEditorsChanged.event;
 	}
 
-	public get onEditorOpening(): Event<EditorInputEvent> {
-		return this._onEditorOpening.event;
-	}
-
 	public get onEditorOpenFail(): Event<IEditorInput> {
 		return this._onEditorOpenFail.event;
 	}
 
 	public get onEditorsMoved(): Event<void> {
 		return this._onEditorsMoved.event;
+	}
+
+	public get onGroupOrientationChanged(): Event<void> {
+		return this._onGroupOrientationChanged.event;
 	}
 
 	public focusGroup(group: IEditorGroup): void;
@@ -365,6 +384,14 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
 
+	}
+
+	public setGroupOrientation(orientation: GroupOrientation): void {
+
+	}
+
+	public getGroupOrientation(): GroupOrientation {
+		return 'vertical';
 	}
 
 	public pinEditor(group: IEditorGroup, input: IEditorInput): void;
@@ -448,14 +475,6 @@ export class TestEditorService implements IWorkbenchEditorService {
 		return TPromise.as(null);
 	}
 
-	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
-	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
-	public resolveEditorModel(input: any, refresh?: boolean): Promise {
-		this.callback('resolveEditorModel');
-
-		return input.resolve(refresh);
-	}
-
 	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {
 		this.callback('closeEditor');
 
@@ -519,7 +538,6 @@ export const TestFileService = {
 			resource: resource,
 			value: 'Hello Html',
 			etag: 'index.txt',
-			mime: 'text/plain',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
@@ -530,7 +548,6 @@ export const TestFileService = {
 		return TPromise.as({
 			resource: resource,
 			etag: Date.now(),
-			mime: 'text/plain',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
@@ -551,7 +568,6 @@ export const TestFileService = {
 				}
 			},
 			etag: 'index.txt',
-			mime: 'text/plain',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
@@ -563,7 +579,6 @@ export const TestFileService = {
 			return {
 				resource: res,
 				etag: 'index.txt',
-				mime: 'text/plain',
 				encoding: 'utf8',
 				mtime: Date.now(),
 				name: paths.basename(res.fsPath)
@@ -572,43 +587,12 @@ export const TestFileService = {
 	}
 };
 
-export class TestConfigurationService extends EventEmitter implements IConfigurationService {
-	public _serviceBrand: any;
-
-	private configuration = Object.create(null);
-
-	public reloadConfiguration<T>(section?: string): TPromise<T> {
-		return TPromise.as(this.getConfiguration());
-	}
-
-	public getConfiguration(): any {
-		return this.configuration;
-	}
-
-	public setUserConfiguration(key: any, value: any): Thenable<void> {
-		this.configuration[key] = value;
-		return TPromise.as(null);
-	}
-
-	public onDidUpdateConfiguration() {
-		return { dispose() { } };
-	}
-
-	public lookup<C>(key: string): IConfigurationValue<C> {
-		return {
-			value: getConfigurationValue<C>(this.getConfiguration(), key),
-			default: getConfigurationValue<C>(this.getConfiguration(), key),
-			user: getConfigurationValue<C>(this.getConfiguration(), key)
-		};
-	}
-}
-
 export class TestLifecycleService implements ILifecycleService {
 
 	public _serviceBrand: any;
 
 	public willShutdown: boolean;
-	
+
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
 	private _onShutdown = new Emitter<void>();
 
@@ -635,4 +619,14 @@ export class TestLifecycleService implements ILifecycleService {
 export function createMockModelService(instantiationService: TestInstantiationService): IModelService {
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	return instantiationService.createInstance(ModelServiceImpl);
+}
+
+export function onError(error: Error, done: () => void): void {
+	assert.fail(error);
+
+	done();
+}
+
+export function toResource(path) {
+	return URI.file(paths.join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
 }

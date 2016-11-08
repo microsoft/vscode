@@ -6,6 +6,7 @@
 {
 	"closePanel": "Fermer",
 	"focusPanel": "Focus dans le panneau",
-	"togglePanel": "Activer/désactiver la visibilité du panneau",
+	"toggleMaximizedPanel": "Activer/désactiver le panneau agrandi",
+	"togglePanel": "Activer/désactiver le panneau",
 	"view": "Affichage"
 }

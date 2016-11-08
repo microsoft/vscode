@@ -7,9 +7,10 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { format } from 'vs/base/common/strings';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { IStatusModel, IStatusSummary, IRawFileStatus, ModelEvents,
+import {
+	IStatusModel, IStatusSummary, IRawFileStatus, ModelEvents,
 	IFileStatus, IStatusGroup, Status, StatusType,
-	IBranch, IRef, IRemote, IModel, IRawStatus
+	IBranch, IRef, IRemote, IModel, IRawStatus, RefType
 } from 'vs/workbench/parts/git/common/git';
 
 export class FileStatus implements IFileStatus {
@@ -117,16 +118,16 @@ export class StatusGroup extends EventEmitter implements IStatusGroup {
 	}
 
 	update(statusList: FileStatus[]): void {
-		var toDelete: IStatusSet = Object.create(null);
+		const toDelete: IStatusSet = Object.create(null);
 
-		var id: string, path: string, rename: string;
-		var status: IFileStatus;
+		let id: string, path: string, rename: string;
+		let status: IFileStatus;
 
 		for (id in this.statusSet) {
 			toDelete[id] = this.statusSet[id];
 		}
 
-		for (var i = 0; i < statusList.length; i++) {
+		for (let i = 0; i < statusList.length; i++) {
 			status = statusList[i];
 			id = status.getId();
 			path = status.getPath();
@@ -213,12 +214,12 @@ export class StatusModel extends EventEmitter implements IStatusModel {
 	}
 
 	update(status: IRawFileStatus[]): void {
-		var index: FileStatus[] = [];
-		var workingTree: FileStatus[] = [];
-		var merge: FileStatus[] = [];
+		const index: FileStatus[] = [];
+		const workingTree: FileStatus[] = [];
+		const merge: FileStatus[] = [];
 
 		status.forEach(raw => {
-			switch(raw.x + raw.y) {
+			switch (raw.x + raw.y) {
 				case '??': return workingTree.push(new FileStatus(raw.path, raw.mimetype, Status.UNTRACKED));
 				case '!!': return workingTree.push(new FileStatus(raw.path, raw.mimetype, Status.IGNORED));
 				case 'DD': return merge.push(new FileStatus(raw.path, raw.mimetype, Status.BOTH_DELETED));
@@ -266,24 +267,20 @@ export class StatusModel extends EventEmitter implements IStatusModel {
 	}
 
 	getGroups(): IStatusGroup[] {
-		return [ this.mergeStatus, this.indexStatus, this.workingTreeStatus ];
+		return [this.mergeStatus, this.indexStatus, this.workingTreeStatus];
 	}
 
 	find(path: string, type: StatusType): IFileStatus {
-		var group: IStatusGroup;
-
 		switch (type) {
 			case StatusType.INDEX:
-				group = this.indexStatus; break;
+				return this.indexStatus.find(path);
 			case StatusType.WORKING_TREE:
-				group = this.workingTreeStatus; break;
+				return this.workingTreeStatus.find(path);
 			case StatusType.MERGE:
-				group = this.mergeStatus; break;
+				return this.mergeStatus.find(path);
 			default:
 				return null;
 		}
-
-		return group.find(path);
 	}
 
 	dispose(): void {
@@ -378,7 +375,7 @@ export class Model extends EventEmitter implements IModel {
 	}
 
 	getStatusSummary(): IStatusSummary {
-		var status = this.getStatus();
+		const status = this.getStatus();
 
 		return {
 			hasWorkingTreeChanges: status.getWorkingTreeStatus().all().length > 0,
@@ -392,11 +389,14 @@ export class Model extends EventEmitter implements IModel {
 			return '';
 		}
 
-		var label = this.HEAD.name || this.HEAD.commit.substr(0, 8);
-		var statusSummary = this.getStatus().getSummary();
+		const tag = this.getRefs().filter(iref => iref.type === RefType.Tag && iref.commit === this.HEAD.commit)[0];
+		const tagName = tag && tag.name;
+		const head = this.HEAD.name || tagName || this.HEAD.commit.substr(0, 8);
+
+		const statusSummary = this.getStatus().getSummary();
 
 		return format('{0}{1}{2}{3}',
-			label,
+			head,
 			statusSummary.hasWorkingTreeChanges ? '*' : '',
 			statusSummary.hasIndexChanges ? '+' : '',
 			statusSummary.hasMergeChanges ? '!' : ''

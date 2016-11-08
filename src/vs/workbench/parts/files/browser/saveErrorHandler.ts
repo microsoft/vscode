@@ -4,32 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
-import {toErrorMessage} from 'vs/base/common/errorMessage';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import paths = require('vs/base/common/paths');
-import {Action} from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
-import {EditorModel} from 'vs/workbench/common/editor';
-import {guessMimeTypes} from 'vs/base/common/mime';
-import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
-import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import { ITextEditorModel } from 'vs/workbench/common/editor';
+import { EditorInputAction } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { SaveFileAsAction, RevertFileAction, SaveFileAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, IMessageWithAction, Severity, CancelAction } from 'vs/platform/message/common/message';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 
 // A handler for save error happening with conflict resolution actions
 export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
@@ -174,33 +174,31 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 export class FileOnDiskEditorInput extends ResourceEditorInput {
 	private fileResource: URI;
 	private lastModified: number;
-	private mime: string;
 	private createdEditorModel: boolean;
 
 	constructor(
 		fileResource: URI,
-		mime: string,
 		name: string,
 		description: string,
-		@IModelService modelService: IModelService,
+		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		// We create a new resource URI here that is different from the file resource because we represent the state of
 		// the file as it is on disk and not as it is (potentially cached) in Code. That allows us to have a different
 		// model for the left-hand comparision compared to the conflicting one in Code to the right.
-		super(name, description, URI.from({ scheme: 'disk', path: fileResource.fsPath }), modelService, instantiationService);
+		super(name, description, URI.from({ scheme: 'disk', path: fileResource.fsPath }), textModelResolverService);
 
 		this.fileResource = fileResource;
-		this.mime = mime;
 	}
 
 	public getLastModified(): number {
 		return this.lastModified;
 	}
 
-	public resolve(refresh?: boolean): TPromise<EditorModel> {
+	public resolve(refresh?: boolean): TPromise<ITextEditorModel> {
 
 		// Make sure our file from disk is resolved up to date
 		return this.textFileService.resolveTextContent(this.fileResource).then(content => {
@@ -208,7 +206,7 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 
 			const codeEditorModel = this.modelService.getModel(this.resource);
 			if (!codeEditorModel) {
-				this.modelService.createModel(content.value, this.modeService.getOrCreateMode(this.mime), this.resource);
+				this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath), this.resource);
 				this.createdEditorModel = true;
 			} else {
 				codeEditorModel.setValueFromRawText(content.value);
@@ -261,9 +259,8 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		this.actions = [
 			new Action('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"), null, true, () => {
 				if (!this.model.isDisposed()) {
-					const mime = guessMimeTypes(resource.fsPath).join(', ');
-					const originalInput = this.instantiationService.createInstance(FileOnDiskEditorInput, resource, mime, paths.basename(resource.fsPath), resource.fsPath);
-					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, mime, void 0);
+					const originalInput = this.instantiationService.createInstance(FileOnDiskEditorInput, resource, paths.basename(resource.fsPath), resource.fsPath);
+					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, void 0);
 					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2})", modifiedInput.getName(), modifiedInput.getName(), product.nameLong), nls.localize('resolveSaveConflict', "Resolve save conflict"), originalInput, modifiedInput);
 
 					return this.editorService.openEditor(conflictInput).then(() => {

@@ -5,15 +5,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import {WrappingIndent} from 'vs/editor/common/editorCommon';
-import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import {ILineMapperFactory, ILineMapping, OutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
+import { WrappingIndent } from 'vs/editor/common/editorCommon';
+import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import { ILineMapperFactory, ILineMapping, OutputPosition } from 'vs/editor/common/viewModel/splitLinesCollection';
 
-function assertLineMapping(factory:ILineMapperFactory, tabSize:number, breakAfter:number, annotatedText:string, wrappingIndent = WrappingIndent.None) {
+function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None) {
 
 	let rawText = '';
 	let currentLineIndex = 0;
-	let lineIndices:number[] = [];
+	let lineIndices: number[] = [];
 	for (let i = 0, len = annotatedText.length; i < len; i++) {
 		if (annotatedText.charAt(i) === '|') {
 			currentLineIndex++;

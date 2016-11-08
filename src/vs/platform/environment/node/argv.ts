@@ -23,27 +23,30 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	verbose?: boolean;
 	logExtensionHostCommunication?: boolean;
 	'disable-extensions'?: boolean;
-	extensionHomePath?: string;
+	'extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
 	debugBrkPluginHost?: string;
 	debugPluginHost?: string;
 	'list-extensions'?: boolean;
+	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
+	'open-url'?: string | string[];
 }
 
 const options: minimist.Opts = {
 	string: [
 		'locale',
 		'user-data-dir',
-		'extensionHomePath',
+		'extensions-dir',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
 		'install-extension',
 		'uninstall-extension',
 		'debugBrkPluginHost',
-		'debugPluginHost'
+		'debugPluginHost',
+		'open-url'
 	],
 	boolean: [
 		'help',
@@ -57,7 +60,9 @@ const options: minimist.Opts = {
 		'verbose',
 		'logExtensionHostCommunication',
 		'disable-extensions',
-		'list-extensions'
+		'list-extensions',
+		'show-versions',
+		'nolazy'
 	],
 	alias: {
 		help: 'h',
@@ -68,7 +73,8 @@ const options: minimist.Opts = {
 		'new-window': 'n',
 		'reuse-window': 'r',
 		performance: 'p',
-		'disable-extensions': 'disableExtensions'
+		'disable-extensions': 'disableExtensions',
+		'extensions-dir': 'extensionHomePath'
 	}
 };
 
@@ -106,7 +112,7 @@ export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
  * Use this to parse raw code CLI process.argv such as: `Electron cli.js . --verbose --wait`
  */
 export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
-	let [,, ...args] = processArgv;
+	let [, , ...args] = processArgv;
 
 	if (process.env['VSCODE_DEV']) {
 		args = stripAppPath(args);
@@ -132,11 +138,13 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in, useful when running as root."),
 	'--verbose': localize('verbose', "Print verbose output (implies --wait)."),
 	'-w, --wait': localize('wait', "Wait for the window to be closed before returning."),
-	'--extensionHomePath': localize('extensionHomePath', "Set the root path for extensions."),
+	'--extensions-dir <dir>': localize('extensionHomePath', "Set the root path for extensions."),
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
+	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
 	'--install-extension <ext>': localize('installExtension', "Installs an extension."),
 	'--uninstall-extension <ext>': localize('uninstallExtension', "Uninstalls an extension."),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
+	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };
@@ -146,7 +154,7 @@ export function formatOptions(options: { [name: string]: string; }, columns: num
 	let argLength = Math.max.apply(null, keys.map(k => k.length)) + 2/*left padding*/ + 1/*right padding*/;
 	if (columns - argLength < 25) {
 		// Use a condensed version on narrow terminals
-		return keys.reduce((r, key) => r.concat([`  ${ key }`, `      ${ options[key] }`]), []).join('\n');
+		return keys.reduce((r, key) => r.concat([`  ${key}`, `      ${options[key]}`]), []).join('\n');
 	}
 	let descriptionColumns = columns - argLength - 1;
 	let result = '';
@@ -164,7 +172,7 @@ export function formatOptions(options: { [name: string]: string; }, columns: num
 	return result;
 }
 
-function wrapText(text: string, columns: number) : string[] {
+function wrapText(text: string, columns: number): string[] {
 	let lines = [];
 	while (text.length) {
 		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
@@ -177,12 +185,12 @@ function wrapText(text: string, columns: number) : string[] {
 
 export function buildHelpMessage(fullName: string, name: string, version: string): string {
 	const columns = (<any>process.stdout).isTTY ? (<any>process.stdout).columns : 80;
-	const executable = `${ name }${ os.platform() === 'win32' ? '.exe' : '' }`;
+	const executable = `${name}${os.platform() === 'win32' ? '.exe' : ''}`;
 
-	return `${ fullName } ${ version }
+	return `${fullName} ${version}
 
-${ localize('usage', "Usage") }: ${ executable } [${ localize('options', "options") }] [${ localize('paths', 'paths') }...]
+${ localize('usage', "Usage")}: ${executable} [${localize('options', "options")}] [${localize('paths', 'paths')}...]
 
-${ localize('optionsUpperCase', "Options") }:
+${ localize('optionsUpperCase', "Options")}:
 ${formatOptions(optionsHelp, columns)}`;
 }

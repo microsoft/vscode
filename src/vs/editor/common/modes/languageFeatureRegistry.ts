@@ -5,10 +5,10 @@
 
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
-import {LanguageSelector, score} from 'vs/editor/common/modes/languageSelector';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
 
 interface Entry<T> {
 	selector: LanguageSelector;
@@ -65,7 +65,7 @@ export default class LanguageFeatureRegistry<T> {
 	}
 
 	all(model: IReadOnlyModel): T[] {
-		if (!model || model.isTooLargeForHavingAMode()) {
+		if (!model || model.isTooLargeForHavingARichMode()) {
 			return [];
 		}
 
@@ -108,7 +108,7 @@ export default class LanguageFeatureRegistry<T> {
 
 	private _orderedForEach(model: IReadOnlyModel, callback: (provider: Entry<T>) => any): void {
 
-		if (!model || model.isTooLargeForHavingAMode()) {
+		if (!model || model.isTooLargeForHavingARichMode()) {
 			return;
 		}
 

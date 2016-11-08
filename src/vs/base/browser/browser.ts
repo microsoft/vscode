@@ -6,25 +6,27 @@
 
 import types = require('vs/base/common/types');
 import * as Platform from 'vs/base/common/platform';
-import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 class ZoomManager {
 
 	public static INSTANCE = new ZoomManager();
 
 	private _zoomLevel: number = 0;
+	private _zoomFactor: number = 0;
+
 	private _pixelRatioCache: number = 0;
 	private _pixelRatioComputed: boolean = false;
 
 	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
-	public onDidChangeZoomLevel:Event<number> = this._onDidChangeZoomLevel.event;
+	public onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 
 	public getZoomLevel(): number {
 		return this._zoomLevel;
 	}
 
-	public setZoomLevel(zoomLevel:number): void {
+	public setZoomLevel(zoomLevel: number): void {
 		if (this._zoomLevel === zoomLevel) {
 			return;
 		}
@@ -32,6 +34,14 @@ class ZoomManager {
 		this._zoomLevel = zoomLevel;
 		this._pixelRatioComputed = false;
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
+	}
+
+	public getZoomFactor(): number {
+		return this._zoomFactor;
+	}
+
+	public setZoomFactor(zoomFactor: number): void {
+		this._zoomFactor = zoomFactor;
 	}
 
 	public getPixelRatio(): number {
@@ -45,25 +55,33 @@ class ZoomManager {
 	private _computePixelRatio(): number {
 		let ctx = document.createElement('canvas').getContext('2d');
 		let dpr = window.devicePixelRatio || 1;
-		let bsr = 	(<any>ctx).webkitBackingStorePixelRatio ||
-					(<any>ctx).mozBackingStorePixelRatio ||
-					(<any>ctx).msBackingStorePixelRatio ||
-					(<any>ctx).oBackingStorePixelRatio ||
-					(<any>ctx).backingStorePixelRatio || 1;
+		let bsr = (<any>ctx).webkitBackingStorePixelRatio ||
+			(<any>ctx).mozBackingStorePixelRatio ||
+			(<any>ctx).msBackingStorePixelRatio ||
+			(<any>ctx).oBackingStorePixelRatio ||
+			(<any>ctx).backingStorePixelRatio || 1;
 		return dpr / bsr;
 	}
 }
 
+/** A zoom index, e.g. 1, 2, 3 */
 export function getZoomLevel(): number {
 	return ZoomManager.INSTANCE.getZoomLevel();
+}
+/** The zoom scale for an index, e.g. 1, 1.2, 1.4 */
+export function getZoomFactor(): number {
+	return ZoomManager.INSTANCE.getZoomFactor();
 }
 export function getPixelRatio(): number {
 	return ZoomManager.INSTANCE.getPixelRatio();
 }
-export function setZoomLevel(zoomLevel:number): void {
+export function setZoomLevel(zoomLevel: number): void {
 	ZoomManager.INSTANCE.setZoomLevel(zoomLevel);
 }
-export function onDidChangeZoomLevel(callback:(zoomLevel:number)=>void): IDisposable {
+export function setZoomFactor(zoomFactor: number): void {
+	ZoomManager.INSTANCE.setZoomFactor(zoomFactor);
+}
+export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
 	return ZoomManager.INSTANCE.onDidChangeZoomLevel(callback);
 }
 

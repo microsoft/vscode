@@ -19,6 +19,7 @@
 	"files.exclude.boolean": "匹配文件路径所依据的 glob 模式。设置为 true 或 false 可启用或禁用该模式。",
 	"files.exclude.when": "对匹配文件的同级文件的其他检查。使用 $(basename) 作为匹配文件名的变量。",
 	"filesConfigurationTitle": "文件",
+	"formatOnSave": "保存时设置文件的格式。格式化程序必须可用，不能自动保存文件，并且不能关闭编辑器。",
 	"openEditorsVisible": "在“打开的编辑器”窗格中显示的编辑器数量。将其设置为 0 可隐藏窗格。",
 	"showExplorerViewlet": "显示资源管理器",
 	"textFileEditor": "文本文件编辑器",

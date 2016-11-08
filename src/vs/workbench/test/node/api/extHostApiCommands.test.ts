@@ -6,29 +6,30 @@
 'use strict';
 
 import * as assert from 'assert';
-import {setUnexpectedErrorHandler, errorHandler} from 'vs/base/common/errors';
+import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {Model as EditorModel} from 'vs/editor/common/model/model';
-import {TestThreadService} from 'vs/workbench/test/node/api/testThreadService';
-import {MarkerService} from 'vs/platform/markers/common/markerService';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {ICommandService, CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
-import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/mainThreadLanguageFeatures';
-import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
-import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
-import {ExtHostHeapService} from 'vs/workbench/api/node/extHostHeapService';
-import {MainThreadCommands} from 'vs/workbench/api/node/mainThreadCommands';
-import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
-import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHost.protocol';
-import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
+import { Model as EditorModel } from 'vs/editor/common/model/model';
+import { TestThreadService } from 'vs/workbench/test/node/api/testThreadService';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
+import { MainThreadLanguageFeatures } from 'vs/workbench/api/node/mainThreadLanguageFeatures';
+import { IHeapService } from 'vs/workbench/api/node/mainThreadHeapService';
+import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
+import { MainThreadCommands } from 'vs/workbench/api/node/mainThreadCommands';
+import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
+import * as vscode from 'vscode';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -48,7 +49,7 @@ let commands: ExtHostCommands;
 let disposables: vscode.Disposable[] = [];
 let originalErrorHandler: (e: any) => any;
 
-suite('ExtHostLanguageFeatureCommands', function() {
+suite('ExtHostLanguageFeatureCommands', function () {
 
 	suiteSetup((done) => {
 
@@ -57,7 +58,13 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 		let instantiationService = new TestInstantiationService();
 		threadService = new TestThreadService();
-
+		instantiationService.stub(IHeapService, {
+			_serviceBrand: undefined,
+			trackRecursive(args) {
+				// nothing
+				return args;
+			}
+		});
 		instantiationService.stub(ICommandService, {
 			_serviceBrand: undefined,
 			executeCommand(id, args): any {
@@ -92,6 +99,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				lines: model.getValue().split(model.getEOL()),
 				BOM: '',
 				length: -1,
+				containsRTL: false,
 				options: {
 					tabSize: 4,
 					insertSpaces: true,
@@ -101,16 +109,17 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			},
 		});
 
-		commands = new ExtHostCommands(threadService, null);
+		const heapService = new ExtHostHeapService();
+
+		commands = new ExtHostCommands(threadService, null, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
-		ExtHostTypeConverters.Command.initialize(commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
-		registerApiCommands(commands);
+		ExtHostApiCommands.register(commands);
 
 		const diagnostics = new ExtHostDiagnostics(threadService);
 		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, new ExtHostHeapService(), diagnostics);
+		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
@@ -123,7 +132,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		model.dispose();
 	});
 
-	teardown(function(done) {
+	teardown(function (done) {
 		while (disposables.length) {
 			disposables.pop().dispose();
 		}
@@ -133,7 +142,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 	// --- workspace symbols
 
-	test('WorkspaceSymbols, invalid arguments', function(done) {
+	test('WorkspaceSymbols, invalid arguments', function (done) {
 		let promises = [
 			commands.executeCommand('vscode.executeWorkspaceSymbolProvider'),
 			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', null),
@@ -150,7 +159,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		// });
 	});
 
-	test('WorkspaceSymbols, back and forth', function(done) {
+	test('WorkspaceSymbols, back and forth', function (done) {
 
 		disposables.push(extHost.registerWorkspaceSymbolProvider(<vscode.WorkspaceSymbolProvider>{
 			provideWorkspaceSymbols(query): any {
@@ -186,7 +195,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 	// --- definition
 
-	test('Definition, invalid arguments', function(done) {
+	test('Definition, invalid arguments', function (done) {
 		let promises = [
 			commands.executeCommand('vscode.executeDefinitionProvider'),
 			commands.executeCommand('vscode.executeDefinitionProvider', null),
@@ -203,7 +212,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		// });
 	});
 
-	test('Definition, back and forth', function() {
+	test('Definition, back and forth', function () {
 
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(doc: any): any {
@@ -256,7 +265,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 	// --- outline
 
-	test('Outline, back and forth', function(done) {
+	test('Outline, back and forth', function (done) {
 		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols(): any {
 				return [
@@ -279,7 +288,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 	// --- suggest
 
-	test('Suggest, back and forth', function(done) {
+	test('Suggest, back and forth', function (done) {
 		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(doc, pos): any {
 				let a = new types.CompletionItem('item1');
@@ -336,12 +345,12 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		}, done);
 	});
 
-	test('Suggest, return CompletionList !array', function(done) {
+	test('Suggest, return CompletionList !array', function (done) {
 		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				let a = new types.CompletionItem('item1');
 				let b = new types.CompletionItem('item2');
-				return new types.CompletionList(<any> [a,b], true);
+				return new types.CompletionList(<any>[a, b], true);
 			}
 		}, []));
 
@@ -356,7 +365,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 	// --- quickfix
 
-	test('QuickFix, back and forth', function() {
+	test('QuickFix, back and forth', function () {
 		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
 			provideCodeActions(): any {
 				return [{ command: 'testing', title: 'Title', arguments: [1, 2, true] }];
@@ -376,7 +385,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 	// --- code lens
 
-	test('CodeLens, back and forth', function() {
+	test('CodeLens, back and forth', function () {
 
 		const complexArg = {
 			foo() { },
@@ -404,7 +413,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		});
 	});
 
-	test('Links, back and forth', function() {
+	test('Links, back and forth', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks(): any {

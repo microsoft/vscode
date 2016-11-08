@@ -5,16 +5,16 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, IModelContentChangedEvent2} from 'vs/editor/common/editorCommon';
-import {EditableTextModel, IValidatedEditOperation} from 'vs/editor/common/model/editableTextModel';
-import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
-import {TextModel} from 'vs/editor/common/model/textModel';
-import {assertSyncedModels, testApplyEditsWithSyncedModels} from 'vs/editor/test/common/model/editableTextModelTestUtils';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, IModelContentChangedEvent2 } from 'vs/editor/common/editorCommon';
+import { EditableTextModel, IValidatedEditOperation } from 'vs/editor/common/model/editableTextModel';
+import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text:string[]): IValidatedEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string[]): IValidatedEditOperation {
 		return {
 			sortIndex: 0,
 			identifier: null,
@@ -30,7 +30,7 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
-	function assertInverseEdits(ops:IValidatedEditOperation[], expected:Range[]): void {
+	function assertInverseEdits(ops: IValidatedEditOperation[], expected: Range[]): void {
 		var actual = EditableTextModel._getInverseEditRanges(ops);
 		assert.deepEqual(actual, expected);
 	}
@@ -264,7 +264,7 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 
 suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength:number, text:string[]): IValidatedEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string[]): IValidatedEditOperation {
 		return {
 			sortIndex: 0,
 			identifier: null,
@@ -276,7 +276,7 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 		};
 	}
 
-	function testSimpleApplyEdits(original:string[], edits:IValidatedEditOperation[], expected:IValidatedEditOperation): void {
+	function testSimpleApplyEdits(original: string[], edits: IValidatedEditOperation[], expected: IValidatedEditOperation): void {
 		let model = new EditableTextModel([], TextModel.toRawText(original.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), null);
 		model.setEOL(EndOfLineSequence.LF);
 
@@ -310,14 +310,14 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 			'',
 			'1'
 		], [
-			editOp(1, 1, 1, 3, 0, ['Your']),
-			editOp(1, 4, 1, 4, 0, ['Interesting ']),
-			editOp(2, 3, 2, 6, 0, null)
-		],
-		editOp(1, 1, 2, 6, 19, [
-			'Your Interesting First Line',
-			'\t\t'
-		]));
+				editOp(1, 1, 1, 3, 0, ['Your']),
+				editOp(1, 4, 1, 4, 0, ['Interesting ']),
+				editOp(2, 3, 2, 6, 0, null)
+			],
+			editOp(1, 1, 2, 6, 19, [
+				'Your Interesting First Line',
+				'\t\t'
+			]));
 	});
 
 	test('insert multiple newlines', () => {
@@ -475,14 +475,14 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 			],
 			[
 				editOp(1, 1, 1, 2, 0, ['']),
-				editOp(1, 3, 1, 10, 0, ['','  ']),
-				editOp(1, 16, 2, 14, 0, ['','    ']),
-				editOp(2, 18, 3, 9, 0, ['','  ']),
+				editOp(1, 3, 1, 10, 0, ['', '  ']),
+				editOp(1, 16, 2, 14, 0, ['', '    ']),
+				editOp(2, 18, 3, 9, 0, ['', '  ']),
 				editOp(3, 22, 4, 9, 0, ['']),
-				editOp(4, 10, 4, 10, 0, ['','  ']),
-				editOp(4, 28, 4, 28, 0, ['','    ']),
-				editOp(4, 32, 4, 32, 0, ['','  ']),
-				editOp(4, 33, 4, 34, 0, ['',''])
+				editOp(4, 10, 4, 10, 0, ['', '  ']),
+				editOp(4, 28, 4, 28, 0, ['', '    ']),
+				editOp(4, 32, 4, 32, 0, ['', '  ']),
+				editOp(4, 33, 4, 34, 0, ['', ''])
 			],
 			editOp(1, 1, 4, 34, 89, [
 				'{',
@@ -516,9 +516,83 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 	});
 });
 
+suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
+
+	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before:boolean, after:boolean): void {
+		let model = new EditableTextModel([], TextModel.toRawText(original.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), null);
+		model.setEOL(EndOfLineSequence.LF);
+
+		assert.equal(model.mightContainRTL(), before);
+
+		model.applyEdits(edits);
+		assert.equal(model.mightContainRTL(), after);
+		model.dispose();
+	}
+
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
+		return {
+			identifier: null,
+			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+			text: text.join('\n'),
+			forceMoveMarkers: false
+		};
+	}
+		// model.setValue('Hello,\nזוהי עובדה מבוססת שדעתו');
+
+		// let model = new TextModel([], TextModel.toRawText('Hello,\nهناك حقيقة مثبتة منذ زمن طويل', TextModel.DEFAULT_CREATION_OPTIONS));
+
+	test('start with RTL, insert LTR', () => {
+		testApplyEdits([
+			'Hello,\nזוהי עובדה מבוססת שדעתו'
+		], [
+			editOp(1,1,1,1, ['hello'])
+		], true, true);
+	});
+
+	test('start with RTL, delete RTL', () => {
+		testApplyEdits([
+			'Hello,\nזוהי עובדה מבוססת שדעתו'
+		], [
+			editOp(1,1,10,10, [''])
+		], true, true);
+	});
+
+	test('start with RTL, insert RTL', () => {
+		testApplyEdits([
+			'Hello,\nזוהי עובדה מבוססת שדעתו'
+		], [
+			editOp(1,1,1,1, ['هناك حقيقة مثبتة منذ زمن طويل'])
+		], true, true);
+	});
+
+	test('start with LTR, insert LTR', () => {
+		testApplyEdits([
+			'Hello,\nworld!'
+		], [
+			editOp(1,1,1,1, ['hello'])
+		], false, false);
+	});
+
+	test('start with LTR, insert RTL 1', () => {
+		testApplyEdits([
+			'Hello,\nworld!'
+		], [
+			editOp(1,1,1,1, ['هناك حقيقة مثبتة منذ زمن طويل'])
+		], false, true);
+	});
+
+	test('start with LTR, insert RTL 2', () => {
+		testApplyEdits([
+			'Hello,\nworld!'
+		], [
+			editOp(1,1,1,1, ['זוהי עובדה מבוססת שדעתו'])
+		], false, true);
+	});
+});
+
 suite('EditorModel - EditableTextModel.applyEdits', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text:string[]): IIdentifiedSingleEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
 		return {
 			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
@@ -527,7 +601,78 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		};
 	}
 
-
+	test('high-low surrogates 1', () => {
+		testApplyEditsWithSyncedModels(
+			[
+				'📚some',
+				'very nice',
+				'text'
+			],
+			[
+				editOp(1, 2, 1, 2, ['a'])
+			],
+			[
+				'a📚some',
+				'very nice',
+				'text'
+			],
+			/*inputEditsAreInvalid*/true
+		);
+	});
+	test('high-low surrogates 2', () => {
+		testApplyEditsWithSyncedModels(
+			[
+				'📚some',
+				'very nice',
+				'text'
+			],
+			[
+				editOp(1, 2, 1, 3, ['a'])
+			],
+			[
+				'asome',
+				'very nice',
+				'text'
+			],
+			/*inputEditsAreInvalid*/true
+		);
+	});
+	test('high-low surrogates 3', () => {
+		testApplyEditsWithSyncedModels(
+			[
+				'📚some',
+				'very nice',
+				'text'
+			],
+			[
+				editOp(1, 1, 1, 2, ['a'])
+			],
+			[
+				'asome',
+				'very nice',
+				'text'
+			],
+			/*inputEditsAreInvalid*/true
+		);
+	});
+	test('high-low surrogates 4', () => {
+		testApplyEditsWithSyncedModels(
+			[
+				'📚some',
+				'very nice',
+				'text'
+			],
+			[
+				editOp(1, 1, 1, 3, ['a'])
+			],
+			[
+				'asome',
+				'very nice',
+				'text'
+			],
+			/*inputEditsAreInvalid*/true
+		);
+	});
 
 	test('Bug 19872: Undo is funky', () => {
 		testApplyEditsWithSyncedModels(
@@ -1078,14 +1223,14 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			],
 			[
 				editOp(1, 1, 1, 2, ['']),
-				editOp(1, 3, 1, 10, ['','  ']),
-				editOp(1, 16, 2, 14, ['','    ']),
-				editOp(2, 18, 3, 9, ['','  ']),
+				editOp(1, 3, 1, 10, ['', '  ']),
+				editOp(1, 16, 2, 14, ['', '    ']),
+				editOp(2, 18, 3, 9, ['', '  ']),
 				editOp(3, 22, 4, 9, ['']),
-				editOp(4, 10, 4, 10, ['','  ']),
-				editOp(4, 28, 4, 28, ['','    ']),
-				editOp(4, 32, 4, 32, ['','  ']),
-				editOp(4, 33, 4, 34, ['',''])
+				editOp(4, 10, 4, 10, ['', '  ']),
+				editOp(4, 28, 4, 28, ['', '    ']),
+				editOp(4, 32, 4, 32, ['', '  ']),
+				editOp(4, 33, 4, 34, ['', ''])
 			],
 			[
 				'{',
@@ -1198,13 +1343,13 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	function testApplyEditsFails(original:string[], edits:IIdentifiedSingleEditOperation[]): void {
+	function testApplyEditsFails(original: string[], edits: IIdentifiedSingleEditOperation[]): void {
 		let model = new EditableTextModel([], TextModel.toRawText(original.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), null);
 
 		let hasThrown = false;
 		try {
 			model.applyEdits(edits);
-		} catch(err) {
+		} catch (err) {
 			hasThrown = true;
 		}
 		assert.ok(hasThrown, 'expected model.applyEdits to fail.');
@@ -1370,7 +1515,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			var isFirstTime = true;
-			model.onDidChangeContent((e:IModelContentChangedEvent2) => {
+			model.onDidChangeContent((e: IModelContentChangedEvent2) => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1393,7 +1538,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		let mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
-		model.onDidChangeContent((e:IModelContentChangedEvent2) => {
+		model.onDidChangeContent((e: IModelContentChangedEvent2) => {
 			let versionId = e.versionId;
 			if (versionId < mirrorModel2PrevVersionId) {
 				console.warn('Model version id did not advance between edits (2)');
@@ -1425,7 +1570,7 @@ interface ILightWeightMarker {
 
 suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text:string[]): IIdentifiedSingleEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
 		return {
 			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
@@ -1434,7 +1579,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 		};
 	}
 
-	function marker(id: string, lineNumber:number, column: number, stickToPreviousCharacter: boolean): ILightWeightMarker {
+	function marker(id: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): ILightWeightMarker {
 		return {
 			id: id,
 			lineNumber: lineNumber,
@@ -1443,15 +1588,15 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 		};
 	}
 
-	function toMarkersMap(markers:ILightWeightMarker[]): {[markerId:string]:ILightWeightMarker} {
-		var result: {[markerId:string]:ILightWeightMarker} = {};
+	function toMarkersMap(markers: ILightWeightMarker[]): { [markerId: string]: ILightWeightMarker } {
+		var result: { [markerId: string]: ILightWeightMarker } = {};
 		markers.forEach(m => {
 			result[m.id] = m;
 		});
 		return result;
 	}
 
-	function testApplyEditsAndMarkers(text:string[], markers:ILightWeightMarker[], edits:IIdentifiedSingleEditOperation[], changedMarkers:string[], expectedText:string[], expectedMarkers:ILightWeightMarker[]): void {
+	function testApplyEditsAndMarkers(text: string[], markers: ILightWeightMarker[], edits: IIdentifiedSingleEditOperation[], changedMarkers: string[], expectedText: string[], expectedMarkers: ILightWeightMarker[]): void {
 		var textStr = text.join('\n');
 		var expectedTextStr = expectedText.join('\n');
 		var markersMap = toMarkersMap(markers);
@@ -1595,7 +1740,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 				editOp(1, 7, 1, 12, ['friends']),
 				editOp(1, 13, 1, 13, ['', 'this is an inserted line', 'and another one. By the way,'])
 			],
-			['e','f','g','h'],
+			['e', 'f', 'g', 'h'],
 			[
 				'Hello friends,',
 				'this is an inserted line',
@@ -1645,7 +1790,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 				editOp(1, 13, 1, 13, ['', 'this is an inserted line', 'and another one. By the way,', 'This is another line']),
 				editOp(2, 1, 7, 14, ['Some new text here'])
 			],
-			['e','f','g','h', 'i', 'j', 'k'],
+			['e', 'f', 'g', 'h', 'i', 'j', 'k'],
 			[
 				'Hello friends,',
 				'this is an inserted line',

@@ -121,7 +121,7 @@ export class FileMatch extends Disposable {
 		this._resource = this.rawMatch.resource;
 		this._matches = new LinkedMap<string, Match>();
 		this._removedMatches = new ArraySet<string>();
-		this._updateScheduler = new RunOnceScheduler(this.updateMatches.bind(this), 250);
+		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 
 		this.createMatches();
 		this.registerListeners();
@@ -131,7 +131,7 @@ export class FileMatch extends Disposable {
 		let model = this.modelService.getModel(this._resource);
 		if (model) {
 			this.bindModel(model);
-			this.updateMatches();
+			this.updateMatchesForModel();
 		} else {
 			this.rawMatch.lineMatches.forEach((rawLineMatch) => {
 				rawLineMatch.offsetAndLengths.forEach(offsetAndLength => {
@@ -161,7 +161,7 @@ export class FileMatch extends Disposable {
 
 	private onModelWillDispose(): void {
 		// Update matches because model might have some dirty changes
-		this.updateMatches();
+		this.updateMatchesForModel();
 		this.unbindModel();
 	}
 
@@ -174,7 +174,7 @@ export class FileMatch extends Disposable {
 		}
 	}
 
-	private updateMatches(): void {
+	private updateMatchesForModel(): void {
 		// this is called from a timeout and might fire
 		// after the model has been disposed
 		if (!this._model) {
@@ -184,6 +184,24 @@ export class FileMatch extends Disposable {
 		let matches = this._model
 			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
 
+		this.updateMatches(matches);
+	}
+
+	private updatesMatchesForLine(lineNumber: number): void {
+		const range = {
+			startLineNumber: lineNumber,
+			startColumn: this._model.getLineMinColumn(lineNumber),
+			endLineNumber: lineNumber,
+			endColumn: this._model.getLineMaxColumn(lineNumber)
+		};
+		const oldMatches = this._matches.values().filter(match => match.range().startLineNumber === lineNumber);
+		oldMatches.forEach(match => this._matches.delete(match.id()));
+
+		const matches = this._model.findMatches(this._query.pattern, range, this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
+		this.updateMatches(matches);
+	}
+
+	private updateMatches(matches: Range[]) {
 		matches.forEach(range => {
 			let match = new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn);
 			if (!this._removedMatches.contains(match.id())) {
@@ -231,11 +249,9 @@ export class FileMatch extends Disposable {
 		this._onChange.fire(false);
 	}
 
-	public replace(match: Match): TPromise<any> {
-		return this.replaceService.replace(match).then(() => {
-			this.removeMatch(match);
-			this._onChange.fire(false);
-		});
+	public replace(toReplace: Match): TPromise<void> {
+		return this.replaceService.replace(toReplace)
+			.then(() => this.updatesMatchesForLine(toReplace.range().startLineNumber));
 	}
 
 	public setSelectedMatch(match: Match) {
@@ -402,7 +418,7 @@ export class SearchResult extends Disposable {
 			return;
 		}
 		this._showHighlights = value;
-		let selectedMatch:Match = null;
+		let selectedMatch: Match = null;
 		this.matches().forEach((fileMatch: FileMatch) => {
 			fileMatch.updateHighlights();
 			if (!selectedMatch) {

@@ -15,19 +15,19 @@ import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
 
 export class TreeContext implements _.ITreeContext {
 
-	public tree:_.ITree;
-	public configuration:_.ITreeConfiguration;
-	public options:_.ITreeOptions;
+	public tree: _.ITree;
+	public configuration: _.ITreeConfiguration;
+	public options: _.ITreeOptions;
 
-	public dataSource:_.IDataSource;
-	public renderer:_.IRenderer;
-	public controller:_.IController;
-	public dnd:_.IDragAndDrop;
-	public filter:_.IFilter;
-	public sorter:_.ISorter;
-	public accessibilityProvider:_.IAccessibilityProvider;
+	public dataSource: _.IDataSource;
+	public renderer: _.IRenderer;
+	public controller: _.IController;
+	public dnd: _.IDragAndDrop;
+	public filter: _.IFilter;
+	public sorter: _.ISorter;
+	public accessibilityProvider: _.IAccessibilityProvider;
 
-	constructor(tree:_.ITree, configuration:_.ITreeConfiguration, options:_.ITreeOptions = {}) {
+	constructor(tree: _.ITree, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
 		this.tree = tree;
 		this.configuration = configuration;
 		this.options = options;
@@ -48,15 +48,15 @@ export class TreeContext implements _.ITreeContext {
 
 export class Tree extends Events.EventEmitter implements _.ITree {
 
-	private container:HTMLElement;
-	private configuration:_.ITreeConfiguration;
-	private options:_.ITreeOptions;
+	private container: HTMLElement;
+	private configuration: _.ITreeConfiguration;
+	private options: _.ITreeOptions;
 
-	private context:_.ITreeContext;
-	private model:Model.TreeModel;
-	private view:View.TreeView;
+	private context: _.ITreeContext;
+	private model: Model.TreeModel;
+	private view: View.TreeView;
 
-	constructor(container:HTMLElement, configuration:_.ITreeConfiguration, options:_.ITreeOptions = {}) {
+	constructor(container: HTMLElement, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
 		super();
 
 		this.container = container;
@@ -83,7 +83,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.view.getHTMLElement();
 	}
 
-	public layout(height?:number): void {
+	public layout(height?: number): void {
 		this.view.layout(height);
 	}
 
@@ -107,7 +107,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.view.onHidden();
 	}
 
-	public setInput(element:any): WinJS.Promise {
+	public setInput(element: any): WinJS.Promise {
 		return this.model.setInput(element);
 	}
 
@@ -115,39 +115,39 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.getInput();
 	}
 
-	public refresh(element:any = null, recursive = true): WinJS.Promise {
+	public refresh(element: any = null, recursive = true): WinJS.Promise {
 		return this.model.refresh(element, recursive);
 	}
 
-	public refreshAll(elements:any[], recursive = true): WinJS.Promise {
+	public refreshAll(elements: any[], recursive = true): WinJS.Promise {
 		return this.model.refreshAll(elements, recursive);
 	}
 
-	public expand(element:any):WinJS.Promise {
+	public expand(element: any): WinJS.Promise {
 		return this.model.expand(element);
 	}
 
-	public expandAll(elements:any[]):WinJS.Promise {
+	public expandAll(elements: any[]): WinJS.Promise {
 		return this.model.expandAll(elements);
 	}
 
-	public collapse(element:any, recursive:boolean = false):WinJS.Promise {
+	public collapse(element: any, recursive: boolean = false): WinJS.Promise {
 		return this.model.collapse(element);
 	}
 
-	public collapseAll(elements:any[] = null, recursive:boolean = false):WinJS.Promise {
+	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
 		return this.model.collapseAll(elements, recursive);
 	}
 
-	public toggleExpansion(element:any):WinJS.Promise {
+	public toggleExpansion(element: any): WinJS.Promise {
 		return this.model.toggleExpansion(element);
 	}
 
-	public toggleExpansionAll(elements:any[]):WinJS.Promise {
+	public toggleExpansionAll(elements: any[]): WinJS.Promise {
 		return this.model.toggleExpansionAll(elements);
 	}
 
-	public isExpanded(element:any):boolean {
+	public isExpanded(element: any): boolean {
 		return this.model.isExpanded(element);
 	}
 
@@ -155,7 +155,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.getExpandedElements();
 	}
 
-	public reveal(element:any, relativeTop:number = null): WinJS.Promise {
+	public reveal(element: any, relativeTop: number = null): WinJS.Promise {
 		return this.model.reveal(element, relativeTop);
 	}
 
@@ -176,55 +176,55 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.view.getTotalHeight();
 	}
 
-	public setHighlight(element?:any, eventPayload?:any):void {
+	public setHighlight(element?: any, eventPayload?: any): void {
 		this.model.setHighlight(element, eventPayload);
 	}
 
-	public getHighlight():any {
+	public getHighlight(): any {
 		return this.model.getHighlight();
 	}
 
-	public isHighlighted(element:any):boolean {
+	public isHighlighted(element: any): boolean {
 		return this.model.isFocused(element);
 	}
 
-	public clearHighlight(eventPayload?:any): void {
+	public clearHighlight(eventPayload?: any): void {
 		this.model.setHighlight(null, eventPayload);
 	}
 
-	public select(element:any, eventPayload?:any): void {
+	public select(element: any, eventPayload?: any): void {
 		this.model.select(element, eventPayload);
 	}
 
-	public selectRange(fromElement: any, toElement: any, eventPayload?:any): void {
+	public selectRange(fromElement: any, toElement: any, eventPayload?: any): void {
 		this.model.selectRange(fromElement, toElement, eventPayload);
 	}
 
-	public deselectRange(fromElement: any, toElement: any, eventPayload?:any): void {
+	public deselectRange(fromElement: any, toElement: any, eventPayload?: any): void {
 		this.model.deselectRange(fromElement, toElement, eventPayload);
 	}
 
-	public selectAll(elements:any[], eventPayload?:any): void {
+	public selectAll(elements: any[], eventPayload?: any): void {
 		this.model.selectAll(elements, eventPayload);
 	}
 
-	public deselect(element:any, eventPayload?:any): void {
+	public deselect(element: any, eventPayload?: any): void {
 		this.model.deselect(element, eventPayload);
 	}
 
-	public deselectAll(elements:any[], eventPayload?:any): void {
+	public deselectAll(elements: any[], eventPayload?: any): void {
 		this.model.deselectAll(elements, eventPayload);
 	}
 
-	public setSelection(elements:any[], eventPayload?:any): void {
+	public setSelection(elements: any[], eventPayload?: any): void {
 		this.model.setSelection(elements, eventPayload);
 	}
 
-	public toggleSelection(element:any, eventPayload?:any): void {
+	public toggleSelection(element: any, eventPayload?: any): void {
 		this.model.toggleSelection(element, eventPayload);
 	}
 
-	public isSelected(element:any):boolean {
+	public isSelected(element: any): boolean {
 		return this.model.isSelected(element);
 	}
 
@@ -232,27 +232,27 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.getSelection();
 	}
 
-	public clearSelection(eventPayload?:any): void {
+	public clearSelection(eventPayload?: any): void {
 		this.model.setSelection([], eventPayload);
 	}
 
-	public selectNext(count?:number, clearSelection?: boolean, eventPayload?:any): void {
+	public selectNext(count?: number, clearSelection?: boolean, eventPayload?: any): void {
 		this.model.selectNext(count, clearSelection, eventPayload);
 	}
 
-	public selectPrevious(count?:number, clearSelection?: boolean, eventPayload?:any): void {
+	public selectPrevious(count?: number, clearSelection?: boolean, eventPayload?: any): void {
 		this.model.selectPrevious(count, clearSelection, eventPayload);
 	}
 
-	public selectParent(clearSelection?: boolean, eventPayload?:any): void {
+	public selectParent(clearSelection?: boolean, eventPayload?: any): void {
 		this.model.selectParent(clearSelection, eventPayload);
 	}
 
-	public setFocus(element?:any, eventPayload?:any): void {
+	public setFocus(element?: any, eventPayload?: any): void {
 		this.model.setFocus(element, eventPayload);
 	}
 
-	public isFocused(element:any):boolean {
+	public isFocused(element: any): boolean {
 		return this.model.isFocused(element);
 	}
 
@@ -260,47 +260,47 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.getFocus();
 	}
 
-	public focusNext(count?:number, eventPayload?:any): void {
+	public focusNext(count?: number, eventPayload?: any): void {
 		this.model.focusNext(count, eventPayload);
 	}
 
-	public focusPrevious(count?:number, eventPayload?:any): void {
+	public focusPrevious(count?: number, eventPayload?: any): void {
 		this.model.focusPrevious(count, eventPayload);
 	}
 
-	public focusParent(eventPayload?:any): void {
+	public focusParent(eventPayload?: any): void {
 		this.model.focusParent(eventPayload);
 	}
 
-	public focusFirstChild(eventPayload?:any): void {
+	public focusFirstChild(eventPayload?: any): void {
 		this.model.focusFirstChild(eventPayload);
 	}
 
-	public focusFirst(eventPayload?:any): void {
+	public focusFirst(eventPayload?: any): void {
 		this.model.focusFirst(eventPayload);
 	}
 
-	public focusNth(index:number, eventPayload?:any): void {
+	public focusNth(index: number, eventPayload?: any): void {
 		this.model.focusNth(index, eventPayload);
 	}
 
-	public focusLast(eventPayload?:any): void {
+	public focusLast(eventPayload?: any): void {
 		this.model.focusLast(eventPayload);
 	}
 
-	public focusNextPage(eventPayload?:any): void {
+	public focusNextPage(eventPayload?: any): void {
 		this.view.focusNextPage(eventPayload);
 	}
 
-	public focusPreviousPage(eventPayload?:any): void {
+	public focusPreviousPage(eventPayload?: any): void {
 		this.view.focusPreviousPage(eventPayload);
 	}
 
-	public clearFocus(eventPayload?:any): void {
+	public clearFocus(eventPayload?: any): void {
 		this.model.setFocus(null, eventPayload);
 	}
 
-	public addTraits(trait:string, elements: any[]): void {
+	public addTraits(trait: string, elements: any[]): void {
 		this.model.addTraits(trait, elements);
 	}
 

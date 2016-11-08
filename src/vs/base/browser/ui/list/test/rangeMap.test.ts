@@ -198,9 +198,9 @@ suite('RangeMap', () => {
 
 	test('delete', () => {
 		rangeMap.splice(0, 0, five, five, five, five, five,
-													five, five, five, five, five,
-													five, five, five, five, five,
-													five, five, five, five, five);
+			five, five, five, five, five,
+			five, five, five, five, five,
+			five, five, five, five, five);
 		assert.equal(rangeMap.size, 100);
 		assert.equal(rangeMap.count, 20);
 
@@ -236,7 +236,7 @@ suite('RangeMap', () => {
 
 	test('insert & delete #2', () => {
 		rangeMap.splice(0, 0, one, one, one, one, one,
-													one, one, one, one, one);
+			one, one, one, one, one);
 		rangeMap.splice(2, 6);
 		assert.equal(rangeMap.count, 4);
 		assert.equal(rangeMap.size, 4);
@@ -244,9 +244,9 @@ suite('RangeMap', () => {
 
 	test('insert & delete #3', () => {
 		rangeMap.splice(0, 0, one, one, one, one, one,
-													one, one, one, one, one,
-													two, two, two, two, two,
-													two, two, two, two, two);
+			one, one, one, one, one,
+			two, two, two, two, two,
+			two, two, two, two, two);
 		rangeMap.splice(8, 4);
 		assert.equal(rangeMap.count, 16);
 		assert.equal(rangeMap.size, 24);
@@ -254,9 +254,9 @@ suite('RangeMap', () => {
 
 	test('insert & delete #3', () => {
 		rangeMap.splice(0, 0, one, one, one, one, one,
-													one, one, one, one, one,
-													two, two, two, two, two,
-													two, two, two, two, two);
+			one, one, one, one, one,
+			two, two, two, two, two,
+			two, two, two, two, two);
 		rangeMap.splice(5, 0, three, three, three, three, three);
 		assert.equal(rangeMap.count, 25);
 		assert.equal(rangeMap.size, 45);

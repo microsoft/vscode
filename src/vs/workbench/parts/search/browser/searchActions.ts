@@ -37,7 +37,7 @@ export function appendKeyBindingLabel(label: string, keyBinding: Keybinding, key
 export function appendKeyBindingLabel(label: string, keyBinding: number, keyBindingService2: IKeybindingService): string
 export function appendKeyBindingLabel(label: string, keyBinding: any, keyBindingService2: IKeybindingService): string {
 	keyBinding = typeof keyBinding === 'number' ? new Keybinding(keyBinding) : keyBinding;
-	return label + ' (' + keyBindingService2.getLabelFor(keyBinding) + ')';
+	return keyBinding ? label + ' (' + keyBindingService2.getLabelFor(keyBinding) + ')' : label;
 }
 
 export class ToggleCaseSensitiveAction extends Action {
@@ -114,7 +114,7 @@ export class ShowPreviousSearchTermAction extends Action {
 export class FocusNextInputAction extends Action {
 
 	public static ID = 'search.focus.nextInputBox';
-	public static LABEL = nls.localize('focusNextInputbox', "Focus next input box");
+	public static LABEL = nls.localize('focusNextInputBox', "Focus next input box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -128,8 +128,8 @@ export class FocusNextInputAction extends Action {
 
 export class FocusPreviousInputAction extends Action {
 
-	public static ID = 'search.focus.previousInputbox';
-	public static LABEL = nls.localize('focusPreviousInputbox', "Focus previous input box");
+	public static ID = 'search.focus.previousInputBox';
+	public static LABEL = nls.localize('focusPreviousInputBox', "Focus previous input box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -143,11 +143,36 @@ export class FocusPreviousInputAction extends Action {
 
 export class OpenSearchViewletAction extends ToggleViewletAction {
 
-	public static ID = Constants.VIEWLET_ID;
-	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
-
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(id, label, Constants.VIEWLET_ID, viewletService, editorService);
+	}
+
+}
+
+export class FocusActiveEditorAction extends Action {
+
+	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let editor = this.editorService.getActiveEditor();
+		if (editor) {
+			editor.focus();
+		}
+		return TPromise.as(true);
+	}
+
+}
+
+export class FindInFilesAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true);
 	}
 
 }
@@ -167,6 +192,20 @@ export class ReplaceInFilesAction extends Action {
 			searchAndReplaceWidget.toggleReplace(true);
 			searchAndReplaceWidget.focus(false, true);
 		});
+	}
+}
+
+export class CloseReplaceAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchAndReplaceWidget = (<SearchViewlet>this.viewletService.getActiveViewlet()).searchAndReplaceWidget;
+		searchAndReplaceWidget.toggleReplace(false);
+		searchAndReplaceWidget.focus();
+		return TPromise.as(null);
 	}
 }
 
@@ -265,8 +304,8 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	}
 
 	private getNavigatorAt(element: FileMatchOrMatch, viewer: ITree): INavigator<any> {
-		let navigator:INavigator<any> = viewer.getNavigator();
-		while (navigator.current() !== element && !!navigator.next()) { };
+		let navigator: INavigator<any> = viewer.getNavigator();
+		while (navigator.current() !== element && !!navigator.next()) { }
 		return navigator;
 	}
 }
@@ -341,14 +380,15 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	public run(): TPromise<any> {
+		this.enabled = false;
 		this.telemetryService.publicLog('replace.action.selected');
-		let elementToFocus = this.getElementToFocusAfterRemoved(this.viewer, this.element);
-		let elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
 
 		return this.element.parent().replace(this.element).then(() => {
+			let elementToFocus = this.getElementToFocusAfterReplace();
 			if (elementToFocus) {
 				this.viewer.setFocus(elementToFocus);
 			}
+			let elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
 			this.viewer.DOMFocus();
 			if (!elementToShowReplacePreview || this.hasToOpenFile()) {
 				this.viewlet.open(this.element, true);
@@ -356,6 +396,33 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 				this.replaceService.openReplacePreviewEditor(elementToShowReplacePreview, true);
 			}
 		});
+	}
+
+	private getElementToFocusAfterReplace(): Match {
+		let navigator: INavigator<any> = this.viewer.getNavigator();
+		let fileMatched = false;
+		let elementToFocus = null;
+		do {
+			elementToFocus = navigator.current();
+			if (elementToFocus instanceof Match) {
+				if (elementToFocus.parent().id() === this.element.parent().id()) {
+					fileMatched = true;
+					if (this.element.range().getStartPosition().isBeforeOrEqual((<Match>elementToFocus).range().getStartPosition())) {
+						// Closest next match in the same file
+						break;
+					}
+				} else if (fileMatched) {
+					// First match in the next file (if expanded)
+					break;
+				}
+			} else if (fileMatched) {
+				if (!this.viewer.isExpanded(elementToFocus)) {
+					// Next file match (if collapsed)
+					break;
+				}
+			}
+		} while (!!navigator.next());
+		return elementToFocus;
 	}
 
 	private getElementToShowReplacePreview(elementToFocus: FileMatchOrMatch): Match {

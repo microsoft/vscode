@@ -6,13 +6,13 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {Range} from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as collections from 'vs/base/common/collections';
 
 export class CodeSnippet implements ICodeSnippet {
 
-	static fromTextmate(template:string):CodeSnippet {
+	static fromTextmate(template: string): CodeSnippet {
 		return TextMateSnippetParser.parse(template);
 	}
 
@@ -60,43 +60,53 @@ export class CodeSnippet implements ICodeSnippet {
 	}
 
 	public bind(referenceLine: string, deltaLine: number, firstLineDeltaColumn: number, config: IIndentationNormalizer): ICodeSnippet {
-		var resultLines: string[] = [];
-		var resultPlaceHolders: IPlaceHolder[] = [];
+		const resultLines: string[] = [];
+		const resultPlaceHolders: IPlaceHolder[] = [];
 
-		var referenceIndentation = this.extractLineIndentation(referenceLine, firstLineDeltaColumn + 1);
-		var originalLine: string, originalLineIndentation: string, remainingLine: string, indentation: string;
-		var i: number, len: number, j: number, lenJ: number;
+		const referenceIndentation = this.extractLineIndentation(referenceLine, firstLineDeltaColumn + 1);
 
 		// Compute resultLines & keep deltaColumns as a reference for adjusting placeholders
-		var deltaColumns: number[] = [];
-		for (i = 0, len = this.lines.length; i < len; i++) {
-			originalLine = this.lines[i];
+		const deltaColumns: number[] = [];
+
+		for (let i = 0, len = this.lines.length; i < len; i++) {
+			let originalLine = this.lines[i];
 			if (i === 0) {
 				deltaColumns[i + 1] = firstLineDeltaColumn;
 				resultLines[i] = originalLine;
 			} else {
-				originalLineIndentation = this.extractLineIndentation(originalLine);
-				remainingLine = originalLine.substr(originalLineIndentation.length);
-				indentation = config.normalizeIndentation(referenceIndentation + originalLineIndentation);
+				let originalLineIndentation = this.extractLineIndentation(originalLine);
+				let remainingLine = originalLine.substr(originalLineIndentation.length);
+				let indentation = config.normalizeIndentation(referenceIndentation + originalLineIndentation);
 				deltaColumns[i + 1] = indentation.length - originalLineIndentation.length;
 				resultLines[i] = indentation + remainingLine;
 			}
 		}
 
 		// Compute resultPlaceHolders
-		var originalPlaceHolder: IPlaceHolder, originalOccurence: editorCommon.IRange, resultOccurences: editorCommon.IRange[];
-		for (i = 0, len = this.placeHolders.length; i < len; i++) {
-			originalPlaceHolder = this.placeHolders[i];
+		for (const originalPlaceHolder of this.placeHolders) {
+			let resultOccurences = [];
 
-			resultOccurences = [];
-			for (j = 0, lenJ = originalPlaceHolder.occurences.length; j < lenJ; j++) {
-				originalOccurence = originalPlaceHolder.occurences[j];
+			for (let {startLineNumber, startColumn, endLineNumber, endColumn} of originalPlaceHolder.occurences) {
+
+				if (startColumn > 1) {
+					// placeholders that aren't at the beginning of the snippet line
+					// will be moved by how many characters the indentation has been
+					// adjusted
+					startColumn = startColumn + deltaColumns[startLineNumber];
+					endColumn = endColumn + deltaColumns[endLineNumber];
+
+				} else {
+					// placeholders at the beginning of the snippet line
+					// will be indented by the reference indentation
+					startColumn += referenceIndentation.length;
+					endColumn += referenceIndentation.length;
+				}
 
 				resultOccurences.push({
-					startLineNumber: originalOccurence.startLineNumber + deltaLine,
-					startColumn: originalOccurence.startColumn + deltaColumns[originalOccurence.startLineNumber],
-					endLineNumber: originalOccurence.endLineNumber + deltaLine,
-					endColumn: originalOccurence.endColumn + deltaColumns[originalOccurence.endLineNumber]
+					startLineNumber: startLineNumber + deltaLine,
+					startColumn,
+					endLineNumber: endLineNumber + deltaLine,
+					endColumn
 				});
 			}
 
@@ -149,7 +159,7 @@ const InternalFormatSnippetParser = new class implements ISnippetParser {
 
 	private parseTemplate(template: string): void {
 
-		var placeHoldersMap: collections.IStringDictionary<IPlaceHolder> = {};
+		var placeHoldersMap: collections.IStringDictionary<IPlaceHolder> = Object.create(null);
 		var i: number, len: number, j: number, lenJ: number, templateLines = template.split('\n');
 
 		for (i = 0, len = templateLines.length; i < len; i++) {
@@ -216,11 +226,24 @@ const InternalFormatSnippetParser = new class implements ISnippetParser {
 		}
 	}
 
-	private parseLine(line: string, findDefaultValueForId: (id: string) => string): IParsedLine {
+	private parseLine(line: string, findDefaultValueForIdFromPrevLines: (id: string) => string): IParsedLine {
 
 		// Placeholder 0 is the entire line
 		var placeHolderStack: { placeHolderId: string; placeHolderText: string; }[] = [{ placeHolderId: '', placeHolderText: '' }];
 		var placeHolders: IParsedLinePlaceHolderInfo[] = [];
+
+		const findDefaultValueForId = (id) => {
+			const result = findDefaultValueForIdFromPrevLines(id);
+			if (result) {
+				return result;
+			}
+			for (const placeHolder of placeHolders) {
+				if (placeHolder.id === id && placeHolder.value) {
+					return placeHolder.value;
+				}
+			}
+			return '';
+		};
 
 		var i = 0;
 		var len = line.length;

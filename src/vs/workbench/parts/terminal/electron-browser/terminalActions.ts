@@ -225,7 +225,10 @@ export class SwitchTerminalInstanceAction extends Action {
 	}
 
 	public run(item?: string): TPromise<any> {
-		let selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
+		if (!item) {
+			return TPromise.as(null);
+		}
+		const selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveInstanceByIndex(selectedTerminalIndex);
 		return this.terminalService.showPanel(true);
 	}
@@ -290,6 +293,27 @@ export class ScrollDownPageTerminalAction extends Action {
 	}
 }
 
+export class ScrollToBottomTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.scrollToBottom';
+	public static LABEL = nls.localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.scrollToBottom();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
 export class ScrollUpTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.scrollUp';
@@ -327,6 +351,27 @@ export class ScrollUpPageTerminalAction extends Action {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollUpPage();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ScrollToTopTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.scrollToTop';
+	public static LABEL = nls.localize('workbench.action.terminal.scrollToTop', "Scroll to Top");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.scrollToTop();
 		}
 		return TPromise.as(void 0);
 	}

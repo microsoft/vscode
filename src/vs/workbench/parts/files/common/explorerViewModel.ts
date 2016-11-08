@@ -7,10 +7,8 @@
 
 import assert = require('vs/base/common/assert');
 import URI from 'vs/base/common/uri';
-import {isLinux} from 'vs/base/common/platform';
 import paths = require('vs/base/common/paths');
-import {IFileStat} from 'vs/platform/files/common/files';
-import {guessMimeTypes} from 'vs/base/common/mime';
+import { IFileStat, isEqual, isParent } from 'vs/platform/files/common/files';
 
 export enum StatType {
 	FILE,
@@ -23,7 +21,6 @@ export class FileStat implements IFileStat {
 	public name: string;
 	public mtime: number;
 	public etag: string;
-	public mime: string;
 	public isDirectory: boolean;
 	public hasChildren: boolean;
 	public children: FileStat[];
@@ -31,12 +28,11 @@ export class FileStat implements IFileStat {
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mime = !isDirectory ? guessMimeTypes(resource.fsPath).join(', ') : void (0), mtime?: number, etag?: string) {
+	constructor(resource: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
 		this.hasChildren = isDirectory && hasChildren;
-		this.mime = mime;
 		this.etag = etag;
 		this.mtime = mtime;
 
@@ -53,7 +49,7 @@ export class FileStat implements IFileStat {
 	}
 
 	public static create(raw: IFileStat, resolveTo?: URI[]): FileStat {
-		const stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mime, raw.mtime, raw.etag);
+		const stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -99,7 +95,6 @@ export class FileStat implements IFileStat {
 		local.isDirectory = disk.isDirectory;
 		local.hasChildren = disk.isDirectory && disk.hasChildren;
 		local.mtime = disk.mtime;
-		local.mime = disk.mime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
 
 		// Merge Children if resolved
@@ -138,7 +133,7 @@ export class FileStat implements IFileStat {
 	 * Returns a deep copy of this model object.
 	 */
 	public clone(): FileStat {
-		const stat = new FileStat(URI.parse(this.resource.toString()), this.isDirectory, this.hasChildren, this.name, this.mime, this.mtime, this.etag);
+		const stat = new FileStat(URI.parse(this.resource.toString()), this.isDirectory, this.hasChildren, this.name, this.mtime, this.etag);
 		stat.isDirectoryResolved = this.isDirectoryResolved;
 
 		if (this.parent) {
@@ -248,7 +243,6 @@ export class FileStat implements IFileStat {
 
 		// Merge a subset of Properties that can change on rename
 		this.name = renamedStat.name;
-		this.mime = renamedStat.mime;
 		this.mtime = renamedStat.mtime;
 
 		// Update Paths including children
@@ -262,7 +256,7 @@ export class FileStat implements IFileStat {
 	public find(resource: URI): FileStat {
 
 		// Return if path found
-		if (this.fileResourceEquals(resource, this.resource)) {
+		if (isEqual(resource.toString(), this.resource.toString())) {
 			return this;
 		}
 
@@ -274,25 +268,16 @@ export class FileStat implements IFileStat {
 		for (let i = 0; i < this.children.length; i++) {
 			const child = this.children[i];
 
-			if (this.fileResourceEquals(resource, child.resource)) {
+			if (isEqual(resource.toString(), child.resource.toString())) {
 				return child;
 			}
 
-			if (child.isDirectory && paths.isEqualOrParent(resource.fsPath, child.resource.fsPath)) {
+			if (child.isDirectory && isParent(resource.fsPath, child.resource.fsPath)) {
 				return child.find(resource);
 			}
 		}
 
 		return null; //Unable to find
-	}
-
-	private fileResourceEquals(r1: URI, r2: URI) {
-		const identityEquals = (r1.toString() === r2.toString());
-		if (isLinux || identityEquals) {
-			return identityEquals;
-		}
-
-		return r1.toString().toLowerCase() === r2.toString().toLowerCase();
 	}
 }
 
@@ -320,7 +305,6 @@ export class NewStatPlaceholder extends FileStat {
 		this.isDirectory = void 0;
 		this.hasChildren = void 0;
 		this.mtime = void 0;
-		this.mime = void 0;
 	}
 
 	public getId(): string {

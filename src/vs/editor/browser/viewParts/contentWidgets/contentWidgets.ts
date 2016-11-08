@@ -7,13 +7,13 @@
 
 import 'vs/css!./contentWidgets';
 import * as dom from 'vs/base/browser/dom';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
+import { StyleMutator } from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames, ContentWidgetPositionPreference, IContentWidget} from 'vs/editor/browser/editorBrowser';
-import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import {ViewContext} from 'vs/editor/common/view/viewContext';
-import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
-import {Position} from 'vs/editor/common/core/position';
+import { ClassNames, ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { Position } from 'vs/editor/common/core/position';
 
 interface IWidgetData {
 	allowEditorOverflow: boolean;
@@ -24,39 +24,39 @@ interface IWidgetData {
 }
 
 interface IWidgetMap {
-	[key:string]: IWidgetData;
+	[key: string]: IWidgetData;
 }
 
 interface IBoxLayoutResult {
-	aboveTop:number;
-	fitsAbove:boolean;
-	belowTop:number;
-	fitsBelow:boolean;
-	left:number;
+	aboveTop: number;
+	fitsAbove: boolean;
+	belowTop: number;
+	fitsBelow: boolean;
+	left: number;
 }
 
 interface IMyWidgetRenderData {
-	top:number;
-	left:number;
+	top: number;
+	left: number;
 }
 
 interface IMyRenderData {
-	[id:string]:IMyWidgetRenderData;
+	[id: string]: IMyWidgetRenderData;
 }
 
 export class ViewContentWidgets extends ViewPart {
 
-	private _widgets:IWidgetMap;
-	private _contentWidth:number;
+	private _widgets: IWidgetMap;
+	private _contentWidth: number;
 	private _contentLeft: number;
 	private _lineHeight: number;
-	private _renderData:IMyRenderData;
+	private _renderData: IMyRenderData;
 
-	public domNode:HTMLElement;
-	public overflowingContentWidgetsDomNode:HTMLElement;
+	public domNode: HTMLElement;
+	public overflowingContentWidgetsDomNode: HTMLElement;
 	private _viewDomNode: HTMLElement;
 
-	constructor(context:ViewContext, viewDomNode:HTMLElement) {
+	constructor(context: ViewContext, viewDomNode: HTMLElement) {
 		super(context);
 		this._viewDomNode = viewDomNode;
 
@@ -84,35 +84,35 @@ export class ViewContentWidgets extends ViewPart {
 	public onModelFlushed(): boolean {
 		return true;
 	}
-	public onModelDecorationsChanged(e:editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return e.inlineDecorationsChanged;
 	}
-	public onModelLinesDeleted(e:editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e:editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e:editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e:editorCommon.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
 		return false;
 	}
-	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
 		this._contentLeft = layoutInfo.contentLeft;
 
 		if (this._contentWidth !== layoutInfo.contentWidth) {
@@ -121,14 +121,20 @@ export class ViewContentWidgets extends ViewPart {
 			// below can read out the adjusted width/height of widgets
 			let keys = Object.keys(this._widgets);
 			for (let i = 0, len = keys.length; i < len; i++) {
-				let widgetId = keys[i];
-				StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
+				const widgetId = keys[i];
+				const widgetData = this._widgets[widgetId];
+				const widget = widgetData.widget;
+				const maxWidth = widgetData.allowEditorOverflow
+					? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
+					: this._contentWidth;
+
+				StyleMutator.setMaxWidth(widget.getDomNode(), maxWidth);
 			}
 		}
 
 		return true;
 	}
-	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
 		return true;
 	}
 	public onZonesChanged(): boolean {
@@ -148,7 +154,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._widgets[widget.getId()] = widgetData;
 
 		let domNode = widget.getDomNode();
-		domNode.style.position = 'absolute';
+		domNode.style.position = (this._context.configuration.editor.viewInfo.fixedOverflowWidgets && widget.allowEditorOverflow) ? 'fixed' : 'absolute';
 		StyleMutator.setMaxWidth(domNode, this._contentWidth);
 		StyleMutator.setVisibility(domNode, 'hidden');
 		domNode.setAttribute('widgetId', widget.getId());
@@ -162,7 +168,7 @@ export class ViewContentWidgets extends ViewPart {
 		this.setShouldRender();
 	}
 
-	public setWidgetPosition(widget: IContentWidget, position: editorCommon.IPosition, preference:ContentWidgetPositionPreference[]): void {
+	public setWidgetPosition(widget: IContentWidget, position: editorCommon.IPosition, preference: ContentWidgetPositionPreference[]): void {
 		let widgetData = this._widgets[widget.getId()];
 
 		widgetData.position = position;
@@ -193,7 +199,7 @@ export class ViewContentWidgets extends ViewPart {
 		return false;
 	}
 
-	private _layoutBoxInViewport(position:Position, domNode:HTMLElement, ctx:IRenderingContext): IBoxLayoutResult {
+	private _layoutBoxInViewport(position: Position, domNode: HTMLElement, ctx: IRenderingContext): IBoxLayoutResult {
 
 		let visibleRange = ctx.visibleRangeForPosition(position);
 
@@ -282,16 +288,16 @@ export class ViewContentWidgets extends ViewPart {
 			left -= delta;
 		}
 
-		return {
-			aboveTop: aboveTop,
-			fitsAbove: fitsAbove,
-			belowTop: belowTop,
-			fitsBelow: fitsBelow,
-			left: left
-		};
+		if (this._context.configuration.editor.viewInfo.fixedOverflowWidgets) {
+			aboveTop = absoluteAboveTop;
+			belowTop = absoluteBelowTop;
+			left = absoluteLeft;
+		}
+
+		return { aboveTop, fitsAbove, belowTop, fitsBelow, left };
 	}
 
-	private _prepareRenderWidgetAtExactPosition(position:Position, ctx:IRenderingContext): IMyWidgetRenderData {
+	private _prepareRenderWidgetAtExactPosition(position: Position, ctx: IRenderingContext): IMyWidgetRenderData {
 		let visibleRange = ctx.visibleRangeForPosition(position);
 
 		if (!visibleRange) {
@@ -304,7 +310,13 @@ export class ViewContentWidgets extends ViewPart {
 		};
 	}
 
-	private _prepareRenderWidget(widgetData:IWidgetData, ctx:IRenderingContext): IMyWidgetRenderData {
+	private _prepareRenderWidgetAtExactPositionOverflowing(position: Position, ctx: IRenderingContext): IMyWidgetRenderData {
+		let r = this._prepareRenderWidgetAtExactPosition(position, ctx);
+		r.left += this._contentLeft;
+		return r;
+	}
+
+	private _prepareRenderWidget(widgetData: IWidgetData, ctx: IRenderingContext): IMyWidgetRenderData {
 		if (!widgetData.position || !widgetData.preference) {
 			return null;
 		}
@@ -317,7 +329,7 @@ export class ViewContentWidgets extends ViewPart {
 			return null;
 		}
 
-		let	position = this._context.model.convertModelPositionToViewPosition(validModelPosition.lineNumber, validModelPosition.column);
+		let position = this._context.model.convertModelPositionToViewPosition(validModelPosition.lineNumber, validModelPosition.column);
 
 		let placement: IBoxLayoutResult = null;
 		let fetchPlacement = () => {
@@ -362,18 +374,22 @@ export class ViewContentWidgets extends ViewPart {
 						};
 					}
 				} else {
-					return this._prepareRenderWidgetAtExactPosition(position, ctx);
+					if (widgetData.allowEditorOverflow) {
+						return this._prepareRenderWidgetAtExactPositionOverflowing(position, ctx);
+					} else {
+						return this._prepareRenderWidgetAtExactPosition(position, ctx);
+					}
 				}
 			}
 		}
 	}
 
-	public prepareRender(ctx:IRenderingContext): void {
+	public prepareRender(ctx: IRenderingContext): void {
 		if (!this.shouldRender()) {
 			throw new Error('I did not ask to render!');
 		}
 
-		let data:IMyRenderData = {};
+		let data: IMyRenderData = {};
 
 		let keys = Object.keys(this._widgets);
 		for (let i = 0, len = keys.length; i < len; i++) {
@@ -387,7 +403,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._renderData = data;
 	}
 
-	public render(ctx:IRestrictedRenderingContext): void {
+	public render(ctx: IRestrictedRenderingContext): void {
 		let data = this._renderData;
 
 		let keys = Object.keys(this._widgets);

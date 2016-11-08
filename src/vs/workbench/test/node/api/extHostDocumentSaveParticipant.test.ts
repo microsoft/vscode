@@ -6,15 +6,16 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
-import {TextDocumentSaveReason, TextEdit, Position} from 'vs/workbench/api/node/extHostTypes';
-import {MainThreadWorkspaceShape} from 'vs/workbench/api/node/extHost.protocol';
-import {ExtHostDocumentSaveParticipant} from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
-import {OneGetThreadService} from './testThreadService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import { TextDocumentSaveReason, TextEdit, Position } from 'vs/workbench/api/node/extHostTypes';
+import { MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
+import { OneGetThreadService } from './testThreadService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
-import { SaveReason } from 'vs/workbench/parts/files/common/files';
+import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import * as vscode from 'vscode';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -35,6 +36,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				lines: ['foo'],
 				BOM: '',
 				length: -1,
+				containsRTL: false,
 				options: {
 					tabSize: 4,
 					insertSpaces: true,
@@ -62,7 +64,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.ok(event);
-			assert.equal(event.reason, TextDocumentSaveReason.Explicit);
+			assert.equal(event.reason, TextDocumentSaveReason.Manual);
 			assert.equal(typeof event.waitUntil, 'function');
 		});
 	});
@@ -157,17 +159,17 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, overall timeout', () => {
-		const participant = new ExtHostDocumentSaveParticipant(documents, workspace, { timeout: 10, errors: 5 });
+		const participant = new ExtHostDocumentSaveParticipant(documents, workspace, { timeout: 20, errors: 5 });
 
 		let callCount = 0;
 		let sub1 = participant.onWillSaveTextDocumentEvent(function (event) {
 			callCount += 1;
-			event.waitUntil(TPromise.timeout(7));
+			event.waitUntil(TPromise.timeout(17));
 		});
 
 		let sub2 = participant.onWillSaveTextDocumentEvent(function (event) {
 			callCount += 1;
-			event.waitUntil(TPromise.timeout(7));
+			event.waitUntil(TPromise.timeout(17));
 		});
 
 		let sub3 = participant.onWillSaveTextDocumentEvent(function (event) {
@@ -299,7 +301,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 				text: 'bar',
 				rangeLength: undefined, eol: undefined, isRedoing: undefined, isUndoing: undefined,
-			}]);
+			}], true);
 
 			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
 		});
@@ -324,7 +326,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 						text: newText,
 						versionId: documents.getDocumentData(resource).version + 1,
 						rangeLength: undefined, eol: undefined, isRedoing: undefined, isUndoing: undefined,
-					}]);
+					}], true);
 				}
 				return TPromise.as(true);
 			}

@@ -7,45 +7,47 @@
 
 import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {$, append, runAtThisOrScheduleAtNextAnimationFrame} from 'vs/base/browser/dom';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
 import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
-import {Action} from 'vs/base/common/actions';
-import {language, LANGUAGE_DEFAULT} from 'vs/base/common/platform';
-import {IMode} from 'vs/editor/common/modes';
-import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
-import {IDisposable, combinedDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IConfigurationEditingService, ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
-import {IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent} from 'vs/editor/common/editorCommon';
-import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
-import {TrimTrailingWhitespaceAction} from 'vs/editor/contrib/linesOperations/common/linesOperations';
-import {EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
-import {IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {BaseBinaryResourceEditor} from 'vs/workbench/browser/parts/editor/binaryEditor';
-import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
-import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
-import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkspaceConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
-import {IFilesConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {Selection} from 'vs/editor/common/core/selection';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
-
-import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
+import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { Action } from 'vs/base/common/actions';
+import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
+import { IMode } from 'vs/editor/common/modes';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource } from 'vs/workbench/common/editor';
+import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent } from 'vs/editor/common/editorCommon';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
+import { EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor } from 'vs/editor/common/editorCommon';
+import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/common/indentation';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
+import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
+import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IFilesConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IExtensionsViewlet, VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 
 function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 	if (editorWidget) {
@@ -585,8 +587,13 @@ export class EditorStatus implements IStatusbarItem {
 			if (info.selections.length === 1) {
 				const visibleColumn = editorWidget.getVisibleColumnFromPosition(editorWidget.getPosition());
 
-				const selectionClone = info.selections[0].clone(); // do not modify the original position we got from the editor
-				selectionClone.positionColumn = visibleColumn;
+				let selectionClone = info.selections[0].clone(); // do not modify the original position we got from the editor
+				selectionClone = new Selection(
+					selectionClone.selectionStartLineNumber,
+					selectionClone.selectionStartColumn,
+					selectionClone.positionLineNumber,
+					visibleColumn
+				);
 
 				info.selections[0] = selectionClone;
 			}
@@ -666,6 +673,29 @@ function isWritableCodeEditor(e: BaseTextEditor): boolean {
 		!(<ICodeEditor>editorWidget).getConfiguration().readOnly);
 }
 
+export class ShowLanguageExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showLanguageExtensions';
+
+	constructor(
+		private extension: string,
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionGalleryService galleryService: IExtensionGalleryService
+	) {
+		super(ShowLanguageExtensionsAction.ID, nls.localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", extension), null, true);
+		this.enabled = galleryService.isEnabled();
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search(`ext:${this.extension.replace(/^\./, '')}`);
+				viewlet.focus();
+			});
+	}
+}
+
 export class ChangeModeAction extends Action {
 
 	public static ID = 'workbench.action.editor.changeLanguageMode';
@@ -682,7 +712,8 @@ export class ChangeModeAction extends Action {
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -716,8 +747,21 @@ export class ChangeModeAction extends Action {
 				description = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
 			}
 
-			return <IPickOpenEntry>{
+			// construct a fake resource to be able to show nice icons if any
+			let fakeResource: uri;
+			const extensions = this.modeService.getExtensions(lang);
+			if (extensions && extensions.length) {
+				fakeResource = uri.file(extensions[0]);
+			} else {
+				const filenames = this.modeService.getFilenames(lang);
+				if (filenames && filenames.length) {
+					fakeResource = uri.file(filenames[0]);
+				}
+			}
+
+			return <IFilePickOpenEntry>{
 				label: lang,
+				resource: fakeResource,
 				description
 			};
 		});
@@ -728,12 +772,17 @@ export class ChangeModeAction extends Action {
 
 		// Offer action to configure via settings
 		let configureModeAssociations: IPickOpenEntry;
+		let galleryAction: Action;
 		if (fileinput) {
 			const resource = fileinput.getResource();
-			configureModeAssociations = {
-				label: nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", paths.extname(resource.fsPath) || paths.basename(resource.fsPath))
-			};
+			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
 
+			galleryAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
+			if (galleryAction.enabled) {
+				picks.unshift(galleryAction);
+			}
+
+			configureModeAssociations = { label: nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext) };
 			picks.unshift(configureModeAssociations);
 		}
 
@@ -745,39 +794,51 @@ export class ChangeModeAction extends Action {
 			picks.unshift(autoDetectMode);
 		}
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then(language => {
-			if (language) {
-				activeEditor = this.editorService.getActiveEditor();
-				if (activeEditor instanceof BaseTextEditor) {
-					const editorWidget = activeEditor.getControl();
-					const models: IModel[] = [];
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then(pick => {
+			if (!pick) {
+				return;
+			}
 
-					const textModel = getTextModel(editorWidget);
-					if (textModel) {
-						models.push(textModel);
-					}
+			if (pick === galleryAction) {
+				galleryAction.run();
+				return;
+			}
 
-					// Support for original side of diff
-					const model = editorWidget.getModel();
-					if (model && !!(<IDiffEditorModel>model).original) {
-						models.push((<IDiffEditorModel>model).original);
-					}
+			// User decided to permanently configure associations, return right after
+			if (pick === configureModeAssociations) {
+				this.configureFileAssociation(fileinput.getResource());
+				return;
+			}
 
-					// Find mode
-					let mode: TPromise<IMode>;
-					if (language === autoDetectMode) {
-						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(getUntitledOrFileResource(activeEditor.input, true).fsPath, textModel.getLineContent(1));
-					} else if (language === configureModeAssociations) {
-						this.configureFileAssociation(fileinput.getResource());
-					} else {
-						mode = this.modeService.getOrCreateModeByLanguageName(language.label);
-					}
+			// Change mode for active editor
+			activeEditor = this.editorService.getActiveEditor();
+			if (activeEditor instanceof BaseTextEditor) {
+				const editorWidget = activeEditor.getControl();
+				const models: IModel[] = [];
 
-					// Change mode
-					models.forEach((textModel) => {
-						this.modelService.setMode(textModel, mode);
-					});
+				const textModel = getTextModel(editorWidget);
+				if (textModel) {
+					models.push(textModel);
 				}
+
+				// Support for original side of diff
+				const model = editorWidget.getModel();
+				if (model && !!(<IDiffEditorModel>model).original) {
+					models.push((<IDiffEditorModel>model).original);
+				}
+
+				// Find mode
+				let mode: TPromise<IMode>;
+				if (pick === autoDetectMode) {
+					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(getUntitledOrFileResource(activeEditor.input, true).fsPath, textModel.getLineContent(1));
+				} else {
+					mode = this.modeService.getOrCreateModeByLanguageName(pick.label);
+				}
+
+				// Change mode
+				models.forEach(textModel => {
+					this.modelService.setMode(textModel, mode);
+				});
 			}
 		});
 	}

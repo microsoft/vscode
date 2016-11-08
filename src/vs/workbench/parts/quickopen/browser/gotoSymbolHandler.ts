@@ -6,24 +6,23 @@
 'use strict';
 
 import 'vs/css!./media/gotoSymbolHandler';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
-import {IEntryRunContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction} from 'vs/workbench/browser/quickopen';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
+import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenModel, IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import filters = require('vs/base/common/filters');
-import {KeyMod} from 'vs/base/common/keyCodes';
-import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState} from 'vs/editor/common/editorCommon';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
-import {getDocumentSymbols} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {DocumentSymbolProviderRegistry, SymbolInformation, SymbolKind} from 'vs/editor/common/modes';
+import { KeyMod } from 'vs/base/common/keyCodes';
+import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import { DocumentSymbolProviderRegistry, SymbolInformation, SymbolKind } from 'vs/editor/common/modes';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -31,7 +30,7 @@ export const SCOPE_PREFIX = ':';
 export class GotoSymbolAction extends QuickOpenAction {
 
 	public static ID = 'workbench.action.gotoSymbol';
-	public static LABEL = nls.localize('gotoSymbol', "Go to Symbol...");
+	public static LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
 
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_SYMBOL_PREFIX, quickOpenService);
@@ -292,11 +291,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.editorService.getActiveEditorInput();
 	}
 
-	public getOptions(): EditorOptions {
-		let options = new TextEditorOptions();
-		options.selection(this.range.startLineNumber, this.range.startColumn, this.range.startLineNumber, this.range.startColumn);
-
-		return options;
+	public getOptions(): ITextEditorOptions {
+		return {
+			selection: this.toSelection()
+		};
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
@@ -428,7 +426,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 		}
 
-		return canRun ? true : editor instanceof BaseTextEditor ? nls.localize('cannotRunGotoSymbolInFile', "Unfortunately we have no symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
+		return canRun ? true : editor instanceof BaseTextEditor ? nls.localize('cannotRunGotoSymbolInFile', "No symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {

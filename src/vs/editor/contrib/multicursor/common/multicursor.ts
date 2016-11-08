@@ -5,9 +5,9 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {Handler, ICommonCodeEditor, EditorContextKeys, ISelection} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction, HandlerEditorAction} from 'vs/editor/common/editorCommonExtensions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Handler, ICommonCodeEditor, EditorContextKeys, ISelection } from 'vs/editor/common/editorCommon';
+import { editorAction, ServicesAccessor, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
 
 @editorAction
 class InsertCursorAbove extends HandlerEditorAction {
@@ -67,7 +67,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let selection = editor.getSelection();
 		if (selection.isEmpty()) {
 			return;
@@ -78,7 +78,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		let selectionStart = selection.getStartPosition();
 		let selectionEnd = selection.getEndPosition();
 		for (var i = selectionStart.lineNumber; i <= selectionEnd.lineNumber; i++) {
-			if(i !== selectionEnd.lineNumber) {
+			if (i !== selectionEnd.lineNumber) {
 				let currentLineMaxColumn = model.getLineMaxColumn(i);
 				newSelections.push({
 					selectionStartLineNumber: i,
@@ -86,7 +86,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 					positionLineNumber: i,
 					positionColumn: currentLineMaxColumn
 				});
-			} else if( selectionEnd.column > 0 ) {
+			} else if (selectionEnd.column > 0) {
 				newSelections.push({
 					selectionStartLineNumber: selectionEnd.lineNumber,
 					selectionStartColumn: selectionEnd.column,

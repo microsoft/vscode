@@ -6,20 +6,21 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Builder} from 'vs/base/browser/builder';
-import {IConfigurationService, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
-import {Platform} from 'vs/base/common/platform';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
+import { Builder } from 'vs/base/browser/builder';
+import { IConfigurationService, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { Platform } from 'vs/base/common/platform';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 
 
 class MockConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
-	public constructor(private configuration: any = {}) {}
+	public constructor(private configuration: any = {}) { }
 	public reloadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
 	public lookup(key: string) { return { value: getConfigurationValue(this.getConfiguration(), key), default: getConfigurationValue(this.getConfiguration(), key), user: getConfigurationValue(this.getConfiguration(), key) }; }
 	public getConfiguration(): any { return this.configuration; }
+	public keys() { return { default: [], user: [] }; }
 	public onDidUpdateConfiguration() { return { dispose() { } }; }
 }
 
@@ -210,6 +211,9 @@ suite('Workbench - TerminalConfigHelper', () => {
 				integrated: {
 					shell: {
 						windows: 'foo'
+					},
+					shellArgs: {
+						windows: []
 					}
 				}
 			}

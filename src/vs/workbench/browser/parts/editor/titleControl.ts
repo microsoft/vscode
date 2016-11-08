@@ -7,36 +7,37 @@
 
 import 'vs/css!./media/titlecontrol';
 import nls = require('vs/nls');
-import {Registry} from 'vs/platform/platform';
-import {Scope, IActionBarRegistry, Extensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
-import {IAction, Action} from 'vs/base/common/actions';
+import { Registry } from 'vs/platform/platform';
+import { Scope, IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { IAction, Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {isCommonCodeEditor, isCommonDiffEditor} from 'vs/editor/common/editorCommon';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { BaseEditor, IEditorInputActionContext } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import arrays = require('vs/base/common/arrays');
-import {IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IWorkbenchEditorConfiguration, IStacksModelChangeEvent, getResource} from 'vs/workbench/common/editor';
-import {EventType as BaseEventType} from 'vs/base/common/events';
-import {IActionItem, ActionsOrientation, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {createActionItem, fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
-import {IMenuService, MenuId} from 'vs/platform/actions/common/actions';
-import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
+import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IWorkbenchEditorConfiguration, IStacksModelChangeEvent, getResource } from 'vs/workbench/common/editor';
+import { EventType as BaseEventType } from 'vs/base/common/events';
+import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Keybinding } from 'vs/base/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { ResourceContextKey } from 'vs/platform/actions/common/resourceContextKey';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -78,6 +79,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	private previewEditors: boolean;
 	private showTabs: boolean;
+	protected showTabCloseButton: boolean;
 
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
@@ -89,6 +91,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	private resourceContext: ResourceContextKey;
 	private disposeOnEditorActions: IDisposable[] = [];
+
+	private contextMenu: IMenu;
 
 	constructor(
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -113,6 +117,9 @@ export abstract class TitleControl implements ITitleAreaControl {
 		this.toDispose.push(this.scheduler);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
+
+		this.contextMenu = this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService);
+		this.toDispose.push(this.contextMenu);
 
 		this.initActions();
 		this.registerListeners();
@@ -148,6 +155,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
 		this.previewEditors = config.workbench && config.workbench.editor && config.workbench.editor.enablePreview;
 		this.showTabs = config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
+		this.showTabCloseButton = config.workbench && config.workbench.editor && config.workbench.editor.showTabCloseButton;
 	}
 
 	private updateSplitActionEnablement(): void {
@@ -236,14 +244,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 			actionItemProvider: (action: Action) => this.actionItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: nls.localize('araLabelEditorActions', "Editor actions"),
-			getKeyBinding: (action) => {
-				const opts = this.keybindingService.lookupKeybindings(action.id);
-				if (opts.length > 0) {
-					return opts[0]; // only take the first one
-				}
-
-				return null;
-			}
+			getKeyBinding: (action) => this.getKeybinding(action),
+			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
 		});
 
 		// Action Run Handling
@@ -417,6 +419,12 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	protected onContextMenu(identifier: IEditorIdentifier, e: Event, node: HTMLElement): void {
+
+		// Update the resource context
+		const currentContext = this.resourceContext.get();
+		this.resourceContext.set(identifier.editor && getResource(identifier.editor));
+
+		// Find target anchor
 		let anchor: HTMLElement | { x: number, y: number } = node;
 		if (e instanceof MouseEvent) {
 			const event = new StandardMouseEvent(e);
@@ -427,15 +435,24 @@ export abstract class TitleControl implements ITitleAreaControl {
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as(this.getContextMenuActions(identifier)),
 			getActionsContext: () => identifier,
-			getKeyBinding: (action) => {
-				const opts = this.keybindingService.lookupKeybindings(action.id);
-				if (opts.length > 0) {
-					return opts[0]; // only take the first one
-				}
-
-				return null;
-			}
+			getKeyBinding: (action) => this.getKeybinding(action),
+			onHide: (cancel) => this.resourceContext.set(currentContext) // restore previous context
 		});
+	}
+
+	protected getKeybinding(action: IAction): Keybinding {
+		const opts = this.keybindingService.lookupKeybindings(action.id);
+		if (opts.length > 0) {
+			return opts[0]; // only take the first one
+		}
+
+		return null;
+	}
+
+	protected getKeybindingLabel(action: IAction): string {
+		const keybinding = this.getKeybinding(action);
+
+		return keybinding ? this.keybindingService.getLabelFor(keybinding) : void 0;
 	}
 
 	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
@@ -461,6 +478,9 @@ export abstract class TitleControl implements ITitleAreaControl {
 		if (this.previewEditors) {
 			actions.push(new Separator(), this.pinEditorAction);
 		}
+
+		// Fill in contributed actions
+		fillInActions(this.contextMenu, actions);
 
 		return actions;
 	}

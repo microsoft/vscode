@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 
 export class HtmlInput extends ResourceEditorInput {
 

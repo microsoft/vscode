@@ -64,7 +64,6 @@
 	display: flex;
 	width: 120px;
 	min-width: fit-content;
-	overflow: hidden;
 	white-space: nowrap;
 	cursor: pointer;
 	height: 35px;
@@ -77,7 +76,7 @@
 	z-index: 2; /* on top of the horizontal border of the title */
 }
 
-.monaco-workbench > .part.editor > .content.dragged-over > .one-editor-silo > .container > .title .tabs-container > .tab.active {
+.monaco-workbench > .part.editor > .content > .one-editor-silo.dragged-over > .container > .title .tabs-container > .tab.active {
 	z-index: auto;
 }
 
@@ -172,6 +171,10 @@
 	width: 28px;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button > .tab-close {
+	display: none; /* hide the close action bar when we are configured to hide it */
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab.active > .tab-close .action-label,			/* always show it for active tab */
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab > .tab-close .action-label:focus,			/* always show it on focus */
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab:hover > .tab-close .action-label,			/* always show it on hover */
@@ -218,9 +221,31 @@
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
+/* No Tab Close Button */
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button {
+	padding-right: 28px; /* make room for dirty indication when we are running without close button */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.dirty {
+	background-repeat: no-repeat;
+	background-position-y: center;
+	background-position-x: calc(100% - 6px); /* to the right of the tab label */
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.dirty {
+	background-image: url('close-dirty.svg');
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.dirty,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.no-close-button.dirty {
+	background-image: url('close-dirty-inverse.svg');
+}
+
 /* Editor Actions */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
+	cursor: default;
 	flex: initial;
 	padding-left: 4px;
 }

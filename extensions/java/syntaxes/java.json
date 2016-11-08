@@ -1,0 +1,1030 @@
+{
+	"fileTypes": [
+		"java",
+		"bsh"
+	],
+	"keyEquivalent": "^~J",
+	"name": "Java",
+	"patterns": [
+		{
+			"captures": {
+				"1": {
+					"name": "keyword.other.package.java"
+				},
+				"2": {
+					"name": "storage.modifier.package.java"
+				},
+				"3": {
+					"name": "punctuation.terminator.java"
+				}
+			},
+			"match": "^\\s*(package)\\b(?:\\s*([^ ;$]+)\\s*(;)?)?",
+			"name": "meta.package.java"
+		},
+		{
+			"begin": "(import static)\\b\\s*",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.import.static.java"
+				}
+			},
+			"captures": {
+				"1": {
+					"name": "keyword.other.import.java"
+				},
+				"2": {
+					"name": "storage.modifier.import.java"
+				},
+				"3": {
+					"name": "punctuation.terminator.java"
+				}
+			},
+			"contentName": "storage.modifier.import.java",
+			"end": "\\s*(?:$|(;))",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.terminator.java"
+				}
+			},
+			"name": "meta.import.java",
+			"patterns": [
+				{
+					"match": "\\.",
+					"name": "punctuation.separator.java"
+				},
+				{
+					"match": "\\s",
+					"name": "invalid.illegal.character_not_allowed_here.java"
+				}
+			]
+		},
+		{
+			"begin": "(import)\\b\\s*",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.import.java"
+				}
+			},
+			"captures": {
+				"1": {
+					"name": "keyword.other.import.java"
+				},
+				"2": {
+					"name": "storage.modifier.import.java"
+				},
+				"3": {
+					"name": "punctuation.terminator.java"
+				}
+			},
+			"contentName": "storage.modifier.import.java",
+			"end": "\\s*(?:$|(;))",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.terminator.java"
+				}
+			},
+			"name": "meta.import.java",
+			"patterns": [
+				{
+					"match": "\\.",
+					"name": "punctuation.separator.java"
+				},
+				{
+					"match": "\\s",
+					"name": "invalid.illegal.character_not_allowed_here.java"
+				}
+			]
+		},
+		{
+			"include": "#code"
+		}
+	],
+	"repository": {
+		"all-types": {
+			"patterns": [
+				{
+					"include": "#primitive-arrays"
+				},
+				{
+					"include": "#primitive-types"
+				},
+				{
+					"include": "#object-types"
+				}
+			]
+		},
+		"annotations": {
+			"patterns": [
+				{
+					"begin": "(@[^ (]+)(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.annotation.java"
+						},
+						"2": {
+							"name": "punctuation.definition.annotation-arguments.begin.java"
+						}
+					},
+					"end": "(\\))",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.definition.annotation-arguments.end.java"
+						}
+					},
+					"name": "meta.declaration.annotation.java",
+					"patterns": [
+						{
+							"captures": {
+								"1": {
+									"name": "constant.other.key.java"
+								},
+								"2": {
+									"name": "keyword.operator.assignment.java"
+								}
+							},
+							"match": "(\\w*)\\s*(=)"
+						},
+						{
+							"include": "#code"
+						},
+						{
+							"match": ",",
+							"name": "punctuation.separator.property.java"
+						}
+					]
+				},
+				{
+					"match": "@\\w*",
+					"name": "storage.type.annotation.java"
+				}
+			]
+		},
+		"anonymous-classes-and-new": {
+			"begin": "\\bnew\\b",
+			"beginCaptures": {
+				"0": {
+					"name": "keyword.control.new.java"
+				}
+			},
+			"end": "(?<=\\)|\\])(?!\\s*{)|(?<=})|(?=;)",
+			"patterns": [
+				{
+					"begin": "(\\w+)\\s*(?=\\[)",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.java"
+						}
+					},
+					"end": "(})|(?=\\s*(?:,|;|\\)))",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.section.block.end.java"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "\\[",
+							"end": "\\]",
+							"patterns": [
+								{
+									"include": "#code"
+								}
+							]
+						},
+						{
+							"begin": "{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.section.block.begin.java"
+								}
+							},
+							"end": "(?=})",
+							"patterns": [
+								{
+									"include": "#code"
+								}
+							]
+						}
+					]
+				},
+				{
+					"begin": "(?=\\w.*\\()",
+					"end": "(?<=\\))",
+					"patterns": [
+						{
+							"include": "#object-types"
+						},
+						{
+							"begin": "\\(",
+							"beginCaptures": {
+								"1": {
+									"name": "storage.type.java"
+								}
+							},
+							"end": "\\)",
+							"patterns": [
+								{
+									"include": "#code"
+								}
+							]
+						}
+					]
+				},
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.inner-class.begin.java"
+						}
+					},
+					"end": "}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.inner-class.end.java"
+						}
+					},
+					"name": "meta.inner-class.java",
+					"patterns": [
+						{
+							"include": "#class-body"
+						}
+					]
+				}
+			]
+		},
+		"assertions": {
+			"patterns": [
+				{
+					"begin": "\\b(assert)\\s",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.assert.java"
+						}
+					},
+					"end": "$",
+					"name": "meta.declaration.assertion.java",
+					"patterns": [
+						{
+							"match": ":",
+							"name": "keyword.operator.assert.expression-seperator.java"
+						},
+						{
+							"include": "#code"
+						}
+					]
+				}
+			]
+		},
+		"class": {
+			"begin": "(?=\\w?[\\w\\s]*(?:class|(?:@)?interface|enum)\\s+\\w+)",
+			"end": "}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.section.class.end.java"
+				}
+			},
+			"name": "meta.class.java",
+			"patterns": [
+				{
+					"include": "#storage-modifiers"
+				},
+				{
+					"include": "#comments"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "storage.modifier.java"
+						},
+						"2": {
+							"name": "entity.name.type.class.java"
+						}
+					},
+					"match": "(class|(?:@)?interface|enum)\\s+(\\w+)",
+					"name": "meta.class.identifier.java"
+				},
+				{
+					"begin": "extends",
+					"beginCaptures": {
+						"0": {
+							"name": "storage.modifier.extends.java"
+						}
+					},
+					"end": "(?={|implements)",
+					"name": "meta.definition.class.inherited.classes.java",
+					"patterns": [
+						{
+							"include": "#object-types-inherited"
+						},
+						{
+							"include": "#comments"
+						}
+					]
+				},
+				{
+					"begin": "(implements)\\s",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.implements.java"
+						}
+					},
+					"end": "(?=\\s*extends|\\{)",
+					"name": "meta.definition.class.implemented.interfaces.java",
+					"patterns": [
+						{
+							"include": "#object-types-inherited"
+						},
+						{
+							"include": "#comments"
+						}
+					]
+				},
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.class.begin.java"
+						}
+					},
+					"end": "(?=})",
+					"name": "meta.class.body.java",
+					"patterns": [
+						{
+							"include": "#class-body"
+						}
+					]
+				}
+			]
+		},
+		"class-body": {
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#class"
+				},
+				{
+					"include": "#enums"
+				},
+				{
+					"include": "#variables"
+				},
+				{
+					"include": "#methods"
+				},
+				{
+					"include": "#annotations"
+				},
+				{
+					"include": "#storage-modifiers"
+				},
+				{
+					"include": "#code"
+				}
+			]
+		},
+		"code": {
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#class"
+				},
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.block.begin.java"
+						}
+					},
+					"end": "}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.block.end.java"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#code"
+						}
+					]
+				},
+				{
+					"include": "#assertions"
+				},
+				{
+					"include": "#parens"
+				},
+				{
+					"include": "#constants-and-special-vars"
+				},
+				{
+					"include": "#anonymous-classes-and-new"
+				},
+				{
+					"include": "#annotations"
+				},
+				{
+					"include": "#keywords"
+				},
+				{
+					"include": "#storage-modifiers"
+				},
+				{
+					"include": "#method-call"
+				},
+				{
+					"include": "#strings"
+				},
+				{
+					"include": "#all-types"
+				}
+			]
+		},
+		"comments": {
+			"patterns": [
+				{
+					"captures": {
+						"0": {
+							"name": "punctuation.definition.comment.java"
+						}
+					},
+					"match": "/\\*\\*/",
+					"name": "comment.block.empty.java"
+				},
+				{
+					"include": "text.html.javadoc"
+				},
+				{
+					"include": "#comments-inline"
+				}
+			]
+		},
+		"comments-inline": {
+			"patterns": [
+				{
+					"begin": "/\\*",
+					"captures": {
+						"0": {
+							"name": "punctuation.definition.comment.java"
+						}
+					},
+					"end": "\\*/",
+					"name": "comment.block.java"
+				},
+				{
+					"begin": "(^[ \\t]+)?(?=//)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.whitespace.comment.leading.java"
+						}
+					},
+					"end": "(?!\\G)",
+					"patterns": [
+						{
+							"begin": "//",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.comment.java"
+								}
+							},
+							"end": "\\n",
+							"name": "comment.line.double-slash.java"
+						}
+					]
+				}
+			]
+		},
+		"constants-and-special-vars": {
+			"patterns": [
+				{
+					"match": "\\b(true|false|null)\\b",
+					"name": "constant.language.java"
+				},
+				{
+					"match": "\\b(this|super)\\b",
+					"name": "variable.language.java"
+				},
+				{
+					"match": "\\b0[xX]\\h([\\h_]*\\h)?[lL]?(?!\\w|\\.)",
+					"name": "constant.numeric.hex.java"
+				},
+				{
+					"match": "\\b0[0-7_]*[0-7][lL]?\\b",
+					"name": "constant.numeric.octal.java"
+				},
+				{
+					"match": "\\b0[bB][01]([01_]*[01])?[lL]?\\b",
+					"name": "constant.numeric.binary.java"
+				},
+				{
+					"match": "\\b(0|[1-9]([0-9_]*[0-9])?)[lL]?(?!\\w|\\.)",
+					"name": "constant.numeric.integer.java"
+				},
+				{
+					"match": "(?x)\n\t\t\t\t\t\t(?<!\\w)\t\t\t\t\t\t\t\t\t\t# Ensure word boundry\n\t\t\t\t\t\t(?>\n\t\t\t\t\t\t\t0[xX]\t\t\t\t\t\t\t\t\t# Start literal\n\t\t\t\t\t\t\t(\\h([\\h_]*\\h)?)?\t\t\t\t\t\t# Optional Number\n\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t(?<=\\h)\\.\t\t\t\t\t\t\t# A number must exist on\n\t\t\t\t\t\t      | \\.(?=\\h)\t\t\t\t\t\t\t#   one side of the decimal\n\t\t\t\t\t\t      | (?<=\\h)\t\t\t\t\t\t\t\t# Decimal not required\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t(\\h([\\h_]*\\h)?)?\t\t\t\t\t\t# Optional Number\n\t\t\t\t\t\t\t[pP]\t\t\t\t\t\t\t\t\t# Exponent Indicator\n\t\t\t\t\t\t\t[+-]?(0|[1-9]([0-9_]*[0-9])?)\t\t\t# Signed Integer\n\t\t\t\t\t\t\t[fFdD]?\t\t\t\t\t\t\t\t\t# Float Type Suffix\n\t\t\t\t\t\t)\n\t\t\t\t\t\t(?!\\w)\t\t\t\t\t\t\t\t\t\t# Ensure word boundry\n\t\t\t\t\t",
+					"name": "constant.numeric.hex-float.java"
+				},
+				{
+					"match": "(?x)\n\t\t\t\t\t\t(?<!\\w)\t\t\t\t\t\t\t\t\t\t\t# Ensure word boundry\n\t\t\t\t\t\t(?>\n\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t(0|[1-9]([0-9_]*[0-9])?)\t\t\t\t# Leading digits\n\t\t\t\t\t\t\t\t(?=[eEfFdD.])\t\t\t\t\t\t\t# Allow for numbers without .\n\t\t\t\t\t\t\t)?\n\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t(?<=[0-9])(?=[eEfFdD])\t\t\t\t\t# Allow for numbers without .\n\t\t\t\t\t\t\t  | \\.\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t[0-9]([0-9_]*[0-9])?\t\t\t\t\t# Numbers after .\n\t\t\t\t\t\t\t)?\n\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t[eE][+-]?(0|[1-9]([0-9_]*[0-9])?)\t\t# Exponent\n\t\t\t\t\t\t\t)?\n\t\t\t\t\t\t\t[fFdD]?\t\t\t\t\t\t\t\t\t\t# Float Type Suffix\n\t\t\t\t\t\t)\n\t\t\t\t\t\t(?!\\w)\t\t\t\t\t\t\t\t\t\t\t# Ensure word boundry\n\t\t\t\t\t",
+					"name": "constant.numeric.float.java"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.operator.dereference.java"
+						}
+					},
+					"match": "(\\.)?\\b([A-Z][A-Z0-9_]+)(?!<|\\.class|\\s*\\w+\\s*=)\\b",
+					"name": "constant.other.java"
+				}
+			]
+		},
+		"enums": {
+			"begin": "^(?=\\s*[A-Z0-9_]+\\s*({|\\(|,))",
+			"end": "(?=;|})",
+			"patterns": [
+				{
+					"begin": "\\w+",
+					"beginCaptures": {
+						"0": {
+							"name": "constant.other.enum.java"
+						}
+					},
+					"end": "(?=,|;|})",
+					"name": "meta.enum.java",
+					"patterns": [
+						{
+							"include": "#parens"
+						},
+						{
+							"begin": "{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.section.enum.begin.java"
+								}
+							},
+							"end": "}",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.section.enum.end.java"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#class-body"
+								}
+							]
+						}
+					]
+				},
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#annotations"
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"match": "\\b(try|catch|finally|throw)\\b",
+					"name": "keyword.control.catch-exception.java"
+				},
+				{
+					"match": "\\?|:",
+					"name": "keyword.control.ternary.java"
+				},
+				{
+					"match": "\\b(return|break|case|continue|default|do|while|for|switch|if|else)\\b",
+					"name": "keyword.control.java"
+				},
+				{
+					"match": "\\b(instanceof)\\b",
+					"name": "keyword.operator.java"
+				},
+				{
+					"match": "(<<|>>>?|~|\\^)",
+					"name": "keyword.operator.bitwise.java"
+				},
+				{
+					"match": "((&|\\^|\\||<<|>>>?)=)",
+					"name": "keyword.operator.assignment.bitwise.java"
+				},
+				{
+					"match": "(===?|!=|<=|>=|<>|<|>)",
+					"name": "keyword.operator.comparison.java"
+				},
+				{
+					"match": "([+*/%-]=)",
+					"name": "keyword.operator.assignment.arithmetic.java"
+				},
+				{
+					"match": "(=)",
+					"name": "keyword.operator.assignment.java"
+				},
+				{
+					"match": "(\\-\\-|\\+\\+)",
+					"name": "keyword.operator.increment-decrement.java"
+				},
+				{
+					"match": "(\\-|\\+|\\*|\\/|%)",
+					"name": "keyword.operator.arithmetic.java"
+				},
+				{
+					"match": "(!|&&|\\|\\|)",
+					"name": "keyword.operator.logical.java"
+				},
+				{
+					"match": "(\\||&)",
+					"name": "keyword.operator.bitwise.java"
+				},
+				{
+					"match": "(?<=\\S)\\.(?=\\S)",
+					"name": "keyword.operator.dereference.java"
+				},
+				{
+					"match": ";",
+					"name": "punctuation.terminator.java"
+				}
+			]
+		},
+		"method-call": {
+			"begin": "([\\w$]+)(\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "meta.method.java"
+				},
+				"2": {
+					"name": "punctuation.definition.method-parameters.begin.java"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.method-parameters.end.java"
+				}
+			},
+			"name": "meta.method-call.java",
+			"patterns": [
+				{
+					"match": ",",
+					"name": "punctuation.definition.seperator.parameter.java"
+				},
+				{
+					"include": "#code"
+				}
+			]
+		},
+		"methods": {
+			"begin": "(?!new)(?=[\\w<].*\\s+)(?=([^=/]|/(?!/))+\\()",
+			"end": "(})|(?=;)",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.section.method.end.java"
+				}
+			},
+			"name": "meta.method.java",
+			"patterns": [
+				{
+					"include": "#storage-modifiers"
+				},
+				{
+					"begin": "(\\w+)\\s*\\(",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.function.java"
+						}
+					},
+					"end": "\\)",
+					"name": "meta.method.identifier.java",
+					"patterns": [
+						{
+							"include": "#parameters"
+						},
+						{
+							"include": "#comments"
+						}
+					]
+				},
+				{
+					"begin": "<",
+					"end": ">",
+					"name": "storage.type.token.java",
+					"patterns": [
+						{
+							"include": "#object-types"
+						},
+						{
+							"begin": "<",
+							"comment": "This is just to support <>'s with no actual type prefix",
+							"end": ">|[^\\w\\s,\\[\\]<]",
+							"name": "storage.type.generic.java"
+						}
+					]
+				},
+				{
+					"begin": "(?=\\w.*\\s+\\w+\\s*\\()",
+					"end": "(?=\\w+\\s*\\()",
+					"name": "meta.method.return-type.java",
+					"patterns": [
+						{
+							"include": "#all-types"
+						},
+						{
+							"include": "#comments"
+						}
+					]
+				},
+				{
+					"include": "#throws"
+				},
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.method.begin.java"
+						}
+					},
+					"end": "(?=})",
+					"name": "meta.method.body.java",
+					"patterns": [
+						{
+							"include": "#code"
+						}
+					]
+				},
+				{
+					"include": "#comments"
+				}
+			]
+		},
+		"object-types": {
+			"patterns": [
+				{
+					"begin": "\\b((?:[a-z]\\w*\\.)*[A-Z]+\\w*)<",
+					"end": ">|[^\\w\\s,\\?<\\[\\]]",
+					"name": "storage.type.generic.java",
+					"patterns": [
+						{
+							"include": "#object-types"
+						},
+						{
+							"begin": "<",
+							"comment": "This is just to support <>'s with no actual type prefix",
+							"end": ">|[^\\w\\s,\\[\\]<]",
+							"name": "storage.type.generic.java"
+						}
+					]
+				},
+				{
+					"begin": "\\b((?:[a-z]\\w*\\.)*[A-Z]+\\w*)(?=\\[)",
+					"end": "(?=[^\\]\\s])",
+					"name": "storage.type.object.array.java",
+					"patterns": [
+						{
+							"begin": "\\[",
+							"end": "\\]",
+							"patterns": [
+								{
+									"include": "#code"
+								}
+							]
+						}
+					]
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.operator.dereference.java"
+						}
+					},
+					"match": "\\b(?:[a-z]\\w*(\\.))*[A-Z]+\\w*\\b",
+					"name": "storage.type.java"
+				}
+			]
+		},
+		"object-types-inherited": {
+			"patterns": [
+				{
+					"begin": "\\b((?:[a-z]\\w*\\.)*[A-Z]+\\w*)<",
+					"end": ">|[^\\w\\s,<]",
+					"name": "entity.other.inherited-class.java",
+					"patterns": [
+						{
+							"include": "#object-types"
+						},
+						{
+							"begin": "<",
+							"comment": "This is just to support <>'s with no actual type prefix",
+							"end": ">|[^\\w\\s,<]",
+							"name": "storage.type.generic.java"
+						}
+					]
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.operator.dereference.java"
+						}
+					},
+					"match": "\\b(?:[a-z]\\w*(\\.))*[A-Z]+\\w*",
+					"name": "entity.other.inherited-class.java"
+				}
+			]
+		},
+		"parameters": {
+			"patterns": [
+				{
+					"match": "final",
+					"name": "storage.modifier.java"
+				},
+				{
+					"include": "#annotations"
+				},
+				{
+					"include": "#primitive-arrays"
+				},
+				{
+					"include": "#primitive-types"
+				},
+				{
+					"include": "#object-types"
+				},
+				{
+					"match": "\\w+",
+					"name": "variable.parameter.java"
+				}
+			]
+		},
+		"parens": {
+			"begin": "\\(",
+			"end": "\\)",
+			"patterns": [
+				{
+					"include": "#code"
+				}
+			]
+		},
+		"primitive-arrays": {
+			"patterns": [
+				{
+					"match": "\\b(?:void|boolean|byte|char|short|int|float|long|double)(\\[\\])*\\b",
+					"name": "storage.type.primitive.array.java"
+				}
+			]
+		},
+		"primitive-types": {
+			"patterns": [
+				{
+					"match": "\\b(?:void|boolean|byte|char|short|int|float|long|double)\\b",
+					"name": "storage.type.primitive.java"
+				}
+			]
+		},
+		"storage-modifiers": {
+			"captures": {
+				"1": {
+					"name": "storage.modifier.java"
+				}
+			},
+			"match": "\\b(public|private|protected|static|final|native|synchronized|volatile|abstract|threadsafe|transient)\\b"
+		},
+		"strings": {
+			"patterns": [
+				{
+					"begin": "\"",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.java"
+						}
+					},
+					"end": "\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.java"
+						}
+					},
+					"name": "string.quoted.double.java",
+					"patterns": [
+						{
+							"match": "\\\\.",
+							"name": "constant.character.escape.java"
+						}
+					]
+				},
+				{
+					"begin": "'",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.java"
+						}
+					},
+					"end": "'",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.java"
+						}
+					},
+					"name": "string.quoted.single.java",
+					"patterns": [
+						{
+							"match": "\\\\.",
+							"name": "constant.character.escape.java"
+						}
+					]
+				}
+			]
+		},
+		"throws": {
+			"begin": "throws",
+			"beginCaptures": {
+				"0": {
+					"name": "storage.modifier.java"
+				}
+			},
+			"end": "(?={|;)",
+			"name": "meta.throwables.java",
+			"patterns": [
+				{
+					"include": "#object-types"
+				}
+			]
+		},
+		"values": {
+			"patterns": [
+				{
+					"include": "#strings"
+				},
+				{
+					"include": "#object-types"
+				},
+				{
+					"include": "#constants-and-special-vars"
+				}
+			]
+		},
+		"variables": {
+			"applyEndPatternLast": 1,
+			"patterns": [
+				{
+					"begin": "(?x:(?=\n                        (?:\n                            (?:private|protected|public|native|synchronized|volatile|abstract|threadsafe|transient|static|final) # visibility/modifier\n                                |\n                            (?:def)\n                                |\n                            (?:void|boolean|byte|char|short|int|float|long|double)\n                                |\n                            (?:(?:[a-z]\\w*\\.)*[A-Z]+\\w*) # object type\n                        )\n                        \\s+\n                        (?!private|protected|public|native|synchronized|volatile|abstract|threadsafe|transient|static|final|def|void|boolean|byte|char|short|int|float|long|double)\n                        [\\w\\d_<>\\[\\],\\?][\\w\\d_<>\\[\\],\\? \\t]*\n                        (?:=|$)\n                        \n\t\t\t\t\t))",
+					"end": "(?=;)",
+					"name": "meta.definition.variable.java",
+					"patterns": [
+						{
+							"match": "\\s"
+						},
+						{
+							"captures": {
+								"1": {
+									"name": "constant.other.variable.java"
+								}
+							},
+							"match": "([A-Z_0-9]+)\\s+(?=\\=)"
+						},
+						{
+							"captures": {
+								"1": {
+									"name": "meta.definition.variable.name.java"
+								}
+							},
+							"match": "(\\w[^\\s,]*)\\s+(?=\\=)"
+						},
+						{
+							"begin": "=",
+							"beginCaptures": {
+								"0": {
+									"name": "keyword.operator.assignment.java"
+								}
+							},
+							"end": "(?=;)",
+							"patterns": [
+								{
+									"include": "#code"
+								}
+							]
+						},
+						{
+							"captures": {
+								"1": {
+									"name": "meta.definition.variable.name.java"
+								}
+							},
+							"match": "(\\w[^\\s=]*)(?=\\s*;)"
+						},
+						{
+							"include": "#code"
+						}
+					]
+				}
+			]
+		}
+	},
+	"scopeName": "source.java",
+	"uuid": "2B449DF6-6B1D-11D9-94EC-000D93589AF6",
+	"version": "https://github.com/textmate/java.tmbundle/commit/faffa518d0b22b68b4e5e6b4c939722522b97d40"
+}

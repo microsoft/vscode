@@ -5,29 +5,29 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import {IMonarchLanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
-import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
-import {StaticServices} from 'vs/editor/browser/standalone/standaloneServices';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { onWillActivate } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { IMonarchLanguage } from 'vs/editor/common/modes/monarch/monarchTypes';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import { StaticServices } from 'vs/editor/browser/standalone/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
-import {LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfiguration, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {CancellationToken} from 'vs/base/common/cancellation';
-import {toThenable} from 'vs/base/common/async';
-import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
-import {IMarkerData} from 'vs/platform/markers/common/markers';
-import {TokenizationSupport2Adapter} from 'vs/editor/common/services/modeServiceImpl';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { toThenable } from 'vs/base/common/async';
+import { compile } from 'vs/editor/common/modes/monarch/monarchCompile';
+import { createTokenizationSupport } from 'vs/editor/common/modes/monarch/monarchLexer';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { TokenizationSupport2Adapter } from 'vs/editor/common/services/modeServiceImpl';
 /**
  * Register information about a new language.
  */
-export function register(language:ILanguageExtensionPoint): void {
+export function register(language: ILanguageExtensionPoint): void {
 	ModesRegistry.registerLanguage(language);
 }
 
@@ -35,38 +35,39 @@ export function register(language:ILanguageExtensionPoint): void {
  * Get the information of all the registered languages.
  */
 export function getLanguages(): ILanguageExtensionPoint[] {
-	let result:ILanguageExtensionPoint[] = [];
+	let result: ILanguageExtensionPoint[] = [];
 	result = result.concat(ModesRegistry.getLanguages());
-	result = result.concat(ModesRegistry.getCompatModes());
 	return result;
 }
 
 /**
  * An event emitted when a language is first time needed (e.g. a model has it set).
+ * @event
  */
-export function onLanguage(languageId:string, callback:()=>void): IDisposable {
-	let isDisposed = false;
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + languageId, () => {
-		if (!isDisposed) {
+export function onLanguage(languageId: string, callback: () => void): IDisposable {
+	const desired = 'onLanguage:' + languageId;
+	let disposable = onWillActivate.event((activationEvent) => {
+		if (activationEvent === desired) {
+			// stop listening
+			disposable.dispose();
+			// invoke actual listener
 			callback();
 		}
 	});
-	return {
-		dispose: () => { isDisposed = true; }
-	};
+	return disposable;
 }
 
 /**
  * Set the editing configuration for a language.
  */
-export function setLanguageConfiguration(languageId:string, configuration:LanguageConfiguration): IDisposable {
+export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable {
 	return LanguageConfigurationRegistry.register(languageId, configuration);
 }
 
 /**
  * Set the tokens provider for a language (manual implementation).
  */
-export function setTokensProvider(languageId:string, provider:modes.TokensProvider): IDisposable {
+export function setTokensProvider(languageId: string, provider: modes.TokensProvider): IDisposable {
 	let adapter = new TokenizationSupport2Adapter(languageId, provider);
 	return modes.TokenizationRegistry.register(languageId, adapter);
 }
@@ -74,7 +75,7 @@ export function setTokensProvider(languageId:string, provider:modes.TokensProvid
 /**
  * Set the tokens provider for a language (monarch implementation).
  */
-export function setMonarchTokensProvider(languageId:string, languageDef:IMonarchLanguage): IDisposable {
+export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage): IDisposable {
 	let lexer = compile(languageId, languageDef);
 	let adapter = createTokenizationSupport(StaticServices.modeService.get(), languageId, lexer);
 	return modes.TokenizationRegistry.register(languageId, adapter);
@@ -83,66 +84,83 @@ export function setMonarchTokensProvider(languageId:string, languageDef:IMonarch
 /**
  * Register a reference provider (used by e.g. reference search).
  */
-export function registerReferenceProvider(languageId:string, provider:modes.ReferenceProvider): IDisposable {
+export function registerReferenceProvider(languageId: string, provider: modes.ReferenceProvider): IDisposable {
 	return modes.ReferenceProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a rename provider (used by e.g. rename symbol).
  */
-export function registerRenameProvider(languageId:string, provider:modes.RenameProvider): IDisposable {
+export function registerRenameProvider(languageId: string, provider: modes.RenameProvider): IDisposable {
 	return modes.RenameProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a signature help provider (used by e.g. paremeter hints).
  */
-export function registerSignatureHelpProvider(languageId:string, provider:modes.SignatureHelpProvider): IDisposable {
+export function registerSignatureHelpProvider(languageId: string, provider: modes.SignatureHelpProvider): IDisposable {
 	return modes.SignatureHelpProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a hover provider (used by e.g. editor hover).
  */
-export function registerHoverProvider(languageId:string, provider:modes.HoverProvider): IDisposable {
-	return modes.HoverProviderRegistry.register(languageId, provider);
+export function registerHoverProvider(languageId: string, provider: modes.HoverProvider): IDisposable {
+	return modes.HoverProviderRegistry.register(languageId, {
+		provideHover: (model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.Hover> => {
+			let word = model.getWordAtPosition(position);
+
+			return toThenable<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
+				if (!value) {
+					return;
+				}
+				if (!value.range && word) {
+					value.range = new Range(position.lineNumber, word.startColumn, position.column, word.endColumn);
+				}
+				if (!value.range) {
+					value.range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+				}
+				return value;
+			});
+		}
+	});
 }
 
 /**
  * Register a document symbol provider (used by e.g. outline).
  */
-export function registerDocumentSymbolProvider(languageId:string, provider:modes.DocumentSymbolProvider): IDisposable {
+export function registerDocumentSymbolProvider(languageId: string, provider: modes.DocumentSymbolProvider): IDisposable {
 	return modes.DocumentSymbolProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a document highlight provider (used by e.g. highlight occurences).
  */
-export function registerDocumentHighlightProvider(languageId:string, provider:modes.DocumentHighlightProvider): IDisposable {
+export function registerDocumentHighlightProvider(languageId: string, provider: modes.DocumentHighlightProvider): IDisposable {
 	return modes.DocumentHighlightProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a definition provider (used by e.g. go to definition).
  */
-export function registerDefinitionProvider(languageId:string, provider:modes.DefinitionProvider): IDisposable {
+export function registerDefinitionProvider(languageId: string, provider: modes.DefinitionProvider): IDisposable {
 	return modes.DefinitionProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a code lens provider (used by e.g. inline code lenses).
  */
-export function registerCodeLensProvider(languageId:string, provider:modes.CodeLensProvider): IDisposable {
+export function registerCodeLensProvider(languageId: string, provider: modes.CodeLensProvider): IDisposable {
 	return modes.CodeLensProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a code action provider (used by e.g. quick fix).
  */
-export function registerCodeActionProvider(languageId:string, provider:CodeActionProvider): IDisposable {
+export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
-		provideCodeActions: (model:editorCommon.IReadOnlyModel, range:Range, token: CancellationToken): modes.CodeAction[] | Thenable<modes.CodeAction[]> => {
-			let markers = StaticServices.markerService.get().read({resource: model.uri }).filter(m => {
+		provideCodeActions: (model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): modes.CodeAction[] | Thenable<modes.CodeAction[]> => {
+			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
 			return provider.provideCodeActions(model, range, { markers }, token);
@@ -153,42 +171,42 @@ export function registerCodeActionProvider(languageId:string, provider:CodeActio
 /**
  * Register a formatter that can handle only entire models.
  */
-export function registerDocumentFormattingEditProvider(languageId:string, provider:modes.DocumentFormattingEditProvider): IDisposable {
+export function registerDocumentFormattingEditProvider(languageId: string, provider: modes.DocumentFormattingEditProvider): IDisposable {
 	return modes.DocumentFormattingEditProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a formatter that can handle a range inside a model.
  */
-export function registerDocumentRangeFormattingEditProvider(languageId:string, provider:modes.DocumentRangeFormattingEditProvider): IDisposable {
+export function registerDocumentRangeFormattingEditProvider(languageId: string, provider: modes.DocumentRangeFormattingEditProvider): IDisposable {
 	return modes.DocumentRangeFormattingEditProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a formatter than can do formatting as the user types.
  */
-export function registerOnTypeFormattingEditProvider(languageId:string, provider:modes.OnTypeFormattingEditProvider): IDisposable {
+export function registerOnTypeFormattingEditProvider(languageId: string, provider: modes.OnTypeFormattingEditProvider): IDisposable {
 	return modes.OnTypeFormattingEditProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a link provider that can find links in text.
  */
-export function registerLinkProvider(languageId:string, provider:modes.LinkProvider): IDisposable {
+export function registerLinkProvider(languageId: string, provider: modes.LinkProvider): IDisposable {
 	return modes.LinkProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a completion item provider (use by e.g. suggestions).
  */
-export function registerCompletionItemProvider(languageId:string, provider:CompletionItemProvider): IDisposable {
+export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable {
 	let adapter = new SuggestAdapter(provider);
 	return modes.SuggestRegistry.register(languageId, {
 		triggerCharacters: provider.triggerCharacters,
-		provideCompletionItems: (model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult> => {
+		provideCompletionItems: (model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 			return adapter.provideCompletionItems(model, position, token);
 		},
-		resolveCompletionItem: (model:editorCommon.IReadOnlyModel, position:Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
+		resolveCompletionItem: (model: editorCommon.IReadOnlyModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
 			return adapter.resolveCompletionItem(model, position, suggestion, token);
 		}
 	});
@@ -205,7 +223,7 @@ export interface CodeActionContext {
 	 *
 	 * @readonly
 	 */
-	markers: IMarkerData[];
+	readonly markers: IMarkerData[];
 }
 
 /**
@@ -216,7 +234,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model:editorCommon.IReadOnlyModel, range:Range, context: CodeActionContext, token: CancellationToken): modes.CodeAction[] | Thenable<modes.CodeAction[]>;
+	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): modes.CodeAction[] | Thenable<modes.CodeAction[]>;
 }
 
 /**
@@ -370,7 +388,7 @@ class SuggestAdapter {
 		this._provider = provider;
 	}
 
-	private static from(item:CompletionItem): ISuggestion2 {
+	private static from(item: CompletionItem): ISuggestion2 {
 		return {
 			_actual: item,
 			label: item.label,
@@ -383,19 +401,18 @@ class SuggestAdapter {
 		};
 	}
 
-	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult> {
+	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> {
 
-		return toThenable<CompletionItem[]|CompletionList>(this._provider.provideCompletionItems(model, position, token)).then(value => {
+		return toThenable<CompletionItem[] | CompletionList>(this._provider.provideCompletionItems(model, position, token)).then(value => {
 			const result: modes.ISuggestResult = {
-				suggestions: [],
-				currentWord: '',
+				suggestions: []
 			};
 
 			// default text edit start
-			let wordStartPos = position.clone();
+			let wordStartPos = position;
 			const word = model.getWordUntilPosition(position);
 			if (word) {
-				wordStartPos.column = word.startColumn;
+				wordStartPos = new Position(wordStartPos.lineNumber, word.startColumn);
 			}
 
 			let list: CompletionList;
@@ -447,7 +464,7 @@ class SuggestAdapter {
 		});
 	}
 
-	resolveCompletionItem(model:editorCommon.IReadOnlyModel, position:Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	resolveCompletionItem(model: editorCommon.IReadOnlyModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return TPromise.as(suggestion);
 		}
@@ -495,6 +512,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
-		IndentAction: modes.IndentAction
+		IndentAction: IndentAction
 	};
 }

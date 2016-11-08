@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Registry} from 'vs/platform/platform';
-import {IEditorContributionCtor} from 'vs/editor/browser/editorBrowser';
+import { Registry } from 'vs/platform/platform';
+import { IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
 
-export function editorContribution(ctor:IEditorContributionCtor): void {
+export function editorContribution(ctor: IEditorContributionCtor): void {
 	EditorContributionRegistry.INSTANCE.registerEditorBrowserContribution(ctor);
 }
 
@@ -31,7 +31,7 @@ class EditorContributionRegistry {
 		this.editorContributions = [];
 	}
 
-	public registerEditorBrowserContribution(ctor:IEditorContributionCtor): void {
+	public registerEditorBrowserContribution(ctor: IEditorContributionCtor): void {
 		this.editorContributions.push(ctor);
 	}
 

@@ -23,6 +23,7 @@ import 'vs/platform/actions/browser/menusExtensionPoint';
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarPosition';
+import 'vs/workbench/browser/actions/toggleEditorLayout';
 import 'vs/workbench/browser/actions/openSettings';
 import 'vs/workbench/browser/actions/configureLocale';
 
@@ -53,7 +54,7 @@ import 'vs/workbench/parts/markers/browser/markersPanel'; // can be packaged sep
 import 'vs/workbench/parts/html/browser/html.contribution';
 
 import 'vs/workbench/parts/extensions/electron-browser/extensions.contribution';
-import 'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen';
+import 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/output/browser/output.contribution';
@@ -77,13 +78,13 @@ import 'vs/workbench/parts/contentprovider/common/contentprovider.contribution';
 
 import 'vs/workbench/parts/themes/electron-browser/themes.contribution';
 
-import 'vs/workbench/parts/feedback/electron-browser/feedback.contribution';
+import 'vs/workbench/parts/feedback/browser/feedback.contribution';
 
-import 'vs/workbench/parts/welcome/electron-browser/electronGettingStarted.contribution';
+import 'vs/workbench/parts/welcome/browser/gettingStarted.contribution';
 
 import 'vs/workbench/parts/update/electron-browser/update.contribution';
 
-import 'vs/workbench/parts/nps/electron-browser/nps.contribution';
+import 'vs/workbench/parts/nps/browser/nps.contribution';
 
 import 'vs/workbench/parts/cli/electron-browser/cli.contribution';
 
@@ -93,3 +94,5 @@ import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/electron-browser/main';
 
 import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution';
+
+import 'vs/workbench/parts/watermark/browser/watermark';

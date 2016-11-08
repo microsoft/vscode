@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .select-box {
+	width: 100%;
+	height: 20px;
+}
+
+.vs .monaco-workbench .select-box {
+	background-color: white;
+	border-color: #CECECE;
+}
+
+.vs-dark .monaco-workbench .select-box {
+	background-color: #3C3C3C;
+	border-color: #3C3C3C;
+	color: rgb(204, 204, 204);
+}
+
+.hc-black .monaco-workbench .select-box {
+	background-color: #3C3C3C;
+	border-color: #3C3C3C;
+	color: white;
+}

@@ -4,31 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
+import { TextAreaHandler } from 'vs/editor/common/controller/textAreaHandler';
 import * as browser from 'vs/base/browser/browser';
-import {TextAreaStrategy, ISimpleModel} from 'vs/editor/common/controller/textAreaState';
-import {Range} from 'vs/editor/common/core/range';
+import { TextAreaStrategy, ISimpleModel } from 'vs/editor/common/controller/textAreaState';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {TextAreaWrapper} from 'vs/editor/browser/controller/input/textAreaWrapper';
-import {Position} from 'vs/editor/common/core/position';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
+import { Position } from 'vs/editor/common/core/position';
 
 // To run this test, open imeTester.html
 
 class SingleLineTestModel implements ISimpleModel {
 
-	private _line:string;
-	private _eol:string;
+	private _line: string;
+	private _eol: string;
 
-	constructor(line:string) {
+	constructor(line: string) {
 		this._line = line;
 		this._eol = '\n';
 	}
 
-	setText(text:string) {
+	setText(text: string) {
 		this._line = text;
 	}
 
-	getLineMaxColumn(lineNumber:number): number {
+	getLineMaxColumn(lineNumber: number): number {
 		return this._line.length + 1;
 	}
 
@@ -36,11 +36,11 @@ class SingleLineTestModel implements ISimpleModel {
 		return this._eol;
 	}
 
-	getValueInRange(range:editorCommon.IRange, eol:editorCommon.EndOfLinePreference): string {
+	getValueInRange(range: editorCommon.IRange, eol: editorCommon.EndOfLinePreference): string {
 		return this._line.substring(range.startColumn - 1, range.endColumn - 1);
 	}
 
-	getModelLineContent(lineNumber:number): string {
+	getModelLineContent(lineNumber: number): string {
 		return this._line;
 	}
 
@@ -48,7 +48,7 @@ class SingleLineTestModel implements ISimpleModel {
 		return 1;
 	}
 
-	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): Position {
+	convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position {
 		return new Position(viewLineNumber, viewColumn);
 	}
 }
@@ -57,11 +57,11 @@ class TestView {
 
 	private _model: SingleLineTestModel;
 
-	constructor(model:SingleLineTestModel) {
+	constructor(model: SingleLineTestModel) {
 		this._model = model;
 	}
 
-	public paint(output:HTMLElement) {
+	public paint(output: HTMLElement) {
 		let r = '';
 		for (let i = 1; i <= this._model.getLineCount(); i++) {
 			let content = this._model.getModelLineContent(i);
@@ -71,7 +71,7 @@ class TestView {
 	}
 }
 
-function doCreateTest(strategy:TextAreaStrategy, description:string, inputStr:string, expectedStr:string): HTMLElement {
+function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr: string, expectedStr: string): HTMLElement {
 	let container = document.createElement('div');
 	container.className = 'container';
 
@@ -94,7 +94,7 @@ function doCreateTest(strategy:TextAreaStrategy, description:string, inputStr:st
 
 	let model = new SingleLineTestModel('some  text');
 
-	let handler = new TextAreaHandler(browser, strategy, textAreaWrapper, model, () => {});
+	let handler = new TextAreaHandler(browser, strategy, textAreaWrapper, model, () => { });
 
 	input.onfocus = () => {
 		handler.setHasFocus(true);
@@ -120,14 +120,14 @@ function doCreateTest(strategy:TextAreaStrategy, description:string, inputStr:st
 
 	let cursorOffset: number;
 	let cursorLength: number;
-	let updatePosition = (off:number, len:number) => {
+	let updatePosition = (off: number, len: number) => {
 		cursorOffset = off;
 		cursorLength = len;
 		handler.setCursorSelections(new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength), []);
 		handler.writePlaceholderAndSelectTextAreaSync();
 	};
 
-	let updateModelAndPosition = (text:string, off:number, len:number) => {
+	let updateModelAndPosition = (text: string, off: number, len: number) => {
 		model.setText(text);
 		updatePosition(off, len);
 		view.paint(output);
@@ -155,7 +155,7 @@ function doCreateTest(strategy:TextAreaStrategy, description:string, inputStr:st
 
 	view.paint(output);
 
-	startBtn.onclick = function() {
+	startBtn.onclick = function () {
 		updateModelAndPosition('some  text', 5, 0);
 		input.focus();
 	};

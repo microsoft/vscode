@@ -5,26 +5,26 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Dimension, Builder} from 'vs/base/browser/builder';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Dimension, Builder } from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
-import {CodeEditor} from 'vs/editor/browser/codeEditor';
-import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
-import {IEditor, IEditorOptions} from 'vs/editor/common/editorCommon';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {Position} from 'vs/platform/editor/common/editor';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {Selection} from 'vs/editor/common/core/selection';
+import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { IEditor, IEditorOptions } from 'vs/editor/common/editorCommon';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { Position } from 'vs/platform/editor/common/editor';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { Selection } from 'vs/editor/common/core/selection';
 
 /**
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
@@ -118,9 +118,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected getCodeEditorOptions(): IEditorOptions {
 		return {
 			overviewRulerLanes: 3,
-			glyphMargin: true,
 			lineNumbersMinChars: 3,
-			theme: this.themeService.getColorTheme()
+			theme: this.themeService.getColorTheme(),
+			fixedOverflowWidgets: true
 		};
 	}
 
@@ -139,7 +139,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 * provide their own editor control that should be used (e.g. a DiffEditor).
 	 */
 	public createEditorControl(parent: Builder): IEditor {
-		return this._instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), this.getCodeEditorOptions());
+		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
+		return this.instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {

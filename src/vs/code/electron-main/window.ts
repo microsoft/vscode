@@ -11,10 +11,12 @@ import * as objects from 'vs/base/common/objects';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/code/electron-main/env';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
+import product from 'vs/platform/product';
+import { getCommonHTTPHeaders } from 'vs/platform/environment/common/http';
 
 export interface IWindowState {
 	width?: number;
@@ -28,6 +30,7 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	allowFullscreen?: boolean;
+	titleBarStyle?: 'native' | 'custom';
 }
 
 export enum WindowMode {
@@ -86,11 +89,11 @@ export interface IPath {
 	createFilePath?: boolean;
 }
 
-export interface IWindowConfiguration extends ICommandLineArguments {
+export interface IWindowConfiguration extends ParsedArgs {
 	appRoot: string;
 	execPath: string;
 
-	userEnv: IProcessEnvironment;
+	userEnv: platform.IProcessEnvironment;
 
 	zoomLevel?: number;
 
@@ -106,6 +109,7 @@ export interface IWindowSettings {
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
 	zoomLevel: number;
+	titleBarStyle: 'native' | 'custom';
 }
 
 export class VSCodeWindow {
@@ -134,7 +138,7 @@ export class VSCodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
-		@IEnvService private envService: IEnvService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IStorageService private storageService: IStorageService
 	) {
@@ -165,19 +169,41 @@ export class VSCodeWindow {
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
-			title: this.envService.product.nameLong,
+			title: product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
 			}
 		};
 
 		if (platform.isLinux) {
-			options.icon = path.join(this.envService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
+			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
+		}
+
+		if (this.options.titleBarStyle === 'custom' && platform.isMacintosh) {
+			const isDev = !this.environmentService.isBuilt || this.environmentService.extensionDevelopmentPath;
+			if (!isDev) {
+				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+			}
 		}
 
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
+
+		// TODO@joao: hook this up to some initialization routine
+		// this causes a race between setting the headers and doing
+		// a request that needs them. chances are low
+		getCommonHTTPHeaders().done(headers => {
+			if (!this._win) {
+				return;
+			}
+
+			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+
+			this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
+			});
+		});
 
 		if (isFullscreenOrMaximized) {
 			this.win.maximize();
@@ -339,7 +365,7 @@ export class VSCodeWindow {
 
 		// Prevent any kind of navigation triggered by the user!
 		// But do not touch this in dev version because it will prevent "Reload" from dev tools
-		if (this.envService.isBuilt) {
+		if (this.environmentService.isBuilt) {
 			this._win.webContents.on('will-navigate', (event: Event) => {
 				if (event) {
 					event.preventDefault();
@@ -374,7 +400,7 @@ export class VSCodeWindow {
 		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
-		if (!this.envService.isBuilt) {
+		if (!this.environmentService.isBuilt) {
 			this.showTimeoutHandle = setTimeout(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
@@ -385,7 +411,7 @@ export class VSCodeWindow {
 		}
 	}
 
-	public reload(cli?: ICommandLineArguments): void {
+	public reload(cli?: ParsedArgs): void {
 
 		// Inherit current properties but overwrite some
 		const configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
@@ -399,7 +425,7 @@ export class VSCodeWindow {
 			configuration.verbose = cli.verbose;
 			configuration.debugPluginHost = cli.debugPluginHost;
 			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
-			configuration.extensionHomePath = cli.extensionHomePath;
+			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
 		// Load config

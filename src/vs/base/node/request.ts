@@ -87,7 +87,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 
 		req.end();
 	},
-	() => req && req.abort());
+		() => req && req.abort());
 }
 
 function isSuccess(context: IRequestContext): boolean {

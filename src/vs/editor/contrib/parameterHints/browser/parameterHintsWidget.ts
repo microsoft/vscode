@@ -15,13 +15,13 @@ import { SignatureHelp, SignatureInformation, SignatureHelpProviderRegistry } fr
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import Event, {Emitter, chain} from 'vs/base/common/event';
-import {domEvent, stop} from 'vs/base/browser/event';
+import Event, { Emitter, chain } from 'vs/base/common/event';
+import { domEvent, stop } from 'vs/base/browser/event';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/common/editorCommon';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
-import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 const $ = dom.$;
 
@@ -45,7 +45,7 @@ export class ParameterHintsModel extends Disposable {
 	private active: boolean;
 	private throttledDelayer: RunOnceScheduler;
 
-	constructor(editor:ICommonCodeEditor) {
+	constructor(editor: ICommonCodeEditor) {
 		super();
 
 		this.editor = editor;
@@ -97,13 +97,13 @@ export class ParameterHintsModel extends Disposable {
 
 				this.active = true;
 
-				const event:IHintEvent = { hints: result };
+				const event: IHintEvent = { hints: result };
 				this._onHint.fire(event);
 				return true;
 			});
 	}
 
-	isTriggered():boolean {
+	isTriggered(): boolean {
 		return this.active || this.throttledDelayer.isScheduled();
 	}
 
@@ -118,16 +118,22 @@ export class ParameterHintsModel extends Disposable {
 			return;
 		}
 
-		const support = SignatureHelpProviderRegistry.ordered(model)[0];
-		if (!support) {
-			return;
+		const allTriggerCharacters: string[] = [];
+		for (const support of SignatureHelpProviderRegistry.ordered(model)) {
+			if (Array.isArray(support.signatureHelpTriggerCharacters)) {
+				allTriggerCharacters.push(...support.signatureHelpTriggerCharacters);
+			}
 		}
 
-		this.triggerCharactersListeners = support.signatureHelpTriggerCharacters.map((ch) => {
-			return this.editor.addTypingListener(ch, () => {
-				this.trigger();
-			});
-		});
+		allTriggerCharacters.sort();
+		this.triggerCharactersListeners.length = 0;
+		let lastCh: string;
+		for (const ch of allTriggerCharacters) {
+			if (ch !== lastCh) {
+				lastCh = ch;
+				this.triggerCharactersListeners.push(this.editor.addTypingListener(ch, () => this.trigger()));
+			}
+		}
 	}
 
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {
@@ -211,14 +217,14 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.overloads = dom.append(wrapper, $('.overloads'));
 
-		const body = dom.append(wrapper, $('.body'));
+		const body = $('.body');
+		this.scrollbar = new DomScrollableElement(body, { canUseTranslate3d: false });
+		this.disposables.push(this.scrollbar);
+		wrapper.appendChild(this.scrollbar.getDomNode());
 
 		this.signature = dom.append(body, $('.signature'));
 
-		this.docs = $('.docs');
-		this.scrollbar = new DomScrollableElement(this.docs, { canUseTranslate3d: false });
-		this.disposables.push(this.scrollbar);
-		body.appendChild(this.scrollbar.getDomNode());
+		this.docs = dom.append(body, $('.docs'));
 
 		this.currentSignature = 0;
 
@@ -270,7 +276,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.editor.layoutContentWidget(this);
 	}
 
-	getPosition():IContentWidgetPosition {
+	getPosition(): IContentWidgetPosition {
 		if (this.visible) {
 			return {
 				position: this.editor.getPosition(),
@@ -290,6 +296,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		const signature = this.hints.signatures[this.currentSignature];
 
+		if (!signature) {
+			return;
+		}
+
 		const code = dom.append(this.signature, $('.code'));
 		const hasParameters = signature.parameters.length > 0;
 
@@ -297,7 +307,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		code.style.fontSize = `${fontInfo.fontSize}px`;
 		code.style.fontFamily = fontInfo.fontFamily;
 
-		if(!hasParameters) {
+		if (!hasParameters) {
 			const label = dom.append(code, $('span'));
 			label.textContent = signature.label;
 
@@ -307,7 +317,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		const activeParameter = signature.parameters[this.hints.activeParameter];
 
-		if(activeParameter && activeParameter.documentation) {
+		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
 			documentation.textContent = activeParameter.documentation;
 			dom.append(this.docs, $('p', null, documentation));
@@ -315,7 +325,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		dom.toggleClass(this.signature, 'has-docs', !!signature.documentation);
 
-		if(signature.documentation) {
+		if (signature.documentation) {
 			dom.append(this.docs, $('p', null, signature.documentation));
 		}
 
@@ -453,7 +463,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private updateMaxHeight(): void {
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
-		this.element.style.maxHeight = `${ height }px`;
+		this.element.style.maxHeight = `${height}px`;
 	}
 
 	dispose(): void {

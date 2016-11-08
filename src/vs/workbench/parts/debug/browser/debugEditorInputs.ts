@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import mime = require('vs/base/common/mime');
+import { TPromise } from 'vs/base/common/winjs.base';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import strinput = require('vs/workbench/common/editor/stringEditorInput');
-import {EditorInput, EditorModel} from 'vs/workbench/common/editor';
+import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
 import uri from 'vs/base/common/uri';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class DebugStringEditorInput extends strinput.StringEditorInput {
 
@@ -17,11 +17,11 @@ export class DebugStringEditorInput extends strinput.StringEditorInput {
 		private resourceUrl: uri,
 		description: string,
 		value: string,
-		mimeType: string,
+		modeId: string,
 		singleton: boolean,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(name, description, value, mimeType || mime.MIME_TEXT, singleton, instantiationService);
+		super(name, description, value, modeId || PLAINTEXT_MODE_ID, singleton, instantiationService);
 	}
 
 	public getResource(): uri {

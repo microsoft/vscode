@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import platform = require('vs/platform/platform');
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const Extensions = {
 	JSONContribution: 'base.contributions.json'

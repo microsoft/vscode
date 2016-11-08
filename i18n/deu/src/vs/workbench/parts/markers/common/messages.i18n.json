@@ -22,7 +22,7 @@
 	"markers.panel.single.info.label": "1 Information",
 	"markers.panel.single.unknown.label": "1 Unbekannte",
 	"markers.panel.single.warning.label": "1 Warnung",
-	"markers.panel.title.no.problems": "Keine Probleme",
+	"markers.panel.title.problems": "Probleme",
 	"problems.panel.configuration.autoreveal": "Steuert, ob die Ansicht \"Probleme\" automatisch Dateien anzeigen sollte, wenn diese geöffnet werden.",
 	"problems.panel.configuration.title": "Ansicht \"Probleme\"",
 	"problems.tree.aria.label.error.marker": "Von {0} generierter Fehler: {1} in Zeile {2} und Spalte {3}",

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {Range} from 'vs/editor/common/core/range';
-import {ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel} from 'vs/editor/common/editorCommon';
-import {Selection} from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { Selection } from 'vs/editor/common/core/selection';
 
 function getIndentationEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {

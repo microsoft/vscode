@@ -12,6 +12,7 @@
 	"functionBreakpointsNotSupported": "Funktionshaltepunkte werden von diesem Debugtyp nicht unterstützt.",
 	"loadMoreStackFrames": "Weitere Stapelrahmen laden",
 	"paused": "Angehalten",
+	"process": "Prozess",
 	"running": "Wird ausgeführt",
 	"stackFrameAriaLabel": "Stapelrahmen {0} Zeile {1} {2}, Aufrufliste, Debuggen",
 	"thread": "Thread",

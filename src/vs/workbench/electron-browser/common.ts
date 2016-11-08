@@ -23,5 +23,6 @@ export interface IWindowConfiguration {
 		reopenFolders: string;
 		restoreFullscreen: boolean;
 		zoomLevel: number;
+		titleBarStyle: 'native' | 'custom';
 	};
 }

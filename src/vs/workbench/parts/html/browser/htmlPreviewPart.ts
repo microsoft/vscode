@@ -5,22 +5,22 @@
 
 'use strict';
 
-import {localize} from 'vs/nls';
+import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel} from 'vs/editor/common/editorCommon';
-import {Dimension, Builder} from 'vs/base/browser/builder';
-import {empty as EmptyDisposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {Position} from 'vs/platform/editor/common/editor';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {HtmlInput} from 'vs/workbench/parts/html/common/htmlInput';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {IOpenerService} from 'vs/platform/opener/common/opener';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { Dimension, Builder } from 'vs/base/browser/builder';
+import { empty as EmptyDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { Position } from 'vs/platform/editor/common/editor';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 import Webview from './webview';
 
 /**
@@ -30,7 +30,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	static ID: string = 'workbench.editor.htmlPreviewPart';
 
-	private _editorService: IWorkbenchEditorService;
+	private _textModelResolverService: ITextModelResolverService;
 	private _themeService: IThemeService;
 	private _openerService: IOpenerService;
 	private _webview: Webview;
@@ -45,14 +45,14 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IThemeService themeService: IThemeService,
 		@IOpenerService openerService: IOpenerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService);
 
-		this._editorService = editorService;
+		this._textModelResolverService = textModelResolverService;
 		this._themeService = themeService;
 		this._openerService = openerService;
 		this._baseUrl = contextService.toResource('/');
@@ -103,7 +103,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		super.setEditorVisible(visible, position);
 	}
 
-	private _doSetVisible(visible: boolean):void {
+	private _doSetVisible(visible: boolean): void {
 		if (!visible) {
 			this._themeChangeSubscription.dispose();
 			this._modelChangeSubscription.dispose();
@@ -149,7 +149,8 @@ export class HtmlPreviewPart extends BaseEditor {
 		}
 
 		return super.setInput(input, options).then(() => {
-			return this._editorService.resolveEditorModel({ resource: (<HtmlInput>input).getResource() }).then(model => {
+			let resourceUri = (<HtmlInput>input).getResource();
+			return this._textModelResolverService.resolve(resourceUri).then(model => {
 				if (model instanceof BaseTextEditorModel) {
 					this._model = model.textEditorModel;
 				}
@@ -157,6 +158,7 @@ export class HtmlPreviewPart extends BaseEditor {
 					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
 				}
 				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
+				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.contents = this._model.getLinesContent();
 			});
 		});

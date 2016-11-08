@@ -6,38 +6,39 @@
 import 'vs/css!./../browser/media/repl';
 import nls = require('vs/nls');
 import uri from 'vs/base/common/uri';
-import {wireCancellationToken} from 'vs/base/common/async';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { wireCancellationToken } from 'vs/base/common/async';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
 import actions = require('vs/base/common/actions');
 import builder = require('vs/base/browser/builder');
 import dom = require('vs/base/browser/dom');
 import platform = require('vs/base/common/platform');
-import {CancellationToken} from 'vs/base/common/cancellation';
-import {KeyCode} from 'vs/base/common/keyCodes';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import tree = require('vs/base/parts/tree/browser/tree');
 import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
-import {IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
-import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
-import {ReplEditor} from 'vs/workbench/parts/debug/electron-browser/replEditor';
+import { ReplEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
-import {Panel} from 'vs/workbench/browser/panel';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import { Panel } from 'vs/workbench/browser/panel';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 const $ = dom.$;
 
@@ -62,7 +63,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private static HISTORY: replhistory.ReplHistory;
 	private static REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
-	private static REPL_INPUT_INITIAL_HEIGHT = 22;
+	private static REPL_INPUT_INITIAL_HEIGHT = 19;
 	private static REPL_INPUT_MAX_HEIGHT = 170;
 
 	private toDispose: lifecycle.IDisposable[];
@@ -99,14 +100,6 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			this.onReplElementsUpdated();
 		}));
-		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
-			if (panel.getId() === debug.REPL_ID) {
-				const elements = this.debugService.getModel().getReplElements();
-				if (elements.length > 0) {
-					return this.tree.reveal(elements[elements.length - 1]);
-				}
-			}
-		}));
 		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
 	}
 
@@ -126,15 +119,6 @@ export class Repl extends Panel implements IPrivateReplService {
 					if (previousScrollPosition === 1 || previousScrollPosition === 0) {
 						// Only scroll if we were scrolled all the way down before tree refreshed #10486
 						this.tree.setScrollPosition(1);
-					}
-
-					// If the last repl element has children - auto expand it #6019
-					const elements = this.debugService.getModel().getReplElements();
-					const lastElement = elements.length > 0 ? elements[elements.length - 1] : null;
-					if (lastElement instanceof Expression && lastElement.reference > 0) {
-						return this.tree.expand(elements[elements.length - 1]).then(() =>
-							this.tree.reveal(elements[elements.length - 1], 0)
-						);
 					}
 				}, errors.onUnexpectedError);
 			}, delay);
@@ -187,16 +171,18 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.replInput.setModel(model);
 
 		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
-				triggerCharacters: ['.'],
-				provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
-					const word = this.replInput.getModel().getWordAtPosition(position);
-					const text = this.replInput.getModel().getLineContent(position.lineNumber);
-					return wireCancellationToken(token, this.debugService.completions(text, position).then(suggestions => ({
-						currentWord: word ? word.word : '',
-						suggestions
-					})));
-				}
-			},
+			triggerCharacters: ['.'],
+			provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+				const word = this.replInput.getModel().getWordAtPosition(position);
+				const overwriteBefore = word ? word.word.length : 0;
+				const text = this.replInput.getModel().getLineContent(position.lineNumber);
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				const completions = focusedStackFrame ? focusedStackFrame.completions(text, position, overwriteBefore) : TPromise.as([]);
+				return wireCancellationToken(token, completions.then(suggestions => ({
+					suggestions: suggestions
+				})));
+			}
+		},
 			true
 		);
 
@@ -275,7 +261,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			wrappingColumn: 0,
 			overviewRulerLanes: 0,
 			glyphMargin: false,
-			lineNumbers: false,
+			lineNumbers: 'off',
 			folding: false,
 			selectOnLineNumbers: false,
 			selectionHighlight: false,
@@ -284,9 +270,10 @@ export class Repl extends Panel implements IPrivateReplService {
 			},
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
-			lineHeight: 21,
 			theme: this.themeService.getColorTheme(),
-			renderLineHighlight: false
+			renderLineHighlight: false,
+			fixedOverflowWidgets: true,
+			acceptSuggestionOnEnter: false
 		};
 	}
 
@@ -365,6 +352,19 @@ class AcceptReplInputAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+		SuggestController.get(editor).acceptSelectedSuggestion();
 		accessor.get(IPrivateReplService).acceptReplInput();
 	}
 }
+
+const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+	id: 'repl.action.acceptSuggestion',
+	precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
+	handler: x => x.acceptSelectedSuggestion(),
+	kbOpts: {
+		weight: 50,
+		kbExpr: EditorContextKeys.TextFocus,
+		primary: KeyCode.RightArrow
+	}
+}));
