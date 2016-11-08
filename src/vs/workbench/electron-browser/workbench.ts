@@ -564,7 +564,7 @@ export class Workbench implements IPartService {
 		return offset;
 	}
 
-	private getCustomTitleBarStyle(): string {
+	private getCustomTitleBarStyle(): 'custom' {
 		if (!isMacintosh) {
 			return null; // custom title bar is only supported on Mac currently
 		}
@@ -764,22 +764,19 @@ export class Workbench implements IPartService {
 			return; // we need to be ready
 		}
 
+		// Apply as CSS class
 		const isFullscreen = browser.isFullscreen();
-		const hasCustomTitle = !!this.getCustomTitleBarStyle();
 		if (isFullscreen) {
 			this.addClass('fullscreen');
-
-			if (hasCustomTitle) {
-				this._onTitleBarVisibilityChange.fire();
-				this.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
-			}
 		} else {
 			this.removeClass('fullscreen');
+		}
 
-			if (hasCustomTitle) {
-				this._onTitleBarVisibilityChange.fire();
-				this.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
-			}
+		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
+		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
+		if (hasCustomTitle) {
+			this._onTitleBarVisibilityChange.fire();
+			this.layout(); // handle title bar when fullscreen changes
 		}
 	}
 
