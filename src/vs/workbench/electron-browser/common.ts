@@ -23,7 +23,6 @@ export interface IWindowConfiguration {
 		reopenFolders: string;
 		restoreFullscreen: boolean;
 		zoomLevel: number;
-		macOSTitlebarStyle: string;
 		titleBarStyle: 'native' | 'custom' | 'hidden';
 	};
 }

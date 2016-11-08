@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 .monaco-workbench > .part.activitybar {
 	z-index: 20;
 	width: 50px;
@@ -57,7 +56,7 @@
 }
 
 /* Remove spacing above the activitybar icons to as there are no traffic lights fullscreen */
-.titlebar-style-hidden .monaco-workbench.mac.fullscreen > .activitybar > .content > .monaco-action-bar.vertical {
+.titlebar-style-hidden .monaco-workbench.fullscreen > .activitybar > .content > .monaco-action-bar.vertical {
 	top: 0px;
 	width:100%;
 }

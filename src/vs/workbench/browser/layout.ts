@@ -91,9 +91,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.parent = parent;
 		this.workbenchContainer = workbenchContainer;

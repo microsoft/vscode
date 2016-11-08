@@ -163,3 +163,11 @@ if (platform.isMacintosh) {
 		'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 	};
 }
+
+configurationRegistry.registerConfiguration({
+	'id': 'window',
+	'order': 8,
+	'title': nls.localize('windowConfigurationTitle', "Window"),
+	'type': 'object',
+	'properties': properties
+});

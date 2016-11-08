@@ -62,14 +62,6 @@ class ZoomManager {
 			(<any>ctx).backingStorePixelRatio || 1;
 		return dpr / bsr;
 	}
-
-	public getZoomFactor(): number {
-		return this._zoomFactor;
-	}
-
-	public setZoomFactor(zoomFactor: number): void {
-		this._zoomFactor = zoomFactor;
-	}
 }
 
 /** A zoom index, e.g. 1, 2, 3 */

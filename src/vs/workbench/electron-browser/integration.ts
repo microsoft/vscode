@@ -158,10 +158,6 @@ export class ElectronIntegration {
 			});
 		});
 
-		// Ensure others can listen to zoom level changes
-		browser.setZoomLevel(webFrame.getZoomLevel());
-		browser.setZoomFactor(webFrame.getZoomFactor());
-
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
 		this.configurationService.onDidUpdateConfiguration(e => {
