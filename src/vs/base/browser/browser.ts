@@ -9,9 +9,11 @@ import * as Platform from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-class ZoomManager {
+class WindowManager {
 
-	public static INSTANCE = new ZoomManager();
+	public static INSTANCE = new WindowManager();
+
+	private _fullscreen: boolean;
 
 	private _zoomLevel: number = 0;
 	private _zoomFactor: number = 0;
@@ -21,6 +23,9 @@ class ZoomManager {
 
 	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
 	public onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
+
+	private _onDidChangeFullscreen: Emitter<void> = new Emitter<void>();
+	public onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
 
 	public getZoomLevel(): number {
 		return this._zoomLevel;
@@ -62,27 +67,49 @@ class ZoomManager {
 			(<any>ctx).backingStorePixelRatio || 1;
 		return dpr / bsr;
 	}
+
+	public setFullscreen(fullscreen: boolean): void {
+		if (this._fullscreen === fullscreen) {
+			return;
+		}
+
+		this._fullscreen = fullscreen;
+		this._onDidChangeFullscreen.fire();
+	}
+
+	public isFullscreen(): boolean {
+		return this._fullscreen;
+	}
 }
 
 /** A zoom index, e.g. 1, 2, 3 */
 export function getZoomLevel(): number {
-	return ZoomManager.INSTANCE.getZoomLevel();
+	return WindowManager.INSTANCE.getZoomLevel();
 }
 /** The zoom scale for an index, e.g. 1, 1.2, 1.4 */
 export function getZoomFactor(): number {
-	return ZoomManager.INSTANCE.getZoomFactor();
+	return WindowManager.INSTANCE.getZoomFactor();
 }
 export function getPixelRatio(): number {
-	return ZoomManager.INSTANCE.getPixelRatio();
+	return WindowManager.INSTANCE.getPixelRatio();
 }
 export function setZoomLevel(zoomLevel: number): void {
-	ZoomManager.INSTANCE.setZoomLevel(zoomLevel);
+	WindowManager.INSTANCE.setZoomLevel(zoomLevel);
 }
 export function setZoomFactor(zoomFactor: number): void {
-	ZoomManager.INSTANCE.setZoomFactor(zoomFactor);
+	WindowManager.INSTANCE.setZoomFactor(zoomFactor);
 }
 export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
-	return ZoomManager.INSTANCE.onDidChangeZoomLevel(callback);
+	return WindowManager.INSTANCE.onDidChangeZoomLevel(callback);
+}
+export function setFullscreen(fullscreen: boolean): void {
+	WindowManager.INSTANCE.setFullscreen(fullscreen);
+}
+export function isFullscreen(): boolean {
+	return WindowManager.INSTANCE.isFullscreen();
+}
+export function onDidChangeFullscreen(callback: () => void): IDisposable {
+	return WindowManager.INSTANCE.onDidChangeFullscreen(callback);
 }
 
 const userAgent = navigator.userAgent;

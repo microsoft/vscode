@@ -96,6 +96,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	userEnv: platform.IProcessEnvironment;
 
 	zoomLevel?: number;
+	fullscreen?: boolean;
 
 	workspacePath?: string;
 
@@ -441,6 +442,9 @@ export class VSCodeWindow {
 		if (typeof zoomLevel === 'number') {
 			windowConfiguration.zoomLevel = zoomLevel;
 		}
+
+		// Set fullscreen state
+		windowConfiguration.fullscreen = this._win.isFullScreen();
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);
