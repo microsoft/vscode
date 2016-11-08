@@ -17,7 +17,7 @@ export interface IViewletService {
 
 	onDidViewletOpen: Event<IViewlet>;
 	onDidViewletClose: Event<IViewlet>;
-	onDidViewletRegister: Event<ViewletDescriptor>;
+	onDidExtensionViewletsLoad: Event<void>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
