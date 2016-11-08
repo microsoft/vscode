@@ -226,7 +226,6 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 	}
 
 	public provideTextDocumentContent(uri: Uri): Thenable<string> {
-
 		return vscode.workspace.openTextDocument(Uri.parse(uri.query)).then(document => {
 			const head = [].concat(
 				'<!DOCTYPE html>',
@@ -240,8 +239,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 				'</head>',
 				'<body>'
 			).join('\n');
-
-			const body = this._renderer.render(document.getText());
+			const body = this._renderer.render(this.getDocumentContentForPreview(document));
 
 			const tail = [
 				'</body>',
@@ -264,5 +262,14 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 				this._onDidChange.fire(uri);
 			}, 300);
 		}
+	}
+
+	private getDocumentContentForPreview(document: vscode.TextDocument): string {
+		const content = document.getText();
+		const stripYamlFrontMatter = vscode.workspace.getConfiguration('markdown')['stripYamlFrontMatter'];
+		if (stripYamlFrontMatter) {
+			return content.replace(/^-{3}[ \t]*(\r\n|\n)(.|\r\n|\n)*?(\r\n|\n)-{3}[ \t]*(\r\n|\n)/, '');
+		}
+		return content;
 	}
 }
