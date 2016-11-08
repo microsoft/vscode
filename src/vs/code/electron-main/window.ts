@@ -227,6 +227,10 @@ export class VSCodeWindow {
 		this.registerListeners();
 	}
 
+	public hasHiddenTitleBarStyle(): boolean {
+		return this.options && this.options.titleBarStyle === 'custom';
+	}
+
 	public get isPluginDevelopmentHost(): boolean {
 		return !!this._extensionDevelopmentPath;
 	}

@@ -61,7 +61,12 @@ export class WindowsService implements IWindowsService {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (vscodeWindow) {
-			vscodeWindow.win.webContents.toggleDevTools();
+			const contents = vscodeWindow.win.webContents;
+			if (vscodeWindow.hasHiddenTitleBarStyle() && !vscodeWindow.win.isFullScreen() && !contents.isDevToolsOpened()) {
+				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
+			} else {
+				contents.toggleDevTools();
+			}
 		}
 
 		return TPromise.as(null);
