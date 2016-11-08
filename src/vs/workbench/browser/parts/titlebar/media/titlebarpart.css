@@ -31,14 +31,6 @@
 	zoom: 1; /* prevent zooming */
 }
 
-.titlebar-style-custom .monaco-workbench.fullscreen .quick-open-widget {
-	top: 0;
-}
-
-.titlebar-style-custom .monaco-workbench .quick-open-widget {
-	top: 22px; /* push down quick open when we have a custom title bar */
-}
-
 /* Theming */
 
 .vs .monaco-workbench > .part.titlebar {
