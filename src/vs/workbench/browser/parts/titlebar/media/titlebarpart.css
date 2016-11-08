@@ -16,17 +16,8 @@
 	-webkit-user-select: none;
 	-webkit-app-region: drag;
 	zoom: 1; /* prevent zooming */
-}
-
-.monaco-workbench > .part.titlebar,
-.titlebar-style-custom .monaco-workbench.fullscreen > .part.titlebar {
-	height: 0; /* needs extra class to be enabled (also disabled in fullscreen mode) */
-	display: none;
-}
-
-.titlebar-style-custom .monaco-workbench > .part.titlebar {
-	height: 22px;
 	line-height: 22px;
+	height: 22px;
 	display: flex;
 }
 

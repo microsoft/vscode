@@ -13,6 +13,7 @@ import strings = require('vs/base/common/strings');
 import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer } from 'vs/base/common/async';
+import * as browser from 'vs/base/browser/browser';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
@@ -529,7 +530,7 @@ export class Workbench implements IPartService {
 	public isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return this.isTitleBarHidden();
+				return !this.isTitleBarHidden();
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
@@ -542,18 +543,28 @@ export class Workbench implements IPartService {
 	}
 
 	public isTitleBarHidden(): boolean {
+		return !this.getCustomTitleBarStyle() || browser.isFullscreen();
+	}
+
+	private getCustomTitleBarStyle(): string {
 		if (!isMacintosh) {
-			return true; // custom title bar is only supported on Mac currently
+			return null; // custom title bar is only supported on Mac currently
 		}
 
 		const isDev = !this.environmentService.isBuilt || this.environmentService.extensionDevelopmentPath;
 		if (isDev) {
-			return true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+			return null; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 		}
 
 		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
 
-		return (windowConfig && windowConfig.window && windowConfig.window.titleBarStyle === 'native');
+		const style = windowConfig && windowConfig.window && windowConfig.window.titleBarStyle;
+
+		if (style === 'custom') {
+			return style;
+		}
+
+		return null;
 	}
 
 	public isStatusBarHidden(): boolean {
@@ -725,6 +736,31 @@ export class Workbench implements IPartService {
 
 		// Configuration changes
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.onDidUpdateConfiguration()));
+
+		// Fullscreen changes
+		this.toDispose.push(browser.onDidChangeFullscreen(() => this.onFullscreenChanged()));
+	}
+
+	private onFullscreenChanged(): void {
+		if (!this.isCreated) {
+			return; // we need to be ready
+		}
+
+		const isFullscreen = browser.isFullscreen();
+		const hasCustomTitle = !!this.getCustomTitleBarStyle();
+		if (isFullscreen) {
+			this.addClass('fullscreen');
+
+			if (hasCustomTitle) {
+				this.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
+			}
+		} else {
+			this.removeClass('fullscreen');
+
+			if (hasCustomTitle) {
+				this.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
+			}
+		}
 	}
 
 	private onEditorsChanged(): void {
@@ -797,8 +833,14 @@ export class Workbench implements IPartService {
 		}
 
 		// Apply title style if shown
-		if (!this.isTitleBarHidden()) {
-			DOM.addClass(this.parent, 'titlebar-style-custom');
+		const titleStyle = this.getCustomTitleBarStyle();
+		if (titleStyle) {
+			DOM.addClass(this.parent, `titlebar-style-${titleStyle}`);
+		}
+
+		// Apply fullscreen state
+		if (browser.isFullscreen()) {
+			this.workbench.addClass('fullscreen');
 		}
 
 		// Create Parts
