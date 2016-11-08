@@ -30,15 +30,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
 
-	// Serves two purposes:
-	// 1. Expose the viewletId that will be assigned to an extension viewlet,
-	//    which wouldn't know its viewletId until construction time.
-	// 2. When workbench restores sidebar, if the last-opened viewlet is an extension viewlet,
-	//    it'll set this value and defer restoration until all extensions are loaded.
-	private _extViewletIdToOpen: string;
-	public get extViewletIdToOpen() { return this._extViewletIdToOpen; };
-	public set extViewletIdToOpen(viewletId: string) { this._extViewletIdToOpen = viewletId; };
-
 	constructor(
 		id: string,
 		@IViewletService private viewletService: IViewletService,
@@ -62,7 +53,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
 
-		this.toUnbind.push(this.viewletService.onDidViewletRegister(() => this.onDidViewletRegister()));
+		this.toUnbind.push(this.viewletService.onDidViewletRegister(() => this.refreshViewletSwitcher()));
 	}
 
 	private onActiveCompositeChanged(composite: IComposite): void {
@@ -75,10 +66,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 		if (this.compositeIdToActions[composite.getId()]) {
 			this.compositeIdToActions[composite.getId()].deactivate();
 		}
-	}
-
-	private onDidViewletRegister(): void {
-		this.refreshViewletSwitcher();
 	}
 
 	public showActivity(compositeId: string, badge: IBadge, clazz?: string): void {
@@ -127,12 +114,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private toAction(composite: ViewletDescriptor): ActivityAction {
 		const action = this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite);
-		// Store the viewletId of the extension viewlet that is about to open.
-		// Later retrieved by TreeExplorerViewlet, which wouldn't know its id until
-		// its construction at runtime.
-		action.onOpenExtViewlet((viewletId) => {
-			this._extViewletIdToOpen = viewletId;
-		});
 
 		this.activityActionItems[action.id] = new ActivityActionItem(action, composite.name, this.getKeybindingLabel(composite.id));
 		this.compositeIdToActions[composite.id] = action;
