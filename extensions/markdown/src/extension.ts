@@ -10,12 +10,13 @@ import * as path from 'path';
 import { ExtensionContext, TextDocumentContentProvider, EventEmitter, Event, Uri, ViewColumn } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-
 interface IPackageInfo {
 	name: string;
 	version: string;
 	aiKey: string;
 }
+
+const markdownScheme = 'markdown';
 
 var telemetryReporter: TelemetryReporter;
 
@@ -25,7 +26,7 @@ export function activate(context: ExtensionContext) {
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	let provider = new MDDocumentContentProvider(context);
-	let registration = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
+	let registration = vscode.workspace.registerTextDocumentContentProvider(markdownScheme, provider);
 
 	let d1 = vscode.commands.registerCommand('markdown.showPreview', showPreview);
 	let d2 = vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true));
@@ -50,21 +51,28 @@ export function activate(context: ExtensionContext) {
 
 	vscode.workspace.onDidChangeConfiguration(() => {
 		vscode.workspace.textDocuments.forEach(document => {
-			if (document.uri.scheme === 'markdown') {
+			if (document.uri.scheme === markdownScheme) {
 				// update all generated md documents
 				provider.update(document.uri);
 			}
 		});
 	});
+
+	const watcher = vscode.workspace.createFileSystemWatcher('**/*.{md,markdown,markdn,mdown}', true, false, true);
+	watcher.onDidChange(documentUri => {
+		if (documentUri.scheme !== markdownScheme) {
+			provider.update(getMarkdownUri(documentUri));
+		}
+	});
 }
 
 function isMarkdownFile(document: vscode.TextDocument) {
 	return document.languageId === 'markdown'
-		&& document.uri.scheme !== 'markdown'; // prevent processing of own documents
+		&& document.uri.scheme !== markdownScheme; // prevent processing of own documents
 }
 
 function getMarkdownUri(uri: Uri) {
-	return uri.with({ scheme: 'markdown', path: uri.path + '.rendered', query: uri.toString() });
+	return uri.with({ scheme: markdownScheme, path: uri.path + '.rendered', query: uri.toString() });
 }
 
 function showPreview(uri?: Uri, sideBySide: boolean = false) {
@@ -226,7 +234,6 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 	}
 
 	public provideTextDocumentContent(uri: Uri): Thenable<string> {
-
 		return vscode.workspace.openTextDocument(Uri.parse(uri.query)).then(document => {
 			const head = [].concat(
 				'<!DOCTYPE html>',
