@@ -84,10 +84,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
-	const windowsMainService = accessor.get(IWindowsMainService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
-	const windowEventChannel = new WindowEventChannel(windowsMainService);
+	let windowsMainService: IWindowsMainService;
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
@@ -100,7 +99,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 			};
 
 			// handle on client side
-			windowsMainService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
+			if (windowsMainService) {
+				windowsMainService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
+			}
 		}
 
 		console.error('[uncaught exception in main]: ' + err);
@@ -141,10 +142,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const urlChannel = instantiationService.createInstance(URLChannel, urlService);
 	electronIpcServer.registerChannel('url', urlChannel);
 
-	const windowsService = accessor.get(IWindowsService);
-	const windowsChannel = new WindowsChannel(windowsService);
-	electronIpcServer.registerChannel('windows', windowsChannel);
-
 	// Spawn shared process
 	const initData = { args: environmentService.args };
 	const options = {
@@ -163,7 +160,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	// requires a connection to shared process, which was only established
 	// now.
 	const services = new ServiceCollection();
+
 	services.set(IUpdateService, new SyncDescriptor(UpdateService));
+	services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
+	services.set(IWindowsService, new SyncDescriptor(WindowsService));
 
 	if (environmentService.isBuilt && !environmentService.extensionDevelopmentPath && !!product.enableTelemetry) {
 		const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
@@ -184,7 +184,14 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		const updateChannel = new UpdateChannel(updateService);
 		electronIpcServer.registerChannel('update', updateChannel);
 
+		const windowsService = accessor.get(IWindowsService);
+		const windowsChannel = new WindowsChannel(windowsService);
+		electronIpcServer.registerChannel('windows', windowsChannel);
+
+		// TODO@Joao revisit this
 		// Register windowEvent
+		windowsMainService = accessor.get(IWindowsMainService);
+		const windowEventChannel = new WindowEventChannel(windowsMainService);
 		sharedProcess.done(client => client.registerChannel('windowEvent', windowEventChannel));
 
 		// Make sure we associate the program with the app user model id
@@ -485,8 +492,6 @@ function createServices(args): IInstantiationService {
 
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
 	services.set(ILogService, new SyncDescriptor(MainLogService));
-	services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
-	services.set(IWindowsService, new SyncDescriptor(WindowsService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStorageService, new SyncDescriptor(StorageService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
