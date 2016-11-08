@@ -17,6 +17,10 @@
 	<array>
 		<dict>
 			<key>include</key>
+			<string>#frontMatter</string>
+		</dict>
+		<dict>
+			<key>include</key>
 			<string>#block</string>
 		</dict>
 	</array>
@@ -1879,6 +1883,20 @@
 					<string>markup.raw.inline.markdown</string>
 				</dict>
 			</dict>
+		</dict>
+		<key>frontMatter</key>
+		<dict>
+			<key>begin</key>
+			<string>\A-{3}\s*$</string>
+			<key>while</key>
+			<string>^(?!-{3}\s*$)</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>source.yaml</string>
+				</dict>
+			</array>
 		</dict>
 	</dict>
 	<key>scopeName</key>
