@@ -17,9 +17,11 @@ import { Action } from 'vs/base/common/actions';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorOptions, EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IEditor, IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
@@ -231,7 +233,11 @@ export interface IEditorQuickOpenEntry {
  */
 export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuickOpenEntry {
 
-	constructor(private _editorService: IWorkbenchEditorService) {
+	constructor(
+		private _editorService: IWorkbenchEditorService,
+		private _historyService: IHistoryService,
+		protected _configurationService: IConfigurationService
+	) {
 		super();
 	}
 
@@ -250,34 +256,52 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		const hideWidget = (mode === Mode.OPEN);
 
+		let sideBySide;
 		if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
-			let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-
-			let openInBackgroundOptions: IEditorOptions;
-			if (mode === Mode.OPEN_IN_BACKGROUND) {
-				openInBackgroundOptions = { pinned: true, preserveFocus: true };
-			}
-
-			let input = this.getInput();
-			if (input instanceof EditorInput) {
-				let opts = this.getOptions();
-				if (opts) {
-					opts = objects.mixin(opts, openInBackgroundOptions, true);
-				} else if (openInBackgroundOptions) {
-					opts = EditorOptions.create(openInBackgroundOptions);
-				}
-
-				this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
-			} else {
-				const resourceInput = <IResourceInput>input;
-
-				if (openInBackgroundOptions) {
-					resourceInput.options = objects.assign(resourceInput.options || Object.create(null), openInBackgroundOptions);
-				}
-
-				this.editorService.openEditor(resourceInput, sideBySide).done(null, errors.onUnexpectedError);
-			}
+			sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 		}
+
+		let pinned;
+		let modeOverrideOptions: IEditorOptions;
+		if (mode === Mode.OPEN) {
+			pinned = !this._configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
+		} else if (mode === Mode.PREVIEW) {
+			pinned = false;
+			modeOverrideOptions = { forcePreview: true, pinned, revealIfVisible: true, preserveFocus: true };
+
+			this._historyService.block(true);
+		} else if (mode === Mode.OPEN_IN_BACKGROUND) {
+			pinned = true;
+			modeOverrideOptions = { pinned, preserveFocus: true };
+		}
+
+		let openEditorPromise: TPromise<IEditor>;
+		let input = this.getInput();
+		if (input instanceof EditorInput) {
+			let opts = this.getOptions();
+			if (opts) {
+				opts = objects.mixin(opts, modeOverrideOptions, true);
+			} else if (modeOverrideOptions) {
+				opts = EditorOptions.create(modeOverrideOptions);
+			}
+
+			openEditorPromise = this.editorService.openEditor(input, opts, sideBySide);
+		} else {
+			const resourceInput = <IResourceInput>input;
+
+			if (modeOverrideOptions) {
+				resourceInput.options = objects.assign(resourceInput.options || Object.create(null), modeOverrideOptions);
+			}
+
+			openEditorPromise = this.editorService.openEditor(resourceInput, sideBySide);
+		}
+
+		openEditorPromise.done(
+			() => this._historyService.block(false),
+			err => {
+				this._historyService.block(false);
+				errors.onUnexpectedError(err);
+			});
 
 		return hideWidget;
 	}

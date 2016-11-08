@@ -17,6 +17,9 @@ import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDelt
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -35,8 +38,8 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 	private column: number;
 	private handler: GotoLineHandler;
 
-	constructor(line: string, editorService: IWorkbenchEditorService, handler: GotoLineHandler) {
-		super(editorService);
+	constructor(line: string, editorService: IWorkbenchEditorService, historyService: IHistoryService, configurationService: IConfigurationService, handler: GotoLineHandler) {
+		super(editorService, historyService, configurationService);
 
 		this.parseInput(line);
 		this.handler = handler;
@@ -167,7 +170,12 @@ export class GotoLineHandler extends QuickOpenHandler {
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IHistoryService private historyService: IHistoryService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
 		super();
 	}
 
@@ -184,7 +192,11 @@ export class GotoLineHandler extends QuickOpenHandler {
 			this.lastKnownEditorViewState = (<IEditor>editor.getControl()).saveViewState();
 		}
 
-		return TPromise.as(new QuickOpenModel([new GotoLineEntry(searchValue, this.editorService, this)]));
+		const entry = this.instantiationService.createInstance(
+			GotoLineEntry, searchValue, this.editorService, this.historyService, this.configurationService, this
+		);
+
+		return TPromise.as(new QuickOpenModel([entry]));
 	}
 
 	public canRun(): boolean | string {

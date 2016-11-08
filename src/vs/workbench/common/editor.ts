@@ -440,6 +440,7 @@ export class EditorOptions implements IEditorOptions {
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
 		options.pinned = settings.pinned;
+		options.forcePreview = settings.forcePreview;
 		options.index = settings.index;
 		options.inactive = settings.inactive;
 
@@ -455,6 +456,7 @@ export class EditorOptions implements IEditorOptions {
 			this.forceOpen = other.forceOpen;
 			this.revealIfVisible = other.revealIfVisible;
 			this.pinned = other.pinned;
+			this.forcePreview = other.forcePreview;
 			this.index = other.index;
 			this.inactive = other.inactive;
 		}
@@ -485,6 +487,13 @@ export class EditorOptions implements IEditorOptions {
 	public pinned: boolean;
 
 	/**
+	 * Editor that is being shown with an `forcePreview` will override the `enablePreview` setting
+	 * of the workspace configuration to allow the editor to be shown as a preview editor while
+	 * selecting in the quick open widgets.
+	 */
+	public forcePreview: boolean;
+
+	/**
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	public index: number;
@@ -511,7 +520,7 @@ export class TextEditorOptions extends EditorOptions {
 	public static from(input: IResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
+			if (input.options.selection || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.forcePreview || input.options.inactive || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
@@ -536,6 +545,10 @@ export class TextEditorOptions extends EditorOptions {
 				options.pinned = true;
 			}
 
+			if (input.options.forcePreview) {
+				options.forcePreview = true;
+			}
+
 			if (input.options.inactive) {
 				options.inactive = true;
 			}
@@ -557,6 +570,7 @@ export class TextEditorOptions extends EditorOptions {
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
 		options.pinned = settings.pinned;
+		options.forcePreview = settings.forcePreview;
 		options.index = settings.index;
 
 		if (settings.selection) {

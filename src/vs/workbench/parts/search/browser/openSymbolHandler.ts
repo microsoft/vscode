@@ -18,6 +18,7 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import labels = require('vs/base/common/labels');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,11 +31,12 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	constructor(
 		private _bearing: IWorkspaceSymbol,
 		private _provider: IWorkspaceSymbolProvider,
-		@IConfigurationService private _configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(editorService);
+		super(editorService, historyService, configurationService);
 	}
 
 	public getLabel(): string {

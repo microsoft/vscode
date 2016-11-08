@@ -16,15 +16,17 @@ import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration } from 
 import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import scorer = require('vs/base/common/scorer');
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
-import { Position } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions, Position } from 'vs/platform/editor/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorInput, asFileEditorInput, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
+
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 	private stacks: IEditorStacksModel;
@@ -35,6 +37,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
+		@IHistoryService protected historyService: IHistoryService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
 		super();
@@ -77,16 +80,27 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			return this.runOpen(context);
+			this.runOpen(context);
+
+			return true;
+		} else if (mode === Mode.PREVIEW) {
+			this.runOpen(context, { forcePreview: true, pinned: false, revealIfVisible: true, preserveFocus: true });
+
+			return false;
 		}
 
 		return super.run(mode, context);
 	}
 
-	private runOpen(context: IEntryRunContext): boolean {
-		this.editorService.openEditor(this.editor, null, this.stacks.positionOfGroup(this.group)).done(null, errors.onUnexpectedError);
-
-		return true;
+	private runOpen(context: IEntryRunContext, options?: IEditorOptions | ITextEditorOptions) {
+		if (options.forcePreview) {
+			this.historyService.block(true);
+		}
+		this.editorService.openEditor(this.editor, options, this.stacks.positionOfGroup(this.group))
+			.done(() => this.historyService.block(false), err => {
+				this.historyService.block(false);
+				errors.onUnexpectedError(err);
+			});
 	}
 }
 

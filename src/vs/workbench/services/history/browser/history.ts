@@ -274,6 +274,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private stack: IStackEntry[];
 	private index: number;
 	private blockStackChanges: boolean;
+	private blockEditorHistoryChanges: boolean;
 	private currentFileEditorState: EditorState;
 
 	private history: (IEditorInput | IResourceInput)[];
@@ -377,6 +378,16 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.recentlyClosedFiles = [];
 	}
 
+	public block(block: boolean) {
+		if (block) {
+			this.blockStackChanges = true;
+			this.blockEditorHistoryChanges = true;
+		} else {
+			this.blockStackChanges = false;
+			this.blockEditorHistoryChanges = false;
+		}
+	}
+
 	private navigate(): void {
 		const entry = this.stack[this.index];
 
@@ -417,7 +428,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		const input = editor ? editor.input : void 0;
 
 		// Ensure we have at least a name to show
-		if (!input || !input.getName()) {
+		if (this.blockEditorHistoryChanges || !input || !input.getName()) {
 			return;
 		}
 

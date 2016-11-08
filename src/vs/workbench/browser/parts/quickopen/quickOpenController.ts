@@ -30,11 +30,10 @@ import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { EditorInput, getUntitledOrFileResource } from 'vs/workbench/common/editor';
 import { WorkbenchComponent } from 'vs/workbench/common/component';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
 import errors = require('vs/base/common/errors');
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -46,6 +45,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 const HELP_PREFIX = '?';
 const QUICK_OPEN_MODE = new RawContextKey<boolean>('inQuickOpen', false);
@@ -94,6 +94,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	private previousActiveHandlerDescriptor: QuickOpenHandlerDescriptor;
 	private actionProvider = new ContributableActionProvider();
 	private previousValue = '';
+	private previousActiveEditorInput: IEditorInput;
+	private previousPreviewEditorInput: IEditorInput;
 	private visibilityChangeTimeoutHandle: number;
 	private closeOnFocusLost: boolean;
 
@@ -106,7 +108,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		super(QuickOpenController.ID);
 
@@ -267,7 +270,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				withElementById(this.partService.getWorkbenchElementId()).getHTMLElement(),
 				{
 					onOk: () => { /* ignore, handle later */ },
-					onCancel: () => { /* ignore, handle later */ },
+					onCancel: () => this.handleOnCancel(true),
 					onType: (value: string) => { /* ignore, handle later */ },
 					onShow: () => this.handleOnShow(true),
 					onHide: (reason) => this.handleOnHide(true, reason)
@@ -479,6 +482,15 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.previousValue = prefix;
 
+		// Track active editor before navigation
+		const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
+
+		// Determine if there was a preview editor already open
+		if (activeGroup) {
+			this.previousActiveEditorInput = activeGroup.activeEditor;
+			this.previousPreviewEditorInput = activeGroup.previewEditor;
+		}
+
 		const promiseCompletedOnHide = new TPromise<void>(c => {
 			this.promisesToCompleteOnHide.push(c);
 		});
@@ -499,7 +511,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				withElementById(this.partService.getWorkbenchElementId()).getHTMLElement(),
 				{
 					onOk: () => { /* ignore */ },
-					onCancel: () => { /* ignore */ },
+					onCancel: () => this.handleOnCancel(false),
 					onType: (value: string) => this.onType(value || ''),
 					onShow: () => this.handleOnShow(false),
 					onHide: (reason) => this.handleOnHide(false, reason),
@@ -547,6 +559,33 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 
 		return promiseCompletedOnHide;
+	}
+
+	private handleOnCancel(isPicker: boolean): void {
+		// restore the editor part state after cancelling
+		this.historyService.block(true);
+
+		// restore the previous preview editor
+		if (this.previousPreviewEditorInput) {
+			this.editorService.openEditor(this.previousPreviewEditorInput, { preserveFocus: true });
+		}
+		// otherwise close the preview editor that was created with eager preview
+		else {
+			const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
+			const groupPosition = this.editorGroupService.getStacksModel().positionOfGroup(activeGroup);
+			if (activeGroup && activeGroup.previewEditor) {
+				this.editorService.closeEditor(groupPosition, activeGroup.previewEditor);
+			}
+		}
+
+		// restore the prevously active tab
+		this.editorService.openEditor(this.previousActiveEditorInput).done(
+			() => this.historyService.block(false),
+			err => {
+				this.historyService.block(false);
+				errors.onUnexpectedError(err);
+			}
+		);
 	}
 
 	private handleOnShow(isPicker: boolean): void {
@@ -1048,9 +1087,10 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@IModelService private modelService: IModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IHistoryService private historyService: IHistoryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(editorService);
+		super(editorService, historyService, configurationService);
 
 		this.input = input;
 
@@ -1103,19 +1143,6 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
-			const sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-			const pinned = !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
-
-			if (this.input instanceof EditorInput) {
-				this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);
-			} else {
-				this.editorService.openEditor({ resource: (this.input as IResourceInput).resource, options: { pinned } }, sideBySide);
-			}
-
-			return true;
-		}
-
 		return super.run(mode, context);
 	}
 }

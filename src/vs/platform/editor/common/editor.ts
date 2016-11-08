@@ -175,6 +175,12 @@ export interface IEditorOptions {
 	pinned?: boolean;
 
 	/**
+	 * Editor that is being shown with an `forcePreview` will override the `enablePreview` setting
+	 * of the workspace configuration to allow the editor to be shown as a preview editor.
+	 */
+	forcePreview?: boolean;
+
+	/**
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	index?: number;
