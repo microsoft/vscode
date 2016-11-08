@@ -112,8 +112,6 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		let breakingLengths: number[] = []; // The length of each broken-up line text
 		let breakingLengthsIndex: number = 0; // The count of breaks already done
 		let visibleColumn = 0; // Visible column since the beginning of the current line
-		let breakBeforeOffset: number; // 0-based offset in the lineText before which breaking
-		let restoreVisibleColumnFrom: number;
 		let niceBreakOffset = -1; // Last index of a character that indicates a break should happen before it (more desirable)
 		let niceBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `niceBreakOffset`
 		let obtrusiveBreakOffset = -1; // Last index of a character that indicates a break should happen before it (less desirable)
@@ -133,7 +131,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				// Since we are certain the character before `i` fits, there's no extra checking needed,
 				// just mark it as a nice breaking opportunity
 				niceBreakOffset = i;
-				niceBreakVisibleColumn = 0;
+				niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
 			}
 
 			// CJK breaking : before break
@@ -142,7 +140,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				let prevClass = classifier.get(prevCode);
 				if (prevClass !== CharacterClass.BREAK_BEFORE) { // Kinsoku Shori: Don't break after a leading character, like an open bracket
 					niceBreakOffset = i;
-					niceBreakVisibleColumn = 0;
+					niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
 				}
 			}
 
@@ -159,6 +157,9 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				//  - break before niceBreakLastOffset if it exists (and re-establish a correct visibleColumn by using niceBreakVisibleColumn + charAt(i))
 				//  - otherwise, break before obtrusiveBreakLastOffset if it exists (and re-establish a correct visibleColumn by using obtrusiveBreakVisibleColumn + charAt(i))
 				//  - otherwise, break before i (and re-establish a correct visibleColumn by charAt(i))
+
+				let breakBeforeOffset: number;
+				let restoreVisibleColumnFrom: number;
 
 				if (niceBreakOffset !== -1) {
 
