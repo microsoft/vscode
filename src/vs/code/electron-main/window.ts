@@ -179,7 +179,7 @@ export class VSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
-		if (this.options.titleBarStyle === 'custom' && platform.isMacintosh) {
+		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom')) {
 			const isDev = !this.environmentService.isBuilt || this.environmentService.extensionDevelopmentPath;
 			if (!isDev) {
 				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
