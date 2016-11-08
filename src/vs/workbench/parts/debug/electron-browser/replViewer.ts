@@ -98,7 +98,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		// group 3: line number
 		// group 4: column number
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/((\/|[a-zA-Z]:\\)?[^\(\)<>\'\"\[\]:]+):(\d+)(?::(\d+))?/
+		/(?:file:\/\/)?((\/|[a-zA-Z]:\\)?[^\(\)<>\'\"\[\]:]+):(\d+)(?::(\d+))?/
 	];
 
 	private static LINE_HEIGHT_PX = 18;
