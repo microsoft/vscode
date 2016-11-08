@@ -70,7 +70,7 @@ export interface IPartService {
 	/**
 	 * Returns iff the custom titlebar part is visible.
 	 */
-	hasCustomTitleBar(): boolean;
+	isTitleBarHidden(): boolean;
 
 	/**
 	 * Number of pixels (adjusted for zooming) that the title bar (if visible) pushes down the workbench contents.
