@@ -445,13 +445,13 @@ export class DebugService implements debug.IDebugService {
 		if (!process) {
 			process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
 		}
-		if (process && !focusedStackFrame) {
-			const thread = process.getAllThreads().pop();
-			const callStack = thread ? thread.getCachedCallStack() : null;
+		const thread = focusedStackFrame ? focusedStackFrame.thread : (process ? process.getAllThreads().pop() : null);
+		if (thread && !focusedStackFrame) {
+			const callStack = thread.getCachedCallStack();
 			focusedStackFrame = callStack && callStack.length ? callStack[0] : null;
 		}
 
-		this.viewModel.setFocusedStackFrame(focusedStackFrame, process);
+		this.viewModel.setFocusedStackFrame(focusedStackFrame, thread, process);
 		this._onDidChangeState.fire();
 
 		return this.model.evaluateWatchExpressions(process, focusedStackFrame);
@@ -645,7 +645,7 @@ export class DebugService implements debug.IDebugService {
 				this.viewModel.setMultiProcessView(true);
 			}
 			if (!this.viewModel.focusedProcess) {
-				this.viewModel.setFocusedStackFrame(null, process);
+				this.viewModel.setFocusedStackFrame(null, null, process);
 				this._onDidChangeState.fire();
 			}
 			this.toDisposeOnSessionEnd[session.getId()] = [];
