@@ -18,20 +18,10 @@ import { Win32AutoUpdaterImpl } from './auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from './auto-updater.linux';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IRequestService } from 'vs/platform/request/common/request';
 import product from 'vs/platform/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUpdateService, State, IAutoUpdater, IUpdate, IRawUpdate } from 'vs/platform/update/common/update';
-
-// TODO@Joao: add telemetry
-//
-// this.updateService.onUpdateReady(update => {
-// 	this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
-// });
-
-// this.updateService.onUpdateNotAvailable(explicit => {
-// 	this.sendToFocused('vscode:telemetry', { eventName: 'update:notAvailable', data: { explicit } });
-// });
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class UpdateService implements IUpdateService {
 
@@ -97,7 +87,7 @@ export class UpdateService implements IUpdateService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IRequestService requestService: IRequestService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		if (process.platform === 'win32') {
 			this.raw = instantiationService.createInstance(Win32AutoUpdaterImpl);
@@ -108,6 +98,8 @@ export class UpdateService implements IUpdateService {
 		} else {
 			return;
 		}
+
+		telemetryService.publicLog('whattt', { yeah: 123 });
 
 		const channel = this.getUpdateChannel();
 		const feedUrl = this.getUpdateFeedUrl(channel);
@@ -167,6 +159,7 @@ export class UpdateService implements IUpdateService {
 			if (!update) {
 				this._onUpdateNotAvailable.fire(explicit);
 				this.state = State.Idle;
+				this.telemetryService.publicLog('update:notAvailable', { explicit });
 
 			} else if (update.url) {
 				const data: IUpdate = {
@@ -190,6 +183,7 @@ export class UpdateService implements IUpdateService {
 				this._availableUpdate = data;
 				this._onUpdateReady.fire(data);
 				this.state = State.UpdateDownloaded;
+				this.telemetryService.publicLog('update:downloaded', { version: update.version });
 			}
 
 			return update;
