@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { decodeTextMateToken, decodeTextMateTokens, DecodeMap, TMScopeRegistry } from 'vs/editor/node/textMate/TMSyntax';
+import { decodeTextMateToken, decodeTextMateTokens, DecodeMap, TMScopeRegistry, TMLanguageRegistration } from 'vs/editor/node/textMate/TMSyntax';
 import { TMState } from 'vs/editor/common/modes/TMState';
 
 suite('TextMate.TMScopeRegistry', () => {
@@ -13,19 +13,19 @@ suite('TextMate.TMScopeRegistry', () => {
 	test('getFilePath', () => {
 		let registry = new TMScopeRegistry();
 
-		registry.register('a', 'source.a', './grammar/a.tmLanguage');
+		registry.register('source.a', './grammar/a.tmLanguage');
 		assert.equal(registry.getFilePath('source.a'), './grammar/a.tmLanguage');
 		assert.equal(registry.getFilePath('a'), null);
 		assert.equal(registry.getFilePath('source.b'), null);
 		assert.equal(registry.getFilePath('b'), null);
 
-		registry.register('b', 'source.b', './grammar/b.tmLanguage');
+		registry.register('source.b', './grammar/b.tmLanguage');
 		assert.equal(registry.getFilePath('source.a'), './grammar/a.tmLanguage');
 		assert.equal(registry.getFilePath('a'), null);
 		assert.equal(registry.getFilePath('source.b'), './grammar/b.tmLanguage');
 		assert.equal(registry.getFilePath('b'), null);
 
-		registry.register('a', 'source.a', './grammar/ax.tmLanguage');
+		registry.register('source.a', './grammar/ax.tmLanguage');
 		assert.equal(registry.getFilePath('source.a'), './grammar/ax.tmLanguage');
 		assert.equal(registry.getFilePath('a'), null);
 		assert.equal(registry.getFilePath('source.b'), './grammar/b.tmLanguage');
@@ -34,10 +34,7 @@ suite('TextMate.TMScopeRegistry', () => {
 
 	test('scopeToLanguage', () => {
 		let registry = new TMScopeRegistry();
-
-		assert.equal(registry.scopeToLanguage('source.html'), null);
-
-		registry.registerEmbeddedLanguages({
+		registry.register('source.html', './grammar/html.tmLanguage', {
 			'source.html': 'html',
 			'source.c': 'c',
 			'source.css': 'css',
@@ -46,29 +43,30 @@ suite('TextMate.TMScopeRegistry', () => {
 			'source.smarty': 'smarty',
 			'source.baz': null,
 		});
+		let languageRegistration = registry.getLanguageRegistration('source.html');
 
 		// exact matches
-		assert.equal(registry.scopeToLanguage('source.html'), 'html');
-		assert.equal(registry.scopeToLanguage('source.css'), 'css');
-		assert.equal(registry.scopeToLanguage('source.c'), 'c');
-		assert.equal(registry.scopeToLanguage('source.js'), 'javascript');
-		assert.equal(registry.scopeToLanguage('source.python'), 'python');
-		assert.equal(registry.scopeToLanguage('source.smarty'), 'smarty');
+		assert.equal(languageRegistration.scopeToLanguage('source.html'), 'html');
+		assert.equal(languageRegistration.scopeToLanguage('source.css'), 'css');
+		assert.equal(languageRegistration.scopeToLanguage('source.c'), 'c');
+		assert.equal(languageRegistration.scopeToLanguage('source.js'), 'javascript');
+		assert.equal(languageRegistration.scopeToLanguage('source.python'), 'python');
+		assert.equal(languageRegistration.scopeToLanguage('source.smarty'), 'smarty');
 
 		// prefix matches
-		assert.equal(registry.scopeToLanguage('source.css.embedded.html'), 'css');
-		assert.equal(registry.scopeToLanguage('source.js.embedded.html'), 'javascript');
-		assert.equal(registry.scopeToLanguage('source.python.embedded.html'), 'python');
-		assert.equal(registry.scopeToLanguage('source.smarty.embedded.html'), 'smarty');
+		assert.equal(languageRegistration.scopeToLanguage('source.css.embedded.html'), 'css');
+		assert.equal(languageRegistration.scopeToLanguage('source.js.embedded.html'), 'javascript');
+		assert.equal(languageRegistration.scopeToLanguage('source.python.embedded.html'), 'python');
+		assert.equal(languageRegistration.scopeToLanguage('source.smarty.embedded.html'), 'smarty');
 
 		// misses
-		assert.equal(registry.scopeToLanguage('source.ts'), null);
-		assert.equal(registry.scopeToLanguage('source.csss'), null);
-		assert.equal(registry.scopeToLanguage('source.baz'), null);
-		assert.equal(registry.scopeToLanguage('asource.css'), null);
-		assert.equal(registry.scopeToLanguage('a.source.css'), null);
-		assert.equal(registry.scopeToLanguage('source_css'), null);
-		assert.equal(registry.scopeToLanguage('punctuation.definition.tag.html'), null);
+		assert.equal(languageRegistration.scopeToLanguage('source.ts'), null);
+		assert.equal(languageRegistration.scopeToLanguage('source.csss'), null);
+		assert.equal(languageRegistration.scopeToLanguage('source.baz'), null);
+		assert.equal(languageRegistration.scopeToLanguage('asource.css'), null);
+		assert.equal(languageRegistration.scopeToLanguage('a.source.css'), null);
+		assert.equal(languageRegistration.scopeToLanguage('source_css'), null);
+		assert.equal(languageRegistration.scopeToLanguage('punctuation.definition.tag.html'), null);
 	});
 
 });
@@ -77,8 +75,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 
 	test('embedded modes', () => {
 		let registry = new TMScopeRegistry();
-
-		registry.registerEmbeddedLanguages({
+		registry.register('source.html', './grammar/html.tmLanguage', {
 			'source.html': 'html',
 			'source.c': 'c',
 			'source.css': 'css',
@@ -87,8 +84,9 @@ suite('TextMate.decodeTextMateTokens', () => {
 			'source.smarty': 'smarty',
 			'source.baz': null,
 		});
+		let languageRegistration = registry.getLanguageRegistration('source.html');
 
-		let decodeMap = new DecodeMap(registry, 'source.html');
+		let decodeMap = new DecodeMap(languageRegistration);
 		let actual = decodeTextMateTokens(
 			'text<style>body{}</style><script>var x=3;</script>text',
 			0,
@@ -377,7 +375,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 
 		let registry = new TMScopeRegistry();
 
-		registry.registerEmbeddedLanguages({
+		registry.register('text.html.php', null, {
 			'text.html': 'html',
 			'source.php': 'php',
 			'source.sql': 'sql',
@@ -387,7 +385,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 			'source.css': 'css'
 		});
 
-		let decodeMap = new DecodeMap(registry, 'text.html.php');
+		let decodeMap = new DecodeMap(registry.getLanguageRegistration('text.html.php'));
 
 		for (let i = 0, len = tests.length; i < len; i++) {
 			let test = tests[i];
@@ -818,7 +816,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 
 		let registry = new TMScopeRegistry();
 
-		registry.registerEmbeddedLanguages({
+		registry.register('text.html.basic', null, {
 			'text.html.basic': 'html',
 			'source.css': 'css',
 			'source.js': 'javascript',
@@ -826,7 +824,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 			'source.smarty': 'smarty'
 		});
 
-		let decodeMap = new DecodeMap(registry, 'text.html.basic');
+		let decodeMap = new DecodeMap(registry.getLanguageRegistration('text.html.basic'));
 
 		for (let i = 0, len = tests.length; i < len; i++) {
 			let test = tests[i];
@@ -838,6 +836,75 @@ suite('TextMate.decodeTextMateTokens', () => {
 			assert.deepEqual(actualTokens, test.tokens, 'test ' + test.line);
 			assert.deepEqual(actualModeTransitions, test.modeTransitions, 'test ' + test.line);
 		}
+	});
+
+	test('issue #14661: Comment shortcut in SCSS now using CSS style comments', () => {
+		let tests = [
+			{
+				line: 'class {',
+				tmTokens: [
+					{ startIndex: 0, endIndex: 6, scopes: [ 'source.css.scss' ] },
+					{ startIndex: 6, endIndex: 7, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'punctuation.section.property-list.begin.bracket.curly.scss' ] }
+				],
+				tokens: [
+					{ startIndex: 0, type: '' },
+					{ startIndex: 6, type: 'meta.property-list.scss.punctuation.section.begin.bracket.curly' }
+				],
+				modeTransitions: [
+					{ startIndex: 0, modeId: 'scss' }
+				]
+			}, {
+				line: '    background: red;',
+				tmTokens: [
+					{ startIndex: 0, endIndex: 4, scopes: [ 'source.css.scss', 'meta.property-list.scss' ] },
+					{ startIndex: 4, endIndex: 14, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'meta.property-name.scss', 'support.type.property-name.scss' ] },
+					{ startIndex: 14, endIndex: 15, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'punctuation.separator.key-value.scss' ] },
+					{ startIndex: 15, endIndex: 16, scopes: [ 'source.css.scss', 'meta.property-list.scss' ] },
+					{ startIndex: 16, endIndex: 19, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'meta.property-value.scss', 'support.constant.color.w3c-standard-color-name.scss' ] },
+					{ startIndex: 19, endIndex: 20, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'punctuation.terminator.rule.scss' ] }
+				],
+				tokens: [
+					{ startIndex: 0, type: 'meta.property-list.scss' },
+					{ startIndex: 4, type: 'meta.property-list.scss.property-name.support.type' },
+					{ startIndex: 14, type: 'meta.property-list.scss.punctuation.separator.key-value' },
+					{ startIndex: 15, type: 'meta.property-list.scss' },
+					{ startIndex: 16, type: 'meta.property-list.scss.support.property-value.constant.color.w3c-standard-color-name' },
+					{ startIndex: 19, type: 'meta.property-list.scss.punctuation.terminator.rule' }
+				],
+				modeTransitions: [
+					{ startIndex: 0, modeId: 'scss' }
+				]
+			}, {
+				line: '}',
+				tmTokens: [
+					{ startIndex: 0, endIndex: 1, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'punctuation.section.property-list.end.bracket.curly.scss' ] }
+				],
+				tokens: [
+					{ startIndex: 0, type: 'meta.property-list.scss.punctuation.section.bracket.curly.end' }
+				],
+				modeTransitions: [
+					{ startIndex: 0, modeId: 'scss' }
+				]
+			}
+		];
+
+		let registry = new TMScopeRegistry();
+
+		registry.register('source.css.scss', './syntaxes/scss.json');
+
+		let decodeMap = new DecodeMap(registry.getLanguageRegistration('source.css.scss'));
+
+		for (let i = 0, len = tests.length; i < len; i++) {
+			let test = tests[i];
+			let actual = decodeTextMateTokens(test.line, 0, decodeMap, test.tmTokens, new TMState('scss', null, null));
+
+			let actualTokens = actual.tokens.map((t) => { return { startIndex: t.startIndex, type: t.type }; });
+			let actualModeTransitions = actual.modeTransitions.map((t) => { return { startIndex: t.startIndex, modeId: t.modeId }; });
+
+			assert.deepEqual(actualTokens, test.tokens, 'test ' + test.line);
+			assert.deepEqual(actualModeTransitions, test.modeTransitions, 'test ' + test.line);
+		}
+
 	});
 });
 
@@ -874,7 +941,7 @@ suite('textMate', () => {
 	}
 
 	function testDecodeTextMateToken(input: string[][], expected: string[]): void {
-		let decodeMap = new DecodeMap(new TMScopeRegistry(), null);
+		let decodeMap = new DecodeMap(new TMLanguageRegistration(null, null, null, null));
 
 		for (let i = 0; i < input.length; i++) {
 			testOneDecodeTextMateToken(decodeMap, input[i], expected[i]);
