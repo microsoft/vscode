@@ -28,7 +28,11 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import wbar = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction, PushToRemoteAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction, InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction } from './gitActions';
+import {
+	OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction,
+	PushToRemoteAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction,
+	InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction
+} from './gitActions';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 
