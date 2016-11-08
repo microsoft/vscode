@@ -215,8 +215,8 @@ export abstract class BaseZoomAction extends Action {
 
 		const applyZoom = () => {
 			webFrame.setZoomLevel(level);
-			browser.setZoomLevel(level); // Ensure others can listen to zoom level changes
 			browser.setZoomFactor(webFrame.getZoomFactor());
+			browser.setZoomLevel(level); // Ensure others can listen to zoom level changes
 		};
 
 		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }).done(() => applyZoom(), error => applyZoom());
