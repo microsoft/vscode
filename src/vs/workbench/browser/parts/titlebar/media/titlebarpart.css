@@ -31,14 +31,12 @@
 	zoom: 1; /* prevent zooming */
 }
 
-.titlebar-style-custom .monaco-workbench.fullscreen .quick-open-widget,
-.titlebar-style-custom .global-message-list {
+.titlebar-style-custom .monaco-workbench.fullscreen .quick-open-widget {
 	top: 0;
 }
 
-.titlebar-style-custom .monaco-workbench .quick-open-widget,
-.titlebar-style-custom .global-message-list {
-	top: 22px; /* push down quick open and messages when we have a custom title bar */
+.titlebar-style-custom .monaco-workbench .quick-open-widget {
+	top: 22px; /* push down quick open when we have a custom title bar */
 }
 
 /* Theming */
