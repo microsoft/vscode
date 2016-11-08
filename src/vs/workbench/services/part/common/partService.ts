@@ -6,6 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 
 export enum Parts {
 	ACTIVITYBAR_PART,
@@ -30,6 +31,11 @@ export const IPartService = createDecorator<IPartService>('partService');
 
 export interface IPartService {
 	_serviceBrand: ServiceIdentifier<any>;
+
+	/**
+	 * Emits when the visibility of the title bar changes.
+	 */
+	onTitleBarVisibilityChange: Event<void>;
 
 	/**
 	 * Asks the part service to layout all parts.
@@ -65,6 +71,11 @@ export interface IPartService {
 	 * Returns iff the custom titlebar part is visible.
 	 */
 	isTitleBarHidden(): boolean;
+
+	/**
+	 * Number of pixels (adjusted for zooming) that the title bar (if visible) pushes down the workbench contents.
+	 */
+	getTitleBarOffset(): number;
 
 	/**
 	 * Checks if the statusbar is currently hidden or not

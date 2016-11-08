@@ -10,6 +10,7 @@ import 'vs/css!./media/workbench';
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
+import Event, { Emitter } from 'vs/base/common/event';
 import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer } from 'vs/base/common/async';
@@ -120,6 +121,8 @@ export class Workbench implements IPartService {
 	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 
+	private _onTitleBarVisibilityChange: Emitter<void>;
+
 	public _serviceBrand: any;
 
 	private parent: HTMLElement;
@@ -187,9 +190,15 @@ export class Workbench implements IPartService {
 		this.toShutdown = [];
 		this.editorBackgroundDelayer = new Delayer<void>(50);
 
+		this._onTitleBarVisibilityChange = new Emitter<void>();
+
 		this.creationPromise = new TPromise<boolean>(c => {
 			this.creationPromiseComplete = c;
 		});
+	}
+
+	public get onTitleBarVisibilityChange(): Event<void> {
+		return this._onTitleBarVisibilityChange.event;
 	}
 
 	/**
@@ -546,6 +555,15 @@ export class Workbench implements IPartService {
 		return !this.getCustomTitleBarStyle() || browser.isFullscreen();
 	}
 
+	public getTitleBarOffset(): number {
+		let offset = 0;
+		if (!this.isTitleBarHidden()) {
+			offset = 22 / browser.getZoomFactor(); // adjust the position based on title bar size and zoom factor
+		}
+
+		return offset;
+	}
+
 	private getCustomTitleBarStyle(): string {
 		if (!isMacintosh) {
 			return null; // custom title bar is only supported on Mac currently
@@ -752,12 +770,14 @@ export class Workbench implements IPartService {
 			this.addClass('fullscreen');
 
 			if (hasCustomTitle) {
+				this._onTitleBarVisibilityChange.fire();
 				this.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
 			}
 		} else {
 			this.removeClass('fullscreen');
 
 			if (hasCustomTitle) {
+				this._onTitleBarVisibilityChange.fire();
 				this.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
 			}
 		}

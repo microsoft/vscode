@@ -211,6 +211,10 @@ export class MessageList {
 	}
 
 	private positionMessageList(animate?: boolean): void {
+		if (!this.messageListContainer) {
+			return; // not yet created
+		}
+
 		$(this.messageListContainer).removeClass('transition'); // disable any animations
 
 		let position = 0;
