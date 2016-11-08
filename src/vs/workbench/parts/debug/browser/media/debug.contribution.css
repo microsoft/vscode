@@ -140,14 +140,6 @@
 	padding-left: 7px;
 }
 
-.titlebar-style-custom .monaco-workbench.fullscreen .debug-actions-widget {
-	top: 0;
-}
-
-.titlebar-style-custom .monaco-workbench .debug-actions-widget {
-	top: 22px; /* push down debug toolbar when we have a custom title bar */
-}
-
 .monaco-workbench .debug-actions-widget .monaco-action-bar .action-item.select-container {
 	margin-right: 7px;
 }

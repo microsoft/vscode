@@ -555,7 +555,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	private positionQuickOpenWidget(): void {
-		let titlebarOffset = this.partService.getTitleBarOffset();
+		const titlebarOffset = this.partService.getTitleBarOffset();
 
 		if (this.quickOpenWidget) {
 			this.quickOpenWidget.getElement().style('top', `${titlebarOffset}px`);

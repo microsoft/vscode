@@ -6,6 +6,7 @@
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
+import * as browser from 'vs/base/browser/browser';
 import severity from 'vs/base/common/severity';
 import * as builder from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
@@ -51,7 +52,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		@IPartService private partService: IPartService,
 		@IStorageService private storageService: IStorageService
 	) {
-		this.$el = $().div().addClass('debug-actions-widget');
+		this.$el = $().div().addClass('debug-actions-widget').style('top', `${partService.getTitleBarOffset()}px`);
 		this.dragArea = $().div().addClass('drag-area');
 		this.$el.append(this.dragArea);
 
@@ -124,6 +125,15 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 				$window.off('mousemove');
 			});
 		});
+
+		this.toDispose.push(this.partService.onTitleBarVisibilityChange(() => this.positionDebugWidget()));
+		this.toDispose.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
+	}
+
+	private positionDebugWidget(): void {
+		const titlebarOffset = this.partService.getTitleBarOffset();
+
+		$(this.$el).style('top', `${titlebarOffset}px`);
 	}
 
 	private setXCoordinate(x?: number): void {
