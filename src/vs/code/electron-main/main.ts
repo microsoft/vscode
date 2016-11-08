@@ -8,6 +8,7 @@
 import * as nls from 'vs/nls';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
+import { trim } from 'vs/base/common/strings';
 import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
@@ -242,8 +243,15 @@ function updateJumpList(windowsMainService: IWindowsMainService, logService: ILo
 	});
 
 	// Recent Folders
-	const folders = windowsMainService.getRecentPathsList().folders;
-	if (folders.length > 0) {
+	if (windowsMainService.getRecentPathsList().folders.length > 0) {
+
+		// The user might have meanwhile removed items from the jump list and we have to respect that
+		// so we need to update our list of recent paths with the choice of the user to not add them again
+		// Also: Windows will not show our custom category at all if there is any entry which was removed
+		// by the user! See https://github.com/Microsoft/vscode/issues/15052
+		windowsMainService.removeFromRecentPathsList(app.getJumpListSettings().removedItems.map(r => trim(r.args, '"')));
+
+		// Add entries
 		jumpList.push({
 			type: 'custom',
 			name: nls.localize('recentFolders', "Recent Folders"),
@@ -253,11 +261,11 @@ function updateJumpList(windowsMainService: IWindowsMainService, logService: ILo
 					title: path.basename(folder) || folder, // use the base name to show shorter entries in the list
 					description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
 					program: process.execPath,
-					args: `"${folder}"`, // open folder (use quotes to support paths with whitespaces),
+					args: `"${folder}"`, // open folder (use quotes to support paths with whitespaces)
 					iconPath: 'explorer.exe', // simulate folder icon
 					iconIndex: 0
 				};
-			})
+			}).filter(i => !!i)
 		});
 	}
 

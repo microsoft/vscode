@@ -120,6 +120,7 @@ export interface IWindowsMainService {
 	getWindowCount(): number;
 	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
 	removeFromRecentPathsList(path: string);
+	removeFromRecentPathsList(path: string[]);
 	clearRecentPathsList(): void;
 	toggleMenuBar(windowId: number): void;
 }
@@ -552,21 +553,32 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
 	}
 
-	public removeFromRecentPathsList(path: string): void {
+	public removeFromRecentPathsList(path: string): void;
+	public removeFromRecentPathsList(paths: string[]): void;
+	public removeFromRecentPathsList(arg1: any): void {
+		let paths: string[];
+		if (Array.isArray(arg1)) {
+			paths = arg1;
+		} else {
+			paths = [arg1];
+		}
+
 		const mru = this.getRecentPathsList();
 		let update = false;
 
-		let index = mru.files.indexOf(path);
-		if (index >= 0) {
-			mru.files.splice(index, 1);
-			update = true;
-		}
+		paths.forEach(path => {
+			let index = mru.files.indexOf(path);
+			if (index >= 0) {
+				mru.files.splice(index, 1);
+				update = true;
+			}
 
-		index = mru.folders.indexOf(path);
-		if (index >= 0) {
-			mru.folders.splice(index, 1);
-			update = true;
-		}
+			index = mru.folders.indexOf(path);
+			if (index >= 0) {
+				mru.folders.splice(index, 1);
+				update = true;
+			}
+		});
 
 		if (update) {
 			this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
