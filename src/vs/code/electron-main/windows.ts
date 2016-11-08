@@ -25,6 +25,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/code/electron-main/log';
 import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
@@ -152,7 +153,8 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) { }
 
 	onOpen(clb: (path: IPath) => void): () => void {
@@ -296,7 +298,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			this.logService.log(error); // be on the safe side with these hardware method calls
 		}
 
-		window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart, totalmem, cpus } });
+		this.telemetryService.publicLog('startupTime', { ellapsed: Date.now() - global.vscodeStart, totalmem, cpus });
 	}
 
 	private onBroadcast(event: string, payload: any): void {

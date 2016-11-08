@@ -107,10 +107,6 @@ export class ElectronIntegration {
 			}, () => errors.onUnexpectedError);
 		});
 
-		ipc.on('vscode:telemetry', (event, { eventName, data }) => {
-			this.telemetryService.publicLog(eventName, data);
-		});
-
 		ipc.on('vscode:reportError', (event, error) => {
 			if (error) {
 				const errorParsed = JSON.parse(error);
