@@ -170,8 +170,9 @@ export class UpdateService implements IUpdateService {
 
 			} else if (update.url) {
 				const data: IUpdate = {
+					url: update.url,
 					releaseNotes: '',
-					version: '',
+					version: update.version,
 					date: new Date()
 				};
 

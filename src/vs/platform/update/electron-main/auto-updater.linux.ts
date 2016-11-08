@@ -17,7 +17,9 @@ interface IUpdate {
 	url: string;
 	name: string;
 	releaseNotes?: string;
-	version?: string;
+	version: string;
+	productVersion: string;
+	hash: string;
 }
 
 export class LinuxAutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
@@ -52,10 +54,10 @@ export class LinuxAutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 		this.currentRequest = this.requestService.request({ url: this.url })
 			.then<IUpdate>(asJson)
 			.then(update => {
-				if (!update || !update.url || !update.version) {
+				if (!update || !update.url || !update.version || !update.productVersion) {
 					this.emit('update-not-available');
 				} else {
-					this.emit('update-available', null, product.downloadUrl, update.version);
+					this.emit('update-available', null, product.downloadUrl, update.productVersion);
 				}
 			})
 			.then(null, e => {

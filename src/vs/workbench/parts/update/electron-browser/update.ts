@@ -10,6 +10,7 @@ import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import URI from 'vs/base/common/uri';
@@ -169,13 +170,16 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 	}
 }
 
-export const DownloadAction = (url: string) => new Action(
-	'update.download',
-	nls.localize('downloadNow', "Download Now"),
-	null,
-	true,
-	() => { window.open(url); return TPromise.as(true); }
-);
+export class DownloadAction extends Action {
+
+	constructor(private url: string, @IWindowsService private windowsService: IWindowsService) {
+		super('update.download', nls.localize('downloadNow', "Download Now"), null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.windowsService.openExternal(this.url);
+	}
+}
 
 const LinkAction = (id: string, message: string, licenseUrl: string) => new Action(
 	id, message, null, true,
@@ -258,15 +262,12 @@ export class UpdateContribution implements IWorkbenchContribution {
 		});
 
 		updateService.onUpdateAvailable(update => {
-			if (!update.url) {
-				return;
-			}
-
+			const downloadAction = instantiationService.createInstance(DownloadAction, update.version);
 			const releaseNotesAction = instantiationService.createInstance(ShowReleaseNotesAction, false, update.version);
 
 			messageService.show(severity.Info, {
 				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
-				actions: [DownloadAction(update.url), NotNowAction, releaseNotesAction]
+				actions: [downloadAction, NotNowAction, releaseNotesAction]
 			});
 		});
 
