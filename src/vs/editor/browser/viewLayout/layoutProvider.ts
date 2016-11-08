@@ -5,6 +5,7 @@
 'use strict';
 
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
@@ -267,7 +268,9 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	public getTotalHeight(): number {
 		let reserveHorizontalScrollbarHeight = 0;
 		if (this.scrollManager.getScrollWidth() > this.scrollManager.getWidth()) {
-			reserveHorizontalScrollbarHeight = this.configuration.editor.viewInfo.scrollbar.horizontalScrollbarSize;
+			if (this.configuration.editor.viewInfo.scrollbar.horizontal !== ScrollbarVisibility.Hidden) {
+				reserveHorizontalScrollbarHeight = this.configuration.editor.viewInfo.scrollbar.horizontalScrollbarSize;
+			}
 		}
 		return this.linesLayout.getTotalHeight(this.getCurrentViewport(), reserveHorizontalScrollbarHeight);
 	}

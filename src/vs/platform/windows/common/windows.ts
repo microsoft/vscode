@@ -26,6 +26,9 @@ export interface IWindowsService {
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(windowId: number): TPromise<void>;
+	isMaximized(windowId: number): TPromise<boolean>;
+	maximizeWindow(windowId: number): TPromise<void>;
+	unmaximizeWindow(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
 	toggleMenuBar(windowId: number): TPromise<void>;
 
@@ -68,4 +71,7 @@ export interface IWindowService {
 	focusWindow(): TPromise<void>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	toggleMenuBar(): TPromise<void>;
+	isMaximized(): TPromise<boolean>;
+	maximizeWindow(): TPromise<void>;
+	unmaximizeWindow(): TPromise<void>;
 }

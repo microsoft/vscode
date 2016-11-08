@@ -54,7 +54,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		return result === 0 ? true : false;
 	}
 
-	choose(severity: Severity, message: string, options: string[], modal: boolean = false): TPromise<number> {
+	public choose(severity: Severity, message: string, options: string[], modal: boolean = false): TPromise<number> {
 		if (modal) {
 			const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
 			return TPromise.wrap(this.showMessageBox({ message, buttons: options, type }));
