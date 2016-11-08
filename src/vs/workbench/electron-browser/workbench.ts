@@ -225,16 +225,27 @@ export class Workbench implements IPartService {
 			// Load composits and editors in parallel
 			const compositeAndEditorPromises: TPromise<any>[] = [];
 
-			// Load Viewlet
+			// Restore last opened viewlet
 			const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
-			let viewletId = viewletRegistry.getDefaultViewletId();
-			if (this.shouldRestoreSidebar()) {
-				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletId); // help developers and restore last view
-			}
+			if (this.shouldRestoreSidebar() && !this.sideBarHidden) {
+				const lastOpenedViewlet = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
 
-			if (!this.sideBarHidden && !!viewletId) {
-				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
-				compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
+				// If last viewlet is extension viewlet and enabled, delay its restoration until extension loading
+				if (!viewletRegistry.getViewlet(lastOpenedViewlet) && this.viewletService.isViewletEnabled(lastOpenedViewlet)) {
+					this.viewletService.onDidExtensionViewletsLoad(() => {
+						this.sidebarPart.openViewlet(lastOpenedViewlet, false).done();
+					});
+				}
+				// Load last viewlet immediately
+				else {
+					let viewletId = lastOpenedViewlet;
+					// If last viewlet is extension viewlet and disabled, load default (File Explorer) viewlet
+					if (!viewletRegistry.getViewlet(lastOpenedViewlet)) {
+						viewletId = viewletRegistry.getDefaultViewletId();
+					}
+					const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
+					compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
+				}
 			}
 
 			// Load Panel

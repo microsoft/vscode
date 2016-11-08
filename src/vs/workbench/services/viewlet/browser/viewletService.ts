@@ -16,18 +16,18 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 export class ViewletService implements IViewletService {
 
-	private static ENABLED_EXT_VIEWLETS = 'workbench.viewlet.enabledExtViewlets';
+	public static readonly ENABLED_EXT_VIEWLETS = 'workbench.viewlet.enabledExtViewlets';
 
 	public _serviceBrand: any;
 
 	private sidebarPart: ISidebar;
 	private enabledExtViewletIds: string[];
 	private extViewlets: ViewletDescriptor[];
-	private _onDidViewletRegister = new Emitter<ViewletDescriptor>();
+	private _onDidExtensionViewletsLoad = new Emitter<void>();
 
 	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; };
 	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; };
-	public get onDidViewletRegister(): Event<ViewletDescriptor> { return this._onDidViewletRegister.event; };
+	public get onDidExtensionViewletsLoad(): Event<void> { return this._onDidExtensionViewletsLoad.event; };
 
 	constructor(
 		sidebarPart: ISidebar,
@@ -41,19 +41,19 @@ export class ViewletService implements IViewletService {
 		this.extViewlets = [];
 
 		this.extensionService.onReady().then(() => {
-			const viewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
-			this.onExtensionServiceReady(viewlets);
+			this.onExtensionServiceReady();
 		});
 	}
 
-	private onExtensionServiceReady(viewlets: ViewletDescriptor[]): void {
+	private onExtensionServiceReady(): void {
+		const viewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
 		viewlets.forEach(v => {
 			if (v.isExtension) {
 				this.extViewlets.push(v);
 			}
 		});
 
-		this._onDidViewletRegister.fire(null);
+		this._onDidExtensionViewletsLoad.fire(null);
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
@@ -69,7 +69,7 @@ export class ViewletService implements IViewletService {
 		}
 
 		this.setEnabledExtViewlets();
-		this._onDidViewletRegister.fire();
+		this._onDidExtensionViewletsLoad.fire();
 		return TPromise.as(null);
 	}
 

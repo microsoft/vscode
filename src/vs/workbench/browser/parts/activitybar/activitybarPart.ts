@@ -52,7 +52,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
 
-		this.toUnbind.push(this.viewletService.onDidViewletRegister(() => this.refreshViewletSwitcher()));
+		this.toUnbind.push(this.viewletService.onDidExtensionViewletsLoad(() => this.refreshViewletSwitcher()));
 	}
 
 	private onActiveCompositeChanged(composite: IComposite): void {
