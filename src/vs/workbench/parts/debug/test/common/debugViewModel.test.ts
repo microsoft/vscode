@@ -26,7 +26,7 @@ suite('Debug - View Model', () => {
 		const process = new Process('mockProcess', mockSession);
 		const thread = new Thread(process, 'myThread', 1);
 		const frame = new StackFrame(thread, 1, null, 'app.js', 1, 1);
-		model.setFocusedStackFrame(frame, process);
+		model.setFocusedStackFrame(frame, thread, process);
 
 		assert.equal(model.focusedStackFrame, frame);
 		assert.equal(model.focusedThread.threadId, 1);

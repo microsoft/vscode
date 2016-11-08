@@ -442,13 +442,13 @@ export class DebugService implements debug.IDebugService {
 	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
 		const processes = this.model.getProcesses();
 		const process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
+		const thread = focusedStackFrame ? focusedStackFrame.thread : (process ? process.getAllThreads().pop() : null);
 		if (process && !focusedStackFrame) {
-			const thread = process.getAllThreads().pop();
 			const callStack = thread ? thread.getCachedCallStack() : null;
 			focusedStackFrame = callStack && callStack.length ? callStack[0] : null;
 		}
 
-		this.viewModel.setFocusedStackFrame(focusedStackFrame, process);
+		this.viewModel.setFocusedStackFrame(focusedStackFrame, thread, process);
 		this._onDidChangeState.fire();
 		if (focusedStackFrame) {
 			return this.model.evaluateWatchExpressions(process, focusedStackFrame);
