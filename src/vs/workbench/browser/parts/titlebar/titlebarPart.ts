@@ -7,9 +7,12 @@
 
 import 'vs/css!./media/titlebarpart';
 import { Builder, $, Dimension } from 'vs/base/browser/builder';
+import DOM = require('vs/base/browser/dom');
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { getZoomFactor } from 'vs/base/browser/browser';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import errors = require('vs/base/common/errors');
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -20,6 +23,13 @@ export class TitlebarPart extends Part implements ITitleService {
 	private pendingTitle: string;
 	private initialTitleFontSize: number;
 
+	constructor(
+		id: string,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id);
+	}
+
 	public createContentArea(parent: Builder): Builder {
 		this.titleContainer = $(parent);
 
@@ -29,7 +39,24 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.title.text(this.pendingTitle);
 		}
 
+		// Maximize/Restore on doubleclick
+		this.titleContainer.on(DOM.EventType.DBLCLICK, (e) => {
+			DOM.EventHelper.stop(e);
+
+			this.onTitleDoubleclick();
+		});
+
 		return this.titleContainer;
+	}
+
+	private onTitleDoubleclick(): void {
+		this.windowService.isMaximized().then(maximized => {
+			if (maximized) {
+				this.windowService.unmaximizeWindow().done(null, errors.onUnexpectedError);
+			} else {
+				this.windowService.maximizeWindow().done(null, errors.onUnexpectedError);
+			}
+		}, errors.onUnexpectedError);
 	}
 
 	public updateTitle(title: string): void {

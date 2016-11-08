@@ -123,6 +123,36 @@ export class WindowsService implements IWindowsService {
 		return TPromise.as(null);
 	}
 
+	isMaximized(windowId: number): TPromise<boolean> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			return TPromise.as(vscodeWindow.win.isMaximized());
+		}
+
+		return TPromise.as(null);
+	}
+
+	maximizeWindow(windowId: number): TPromise<void> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			vscodeWindow.win.maximize();
+		}
+
+		return TPromise.as(null);
+	}
+
+	unmaximizeWindow(windowId: number): TPromise<void> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			vscodeWindow.win.unmaximize();
+		}
+
+		return TPromise.as(null);
+	}
+
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 
