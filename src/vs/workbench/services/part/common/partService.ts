@@ -62,7 +62,7 @@ export interface IPartService {
 	isVisible(part: Parts): boolean;
 
 	/**
-	 * Returns iff the titlebar part is currently hidden or not.
+	 * Returns iff the custom titlebar part is visible.
 	 */
 	isTitleBarHidden(): boolean;
 

@@ -141,22 +141,12 @@ export class ElectronIntegration {
 		ipc.on('vscode:enterFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				browser.setFullscreen(true);
-				this.partService.addClass('fullscreen');
-
-				if (!this.partService.isTitleBarHidden()) {
-					this.partService.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
-				}
 			});
 		});
 
 		ipc.on('vscode:leaveFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				browser.setFullscreen(false);
-				this.partService.removeClass('fullscreen');
-
-				if (!this.partService.isTitleBarHidden()) {
-					this.partService.layout({ forceStyleRecompute: true }); // handle title bar when fullscreen changes
-				}
 			});
 		});
 
