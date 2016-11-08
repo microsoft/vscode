@@ -51,8 +51,8 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
 	// Ensure others can listen to zoom level changes
-	browser.setZoomLevel(webFrame.getZoomLevel());
 	browser.setZoomFactor(webFrame.getZoomFactor());
+	browser.setZoomLevel(webFrame.getZoomLevel());
 	browser.setFullscreen(!!configuration.fullscreen);
 
 	// Shell Options

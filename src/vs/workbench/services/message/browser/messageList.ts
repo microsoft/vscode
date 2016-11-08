@@ -83,6 +83,7 @@ export class MessageList {
 
 	private registerListeners(): void {
 		browser.onDidChangeFullscreen(() => this.positionMessageList());
+		browser.onDidChangeZoomLevel(() => this.positionMessageList());
 	}
 
 	public get onMessagesShowing(): Event<void> {
@@ -202,14 +203,16 @@ export class MessageList {
 			// Support animation for messages by moving the container out of view and then in
 			if (animate) {
 				setTimeout(() => {
-					$(this.messageListContainer).addClass('transition');
 					this.positionMessageList();
+					$(this.messageListContainer).addClass('transition');
 				}, 50 /* Need this delay to reliably get the animation on some browsers */);
 			}
 		});
 	}
 
-	private positionMessageList(): void {
+	private positionMessageList(animate?: boolean): void {
+		$(this.messageListContainer).removeClass('transition'); // disable any animations
+
 		let position = 0;
 		if (!browser.isFullscreen() && DOM.hasClass(this.container, 'titlebar-style-custom')) {
 			position = 22 / browser.getZoomFactor(); // adjust the position based on title bar size and zoom factor
