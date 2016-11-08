@@ -8,6 +8,7 @@
 import * as nls from 'vs/nls';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
+import { trim } from 'vs/base/common/strings';
 import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
@@ -203,56 +204,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const menu = instantiationService.createInstance(VSCodeMenu);
 	menu.ready();
 
-	// Install JumpList on Windows
+	// Install JumpList on Windows (keep updated when windows open)
 	if (platform.isWindows) {
-		const jumpList: Electron.JumpListCategory[] = [];
-
-		// Tasks
-		jumpList.push({
-			type: 'tasks',
-			items: [
-				{
-					type: 'task',
-					title: nls.localize('newWindow', "New Window"),
-					description: nls.localize('newWindowDesc', "Opens a new window"),
-					program: process.execPath,
-					args: '-n', // force new window
-					iconPath: process.execPath,
-					iconIndex: 0
-				}
-			]
-		});
-
-		// Recent Folders
-		const folders = windowsMainService.getRecentPathsList().folders;
-		if (folders.length > 0) {
-			jumpList.push({
-				type: 'custom',
-				name: nls.localize('recentFolders', "Recent Folders"),
-				items: windowsMainService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
-					return <Electron.JumpListItem>{
-						type: 'task',
-						title: path.basename(folder) || folder, // use the base name to show shorter entries in the list
-						description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
-						program: process.execPath,
-						args: folder, // open folder,
-						iconPath: 'explorer.exe', // simulate folder icon
-						iconIndex: 0
-					};
-				})
-			});
-		}
-
-		// Recent
-		jumpList.push({
-			type: 'recent' // this enables to show files in the "recent" category
-		});
-
-		try {
-			app.setJumpList(jumpList);
-		} catch (error) {
-			logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
-		}
+		updateJumpList(windowsMainService, logService);
+		windowsMainService.onOpen(() => updateJumpList(windowsMainService, logService));
 	}
 
 	// Setup auto update
@@ -265,6 +220,64 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		windowsMainService.open({ cli: environmentService.args, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
 		windowsMainService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff }); // default: read paths from cli
+	}
+}
+
+function updateJumpList(windowsMainService: IWindowsMainService, logService: ILogService): void {
+	const jumpList: Electron.JumpListCategory[] = [];
+
+	// Tasks
+	jumpList.push({
+		type: 'tasks',
+		items: [
+			{
+				type: 'task',
+				title: nls.localize('newWindow', "New Window"),
+				description: nls.localize('newWindowDesc', "Opens a new window"),
+				program: process.execPath,
+				args: '-n', // force new window
+				iconPath: process.execPath,
+				iconIndex: 0
+			}
+		]
+	});
+
+	// Recent Folders
+	if (windowsMainService.getRecentPathsList().folders.length > 0) {
+
+		// The user might have meanwhile removed items from the jump list and we have to respect that
+		// so we need to update our list of recent paths with the choice of the user to not add them again
+		// Also: Windows will not show our custom category at all if there is any entry which was removed
+		// by the user! See https://github.com/Microsoft/vscode/issues/15052
+		windowsMainService.removeFromRecentPathsList(app.getJumpListSettings().removedItems.map(r => trim(r.args, '"')));
+
+		// Add entries
+		jumpList.push({
+			type: 'custom',
+			name: nls.localize('recentFolders', "Recent Folders"),
+			items: windowsMainService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
+				return <Electron.JumpListItem>{
+					type: 'task',
+					title: path.basename(folder) || folder, // use the base name to show shorter entries in the list
+					description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
+					program: process.execPath,
+					args: `"${folder}"`, // open folder (use quotes to support paths with whitespaces)
+					iconPath: 'explorer.exe', // simulate folder icon
+					iconIndex: 0
+				};
+			}).filter(i => !!i)
+		});
+	}
+
+	// Recent
+	jumpList.push({
+		type: 'recent' // this enables to show files in the "recent" category
+	});
+
+	try {
+		app.setJumpList(jumpList);
+	} catch (error) {
+		logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 	}
 }
 

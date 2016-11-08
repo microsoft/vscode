@@ -641,6 +641,9 @@ export class DebugService implements debug.IDebugService {
 			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
 			const process = this.model.addProcess(configuration.name, session);
 
+			if (this.model.getProcesses().length > 1) {
+				this.viewModel.setMultiProcessView(true);
+			}
 			if (!this.viewModel.focusedProcess) {
 				this.viewModel.setFocusedStackFrame(null, process);
 				this._onDidChangeState.fire();
@@ -818,6 +821,7 @@ export class DebugService implements debug.IDebugService {
 			this.model.updateBreakpoints(data);
 
 			this.inDebugMode.reset();
+			this.viewModel.setMultiProcessView(false);
 
 			if (!this.partService.isSideBarHidden() && this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {
 				this.viewletService.openViewlet(EXPLORER_VIEWLET_ID).done(null, errors.onUnexpectedError);

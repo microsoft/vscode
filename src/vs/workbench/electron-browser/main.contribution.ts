@@ -16,8 +16,9 @@ import platform = require('vs/base/common/platform');
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { CloseEditorAction, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
+import { CloseEditorAction, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext, NoEditorsVisibleContext } from 'vs/workbench/electron-browser/workbench';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 const closeEditorOrWindowKeybindings: IKeybindings = { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } };
 
@@ -30,7 +31,6 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWin
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWindowAction, CloseWindowAction.ID, CloseWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL), 'Switch Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseFolderAction, CloseFolderAction.ID, CloseFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Folder', fileCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent', fileCategory);
 if (!!product.reportIssueUrl) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportIssueAction, ReportIssueAction.ID, ReportIssueAction.LABEL), 'Help: Report Issues', helpCategory);
 }
@@ -126,43 +126,40 @@ configurationRegistry.registerConfiguration({
 });
 
 // Configuration: Window
-configurationRegistry.registerConfiguration({
-	'id': 'window',
-	'order': 8,
-	'title': nls.localize('windowConfigurationTitle', "Window"),
-	'type': 'object',
-	'properties': {
-		'window.openFilesInNewWindow': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('openFilesInNewWindow', "When enabled, will open files in a new window instead of reusing an existing instance.")
-		},
-		'window.reopenFolders': {
-			'type': 'string',
-			'enum': ['none', 'one', 'all'],
-			'default': 'one',
-			'description': nls.localize('reopenFolders', "Controls how folders are being reopened after a restart. Select 'none' to never reopen a folder, 'one' to reopen the last folder you worked on or 'all' to reopen all folders of your last session.")
-		},
-		'window.restoreFullscreen': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
-		},
-		'window.zoomLevel': {
-			'type': 'number',
-			'default': 0,
-			'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
-		},
-		'window.showFullPath': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
-		},
-		'window.macOSTitlebarStyle': {
-			'type': 'string',
-			'enum': ['default', 'inline'],
-			'default': 'default',
-			'description': nls.localize('macOSTitlebarStyle', "Adjust the styles of the window toolbar. Currently the options are default, and an inline style that is only applied on macOS with a left sidebar. Note changes require a full restart to apply.")
-		}
+let properties: { [path: string]: IJSONSchema; } = {
+	'window.openFilesInNewWindow': {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('openFilesInNewWindow', "When enabled, will open files in a new window instead of reusing an existing instance.")
+	},
+	'window.reopenFolders': {
+		'type': 'string',
+		'enum': ['none', 'one', 'all'],
+		'default': 'one',
+		'description': nls.localize('reopenFolders', "Controls how folders are being reopened after a restart. Select 'none' to never reopen a folder, 'one' to reopen the last folder you worked on or 'all' to reopen all folders of your last session.")
+	},
+	'window.restoreFullscreen': {
+		'type': 'boolean',
+		'default': false,
+		'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
+	},
+	'window.zoomLevel': {
+		'type': 'number',
+		'default': 0,
+		'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
+	},
+	'window.showFullPath': {
+		'type': 'boolean',
+		'default': false,
+		'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
 	}
-});
+};
+
+if (platform.isMacintosh) {
+	properties['window.titleBarStyle'] = {
+		'type': 'string',
+		'enum': ['native', 'custom', 'hidden'],
+		'default': 'custom',
+		'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
+	};
+}

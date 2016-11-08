@@ -36,6 +36,14 @@ class ZoomManager {
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
+	public getZoomFactor(): number {
+		return this._zoomFactor;
+	}
+
+	public setZoomFactor(zoomFactor: number): void {
+		this._zoomFactor = zoomFactor;
+	}
+
 	public getPixelRatio(): number {
 		if (!this._pixelRatioComputed) {
 			this._pixelRatioCache = this._computePixelRatio();

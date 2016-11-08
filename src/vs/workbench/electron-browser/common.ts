@@ -24,5 +24,6 @@ export interface IWindowConfiguration {
 		restoreFullscreen: boolean;
 		zoomLevel: number;
 		macOSTitlebarStyle: string;
+		titleBarStyle: 'native' | 'custom' | 'hidden';
 	};
 }

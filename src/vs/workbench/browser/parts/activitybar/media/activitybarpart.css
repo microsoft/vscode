@@ -6,7 +6,6 @@
 
 .monaco-workbench > .part.activitybar {
 	z-index: 20;
-	min-width: 50px;
 	width: 50px;
 }
 
@@ -41,7 +40,7 @@
 }
 
 /* Allow dragging on the wider activitybar */
-.monaco-workbench.mac.use-inline-toolbar > .part.activitybar {
+.titlebar-style-hidden .monaco-workbench > .part.activitybar {
 	min-width: unset;
 	max-width: unset;
 	width: 68px;
@@ -50,7 +49,7 @@
 }
 
 /* Spacing above the activitybar icons to fit the traffic lights, and zooming doesn't affect icons offset */
-.monaco-workbench.mac.use-inline-toolbar > .activitybar > .content > .monaco-action-bar.vertical {
+.titlebar-style-hidden .monaco-workbench > .activitybar > .content > .monaco-action-bar.vertical {
 	top: 28px;
 	position: absolute;
 	zoom: reset;
@@ -58,7 +57,7 @@
 }
 
 /* Remove spacing above the activitybar icons to as there are no traffic lights fullscreen */
-.monaco-workbench.mac.fullscreen.use-inline-toolbar > .activitybar > .content > .monaco-action-bar.vertical {
+.titlebar-style-hidden .monaco-workbench.mac.fullscreen > .activitybar > .content > .monaco-action-bar.vertical {
 	top: 0px;
 	width:100%;
 }

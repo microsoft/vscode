@@ -28,9 +28,9 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import Event, { Emitter } from 'vs/base/common/event';
 import { WatchDog } from 'vs/base/common/watchDog';
 import { createQueuedSender, IQueuedSender } from 'vs/base/node/processes';
-import { IInitData, IInitConfiguration } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationService, getWorkspaceConfigurationTree } from 'vs/workbench/services/configuration/common/configuration';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -133,7 +133,7 @@ export class ExtensionHostProcessWorker {
 								ids.push(ext.id);
 							}
 						}
-						this.telemetryService.publicLog('extHostUnresponsive', ids);
+						this.telemetryService.publicLog('extHostUnresponsive', { extensionIds: ids });
 					});
 				});
 			});
@@ -258,7 +258,7 @@ export class ExtensionHostProcessWorker {
 					workspace: this.contextService.getWorkspace()
 				},
 				extensions: extensionDescriptions,
-				configuration: this.configurationService.getConfiguration<IInitConfiguration>(),
+				configuration: getWorkspaceConfigurationTree(this.configurationService),
 				telemetryInfo
 			};
 			this.extensionHostProcessQueuedSender.send(stringify(initData));

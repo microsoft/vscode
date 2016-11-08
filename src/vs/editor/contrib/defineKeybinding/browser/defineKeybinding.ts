@@ -110,16 +110,16 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		let snippetText = [
 			'{',
 			'\t"key": "' + keybinding + '",',
-			'\t"command": "{{commandId}}",',
-			'\t"when": "{{editorTextFocus}}"',
-			'}{{}}'
+			'\t"command": "${1:commandId}",',
+			'\t"when": "${2:editorTextFocus}"',
+			'}$0'
 		].join('\n');
 
 		let smartInsertInfo = SmartSnippetInserter.insertSnippet(this._editor.getModel(), this._editor.getPosition());
 		snippetText = smartInsertInfo.prepend + snippetText + smartInsertInfo.append;
 		this._editor.setPosition(smartInsertInfo.position);
 
-		SnippetController.get(this._editor).run(CodeSnippet.fromInternal(snippetText), 0, 0);
+		SnippetController.get(this._editor).run(CodeSnippet.fromTextmate(snippetText), 0, 0);
 	}
 
 	private _onModel(): void {

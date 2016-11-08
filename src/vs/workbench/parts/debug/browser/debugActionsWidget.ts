@@ -218,7 +218,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 				return !attached;
 			}
 			if (a.id === FocusProcessAction.ID) {
-				return this.debugService.getModel().getProcesses().length > 1;
+				return this.debugService.getViewModel().isMultiProcessView();
 			}
 
 			return true;

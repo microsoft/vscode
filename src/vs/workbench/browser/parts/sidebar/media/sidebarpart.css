@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench.mac.use-inline-toolbar > .sidebar > .composite.title {
+.titlebar-style-hidden .monaco-workbench > .sidebar > .composite.title {
 	-webkit-app-region: drag;
 }
 
