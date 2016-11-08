@@ -8,7 +8,6 @@
 import 'vs/css!./media/activitybarpart';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
@@ -144,9 +143,6 @@ class ViewletActivityAction extends ActivityAction {
 	private static preventDoubleClickDelay = 300;
 	private lastRun: number = 0;
 
-	private _onOpenExtViewlet = new Emitter<string>();
-	public get onOpenExtViewlet(): Event<string> { return this._onOpenExtViewlet.event; };
-
 	constructor(
 		id: string,
 		private viewlet: ViewletDescriptor,
@@ -172,9 +168,6 @@ class ViewletActivityAction extends ActivityAction {
 		if (!sideBarHidden && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
 			this.partService.setSideBarHidden(true);
 		} else {
-			if (this.viewlet.isExtension) {
-				this._onOpenExtViewlet.fire(this.viewlet.id);
-			}
 			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
 			this.activate();
 		}
