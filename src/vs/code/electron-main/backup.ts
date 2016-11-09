@@ -49,13 +49,13 @@ export interface IBackupMainService {
 	getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[];
 
 	/**
-	 * Gets whether the workspace has backups associated with it (ie. if the workspace backup
+	 * Gets whether the workspace has backup(s) associated with it (ie. if the workspace backup
 	 * directory exists).
 	 *
 	 * @param workspace The workspace to evaluate.
 	 * @return Whether the workspace has backups.
 	 */
-	doesWorkspaceHaveBackups(workspace: Uri): boolean;
+	hasWorkspaceBackup(workspace: Uri): boolean;
 }
 
 export class BackupService implements IBackupMainService {
@@ -118,7 +118,7 @@ export class BackupService implements IBackupMainService {
 		}
 	}
 
-	public doesWorkspaceHaveBackups(workspace: Uri): boolean {
+	public hasWorkspaceBackup(workspace: Uri): boolean {
 		return fs.existsSync(this.getWorkspaceBackupDirectory(workspace));
 	}
 

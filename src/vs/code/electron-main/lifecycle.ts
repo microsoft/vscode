@@ -167,7 +167,7 @@ export class LifecycleService implements ILifecycleService {
 				// Clear out any workspace backups from workspaces.json that don't have any backups
 				if (vscodeWindow.openedWorkspacePath) {
 					const workspaceResource = Uri.file(vscodeWindow.openedWorkspacePath);
-					if (!this.backupService.doesWorkspaceHaveBackups(workspaceResource)) {
+					if (!this.backupService.hasWorkspaceBackup(workspaceResource)) {
 						this.backupService.removeWorkspaceBackupPathSync(workspaceResource);
 					}
 				}
