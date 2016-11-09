@@ -26,6 +26,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Position, Direction, IEditor } from 'vs/platform/editor/common/editor';
 import { Emitter } from 'vs/base/common/event';
+import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
@@ -105,12 +106,31 @@ class TestViewletService implements IViewletService {
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 
-	public openViewlet(id: string, focus?: boolean): Promise {
+	onDidExtensionViewletsLoadEmitter = new Emitter<void>();
+	onDidExtensionViewletsLoad = this.onDidExtensionViewletsLoadEmitter.event;
+
+	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
 		return TPromise.as(null);
+	}
+
+	public toggleViewlet(id: string): TPromise<IViewlet> {
+		return TPromise.as(null);
+	}
+
+	public getAllViewlets(): ViewletDescriptor[] {
+		return [];
+	}
+
+	public getAllViewletsToDisplay(): ViewletDescriptor[] {
+		return [];
 	}
 
 	public getActiveViewlet(): IViewlet {
 		return activeViewlet;
+	}
+
+	public isViewletEnabled(id: string): boolean {
+		return true;
 	}
 
 	public dispose() {
