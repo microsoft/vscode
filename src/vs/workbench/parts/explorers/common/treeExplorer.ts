@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export function toCustomViewletId(viewletId: string): string {
+export function toCustomExplorerViewletId(viewletId: string): string {
 	return 'workbench.view.customExplorer.' + viewletId;
 }
 
-export function toCustomViewletActionId(viewletId: string): string {
+export function toCustomExplorerViewletActionId(viewletId: string): string {
 	return 'workbench.action.customExplorer.' + viewletId;
 }
 
-export function toCustomViewletCSSClass(viewletId: string): string {
+export function toCustomExplorerViewletCSSClass(viewletId: string): string {
 	return 'customExplorer-' + viewletId;
 }
 
