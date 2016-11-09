@@ -14,6 +14,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { once } from 'vs/base/common/event';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -111,10 +112,9 @@ export class LaunchService implements ILaunchService {
 			const windowId = usedWindows[0].id;
 
 			return new TPromise<void>((c, e) => {
-
-				const unbind = this.windowsService.onClose(id => {
+				const onceWindowClose = once(this.windowsService.onWindowClose);
+				onceWindowClose(id => {
 					if (id === windowId) {
-						unbind();
 						c(null);
 					}
 				});
