@@ -10,7 +10,6 @@ export class ViewModel implements debug.IViewModel {
 
 	private _focusedStackFrame: debug.IStackFrame;
 	private _focusedProcess: debug.IProcess;
-	private _focusedThread: debug.IThread;
 	private selectedExpression: debug.IExpression;
 	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
 	private _onDidFocusStackFrame: Emitter<debug.IStackFrame>;
@@ -39,17 +38,21 @@ export class ViewModel implements debug.IViewModel {
 	}
 
 	public get focusedThread(): debug.IThread {
-		return this._focusedThread;
+		return this._focusedStackFrame ? this._focusedStackFrame.thread : (this._focusedProcess ? this._focusedProcess.getAllThreads().pop() : null);
 	}
 
 	public get focusedStackFrame(): debug.IStackFrame {
-		return this._focusedStackFrame;
+		if (this._focusedStackFrame) {
+			return this._focusedStackFrame;
+		}
+
+		const callStack = this.focusedThread ? this.focusedThread.getCachedCallStack() : null;
+		return callStack && callStack.length ? callStack[0] : null;
 	}
 
-	public setFocusedStackFrame(stackFrame: debug.IStackFrame, thread: debug.IThread, process: debug.IProcess): void {
+	public setFocusedStackFrame(stackFrame: debug.IStackFrame, process: debug.IProcess): void {
 		this._focusedStackFrame = stackFrame;
 		this._focusedProcess = process;
-		this._focusedThread = thread;
 		this._onDidFocusStackFrame.fire(stackFrame);
 		this._onDidFocusProcess.fire(process);
 	}

@@ -381,7 +381,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'setExceptionBreakpoints' request. */
 	export interface SetExceptionBreakpointsArguments {
-		/** Names of enabled exception breakpoints. */
+		/** Ids of enabled exception breakpoints. */
 		filters: string[];
 	}
 
@@ -422,7 +422,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'next' request. */
 	export interface NextArguments {
-		/** Continue execution for this thread. */
+		/** Execute 'next' for this thread. */
 		threadId: number;
 	}
 
@@ -445,7 +445,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'stepIn' request. */
 	export interface StepInArguments {
-		/** Continue execution for this thread. */
+		/** Execute 'stepIn' for this thread. */
 		threadId: number;
 		/** Optional id of the target to step into. */
 		targetId?: number;
@@ -466,7 +466,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'stepOut' request. */
 	export interface StepOutArguments {
-		/** Continue execution for this thread. */
+		/** Execute 'stepOut' for this thread. */
 		threadId: number;
 	}
 
@@ -476,7 +476,7 @@ declare module DebugProtocol {
 
 	/** StepBack request; value of command field is 'stepBack'.
 		The request starts the debuggee to run one step backwards.
-		The debug adapter first sends the StepBackResponse and then a StoppedEvent (event type 'step') after the step has completed.
+		The debug adapter first sends the StepBackResponse and then a StoppedEvent (event type 'step') after the step has completed. Clients should only call this request if the capability supportsStepBack is true.
 	*/
 	export interface StepBackRequest extends Request {
 		// command: 'stepBack';
@@ -485,12 +485,30 @@ declare module DebugProtocol {
 
 	/** Arguments for 'stepBack' request. */
 	export interface StepBackArguments {
-		/** Continue execution for this thread. */
+		/** Exceute 'stepBack' for this thread. */
 		threadId: number;
 	}
 
 	/** Response to 'stepBack' request. This is just an acknowledgement, so no body field is required. */
 	export interface StepBackResponse extends Response {
+	}
+
+	/** ReverseContinue request; value of command field is 'reverseContinue'.
+		The request starts the debuggee to run backward. Clients should only call this request if the capability supportsStepBack is true.
+	*/
+	export interface ReverseContinueRequest extends Request {
+		// command: 'reverseContinue';
+		arguments: ReverseContinueArguments;
+	}
+
+	/** Arguments for 'reverseContinue' request. */
+	export interface ReverseContinueArguments {
+		/** Exceute 'reverseContinue' for this thread. */
+		threadId: number;
+	}
+
+	/** Response to 'reverseContinue' request. This is just an acknowledgement, so no body field is required. */
+	export interface ReverseContinueResponse extends Response {
 	}
 
 	/** RestartFrame request; value of command field is 'restartFrame'.
@@ -868,7 +886,7 @@ declare module DebugProtocol {
 		supportsEvaluateForHovers?: boolean;
 		/** Available filters for the setExceptionBreakpoints request. */
 		exceptionBreakpointFilters?: ExceptionBreakpointsFilter[];
-		/** The debug adapter supports stepping back. */
+		/** The debug adapter supports stepping back via the stepBack and reverseContinue requests. */
 		supportsStepBack?: boolean;
 		/** The debug adapter supports setting a variable to a value. */
 		supportsSetVariable?: boolean;

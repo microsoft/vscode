@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import strings = require('vs/base/common/strings');
-import types = require('vs/base/common/types');
+import * as strings from 'vs/base/common/strings';
+import * as types from 'vs/base/common/types';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import objects = require('vs/base/common/objects');
+import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import editor = require('vs/editor/common/editorCommon');
-import extensionsRegistry = require('vs/platform/extensions/common/extensionsRegistry');
-import platform = require('vs/platform/platform');
-import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import { IModel } from 'vs/editor/common/editorCommon';
+import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
+import { Registry } from 'vs/platform/platform';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -167,7 +167,7 @@ const schema: IJSONSchema = {
 	}
 };
 
-const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platform.Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
+const jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
 
 export class ConfigurationManager implements debug.IConfigurationManager {
@@ -330,7 +330,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			});
 	}
 
-	public canSetBreakpointsIn(model: editor.IModel): boolean {
+	public canSetBreakpointsIn(model: IModel): boolean {
 		if (model.uri.scheme === Schemas.inMemory) {
 			return false;
 		}

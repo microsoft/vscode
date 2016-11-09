@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { ICodeSnippet } from './snippet';
 import { CharCode } from 'vs/base/common/charCode';
 
 export enum TokenType {
@@ -13,8 +12,6 @@ export enum TokenType {
 	Colon,
 	CurlyOpen,
 	CurlyClose,
-	DoubleCurlyOpen,
-	DoubleCurlyClose,
 	Backslash,
 	Int,
 	VariableName,
@@ -79,18 +76,8 @@ export class Scanner {
 		// static types
 		type = Scanner._table[ch];
 		if (typeof type === 'number') {
-
-			if (type === TokenType.CurlyOpen && this.value.charCodeAt(pos + 1) === CharCode.OpenCurlyBrace) {
-				this.pos += 2;
-				return { type: TokenType.DoubleCurlyOpen, pos, len: 2 };
-			} else if (type === TokenType.CurlyClose && this.value.charCodeAt(pos + 1) === CharCode.CloseCurlyBrace) {
-				this.pos += 2;
-				return { type: TokenType.DoubleCurlyClose, pos, len: 2 };
-
-			} else {
-				this.pos += 1;
-				return { type, pos, len: 1 };
-			}
+			this.pos += 1;
+			return { type, pos, len: 1 };
 		}
 
 		// number
@@ -134,15 +121,23 @@ export class Scanner {
 	}
 }
 
+export abstract class Marker {
+	_markerBrand: any;
 
-abstract class Marker {
-	// pos: number;
+	static toString(marker: Marker[]): string {
+		let result = '';
+		for (const m of marker) {
+			result += m.toString();
+		}
+		return result;
+	}
+
 	toString() {
 		return '';
 	}
 }
 
-class Text extends Marker {
+export class Text extends Marker {
 	constructor(public string: string) {
 		super();
 	}
@@ -151,37 +146,15 @@ class Text extends Marker {
 	}
 }
 
-class TabStop extends Marker {
-	constructor(public order: string) {
+export class Placeholder extends Marker {
+	constructor(public name: string = '', public value: Marker[]) {
 		super();
 	}
-}
-
-class Placeholder extends Marker {
-	constructor(public name: string, public value: Marker[]) {
-		super();
+	get isVariable(): boolean {
+		return isNaN(Number(this.name));
 	}
 	toString() {
-		let result = '';
-		for (const m of this.value) {
-			result += m.toString();
-		}
-		return result;
-	}
-}
-
-
-class CodeSnippet implements ICodeSnippet {
-	finishPlaceHolderIndex = -1;
-	placeHolders = [];
-	lines = [];
-
-	constructor(marker: Marker[]) {
-		let output = '';
-		for (const m of marker) {
-			output += m.toString();
-		}
-		this.lines = output.split('\n');
+		return Marker.toString(this.value);
 	}
 }
 
@@ -191,17 +164,40 @@ export class SnippetParser {
 	private _token: Token;
 	private _prevToken: Token;
 
-	parse(value: string): ICodeSnippet {
+	escape(value: string): string {
+		return Marker.toString(this.parse(value));
+	}
 
+	parse(value: string): Marker[] {
 		const marker: Marker[] = [];
 
 		this._scanner.text(value);
 		this._token = this._scanner.next();
-		while (this._parse(marker) || this._parseAny(marker)) {
+		while (this._parseAny(marker) || this._parseText(marker)) {
 			// nothing
 		}
 
-		return new CodeSnippet(marker);
+		// * fill in default for empty placeHolders
+		// * compact sibling Text markers
+		const placeholders: { [name: string]: Marker[] } = Object.create(null);
+		for (let i = 0; i < marker.length; i++) {
+			let thisMarker = marker[i];
+
+			if (thisMarker instanceof Placeholder) {
+				if (placeholders[thisMarker.name] === undefined) {
+					placeholders[thisMarker.name] = thisMarker.value;
+				} else if (thisMarker.value.length === 0) {
+					thisMarker.value = placeholders[thisMarker.name].slice(0);
+				}
+
+			} else if (i > 0 && thisMarker instanceof Text && marker[i - 1] instanceof Text) {
+				(<Text>marker[i - 1]).string += (<Text>marker[i]).string;
+				marker.splice(i, 1);
+				i--;
+			}
+		}
+
+		return marker;
 	}
 
 	private _accept(type: TokenType): boolean {
@@ -218,57 +214,134 @@ export class SnippetParser {
 		this._scanner.pos = token.pos + token.len;
 	}
 
-	private _parse(marker: Marker[]): boolean {
+	private _parseAny(marker: Marker[]): boolean {
 		if (this._parseEscaped(marker)) {
 			return true;
-		} else if (this._parseBlock(marker)) {
+		} else if (this._parseInternal(marker)) {
+			return true;
+		} else if (this._parseTM(marker)) {
 			return true;
 		}
 	}
 
-	private _parseAny(marker: Marker[]): boolean {
+	private _parseText(marker: Marker[]): boolean {
 		if (this._token.type !== TokenType.EOF) {
+			marker.push(new Text(this._scanner.tokenText(this._token)));
 			this._accept(undefined);
-			marker.push(this._scanner.tokenText(this._prevToken));
 			return true;
 		}
 	}
 
-	private _parseBlock(marker: Marker[]): boolean {
-		let {pos, value} = this._scanner;
-		if (this._accept(TokenType.DoubleCurlyOpen)) {
+	private _parseTM(marker: Marker[]): boolean {
+		if (this._accept(TokenType.Dollar)) {
 
-			let name: string;
-			if (this._accept(TokenType.VariableName)) {
-				name = this._scanner.tokenText(this._prevToken);
-				if (!this._accept(TokenType.Colon)) {
-					this._return(this._prevToken);
-					name = undefined;
+			if (this._accept(TokenType.VariableName) || this._accept(TokenType.Int)) {
+				// $FOO, $123
+				let name = this._scanner.tokenText(this._prevToken);
+				marker.push(new Placeholder(name, []));
+				return true;
+
+			} else if (this._accept(TokenType.CurlyOpen)) {
+				// ${name:children}
+				let name: Marker[] = [];
+				let children: Marker[] = [];
+				let target = name;
+
+				while (true) {
+
+					if (this._accept(TokenType.Colon)) {
+						target = children;
+						continue;
+					}
+
+					if (this._accept(TokenType.CurlyClose)) {
+						marker.push(new Placeholder(Marker.toString(name), children));
+						return true;
+					}
+
+					if (this._parseAny(target) || this._parseText(target)) {
+						continue;
+					}
+
+					// fallback
+					if (children.length > 0) {
+						marker.push(new Text('${' + Marker.toString(name) + ':'));
+						marker.push(...children);
+					} else {
+						marker.push(new Text('${'));
+						marker.push(...name);
+					}
+					return true;
 				}
 			}
 
+			marker.push(new Text('$'));
+			return true;
+		}
+	}
+
+	private _parseInternal(marker: Marker[]): boolean {
+		if (this._accept(TokenType.CurlyOpen)) {
+
+			if (!this._accept(TokenType.CurlyOpen)) {
+				this._return(this._prevToken);
+				return false;
+			}
+
+			// ${name:children}, ${name}, ${name:}
+			let name: Marker[] = [];
 			let children: Marker[] = [];
+			let target = name;
+
 			while (true) {
 
-				if (this._accept(TokenType.DoubleCurlyClose)) {
-					marker.push(new Placeholder(name, children));
-					return true;
-				}
-
-				if (this._parse(children) || this._parseAny(children)) {
+				if (this._accept(TokenType.Colon)) {
+					target = children;
 					continue;
 				}
 
-				marker.push(new Text('{{'));
-				marker.push(...children);
-				return;
+				if (this._accept(TokenType.CurlyClose)) {
+
+					if (!this._accept(TokenType.CurlyClose)) {
+						this._return(this._prevToken);
+						continue;
+					}
+
+					if (children !== target) {
+						// we have not seen the colon which
+						// means use the ident also as
+						// default value
+						children = name;
+					}
+
+					marker.push(new Placeholder(Marker.toString(name), children));
+					return true;
+				}
+
+				if (this._parseAny(target) || this._parseText(target)) {
+					continue;
+				}
+
+				// fallback
+				if (children.length > 0) {
+					marker.push(new Text('{{' + Marker.toString(name) + ':'));
+					marker.push(...children);
+				} else {
+					marker.push(new Text('{{'));
+					marker.push(...name);
+				}
+				return true;
 			}
 		}
 	}
 
 	private _parseEscaped(marker: Marker[]): boolean {
 		if (this._accept(TokenType.Backslash)) {
-			if (this._accept(TokenType.CurlyOpen) || this._accept(TokenType.CurlyClose) || this._accept(TokenType.Backslash)) {
+			if (// Internal style
+				this._accept(TokenType.CurlyOpen) || this._accept(TokenType.CurlyClose) || this._accept(TokenType.Backslash)
+				// TextMate style
+				|| this._accept(TokenType.Dollar)
+			) {
 				// just consume them
 			}
 			marker.push(new Text(this._scanner.tokenText(this._prevToken)));
