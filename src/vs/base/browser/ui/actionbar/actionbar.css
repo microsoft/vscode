@@ -17,10 +17,6 @@
 	justify-content: flex-end;
 }
 
-.titlebar-style-hidden .monaco-workbench .monaco-action-bar .actions-container {
-	zoom: 1;
-}
-
 .monaco-action-bar.vertical .actions-container {
 	display: inline-block;
 }

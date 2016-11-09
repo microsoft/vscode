@@ -17,6 +17,24 @@
 	background-color: inherit;
 }
 
+.titlebar-style-hidden .monaco-workbench > .part.activitybar {
+	width: 68px;
+	-webkit-app-region: drag; /* Allow dragging on the wider activitybar */
+	transition: none;
+}
+
+.titlebar-style-hidden .monaco-workbench > .activitybar > .content > .monaco-action-bar.vertical {
+	top: 12px; /* Spacing above the activitybar icons to fit the traffic lights */
+	position: absolute;
+	zoom: 1; /* prevent zooming */
+	width: 100%;
+}
+
+.titlebar-style-hidden .monaco-workbench.fullscreen > .activitybar > .content > .monaco-action-bar.vertical {
+	top: 0px; /* Remove spacing above the activitybar icons to as there are no traffic lights fullscreen */
+	width:100%;
+}
+
 .vs .monaco-workbench > .activitybar > .content {
 	background-color: #2C2C2C;
 }
@@ -36,27 +54,4 @@
 
 .hc-black .monaco-workbench > .activitybar > .content {
 	background-color: #000;
-}
-
-/* Allow dragging on the wider activitybar */
-.titlebar-style-hidden .monaco-workbench > .part.activitybar {
-	min-width: unset;
-	max-width: unset;
-	width: 68px;
-	-webkit-app-region: drag;
-	transition: none;
-}
-
-/* Spacing above the activitybar icons to fit the traffic lights, and zooming doesn't affect icons offset */
-.titlebar-style-hidden .monaco-workbench > .activitybar > .content > .monaco-action-bar.vertical {
-	top: 28px;
-	position: absolute;
-	zoom: reset;
-	width:100%;
-}
-
-/* Remove spacing above the activitybar icons to as there are no traffic lights fullscreen */
-.titlebar-style-hidden .monaco-workbench.fullscreen > .activitybar > .content > .monaco-action-bar.vertical {
-	top: 0px;
-	width:100%;
 }
