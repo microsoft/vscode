@@ -17,7 +17,7 @@ export interface IViewletService {
 
 	onDidViewletOpen: Event<IViewlet>;
 	onDidViewletClose: Event<IViewlet>;
-	onDidExtensionViewletsLoad: Event<void>;
+	onDidExtViewletsLoad: Event<void>;
 	onDidViewletToggle: Event<void>;
 
 	/**
@@ -43,7 +43,7 @@ export interface IViewletService {
 	/**
 	 * Returns all viewlets that should be displayed, ordered by:
 	 * - Stock Viewlets: order attribute
-	 * - Extension Viewlets: enabling sequence
+	 * - External Viewlets: enabling sequence
 	 */
 	getAllViewletsToDisplay(): ViewletDescriptor[];
 

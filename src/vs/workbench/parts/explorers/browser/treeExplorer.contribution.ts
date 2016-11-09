@@ -76,7 +76,7 @@ export class ExplorerContribtion implements IWorkbenchContribution {
 					toCustomExplorerViewletId(treeExplorerNodeProviderId),
 					treeLabel,
 					toCustomExplorerViewletCSSClass(treeExplorerNodeProviderId),
-					-1, // Extension viewlets are ordered by enabling sequence, so order here doesn't matter.
+					-1, // External viewlets are ordered by enabling sequence, so order here doesn't matter.
 					true
 				));
 			}

@@ -81,7 +81,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 				return internalChild;
 			});
 		}, err => {
-			const errMessage = localize('extHostTreeExplorers.ts.failedToResolveChildren', 'TreeExplorerNodeProvider \'{0}\' failed to resolveChildren.', providerId);
+			const errMessage = localize('treeExplorer.failedToResolveChildren', 'TreeExplorerNodeProvider \'{0}\' failed to resolveChildren.', providerId);
 			return TPromise.wrapError(errMessage);
 		});
 	}

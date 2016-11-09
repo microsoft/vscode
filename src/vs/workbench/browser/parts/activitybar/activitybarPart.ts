@@ -52,8 +52,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
 
-		// Update viewlet switcher when extension viewlets become ready
-		this.toUnbind.push(this.viewletService.onDidExtensionViewletsLoad(() => this.refreshViewletSwitcher()));
+		// Update viewlet switcher when external viewlets become ready
+		this.toUnbind.push(this.viewletService.onDidExtViewletsLoad(() => this.refreshViewletSwitcher()));
 
 		// Update viewlet switcher on toggling of a viewlet
 		this.toUnbind.push(this.viewletService.onDidViewletToggle(() => this.refreshViewletSwitcher()));
@@ -109,16 +109,17 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.fillViewletSwitcher(this.viewletService.getAllViewletsToDisplay());
 	}
 
-	private fillViewletSwitcher(newViewlets: ViewletDescriptor[]) {
+	private fillViewletSwitcher(viewlets: ViewletDescriptor[]) {
 		// Pull out viewlets no longer needed
-		const newViewletIds = newViewlets.map(v => v.id);
-		Object.keys(this.compositeIdToActions).forEach(viewletId => {
+		const newViewletIds = viewlets.map(v => v.id);
+		const existingViewletIds = Object.keys(this.compositeIdToActions);
+		existingViewletIds.forEach(viewletId => {
 			if (newViewletIds.indexOf(viewletId) === -1) {
 				this.pullViewlet(viewletId);
 			}
 		});
 
-		const actionsToPush = newViewlets
+		const actionsToPush = viewlets
 			.filter(viewlet => !this.compositeIdToActions[viewlet.id])
 			.map(viewlet => this.toAction(viewlet));
 

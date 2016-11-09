@@ -23,12 +23,12 @@ export class ViewletService implements IViewletService {
 	private sidebarPart: ISidebar;
 	private enabledExtViewletIds: string[];
 	private extViewlets: ViewletDescriptor[];
-	private _onDidExtensionViewletsLoad = new Emitter<void>();
+	private _onDidExtViewletsLoad = new Emitter<void>();
 	private _onDidViewletToggle = new Emitter<void>();
 
 	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; };
 	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; };
-	public get onDidExtensionViewletsLoad(): Event<void> { return this._onDidExtensionViewletsLoad.event; };
+	public get onDidExtViewletsLoad(): Event<void> { return this._onDidExtViewletsLoad.event; };
 	public get onDidViewletToggle(): Event<void> { return this._onDidViewletToggle.event; };
 
 	constructor(
@@ -50,12 +50,12 @@ export class ViewletService implements IViewletService {
 	private onExtensionServiceReady(): void {
 		const viewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
 		viewlets.forEach(v => {
-			if (v.isExtension) {
+			if (v.isExternal) {
 				this.extViewlets.push(v);
 			}
 		});
 
-		this._onDidExtensionViewletsLoad.fire();
+		this._onDidExtViewletsLoad.fire();
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
@@ -102,7 +102,7 @@ export class ViewletService implements IViewletService {
 	private getStockViewlets(): ViewletDescriptor[] {
 		return (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets))
 			.getViewlets()
-			.filter(viewlet => !viewlet.isExtension)
+			.filter(viewlet => !viewlet.isExternal)
 			.sort((v1, v2) => v1.order - v2.order);
 	}
 

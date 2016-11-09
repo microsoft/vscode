@@ -248,9 +248,9 @@ export class Workbench implements IPartService {
 			if (this.shouldRestoreSidebar() && !this.sideBarHidden) {
 				const lastOpenedViewlet = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
 
-				// If last viewlet is extension viewlet, delay its restoration until extension viewlets loaded
+				// If last viewlet is external viewlet, delay its restoration until external viewlets loaded
 				if (!viewletRegistry.getViewlet(lastOpenedViewlet)) {
-					this.viewletService.onDidExtensionViewletsLoad(() => {
+					this.viewletService.onDidExtViewletsLoad(() => {
 						this.sidebarPart.openViewlet(lastOpenedViewlet, false).done();
 					});
 				}
