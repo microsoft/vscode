@@ -17,7 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/common/http';
-import { IBackupService } from 'vs/code/electron-main/backup';
+import { IBackupMainService } from 'vs/code/electron-main/backup';
 import Uri from 'vs/base/common/uri';
 
 export interface IWindowState {
@@ -146,7 +146,7 @@ export class VSCodeWindow {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IStorageService private storageService: IStorageService,
-		@IBackupService private backupService: IBackupService
+		@IBackupMainService private backupService: IBackupMainService
 	) {
 		this.options = config;
 		this._lastFocusTime = -1;

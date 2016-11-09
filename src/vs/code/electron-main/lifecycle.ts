@@ -12,7 +12,7 @@ import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupService } from 'vs/code/electron-main/backup';
+import { IBackupMainService } from 'vs/code/electron-main/backup';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
 
@@ -55,7 +55,7 @@ export class LifecycleService implements ILifecycleService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService,
-		@IBackupService private backupService: IBackupService
+		@IBackupMainService private backupService: IBackupMainService
 	) {
 		this.windowToCloseRequest = Object.create(null);
 		this.quitRequested = false;
