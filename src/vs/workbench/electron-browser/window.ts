@@ -17,6 +17,7 @@ import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 
 import { remote } from 'electron';
 
@@ -33,10 +34,12 @@ export class ElectronWindow {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@ITitleService private titleService: ITitleService
 	) {
 		this.win = win;
 		this.windowId = win.id;
+
 		this.registerListeners();
 	}
 
@@ -48,7 +51,7 @@ export class ElectronWindow {
 				const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 				const fileName = fileInput ? fileInput.getResource().fsPath : '';
 
-				this.windowService.setRepresentedFilename(fileName);
+				this.titleService.setRepresentedFilename(fileName);
 			});
 		}
 
