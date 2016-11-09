@@ -24,10 +24,12 @@ export class ViewletService implements IViewletService {
 	private enabledExtViewletIds: string[];
 	private extViewlets: ViewletDescriptor[];
 	private _onDidExtensionViewletsLoad = new Emitter<void>();
+	private _onDidViewletToggle = new Emitter<void>();
 
 	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; };
 	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; };
 	public get onDidExtensionViewletsLoad(): Event<void> { return this._onDidExtensionViewletsLoad.event; };
+	public get onDidViewletToggle(): Event<void> { return this._onDidViewletToggle.event; };
 
 	constructor(
 		sidebarPart: ISidebar,
@@ -53,14 +55,14 @@ export class ViewletService implements IViewletService {
 			}
 		});
 
-		this._onDidExtensionViewletsLoad.fire(null);
+		this._onDidExtensionViewletsLoad.fire();
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
 		return this.sidebarPart.openViewlet(id, focus);
 	}
 
-	public toggleViewlet(id: string): TPromise<IViewlet> {
+	public toggleViewlet(id: string): TPromise<void> {
 		const index = this.enabledExtViewletIds.indexOf(id);
 		if (index === -1) {
 			this.enabledExtViewletIds.push(id);
@@ -69,7 +71,7 @@ export class ViewletService implements IViewletService {
 		}
 
 		this.setEnabledExtViewlets();
-		this._onDidExtensionViewletsLoad.fire();
+		this._onDidViewletToggle.fire();
 		return TPromise.as(null);
 	}
 
