@@ -14,7 +14,7 @@ import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
-import { EventEmitter } from 'events';
+import { trim } from 'vs/base/common/strings';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
@@ -23,18 +23,13 @@ import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electro
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/code/electron-main/log';
+import { getPathLabel } from 'vs/base/common/labels';
 import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import CommonEvent, { Emitter } from 'vs/base/common/event';
+import CommonEvent, { Emitter, once } from 'vs/base/common/event';
 import product from 'vs/platform/product';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
-
-const EventTypes = {
-	OPEN: 'open',
-	CLOSE: 'close',
-	READY: 'ready'
-};
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -91,13 +86,12 @@ export const IWindowsMainService = createDecorator<IWindowsMainService>('windows
 export interface IWindowsMainService {
 	_serviceBrand: any;
 
-	// TODO make proper events
 	// events
-	onOpen(clb: (path: IPath) => void): () => void;
-	onReady(clb: (win: VSCodeWindow) => void): () => void;
-	onClose(clb: (id: number) => void): () => void;
+	onWindowReady: CommonEvent<VSCodeWindow>;
+	onWindowClose: CommonEvent<number>;
 	onNewWindowOpen: CommonEvent<number>;
 	onWindowFocus: CommonEvent<number>;
+	onRecentPathsChange: CommonEvent<void>;
 
 	// methods
 	ready(initialUserEnv: platform.IProcessEnvironment): void;
@@ -118,6 +112,7 @@ export interface IWindowsMainService {
 	getWindowById(windowId: number): VSCodeWindow;
 	getWindows(): VSCodeWindow[];
 	getWindowCount(): number;
+	addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void;
 	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
 	removeFromRecentPathsList(path: string);
 	removeFromRecentPathsList(path: string[]);
@@ -137,7 +132,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 	private static WINDOWS: VSCodeWindow[] = [];
 
-	private eventEmitter = new EventEmitter();
 	private initialUserEnv: platform.IProcessEnvironment;
 	private windowsState: IWindowsState;
 
@@ -146,6 +140,15 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 	private _onNewWindow = new Emitter<number>();
 	onNewWindowOpen: CommonEvent<number> = this._onNewWindow.event;
+
+	private _onRecentPathsChange = new Emitter<void>();
+	onRecentPathsChange: CommonEvent<void> = this._onRecentPathsChange.event;
+
+	private _onWindowReady = new Emitter<VSCodeWindow>();
+	onWindowReady: CommonEvent<VSCodeWindow> = this._onWindowReady.event;
+
+	private _onWindowClose = new Emitter<number>();
+	onWindowClose: CommonEvent<number> = this._onWindowClose.event;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -157,29 +160,13 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		@ITelemetryService private telemetryService: ITelemetryService
 	) { }
 
-	onOpen(clb: (path: IPath) => void): () => void {
-		this.eventEmitter.addListener(EventTypes.OPEN, clb);
-
-		return () => this.eventEmitter.removeListener(EventTypes.OPEN, clb);
-	}
-
-	onReady(clb: (win: VSCodeWindow) => void): () => void {
-		this.eventEmitter.addListener(EventTypes.READY, clb);
-
-		return () => this.eventEmitter.removeListener(EventTypes.READY, clb);
-	}
-
-	onClose(clb: (id: number) => void): () => void {
-		this.eventEmitter.addListener(EventTypes.CLOSE, clb);
-
-		return () => this.eventEmitter.removeListener(EventTypes.CLOSE, clb);
-	}
-
 	public ready(initialUserEnv: platform.IProcessEnvironment): void {
 		this.registerListeners();
 
 		this.initialUserEnv = initialUserEnv;
 		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedFolders: [] };
+
+		this.updateWindowsJumpList();
 	}
 
 	private registerListeners(): void {
@@ -223,7 +210,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 				win.setReady();
 
 				// Event
-				this.eventEmitter.emit(EventTypes.READY, win);
+				this._onWindowReady.fire(win);
 			}
 		});
 
@@ -272,7 +259,8 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		});
 
 		let loggedStartupTimes = false;
-		this.onReady(window => {
+		const onceWindowReady = once(this.onWindowReady);
+		onceWindowReady(window => {
 			if (loggedStartupTimes) {
 				return; // only for the first window
 			}
@@ -281,6 +269,9 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 			this.logStartupTimes(window);
 		});
+
+		// Update jump list when recent paths change
+		this.onRecentPathsChange(() => this.updateWindowsJumpList());
 	}
 
 	private logStartupTimes(window: VSCodeWindow): void {
@@ -486,39 +477,47 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
 		if (!usedWindows.some(w => w.isPluginDevelopmentHost) && !openConfig.cli.diff) {
+			const recentPaths: { path: string; isFile?: boolean; }[] = [];
+
 			iPathsToOpen.forEach(iPath => {
 				if (iPath.filePath || iPath.workspacePath) {
 					app.addRecentDocument(iPath.filePath || iPath.workspacePath);
-					this.addToRecentPathsList(iPath.filePath || iPath.workspacePath, !!iPath.filePath);
+					recentPaths.push({ path: iPath.filePath || iPath.workspacePath, isFile: !!iPath.filePath });
 				}
 			});
-		}
 
-		// Emit events
-		iPathsToOpen.forEach(iPath => this.eventEmitter.emit(EventTypes.OPEN, iPath));
+			if (recentPaths.length) {
+				this.addToRecentPathsList(recentPaths);
+			}
+		}
 
 		return arrays.distinct(usedWindows);
 	}
 
-	private addToRecentPathsList(path?: string, isFile?: boolean): void {
-		if (!path) {
+	public addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void {
+		if (!paths || !paths.length) {
 			return;
 		}
 
 		const mru = this.getRecentPathsList();
-		if (isFile) {
-			mru.files.unshift(path);
-			mru.files = arrays.distinct(mru.files, (f) => platform.isLinux ? f : f.toLowerCase());
-		} else {
-			mru.folders.unshift(path);
-			mru.folders = arrays.distinct(mru.folders, (f) => platform.isLinux ? f : f.toLowerCase());
-		}
+		paths.forEach(p => {
+			const {path, isFile} = p;
 
-		// Make sure its bounded
-		mru.folders = mru.folders.slice(0, WindowsManager.MAX_TOTAL_RECENT_ENTRIES);
-		mru.files = mru.files.slice(0, WindowsManager.MAX_TOTAL_RECENT_ENTRIES);
+			if (isFile) {
+				mru.files.unshift(path);
+				mru.files = arrays.distinct(mru.files, (f) => platform.isLinux ? f : f.toLowerCase());
+			} else {
+				mru.folders.unshift(path);
+				mru.folders = arrays.distinct(mru.folders, (f) => platform.isLinux ? f : f.toLowerCase());
+			}
+
+			// Make sure its bounded
+			mru.folders = mru.folders.slice(0, WindowsManager.MAX_TOTAL_RECENT_ENTRIES);
+			mru.files = mru.files.slice(0, WindowsManager.MAX_TOTAL_RECENT_ENTRIES);
+		});
 
 		this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
+		this._onRecentPathsChange.fire();
 	}
 
 	public removeFromRecentPathsList(path: string): void;
@@ -550,12 +549,16 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 		if (update) {
 			this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
+			this._onRecentPathsChange.fire();
 		}
 	}
 
 	public clearRecentPathsList(): void {
 		this.storageService.setItem(WindowsManager.recentPathsListStorageKey, { folders: [], files: [] });
 		app.clearRecentDocuments();
+
+		// Event
+		this._onRecentPathsChange.fire();
 	}
 
 	public getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList {
@@ -1117,7 +1120,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		WindowsManager.WINDOWS.splice(index, 1);
 
 		// Emit
-		this.eventEmitter.emit(EventTypes.CLOSE, win.id);
+		this._onWindowClose.fire(win.id);
 	}
 
 	private isPathEqual(pathA: string, pathB: string): boolean {
@@ -1144,7 +1147,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		return pathA === pathB;
 	}
 
-	toggleMenuBar(windowId: number): void {
+	public toggleMenuBar(windowId: number): void {
 		// Update in settings
 		const menuBarHidden = this.storageService.getItem(VSCodeWindow.menuBarHiddenKey, false);
 		const newMenuBarHidden = !menuBarHidden;
@@ -1159,6 +1162,68 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			if (vscodeWindow) {
 				vscodeWindow.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
 			}
+		}
+	}
+
+	private updateWindowsJumpList(): void {
+		if (!platform.isWindows) {
+			return; // only on windows
+		}
+
+		const jumpList: Electron.JumpListCategory[] = [];
+
+		// Tasks
+		jumpList.push({
+			type: 'tasks',
+			items: [
+				{
+					type: 'task',
+					title: nls.localize('newWindow', "New Window"),
+					description: nls.localize('newWindowDesc', "Opens a new window"),
+					program: process.execPath,
+					args: '-n', // force new window
+					iconPath: process.execPath,
+					iconIndex: 0
+				}
+			]
+		});
+
+		// Recent Folders
+		if (this.getRecentPathsList().folders.length > 0) {
+
+			// The user might have meanwhile removed items from the jump list and we have to respect that
+			// so we need to update our list of recent paths with the choice of the user to not add them again
+			// Also: Windows will not show our custom category at all if there is any entry which was removed
+			// by the user! See https://github.com/Microsoft/vscode/issues/15052
+			this.removeFromRecentPathsList(app.getJumpListSettings().removedItems.map(r => trim(r.args, '"')));
+
+			// Add entries
+			jumpList.push({
+				type: 'custom',
+				name: nls.localize('recentFolders', "Recent Folders"),
+				items: this.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
+					return <Electron.JumpListItem>{
+						type: 'task',
+						title: path.basename(folder) || folder, // use the base name to show shorter entries in the list
+						description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
+						program: process.execPath,
+						args: `"${folder}"`, // open folder (use quotes to support paths with whitespaces)
+						iconPath: 'explorer.exe', // simulate folder icon
+						iconIndex: 0
+					};
+				}).filter(i => !!i)
+			});
+		}
+
+		// Recent
+		jumpList.push({
+			type: 'recent' // this enables to show files in the "recent" category
+		});
+
+		try {
+			app.setJumpList(jumpList);
+		} catch (error) {
+			this.logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 		}
 	}
 }

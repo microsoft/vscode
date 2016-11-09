@@ -61,6 +61,11 @@ export class Keybinding {
 			// Electron cannot handle chords
 			return null;
 		}
+		let keyCode = BinaryKeybindings.extractKeyCode(value);
+		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
+			// Electron cannot handle numpad keys
+			return null;
+		}
 		return _asString(value, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
 	}
 
