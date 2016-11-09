@@ -6,13 +6,18 @@
 'use strict';
 
 import 'vs/css!./media/titlebarpart';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $, Dimension } from 'vs/base/browser/builder';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
+import * as paths from 'vs/base/common/paths';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import errors = require('vs/base/common/errors');
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import * as errors from 'vs/base/common/errors';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IAction, Action } from 'vs/base/common/actions';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -22,10 +27,13 @@ export class TitlebarPart extends Part implements ITitleService {
 	private title: Builder;
 	private pendingTitle: string;
 	private initialTitleFontSize: number;
+	private representedFileName: string;
 
 	constructor(
 		id: string,
-		@IWindowService private windowService: IWindowService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IWindowService private windowService: IWindowService,
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(id);
 	}
@@ -46,6 +54,15 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.onTitleDoubleclick();
 		});
 
+		// Context menu on title
+		this.title.on([DOM.EventType.CONTEXT_MENU, DOM.EventType.MOUSE_DOWN], (e: MouseEvent) => {
+			if (e.type === DOM.EventType.CONTEXT_MENU || e.metaKey) {
+				DOM.EventHelper.stop(e);
+
+				this.onContextMenu(e);
+			}
+		});
+
 		return this.titleContainer;
 	}
 
@@ -57,6 +74,37 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.windowService.maximizeWindow().done(null, errors.onUnexpectedError);
 			}
 		}, errors.onUnexpectedError);
+	}
+
+	private onContextMenu(e: MouseEvent): void {
+
+		// Find target anchor
+		const event = new StandardMouseEvent(e);
+		const anchor = { x: event.posx, y: event.posy };
+
+		// Show menu
+		const actions = this.getContextMenuActions();
+		if (actions.length) {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => TPromise.as(actions),
+				onHide: () => actions.forEach(a => a.dispose())
+			});
+		}
+	}
+
+	private getContextMenuActions(): IAction[] {
+		const actions: IAction[] = [];
+
+		if (this.representedFileName) {
+			const segments = this.representedFileName.split(paths.sep);
+			for (let i = segments.length; i > 0; i--) {
+				const path = segments.slice(0, i).join(paths.sep);
+				actions.push(new ShowItemInFolderAction(path, this.windowsService));
+			}
+		}
+
+		return actions;
 	}
 
 	public updateTitle(title: string): void {
@@ -72,6 +120,15 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
+	public setRepresentedFilename(path: string): void {
+
+		// Apply to window
+		this.windowService.setRepresentedFilename(path);
+
+		// Keep for context menu
+		this.representedFileName = path;
+	}
+
 	public layout(dimension: Dimension): Dimension[] {
 
 		// To prevent zooming we need to adjust the font size with the zoom factor
@@ -81,5 +138,16 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.titleContainer.style({ fontSize: `${this.initialTitleFontSize / getZoomFactor()}px` });
 
 		return super.layout(dimension);
+	}
+}
+
+class ShowItemInFolderAction extends Action {
+
+	constructor(private path: string, private windowsService: IWindowsService) {
+		super('showItemInFolder.action.id', paths.basename(path) || paths.sep);
+	}
+
+	public run(): TPromise<void> {
+		return this.windowsService.showItemInFolder(this.path);
 	}
 }
