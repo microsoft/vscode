@@ -307,8 +307,12 @@ export class PauseAction extends AbstractDebugAction {
 		if (!(thread instanceof model.Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
+		if (thread) {
+			return thread.pause();
+		}
 
-		return thread ? thread.pause() : TPromise.as(null);
+		const process = this.debugService.getViewModel().focusedProcess;
+		return process ? process.session.pause({ threadId: 0 }) : TPromise.as(null);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
