@@ -831,7 +831,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		throw new Error('Unknown EOL preference');
 	}
 
-	private static _isMultiline(searchString: string): boolean {
+	private static _isMultilineRegexSource(searchString: string): boolean {
 		if (!searchString || searchString.length === 0) {
 			return false;
 		}
@@ -865,8 +865,14 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 
 		// Try to create a RegExp out of the params
-		var regex: RegExp = null;
-		var multiline = isRegex && TextModel._isMultiline(searchString);
+		let multiline: boolean;
+		if (isRegex) {
+			multiline = TextModel._isMultilineRegexSource(searchString);
+		} else {
+			multiline = (searchString.indexOf('\n') >= 0);
+		}
+
+		let regex: RegExp = null;
 		try {
 			regex = strings.createRegExp(searchString, isRegex, { matchCase, wholeWord, multiline, global: true });
 		} catch (err) {

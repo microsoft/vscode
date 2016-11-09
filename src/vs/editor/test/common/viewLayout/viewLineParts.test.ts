@@ -35,13 +35,13 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('issue #3462: no whitespace shown at the end of a decorated line', () => {
 
 		var result = LineDecorationsNormalizer.normalize(3, 1, [
-			newDecoration(3, 15, 3, 21, 'trailing whitespace'),
+			newDecoration(3, 15, 3, 21, 'vs-whitespace'),
 			newDecoration(3, 20, 3, 21, 'inline-folded'),
 		]);
 
 		assert.deepEqual(result, [
-			new DecorationSegment(14, 18, 'trailing whitespace'),
-			new DecorationSegment(19, 19, 'trailing whitespace inline-folded')
+			new DecorationSegment(14, 18, 'vs-whitespace'),
+			new DecorationSegment(19, 19, 'vs-whitespace inline-folded')
 		]);
 	});
 
@@ -102,10 +102,10 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'boundary',
 			[
-				new ViewLineToken(0, ' leading whitespace'),
+				new ViewLineToken(0, ' vs-whitespace'),
 				new ViewLineToken(4, 'a'),
 				new ViewLineToken(6, 'b'),
-				new ViewLineToken(16, 'b trailing whitespace')
+				new ViewLineToken(16, 'b vs-whitespace')
 			]
 		);
 	});
@@ -120,12 +120,12 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'boundary',
 			[
-				new ViewLineToken(0, ' leading whitespace'),
-				new ViewLineToken(4, ' leading whitespace'),
+				new ViewLineToken(0, ' vs-whitespace'),
+				new ViewLineToken(4, ' vs-whitespace'),
 				new ViewLineToken(8, 'a'),
 				new ViewLineToken(10, 'b'),
-				new ViewLineToken(20, 'b trailing whitespace'),
-				new ViewLineToken(24, 'b trailing whitespace'),
+				new ViewLineToken(20, 'b vs-whitespace'),
+				new ViewLineToken(24, 'b vs-whitespace'),
 			]
 		);
 	});
@@ -140,11 +140,11 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'boundary',
 			[
-				new ViewLineToken(0, ' leading whitespace'),
-				new ViewLineToken(1, ' leading whitespace'),
+				new ViewLineToken(0, ' vs-whitespace'),
+				new ViewLineToken(1, ' vs-whitespace'),
 				new ViewLineToken(2, 'a'),
 				new ViewLineToken(4, 'b'),
-				new ViewLineToken(14, 'b trailing whitespace'),
+				new ViewLineToken(14, 'b vs-whitespace'),
 			]
 		);
 	});
@@ -159,15 +159,15 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'boundary',
 			[
-				new ViewLineToken(0, ' leading whitespace'),
-				new ViewLineToken(3, ' leading whitespace'),
-				new ViewLineToken(4, ' leading whitespace'),
+				new ViewLineToken(0, ' vs-whitespace'),
+				new ViewLineToken(3, ' vs-whitespace'),
+				new ViewLineToken(4, ' vs-whitespace'),
 				new ViewLineToken(6, 'a'),
 				new ViewLineToken(8, 'b'),
-				new ViewLineToken(18, 'b trailing whitespace'),
-				new ViewLineToken(20, 'b trailing whitespace'),
-				new ViewLineToken(23, 'b trailing whitespace'),
-				new ViewLineToken(27, 'b trailing whitespace'),
+				new ViewLineToken(18, 'b vs-whitespace'),
+				new ViewLineToken(20, 'b vs-whitespace'),
+				new ViewLineToken(23, 'b vs-whitespace'),
+				new ViewLineToken(27, 'b vs-whitespace'),
 			]
 		);
 	});
@@ -182,15 +182,15 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'boundary',
 			[
-				new ViewLineToken(0, ' leading whitespace'),
-				new ViewLineToken(3, ' leading whitespace'),
-				new ViewLineToken(4, ' leading whitespace'),
+				new ViewLineToken(0, ' vs-whitespace'),
+				new ViewLineToken(3, ' vs-whitespace'),
+				new ViewLineToken(4, ' vs-whitespace'),
 				new ViewLineToken(6, 'a'),
 				new ViewLineToken(8, 'b'),
-				new ViewLineToken(18, 'b trailing whitespace'),
-				new ViewLineToken(20, 'b trailing whitespace'),
-				new ViewLineToken(23, 'b trailing whitespace'),
-				new ViewLineToken(27, 'b trailing whitespace'),
+				new ViewLineToken(18, 'b vs-whitespace'),
+				new ViewLineToken(20, 'b vs-whitespace'),
+				new ViewLineToken(23, 'b vs-whitespace'),
+				new ViewLineToken(27, 'b vs-whitespace'),
 			]
 		);
 	});
@@ -207,13 +207,13 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'boundary',
 			[
 				new ViewLineToken(0, ''),
-				new ViewLineToken(2, ' leading whitespace'),
+				new ViewLineToken(2, ' vs-whitespace'),
 				new ViewLineToken(4, 'a'),
 				new ViewLineToken(6, 'b'),
-				new ViewLineToken(16, 'b trailing whitespace'),
-				new ViewLineToken(18, 'b trailing whitespace'),
-				new ViewLineToken(21, 'b trailing whitespace'),
-				new ViewLineToken(25, 'b trailing whitespace'),
+				new ViewLineToken(16, 'b vs-whitespace'),
+				new ViewLineToken(18, 'b vs-whitespace'),
+				new ViewLineToken(21, 'b vs-whitespace'),
+				new ViewLineToken(25, 'b vs-whitespace'),
 			]
 		);
 	});
@@ -230,11 +230,11 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'boundary',
 			[
 				new ViewLineToken(0, ''),
-				new ViewLineToken(2, ' embedded whitespace'),
+				new ViewLineToken(2, ' vs-whitespace'),
 				new ViewLineToken(4, ''),
 				new ViewLineToken(6, 'a'),
 				new ViewLineToken(7, 'b'),
-				new ViewLineToken(9, 'b embedded whitespace'),
+				new ViewLineToken(9, 'b vs-whitespace'),
 				new ViewLineToken(11, 'b'),
 			]
 		);
@@ -251,12 +251,12 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			0,
 			'all',
 			[
-				new ViewLineToken(0, ' leading whitespace'),
+				new ViewLineToken(0, ' vs-whitespace'),
 				new ViewLineToken(1, ''),
 				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b embedded whitespace'),
+				new ViewLineToken(6, 'b vs-whitespace'),
 				new ViewLineToken(7, 'b'),
-				new ViewLineToken(13, 'b trailing whitespace'),
+				new ViewLineToken(13, 'b vs-whitespace'),
 			]
 		);
 	});
@@ -397,7 +397,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'\t',
 			6,
 			[
-				new ViewLineToken(0, 'leading whitespace')
+				new ViewLineToken(0, 'vs-whitespace')
 			]
 		);
 		testGetColumnOfLinePartOffset(0, 6, 0, 1);

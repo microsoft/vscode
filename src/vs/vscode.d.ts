@@ -2689,6 +2689,21 @@ declare module 'vscode' {
 		has(section: string): boolean;
 
 		/**
+		 * Retrieve all information about a configuration setting. A configuration value
+		 * often consists of a *default* value, a global or installation-wide value, and
+		 * a workspace-specific value. The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
+		 * is computed like this: `defaultValue` overwritten by `globalValue`,
+		 * `globalValue` overwritten by `workspaceValue`.
+		 *
+		 * *Note:* The configuration name must denote a leaf in the configuration tree
+		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @return Information about a configuration setting or `undefined`.
+		 */
+		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T };
+
+		/**
 		 * Update a configuration value. A value can be changed for the current
 		 * [workspace](#workspace.rootPath) only, or globally for all instances of the
 		 * editor. The updated configuration values are persisted.

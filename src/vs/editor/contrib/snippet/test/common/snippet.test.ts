@@ -141,6 +141,16 @@ suite('Editor Contrib - Snippets', () => {
 		});
 	});
 
+	test('bug #7093: Snippet default value is only populated for first variable reference', () => {
+		var internal = 'logger.error({ logContext: lc, errorContext: `{{1:err}}`, error: {{1:}} });';
+		var external = 'logger.error({ logContext: lc, errorContext: `${1:err}`, error: $1 });';
+
+		assertInternalAndTextmate(internal, external, snippet => {
+			assert.equal(snippet.lines.length, 1);
+			assert.equal(snippet.lines[0], 'logger.error({ logContext: lc, errorContext: `err`, error: err });');
+		});
+	});
+
 	test('bug #17487:[snippets] four backslashes are required to get one backslash in the inserted text', () => {
 
 		var external = [

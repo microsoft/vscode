@@ -5,63 +5,14 @@
 'use strict';
 
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { SingleCursorState, EditOperationResult, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommand, CursorChangeReason } from 'vs/editor/common/editorCommon';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
-import { CursorModelState } from 'vs/editor/common/controller/oneCursor';
 import * as strings from 'vs/base/common/strings';
-
-export class EditOperationResult {
-	_editOperationBrand: void;
-
-	readonly command: ICommand;
-	readonly shouldPushStackElementBefore: boolean;
-	readonly shouldPushStackElementAfter: boolean;
-	readonly isAutoWhitespaceCommand: boolean;
-	readonly shouldRevealHorizontal: boolean;
-	readonly cursorPositionChangeReason: CursorChangeReason;
-
-	constructor(
-		command: ICommand,
-		opts?: {
-			shouldPushStackElementBefore: boolean;
-			shouldPushStackElementAfter: boolean;
-			isAutoWhitespaceCommand?: boolean;
-			shouldRevealHorizontal?: boolean;
-			cursorPositionChangeReason?: CursorChangeReason;
-		}
-	) {
-		this.command = command;
-		this.shouldPushStackElementBefore = false;
-		this.shouldPushStackElementAfter = false;
-		this.isAutoWhitespaceCommand = false;
-		this.shouldRevealHorizontal = true;
-		this.cursorPositionChangeReason = CursorChangeReason.NotSet;
-
-		if (typeof opts !== 'undefined') {
-			if (typeof opts.shouldPushStackElementBefore !== 'undefined') {
-				this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
-			}
-			if (typeof opts.shouldPushStackElementAfter !== 'undefined') {
-				this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
-			}
-			if (typeof opts.isAutoWhitespaceCommand !== 'undefined') {
-				this.isAutoWhitespaceCommand = opts.isAutoWhitespaceCommand;
-			}
-			if (typeof opts.shouldRevealHorizontal !== 'undefined') {
-				this.shouldRevealHorizontal = opts.shouldRevealHorizontal;
-			}
-			if (typeof opts.cursorPositionChangeReason !== 'undefined') {
-				this.cursorPositionChangeReason = opts.cursorPositionChangeReason;
-			}
-		}
-	}
-}
 
 export class DeleteOperations {
 
-	public static deleteRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 
 		let deleteSelection: Range = cursor.selection;
 
@@ -92,7 +43,7 @@ export class DeleteOperations {
 		});
 	}
 
-	public static deleteAllRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteAllRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		let selection = cursor.selection;
 
 		if (selection.isEmpty()) {
@@ -108,14 +59,17 @@ export class DeleteOperations {
 
 			let deleteSelection = new Range(lineNumber, column, lineNumber, maxColumn);
 			if (!deleteSelection.isEmpty()) {
-				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''));
+				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+					shouldPushStackElementBefore: false,
+					shouldPushStackElementAfter: false
+				});
 			}
 		}
 
 		return this.deleteRight(config, model, cursor);
 	}
 
-	public static autoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static autoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		if (!config.autoClosingBrackets) {
 			return null;
 		}
@@ -147,10 +101,13 @@ export class DeleteOperations {
 			position.column + 1
 		);
 
-		return new EditOperationResult(new ReplaceCommand(deleteSelection, ''));
+		return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+			shouldPushStackElementBefore: false,
+			shouldPushStackElementAfter: false
+		});
 	}
 
-	public static deleteLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		let r = this.autoClosingPairDelete(config, model, cursor);
 		if (r) {
 			// This was a case for an auto-closing pair delete
@@ -207,7 +164,7 @@ export class DeleteOperations {
 		});
 	}
 
-	public static deleteAllLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteAllLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		let r = this.autoClosingPairDelete(config, model, cursor);
 		if (r) {
 			// This was a case for an auto-closing pair delete
@@ -228,14 +185,17 @@ export class DeleteOperations {
 
 			let deleteSelection = new Range(lineNumber, 1, lineNumber, column);
 			if (!deleteSelection.isEmpty()) {
-				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''));
+				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+					shouldPushStackElementBefore: false,
+					shouldPushStackElementAfter: false
+				});
 			}
 		}
 
 		return this.deleteLeft(config, model, cursor);
 	}
 
-	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, cursor: CursorModelState, enableEmptySelectionClipboard: boolean): EditOperationResult {
+	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, enableEmptySelectionClipboard: boolean): EditOperationResult {
 		let selection = cursor.selection;
 
 		if (selection.isEmpty()) {
@@ -277,7 +237,10 @@ export class DeleteOperations {
 				);
 
 				if (!deleteSelection.isEmpty()) {
-					return new EditOperationResult(new ReplaceCommand(deleteSelection, ''));
+					return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+						shouldPushStackElementBefore: true,
+						shouldPushStackElementAfter: true
+					});
 				} else {
 					return null;
 				}

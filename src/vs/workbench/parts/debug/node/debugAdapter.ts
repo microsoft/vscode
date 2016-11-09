@@ -149,7 +149,7 @@ export class Adapter {
 				properties.configurationNames = {
 					type: 'array',
 					default: [],
-					description: nls.localize('debugConfigurationNames', "Configurations that will be launched as part of this \"composite\" configuration. Only respected if type of this configuration is \"composite\".")
+					description: nls.localize({ key: 'debugConfigurationNames', comment: ['"composite" is not localizable'] }, "Configurations that will be launched as part of this \"composite\" configuration. Only respected if type of this configuration is \"composite\".")
 				};
 				properties.preLaunchTask = {
 					type: ['string', 'null'],

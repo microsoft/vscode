@@ -8,8 +8,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { IModeConfiguration } from 'vs/editor/common/controller/oneCursor';
-import { IConfigurationChangedEvent, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
+import { ICommand, CursorChangeReason, IConfigurationChangedEvent, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
 
 export interface CharacterMap {
 	[char: string]: string;
@@ -26,6 +28,9 @@ export class CursorConfiguration {
 	public readonly wordSeparators: string;
 	public readonly autoClosingBrackets: boolean;
 	public readonly autoClosingPairsOpen: CharacterMap;
+	public readonly autoClosingPairsClose: CharacterMap;
+	public readonly surroundingPairs: CharacterMap;
+	public readonly electricChars: { [key: string]: boolean; };
 
 	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
 		return (
@@ -52,6 +57,9 @@ export class CursorConfiguration {
 		this.wordSeparators = c.wordSeparators;
 		this.autoClosingBrackets = c.autoClosingBrackets;
 		this.autoClosingPairsOpen = modeConfiguration.autoClosingPairsOpen;
+		this.autoClosingPairsClose = modeConfiguration.autoClosingPairsClose;
+		this.surroundingPairs = modeConfiguration.surroundingPairs;
+		this.electricChars = modeConfiguration.electricChars;
 	}
 
 	public normalizeIndentation(str: string): string {
@@ -59,6 +67,9 @@ export class CursorConfiguration {
 	}
 }
 
+/**
+ * Represents a simple model (either the model or the view model).
+ */
 export interface ICursorSimpleModel {
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
@@ -66,6 +77,160 @@ export interface ICursorSimpleModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
+}
+
+/**
+ * Represents the cursor state on either the model or on the view model.
+ */
+export class SingleCursorState {
+	_singleCursorStateBrand: void;
+
+	// --- selection can start as a range (think double click and drag)
+	public readonly selectionStart: Range;
+	public readonly selectionStartLeftoverVisibleColumns: number;
+	public readonly position: Position;
+	public readonly leftoverVisibleColumns: number;
+	public readonly selection: Selection;
+
+	constructor(
+		selectionStart: Range,
+		selectionStartLeftoverVisibleColumns: number,
+		position: Position,
+		leftoverVisibleColumns: number,
+	) {
+		this.selectionStart = selectionStart;
+		this.selectionStartLeftoverVisibleColumns = selectionStartLeftoverVisibleColumns;
+		this.position = position;
+		this.leftoverVisibleColumns = leftoverVisibleColumns;
+		this.selection = SingleCursorState._computeSelection(this.selectionStart, this.position);
+	}
+
+	public equals(other: SingleCursorState) {
+		return (
+			this.selectionStartLeftoverVisibleColumns === other.selectionStartLeftoverVisibleColumns
+			&& this.leftoverVisibleColumns === other.leftoverVisibleColumns
+			&& this.position.equals(other.position)
+			&& this.selectionStart.equalsRange(other.selectionStart)
+		);
+	}
+
+	public hasSelection(): boolean {
+		return (!this.selection.isEmpty() || !this.selectionStart.isEmpty());
+	}
+
+	public withSelectionStartLeftoverVisibleColumns(selectionStartLeftoverVisibleColumns: number): SingleCursorState {
+		return new SingleCursorState(
+			this.selectionStart,
+			selectionStartLeftoverVisibleColumns,
+			this.position,
+			this.leftoverVisibleColumns
+		);
+	}
+
+	public withSelectionStart(selectionStart: Range): SingleCursorState {
+		return new SingleCursorState(
+			selectionStart,
+			0,
+			this.position,
+			this.leftoverVisibleColumns
+		);
+	}
+
+	public collapse(): SingleCursorState {
+		return new SingleCursorState(
+			new Range(this.position.lineNumber, this.position.column, this.position.lineNumber, this.position.column),
+			0,
+			this.position,
+			0
+		);
+	}
+
+	public move(inSelectionMode: boolean, position: Position, leftoverVisibleColumns: number): SingleCursorState {
+		if (inSelectionMode) {
+			// move just position
+			return new SingleCursorState(
+				this.selectionStart,
+				this.selectionStartLeftoverVisibleColumns,
+				position,
+				leftoverVisibleColumns
+			);
+		} else {
+			// move everything
+			return new SingleCursorState(
+				new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+				leftoverVisibleColumns,
+				position,
+				leftoverVisibleColumns
+			);
+		}
+	}
+
+	private static _computeSelection(selectionStart: Range, position: Position): Selection {
+		let startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number;
+		if (selectionStart.isEmpty()) {
+			startLineNumber = selectionStart.startLineNumber;
+			startColumn = selectionStart.startColumn;
+			endLineNumber = position.lineNumber;
+			endColumn = position.column;
+		} else {
+			if (position.isBeforeOrEqual(selectionStart.getStartPosition())) {
+				startLineNumber = selectionStart.endLineNumber;
+				startColumn = selectionStart.endColumn;
+				endLineNumber = position.lineNumber;
+				endColumn = position.column;
+			} else {
+				startLineNumber = selectionStart.startLineNumber;
+				startColumn = selectionStart.startColumn;
+				endLineNumber = position.lineNumber;
+				endColumn = position.column;
+			}
+		}
+		return new Selection(
+			startLineNumber,
+			startColumn,
+			endLineNumber,
+			endColumn
+		);
+	}
+}
+
+export class EditOperationResult {
+	_editOperationBrand: void;
+
+	readonly command: ICommand;
+	readonly shouldPushStackElementBefore: boolean;
+	readonly shouldPushStackElementAfter: boolean;
+	readonly isAutoWhitespaceCommand: boolean;
+	readonly shouldRevealHorizontal: boolean;
+	readonly cursorPositionChangeReason: CursorChangeReason;
+
+	constructor(
+		command: ICommand,
+		opts: {
+			shouldPushStackElementBefore: boolean;
+			shouldPushStackElementAfter: boolean;
+			isAutoWhitespaceCommand?: boolean;
+			shouldRevealHorizontal?: boolean;
+			cursorPositionChangeReason?: CursorChangeReason;
+		}
+	) {
+		this.command = command;
+		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
+		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
+		this.isAutoWhitespaceCommand = false;
+		this.shouldRevealHorizontal = true;
+		this.cursorPositionChangeReason = CursorChangeReason.NotSet;
+
+		if (typeof opts.isAutoWhitespaceCommand !== 'undefined') {
+			this.isAutoWhitespaceCommand = opts.isAutoWhitespaceCommand;
+		}
+		if (typeof opts.shouldRevealHorizontal !== 'undefined') {
+			this.shouldRevealHorizontal = opts.shouldRevealHorizontal;
+		}
+		if (typeof opts.cursorPositionChangeReason !== 'undefined') {
+			this.cursorPositionChangeReason = opts.cursorPositionChangeReason;
+		}
+	}
 }
 
 /**

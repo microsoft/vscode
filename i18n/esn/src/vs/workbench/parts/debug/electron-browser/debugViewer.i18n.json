@@ -12,6 +12,7 @@
 	"functionBreakpointsNotSupported": "Este tipo de depuración no admite puntos de interrupción en funciones",
 	"loadMoreStackFrames": "Cargar más marcos de pila",
 	"paused": "en pausa",
+	"process": "Proceso",
 	"running": "en ejecución",
 	"stackFrameAriaLabel": "Marco de pila {0} línea {1} {2}, pila de llamadas, depuración",
 	"thread": "Subproceso",

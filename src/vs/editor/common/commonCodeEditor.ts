@@ -755,19 +755,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				convertViewSelectionToModelSelection: (viewSelection: editorCommon.ISelection) => {
 					return this.viewModel.convertViewSelectionToModelSelection(viewSelection);
 				},
-				convertViewRangeToModelRange: (viewRange: Range) => {
-					return this.viewModel.convertViewRangeToModelRange(viewRange);
-				},
-				validateViewPosition: (viewLineNumber: number, viewColumn: number, modelPosition: Position) => {
-					return this.viewModel.validateViewPosition(viewLineNumber, viewColumn, modelPosition);
-				},
-				validateViewPosition2: (viewPosition: Position, modelPosition: Position): Position => {
+				validateViewPosition: (viewPosition: Position, modelPosition: Position): Position => {
 					return this.viewModel.validateViewPosition(viewPosition.lineNumber, viewPosition.column, modelPosition);
 				},
-				validateViewRange: (viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range) => {
-					return this.viewModel.validateViewRange(viewStartLineNumber, viewStartColumn, viewEndLineNumber, viewEndColumn, modelRange);
-				},
-				validateViewRange2: (viewRange: Range, modelRange: Range): Range => {
+				validateViewRange: (viewRange: Range, modelRange: Range): Range => {
 					return this.viewModel.validateViewRange(viewRange.startLineNumber, viewRange.startColumn, viewRange.endLineNumber, viewRange.endColumn, modelRange);
 				}
 			};

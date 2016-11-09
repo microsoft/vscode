@@ -7,7 +7,7 @@
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import types = require('vs/base/common/types');
-import { MessageList, Severity as BaseSeverity } from 'vs/workbench/services/message/browser/messagelist/messageList';
+import { MessageList, Severity as BaseSeverity } from 'vs/workbench/services/message/browser/messageList';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
