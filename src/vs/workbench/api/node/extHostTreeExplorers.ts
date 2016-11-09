@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { localize } from 'vs/nls';
 import { TreeExplorerNodeProvider } from 'vscode';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
@@ -45,7 +46,8 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 	$provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode> {
 		const provider = this._extNodeProviders[providerId];
 		if (!provider) {
-			return TPromise.wrapError(`No TreeExplorerNodeProvider with id '${providerId}' registered.`);
+			const errMessage = localize('treeExplorer.notRegistered', 'No TreeExplorerNodeProvider with id \'{0}\' registered.', providerId);
+			return TPromise.wrapError(errMessage);
 		}
 
 		return asWinJsPromise(() => provider.provideRootNode()).then(extRootNode => {
@@ -57,14 +59,16 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 
 			return internalRootNode;
 		}, err => {
-			return TPromise.wrapError(`TreeExplorerNodeProvider '${providerId}' failed to provide root node.`);
+			const errMessage = localize('treeExplorer.failedToProvideRootNode', 'TreeExplorerNodeProvider \'{0}\' failed to provide root node.', providerId);
+			return TPromise.wrapError(errMessage);
 		});
 	}
 
 	$resolveChildren(providerId: string, mainThreadNode: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
 		const provider = this._extNodeProviders[providerId];
 		if (!provider) {
-			return TPromise.wrapError(`No TreeExplorerNodeProvider with id '${providerId}' registered.`);
+			const errMessage = localize('treeExplorer.notRegistered', 'No TreeExplorerNodeProvider with id \'{0}\' registered.', providerId);
+			return TPromise.wrapError(errMessage);
 		}
 
 		const extNodeMap = this._extNodeMaps[providerId];
@@ -77,7 +81,8 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 				return internalChild;
 			});
 		}, err => {
-			return TPromise.wrapError(`TreeExplorerNodeProvider '${providerId}' failed to resolve children.`);
+			const errMessage = localize('extHostTreeExplorers.ts.failedToResolveChildren', 'TreeExplorerNodeProvider \'{0}\' failed to resolveChildren.', providerId);
+			return TPromise.wrapError(errMessage);
 		});
 	}
 

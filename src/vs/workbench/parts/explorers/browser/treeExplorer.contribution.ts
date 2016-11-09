@@ -24,7 +24,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 registerSingleton(ICustomTreeExplorerService, CustomTreeExplorerService);
 
 const explorerSchema: IJSONSchema = {
-	description: localize('vscode.extension.contributes.explorer', "Contributes custom tree explorer viewlet to the sidebar"),
+	description: localize('vscode.extension.contributes.explorer', 'Contributes custom tree explorer viewlet to the sidebar'),
 	type: 'object',
 	properties: {
 		treeExplorerNodeProviderId: {
@@ -60,7 +60,7 @@ export class ExplorerContribtion implements IWorkbenchContribution {
 				const { treeExplorerNodeProviderId, treeLabel, icon } = extension.value;
 
 				if (!isValidViewletId(treeExplorerNodeProviderId)) {
-					return this.messageService.show(Severity.Error, localize('customExplorer.invalidId', 'Tree Explorer extension {0} has invalid id and failed to activate.', treeLabel));
+					return this.messageService.show(Severity.Error, localize('treeExplorer.invalidId', 'Tree Explorer extension {0} has invalid id and failed to activate.', treeLabel));
 				}
 
 				const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };

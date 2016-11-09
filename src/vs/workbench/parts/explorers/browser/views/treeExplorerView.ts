@@ -41,7 +41,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ICustomTreeExplorerService private treeExplorerViewletService: ICustomTreeExplorerService
 	) {
-		super(actionRunner, false, nls.localize('treeExplorerViewletTree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
+		super(actionRunner, false, nls.localize('treeExplorerViewlet.tree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
 		this.workspace = contextService.getWorkspace();
 

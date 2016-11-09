@@ -69,7 +69,7 @@ export class CustomTreeExplorerService implements ICustomTreeExplorerService {
 		const provider = this._treeExplorerNodeProviders[providerId];
 
 		if (!provider) {
-			this.messageService.show(Severity.Error, localize('customExplorer.noMatchingProviderId', 'No TreeExplorerNodeProvider with id {providerId} registered.'));
+			this.messageService.show(Severity.Error, localize('treeExplorer.noMatchingProviderId', 'No TreeExplorerNodeProvider with id {providerId} registered.'));
 		}
 
 		return provider;
