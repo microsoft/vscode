@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Scanner, TokenType, SnippetParser, Text, Placeholder } from 'vs/editor/contrib/snippet/common/snippetParser';
+import { Scanner, TokenType, SnippetParser, Text, Placeholder, Marker } from 'vs/editor/contrib/snippet/common/snippetParser';
 
 
 suite('SnippetParser', () => {
@@ -20,9 +20,11 @@ suite('SnippetParser', () => {
 		assert.equal(scanner.next().type, TokenType.EOF);
 
 		scanner.text('{{abc}}');
-		assert.equal(scanner.next().type, TokenType.DoubleCurlyOpen);
+		assert.equal(scanner.next().type, TokenType.CurlyOpen);
+		assert.equal(scanner.next().type, TokenType.CurlyOpen);
 		assert.equal(scanner.next().type, TokenType.VariableName);
-		assert.equal(scanner.next().type, TokenType.DoubleCurlyClose);
+		assert.equal(scanner.next().type, TokenType.CurlyClose);
+		assert.equal(scanner.next().type, TokenType.CurlyClose);
 		assert.equal(scanner.next().type, TokenType.EOF);
 
 		scanner.text('abc() ');
@@ -169,5 +171,56 @@ suite('SnippetParser', () => {
 		assert.equal(nestedPlaceholder.isVariable, true);
 		assert.equal(nestedPlaceholder.name, 'TM_SELECTED_TEXT');
 		assert.equal(nestedPlaceholder.value.length, 0);
+	});
+
+	test('Parser, real world, mixed', () => {
+
+		assertEscapeAndMarker(
+			'finished:{{}}, second:{{2:name}}, first:{{1:}}, third:{{3:}}',
+			'finished:, second:name, first:, third:',
+			Text, Placeholder, Text, Placeholder, Text, Placeholder, Text, Placeholder
+		);
+
+
+		assertEscapeAndMarker(
+			'begin\\{{{1:enumerate}}\\}\n\t{{}}\nend\\{{{1:}}\\}',
+			'begin{enumerate}\n\t\nend{enumerate}',
+			Text, Placeholder, Text, Placeholder, Text, Placeholder, Text
+		);
+
+	});
+
+	test('Parser, default name/value', () => {
+		assertEscapeAndMarker(
+			'{{first}}-{{2:}}-{{second}}-{{1:}}',
+			'first--second-',
+			Placeholder, Text, Placeholder, Text, Placeholder, Text, Placeholder
+		);
+
+		const [p1, , p2, , p3] = new SnippetParser().parse('{{first}}-{{2:}}-{{second}}-{{1:}}');
+		assert.equal((<Placeholder>p1).name, 'first');
+		assert.equal(Marker.toString((<Placeholder>p1).value), 'first');
+
+		assert.equal((<Placeholder>p2).name, '2');
+		assert.equal(Marker.toString((<Placeholder>p2).value), '');
+
+		assert.equal((<Placeholder>p3).name, 'second');
+		assert.equal(Marker.toString((<Placeholder>p3).value), 'second');
+	});
+
+	test('Parser, default placeholder values', () => {
+
+		assertMarker('errorContext: `${1:err}`, error: $1', Text, Placeholder, Text, Placeholder);
+
+		const [, p1, , p2] = new SnippetParser().parse('errorContext: `${1:err}`, error:$1');
+
+		assert.equal((<Placeholder>p1).name, '1');
+		assert.equal((<Placeholder>p1).value.length, '1');
+		assert.equal((<Text>(<Placeholder>p1).value[0]), 'err');
+
+		assert.equal((<Placeholder>p2).name, '1');
+		assert.equal((<Placeholder>p2).value.length, '1');
+		assert.equal((<Text>(<Placeholder>p2).value[0]), 'err');
+
 	});
 });
