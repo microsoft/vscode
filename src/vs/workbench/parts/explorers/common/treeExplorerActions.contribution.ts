@@ -19,7 +19,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 
 export class ToggleExtViewletAction extends Action {
 	public static ID = toCustomViewletActionId('toggle');
-	public static LABEL = localize('toggleCustomExplorer', 'Toggle Custom Explorer');
+	public static LABEL = localize('treeExplorer.toggle', 'Toggle Custom Explorer');
 
 	constructor(
 		id: string,

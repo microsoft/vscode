@@ -248,19 +248,15 @@ export class Workbench implements IPartService {
 			if (this.shouldRestoreSidebar() && !this.sideBarHidden) {
 				const lastOpenedViewlet = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
 
-				// If last viewlet is extension viewlet and enabled, delay its restoration until extension loading
-				if (!viewletRegistry.getViewlet(lastOpenedViewlet) && this.viewletService.isViewletEnabled(lastOpenedViewlet)) {
+				// If last viewlet is extension viewlet, delay its restoration until extension viewlets loaded
+				if (!viewletRegistry.getViewlet(lastOpenedViewlet)) {
 					this.viewletService.onDidExtensionViewletsLoad(() => {
 						this.sidebarPart.openViewlet(lastOpenedViewlet, false).done();
 					});
 				}
-				// Load last viewlet immediately
+				// Otherwise, load last viewlet immediately
 				else {
 					let viewletId = lastOpenedViewlet;
-					// If last viewlet is extension viewlet and disabled, load default (File Explorer) viewlet
-					if (!viewletRegistry.getViewlet(lastOpenedViewlet)) {
-						viewletId = viewletRegistry.getDefaultViewletId();
-					}
 					const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
 					compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
 				}

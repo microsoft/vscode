@@ -530,8 +530,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 	}
 
 	public pull(index: number): void {
-		const itemLength = this.items.length;
-		if (index >= 0 && index < itemLength) {
+		if (index >= 0 && index < this.items.length) {
 			this.items.splice(index, 1);
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
 		}
