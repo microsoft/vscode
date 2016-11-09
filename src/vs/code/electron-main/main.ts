@@ -5,10 +5,8 @@
 
 'use strict';
 
-import * as nls from 'vs/nls';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
-import { trim } from 'vs/base/common/strings';
 import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
@@ -44,7 +42,6 @@ import { ConfigurationService } from 'vs/platform/configuration/node/configurati
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { generateUuid } from 'vs/base/common/uuid';
-import { getPathLabel } from 'vs/base/common/labels';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
@@ -57,7 +54,6 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import * as fs from 'original-fs';
 import * as cp from 'child_process';
-import * as path from 'path';
 
 function quit(accessor: ServicesAccessor, error?: Error);
 function quit(accessor: ServicesAccessor, message?: string);
@@ -245,12 +241,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		const menu = instantiationService2.createInstance(VSCodeMenu);
 		menu.ready();
 
-		// Install JumpList on Windows (keep updated when windows open)
-		if (platform.isWindows) {
-			updateJumpList(windowsMainService, logService);
-			windowsMainService.onOpen(() => updateJumpList(windowsMainService, logService));
-		}
-
 		// Open our first window
 		if (environmentService.args['new-window'] && environmentService.args._.length === 0) {
 			windowsMainService.open({ cli: environmentService.args, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
@@ -260,65 +250,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 			windowsMainService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff }); // default: read paths from cli
 		}
 	});
-}
-
-// TODO@Joao TODO@Ben shouldn't this be inside windows service instead?
-function updateJumpList(windowsMainService: IWindowsMainService, logService: ILogService): void {
-	const jumpList: Electron.JumpListCategory[] = [];
-
-	// Tasks
-	jumpList.push({
-		type: 'tasks',
-		items: [
-			{
-				type: 'task',
-				title: nls.localize('newWindow', "New Window"),
-				description: nls.localize('newWindowDesc', "Opens a new window"),
-				program: process.execPath,
-				args: '-n', // force new window
-				iconPath: process.execPath,
-				iconIndex: 0
-			}
-		]
-	});
-
-	// Recent Folders
-	if (windowsMainService.getRecentPathsList().folders.length > 0) {
-
-		// The user might have meanwhile removed items from the jump list and we have to respect that
-		// so we need to update our list of recent paths with the choice of the user to not add them again
-		// Also: Windows will not show our custom category at all if there is any entry which was removed
-		// by the user! See https://github.com/Microsoft/vscode/issues/15052
-		windowsMainService.removeFromRecentPathsList(app.getJumpListSettings().removedItems.map(r => trim(r.args, '"')));
-
-		// Add entries
-		jumpList.push({
-			type: 'custom',
-			name: nls.localize('recentFolders', "Recent Folders"),
-			items: windowsMainService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
-				return <Electron.JumpListItem>{
-					type: 'task',
-					title: path.basename(folder) || folder, // use the base name to show shorter entries in the list
-					description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
-					program: process.execPath,
-					args: `"${folder}"`, // open folder (use quotes to support paths with whitespaces)
-					iconPath: 'explorer.exe', // simulate folder icon
-					iconIndex: 0
-				};
-			}).filter(i => !!i)
-		});
-	}
-
-	// Recent
-	jumpList.push({
-		type: 'recent' // this enables to show files in the "recent" category
-	});
-
-	try {
-		app.setJumpList(jumpList);
-	} catch (error) {
-		logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
-	}
 }
 
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
