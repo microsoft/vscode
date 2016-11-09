@@ -140,6 +140,7 @@ export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registe
 // debug general schema
 
 export const schemaId = 'vscode://schemas/launch';
+const defaultCompound: debug.ICompound = { name: 'Compound', launches: [] };
 const schema: IJSONSchema = {
 	id: schemaId,
 	type: 'object',
@@ -164,6 +165,32 @@ const schema: IJSONSchema = {
 			type: 'number',
 			description: nls.localize('app.launch.json.debugServer', "DEPRECATED: please move debugServer inside a configuration.")
 		},
+		compounds: {
+			type: 'array',
+			description: nls.localize('app.launch.json.compounds', "List of compounds. Each compound references multiple configurations which will get launched together."),
+			items: {
+				type: 'object',
+				required: ['name', 'launches'],
+				properties: {
+					name: {
+						type: 'string',
+						description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
+					},
+					launches: {
+						type: 'array',
+						default: [],
+						items: {
+							type: 'string'
+						},
+						description: nls.localize('app.launch.json.compounds.launches', "Names of configurations that will be launched as part of this compound.")
+					}
+				},
+				default: defaultCompound
+			},
+			default: [
+				defaultCompound
+			]
+		}
 	}
 };
 
@@ -227,7 +254,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			});
 
 			// update the schema to include all attributes and types from extensions.
-			// debug.schema.properties['configurations'].items.properties.type.enum = this.adapters.map(adapter => adapter.type);
 			this.adapters.forEach(adapter => {
 				const schemaAttributes = adapter.getSchemaAttributes();
 				if (schemaAttributes) {
@@ -247,6 +273,15 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 	public getAdapter(type: string): Adapter {
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, type)).pop();
+	}
+
+	public getCompound(name: string): debug.ICompound {
+		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
+		if (!config || !config.compounds) {
+			return null;
+		}
+
+		return config.compounds.filter(compound => compound.name === name).pop();
 	}
 
 	public getConfiguration(nameOrConfig: string | debug.IConfig): TPromise<debug.IConfig> {
