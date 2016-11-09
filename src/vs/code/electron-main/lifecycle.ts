@@ -124,7 +124,6 @@ export class LifecycleService implements ILifecycleService {
 		vscodeWindow.win.on('close', (e) => {
 			const windowId = vscodeWindow.id;
 			this.logService.log('Lifecycle#window-before-close', windowId);
-			this.logService.log('this.quitRequested: ' + this.quitRequested);
 
 			// The window already acknowledged to be closed
 			if (this.windowToCloseRequest[windowId]) {
