@@ -18,6 +18,7 @@ export interface IViewletService {
 	onDidViewletOpen: Event<IViewlet>;
 	onDidViewletClose: Event<IViewlet>;
 	onDidExtensionViewletsLoad: Event<void>;
+	onDidViewletToggle: Event<void>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
@@ -27,7 +28,7 @@ export interface IViewletService {
 	/**
 	 * Toggles a viewlet with the given identifier.
 	 */
-	toggleViewlet(id: string): TPromise<IViewlet>;
+	toggleViewlet(id: string): TPromise<void>;
 
 	/**
 	 * Returns the current active viewlet or null if none.
