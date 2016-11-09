@@ -15,8 +15,6 @@ import extfs = require('vs/base/node/extfs');
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 
@@ -37,14 +35,12 @@ suite('BackupFileService', () => {
 
 	const workspaceResource = Uri.file(platform.isWindows ? 'C:\\workspace' : '/workspace');
 	const workspaceBackupPath = path.join(backupHome, crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex'));
-	const workspaceJsonPath = path.join(workspaceBackupPath, 'workspace.json');
 	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
 	const bazFile = Uri.file(platform.isWindows ? 'C:\\baz' : '/baz');
 	const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 	const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
 	const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
-	const bazBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(bazFile.fsPath).digest('hex'));
 	const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', untitledFile.fsPath);
 
 	let service: BackupFileService;
