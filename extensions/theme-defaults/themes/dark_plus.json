@@ -20,7 +20,8 @@
 				"support.type",
 				"entity.name.type",
 				"storage.type.cs",
-				"storage.type.java"
+				"storage.type.java",
+				"entity.other.inherited-class"
 			],
 			"settings": {
 				"foreground": "#4EC9B0"
