@@ -122,6 +122,7 @@ export class VSCodeWindow {
 	private static MIN_HEIGHT = 120;
 
 	private options: IWindowCreationOptions;
+	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;
 	private _id: number;
 	private _win: Electron.BrowserWindow;
@@ -181,9 +182,10 @@ export class VSCodeWindow {
 		}
 
 		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom' || this.options.titleBarStyle === 'hidden')) {
-			const isDev = !this.environmentService.isBuilt || this.environmentService.extensionDevelopmentPath;
+			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isDev) {
 				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+				this.hiddenTitleBarStyle = true;
 			}
 		}
 
@@ -228,7 +230,7 @@ export class VSCodeWindow {
 	}
 
 	public hasHiddenTitleBarStyle(): boolean {
-		return this.options && this.options.titleBarStyle === 'custom';
+		return this.hiddenTitleBarStyle;
 	}
 
 	public get isPluginDevelopmentHost(): boolean {

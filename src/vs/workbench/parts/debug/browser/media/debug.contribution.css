@@ -129,7 +129,7 @@
 
 .monaco-workbench .debug-actions-widget {
 	background-color: #F3F3F3;
-	box-shadow: 0 2px 8px #A8A8A8;
+	box-shadow: 0 5px 8px #A8A8A8;
 	position: absolute;
 	top: 0;
 	z-index: 200;
@@ -358,7 +358,7 @@
 
 .vs-dark .monaco-workbench .debug-actions-widget {
 	background-color: #333;
-	box-shadow: 0 2px 8px #000;
+	box-shadow: 0 5px 8px #000;
 }
 
 /* High Contrast Theming */
@@ -369,5 +369,5 @@
 
 .hc-black .monaco-workbench .debug-actions-widget {
 	background-color: #333;
-	box-shadow: 0 2px 8px #000;
+	box-shadow: 0 5px 8px #000;
 }

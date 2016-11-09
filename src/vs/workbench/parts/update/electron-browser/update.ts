@@ -9,7 +9,6 @@ import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import { ipcRenderer as ipc } from 'electron';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
@@ -25,21 +24,18 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IUpdateService } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 
-interface IUpdate {
-	releaseNotes: string;
-	version: string;
-	date: string;
-}
+class ApplyUpdateAction extends Action {
+	constructor( @IUpdateService private updateService: IUpdateService) {
+		super('update.applyUpdate', nls.localize('updateNow', "Update Now"), null, true);
+	}
 
-const ApplyUpdateAction = new Action(
-	'update.applyUpdate',
-	nls.localize('updateNow', "Update Now"),
-	null,
-	true,
-	() => { ipc.send('vscode:update-apply'); return TPromise.as(true); }
-);
+	run(): TPromise<void> {
+		return this.updateService.quitAndInstall();
+	}
+}
 
 const NotNowAction = new Action(
 	'update.later',
@@ -173,13 +169,16 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 	}
 }
 
-export const DownloadAction = (url: string) => new Action(
-	'update.download',
-	nls.localize('downloadNow', "Download Now"),
-	null,
-	true,
-	() => { window.open(url); return TPromise.as(true); }
-);
+export class DownloadAction extends Action {
+
+	constructor(private url: string, @IUpdateService private updateService: IUpdateService) {
+		super('update.download', nls.localize('downloadNow', "Download Now"), null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.updateService.quitAndInstall();
+	}
+}
 
 const LinkAction = (id: string, message: string, licenseUrl: string) => new Action(
 	id, message, null, true,
@@ -196,6 +195,7 @@ export class UpdateContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
+		@IUpdateService updateService: IUpdateService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
 		const lastVersion = storageService.get(UpdateContribution.KEY, StorageScope.GLOBAL, '');
@@ -250,26 +250,31 @@ export class UpdateContribution implements IWorkbenchContribution {
 
 		storageService.store(UpdateContribution.KEY, pkg.version, StorageScope.GLOBAL);
 
-		ipc.on('vscode:update-downloaded', (event, data: string) => {
-			const update = JSON.parse(data) as IUpdate;
+		updateService.onUpdateReady(update => {
+			const applyUpdateAction = instantiationService.createInstance(ApplyUpdateAction);
 			const releaseNotesAction = instantiationService.createInstance(ShowReleaseNotesAction, false, update.version);
 
 			messageService.show(severity.Info, {
 				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", product.nameLong),
-				actions: [ApplyUpdateAction, NotNowAction, releaseNotesAction]
+				actions: [applyUpdateAction, NotNowAction, releaseNotesAction]
 			});
 		});
 
-		ipc.on('vscode:update-available', (event, url: string, version: string) => {
-			const releaseNotesAction = instantiationService.createInstance(ShowReleaseNotesAction, false, version);
+		updateService.onUpdateAvailable(update => {
+			const downloadAction = instantiationService.createInstance(DownloadAction, update.version);
+			const releaseNotesAction = instantiationService.createInstance(ShowReleaseNotesAction, false, update.version);
 
 			messageService.show(severity.Info, {
 				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
-				actions: [DownloadAction(url), NotNowAction, releaseNotesAction]
+				actions: [downloadAction, NotNowAction, releaseNotesAction]
 			});
 		});
 
-		ipc.on('vscode:update-not-available', () => {
+		updateService.onUpdateNotAvailable(explicit => {
+			if (!explicit) {
+				return;
+			}
+
 			messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
 		});
 	}

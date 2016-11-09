@@ -362,12 +362,6 @@ export class Workbench implements IPartService {
 		// Services we contribute
 		serviceCollection.set(IPartService, this);
 
-		// Title bar
-		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
-		this.toDispose.push(this.titlebarPart);
-		this.toShutdown.push(this.titlebarPart);
-		serviceCollection.set(ITitleService, this.titlebarPart);
-
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
 		this.toDispose.push(this.statusbarPart);
@@ -386,6 +380,12 @@ export class Workbench implements IPartService {
 
 		// Menus/Actions
 		serviceCollection.set(IMenuService, new SyncDescriptor(MenuService));
+
+		// Title bar
+		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
+		this.toDispose.push(this.titlebarPart);
+		this.toShutdown.push(this.titlebarPart);
+		serviceCollection.set(ITitleService, this.titlebarPart);
 
 		// Viewlet service (sidebar part)
 		this.sidebarPart = this.instantiationService.createInstance(SidebarPart, Identifiers.SIDEBAR_PART);

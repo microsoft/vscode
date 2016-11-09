@@ -130,7 +130,7 @@ export class Adapter {
 				}
 				const properties = attributes.properties;
 				properties.type = {
-					enum: [this.type, 'composite'],
+					enum: [this.type],
 					description: nls.localize('debugType', "Type of configuration.")
 				};
 				properties.name = {
@@ -145,11 +145,6 @@ export class Adapter {
 				properties.debugServer = {
 					type: 'number',
 					description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode")
-				};
-				properties.configurationNames = {
-					type: 'array',
-					default: [],
-					description: nls.localize({ key: 'debugConfigurationNames', comment: ['"composite" is not localizable'] }, "Configurations that will be launched as part of this \"composite\" configuration. Only respected if type of this configuration is \"composite\".")
 				};
 				properties.preLaunchTask = {
 					type: ['string', 'null'],

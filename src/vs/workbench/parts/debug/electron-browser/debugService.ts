@@ -8,7 +8,6 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -559,12 +558,6 @@ export class DebugService implements debug.IDebugService {
 										this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
 									}
 								});
-							}
-							if (configuration.silentlyAbort) {
-								return;
-							}
-							if (strings.equalsIgnoreCase(configuration.type, 'composite') && configuration.configurationNames) {
-								return TPromise.join(configuration.configurationNames.map(name => this.createProcess(name)));
 							}
 
 							if (!this.configurationManager.getAdapter(configuration.type)) {
