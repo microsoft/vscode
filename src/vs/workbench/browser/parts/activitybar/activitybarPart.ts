@@ -129,6 +129,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		const index = Object.keys(this.compositeIdToActions).indexOf(viewletId);
 		const action = this.compositeIdToActions[viewletId];
 		const actionItem = this.activityActionItems[action.id];
+		delete this.compositeIdToActions[viewletId];
+		delete this.activityActionItems[action.id];
 		action.dispose();
 		actionItem.dispose();
 		this.viewletSwitcherBar.pull(index);
