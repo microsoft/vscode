@@ -21,7 +21,7 @@ const all = [
 	'test/**/*'
 ];
 
-const eolFilter = [
+const eolFilterPattern = [
 	'**',
 	'!ThirdPartyNotices.txt',
 	'!LICENSE.txt',
@@ -34,7 +34,7 @@ const eolFilter = [
 	'!build/win32/**'
 ];
 
-const indentationFilter = [
+const indentationFilterPattern = [
 	'**',
 	'!ThirdPartyNotices.txt',
 	'!**/*.md',
@@ -61,7 +61,7 @@ const indentationFilter = [
 	'!extensions/vscode-api-tests/testWorkspace/**'
 ];
 
-const copyrightFilter = [
+const copyrightFilterPattern = [
 	'**',
 	'!**/*.desktop',
 	'!**/*.json',
@@ -79,7 +79,7 @@ const copyrightFilter = [
 	'!extensions/markdown/media/tomorrow.css'
 ];
 
-const tslintFilter = [
+const tslintFilterPattern = [
 	'src/**/*.ts',
 	'extensions/**/*.ts',
 	'!**/*.d.ts',
@@ -113,7 +113,7 @@ gulp.task('tslint', () => {
 	const options = { summarizeFailureOutput: true };
 
 	return gulp.src(all, { base: '.' })
-		.pipe(filter(tslintFilter))
+		.pipe(filter(tslintFilterPattern))
 		.pipe(gulptslint({ rulesDirectory: 'build/lib/tslint' }))
 		.pipe(gulptslint.report(reportFailures, options));
 });
@@ -193,17 +193,26 @@ const hygiene = exports.hygiene = (some, options) => {
 		this.emit('data', file);
 	});
 
+	const eolFilter = filter(eolFilterPattern, {restore: true});
+	const indentationFilter = filter(indentationFilterPattern, {restore: true});
+	const copyrightFilter = filter(copyrightFilterPattern, {restore: true});
+	const tslintFilter = filter(tslintFilterPattern, {restore: true});
+
 	return gulp.src(some || all, { base: '.' })
 		.pipe(filter(f => !f.stat.isDirectory()))
-		.pipe(filter(eolFilter))
+		.pipe(eolFilter)
 		.pipe(options.skipEOL ? es.through() : eol)
-		.pipe(filter(indentationFilter))
+		.pipe(eolFilter.restore)
+		.pipe(indentationFilter)
 		.pipe(indentation)
-		.pipe(filter(copyrightFilter))
+		.pipe(indentationFilter.restore)
+		.pipe(copyrightFilter)
 		.pipe(copyrights)
-		.pipe(filter(tslintFilter))
+		.pipe(copyrightFilter.restore)
+		.pipe(tslintFilter)
 		.pipe(formatting)
 		.pipe(tsl)
+		.pipe(tslintFilter.restore)
 		.pipe(es.through(null, function () {
 			if (errorCount > 0) {
 				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors. Check \'build/gulpfile.hygiene.js\'.');
