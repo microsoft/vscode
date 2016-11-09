@@ -102,13 +102,32 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private refreshViewletSwitcher(): void {
-		this.viewletSwitcherBar.clear();
 		this.fillViewletSwitcher(this.viewletService.getAllViewletsToDisplay());
 	}
 
-	private fillViewletSwitcher(viewlets: ViewletDescriptor[]) {
-		const viewletActions = viewlets.map(v => this.toAction(v));
-		this.viewletSwitcherBar.push(viewletActions, { label: true, icon: true });
+	private fillViewletSwitcher(newViewlets: ViewletDescriptor[]) {
+		// Pull out viewlets no longer needed
+		const newViewletIds = newViewlets.map(v => v.id);
+		Object.keys(this.compositeIdToActions).forEach(viewletId => {
+			if (newViewletIds.indexOf(viewletId) === -1) {
+				this.pullViewlet(viewletId);
+			}
+		});
+
+		const actionsToPush = newViewlets
+			.filter(viewlet => !this.compositeIdToActions[viewlet.id])
+			.map(viewlet => this.toAction(viewlet));
+
+		this.viewletSwitcherBar.push(actionsToPush, { label: true, icon: true });
+	}
+
+	private pullViewlet(viewletId: string): void {
+		const index = Object.keys(this.compositeIdToActions).indexOf(viewletId);
+		const action = this.compositeIdToActions[viewletId];
+		const actionItem = this.activityActionItems[action.id];
+		action.dispose();
+		actionItem.dispose();
+		this.viewletSwitcherBar.pull(index);
 	}
 
 	private toAction(composite: ViewletDescriptor): ActivityAction {
