@@ -108,6 +108,10 @@ export class QuickOpenWidget implements IModelProvider {
 		this.model = null;
 	}
 
+	public getElement(): Builder {
+		return $(this.builder);
+	}
+
 	public getModel(): IModel<any> {
 		return this.model;
 	}

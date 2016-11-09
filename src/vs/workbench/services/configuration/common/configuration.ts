@@ -43,3 +43,41 @@ export const WORKSPACE_STANDALONE_CONFIGURATIONS = {
 	'launch': `${WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME}/launch.json`,
 	'extensions': `${WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME}/extensions.json`
 };
+
+export interface WorkspaceConfigurationNode {
+	[part: string]: IWorkspaceConfigurationValue<any> | WorkspaceConfigurationNode;
+}
+
+export function getWorkspaceConfigurationTree(configurationService: IWorkspaceConfigurationService): WorkspaceConfigurationNode {
+	const result: WorkspaceConfigurationNode = Object.create(null);
+	const keyset = configurationService.keys();
+	const keys = [...keyset.workspace, ...keyset.user, ...keyset.default].sort();
+	let lastKey: string;
+	for (const key of keys) {
+		if (key !== lastKey) {
+			lastKey = key;
+			const config = configurationService.lookup(key);
+			insert(result, key, config);
+		}
+	}
+	return result;
+}
+
+function insert(root: WorkspaceConfigurationNode, key: string, value: any): void {
+	const parts = key.split('.');
+	let i = 0;
+	while (i < parts.length - 1) {
+		let child = root[parts[i]];
+		if (child) {
+			root = <any>child;
+			i += 1;
+		} else {
+			break;
+		}
+	}
+	while (i < parts.length - 1) {
+		root = root[parts[i]] = Object.create(null);
+		i += 1;
+	}
+	root[parts[parts.length - 1]] = value;
+}

@@ -23,10 +23,10 @@ import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product';
 import Uri from 'vs/base/common/uri';
@@ -123,6 +123,7 @@ export interface IWindowsMainService {
 	getWindowCount(): number;
 	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
 	removeFromRecentPathsList(path: string);
+	removeFromRecentPathsList(path: string[]);
 	clearRecentPathsList(): void;
 	toggleMenuBar(windowId: number): void;
 }
@@ -155,9 +156,9 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IUpdateService private updateService: IUpdateService,
+		@IBackupService private backupService: IBackupService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IBackupService private backupService: IBackupService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) { }
 
 	onOpen(clb: (path: IPath) => void): () => void {
@@ -253,38 +254,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		});
 
-		this.updateService.on('update-downloaded', (update: IUpdate) => {
-			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
-
-			this.sendToAll('vscode:update-downloaded', JSON.stringify({
-				releaseNotes: update.releaseNotes,
-				version: update.version,
-				date: update.date
-			}));
-		});
-
-		ipc.on('vscode:update-apply', () => {
-			this.logService.log('IPC#vscode:update-apply');
-
-			if (this.updateService.availableUpdate) {
-				this.updateService.availableUpdate.quitAndUpdate();
-			}
-		});
-
-		this.updateService.on('update-not-available', (explicit: boolean) => {
-			this.sendToFocused('vscode:telemetry', { eventName: 'update:notAvailable', data: { explicit } });
-
-			if (explicit) {
-				this.sendToFocused('vscode:update-not-available', '');
-			}
-		});
-
-		this.updateService.on('update-available', (url: string, version: string) => {
-			if (url) {
-				this.sendToFocused('vscode:update-available', url, version);
-			}
-		});
-
 		this.lifecycleService.onBeforeQuit(() => {
 
 			// 0-1 window open: Do not keep the list but just rely on the active window to be stored
@@ -333,7 +302,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			this.logService.log(error); // be on the safe side with these hardware method calls
 		}
 
-		window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart, totalmem, cpus } });
+		this.telemetryService.publicLog('startupTime', { ellapsed: Date.now() - global.vscodeStart, totalmem, cpus });
 	}
 
 	private onBroadcast(event: string, payload: any): void {
@@ -580,20 +549,36 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
 	}
 
-	public removeFromRecentPathsList(path: string): void {
+	public removeFromRecentPathsList(path: string): void;
+	public removeFromRecentPathsList(paths: string[]): void;
+	public removeFromRecentPathsList(arg1: any): void {
+		let paths: string[];
+		if (Array.isArray(arg1)) {
+			paths = arg1;
+		} else {
+			paths = [arg1];
+		}
+
 		const mru = this.getRecentPathsList();
+		let update = false;
 
-		let index = mru.files.indexOf(path);
-		if (index >= 0) {
-			mru.files.splice(index, 1);
+		paths.forEach(path => {
+			let index = mru.files.indexOf(path);
+			if (index >= 0) {
+				mru.files.splice(index, 1);
+				update = true;
+			}
+
+			index = mru.folders.indexOf(path);
+			if (index >= 0) {
+				mru.folders.splice(index, 1);
+				update = true;
+			}
+		});
+
+		if (update) {
+			this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
 		}
-
-		index = mru.folders.indexOf(path);
-		if (index >= 0) {
-			mru.folders.splice(index, 1);
-		}
-
-		this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
 	}
 
 	public clearRecentPathsList(): void {
@@ -707,6 +692,8 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 					{ workspacePath: candidate };
 			}
 		} catch (error) {
+			this.removeFromRecentPathsList(candidate); // since file does not seem to exist anymore, remove from recent
+
 			if (ignoreFileNotFound) {
 				return { filePath: candidate, createFilePath: true }; // assume this is a file that does not yet exist
 			}
@@ -781,7 +768,8 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			vscodeWindow = this.instantiationService.createInstance(VSCodeWindow, {
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
-				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen)
+				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen),
+				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
 			});
 
 			WindowsManager.WINDOWS.push(vscodeWindow);

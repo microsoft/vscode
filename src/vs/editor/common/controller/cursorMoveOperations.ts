@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { CursorMove, CursorMoveConfiguration, ICursorMoveHelperModel } from 'vs/editor/common/controller/cursorMoveHelper';
+import { SingleCursorState, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/editorCommon';
-import { CursorModelState } from 'vs/editor/common/controller/oneCursor';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
-export class CursorMoveResult {
-	_cursorMoveResultBrand: void;
+export class CursorPosition {
+	_cursorPositionBrand: void;
 
 	public readonly lineNumber: number;
 	public readonly column: number;
@@ -22,28 +23,27 @@ export class CursorMoveResult {
 	}
 }
 
-export class MoveOperationResult {
-	_moveOperationBrand: void;
+export class SingleMoveOperationResult {
+	_singleMoveOperationBrand: void;
 
-	readonly inSelectionMode: boolean;
-	readonly lineNumber: number;
-	readonly column: number;
-	readonly leftoverVisibleColumns: number;
+	public static fromMove(initialState: SingleCursorState, inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number, ensureInEditableRange: boolean, reason: CursorChangeReason): SingleMoveOperationResult {
+		return new SingleMoveOperationResult(
+			initialState.move(inSelectionMode, new Position(lineNumber, column), leftoverVisibleColumns),
+			ensureInEditableRange,
+			reason
+		);
+	}
+
+	readonly state: SingleCursorState;
 	readonly ensureInEditableRange: boolean;
 	readonly reason: CursorChangeReason;
 
 	constructor(
-		inSelectionMode: boolean,
-		lineNumber: number,
-		column: number,
-		leftoverVisibleColumns: number,
+		state: SingleCursorState,
 		ensureInEditableRange: boolean,
 		reason: CursorChangeReason
 	) {
-		this.inSelectionMode = inSelectionMode;
-		this.lineNumber = lineNumber;
-		this.column = column;
-		this.leftoverVisibleColumns = leftoverVisibleColumns;
+		this.state = state;
 		this.ensureInEditableRange = ensureInEditableRange;
 		this.reason = reason;
 	}
@@ -51,10 +51,10 @@ export class MoveOperationResult {
 
 export class MoveOperations {
 
-	public static left(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, lineNumber: number, column: number): CursorMoveResult {
+	public static left(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
 
 		if (column > model.getLineMinColumn(lineNumber)) {
-			if (CursorMove.isLowSurrogate(model, lineNumber, column - 2)) {
+			if (CursorColumns.isLowSurrogate(model, lineNumber, column - 2)) {
 				// character before column is a low surrogate
 				column = column - 2;
 			} else {
@@ -65,10 +65,10 @@ export class MoveOperations {
 			column = model.getLineMaxColumn(lineNumber);
 		}
 
-		return new CursorMoveResult(lineNumber, column, 0);
+		return new CursorPosition(lineNumber, column, 0);
 	}
 
-	public static moveLeft(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState, inSelectionMode: boolean, noOfColumns: number): MoveOperationResult {
+	public static moveLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, noOfColumns: number): SingleMoveOperationResult {
 		let lineNumber: number,
 			column: number;
 
@@ -82,13 +82,13 @@ export class MoveOperations {
 			column = r.column;
 		}
 
-		return new MoveOperationResult(inSelectionMode, lineNumber, column, 0, true, CursorChangeReason.Explicit);
+		return SingleMoveOperationResult.fromMove(cursor, inSelectionMode, lineNumber, column, 0, true, CursorChangeReason.Explicit);
 	}
 
-	public static right(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, lineNumber: number, column: number): CursorMoveResult {
+	public static right(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
 
 		if (column < model.getLineMaxColumn(lineNumber)) {
-			if (CursorMove.isHighSurrogate(model, lineNumber, column - 1)) {
+			if (CursorColumns.isHighSurrogate(model, lineNumber, column - 1)) {
 				// character after column is a high surrogate
 				column = column + 2;
 			} else {
@@ -99,10 +99,10 @@ export class MoveOperations {
 			column = model.getLineMinColumn(lineNumber);
 		}
 
-		return new CursorMoveResult(lineNumber, column, 0);
+		return new CursorPosition(lineNumber, column, 0);
 	}
 
-	public static moveRight(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState, inSelectionMode: boolean, noOfColumns: number): MoveOperationResult {
+	public static moveRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, noOfColumns: number): SingleMoveOperationResult {
 		let lineNumber: number,
 			column: number;
 
@@ -116,11 +116,11 @@ export class MoveOperations {
 			column = r.column;
 		}
 
-		return new MoveOperationResult(inSelectionMode, lineNumber, column, 0, true, CursorChangeReason.Explicit);
+		return SingleMoveOperationResult.fromMove(cursor, inSelectionMode, lineNumber, column, 0, true, CursorChangeReason.Explicit);
 	}
 
-	public static down(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorMoveResult {
-		const currentVisibleColumn = CursorMove.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
+	public static down(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorPosition {
+		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
 
 		lineNumber = lineNumber + count;
 		var lineCount = model.getLineCount();
@@ -130,23 +130,23 @@ export class MoveOperations {
 				column = model.getLineMaxColumn(lineNumber);
 			} else {
 				column = Math.min(model.getLineMaxColumn(lineNumber), column);
-				if (CursorMove.isInsideSurrogatePair(model, lineNumber, column)) {
+				if (CursorColumns.isInsideSurrogatePair(model, lineNumber, column)) {
 					column = column - 1;
 				}
 			}
 		} else {
-			column = CursorMove.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
-			if (CursorMove.isInsideSurrogatePair(model, lineNumber, column)) {
+			column = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
+			if (CursorColumns.isInsideSurrogatePair(model, lineNumber, column)) {
 				column = column - 1;
 			}
 		}
 
-		leftoverVisibleColumns = currentVisibleColumn - CursorMove.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
 
-		return new CursorMoveResult(lineNumber, column, leftoverVisibleColumns);
+		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
 	}
 
-	public static moveDown(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState, inSelectionMode: boolean, linesCount: number): MoveOperationResult {
+	public static moveDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleMoveOperationResult {
 		let lineNumber: number,
 			column: number;
 
@@ -161,11 +161,27 @@ export class MoveOperations {
 
 		let r = MoveOperations.down(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
 
-		return new MoveOperationResult(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true, CursorChangeReason.Explicit);
+		return SingleMoveOperationResult.fromMove(cursor, inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true, CursorChangeReason.Explicit);
 	}
 
-	public static up(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorMoveResult {
-		const currentVisibleColumn = CursorMove.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
+	public static translateDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): SingleMoveOperationResult {
+		let selection = cursor.selection;
+
+		let selectionStart = MoveOperations.down(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.selectionStartLeftoverVisibleColumns, 1, false);
+		let position = MoveOperations.down(config, model, selection.positionLineNumber, selection.positionColumn, cursor.leftoverVisibleColumns, 1, false);
+
+		let tmp = new SingleCursorState(
+			new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column),
+			selectionStart.leftoverVisibleColumns,
+			new Position(position.lineNumber, position.column),
+			position.leftoverVisibleColumns
+		);
+
+		return new SingleMoveOperationResult(tmp, true, CursorChangeReason.Explicit);
+	}
+
+	public static up(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorPosition {
+		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
 
 		lineNumber = lineNumber - count;
 		if (lineNumber < 1) {
@@ -174,23 +190,23 @@ export class MoveOperations {
 				column = model.getLineMinColumn(lineNumber);
 			} else {
 				column = Math.min(model.getLineMaxColumn(lineNumber), column);
-				if (CursorMove.isInsideSurrogatePair(model, lineNumber, column)) {
+				if (CursorColumns.isInsideSurrogatePair(model, lineNumber, column)) {
 					column = column - 1;
 				}
 			}
 		} else {
-			column = CursorMove.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
-			if (CursorMove.isInsideSurrogatePair(model, lineNumber, column)) {
+			column = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
+			if (CursorColumns.isInsideSurrogatePair(model, lineNumber, column)) {
 				column = column - 1;
 			}
 		}
 
-		leftoverVisibleColumns = currentVisibleColumn - CursorMove.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
 
-		return new CursorMoveResult(lineNumber, column, leftoverVisibleColumns);
+		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
 	}
 
-	public static moveUp(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState, inSelectionMode: boolean, linesCount: number): MoveOperationResult {
+	public static moveUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleMoveOperationResult {
 		let lineNumber: number,
 			column: number;
 
@@ -205,6 +221,34 @@ export class MoveOperations {
 
 		let r = MoveOperations.up(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
 
-		return new MoveOperationResult(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true, CursorChangeReason.Explicit);
+		return SingleMoveOperationResult.fromMove(cursor, inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true, CursorChangeReason.Explicit);
+	}
+
+	public static translateUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): SingleMoveOperationResult {
+
+		let selection = cursor.selection;
+
+		let selectionStart = MoveOperations.up(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.selectionStartLeftoverVisibleColumns, 1, false);
+		let position = MoveOperations.up(config, model, selection.positionLineNumber, selection.positionColumn, cursor.leftoverVisibleColumns, 1, false);
+
+		let tmp = new SingleCursorState(
+			new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column),
+			selectionStart.leftoverVisibleColumns,
+			new Position(position.lineNumber, position.column),
+			position.leftoverVisibleColumns
+		);
+
+		return new SingleMoveOperationResult(tmp, true, CursorChangeReason.Explicit);
+	}
+
+	public static moveToBeginningOfBuffer(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleMoveOperationResult {
+		return SingleMoveOperationResult.fromMove(cursor, inSelectionMode, 1, 1, 0, true, CursorChangeReason.Explicit);
+	}
+
+	public static moveToEndOfBuffer(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleMoveOperationResult {
+		let lastLineNumber = model.getLineCount();
+		let lastColumn = model.getLineMaxColumn(lastLineNumber);
+
+		return SingleMoveOperationResult.fromMove(cursor, inSelectionMode, lastLineNumber, lastColumn, 0, true, CursorChangeReason.Explicit);
 	}
 }

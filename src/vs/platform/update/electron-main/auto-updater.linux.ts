@@ -10,16 +10,19 @@ import { isString } from 'vs/base/common/types';
 import { Promise } from 'vs/base/common/winjs.base';
 import { asJson } from 'vs/base/node/request';
 import { IRequestService } from 'vs/platform/request/common/request';
+import { IAutoUpdater } from 'vs/platform/update/common/update';
 import product from 'vs/platform/product';
 
-export interface IUpdate {
+interface IUpdate {
 	url: string;
 	name: string;
 	releaseNotes?: string;
-	version?: string;
+	version: string;
+	productVersion: string;
+	hash: string;
 }
 
-export class LinuxAutoUpdaterImpl extends EventEmitter {
+export class LinuxAutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 
 	private url: string;
 	private currentRequest: Promise;
@@ -51,10 +54,10 @@ export class LinuxAutoUpdaterImpl extends EventEmitter {
 		this.currentRequest = this.requestService.request({ url: this.url })
 			.then<IUpdate>(asJson)
 			.then(update => {
-				if (!update || !update.url || !update.version) {
+				if (!update || !update.url || !update.version || !update.productVersion) {
 					this.emit('update-not-available');
 				} else {
-					this.emit('update-available', null, product.downloadUrl, update.version);
+					this.emit('update-available', null, product.downloadUrl, update.productVersion);
 				}
 			})
 			.then(null, e => {
@@ -66,5 +69,9 @@ export class LinuxAutoUpdaterImpl extends EventEmitter {
 				this.emit('error', e);
 			})
 			.then(() => this.currentRequest = null);
+	}
+
+	quitAndInstall(): void {
+		// noop
 	}
 }

@@ -445,13 +445,13 @@ export class DebugService implements debug.IDebugService {
 		if (!process) {
 			process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
 		}
-		if (process && !focusedStackFrame) {
-			const thread = process.getAllThreads().pop();
-			const callStack = thread ? thread.getCachedCallStack() : null;
+		const thread = focusedStackFrame ? focusedStackFrame.thread : (process ? process.getAllThreads().pop() : null);
+		if (thread && !focusedStackFrame) {
+			const callStack = thread.getCachedCallStack();
 			focusedStackFrame = callStack && callStack.length ? callStack[0] : null;
 		}
 
-		this.viewModel.setFocusedStackFrame(focusedStackFrame, process);
+		this.viewModel.setFocusedStackFrame(focusedStackFrame, thread, process);
 		this._onDidChangeState.fire();
 
 		return this.model.evaluateWatchExpressions(process, focusedStackFrame);
@@ -641,8 +641,11 @@ export class DebugService implements debug.IDebugService {
 			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
 			const process = this.model.addProcess(configuration.name, session);
 
+			if (this.model.getProcesses().length > 1) {
+				this.viewModel.setMultiProcessView(true);
+			}
 			if (!this.viewModel.focusedProcess) {
-				this.viewModel.setFocusedStackFrame(null, process);
+				this.viewModel.setFocusedStackFrame(null, null, process);
 				this._onDidChangeState.fire();
 			}
 			this.toDisposeOnSessionEnd[session.getId()] = [];
@@ -818,6 +821,7 @@ export class DebugService implements debug.IDebugService {
 			this.model.updateBreakpoints(data);
 
 			this.inDebugMode.reset();
+			this.viewModel.setMultiProcessView(false);
 
 			if (!this.partService.isSideBarHidden() && this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {
 				this.viewletService.openViewlet(EXPLORER_VIEWLET_ID).done(null, errors.onUnexpectedError);

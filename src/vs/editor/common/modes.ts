@@ -186,6 +186,7 @@ export interface ISuggestion {
 	additionalTextEdits?: editorCommon.ISingleEditOperation[];
 	command?: Command;
 	isTMSnippet?: boolean;
+	_extensionId?: string;
 }
 
 /**

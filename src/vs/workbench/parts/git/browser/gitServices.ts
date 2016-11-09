@@ -705,6 +705,11 @@ export class GitService extends EventEmitter
 		return this.raw.detectMimetypes(path, treeish);
 	}
 
+	clone(url: string, parentPath: string): TPromise<string> {
+		return this.raw.clone(url, parentPath)
+			.then(null, e => this.wrapGitError(e));
+	}
+
 	private run(operationId: string, fn: () => TPromise<IRawStatus>): TPromise<IModel> {
 		return this.raw.serviceState().then(state => {
 			if (state === RawServiceState.GitNotFound) {
@@ -782,18 +787,24 @@ export class GitService extends EventEmitter
 				return TPromise.as(null);
 			}
 
-			var error: Error;
-			var showOutputAction = new Action('show.gitOutput', localize('showOutput', "Show Output"), null, true, () => this.outputService.getChannel('Git').show());
-			var cancelAction = new Action('close.message', localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
-
-			error = createError(
-				localize('checkNativeConsole', "There was an issue running a git operation. Please review the output or use a console to check the state of your repository."),
-				{ actions: [cancelAction, showOutputAction] }
-			);
-
-			(<any>error).gitErrorCode = gitErrorCode;
-			return TPromise.wrapError(error);
+			return this.wrapGitError(e);
 		});
+	}
+
+	private wrapGitError<T>(e: any): TPromise<T> {
+		const gitErrorCode: string = e.gitErrorCode || null;
+		const showOutputAction = new Action('show.gitOutput', localize('showOutput', "Show Output"), null, true, () => this.outputService.getChannel('Git').show());
+		const cancelAction = new Action('close.message', localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
+		const error = createError(
+			localize('checkNativeConsole', "There was an issue running a git operation. Please review the output or use a console to check the state of your repository."),
+			{ actions: [cancelAction, showOutputAction] }
+		);
+
+		(<any>error).gitErrorCode = gitErrorCode;
+		(<any>error).stdout = e.stdout;
+		(<any>error).stderr = e.stderr;
+
+		return TPromise.wrapError(error);
 	}
 
 	private transition(state: ServiceState): void {
