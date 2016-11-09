@@ -13,7 +13,7 @@ const extensions = [
 	'configuration-editing',
 	'extension-editing',
 	'markdown',
-	'typescrip222st',
+	'typescript',
 	'php',
 	'javascript',
 	'css',
@@ -22,7 +22,7 @@ const extensions = [
 
 extensions.forEach(extension => {
 	const result = cp.spawnSync(npm, ['install'], {
-		cwd: `extensions/${ extension }`,
+		cwd: `extensions/${extension}`,
 		stdio: 'inherit'
 	});
 
