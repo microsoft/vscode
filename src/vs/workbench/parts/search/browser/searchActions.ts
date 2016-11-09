@@ -305,7 +305,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 	private getNavigatorAt(element: FileMatchOrMatch, viewer: ITree): INavigator<any> {
 		let navigator: INavigator<any> = viewer.getNavigator();
-		while (navigator.current() !== element && !!navigator.next()) { };
+		while (navigator.current() !== element && !!navigator.next()) { }
 		return navigator;
 	}
 }
@@ -382,13 +382,13 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	public run(): TPromise<any> {
 		this.enabled = false;
 		this.telemetryService.publicLog('replace.action.selected');
-		let elementToFocus = this.getElementToFocusAfterRemoved(this.viewer, this.element);
-		let elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
 
 		return this.element.parent().replace(this.element).then(() => {
+			let elementToFocus = this.getElementToFocusAfterReplace();
 			if (elementToFocus) {
 				this.viewer.setFocus(elementToFocus);
 			}
+			let elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
 			this.viewer.DOMFocus();
 			if (!elementToShowReplacePreview || this.hasToOpenFile()) {
 				this.viewlet.open(this.element, true);
@@ -396,6 +396,33 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 				this.replaceService.openReplacePreviewEditor(elementToShowReplacePreview, true);
 			}
 		});
+	}
+
+	private getElementToFocusAfterReplace(): Match {
+		let navigator: INavigator<any> = this.viewer.getNavigator();
+		let fileMatched = false;
+		let elementToFocus = null;
+		do {
+			elementToFocus = navigator.current();
+			if (elementToFocus instanceof Match) {
+				if (elementToFocus.parent().id() === this.element.parent().id()) {
+					fileMatched = true;
+					if (this.element.range().getStartPosition().isBeforeOrEqual((<Match>elementToFocus).range().getStartPosition())) {
+						// Closest next match in the same file
+						break;
+					}
+				} else if (fileMatched) {
+					// First match in the next file (if expanded)
+					break;
+				}
+			} else if (fileMatched) {
+				if (!this.viewer.isExpanded(elementToFocus)) {
+					// Next file match (if collapsed)
+					break;
+				}
+			}
+		} while (!!navigator.next());
+		return elementToFocus;
 	}
 
 	private getElementToShowReplacePreview(elementToFocus: FileMatchOrMatch): Match {

@@ -5,7 +5,6 @@
 
 .monaco-workbench > .part.activitybar {
 	z-index: 20;
-	min-width: 50px;
 	width: 50px;
 }
 

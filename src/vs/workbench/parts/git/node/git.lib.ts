@@ -6,7 +6,6 @@
 import * as os from 'os';
 import * as path from 'path';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { del } from 'vs/base/node/extfs';
 import * as pfs from 'vs/base/node/pfs';
 import { guessMimeTypes, isBinaryMime } from 'vs/base/common/mime';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -122,30 +121,31 @@ export class GitError {
 export interface IGitOptions {
 	gitPath: string;
 	version: string;
-	tmpPath: string;
 	defaultEncoding?: string;
 	env?: any;
 }
 
 export class Git {
 
-	gitPath: string;
-	version: string;
-	env: any;
-	private tmpPath: string;
+	private gitPath: string;
+	private _version: string;
+	private env: any;
 	private defaultEncoding: string;
 	private outputListeners: { (output: string): void; }[];
 
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
-		this.version = options.version;
-		this.tmpPath = options.tmpPath;
+		this._version = options.version;
 
 		const encoding = options.defaultEncoding || 'utf8';
 		this.defaultEncoding = encodingExists(encoding) ? encoding : 'utf8';
 
 		this.env = options.env || {};
 		this.outputListeners = [];
+	}
+
+	get version(): string {
+		return this._version;
 	}
 
 	run(cwd: string, args: string[], options: any = {}): TPromise<IExecutionResult> {
@@ -162,18 +162,12 @@ export class Git {
 		return new Repository(this, repository, this.defaultEncoding, env);
 	}
 
-	clone(repository: string, repoURL: string): TPromise<boolean> {
-		return this.exec(['clone', repoURL, repository]).then(() => true, (err) => {
-			return new TPromise<boolean>((c, e) => {
+	clone(url: string, parentPath: string): TPromise<string> {
+		const folderName = url.replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
+		const folderPath = path.join(parentPath, folderName);
 
-				// If there's any error, git will still leave the folder in the FS,
-				// so we need to remove it.
-				del(repository, this.tmpPath, (err) => {
-					if (err) { return e(err); }
-					c(true);
-				});
-			});
-		});
+		return this.exec(['clone', url, folderPath])
+			.then(() => folderPath);
 	}
 
 	config(name: string, value: string): Promise {
@@ -266,20 +260,15 @@ export interface ICommit {
 
 export class Repository {
 
-	private git: Git;
-	private repository: string;
-	private defaultEncoding: string;
-	private env: any;
+	constructor(
+		private _git: Git,
+		private repository: string,
+		private defaultEncoding: string,
+		private env: any = {}
+	) { }
 
-	constructor(git: Git, repository: string, defaultEncoding: string, env: any = {}) {
-		this.git = git;
-		this.repository = repository;
-		this.defaultEncoding = defaultEncoding;
-		this.env = env;
-	}
-
-	get version(): string {
-		return this.git.version;
+	get git(): Git {
+		return this._git;
 	}
 
 	get path(): string {

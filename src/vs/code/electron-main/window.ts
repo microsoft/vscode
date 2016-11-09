@@ -30,6 +30,7 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	allowFullscreen?: boolean;
+	titleBarStyle?: 'native' | 'custom';
 }
 
 export enum WindowMode {
@@ -95,6 +96,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	userEnv: platform.IProcessEnvironment;
 
 	zoomLevel?: number;
+	fullscreen?: boolean;
 
 	workspacePath?: string;
 
@@ -108,6 +110,7 @@ export interface IWindowSettings {
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
 	zoomLevel: number;
+	titleBarStyle: 'native' | 'custom';
 }
 
 export class VSCodeWindow {
@@ -119,6 +122,7 @@ export class VSCodeWindow {
 	private static MIN_HEIGHT = 120;
 
 	private options: IWindowCreationOptions;
+	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;
 	private _id: number;
 	private _win: Electron.BrowserWindow;
@@ -177,6 +181,14 @@ export class VSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
+		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom')) {
+			const isDev = !this.environmentService.isBuilt || this.environmentService.extensionDevelopmentPath;
+			if (!isDev) {
+				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+				this.hiddenTitleBarStyle = true;
+			}
+		}
+
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
@@ -215,6 +227,10 @@ export class VSCodeWindow {
 		}
 
 		this.registerListeners();
+	}
+
+	public hasHiddenTitleBarStyle(): boolean {
+		return this.hiddenTitleBarStyle;
 	}
 
 	public get isPluginDevelopmentHost(): boolean {
@@ -432,6 +448,9 @@ export class VSCodeWindow {
 		if (typeof zoomLevel === 'number') {
 			windowConfiguration.zoomLevel = zoomLevel;
 		}
+
+		// Set fullscreen state
+		windowConfiguration.fullscreen = this._win.isFullScreen();
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);

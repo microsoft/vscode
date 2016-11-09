@@ -9,24 +9,25 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { WorkspaceConfiguration } from 'vscode';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { WorkspaceConfigurationNode, IWorkspaceConfigurationValue } from 'vs/workbench/services/configuration/common/configuration';
 
 export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
 	private _proxy: MainThreadConfigurationShape;
-	private _config: any;
+	private _config: WorkspaceConfigurationNode;
 	private _onDidChangeConfiguration = new Emitter<void>();
 
-	constructor(proxy: MainThreadConfigurationShape, configuration: any) {
+	constructor(proxy: MainThreadConfigurationShape, config: WorkspaceConfigurationNode) {
 		super();
 		this._proxy = proxy;
-		this._config = configuration;
+		this._config = config;
 	}
 
 	get onDidChangeConfiguration(): Event<void> {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	public $acceptConfigurationChanged(config: any) {
+	public $acceptConfigurationChanged(config: WorkspaceConfigurationNode) {
 		this._config = config;
 		this._onDidChangeConfiguration.fire(undefined);
 	}
@@ -39,14 +40,17 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
 		const result: WorkspaceConfiguration = {
 			has(key: string): boolean {
-				return typeof ExtHostConfiguration._lookUp(key, config) !== 'undefined';
+				return typeof ExtHostConfiguration._lookUp(key, <WorkspaceConfigurationNode>config) !== 'undefined';
 			},
-			get<T>(key: string, defaultValue?: T): T {
-				let result = ExtHostConfiguration._lookUp(key, config);
+			get<T>(key: string, defaultValue?: T): any {
+				let result = ExtHostConfiguration._lookUp(key, <WorkspaceConfigurationNode>config);
 				if (typeof result === 'undefined') {
-					result = defaultValue;
+					return defaultValue;
+				} else if (isConfigurationValue(result)) {
+					return result.value;
+				} else {
+					return ExtHostConfiguration._values(result);
 				}
-				return result;
 			},
 			update: (key: string, value: any, global: boolean = false) => {
 				key = section ? `${section}.${key}` : key;
@@ -56,26 +60,66 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 				} else {
 					return this._proxy.$removeConfigurationOption(target, key);
 				}
+			},
+			inspect(key: string) {
+				let result = ExtHostConfiguration._lookUp(key, <WorkspaceConfigurationNode>config);
+				if (isConfigurationValue(result)) {
+					return {
+						key: section ? `${section}.${key}` : key,
+						defaultValue: result.default,
+						globalValue: result.user,
+						workspaceValue: result.workspace
+					};
+				}
 			}
 		};
 
-		if (typeof config === 'object') {
-			mixin(result, config, false);
+		if (!isConfigurationValue(config)) {
+			mixin(result, ExtHostConfiguration._values(config), false);
 		}
 
 		return Object.freeze(result);
+
 	}
 
-	private static _lookUp(section: string, config: any) {
+	private static _lookUp(section: string, config: WorkspaceConfigurationNode): WorkspaceConfigurationNode | IWorkspaceConfigurationValue<any> {
 		if (!section) {
 			return;
 		}
 		let parts = section.split('.');
 		let node = config;
 		while (node && parts.length) {
-			node = node[parts.shift()];
+			let child = node[parts.shift()];
+			if (isConfigurationValue(child)) {
+				return child;
+			} else {
+				node = child;
+			}
 		}
 
 		return node;
 	}
+
+	private static _values(node: WorkspaceConfigurationNode): any {
+		let target = Object.create(null);
+		for (let key in node) {
+			let child = node[key];
+			if (isConfigurationValue(child)) {
+				target[key] = child.value;
+			} else {
+				target[key] = ExtHostConfiguration._values(child);
+			}
+		}
+		return target;
+	}
+}
+
+function isConfigurationValue(thing: any): thing is IWorkspaceConfigurationValue<any> {
+	return typeof thing === 'object'
+		// must have 'value'
+		&& typeof (<IWorkspaceConfigurationValue<any>>thing).value !== 'undefined'
+		// and at least one source 'default', 'user', or 'workspace'
+		&& (typeof (<IWorkspaceConfigurationValue<any>>thing).default !== 'undefined'
+			|| typeof (<IWorkspaceConfigurationValue<any>>thing).user !== 'undefined'
+			|| typeof (<IWorkspaceConfigurationValue<any>>thing).workspace !== 'undefined');
 }

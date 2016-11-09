@@ -28,13 +28,13 @@ export class CharacterPairSupport {
 		return this._autoClosingPairs;
 	}
 
-	public shouldAutoClosePair(character: string, context: ScopedLineTokens, offset: number): boolean {
+	public shouldAutoClosePair(character: string, context: ScopedLineTokens, column: number): boolean {
 		// Always complete on empty line
 		if (context.getTokenCount() === 0) {
 			return true;
 		}
 
-		let tokenIndex = context.findTokenIndexAtOffset(offset - 1);
+		let tokenIndex = context.findTokenIndexAtOffset(column - 2);
 		let standardTokenType = context.getStandardTokenType(tokenIndex);
 
 		for (let i = 0; i < this._autoClosingPairs.length; ++i) {

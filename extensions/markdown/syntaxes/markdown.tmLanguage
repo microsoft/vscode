@@ -287,9 +287,28 @@
 					<array>
 						<dict>
 							<key>begin</key>
-							<string>(?i)(^|\G)\s*(?=&lt;(p|div|h[1-6]|blockquote|pre|table|dl|ol|ul|script|noscript|form|fieldset|iframe|math|ins|del).*&lt;/\2\s*&gt;\s*$)</string>
+							<string>(^|\G)\s*(&lt;!--)</string>
 							<key>end</key>
-							<string>$</string>
+							<string>(--&gt;)</string>
+							<key>contentName</key>
+							<string>block.comment.html</string>
+							<key>captures</key>
+							<dict>
+								<key>1</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.comment.html</string>
+								</dict>
+								<key>2</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.comment.html</string>
+								</dict>
+							</dict>
+						</dict>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)\s*(?=&lt;/?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|pre|p|param|script|section|source|style|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(\s|$|/?&gt;))</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -297,10 +316,12 @@
 									<string>text.html.basic</string>
 								</dict>
 							</array>
+							<key>while</key>
+							<string>^(?!\s*$)</string>
 						</dict>
 						<dict>
 							<key>begin</key>
-							<string>(?i)(^|\G)\s*(?=&lt;(p|div|h[1-6]|blockquote|pre|table|dl|ol|ul|script|noscript|form|fieldset|iframe|math|ins|del))</string>
+							<string>(^|\G)\s*(?=(&lt;[a-zA-Z0-9\-].*&gt;|&lt;/[a-zA-Z0-9\-]&gt;)\s*$)</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -455,7 +476,7 @@
 								</dict>
 							</array>
 							<key>while</key>
-							<string>\G([ ]{4}|\t|$)</string>
+							<string>(^|\G)([ ]{4}|\t)</string>
 						</dict>
 						<dict>
 							<key>begin</key>
@@ -482,7 +503,7 @@
 								</dict>
 							</array>
 							<key>while</key>
-							<string>\G([ ]{4}|\t|$)</string>
+							<string>(^|\G)([ ]{4}|\t)</string>
 						</dict>
 					</array>
 				</dict>
@@ -1434,8 +1455,7 @@
 					</dict>
 					<key>match</key>
 					<string>(?x:
-						\!							# Images start with !
-						(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])
+						(\!\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])
 													# Match the link text.
 						([ ])?						# Space not allowed
 						(\()						# Opening paren for url
@@ -1487,7 +1507,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string>\!(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])[ ]?(\[)(.*?)(\])</string>
+					<string>(\!\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])[ ]?(\[)(.*?)(\])</string>
 					<key>name</key>
 					<string>meta.image.reference.markdown</string>
 				</dict>

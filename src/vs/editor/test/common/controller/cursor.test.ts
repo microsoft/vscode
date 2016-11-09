@@ -2884,7 +2884,7 @@ suite('ElectricCharacter', () => {
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 5);
 			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
-			assert.deepEqual(model.getLineContent(2), '  /**');
+			assert.deepEqual(model.getLineContent(2), '  /** */');
 		});
 	});
 });

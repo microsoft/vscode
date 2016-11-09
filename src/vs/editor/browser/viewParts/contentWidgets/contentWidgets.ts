@@ -154,7 +154,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._widgets[widget.getId()] = widgetData;
 
 		let domNode = widget.getDomNode();
-		domNode.style.position = this._context.configuration.editor.viewInfo.fixedOverflowWidgets ? 'fixed' : 'absolute';
+		domNode.style.position = (this._context.configuration.editor.viewInfo.fixedOverflowWidgets && widget.allowEditorOverflow) ? 'fixed' : 'absolute';
 		StyleMutator.setMaxWidth(domNode, this._contentWidth);
 		StyleMutator.setVisibility(domNode, 'hidden');
 		domNode.setAttribute('widgetId', widget.getId());

@@ -8,6 +8,7 @@
 import 'vs/css!./media/quickopen';
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
+import * as browser from 'vs/base/browser/browser';
 import { Dimension, withElementById } from 'vs/base/browser/builder';
 import strings = require('vs/base/common/strings');
 import filters = require('vs/base/common/filters');
@@ -126,7 +127,9 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	private registerListeners(): void {
-		this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration(e.config));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration(e.config)));
+		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
+		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.positionQuickOpenWidget()));
 	}
 
 	private updateConfiguration(settings: IWorkbenchQuickOpenConfiguration): void {
@@ -279,6 +282,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			const pickOpenContainer = this.pickOpenWidget.create();
 			DOM.addClass(pickOpenContainer, 'show-file-icons');
+			this.positionQuickOpenWidget();
 		}
 
 		// Update otherwise
@@ -512,6 +516,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			const quickOpenContainer = this.quickOpenWidget.create();
 			DOM.addClass(quickOpenContainer, 'show-file-icons');
+			this.positionQuickOpenWidget();
 		}
 
 		// Layout
@@ -547,6 +552,18 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 
 		return promiseCompletedOnHide;
+	}
+
+	private positionQuickOpenWidget(): void {
+		const titlebarOffset = this.partService.getTitleBarOffset();
+
+		if (this.quickOpenWidget) {
+			this.quickOpenWidget.getElement().style('top', `${titlebarOffset}px`);
+		}
+
+		if (this.pickOpenWidget) {
+			this.pickOpenWidget.getElement().style('top', `${titlebarOffset}px`);
+		}
 	}
 
 	private handleOnShow(isPicker: boolean): void {

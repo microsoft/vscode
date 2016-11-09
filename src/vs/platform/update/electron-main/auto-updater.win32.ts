@@ -17,9 +17,10 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { download, asJson } from 'vs/base/node/request';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IRequestService } from 'vs/platform/request/common/request';
+import { IAutoUpdater } from 'vs/platform/update/common/update';
 import product from 'vs/platform/product';
 
-export interface IUpdate {
+interface IUpdate {
 	url: string;
 	name: string;
 	releaseNotes?: string;
@@ -28,19 +29,17 @@ export interface IUpdate {
 	hash: string;
 }
 
-export class Win32AutoUpdaterImpl extends EventEmitter {
+export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 
-	private url: string;
-	private currentRequest: Promise;
+	private url: string = null;
+	private currentRequest: Promise = null;
+	private updatePackagePath: string = null;
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IRequestService private requestService: IRequestService
 	) {
 		super();
-
-		this.url = null;
-		this.currentRequest = null;
 	}
 
 	get cachePath(): TPromise<string> {
@@ -91,13 +90,14 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 								.then(() => updatePackagePath);
 						});
 					}).then(updatePackagePath => {
+						this.updatePackagePath = updatePackagePath;
+
 						this.emit('update-downloaded',
 							{},
 							update.releaseNotes,
 							update.productVersion,
 							new Date(),
-							this.url,
-							() => this.quitAndUpdate(updatePackagePath)
+							this.url
 						);
 					});
 				});
@@ -117,19 +117,6 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${product.quality}-${version}.exe`));
 	}
 
-	private quitAndUpdate(updatePackagePath: string): void {
-		this.lifecycleService.quit().done(vetod => {
-			if (vetod) {
-				return;
-			}
-
-			spawn(updatePackagePath, ['/silent', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
-				detached: true,
-				stdio: ['ignore', 'ignore', 'ignore']
-			});
-		});
-	}
-
 	private cleanup(exceptVersion: string = null): Promise {
 		const filter = exceptVersion ? one => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
@@ -140,5 +127,16 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 					.map(one => pfs.unlink(path.join(cachePath, one)).then(null, () => null))
 				))
 			);
+	}
+
+	quitAndInstall(): void {
+		if (!this.updatePackagePath) {
+			return;
+		}
+
+		spawn(this.updatePackagePath, ['/silent', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+			detached: true,
+			stdio: ['ignore', 'ignore', 'ignore']
+		});
 	}
 }

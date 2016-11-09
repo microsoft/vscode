@@ -46,6 +46,7 @@ import 'vs/workbench/parts/git/browser/gitViewlet'; // can be packaged separatel
 
 import 'vs/workbench/parts/debug/electron-browser/debug.contribution';
 import 'vs/workbench/parts/debug/electron-browser/repl';
+import 'vs/workbench/parts/debug/browser/debugEditorActions';
 import 'vs/workbench/parts/debug/browser/debugViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/markers/markers.contribution';

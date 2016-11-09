@@ -6,15 +6,18 @@
 
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { SingleCursorState, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 
-export interface IViewColumnSelectResult {
+export interface IColumnSelectResult {
 	viewSelections: Selection[];
 	reversed: boolean;
+	toLineNumber: number;
+	toVisualColumn: number;
 }
 
 export class ColumnSelection {
-	public static columnSelect(config: CursorConfiguration, model: ICursorSimpleModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IViewColumnSelectResult {
+
+	private static _columnSelect(config: CursorConfiguration, model: ICursorSimpleModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IColumnSelectResult {
 		let lineCount = Math.abs(toLineNumber - fromLineNumber) + 1;
 		let reversed = (fromLineNumber > toLineNumber);
 		let isRTL = (fromVisibleColumn > toVisibleColumn);
@@ -57,7 +60,61 @@ export class ColumnSelection {
 
 		return {
 			viewSelections: result,
-			reversed: reversed
+			reversed: reversed,
+			toLineNumber: toLineNumber,
+			toVisualColumn: toVisibleColumn
 		};
+	}
+
+	public static columnSelect(config: CursorConfiguration, model: ICursorSimpleModel, fromViewPosition: Position, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
+		let fromViewVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, fromViewPosition);
+		return ColumnSelection._columnSelect(config, model, fromViewPosition.lineNumber, fromViewVisibleColumn, toViewLineNumber, toViewVisualColumn);
+	}
+
+	public static columnSelectLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
+		if (toViewVisualColumn > 1) {
+			toViewVisualColumn--;
+		}
+
+		return this.columnSelect(config, model, cursor.selection.getStartPosition(), toViewLineNumber, toViewVisualColumn);
+	}
+
+	public static columnSelectRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
+		let maxVisualViewColumn = 0;
+		let minViewLineNumber = Math.min(cursor.position.lineNumber, toViewLineNumber);
+		let maxViewLineNumber = Math.max(cursor.position.lineNumber, toViewLineNumber);
+		for (let lineNumber = minViewLineNumber; lineNumber <= maxViewLineNumber; lineNumber++) {
+			let lineMaxViewColumn = model.getLineMaxColumn(lineNumber);
+			let lineMaxVisualViewColumn = CursorColumns.visibleColumnFromColumn2(config, model, new Position(lineNumber, lineMaxViewColumn));
+			maxVisualViewColumn = Math.max(maxVisualViewColumn, lineMaxVisualViewColumn);
+		}
+
+		if (toViewVisualColumn < maxVisualViewColumn) {
+			toViewVisualColumn++;
+		}
+
+		return this.columnSelect(config, model, cursor.selection.getStartPosition(), toViewLineNumber, toViewVisualColumn);
+	}
+
+	public static columnSelectUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, isPaged: boolean, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
+		let linesCount = isPaged ? config.pageSize : 1;
+
+		toViewLineNumber -= linesCount;
+		if (toViewLineNumber < 1) {
+			toViewLineNumber = 1;
+		}
+
+		return this.columnSelect(config, model, cursor.selection.getStartPosition(), toViewLineNumber, toViewVisualColumn);
+	}
+
+	public static columnSelectDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, isPaged: boolean, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
+		let linesCount = isPaged ? config.pageSize : 1;
+
+		toViewLineNumber += linesCount;
+		if (toViewLineNumber > model.getLineCount()) {
+			toViewLineNumber = model.getLineCount();
+		}
+
+		return this.columnSelect(config, model, cursor.selection.getStartPosition(), toViewLineNumber, toViewVisualColumn);
 	}
 }

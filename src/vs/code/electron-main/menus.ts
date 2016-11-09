@@ -15,7 +15,8 @@ import { IPath, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
-import { IUpdateService, State as UpdateState } from 'vs/code/electron-main/update-manager';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import { Keybinding } from 'vs/base/common/keybinding';
 import product from 'vs/platform/product';
 
@@ -58,7 +59,8 @@ export class VSCodeMenu {
 		@IUpdateService private updateService: IUpdateService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWindowsMainService private windowsService: IWindowsMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.actionIdKeybindingRequests = [];
 
@@ -125,7 +127,7 @@ export class VSCodeMenu {
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true /* update menu if changed */));
 
 		// Listen to update service
-		this.updateService.on('change', () => this.updateMenu());
+		this.updateService.onStateChange(() => this.updateMenu());
 	}
 
 	private onConfigurationUpdated(config: IConfiguration, handleMenu?: boolean): void {
@@ -136,21 +138,19 @@ export class VSCodeMenu {
 			updateMenu = true;
 		}
 
-		if (config && config.workbench) {
-			const newSidebarLocation = config.workbench.sideBar && config.workbench.sideBar.location || 'left';
-			if (newSidebarLocation !== this.currentSidebarLocation) {
-				this.currentSidebarLocation = newSidebarLocation;
-				updateMenu = true;
-			}
+		const newSidebarLocation = config && config.workbench && config.workbench.sideBar && config.workbench.sideBar.location || 'left';
+		if (newSidebarLocation !== this.currentSidebarLocation) {
+			this.currentSidebarLocation = newSidebarLocation;
+			updateMenu = true;
+		}
 
-			let newStatusbarVisible = config.workbench.statusBar && config.workbench.statusBar.visible;
-			if (typeof newStatusbarVisible !== 'boolean') {
-				newStatusbarVisible = true;
-			}
-			if (newStatusbarVisible !== this.currentStatusbarVisible) {
-				this.currentStatusbarVisible = newStatusbarVisible;
-				updateMenu = true;
-			}
+		let newStatusbarVisible = config && config.workbench && config.workbench.statusBar && config.workbench.statusBar.visible;
+		if (typeof newStatusbarVisible !== 'boolean') {
+			newStatusbarVisible = true;
+		}
+		if (newStatusbarVisible !== this.currentStatusbarVisible) {
+			this.currentStatusbarVisible = newStatusbarVisible;
+			updateMenu = true;
 		}
 
 		if (handleMenu && updateMenu) {
@@ -662,7 +662,12 @@ export class VSCodeMenu {
 	private toggleDevTools(): void {
 		const w = this.windowsService.getFocusedWindow();
 		if (w && w.win) {
-			w.win.webContents.toggleDevTools();
+			const contents = w.win.webContents;
+			if (w.hasHiddenTitleBarStyle() && !w.win.isFullScreen() && !contents.isDevToolsOpened()) {
+				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
+			} else {
+				contents.toggleDevTools();
+			}
 		}
 	}
 
@@ -748,11 +753,10 @@ export class VSCodeMenu {
 				return [];
 
 			case UpdateState.UpdateDownloaded:
-				const update = this.updateService.availableUpdate;
 				return [new MenuItem({
 					label: nls.localize('miRestartToUpdate', "Restart To Update..."), click: () => {
 						this.reportMenuActionTelemetry('RestartToUpdate');
-						update.quitAndUpdate();
+						this.updateService.quitAndInstall();
 					}
 				})];
 
@@ -761,10 +765,9 @@ export class VSCodeMenu {
 
 			case UpdateState.UpdateAvailable:
 				if (platform.isLinux) {
-					const update = this.updateService.availableUpdate;
 					return [new MenuItem({
 						label: nls.localize('miDownloadUpdate', "Download Available Update"), click: () => {
-							update.quitAndUpdate();
+							this.updateService.quitAndInstall();
 						}
 					})];
 				}
@@ -779,7 +782,7 @@ export class VSCodeMenu {
 				const result = [new MenuItem({
 					label: nls.localize('miCheckForUpdates', "Check For Updates..."), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
-						this.updateService.checkForUpdates(true);
+						this.updateService.checkForUpdates(true).done(null, err => console.error(err));
 					}, 0)
 				})];
 
@@ -883,7 +886,7 @@ export class VSCodeMenu {
 	}
 
 	private reportMenuActionTelemetry(id: string): void {
-		this.windowsService.sendToFocused('vscode:telemetry', { eventName: 'workbenchActionExecuted', data: { id, from: 'menu' } });
+		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'menu' });
 	}
 }
 
