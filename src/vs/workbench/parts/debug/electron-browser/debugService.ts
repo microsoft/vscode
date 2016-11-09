@@ -8,7 +8,6 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -548,59 +547,61 @@ export class DebugService implements debug.IDebugService {
 		const sessionId = generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
 
-		return this.textFileService.saveAll()							// make sure all dirty files are saved
-			.then(() => this.configurationService.reloadConfiguration()	// make sure configuration is up to date
-				.then(() => this.extensionService.onReady()
-					.then(() => this.configurationManager.getConfiguration(configurationOrName)
-						.then(configuration => {
-							if (!configuration) {
-								return this.configurationManager.openConfigFile(false).then(openend => {
-									if (openend) {
-										this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
-									}
-								});
-							}
-							if (configuration.silentlyAbort) {
-								return;
-							}
-							if (strings.equalsIgnoreCase(configuration.type, 'composite') && configuration.configurationNames) {
-								return TPromise.join(configuration.configurationNames.map(name => this.createProcess(name)));
-							}
+		// make sure all dirty files are saved and make sure configuration is up to date
+		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() => this.extensionService.onReady().then(() => {
+			const compound = typeof configurationOrName === 'string' ? this.configurationManager.getCompound(configurationOrName) : null;
+			if (compound) {
+				if (!compound.launches) {
+					return TPromise.wrapError(new Error(nls.localize('compoundMustHaveConfigurationNames', "Compound must have \"configurationNames\" attribute set in order to start multiple configurations.")));
+				}
 
-							if (!this.configurationManager.getAdapter(configuration.type)) {
-								return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
-									: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
-										{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
-							}
+				return TPromise.join(compound.launches.map(name => this.createProcess(name)));
+			}
 
-							return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
-								const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
-								const successExitCode = taskSummary && taskSummary.exitCode === 0;
-								const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
-								if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-									return this.doCreateProcess(sessionId, configuration);
-								}
+			return this.configurationManager.getConfiguration(configurationOrName).then(configuration => {
+				if (!configuration) {
+					return this.configurationManager.openConfigFile(false).then(openend => {
+						if (openend) {
+							this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
+						}
+					});
+				}
 
-								this.messageService.show(severity.Error, {
-									message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-										errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
-									actions: [new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
-										this.messageService.hideAll();
-										return this.doCreateProcess(sessionId, configuration);
-									}), CloseAction]
-								});
-							}, (err: TaskError) => {
-								if (err.code !== TaskErrors.NotConfigured) {
-									throw err;
-								}
+				if (!this.configurationManager.getAdapter(configuration.type)) {
+					return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
+						: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
+							{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
+				}
 
-								this.messageService.show(err.severity, {
-									message: err.message,
-									actions: [this.taskService.configureAction(), CloseAction]
-								});
-							});
-						}))));
+				return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
+					const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+					const successExitCode = taskSummary && taskSummary.exitCode === 0;
+					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
+						return this.doCreateProcess(sessionId, configuration);
+					}
+
+					this.messageService.show(severity.Error, {
+						message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
+							errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
+								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
+						actions: [new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+							this.messageService.hideAll();
+							return this.doCreateProcess(sessionId, configuration);
+						}), CloseAction]
+					});
+				}, (err: TaskError) => {
+					if (err.code !== TaskErrors.NotConfigured) {
+						throw err;
+					}
+
+					this.messageService.show(err.severity, {
+						message: err.message,
+						actions: [this.taskService.configureAction(), CloseAction]
+					});
+				});
+			});
+		})));
 	}
 
 	private doCreateProcess(sessionId: string, configuration: debug.IConfig): TPromise<any> {
