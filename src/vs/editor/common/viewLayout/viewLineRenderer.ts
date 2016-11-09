@@ -94,7 +94,7 @@ export function renderLine(input: RenderLineInput): RenderLineOutput {
 }
 
 function isWhitespace(type: string): boolean {
-	return (type.indexOf('whitespace') >= 0);
+	return (type.indexOf('vs-whitespace') >= 0);
 }
 
 function isControlCharacter(characterCode: number): boolean {

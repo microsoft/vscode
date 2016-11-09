@@ -235,6 +235,8 @@ export interface IViewModel extends ITreeElement {
 	selectedConfigurationName: string;
 	setSelectedConfigurationName(name: string): void;
 
+	isMultiProcessView(): boolean;
+
 	onDidFocusStackFrame: Event<IStackFrame>;
 	onDidFocusProcess: Event<IProcess>;
 	onDidSelectExpression: Event<IExpression>;

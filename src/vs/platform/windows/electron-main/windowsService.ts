@@ -61,7 +61,12 @@ export class WindowsService implements IWindowsService {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (vscodeWindow) {
-			vscodeWindow.win.webContents.toggleDevTools();
+			const contents = vscodeWindow.win.webContents;
+			if (vscodeWindow.hasHiddenTitleBarStyle() && !vscodeWindow.win.isFullScreen() && !contents.isDevToolsOpened()) {
+				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
+			} else {
+				contents.toggleDevTools();
+			}
 		}
 
 		return TPromise.as(null);
@@ -113,6 +118,36 @@ export class WindowsService implements IWindowsService {
 
 		if (vscodeWindow) {
 			vscodeWindow.win.focus();
+		}
+
+		return TPromise.as(null);
+	}
+
+	isMaximized(windowId: number): TPromise<boolean> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			return TPromise.as(vscodeWindow.win.isMaximized());
+		}
+
+		return TPromise.as(null);
+	}
+
+	maximizeWindow(windowId: number): TPromise<void> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			vscodeWindow.win.maximize();
+		}
+
+		return TPromise.as(null);
+	}
+
+	unmaximizeWindow(windowId: number): TPromise<void> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			vscodeWindow.win.unmaximize();
 		}
 
 		return TPromise.as(null);

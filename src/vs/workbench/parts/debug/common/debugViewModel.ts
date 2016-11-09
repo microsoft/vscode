@@ -10,6 +10,7 @@ export class ViewModel implements debug.IViewModel {
 
 	private _focusedStackFrame: debug.IStackFrame;
 	private _focusedProcess: debug.IProcess;
+	private _focusedThread: debug.IThread;
 	private selectedExpression: debug.IExpression;
 	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
 	private _onDidFocusStackFrame: Emitter<debug.IStackFrame>;
@@ -17,6 +18,7 @@ export class ViewModel implements debug.IViewModel {
 	private _onDidSelectExpression: Emitter<debug.IExpression>;
 	private _onDidSelectFunctionBreakpoint: Emitter<debug.IFunctionBreakpoint>;
 	private _onDidSelectConfigurationName: Emitter<string>;
+	private multiProcessView: boolean;
 	public changedWorkbenchViewState: boolean;
 
 	constructor(private _selectedConfigurationName: string) {
@@ -37,16 +39,17 @@ export class ViewModel implements debug.IViewModel {
 	}
 
 	public get focusedThread(): debug.IThread {
-		return this._focusedStackFrame ? this._focusedStackFrame.thread : null;
+		return this._focusedThread;
 	}
 
 	public get focusedStackFrame(): debug.IStackFrame {
 		return this._focusedStackFrame;
 	}
 
-	public setFocusedStackFrame(stackFrame: debug.IStackFrame, process: debug.IProcess): void {
+	public setFocusedStackFrame(stackFrame: debug.IStackFrame, thread: debug.IThread, process: debug.IProcess): void {
 		this._focusedStackFrame = stackFrame;
 		this._focusedProcess = process;
+		this._focusedThread = thread;
 		this._onDidFocusStackFrame.fire(stackFrame);
 		this._onDidFocusProcess.fire(process);
 	}
@@ -92,6 +95,14 @@ export class ViewModel implements debug.IViewModel {
 	public setSelectedConfigurationName(configurationName: string): void {
 		this._selectedConfigurationName = configurationName;
 		this._onDidSelectConfigurationName.fire(configurationName);
+	}
+
+	public isMultiProcessView(): boolean {
+		return this.multiProcessView;
+	}
+
+	public setMultiProcessView(isMultiProcessView: boolean): void {
+		this.multiProcessView = isMultiProcessView;
 	}
 
 	public get onDidSelectConfigurationName(): Event<string> {

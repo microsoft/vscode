@@ -20,6 +20,9 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'getRecentlyOpen', arg: number): TPromise<{ files: string[]; folders: string[]; }>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
+	call(command: 'isMaximized', arg: number): TPromise<boolean>;
+	call(command: 'maximizeWindow', arg: number): TPromise<void>;
+	call(command: 'unmaximizeWindow', arg: number): TPromise<void>;
 	call(command: 'setDocumentEdited', arg: [number, boolean]): TPromise<void>;
 	call(command: 'toggleMenuBar', arg: number): TPromise<void>;
 	call(command: 'windowOpen', arg: [string[], boolean]): TPromise<void>;
@@ -51,6 +54,9 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'getRecentlyOpen': return this.service.getRecentlyOpen(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
+			case 'isMaximized': return this.service.isMaximized(arg);
+			case 'maximizeWindow': return this.service.maximizeWindow(arg);
+			case 'unmaximizeWindow': return this.service.unmaximizeWindow(arg);
 			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
 			case 'toggleMenuBar': return this.service.toggleMenuBar(arg);
 			case 'windowOpen': return this.service.windowOpen(arg[0], arg[1]);
@@ -114,6 +120,18 @@ export class WindowsChannelClient implements IWindowsService {
 
 	focusWindow(windowId: number): TPromise<void> {
 		return this.channel.call('focusWindow', windowId);
+	}
+
+	isMaximized(windowId: number): TPromise<boolean> {
+		return this.channel.call('isMaximized', windowId);
+	}
+
+	maximizeWindow(windowId: number): TPromise<void> {
+		return this.channel.call('maximizeWindow', windowId);
+	}
+
+	unmaximizeWindow(windowId: number): TPromise<void> {
+		return this.channel.call('unmaximizeWindow', windowId);
 	}
 
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {

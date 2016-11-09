@@ -5,37 +5,14 @@
 'use strict';
 
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { CursorMoveHelper, CursorMove, CursorMoveConfiguration, ICursorMoveHelperModel } from 'vs/editor/common/controller/cursorMoveHelper';
+import { SingleCursorState, EditOperationResult, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommand } from 'vs/editor/common/editorCommon';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
-import { CursorModelState } from 'vs/editor/common/controller/oneCursor';
 import * as strings from 'vs/base/common/strings';
-
-export class EditOperationResult {
-	_editOperationBrand: void;
-
-	readonly command: ICommand;
-	readonly shouldPushStackElementBefore: boolean;
-	readonly shouldPushStackElementAfter: boolean;
-	readonly isAutoWhitespaceCommand: boolean;
-
-	constructor(
-		command: ICommand,
-		shouldPushStackElementBefore: boolean,
-		shouldPushStackElementAfter: boolean,
-		isAutoWhitespaceCommand: boolean
-	) {
-		this.command = command;
-		this.shouldPushStackElementBefore = shouldPushStackElementBefore;
-		this.shouldPushStackElementAfter = shouldPushStackElementAfter;
-		this.isAutoWhitespaceCommand = isAutoWhitespaceCommand;
-	}
-}
 
 export class DeleteOperations {
 
-	public static deleteRight(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 
 		let deleteSelection: Range = cursor.selection;
 
@@ -60,10 +37,13 @@ export class DeleteOperations {
 			shouldPushStackElementBefore = true;
 		}
 
-		return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), shouldPushStackElementBefore, false, false);
+		return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+			shouldPushStackElementBefore: shouldPushStackElementBefore,
+			shouldPushStackElementAfter: false
+		});
 	}
 
-	public static deleteAllRight(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteAllRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		let selection = cursor.selection;
 
 		if (selection.isEmpty()) {
@@ -79,14 +59,17 @@ export class DeleteOperations {
 
 			let deleteSelection = new Range(lineNumber, column, lineNumber, maxColumn);
 			if (!deleteSelection.isEmpty()) {
-				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), false, false, false);
+				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+					shouldPushStackElementBefore: false,
+					shouldPushStackElementAfter: false
+				});
 			}
 		}
 
 		return this.deleteRight(config, model, cursor);
 	}
 
-	public static autoClosingPairDelete(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static autoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		if (!config.autoClosingBrackets) {
 			return null;
 		}
@@ -118,10 +101,13 @@ export class DeleteOperations {
 			position.column + 1
 		);
 
-		return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), false, false, false);
+		return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+			shouldPushStackElementBefore: false,
+			shouldPushStackElementAfter: false
+		});
 	}
 
-	public static deleteLeft(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		let r = this.autoClosingPairDelete(config, model, cursor);
 		if (r) {
 			// This was a case for an auto-closing pair delete
@@ -144,9 +130,9 @@ export class DeleteOperations {
 				);
 
 				if (position.column <= lastIndentationColumn) {
-					let fromVisibleColumn = CursorMove.visibleColumnFromColumn2(config, model, position);
-					let toVisibleColumn = CursorMoveHelper.prevTabColumn(fromVisibleColumn, config.tabSize);
-					let toColumn = CursorMove.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
+					let fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
+					let toVisibleColumn = CursorColumns.prevTabStop(fromVisibleColumn, config.tabSize);
+					let toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
 					deleteSelection = new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
 				} else {
 					deleteSelection = new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column);
@@ -172,10 +158,13 @@ export class DeleteOperations {
 			shouldPushStackElementBefore = true;
 		}
 
-		return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), shouldPushStackElementBefore, false, false);
+		return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+			shouldPushStackElementBefore: shouldPushStackElementBefore,
+			shouldPushStackElementAfter: false
+		});
 	}
 
-	public static deleteAllLeft(config: CursorMoveConfiguration, model: ICursorMoveHelperModel, cursor: CursorModelState): EditOperationResult {
+	public static deleteAllLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		let r = this.autoClosingPairDelete(config, model, cursor);
 		if (r) {
 			// This was a case for an auto-closing pair delete
@@ -196,11 +185,73 @@ export class DeleteOperations {
 
 			let deleteSelection = new Range(lineNumber, 1, lineNumber, column);
 			if (!deleteSelection.isEmpty()) {
-				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), false, false, false);
+				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+					shouldPushStackElementBefore: false,
+					shouldPushStackElementAfter: false
+				});
 			}
 		}
 
 		return this.deleteLeft(config, model, cursor);
+	}
+
+	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, enableEmptySelectionClipboard: boolean): EditOperationResult {
+		let selection = cursor.selection;
+
+		if (selection.isEmpty()) {
+			if (enableEmptySelectionClipboard) {
+				// This is a full line cut
+
+				let position = cursor.position;
+
+				let startLineNumber: number,
+					startColumn: number,
+					endLineNumber: number,
+					endColumn: number;
+
+				if (position.lineNumber < model.getLineCount()) {
+					// Cutting a line in the middle of the model
+					startLineNumber = position.lineNumber;
+					startColumn = 1;
+					endLineNumber = position.lineNumber + 1;
+					endColumn = 1;
+				} else if (position.lineNumber > 1) {
+					// Cutting the last line & there are more than 1 lines in the model
+					startLineNumber = position.lineNumber - 1;
+					startColumn = model.getLineMaxColumn(position.lineNumber - 1);
+					endLineNumber = position.lineNumber;
+					endColumn = model.getLineMaxColumn(position.lineNumber);
+				} else {
+					// Cutting the single line that the model contains
+					startLineNumber = position.lineNumber;
+					startColumn = 1;
+					endLineNumber = position.lineNumber;
+					endColumn = model.getLineMaxColumn(position.lineNumber);
+				}
+
+				let deleteSelection = new Range(
+					startLineNumber,
+					startColumn,
+					endLineNumber,
+					endColumn
+				);
+
+				if (!deleteSelection.isEmpty()) {
+					return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
+						shouldPushStackElementBefore: true,
+						shouldPushStackElementAfter: true
+					});
+				} else {
+					return null;
+				}
+			} else {
+				// Cannot cut empty selection
+				return null;
+			}
+		} else {
+			// Delete left or right, they will both result in the selection being deleted
+			return this.deleteRight(config, model, cursor);
+		}
 	}
 
 }

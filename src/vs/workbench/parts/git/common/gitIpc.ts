@@ -88,6 +88,7 @@ export interface IGitChannel extends IChannel {
 	call(command: 'commit', args: [string, boolean, boolean, boolean]): TPromise<IPCRawStatus>;
 	call(command: 'detectMimetypes', args: [string, string]): TPromise<string[]>;
 	call(command: 'show', args: [string, string]): TPromise<string>;
+	call(command: 'clone', args: [string, string]): TPromise<string>;
 	call(command: 'onOutput'): TPromise<void>;
 	call(command: 'getCommitTemplate'): TPromise<string>;
 	call(command: 'getCommit', ref: string): TPromise<ICommit>;
@@ -120,6 +121,7 @@ export class GitChannel implements IGitChannel {
 			case 'commit': return this.service.then(s => s.commit(args[0], args[1], args[2], args[3])).then(RawStatusSerializer.to);
 			case 'detectMimetypes': return this.service.then(s => s.detectMimetypes(args[0], args[1]));
 			case 'show': return this.service.then(s => s.show(args[0], args[1]));
+			case 'clone': return this.service.then(s => s.clone(args[0], args[1]));
 			case 'onOutput': return this.service.then(s => eventToCall(s.onOutput));
 			case 'getCommitTemplate': return this.service.then(s => s.getCommitTemplate());
 			case 'getCommit': return this.service.then(s => s.getCommit(args));
@@ -222,6 +224,10 @@ export class GitChannelClient implements IRawGitService {
 
 	show(path: string, treeish?: string): TPromise<string> {
 		return this.channel.call('show', [path, treeish]);
+	}
+
+	clone(url: string, parentPath: string): TPromise<string> {
+		return this.channel.call('clone', [url, parentPath]);
 	}
 
 	getCommitTemplate(): TPromise<string> {

@@ -247,7 +247,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 					action.dispose();
 				}, (err) => this.messageService.show(Severity.Error, toErrorMessage(err)));
 			} else {
-				this.messageService.show(Severity.Warning, nls.localize('canNotRun', "Command '{0}' can not be run from here.", action.label || id));
+				this.messageService.show(Severity.Warning, nls.localize('canNotRun', "Command '{0}' is currently not enabled and can not be run.", action.label || id));
 			}
 
 			return;

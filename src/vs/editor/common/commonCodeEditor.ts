@@ -15,7 +15,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyServiceTarget, IContextKeyServi
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { CursorMoveHelper } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
 import { EditorState } from 'vs/editor/common/core/editorState';
 import { Position } from 'vs/editor/common/core/position';
@@ -229,7 +229,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		let position = this.model.validatePosition(rawPosition);
 		let tabSize = this.model.getOptions().tabSize;
 
-		return CursorMoveHelper.visibleColumnFromColumn(this.model, position.lineNumber, position.column, tabSize) + 1;
+		return CursorColumns.visibleColumnFromColumn(this.model.getLineContent(position.lineNumber), position.column, tabSize) + 1;
 	}
 
 	public getPosition(): Position {
@@ -755,19 +755,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				convertViewSelectionToModelSelection: (viewSelection: editorCommon.ISelection) => {
 					return this.viewModel.convertViewSelectionToModelSelection(viewSelection);
 				},
-				convertViewRangeToModelRange: (viewRange: Range) => {
-					return this.viewModel.convertViewRangeToModelRange(viewRange);
-				},
-				validateViewPosition: (viewLineNumber: number, viewColumn: number, modelPosition: Position) => {
-					return this.viewModel.validateViewPosition(viewLineNumber, viewColumn, modelPosition);
-				},
-				validateViewPosition2: (viewPosition: Position, modelPosition: Position): Position => {
+				validateViewPosition: (viewPosition: Position, modelPosition: Position): Position => {
 					return this.viewModel.validateViewPosition(viewPosition.lineNumber, viewPosition.column, modelPosition);
 				},
-				validateViewRange: (viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range) => {
-					return this.viewModel.validateViewRange(viewStartLineNumber, viewStartColumn, viewEndLineNumber, viewEndColumn, modelRange);
-				},
-				validateViewRange2: (viewRange: Range, modelRange: Range): Range => {
+				validateViewRange: (viewRange: Range, modelRange: Range): Range => {
 					return this.viewModel.validateViewRange(viewRange.startLineNumber, viewRange.startColumn, viewRange.endLineNumber, viewRange.endColumn, modelRange);
 				}
 			};

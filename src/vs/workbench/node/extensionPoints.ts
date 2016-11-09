@@ -8,7 +8,7 @@
 import * as nls from 'vs/nls';
 import * as Platform from 'vs/base/common/platform';
 import pfs = require('vs/base/node/pfs');
-import { IExtensionDescription, IMessage, ExtensionProperties } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { groupBy, values } from 'vs/base/common/collections';
@@ -85,17 +85,13 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 	public parse(): TPromise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			let errors: json.ParseError[] = [];
-			const parsed = json.parse(manifestContents.toString(), errors);
+			const extensionDescription = json.parse(manifestContents.toString(), errors);
 			if (errors.length > 0) {
 				errors.forEach((error) => {
 					this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, json.getParseErrorMessage(error.error)));
 				});
 				return null;
 			}
-			const extensionDescription = ExtensionProperties.reduce<any>((previousValue, currentValue) => {
-				previousValue[currentValue] = parsed[currentValue];
-				return previousValue;
-			}, {});
 			return extensionDescription;
 		}, (err) => {
 			this._collector.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", this._absoluteManifestPath, err.message));

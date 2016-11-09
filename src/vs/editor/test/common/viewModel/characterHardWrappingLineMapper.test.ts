@@ -44,8 +44,8 @@ function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAf
 	assert.equal(actualAnnotatedText, annotatedText);
 }
 
-suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
-	test('CharacterHardWrappingLineMapper', () => {
+suite('CharacterHardWrappingLineMapper', () => {
+	test('latin text', () => {
 
 		let factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
 
@@ -87,7 +87,7 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 		assertLineMapping(factory, 4, 5, 'aa.|(.)|.aaa');
 	});
 
-	test('CharacterHardWrappingLineMapper - CJK and Kinsoku Shori', () => {
+	test('CJK and Kinsoku Shori', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
 		assertLineMapping(factory, 4, 5, 'aa \u5b89|\u5b89');
 		assertLineMapping(factory, 4, 5, '\u3042 \u5b89|\u5b89');
@@ -97,8 +97,13 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 		assertLineMapping(factory, 4, 5, 'aa |(\u5b89aa|\u5b89');
 	});
 
-	test('CharacterHardWrappingLineMapper - WrappingIndent.Same', () => {
+	test('WrappingIndent.Same', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('', ' ', '');
 		assertLineMapping(factory, 4, 38, ' *123456789012345678901234567890123456|7890', WrappingIndent.Same);
+	});
+
+	test('CJK and WrappingIndent.Same', () => {
+		let factory = new CharacterHardWrappingLineMapperFactory('', ' ', '');
+		assertLineMapping(factory, 4, 30, '            协和飞机共生产了20|架，其中仅有16架投|入营运。巨大的资金', WrappingIndent.Same);
 	});
 });

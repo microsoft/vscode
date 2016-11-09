@@ -125,10 +125,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		});
 	}
 
-	private _normalizeIndentationFromWhitespace(str: string): string {
-		let tabSize = this._options.tabSize;
-		let insertSpaces = this._options.insertSpaces;
-
+	private static _normalizeIndentationFromWhitespace(str: string, tabSize: number, insertSpaces: boolean): string {
 		let spacesCnt = 0;
 		for (let i = 0; i < str.length; i++) {
 			if (str.charAt(i) === '\t') {
@@ -154,13 +151,17 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return result;
 	}
 
-	public normalizeIndentation(str: string): string {
-		this._assertNotDisposed();
+	public static normalizeIndentation(str: string, tabSize: number, insertSpaces: boolean): string {
 		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(str);
 		if (firstNonWhitespaceIndex === -1) {
 			firstNonWhitespaceIndex = str.length;
 		}
-		return this._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex)) + str.substring(firstNonWhitespaceIndex);
+		return TextModel._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), tabSize, insertSpaces) + str.substring(firstNonWhitespaceIndex);
+	}
+
+	public normalizeIndentation(str: string): string {
+		this._assertNotDisposed();
+		return TextModel.normalizeIndentation(str, this._options.tabSize, this._options.insertSpaces);
 	}
 
 	public getOneIndent(): string {
@@ -830,7 +831,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		throw new Error('Unknown EOL preference');
 	}
 
-	private static _isMultiline(searchString: string): boolean {
+	private static _isMultilineRegexSource(searchString: string): boolean {
 		if (!searchString || searchString.length === 0) {
 			return false;
 		}
@@ -864,8 +865,14 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 
 		// Try to create a RegExp out of the params
-		var regex: RegExp = null;
-		var multiline = isRegex && TextModel._isMultiline(searchString);
+		let multiline: boolean;
+		if (isRegex) {
+			multiline = TextModel._isMultilineRegexSource(searchString);
+		} else {
+			multiline = (searchString.indexOf('\n') >= 0);
+		}
+
+		let regex: RegExp = null;
 		try {
 			regex = strings.createRegExp(searchString, isRegex, { matchCase, wholeWord, multiline, global: true });
 		} catch (err) {

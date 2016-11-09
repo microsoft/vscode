@@ -125,7 +125,7 @@ function insertWhitespaceLineDecorations(lineNumber: number, lineContent: string
 	if (firstNonWhitespaceIndex > fauxIndentLength) {
 		// add leading whitespace state
 		sm_endIndex.push(firstNonWhitespaceIndex - 1);
-		sm_decoration.push('leading whitespace');
+		sm_decoration.push('vs-whitespace');
 
 	}
 
@@ -147,7 +147,7 @@ function insertWhitespaceLineDecorations(lineNumber: number, lineContent: string
 				sm_decoration.push(null);
 
 				sm_endIndex.push(i - 1);
-				sm_decoration.push('embedded whitespace');
+				sm_decoration.push('vs-whitespace');
 			}
 
 			startOfWhitespace = -1;
@@ -161,7 +161,7 @@ function insertWhitespaceLineDecorations(lineNumber: number, lineContent: string
 
 	// add trailing whitespace state
 	sm_endIndex.push(lineLength - 1);
-	sm_decoration.push('trailing whitespace');
+	sm_decoration.push('vs-whitespace');
 
 	// add dummy state to avoid array length checks
 	sm_endIndex.push(lineLength);
