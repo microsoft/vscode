@@ -16,7 +16,7 @@ import { ICustomTreeExplorerService, CustomTreeExplorerService } from 'vs/workbe
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ITreeExplorer } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { toCustomViewletId, toCustomViewletCSSClass, isValidViewletId } from 'vs/workbench/parts/explorers/common/treeExplorer';
+import { toCustomExplorerViewletId, toCustomExplorerViewletCSSClass, isValidViewletId } from 'vs/workbench/parts/explorers/common/treeExplorer';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -65,7 +65,7 @@ export class ExplorerContribtion implements IWorkbenchContribution {
 
 				const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };
 				if (icon) {
-					const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${toCustomViewletCSSClass(treeExplorerNodeProviderId)}`;
+					const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${toCustomExplorerViewletCSSClass(treeExplorerNodeProviderId)}`;
 					const iconPath = join(extension.description.extensionFolderPath, icon);
 					createCSSRule(iconClass, getIconRule(iconPath));
 				}
@@ -73,9 +73,9 @@ export class ExplorerContribtion implements IWorkbenchContribution {
 				Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 					'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
 					'TreeExplorerViewlet',
-					toCustomViewletId(treeExplorerNodeProviderId),
+					toCustomExplorerViewletId(treeExplorerNodeProviderId),
 					treeLabel,
-					toCustomViewletCSSClass(treeExplorerNodeProviderId),
+					toCustomExplorerViewletCSSClass(treeExplorerNodeProviderId),
 					-1, // Extension viewlets are ordered by enabling sequence, so order here doesn't matter.
 					true
 				));
