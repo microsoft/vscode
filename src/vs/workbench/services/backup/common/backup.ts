@@ -47,7 +47,7 @@ export interface IBackupFileService {
 	 * @param resource The resource to check.
 	 * @returns Whether the file has a backup.
 	 */
-	doesTextFileHaveBackup(resource: Uri): TPromise<boolean>;
+	hasTextFileBackup(resource: Uri): TPromise<boolean>;
 
 	/**
 	 * Gets the backup resource for a particular resource within the current workspace.

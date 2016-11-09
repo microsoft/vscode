@@ -37,7 +37,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public doesTextFileHaveBackup(resource: Uri): TPromise<boolean> {
+	public hasTextFileBackup(resource: Uri): TPromise<boolean> {
 		const backupResource = this.getBackupResource(resource);
 		if (!backupResource) {
 			return TPromise.as(false);

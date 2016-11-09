@@ -266,7 +266,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			else {
 				diag('load() - created text editor model', this.resource, new Date());
 
-				return this.backupFileService.doesTextFileHaveBackup(this.resource).then(backupExists => {
+				return this.backupFileService.hasTextFileBackup(this.resource).then(backupExists => {
 					let getContentPromise: TPromise<IRawText>;
 					if (backupExists) {
 						const restoreResource = this.backupFileService.getBackupResource(this.resource);

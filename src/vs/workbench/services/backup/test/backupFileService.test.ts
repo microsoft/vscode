@@ -84,11 +84,11 @@ suite('BackupFileService', () => {
 	});
 
 	test('doesTextFileHaveBackup should return whether a backup resource exists', done => {
-		service.doesTextFileHaveBackup(fooFile).then(exists => {
+		service.hasTextFileBackup(fooFile).then(exists => {
 			assert.equal(exists, false);
 			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
 				fs.writeFileSync(fooBackupPath, 'foo');
-				service.doesTextFileHaveBackup(fooFile).then(exists2 => {
+				service.hasTextFileBackup(fooFile).then(exists2 => {
 					assert.equal(exists2, true);
 					done();
 				});
