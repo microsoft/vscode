@@ -30,7 +30,7 @@ import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
 import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
 import { Mutex } from 'windows-mutex';
-import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient } from './launch';
+import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient, ILaunchService } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -126,21 +126,12 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	}
 
 	// Register Main IPC services
-	const launchService = instantiationService.createInstance(LaunchService);
-	const launchChannel = new LaunchChannel(launchService);
-	mainIpcServer.registerChannel('launch', launchChannel);
-
 	const askpassService = new GitAskpassService();
 	const askpassChannel = new AskpassChannel(askpassService);
 	mainIpcServer.registerChannel('askpass', askpassChannel);
 
 	// Create Electron IPC Server
 	const electronIpcServer = new ElectronIPCServer();
-
-	// Register Electron IPC services
-	const urlService = accessor.get(IURLService);
-	const urlChannel = instantiationService.createInstance(URLChannel, urlService);
-	electronIpcServer.registerChannel('url', urlChannel);
 
 	// Spawn shared process
 	const initData = { args: environmentService.args };
@@ -164,6 +155,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	services.set(IUpdateService, new SyncDescriptor(UpdateService));
 	services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
 	services.set(IWindowsService, new SyncDescriptor(WindowsService));
+	services.set(ILaunchService, new SyncDescriptor(LaunchService));
 
 	if (environmentService.isBuilt && !environmentService.extensionDevelopmentPath && !!product.enableTelemetry) {
 		const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
@@ -179,10 +171,19 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const instantiationService2 = instantiationService.createChild(services);
 
 	instantiationService2.invokeFunction(accessor => {
+		// Register more Main IPC services
+		const launchService = accessor.get(ILaunchService);
+		const launchChannel = new LaunchChannel(launchService);
+		mainIpcServer.registerChannel('launch', launchChannel);
+
 		// Register more Electron IPC services
 		const updateService = accessor.get(IUpdateService);
 		const updateChannel = new UpdateChannel(updateService);
 		electronIpcServer.registerChannel('update', updateChannel);
+
+		const urlService = accessor.get(IURLService);
+		const urlChannel = instantiationService2.createInstance(URLChannel, urlService);
+		electronIpcServer.registerChannel('url', urlChannel);
 
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
@@ -498,7 +499,7 @@ function createServices(args): IInstantiationService {
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
 
-	return new InstantiationService(services);
+	return new InstantiationService(services, true);
 }
 
 function start(): void {

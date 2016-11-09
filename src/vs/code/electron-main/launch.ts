@@ -13,6 +13,10 @@ import { ILogService } from 'vs/code/electron-main/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const ID = 'launchService';
+export const ILaunchService = createDecorator<ILaunchService>(ID);
 
 export interface IStartArguments {
 	args: ParsedArgs;
@@ -20,6 +24,7 @@ export interface IStartArguments {
 }
 
 export interface ILaunchService {
+	_serviceBrand: any;
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void>;
 	getMainProcessId(): TPromise<number>;
 }
@@ -48,6 +53,8 @@ export class LaunchChannel implements ILaunchChannel {
 
 export class LaunchChannelClient implements ILaunchService {
 
+	_serviceBrand: any;
+
 	constructor(private channel: ILaunchChannel) { }
 
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
@@ -60,6 +67,8 @@ export class LaunchChannelClient implements ILaunchService {
 }
 
 export class LaunchService implements ILaunchService {
+
+	_serviceBrand: any;
 
 	constructor(
 		@ILogService private logService: ILogService,
