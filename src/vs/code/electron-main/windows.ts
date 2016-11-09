@@ -118,7 +118,6 @@ export interface IWindowsMainService {
 	removeFromRecentPathsList(path: string[]);
 	clearRecentPathsList(): void;
 	toggleMenuBar(windowId: number): void;
-	updateWindowsJumpList(): void;
 }
 
 export class WindowsManager implements IWindowsMainService, IWindowEventService {
@@ -1166,7 +1165,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		}
 	}
 
-	public updateWindowsJumpList(): void {
+	private updateWindowsJumpList(): void {
 		if (!platform.isWindows) {
 			return; // only on windows
 		}
