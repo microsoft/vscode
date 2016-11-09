@@ -8,6 +8,7 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -39,16 +40,24 @@ export class ToggleExtViewletAction extends Action {
 			const actionLabel = isEnabled ? localize('disable', 'Disable') : localize('enable', 'Enable');
 			picks.push({
 				id: viewlet.id,
-				label: `${actionLabel} ${viewlet.name}`
+				label: `${actionLabel} ${viewlet.name}`,
+				run: () => {
+					this.viewletService.toggleViewlet(viewlet.id).then(() => {
+						if (isEnabled) {
+							// To disable, so open default viewlet
+							const defaultViewletId = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getDefaultViewletId();
+							this.viewletService.openViewlet(defaultViewletId);
+						} else {
+							// To enable, so open the viewlet to be enabled
+							this.viewletService.openViewlet(viewlet.id);
+						}
+					});
+				}
 			});
 		});
 
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
-			this.quickOpenService.pick(picks, { placeHolder: 'Select Custom Explorer to toggle' }).then(pick => {
-				if (pick) {
-					this.viewletService.toggleViewlet(pick.id);
-				}
-			});
+			this.quickOpenService.pick(picks, { placeHolder: 'Select Custom Explorer to toggle' }).done();
 		});
 	}
 }
