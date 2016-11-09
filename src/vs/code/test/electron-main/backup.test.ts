@@ -140,8 +140,8 @@ suite('BackupService', () => {
 	});
 
 	test('doesWorkspaceHaveBackups should return whether the workspace\'s backup exists', () => {
-		assert.equal(backupService.doesWorkspaceHaveBackups(fooFile), false);
+		assert.equal(backupService.hasWorkspaceBackup(fooFile), false);
 		fs.mkdirSync(fooWorkspaceBackupDir);
-		assert.equal(backupService.doesWorkspaceHaveBackups(fooFile), true);
+		assert.equal(backupService.hasWorkspaceBackup(fooFile), true);
 	});
 });
