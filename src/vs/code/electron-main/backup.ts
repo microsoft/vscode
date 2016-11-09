@@ -72,15 +72,14 @@ export class BackupService implements IBackupMainService {
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
+		this.loadSync();
 	}
 
 	public getWorkspaceBackupPathsSync(): string[] {
-		this.loadSync();
 		return this.workspacesJsonContent.folderWorkspaces;
 	}
 
 	public pushWorkspaceBackupPathsSync(workspaces: Uri[]): void {
-		this.loadSync();
 		workspaces.forEach(workspace => {
 			// Hot exit is disabled for empty workspaces
 			if (!workspace) {
@@ -95,7 +94,6 @@ export class BackupService implements IBackupMainService {
 	}
 
 	public removeWorkspaceBackupPathSync(workspace: Uri): void {
-		this.loadSync();
 		if (!this.workspacesJsonContent.folderWorkspaces) {
 			return;
 		}
