@@ -14,9 +14,9 @@ import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IBackupService = createDecorator<IBackupService>('backupService');
+export const IBackupMainService = createDecorator<IBackupMainService>('backupService');
 
-export interface IBackupService {
+export interface IBackupMainService {
 	_serviceBrand: any;
 
 	/**
@@ -58,7 +58,7 @@ export interface IBackupService {
 	doesWorkspaceHaveBackups(workspace: Uri): boolean;
 }
 
-export class BackupService implements IBackupService {
+export class BackupService implements IBackupMainService {
 
 	public _serviceBrand: any;
 

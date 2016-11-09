@@ -14,7 +14,7 @@ import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
-import { IBackupService } from 'vs/code/electron-main/backup';
+import { IBackupMainService } from 'vs/code/electron-main/backup';
 import { trim } from 'vs/base/common/strings';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
@@ -159,7 +159,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IBackupService private backupService: IBackupService,
+		@IBackupMainService private backupService: IBackupMainService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) { }
