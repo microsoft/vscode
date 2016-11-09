@@ -284,6 +284,7 @@ export interface IDebugConfiguration {
 
 export interface IGlobalConfig {
 	version: string;
+	debugServer?: number;
 	configurations: IConfig[];
 }
 
