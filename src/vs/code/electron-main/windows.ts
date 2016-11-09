@@ -369,7 +369,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 		// Restore any existing backup workspaces
 		if (openConfig.restoreBackups) {
-			const workspacesWithBackups = this.backupService.getWorkspaceBackupPathsSync();
+			const workspacesWithBackups = this.backupService.getWorkspaceBackupPaths();
 
 			workspacesWithBackups.forEach(workspacePath => {
 				if (!fs.existsSync(workspacePath)) {

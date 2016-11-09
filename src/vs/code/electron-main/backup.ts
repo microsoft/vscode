@@ -24,7 +24,7 @@ export interface IBackupMainService {
 	 *
 	 * @return The set of active workspace backup paths being tracked for restoration.
 	 */
-	getWorkspaceBackupPathsSync(): string[];
+	getWorkspaceBackupPaths(): string[];
 
 	/**
 	 * Pushes workspace backup paths to be tracked for restoration.
@@ -75,7 +75,7 @@ export class BackupService implements IBackupMainService {
 		this.loadSync();
 	}
 
-	public getWorkspaceBackupPathsSync(): string[] {
+	public getWorkspaceBackupPaths(): string[] {
 		return this.workspacesJsonContent.folderWorkspaces;
 	}
 
@@ -125,7 +125,7 @@ export class BackupService implements IBackupMainService {
 		return path.join(this.backupHome, workspaceHash);
 	}
 
-	private loadSync(): void {
+	protected loadSync(): void {
 		try {
 			this.workspacesJsonContent = JSON.parse(fs.readFileSync(this.workspacesJsonPath, 'utf8').toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
