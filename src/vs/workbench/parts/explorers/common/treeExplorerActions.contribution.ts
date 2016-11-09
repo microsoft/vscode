@@ -17,7 +17,7 @@ import { toCustomExplorerViewletActionId } from 'vs/workbench/parts/explorers/co
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
-export class ToggleExtViewletAction extends Action {
+export class ToggleExternalViewletAction extends Action {
 	public static ID = toCustomExplorerViewletActionId('toggle');
 	public static LABEL = localize('treeExplorer.toggle', 'Toggle Custom Explorer');
 
@@ -31,7 +31,7 @@ export class ToggleExtViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const extViewlets = this.viewletService.getAllViewlets().filter(viewlet => viewlet.isExtension);
+		const extViewlets = this.viewletService.getAllViewlets().filter(viewlet => viewlet.isExternal);
 
 		const picks: IPickOpenEntry[] = [];
 
@@ -63,7 +63,7 @@ export class ToggleExtViewletAction extends Action {
 }
 
 registry.registerWorkbenchAction(
-	new SyncActionDescriptor(ToggleExtViewletAction, ToggleExtViewletAction.ID, ToggleExtViewletAction.LABEL),
+	new SyncActionDescriptor(ToggleExternalViewletAction, ToggleExternalViewletAction.ID, ToggleExternalViewletAction.LABEL),
 	'View: Toggle Custom Explorer',
 	localize('view', "View")
 );

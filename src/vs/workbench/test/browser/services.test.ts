@@ -102,12 +102,12 @@ class TestViewletService implements IViewletService {
 
 	onDidViewletOpenEmitter = new Emitter<IViewlet>();
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
-	onDidExtensionViewletsLoadEmitter = new Emitter<void>();
+	onDidExtletsLoadEmitter = new Emitter<void>();
 	onDidViewletToggleEmitter = new Emitter<void>();
 
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
-	onDidExtensionViewletsLoad = this.onDidExtensionViewletsLoadEmitter.event;
+	onDidExtViewletsLoad = this.onDidExtletsLoadEmitter.event;
 	onDidViewletToggle = this.onDidViewletToggleEmitter.event;
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
