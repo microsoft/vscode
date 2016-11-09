@@ -187,7 +187,7 @@ export class LifecycleService implements ILifecycleService {
 				c(true); // veto
 			});
 
-			vscodeWindow.send('vscode:beforeUnload', { okChannelReply: oneTimeOkEvent, cancelChannelReply: oneTimeCancelEvent, quitRequested: this.quitRequested });
+			vscodeWindow.send('vscode:beforeUnload', { okChannel: oneTimeOkEvent, cancelChannel: oneTimeCancelEvent, quitRequested: this.quitRequested });
 		});
 	}
 
