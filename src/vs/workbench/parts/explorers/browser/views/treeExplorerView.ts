@@ -16,13 +16,12 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/browser/customTreeExplorerService';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/common/treeExplorerActions';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class TreeExplorerView extends CollapsibleViewletView {
 	private workspace: IWorkspace;
@@ -37,9 +36,8 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@ICustomTreeExplorerService private treeExplorerViewletService: ICustomTreeExplorerService
+		@ICustomTreeExplorerService private treeExplorerViewletService: ICustomTreeExplorerService,
+		@IProgressService private progressService: IProgressService
 	) {
 		super(actionRunner, false, nls.localize('treeExplorerViewlet.tree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
