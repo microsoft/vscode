@@ -364,6 +364,27 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
+		let filesToOpen: IPath[] = [];
+		let filesToDiff: IPath[] = [];
+		let foldersToOpen = iPathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath);
+		let emptyToOpen = iPathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
+		let filesToCreate = iPathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
+
+		// Diff mode needs special care
+		const candidates = iPathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath);
+		if (openConfig.diffMode) {
+			if (candidates.length === 2) {
+				filesToDiff = candidates;
+			} else {
+				emptyToOpen = [Object.create(null)]; // improper use of diffMode, open empty
+			}
+
+			foldersToOpen = []; // diff is always in empty workspace
+			filesToCreate = []; // diff ignores other files that do not exist
+		} else {
+			filesToOpen = candidates;
+		}
+
 		let configuration: IWindowConfiguration;
 		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
 
@@ -386,27 +407,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 				openInNewWindow = true; // any other folders to open must open in new window then
 			});
-		}
-
-		let filesToOpen: IPath[] = [];
-		let filesToDiff: IPath[] = [];
-		let foldersToOpen = iPathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath);
-		let emptyToOpen = iPathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
-		let filesToCreate = iPathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
-
-		// Diff mode needs special care
-		const candidates = iPathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath);
-		if (openConfig.diffMode) {
-			if (candidates.length === 2) {
-				filesToDiff = candidates;
-			} else {
-				emptyToOpen = [Object.create(null)]; // improper use of diffMode, open empty
-			}
-
-			foldersToOpen = []; // diff is always in empty workspace
-			filesToCreate = []; // diff ignores other files that do not exist
-		} else {
-			filesToOpen = candidates;
 		}
 
 		// Handle files to open/diff or to create when we dont open a folder
