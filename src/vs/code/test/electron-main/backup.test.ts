@@ -14,9 +14,7 @@ import path = require('path');
 import extfs = require('vs/base/node/extfs');
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
-import { nfcall } from 'vs/base/common/async';
 import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { BackupService } from 'vs/code/electron-main/backup';
 import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 
@@ -33,13 +31,12 @@ class TestBackupService extends BackupService {
 }
 
 suite('BackupService', () => {
-	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service')
+	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 
 	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
-	const bazFile = Uri.file(platform.isWindows ? 'C:\\baz' : '/baz');
 
 	const fooWorkspaceBackupDir = path.join(backupHome, crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
 
