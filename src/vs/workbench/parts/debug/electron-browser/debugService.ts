@@ -280,13 +280,13 @@ export class DebugService implements debug.IDebugService {
 						if (callStack.length > 0) {
 							// focus first stack frame from top that has source location
 							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);
-							this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+							this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 							this.windowService.getWindow().focus();
 							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
 							return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
 						} else {
-							this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+							this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 						}
 					});
 				}
@@ -445,7 +445,7 @@ export class DebugService implements debug.IDebugService {
 		return !!this.contextService.getWorkspace();
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
+	public focusStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
 		const processes = this.model.getProcesses();
 		if (!process) {
 			process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
@@ -512,7 +512,7 @@ export class DebugService implements debug.IDebugService {
 		this.telemetryService.publicLog('debugService/addReplExpression');
 		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions again since repl evaluation might have changed some.
-			.then(() => this.setFocusedStackFrameAndEvaluate(this.viewModel.focusedStackFrame));
+			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame));
 	}
 
 	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
@@ -802,7 +802,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		this.model.removeProcess(session.getId());
-		this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+		this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 		this.setStateAndEmit(session.getId(), debug.State.Inactive);
 
 		if (this.model.getProcesses().length === 0) {
@@ -906,7 +906,7 @@ export class DebugService implements debug.IDebugService {
 	private transitionToRunningState(session: RawDebugSession, threadId?: number): void {
 		this.model.clearThreads(session.getId(), false, threadId);
 		this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
-		this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+		this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 	}
 
 	private getDebugStringEditorInput(process: debug.IProcess, source: Source, value: string, mtype: string): DebugStringEditorInput {

@@ -295,7 +295,7 @@ export class CallStackController extends BaseDebugController {
 			process = element;
 		}
 
-		this.debugService.setFocusedStackFrameAndEvaluate(stackFrame, process).done(null, errors.onUnexpectedError);
+		this.debugService.focusStackFrameAndEvaluate(stackFrame, process).done(null, errors.onUnexpectedError);
 
 		if (stackFrame) {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
