@@ -46,6 +46,8 @@ const NotNowAction = new Action(
 	() => TPromise.as(true)
 );
 
+let releaseNotesCache: Object = {};
+
 export function loadReleaseNotes(accessor: ServicesAccessor, version: string): TPromise<string> {
 	const requestService = accessor.get(IRequestService);
 	const keybindingService = accessor.get(IKeybindingService);
@@ -58,6 +60,17 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 	const versionLabel = match[1].replace(/\./g, '_');
 	const baseUrl = 'https://code.visualstudio.com/raw';
 	const url = `${baseUrl}/v${versionLabel}.md`;
+
+	const storeReleaseNotes = (text: string): TPromise<string> => {
+		releaseNotesCache[version] = text;
+		return new TPromise<string>((c, e) => c(releaseNotesCache[version]));
+	};
+
+	const getReleaseNotes = (): TPromise<string> => {
+		return new TPromise<string>((c, e) => {
+			c(releaseNotesCache[version]);
+		});
+	};
 
 	const patchKeybindings = (text: string): string => {
 		const kb = (match: string, kb: string) => {
@@ -91,9 +104,14 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 			.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
 	};
 
-	return requestService.request({ url })
-		.then(asText)
-		.then(text => patchKeybindings(text));
+	if (releaseNotesCache[version]) {
+		return getReleaseNotes()
+			.then(text => patchKeybindings(text));
+	} else {
+		return requestService.request({ url })
+			.then(asText)
+			.then(text => storeReleaseNotes(patchKeybindings(text)));
+	}
 }
 
 export class OpenLatestReleaseNotesInBrowserAction extends Action {
