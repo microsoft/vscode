@@ -19,6 +19,7 @@ export class WindowsService implements IWindowsService {
 
 	_serviceBrand: any;
 
+	onWindowOpen: Event<number> = fromEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id);
 	onWindowFocus: Event<number> = fromEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
 
 	constructor(

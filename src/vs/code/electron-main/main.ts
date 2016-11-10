@@ -15,7 +15,6 @@ import { IWindowsMainService, WindowsManager } from 'vs/code/electron-main/windo
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
-import { WindowEventChannel } from 'vs/code/common/windowsIpc';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -167,6 +166,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const instantiationService2 = instantiationService.createChild(services);
 
 	instantiationService2.invokeFunction(accessor => {
+		// TODO@Joao: unfold this
+		windowsMainService = accessor.get(IWindowsMainService);
+
 		// Register more Main IPC services
 		const launchService = accessor.get(ILaunchService);
 		const launchChannel = new LaunchChannel(launchService);
@@ -184,12 +186,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
 		electronIpcServer.registerChannel('windows', windowsChannel);
-
-		// TODO@Joao revisit this
-		// Register windowEvent
-		windowsMainService = accessor.get(IWindowsMainService);
-		const windowEventChannel = new WindowEventChannel(windowsMainService);
-		sharedProcess.done(client => client.registerChannel('windowEvent', windowEventChannel));
+		sharedProcess.done(client => client.registerChannel('windows', windowsChannel));
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with

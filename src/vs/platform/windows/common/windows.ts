@@ -15,6 +15,7 @@ export interface IWindowsService {
 
 	_serviceBrand: any;
 
+	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 
 	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
