@@ -18,7 +18,6 @@ import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
-import * as browser from 'vs/base/browser/browser';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
@@ -82,12 +81,14 @@ import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
+import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
-import { remote, webFrame } from 'electron';
+import { remote } from 'electron';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -351,6 +352,10 @@ export class WorkbenchShell {
 		const integrityService = instantiationService.createInstance(IntegrityServiceImpl);
 		serviceCollection.set(IIntegrityService, integrityService);
 
+		const updateChannel = mainProcessClient.getChannel('update');
+		const updateChannelClient = new UpdateChannelClient(updateChannel);
+		serviceCollection.set(IUpdateService, updateChannelClient);
+
 		const urlChannel = mainProcessClient.getChannel('url');
 		const urlChannelClient = new URLChannelClient(urlChannel, windowIPCService.getWindowId());
 		serviceCollection.set(IURLService, urlChannelClient);
@@ -364,10 +369,6 @@ export class WorkbenchShell {
 		errors.setUnexpectedErrorHandler((error: any) => {
 			this.onUnexpectedError(error);
 		});
-
-		// Ensure others can listen to zoom level changes
-		browser.setZoomLevel(webFrame.getZoomLevel());
-		browser.setZoomFactor(webFrame.getZoomFactor());
 
 		// Shell Class for CSS Scoping
 		$(this.container).addClass('monaco-shell');

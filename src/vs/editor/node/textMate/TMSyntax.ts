@@ -20,11 +20,15 @@ import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
 import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
 
+export interface IEmbeddedLanguagesMap {
+	[scopeName: string]: string;
+}
+
 export interface ITMSyntaxExtensionPoint {
 	language: string;
 	scopeName: string;
 	path: string;
-	embeddedLanguages: { [scopeName: string]: string; };
+	embeddedLanguages: IEmbeddedLanguagesMap;
 	injectTo: string[];
 }
 
@@ -67,55 +71,83 @@ export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = Exte
 
 export class TMScopeRegistry {
 
-	private _scopeNameToFilePath: { [scopeName: string]: string; };
-	private _scopeNameToLanguage: { [scopeName: string]: string; };
+	private _scopeNameToLanguageRegistration: { [scopeName: string]: TMLanguageRegistration; };
 	private _encounteredLanguages: { [language: string]: boolean; };
-	private _cachedScopesRegex: RegExp;
 
 	private _onDidEncounterLanguage: Emitter<string> = new Emitter<string>();
 	public onDidEncounterLanguage: Event<string> = this._onDidEncounterLanguage.event;
 
 	constructor() {
-		this._scopeNameToFilePath = Object.create(null);
-		this._scopeNameToLanguage = Object.create(null);
+		this._scopeNameToLanguageRegistration = Object.create(null);
 		this._encounteredLanguages = Object.create(null);
-		this._cachedScopesRegex = null;
 	}
 
-	public register(language: string, scopeName: string, filePath: string): void {
-		this._scopeNameToFilePath[scopeName] = filePath;
+	public register(scopeName: string, filePath: string, embeddedLanguages?: IEmbeddedLanguagesMap): void {
+		this._scopeNameToLanguageRegistration[scopeName] = new TMLanguageRegistration(this, scopeName, filePath, embeddedLanguages);
 	}
 
-	public registerEmbeddedLanguages(scopeToLanguageMap: { [scopeName: string]: string }): void {
-		var scopes = Object.keys(scopeToLanguageMap);
-		for (let i = 0, len = scopes.length; i < len; i++) {
-			let scope = scopes[i];
-			let language = scopeToLanguageMap[scope];
-			if (typeof language !== 'string') {
-				// never hurts to be too careful
-				continue;
-			}
-			this._scopeNameToLanguage[scope] = language;
-			this._cachedScopesRegex = null;
-		}
+	public getLanguageRegistration(scopeName: string): TMLanguageRegistration {
+		return this._scopeNameToLanguageRegistration[scopeName] || null;
 	}
 
 	public getFilePath(scopeName: string): string {
-		return this._scopeNameToFilePath[scopeName] || null;
+		let data = this.getLanguageRegistration(scopeName);
+		return data ? data.grammarFilePath : null;
 	}
 
-	private _getScopesRegex(): RegExp {
-		if (!this._cachedScopesRegex) {
-			let escapedScopes = Object.keys(this._scopeNameToLanguage).map((scopeName) => strings.escapeRegExpCharacters(scopeName));
-			if (escapedScopes.length === 0) {
-				// no scopes registered
-				return null;
+	/**
+	 * To be called when tokenization found/hit an embedded language.
+	 */
+	public onEncounteredLanguage(language: string): void {
+		if (!this._encounteredLanguages[language]) {
+			this._encounteredLanguages[language] = true;
+			this._onDidEncounterLanguage.fire(language);
+		}
+	}
+}
+
+export class TMLanguageRegistration {
+	_topLevelScopeNameDataBrand: void;
+
+	readonly scopeName: string;
+	readonly grammarFilePath: string;
+
+	private readonly _registry: TMScopeRegistry;
+	private readonly _embeddedLanguages: IEmbeddedLanguagesMap;
+	private readonly _embeddedLanguagesRegex: RegExp;
+
+	constructor(registry: TMScopeRegistry, scopeName: string, grammarFilePath: string, embeddedLanguages: IEmbeddedLanguagesMap) {
+		this._registry = registry;
+		this.scopeName = scopeName;
+		this.grammarFilePath = grammarFilePath;
+
+		// embeddedLanguages handling
+		this._embeddedLanguages = Object.create(null);
+
+		if (embeddedLanguages) {
+			// If embeddedLanguages are configured, fill in `this._embeddedLanguages`
+			let scopes = Object.keys(embeddedLanguages);
+			for (let i = 0, len = scopes.length; i < len; i++) {
+				let scope = scopes[i];
+				let language = embeddedLanguages[scope];
+				if (typeof language !== 'string') {
+					// never hurts to be too careful
+					continue;
+				}
+				this._embeddedLanguages[scope] = language;
 			}
+		}
+
+		// create the regex
+		let escapedScopes = Object.keys(this._embeddedLanguages).map((scopeName) => strings.escapeRegExpCharacters(scopeName));
+		if (escapedScopes.length === 0) {
+			// no scopes registered
+			this._embeddedLanguagesRegex = null;
+		} else {
 			escapedScopes.sort();
 			escapedScopes.reverse();
-			this._cachedScopesRegex = new RegExp(`^((${escapedScopes.join(')|(')}))($|\\.)`, '');
+			this._embeddedLanguagesRegex = new RegExp(`^((${escapedScopes.join(')|(')}))($|\\.)`, '');
 		}
-		return this._cachedScopesRegex;
 	}
 
 	/**
@@ -126,23 +158,22 @@ export class TMScopeRegistry {
 		if (!scope) {
 			return null;
 		}
-		let regex = this._getScopesRegex();
-		if (!regex) {
+		if (!this._embeddedLanguagesRegex) {
 			// no scopes registered
 			return null;
 		}
-		let m = scope.match(regex);
+		let m = scope.match(this._embeddedLanguagesRegex);
 		if (!m) {
 			// no scopes matched
 			return null;
 		}
 
-		let language = this._scopeNameToLanguage[m[1]] || null;
-		if (language && !this._encounteredLanguages[language]) {
-			this._encounteredLanguages[language] = true;
-			this._onDidEncounterLanguage.fire(language);
+		let language = this._embeddedLanguages[m[1]] || null;
+		if (!language) {
+			return null;
 		}
 
+		this._registry.onEncounteredLanguage(language);
 		return language;
 	}
 }
@@ -210,11 +241,7 @@ export class MainProcessTextMateSyntax {
 			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 		}
 
-		this._scopeRegistry.register(syntax.language, syntax.scopeName, normalizedAbsolutePath);
-
-		if (syntax.embeddedLanguages) {
-			this._scopeRegistry.registerEmbeddedLanguages(syntax.embeddedLanguages);
-		}
+		this._scopeRegistry.register(syntax.scopeName, normalizedAbsolutePath, syntax.embeddedLanguages);
 
 		if (syntax.injectTo) {
 			for (let injectScope of syntax.injectTo) {
@@ -245,13 +272,14 @@ export class MainProcessTextMateSyntax {
 				return;
 			}
 
-			TokenizationRegistry.register(modeId, createTokenizationSupport(this._scopeRegistry, scopeName, modeId, grammar));
+			let languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
+			TokenizationRegistry.register(modeId, createTokenizationSupport(languageRegistration, modeId, grammar));
 		});
 	}
 }
 
-function createTokenizationSupport(scopeRegistry: TMScopeRegistry, topLevelScopeName: string, modeId: string, grammar: IGrammar): ITokenizationSupport {
-	var tokenizer = new Tokenizer(scopeRegistry, topLevelScopeName, modeId, grammar);
+function createTokenizationSupport(languageRegistration: TMLanguageRegistration, modeId: string, grammar: IGrammar): ITokenizationSupport {
+	var tokenizer = new Tokenizer(languageRegistration, modeId, grammar);
 	return {
 		getInitialState: () => new TMState(modeId, null, null),
 		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState>state, offsetDelta, stopAtOffset)
@@ -343,21 +371,21 @@ export class DecodeMap {
 	_decodeMapBrand: void;
 
 	private lastAssignedTokenId: number;
-	private scopeRegistry: TMScopeRegistry;
+	private readonly languageRegistration: TMLanguageRegistration;
 	private readonly scopeToTokenIds: { [scope: string]: TMScopeDecodeData; };
 	private readonly tokenToTokenId: { [token: string]: number; };
 	private readonly tokenIdToToken: string[];
 	prevTokenScopes: TMScopesDecodeData[];
 	public readonly topLevelScope: TMScopesDecodeData;
 
-	constructor(scopeRegistry: TMScopeRegistry, topLevelScopeName: string) {
+	constructor(languageRegistration: TMLanguageRegistration) {
 		this.lastAssignedTokenId = 0;
-		this.scopeRegistry = scopeRegistry;
+		this.languageRegistration = languageRegistration;
 		this.scopeToTokenIds = Object.create(null);
 		this.tokenToTokenId = Object.create(null);
 		this.tokenIdToToken = [null];
 		this.prevTokenScopes = [];
-		this.topLevelScope = new TMScopesDecodeData(null, new TMScopeDecodeData(topLevelScopeName, this.scopeRegistry.scopeToLanguage(topLevelScopeName), []));
+		this.topLevelScope = new TMScopesDecodeData(null, new TMScopeDecodeData(languageRegistration.scopeName, this.languageRegistration.scopeToLanguage(languageRegistration.scopeName), []));
 	}
 
 	private _getTokenId(token: string): number {
@@ -383,7 +411,7 @@ export class DecodeMap {
 			tokenIds[i] = this._getTokenId(scopePieces[i]);
 		}
 
-		result = new TMScopeDecodeData(scope, this.scopeRegistry.scopeToLanguage(scope), tokenIds);
+		result = new TMScopeDecodeData(scope, this.languageRegistration.scopeToLanguage(scope), tokenIds);
 		this.scopeToTokenIds[scope] = result;
 		return result;
 	}
@@ -420,10 +448,10 @@ class Tokenizer {
 	private _modeId: string;
 	private _decodeMap: DecodeMap;
 
-	constructor(scopeRegistry: TMScopeRegistry, topLevelScopeName: string, modeId: string, grammar: IGrammar) {
+	constructor(languageRegistration: TMLanguageRegistration, modeId: string, grammar: IGrammar) {
 		this._modeId = modeId;
 		this._grammar = grammar;
-		this._decodeMap = new DecodeMap(scopeRegistry, topLevelScopeName);
+		this._decodeMap = new DecodeMap(languageRegistration);
 	}
 
 	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {

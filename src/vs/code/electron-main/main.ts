@@ -5,7 +5,6 @@
 
 'use strict';
 
-import * as nls from 'vs/nls';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -19,7 +18,9 @@ import { WindowsService } from 'vs/platform/windows/electron-main/windowsService
 import { WindowEventChannel } from 'vs/code/common/windowsIpc';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
-import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
+import { IUpdateService } from 'vs/platform/update/common/update';
+import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
+import { UpdateService } from 'vs/platform/update/electron-main/updateService';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -27,7 +28,7 @@ import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
 import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
 import { Mutex } from 'windows-mutex';
-import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient } from './launch';
+import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient, ILaunchService } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -41,15 +42,18 @@ import { ConfigurationService } from 'vs/platform/configuration/node/configurati
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { generateUuid } from 'vs/base/common/uuid';
-import { getPathLabel } from 'vs/base/common/labels';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
+import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product';
-
+import pkg from 'vs/platform/package';
 import * as fs from 'original-fs';
 import * as cp from 'child_process';
-import * as path from 'path';
 
 function quit(accessor: ServicesAccessor, error?: Error);
 function quit(accessor: ServicesAccessor, message?: string);
@@ -71,15 +75,14 @@ function quit(accessor: ServicesAccessor, arg?: any) {
 	process.exit(exitCode); // in main, process.exit === app.exit
 }
 
+// TODO@Joao wow this is huge, clean up!
 function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platform.IProcessEnvironment): void {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
-	const windowsMainService = accessor.get(IWindowsMainService);
 	const lifecycleService = accessor.get(ILifecycleService);
-	const updateService = accessor.get(IUpdateService);
 	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
-	const windowEventChannel = new WindowEventChannel(windowsMainService);
+	let windowsMainService: IWindowsMainService;
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
@@ -92,7 +95,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 			};
 
 			// handle on client side
-			windowsMainService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
+			if (windowsMainService) {
+				windowsMainService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
+			}
 		}
 
 		console.error('[uncaught exception in main]: ' + err);
@@ -117,25 +122,12 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	}
 
 	// Register Main IPC services
-	const launchService = instantiationService.createInstance(LaunchService);
-	const launchChannel = new LaunchChannel(launchService);
-	mainIpcServer.registerChannel('launch', launchChannel);
-
 	const askpassService = new GitAskpassService();
 	const askpassChannel = new AskpassChannel(askpassService);
 	mainIpcServer.registerChannel('askpass', askpassChannel);
 
 	// Create Electron IPC Server
 	const electronIpcServer = new ElectronIPCServer();
-
-	// Register Electron IPC services
-	const urlService = accessor.get(IURLService);
-	const urlChannel = instantiationService.createInstance(URLChannel, urlService);
-	electronIpcServer.registerChannel('url', urlChannel);
-
-	const windowsService = accessor.get(IWindowsService);
-	const windowsChannel = new WindowsChannel(windowsService);
-	electronIpcServer.registerChannel('windows', windowsChannel);
 
 	// Spawn shared process
 	const initData = { args: environmentService.args };
@@ -146,131 +138,118 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 
 	let sharedProcessDisposable;
 
-	spawnSharedProcess(initData, options).done(disposable => {
+	const sharedProcess = spawnSharedProcess(initData, options).then(disposable => {
 		sharedProcessDisposable = disposable;
-
-		connect(environmentService.sharedIPCHandle, 'main')
-			.done(client => client.registerChannel('windowEvent', windowEventChannel));
+		return connect(environmentService.sharedIPCHandle, 'main');
 	});
 
-	// Make sure we associate the program with the app user model id
-	// This will help Windows to associate the running program with
-	// any shortcut that is pinned to the taskbar and prevent showing
-	// two icons in the taskbar for the same app.
-	if (platform.isWindows && product.win32AppUserModelId) {
-		app.setAppUserModelId(product.win32AppUserModelId);
-	}
+	// Create a new service collection, because the telemetry service
+	// requires a connection to shared process, which was only established
+	// now.
+	const services = new ServiceCollection();
 
-	function dispose() {
-		if (mainIpcServer) {
-			mainIpcServer.dispose();
-			mainIpcServer = null;
-		}
+	services.set(IUpdateService, new SyncDescriptor(UpdateService));
+	services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
+	services.set(IWindowsService, new SyncDescriptor(WindowsService));
+	services.set(ILaunchService, new SyncDescriptor(LaunchService));
 
-		if (sharedProcessDisposable) {
-			sharedProcessDisposable.dispose();
-		}
-
-		if (windowsMutex) {
-			windowsMutex.release();
-		}
-
-		configurationService.dispose();
-	}
-
-	// Dispose on app quit
-	app.on('will-quit', () => {
-		logService.log('App#will-quit: disposing resources');
-
-		dispose();
-	});
-
-	// Dispose on vscode:exit
-	ipc.on('vscode:exit', (event, code: number) => {
-		logService.log('IPC#vscode:exit', code);
-
-		dispose();
-		process.exit(code); // in main, process.exit === app.exit
-	});
-
-	// Lifecycle
-	lifecycleService.ready();
-
-	// Propagate to clients
-	windowsMainService.ready(userEnv);
-
-	// Install Menu
-	const menu = instantiationService.createInstance(VSCodeMenu);
-	menu.ready();
-
-	// Install JumpList on Windows (keep updated when windows open)
-	if (platform.isWindows) {
-		updateJumpList(windowsMainService, logService);
-		windowsMainService.onOpen(() => updateJumpList(windowsMainService, logService));
-	}
-
-	// Setup auto update
-	updateService.initialize();
-
-	// Open our first window
-	if (environmentService.args['new-window'] && environmentService.args._.length === 0) {
-		windowsMainService.open({ cli: environmentService.args, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
-	} else if (global.macOpenFiles && global.macOpenFiles.length && (!environmentService.args._ || !environmentService.args._.length)) {
-		windowsMainService.open({ cli: environmentService.args, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
+	if (environmentService.isBuilt && !environmentService.extensionDevelopmentPath && !!product.enableTelemetry) {
+		const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
+		const appender = new TelemetryAppenderClient(channel);
+		const commonProperties = resolveCommonProperties(product.commit, pkg.version);
+		const piiPaths = [environmentService.appRoot, environmentService.extensionsPath];
+		const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
+		services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
 	} else {
-		windowsMainService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff }); // default: read paths from cli
+		services.set(ITelemetryService, NullTelemetryService);
 	}
-}
 
-function updateJumpList(windowsMainService: IWindowsMainService, logService: ILogService): void {
-	const jumpList: Electron.JumpListCategory[] = [];
+	const instantiationService2 = instantiationService.createChild(services);
 
-	// Tasks
-	jumpList.push({
-		type: 'tasks',
-		items: [
-			{
-				type: 'task',
-				title: nls.localize('newWindow', "New Window"),
-				description: nls.localize('newWindowDesc', "Opens a new window"),
-				program: process.execPath,
-				args: '-n', // force new window
-				iconPath: process.execPath,
-				iconIndex: 0
+	instantiationService2.invokeFunction(accessor => {
+		// Register more Main IPC services
+		const launchService = accessor.get(ILaunchService);
+		const launchChannel = new LaunchChannel(launchService);
+		mainIpcServer.registerChannel('launch', launchChannel);
+
+		// Register more Electron IPC services
+		const updateService = accessor.get(IUpdateService);
+		const updateChannel = new UpdateChannel(updateService);
+		electronIpcServer.registerChannel('update', updateChannel);
+
+		const urlService = accessor.get(IURLService);
+		const urlChannel = instantiationService2.createInstance(URLChannel, urlService);
+		electronIpcServer.registerChannel('url', urlChannel);
+
+		const windowsService = accessor.get(IWindowsService);
+		const windowsChannel = new WindowsChannel(windowsService);
+		electronIpcServer.registerChannel('windows', windowsChannel);
+
+		// TODO@Joao revisit this
+		// Register windowEvent
+		windowsMainService = accessor.get(IWindowsMainService);
+		const windowEventChannel = new WindowEventChannel(windowsMainService);
+		sharedProcess.done(client => client.registerChannel('windowEvent', windowEventChannel));
+
+		// Make sure we associate the program with the app user model id
+		// This will help Windows to associate the running program with
+		// any shortcut that is pinned to the taskbar and prevent showing
+		// two icons in the taskbar for the same app.
+		if (platform.isWindows && product.win32AppUserModelId) {
+			app.setAppUserModelId(product.win32AppUserModelId);
+		}
+
+		function dispose() {
+			if (mainIpcServer) {
+				mainIpcServer.dispose();
+				mainIpcServer = null;
 			}
-		]
-	});
 
-	// Recent Folders
-	const folders = windowsMainService.getRecentPathsList().folders;
-	if (folders.length > 0) {
-		jumpList.push({
-			type: 'custom',
-			name: nls.localize('recentFolders', "Recent Folders"),
-			items: windowsMainService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
-				return <Electron.JumpListItem>{
-					type: 'task',
-					title: path.basename(folder) || folder, // use the base name to show shorter entries in the list
-					description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
-					program: process.execPath,
-					args: `"${folder}"`, // open folder (use quotes to support paths with whitespaces),
-					iconPath: 'explorer.exe', // simulate folder icon
-					iconIndex: 0
-				};
-			})
+			if (sharedProcessDisposable) {
+				sharedProcessDisposable.dispose();
+			}
+
+			if (windowsMutex) {
+				windowsMutex.release();
+			}
+
+			configurationService.dispose();
+		}
+
+		// Dispose on app quit
+		app.on('will-quit', () => {
+			logService.log('App#will-quit: disposing resources');
+
+			dispose();
 		});
-	}
 
-	// Recent
-	jumpList.push({
-		type: 'recent' // this enables to show files in the "recent" category
+		// Dispose on vscode:exit
+		ipc.on('vscode:exit', (event, code: number) => {
+			logService.log('IPC#vscode:exit', code);
+
+			dispose();
+			process.exit(code); // in main, process.exit === app.exit
+		});
+
+		// Lifecycle
+		lifecycleService.ready();
+
+		// Propagate to clients
+		windowsMainService.ready(userEnv);
+
+		// Install Menu
+		const menu = instantiationService2.createInstance(VSCodeMenu);
+		menu.ready();
+
+		// Open our first window
+		if (environmentService.args['new-window'] && environmentService.args._.length === 0) {
+			windowsMainService.open({ cli: environmentService.args, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
+		} else if (global.macOpenFiles && global.macOpenFiles.length && (!environmentService.args._ || !environmentService.args._.length)) {
+			windowsMainService.open({ cli: environmentService.args, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
+		} else {
+			windowsMainService.open({ cli: environmentService.args, forceNewWindow: environmentService.args['new-window'], diffMode: environmentService.args.diff }); // default: read paths from cli
+		}
 	});
-
-	try {
-		app.setJumpList(jumpList);
-	} catch (error) {
-		logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
-	}
 }
 
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
@@ -440,6 +419,20 @@ function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	return TPromise.join(paths.map(p => mkdirp(p))) as TPromise<any>;
 }
 
+function createServices(args): IInstantiationService {
+	const services = new ServiceCollection();
+
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
+	services.set(ILogService, new SyncDescriptor(MainLogService));
+	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
+	services.set(IStorageService, new SyncDescriptor(StorageService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
+
+	return new InstantiationService(services, true);
+}
+
 function start(): void {
 	let args: ParsedArgs;
 
@@ -452,21 +445,7 @@ function start(): void {
 		return;
 	}
 
-	// TODO: isolate
-	const services = new ServiceCollection();
-
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
-	services.set(ILogService, new SyncDescriptor(MainLogService));
-	services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
-	services.set(IWindowsService, new SyncDescriptor(WindowsService));
-	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
-	services.set(IStorageService, new SyncDescriptor(StorageService));
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
-	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IUpdateService, new SyncDescriptor(UpdateManager));
-	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
-
-	const instantiationService = new InstantiationService(services);
+	const instantiationService = createServices(args);
 
 	// On some platforms we need to manually read from the global environment variables
 	// and assign them to the process environment (e.g. when doubleclick app on Mac)

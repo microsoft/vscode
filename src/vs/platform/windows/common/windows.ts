@@ -24,8 +24,12 @@ export interface IWindowsService {
 	closeFolder(windowId: number): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
+	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(windowId: number): TPromise<void>;
+	isMaximized(windowId: number): TPromise<boolean>;
+	maximizeWindow(windowId: number): TPromise<void>;
+	unmaximizeWindow(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
 	toggleMenuBar(windowId: number): TPromise<void>;
 
@@ -64,8 +68,12 @@ export interface IWindowService {
 	closeFolder(): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
+	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	toggleMenuBar(): TPromise<void>;
+	isMaximized(): TPromise<boolean>;
+	maximizeWindow(): TPromise<void>;
+	unmaximizeWindow(): TPromise<void>;
 }

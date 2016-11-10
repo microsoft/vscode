@@ -573,15 +573,27 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {
-		const resources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
+		const resources = extractResources(e).filter(d => d.resource.scheme === 'file' || d.resource.scheme === 'untitled');
 
-		// Open resources if found
+		// Handle resources
 		if (resources.length) {
 			DOM.EventHelper.stop(e, true);
 
-			this.editorService.openEditors(resources.map(resource => {
+			// Add external ones to recently open list
+			const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
+			if (externalResources.length) {
+				this.windowService.addToRecentlyOpen(externalResources.map(resource => {
+					return {
+						path: resource.fsPath,
+						isFile: true
+					};
+				}));
+			}
+
+			// Open in Editor
+			this.editorService.openEditors(resources.map(d => {
 				return {
-					input: { resource, options: { pinned: true, index: targetIndex } },
+					input: { resource: d.resource, options: { pinned: true, index: targetIndex } },
 					position: targetPosition
 				};
 			})).then(() => {

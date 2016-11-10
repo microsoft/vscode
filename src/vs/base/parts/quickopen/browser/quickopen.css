@@ -100,7 +100,7 @@
 
 .quick-open-widget {
 	background-color: #F6F6F6;
-	box-shadow: 0 2px 8px #A8A8A8;
+	box-shadow: 0 5px 8px #A8A8A8;
 }
 
 .quick-open-widget.no-shadow {
@@ -110,7 +110,7 @@
 
 .vs-dark .quick-open-widget {
 	background-color: #252526;
-	box-shadow: 0 2px 8px #000;
+	box-shadow: 0 5px 8px #000;
 }
 
 .vs-dark .quick-open-widget.no-shadow {

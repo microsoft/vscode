@@ -6,7 +6,6 @@
 .global-message-list {
 	font-size: 12px;
 	position: absolute;
-	top: 0;
 	z-index: 300;
 	color: #eee;
 	list-style-type: none;
@@ -18,11 +17,11 @@
 }
 
 .vs .global-message-list {
-	box-shadow: 0 2px 8px #A8A8A8;
+	box-shadow: 0 5px 8px #A8A8A8;
 }
 
 .vs-dark .global-message-list  {
-	box-shadow: 0 2px 8px #000;
+	box-shadow: 0 5px 8px #000;
 }
 
 .global-message-list.transition {

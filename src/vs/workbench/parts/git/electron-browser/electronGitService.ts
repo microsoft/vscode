@@ -5,7 +5,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IRawGitService, RawServiceState, IGitConfiguration } from 'vs/workbench/parts/git/common/git';
-import { NoOpGitService } from 'vs/workbench/parts/git/common/noopGitService';
+import { UnscopedGitService } from 'vs/workbench/parts/git/node/unscopedGitService';
 import { GitService } from 'vs/workbench/parts/git/browser/gitServices';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -180,6 +180,16 @@ function createRawGitService(gitPath: string, execPath: string, workspaceRoot: s
 	return new DelayedRawGitService(promise);
 }
 
+function createUnscopedRawGitService(gitPath: string, execPath: string, encoding: string): IRawGitService {
+	const promise = new TPromise<IRawGitService>((c, e) => {
+		findGit(gitPath)
+			.then(({ path, version }) => new UnscopedGitService(path, version, encoding, execPath))
+			.done(c, e);
+	});
+
+	return new DelayedRawGitService(promise);
+}
+
 export class ElectronGitService extends GitService {
 
 	private static USE_REMOTE_PROCESS_SERVICE = true;
@@ -200,18 +210,18 @@ export class ElectronGitService extends GitService {
 		const conf = configurationService.getConfiguration<IGitConfiguration>('git');
 		const filesConf = configurationService.getConfiguration<any>('files');
 		const workspace = contextService.getWorkspace();
+		const gitPath = conf.path || null;
+		const encoding = (filesConf && filesConf.encoding) || 'utf8';
+		const verbose = !environmentService.isBuilt || environmentService.verbose;
 
 		let raw: IRawGitService;
 
 		if (!conf.enabled) {
 			raw = new DisabledRawGitService();
 		} else if (!workspace) {
-			raw = new NoOpGitService();
+			raw = createUnscopedRawGitService(gitPath, environmentService.execPath, encoding);
 		} else {
-			const gitPath = conf.path || null;
-			const encoding = (filesConf && filesConf.encoding) || 'utf8';
 			const workspaceRoot = workspace.resource.fsPath;
-			const verbose = !environmentService.isBuilt || environmentService.verbose;
 
 			if (ElectronGitService.USE_REMOTE_PROCESS_SERVICE) {
 				raw = createRemoteRawGitService(gitPath, environmentService.execPath, workspaceRoot, encoding, verbose);

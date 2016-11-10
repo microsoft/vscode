@@ -15,4 +15,9 @@ export interface ITitleService {
 	 * Update the window title with the given value.
 	 */
 	updateTitle(title: string): void;
+
+	/**
+	 * Set the represented file name to the title if any.
+	 */
+	setRepresentedFilename(path: string): void;
 }

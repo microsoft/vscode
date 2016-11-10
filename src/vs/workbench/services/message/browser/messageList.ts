@@ -5,11 +5,12 @@
 
 'use strict';
 
-import 'vs/css!./messageList';
+import 'vs/css!./media/messageList';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
+import * as browser from 'vs/base/browser/browser';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import aria = require('vs/base/browser/ui/aria/aria');
 import types = require('vs/base/common/types');
@@ -67,8 +68,6 @@ export class MessageList {
 	private _onMessagesShowing: Emitter<void>;
 	private _onMessagesCleared: Emitter<void>;
 
-	private initialTopPosition: number;
-
 	constructor(container: HTMLElement, usageLogger?: IUsageLogger, options: IMessageListOptions = { purgeInterval: MessageList.DEFAULT_MESSAGE_PURGER_INTERVAL, maxMessages: MessageList.DEFAULT_MAX_MESSAGES, maxMessageLength: MessageList.DEFAULT_MAX_MESSAGE_LENGTH }) {
 		this.messages = [];
 		this.messageListPurger = null;
@@ -78,6 +77,13 @@ export class MessageList {
 
 		this._onMessagesShowing = new Emitter<void>();
 		this._onMessagesCleared = new Emitter<void>();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		browser.onDidChangeFullscreen(() => this.positionMessageList());
+		browser.onDidChangeZoomLevel(() => this.positionMessageList());
 	}
 
 	public get onMessagesShowing(): Event<void> {
@@ -171,7 +177,6 @@ export class MessageList {
 		// Lazily create, otherwise clear old
 		if (!this.messageListContainer) {
 			this.messageListContainer = $('.global-message-list').appendTo(container);
-			this.initialTopPosition = parseInt(this.messageListContainer.getComputedStyle().getPropertyValue('top'), 10) || 0;
 		} else {
 			$(this.messageListContainer).empty();
 			$(this.messageListContainer).removeClass('transition');
@@ -198,11 +203,26 @@ export class MessageList {
 			// Support animation for messages by moving the container out of view and then in
 			if (animate) {
 				setTimeout(() => {
+					this.positionMessageList();
 					$(this.messageListContainer).addClass('transition');
-					$(this.messageListContainer).style('top', `${this.initialTopPosition}px`);
 				}, 50 /* Need this delay to reliably get the animation on some browsers */);
 			}
 		});
+	}
+
+	private positionMessageList(animate?: boolean): void {
+		if (!this.messageListContainer) {
+			return; // not yet created
+		}
+
+		$(this.messageListContainer).removeClass('transition'); // disable any animations
+
+		let position = 0;
+		if (!browser.isFullscreen() && DOM.hasClass(this.container, 'titlebar-style-custom')) {
+			position = 22 / browser.getZoomFactor(); // adjust the position based on title bar size and zoom factor
+		}
+
+		$(this.messageListContainer).style('top', `${position}px`);
 	}
 
 	private renderMessage(message: IMessageEntry, container: Builder, total: number, delta: number): void {

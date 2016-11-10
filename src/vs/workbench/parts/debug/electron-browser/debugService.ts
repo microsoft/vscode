@@ -8,7 +8,6 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -241,7 +240,7 @@ export class DebugService implements debug.IDebugService {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
 				if (session && session.configuration.capabilities.supportsConfigurationDoneRequest) {
-					session.configurationDone().done(null, e => {
+					return session.configurationDone().done(null, e => {
 						// Disconnect the debug session on configuration done error #10596
 						if (session) {
 							session.disconnect().done(null, errors.onUnexpectedError);
@@ -250,8 +249,10 @@ export class DebugService implements debug.IDebugService {
 					});
 				}
 			};
+
 			const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
-			this.sendAllBreakpoints(process).done(sendConfigurationDone, sendConfigurationDone);
+			this.sendAllBreakpoints(process).then(sendConfigurationDone, sendConfigurationDone)
+				.done(() => this.fetchThreads(session), errors.onUnexpectedError);
 		}));
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidStop(event => {
@@ -294,16 +295,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidThread(event => {
 			if (event.body.reason === 'started') {
-				session.threads().done(response => {
-					if (response && response.body && response.body.threads) {
-						response.body.threads.forEach(thread =>
-							this.model.rawUpdate({
-								sessionId: session.getId(),
-								threadId: thread.id,
-								thread
-							}));
-					}
-				}, errors.onUnexpectedError);
+				this.fetchThreads(session).done(undefined, errors.onUnexpectedError);
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(session.getId(), true, event.body.threadId);
 			}
@@ -359,6 +351,19 @@ export class DebugService implements debug.IDebugService {
 				this.onSessionEnd(session);
 			}
 		}));
+	}
+
+	private fetchThreads(session: RawDebugSession): TPromise<any> {
+		return session.threads().then(response => {
+			if (response && response.body && response.body.threads) {
+				response.body.threads.forEach(thread =>
+					this.model.rawUpdate({
+						sessionId: session.getId(),
+						threadId: thread.id,
+						thread
+					}));
+			}
+		});
 	}
 
 	private onOutput(event: DebugProtocol.OutputEvent): void {
@@ -445,16 +450,11 @@ export class DebugService implements debug.IDebugService {
 		if (!process) {
 			process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
 		}
-		if (process && !focusedStackFrame) {
-			const thread = process.getAllThreads().pop();
-			const callStack = thread ? thread.getCachedCallStack() : null;
-			focusedStackFrame = callStack && callStack.length ? callStack[0] : null;
-		}
 
 		this.viewModel.setFocusedStackFrame(focusedStackFrame, process);
 		this._onDidChangeState.fire();
 
-		return this.model.evaluateWatchExpressions(process, focusedStackFrame);
+		return this.model.evaluateWatchExpressions(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame);
 	}
 
 	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void> {
@@ -559,12 +559,6 @@ export class DebugService implements debug.IDebugService {
 										this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
 									}
 								});
-							}
-							if (configuration.silentlyAbort) {
-								return;
-							}
-							if (strings.equalsIgnoreCase(configuration.type, 'composite') && configuration.configurationNames) {
-								return TPromise.join(configuration.configurationNames.map(name => this.createProcess(name)));
 							}
 
 							if (!this.configurationManager.getAdapter(configuration.type)) {
