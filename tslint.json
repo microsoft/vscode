@@ -6,14 +6,45 @@
 		"no-unused-variable": true,
 		"curly": true,
 		"class-name": true,
-		"semicolon": ["always"],
+		"semicolon": [
+			"always"
+		],
 		"triple-equals": true,
 		"no-unexternalized-strings": [
 			true,
 			{
-				"signatures": ["localize", "nls.localize"],
+				"signatures": [
+					"localize",
+					"nls.localize"
+				],
 				"keyIndex": 0,
 				"messageIndex": 1
+			}
+		],
+		"layering": [
+			false,
+			{
+				"common": [],
+				"node": [
+					"common"
+				],
+				"browser": [
+					"common"
+				],
+				"workbench": [
+					"common",
+					"browser"
+				],
+				"electron-browser": [
+					"common",
+					"browser",
+					"workbench",
+					"node"
+				],
+				"electron-main": [
+					"common",
+					"node"
+				]
 			}
 		]
 	}
