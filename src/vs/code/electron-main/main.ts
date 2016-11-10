@@ -39,7 +39,7 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IURLService } from 'vs/platform/url/common/url';
