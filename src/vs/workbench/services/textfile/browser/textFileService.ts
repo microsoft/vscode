@@ -374,9 +374,9 @@ export abstract class TextFileService implements ITextFileService {
 		return this._models.getAll(<URI>arg1);
 	}
 
-	public getDirtyFileModels(resources?: URI[]): ITextFileEditorModel[];
-	public getDirtyFileModels(resource?: URI): ITextFileEditorModel[];
-	public getDirtyFileModels(arg1?: any): ITextFileEditorModel[] {
+	private getDirtyFileModels(resources?: URI[]): ITextFileEditorModel[];
+	private getDirtyFileModels(resource?: URI): ITextFileEditorModel[];
+	private getDirtyFileModels(arg1?: any): ITextFileEditorModel[] {
 		return this.getFileModels(arg1).filter(model => model.isDirty());
 	}
 
