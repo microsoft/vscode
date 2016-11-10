@@ -33,8 +33,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 	private hasAssociatedFilePath: boolean;
 
-	private backupPromises: TPromise<void>[];
-
 	constructor(
 		value: string,
 		modeId: string,
@@ -54,8 +52,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this._onDidChangeContent = new Emitter<void>();
 		this._onDidChangeDirty = new Emitter<void>();
 		this._onDidChangeEncoding = new Emitter<void>();
-
-		this.backupPromises = [];
 
 		this.registerListeners();
 	}
@@ -185,13 +181,5 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this._onDidChangeContent.dispose();
 		this._onDidChangeDirty.dispose();
 		this._onDidChangeEncoding.dispose();
-
-		this.cancelBackupPromises();
-	}
-
-	private cancelBackupPromises(): void {
-		while (this.backupPromises.length) {
-			this.backupPromises.pop().cancel();
-		}
 	}
 }
