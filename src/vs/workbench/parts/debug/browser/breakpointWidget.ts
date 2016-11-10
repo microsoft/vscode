@@ -39,6 +39,8 @@ export class BreakpointWidget extends ZoneWidget {
 	private toDispose: lifecycle.IDisposable[];
 	private breakpointWidgetVisible: IContextKey<boolean>;
 	private hitCountContext: boolean;
+	private hitCountInput: string;
+	private conditionInput: string;
 	private static lastSelected = 0;
 
 	constructor(editor: ICodeEditor, private lineNumber: number,
@@ -49,6 +51,8 @@ export class BreakpointWidget extends ZoneWidget {
 		super(editor, { showFrame: true, showArrow: false, frameColor: '#007ACC', frameWidth: 1 });
 
 		this.toDispose = [];
+		this.hitCountInput = '';
+		this.conditionInput = '';
 
 		this.create();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
@@ -76,10 +80,10 @@ export class BreakpointWidget extends ZoneWidget {
 
 	private getInputBoxValue(breakpoint: IBreakpoint): string {
 		if (this.hitCountContext) {
-			return breakpoint && breakpoint.hitCondition ? breakpoint.hitCondition : '';
+			return breakpoint && breakpoint.hitCondition ? breakpoint.hitCondition : this.hitCountInput;
 		}
 
-		return breakpoint && breakpoint.condition ? breakpoint.condition : '';
+		return breakpoint && breakpoint.condition ? breakpoint.condition : this.conditionInput;
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -100,6 +104,12 @@ export class BreakpointWidget extends ZoneWidget {
 		selectBox.onDidSelect(e => {
 			this.hitCountContext = e === 'Hit Count';
 			BreakpointWidget.lastSelected = this.hitCountContext ? 1 : 0;
+			if (this.hitCountContext) {
+				this.conditionInput = this.inputBox.value;
+			} else {
+				this.hitCountInput = this.inputBox.value;
+			}
+
 			this.inputBox.setAriaLabel(this.ariaLabel);
 			this.inputBox.setPlaceHolder(this.placeholder);
 			this.inputBox.value = this.getInputBoxValue(breakpoint);
@@ -132,10 +142,17 @@ export class BreakpointWidget extends ZoneWidget {
 						condition: oldBreakpoint && oldBreakpoint.condition,
 						hitCondition: oldBreakpoint && oldBreakpoint.hitCondition
 					};
+
 					if (this.hitCountContext) {
 						raw.hitCondition = this.inputBox.value;
+						if (this.conditionInput) {
+							raw.condition = this.conditionInput;
+						}
 					} else {
 						raw.condition = this.inputBox.value;
+						if (this.hitCountInput) {
+							raw.hitCondition = this.hitCountInput;
+						}
 					}
 
 					if (oldBreakpoint) {
