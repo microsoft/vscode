@@ -487,7 +487,6 @@ export class Workbench implements IPartService {
 		// Activity bar visibility
 		const activityBarVisible = this.configurationService.lookup<string>(Workbench.activityBarVisibleConfigurationKey).value;
 		this.activityBarHidden = !activityBarVisible;
-
 	}
 
 	/**
@@ -613,13 +612,6 @@ export class Workbench implements IPartService {
 
 	public setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.activityBarHidden = hidden;
-
-		// Adjust CSS
-		if (hidden) {
-			this.workbench.addClass('noactivitybar');
-		} else {
-			this.workbench.removeClass('noactivitybar');
-		}
 
 		// Layout
 		if (!skipLayout) {
@@ -876,9 +868,6 @@ export class Workbench implements IPartService {
 		}
 		if (this.panelHidden) {
 			this.workbench.addClass('nopanel');
-		}
-		if (this.activityBarHidden) {
-			this.workbench.addClass('noactivitybar');
 		}
 
 		// Apply no-workspace state as CSS class
