@@ -26,6 +26,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Position, Direction, IEditor } from 'vs/platform/editor/common/editor';
 import { Emitter } from 'vs/base/common/event';
+import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
@@ -100,17 +101,41 @@ class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
 
 	onDidViewletOpenEmitter = new Emitter<IViewlet>();
-	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
-
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
-	onDidViewletClose = this.onDidViewletCloseEmitter.event;
+	onDidExtletsLoadEmitter = new Emitter<void>();
+	onDidViewletToggleEmitter = new Emitter<void>();
 
-	public openViewlet(id: string, focus?: boolean): Promise {
+	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
+	onDidViewletClose = this.onDidViewletCloseEmitter.event;
+	onDidExtViewletsLoad = this.onDidExtletsLoadEmitter.event;
+	onDidViewletToggle = this.onDidViewletToggleEmitter.event;
+
+	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
 		return TPromise.as(null);
+	}
+
+	public restoreViewlet(id: string): TPromise<IViewlet> {
+		return TPromise.as(null);
+	}
+
+	public toggleViewlet(id: string): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public getAllViewlets(): ViewletDescriptor[] {
+		return [];
+	}
+
+	public getAllViewletsToDisplay(): ViewletDescriptor[] {
+		return [];
 	}
 
 	public getActiveViewlet(): IViewlet {
 		return activeViewlet;
+	}
+
+	public isViewletEnabled(id: string): boolean {
+		return true;
 	}
 
 	public dispose() {
