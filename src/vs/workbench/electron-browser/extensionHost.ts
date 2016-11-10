@@ -248,6 +248,7 @@ export class ExtensionHostProcessWorker {
 			let initData: IInitData = {
 				parentPid: process.pid,
 				environment: {
+					isBuilt: this.environmentService.isBuilt,
 					appSettingsHome: this.environmentService.appSettingsHome,
 					disableExtensions: this.environmentService.disableExtensions,
 					userExtensionsHome: this.environmentService.extensionsPath,
