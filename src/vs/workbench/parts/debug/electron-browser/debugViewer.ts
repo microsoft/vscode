@@ -274,7 +274,7 @@ export class CallStackController extends BaseDebugController {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === threadAndProcessIds.processId).pop();
 		const thread = process && process.getThread(threadAndProcessIds.threadId);
 		if (thread) {
-			thread.getCallStack(true)
+			(<Thread>thread).fetchCallStack(true)
 				.done(() => tree.refresh(), errors.onUnexpectedError);
 		}
 
@@ -376,8 +376,8 @@ export class CallStackDataSource implements IDataSource {
 		return TPromise.as(process.getAllThreads());
 	}
 
-	private getThreadChildren(thread: debug.IThread): TPromise<any> {
-		return thread.getCallStack().then((callStack: any[]) => {
+	private getThreadChildren(thread: Thread): TPromise<any> {
+		return thread.fetchCallStack().then((callStack: any[]) => {
 			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
 				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 			}

@@ -126,19 +126,10 @@ export interface IThread extends ITreeElement {
 	stoppedDetails: IRawStoppedDetails;
 
 	/**
-	 * Queries the debug adapter for the callstack and returns a promise with
-	 * the stack frames of the callstack.
-	 * If the thread is not stopped, it returns a promise to an empty array.
-	 * Only gets the first 20 stack frames. Calling this method consecutive times
-	 * with getAdditionalStackFrames = true gets the remainder of the call stack.
-	 */
-	getCallStack(getAdditionalStackFrames?: boolean): TPromise<IStackFrame[]>;
-
-	/**
 	 * Gets the callstack if it has already been received from the debug
-	 * adapter, otherwise it returns undefined.
+	 * adapter, otherwise it returns null.
 	 */
-	getCachedCallStack(): IStackFrame[];
+	getCallStack(): IStackFrame[];
 
 	/**
 	 * Invalidates the callstack cache
