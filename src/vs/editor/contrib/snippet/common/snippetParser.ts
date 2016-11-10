@@ -12,8 +12,6 @@ export enum TokenType {
 	Colon,
 	CurlyOpen,
 	CurlyClose,
-	DoubleCurlyOpen,
-	DoubleCurlyClose,
 	Backslash,
 	Int,
 	VariableName,
@@ -78,18 +76,8 @@ export class Scanner {
 		// static types
 		type = Scanner._table[ch];
 		if (typeof type === 'number') {
-
-			if (type === TokenType.CurlyOpen && this.value.charCodeAt(pos + 1) === CharCode.OpenCurlyBrace) {
-				this.pos += 2;
-				return { type: TokenType.DoubleCurlyOpen, pos, len: 2 };
-			} else if (type === TokenType.CurlyClose && this.value.charCodeAt(pos + 1) === CharCode.CloseCurlyBrace) {
-				this.pos += 2;
-				return { type: TokenType.DoubleCurlyClose, pos, len: 2 };
-
-			} else {
-				this.pos += 1;
-				return { type, pos, len: 1 };
-			}
+			this.pos += 1;
+			return { type, pos, len: 1 };
 		}
 
 		// number
@@ -133,7 +121,6 @@ export class Scanner {
 	}
 }
 
-
 export abstract class Marker {
 	_markerBrand: any;
 
@@ -160,7 +147,7 @@ export class Text extends Marker {
 }
 
 export class Placeholder extends Marker {
-	constructor(public name: string, public value: Marker[]) {
+	constructor(public name: string = '', public value: Marker[]) {
 		super();
 	}
 	get isVariable(): boolean {
@@ -190,14 +177,26 @@ export class SnippetParser {
 			// nothing
 		}
 
-		// compact sibling Text markers
-		for (let i = 1; i < marker.length; i++) {
-			if (marker[i - 1] instanceof Text && marker[i] instanceof Text) {
+		// * fill in default for empty placeHolders
+		// * compact sibling Text markers
+		const placeholders: { [name: string]: Marker[] } = Object.create(null);
+		for (let i = 0; i < marker.length; i++) {
+			let thisMarker = marker[i];
+
+			if (thisMarker instanceof Placeholder) {
+				if (placeholders[thisMarker.name] === undefined) {
+					placeholders[thisMarker.name] = thisMarker.value;
+				} else if (thisMarker.value.length === 0) {
+					thisMarker.value = placeholders[thisMarker.name].slice(0);
+				}
+
+			} else if (i > 0 && thisMarker instanceof Text && marker[i - 1] instanceof Text) {
 				(<Text>marker[i - 1]).string += (<Text>marker[i]).string;
 				marker.splice(i, 1);
 				i--;
 			}
 		}
+
 		return marker;
 	}
 
@@ -218,9 +217,9 @@ export class SnippetParser {
 	private _parseAny(marker: Marker[]): boolean {
 		if (this._parseEscaped(marker)) {
 			return true;
-		} else if (this._parseTM(marker)) {
-			return true;
 		} else if (this._parseInternal(marker)) {
+			return true;
+		} else if (this._parseTM(marker)) {
 			return true;
 		}
 	}
@@ -282,32 +281,55 @@ export class SnippetParser {
 	}
 
 	private _parseInternal(marker: Marker[]): boolean {
-		if (this._accept(TokenType.DoubleCurlyOpen)) {
+		if (this._accept(TokenType.CurlyOpen)) {
 
-			let name: string;
-			if (this._accept(TokenType.VariableName)) {
-				name = this._scanner.tokenText(this._prevToken);
-				if (!this._accept(TokenType.Colon)) {
-					this._return(this._prevToken);
-					name = undefined;
-				}
+			if (!this._accept(TokenType.CurlyOpen)) {
+				this._return(this._prevToken);
+				return false;
 			}
 
+			// ${name:children}, ${name}, ${name:}
+			let name: Marker[] = [];
 			let children: Marker[] = [];
+			let target = name;
+
 			while (true) {
 
-				if (this._accept(TokenType.DoubleCurlyClose)) {
-					marker.push(new Placeholder(name, children));
+				if (this._accept(TokenType.Colon)) {
+					target = children;
+					continue;
+				}
+
+				if (this._accept(TokenType.CurlyClose)) {
+
+					if (!this._accept(TokenType.CurlyClose)) {
+						this._return(this._prevToken);
+						continue;
+					}
+
+					if (children !== target) {
+						// we have not seen the colon which
+						// means use the ident also as
+						// default value
+						children = name;
+					}
+
+					marker.push(new Placeholder(Marker.toString(name), children));
 					return true;
 				}
 
-				if (this._parseAny(children) || this._parseText(children)) {
+				if (this._parseAny(target) || this._parseText(target)) {
 					continue;
 				}
 
 				// fallback
-				marker.push(new Text('{{'));
-				marker.push(...children);
+				if (children.length > 0) {
+					marker.push(new Text('{{' + Marker.toString(name) + ':'));
+					marker.push(...children);
+				} else {
+					marker.push(new Text('{{'));
+					marker.push(...name);
+				}
 				return true;
 			}
 		}
@@ -316,10 +338,7 @@ export class SnippetParser {
 	private _parseEscaped(marker: Marker[]): boolean {
 		if (this._accept(TokenType.Backslash)) {
 			if (// Internal style
-				this._accept(TokenType.CurlyOpen) || this._accept(TokenType.DoubleCurlyOpen)
-				|| this._accept(TokenType.CurlyOpen) || this._accept(TokenType.DoubleCurlyClose)
-				|| this._accept(TokenType.Backslash)
-
+				this._accept(TokenType.CurlyOpen) || this._accept(TokenType.CurlyClose) || this._accept(TokenType.Backslash)
 				// TextMate style
 				|| this._accept(TokenType.Dollar)
 			) {

@@ -529,6 +529,13 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		});
 	}
 
+	public pull(index: number): void {
+		if (index >= 0 && index < this.items.length) {
+			this.items.splice(index, 1);
+			this.actionsList.removeChild(this.actionsList.childNodes[index]);
+		}
+	}
+
 	public clear(): void {
 		// Do not dispose action items if they were provided from outside
 		this.items = this.options.actionItemProvider ? [] : lifecycle.dispose(this.items);

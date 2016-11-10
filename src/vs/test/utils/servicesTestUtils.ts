@@ -257,6 +257,12 @@ export class TestPartService implements IPartService {
 		return false;
 	}
 
+	public isActivityBarHidden(): boolean {
+		return false;
+	}
+
+	public setActivityBarHidden(hidden: boolean): void { }
+
 	public isSideBarHidden(): boolean {
 		return false;
 	}

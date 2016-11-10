@@ -158,7 +158,7 @@ suite('HtmlContent', () => {
 	});
 	test('image rendering conforms to default', () => {
 		const renderableContent = {
-			markdown: "![image](someimageurl 'caption')"
+			markdown: `![image](someimageurl 'caption')`
 		};
 		const result: HTMLElement = <any>renderHtml(renderableContent);
 		const renderer = new marked.Renderer();
@@ -170,7 +170,7 @@ suite('HtmlContent', () => {
 	});
 	test('image rendering conforms to default without title', () => {
 		const renderableContent = {
-			markdown: "![image](someimageurl)"
+			markdown: `![image](someimageurl)`
 		};
 		const result: HTMLElement = <any>renderHtml(renderableContent);
 		const renderer = new marked.Renderer();
@@ -182,19 +182,19 @@ suite('HtmlContent', () => {
 	});
 	test('image width from title params', () => {
 		var result: HTMLElement = <any>renderHtml({
-			markdown: "![image](someimageurl|width=100 'caption')"
+			markdown: `![image](someimageurl|width=100 'caption')`
 		});
 		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" width="100"></p>`);
 	});
 	test('image height from title params', () => {
 		var result: HTMLElement = <any>renderHtml({
-			markdown: "![image](someimageurl|height=100 'caption')"
+			markdown: `![image](someimageurl|height=100 'caption')`
 		});
 		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" height="100"></p>`);
 	});
 	test('image width and height from title params', () => {
 		var result: HTMLElement = <any>renderHtml({
-			markdown: "![image](someimageurl|height=200,width=100 'caption')"
+			markdown: `![image](someimageurl|height=200,width=100 'caption')`
 		});
 		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" width="100" height="200"></p>`);
 	});

@@ -129,6 +129,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
+		},
+		'workbench.activityBar.visible': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
 		}
 	}
 });

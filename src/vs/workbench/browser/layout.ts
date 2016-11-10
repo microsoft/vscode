@@ -333,6 +333,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		this.workbenchSize = this.getWorkbenchArea();
 
+		const isActivityBarHidden = this.partService.isActivityBarHidden();
 		const isTitlebarHidden = !this.partService.isVisible(Parts.TITLEBAR_PART);
 		const isPanelHidden = !this.partService.isVisible(Parts.PANEL_PART);
 		const isStatusbarHidden = !this.partService.isVisible(Parts.STATUSBAR_PART);
@@ -357,7 +358,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let sidebarSize = new Dimension(sidebarWidth, this.sidebarHeight);
 
 		// Activity Bar
-		this.activitybarWidth = this.initialComputedStyles.activitybar.width / getZoomFactor(); // adjust for zoom prevention
+		this.activitybarWidth = isActivityBarHidden ? 0 : this.initialComputedStyles.activitybar.width / getZoomFactor(); // adjust for zoom prevention
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
 
 		// Panel part
@@ -485,6 +486,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		} else {
 			this.activitybar.getContainer().getHTMLElement().style.left = '';
 			this.activitybar.getContainer().position(this.titlebarHeight, 0, 0, null);
+		}
+		if (isActivityBarHidden) {
+			this.activitybar.getContainer().hide();
+		} else {
+			this.activitybar.getContainer().show();
 		}
 
 		// Sidebar Part

@@ -113,8 +113,8 @@
 		"c": "Azure",
 		"t": "entity.first.inherited-class.meta.module.name.other.ruby.type",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.inherited-class rgb(78, 201, 176)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.inherited-class rgb(38, 127, 153)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -124,8 +124,8 @@
 		"c": "::",
 		"t": "entity.first.inheritance.inherited-class.meta.module.name.other.punctuation.ruby.separator.type",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.inherited-class rgb(78, 201, 176)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.inherited-class rgb(38, 127, 153)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -135,8 +135,8 @@
 		"c": "ARM",
 		"t": "entity.inherited-class.meta.module.name.other.ruby.second.type",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.inherited-class rgb(78, 201, 176)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.inherited-class rgb(38, 127, 153)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -146,8 +146,8 @@
 		"c": "::",
 		"t": "entity.inheritance.inherited-class.meta.module.name.other.punctuation.ruby.second.separator.type",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.inherited-class rgb(78, 201, 176)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.inherited-class rgb(38, 127, 153)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -322,8 +322,8 @@
 		"c": "MsRestAzure::AzureServiceClient",
 		"t": "class.entity.inherited-class.meta.other.ruby",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.inherited-class rgb(78, 201, 176)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.inherited-class rgb(38, 127, 153)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"

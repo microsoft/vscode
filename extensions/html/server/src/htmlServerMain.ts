@@ -242,7 +242,7 @@ connection.onDocumentLinks(documentLinkParam => {
 	let document = documents.get(documentLinkParam.textDocument.uri);
 	let documentContext: DocumentContext = {
 		resolveReference: ref => {
-			if (ref[0] === '/') {
+			if (workspacePath && ref[0] === '/') {
 				return uri.file(path.join(workspacePath, ref)).toString();
 			}
 			return url.resolve(document.uri, ref);

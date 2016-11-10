@@ -20,6 +20,7 @@ import 'vs/editor/browser/editor.all';
 import 'vs/platform/actions/browser/menusExtensionPoint';
 
 // Workbench
+import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarPosition';
@@ -57,6 +58,9 @@ import 'vs/workbench/parts/html/browser/html.contribution';
 import 'vs/workbench/parts/extensions/electron-browser/extensions.contribution';
 import 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // can be packaged separately
+
+import 'vs/workbench/parts/explorers/browser/treeExplorer.contribution';
+import 'vs/workbench/parts/explorers/common/treeExplorerActions.contribution';
 
 import 'vs/workbench/parts/output/browser/output.contribution';
 import 'vs/workbench/parts/output/browser/outputPanel'; // can be packaged separately

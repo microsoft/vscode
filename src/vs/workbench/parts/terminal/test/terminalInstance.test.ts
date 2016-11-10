@@ -7,18 +7,13 @@
 
 import * as assert from 'assert';
 import * as os from 'os';
-import * as platform from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import { TestMessageService } from 'vs/test/utils/servicesTestUtils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-
 
 suite('Workbench - TerminalInstance', () => {
 
@@ -73,21 +68,3 @@ suite('Workbench - TerminalInstance', () => {
 		assert.equal(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
 	});
 });
-
-function createTerminalInstance(instantiationService: TestInstantiationService, terminalConfig: any): TerminalInstance {
-	let configService = new TestConfigurationService();
-	configService.setUserConfiguration('terminal', {
-		integrated: terminalConfig
-	});
-	instantiationService.stub(IConfigurationService, configService);
-
-	let terminalConfigHelper = new TerminalConfigHelper(platform.platform, configService);
-	return <TerminalInstance>instantiationService.createInstance(TerminalInstance,
-		/*terminalFocusContextKey*/null,
-		/*onExitCallback*/() => { },
-		/*configHelper*/terminalConfigHelper,
-		/*container*/null,
-		/*workspace*/null,
-		/*name*/'',
-		/*shellPath*/'');
-}

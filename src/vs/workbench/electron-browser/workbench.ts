@@ -56,6 +56,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { ViewletService } from 'vs/workbench/services/viewlet/browser/viewletService';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -120,6 +121,7 @@ export class Workbench implements IPartService {
 
 	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
+	private static activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
 
 	private _onTitleBarVisibilityChange: Emitter<void>;
 
@@ -134,6 +136,7 @@ export class Workbench implements IPartService {
 	private workbenchCreated: boolean;
 	private workbenchShutdown: boolean;
 	private editorService: WorkbenchEditorService;
+	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
 	private configurationEditingService: IConfigurationEditingService;
@@ -152,6 +155,7 @@ export class Workbench implements IPartService {
 	private creationPromiseComplete: ValueCallback;
 	private sideBarHidden: boolean;
 	private statusBarHidden: boolean;
+	private activityBarHidden: boolean;
 	private sideBarPosition: Position;
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
@@ -241,16 +245,20 @@ export class Workbench implements IPartService {
 			// Load composits and editors in parallel
 			const compositeAndEditorPromises: TPromise<any>[] = [];
 
-			// Load Viewlet
-			const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
-			let viewletId = viewletRegistry.getDefaultViewletId();
-			if (this.shouldRestoreSidebar()) {
-				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletId); // help developers and restore last view
-			}
+			// Restore last opened viewlet
+			if (!this.sideBarHidden) {
+				let viewletIdToRestore: string;
 
-			if (!this.sideBarHidden && !!viewletId) {
-				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
-				compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
+				if (this.shouldRestoreLastOpenedViewlet) {
+					viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
+				}
+
+				if (!viewletIdToRestore) {
+					viewletIdToRestore = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
+				}
+
+				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletIdToRestore));
+				compositeAndEditorPromises.push(this.viewletService.restoreViewlet(viewletIdToRestore).then(() => viewletTimerEvent.stop()));
 			}
 
 			// Load Panel
@@ -387,11 +395,14 @@ export class Workbench implements IPartService {
 		this.toShutdown.push(this.titlebarPart);
 		serviceCollection.set(ITitleService, this.titlebarPart);
 
-		// Viewlet service (sidebar part)
+		// Sidebar part
 		this.sidebarPart = this.instantiationService.createInstance(SidebarPart, Identifiers.SIDEBAR_PART);
 		this.toDispose.push(this.sidebarPart);
 		this.toShutdown.push(this.sidebarPart);
-		serviceCollection.set(IViewletService, this.sidebarPart);
+
+		// Viewlet service
+		this.viewletService = this.instantiationService.createInstance(ViewletService, this.sidebarPart);
+		serviceCollection.set(IViewletService, this.viewletService);
 
 		// Panel service (panel part)
 		this.panelPart = this.instantiationService.createInstance(PanelPart, Identifiers.PANEL_PART);
@@ -481,6 +492,10 @@ export class Workbench implements IPartService {
 		// Statusbar visibility
 		const statusBarVisible = this.configurationService.lookup<string>(Workbench.statusbarVisibleConfigurationKey).value;
 		this.statusBarHidden = !statusBarVisible;
+
+		// Activity bar visibility
+		const activityBarVisible = this.configurationService.lookup<string>(Workbench.activityBarVisibleConfigurationKey).value;
+		this.activityBarHidden = !activityBarVisible;
 	}
 
 	/**
@@ -546,6 +561,8 @@ export class Workbench implements IPartService {
 				return !this.panelHidden;
 			case Parts.STATUSBAR_PART:
 				return !this.statusBarHidden;
+			case Parts.ACTIVITYBAR_PART:
+				return !this.activityBarHidden;
 		}
 
 		return true; // any other part cannot be hidden
@@ -591,6 +608,19 @@ export class Workbench implements IPartService {
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.statusBarHidden = hidden;
+
+		// Layout
+		if (!skipLayout) {
+			this.workbenchLayout.layout({ forceStyleRecompute: true });
+		}
+	}
+
+	public isActivityBarHidden(): boolean {
+		return this.activityBarHidden;
+	}
+
+	public setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
+		this.activityBarHidden = hidden;
 
 		// Layout
 		if (!skipLayout) {
@@ -807,6 +837,11 @@ export class Workbench implements IPartService {
 		if (newStatusbarHiddenValue !== this.isStatusBarHidden()) {
 			this.setStatusBarHidden(newStatusbarHiddenValue);
 		}
+
+		const newActivityBarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.activityBarVisibleConfigurationKey).value;
+		if (newActivityBarHiddenValue !== this.isActivityBarHidden()) {
+			this.setActivityBarHidden(newActivityBarHiddenValue);
+		}
 	}
 
 	private createWorkbenchLayout(): void {
@@ -980,7 +1015,7 @@ export class Workbench implements IPartService {
 		this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
 	}
 
-	private shouldRestoreSidebar(): boolean {
+	private shouldRestoreLastOpenedViewlet(): boolean {
 		if (!this.environmentService.isBuilt) {
 			return true; // always restore sidebar when we are in development mode
 		}
