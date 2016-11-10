@@ -56,6 +56,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { ViewletService } from 'vs/workbench/services/viewlet/browser/viewletService';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -135,6 +136,7 @@ export class Workbench implements IPartService {
 	private workbenchCreated: boolean;
 	private workbenchShutdown: boolean;
 	private editorService: WorkbenchEditorService;
+	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
 	private configurationEditingService: IConfigurationEditingService;
@@ -243,16 +245,18 @@ export class Workbench implements IPartService {
 			// Load composits and editors in parallel
 			const compositeAndEditorPromises: TPromise<any>[] = [];
 
-			// Load Viewlet
-			const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
-			let viewletId = viewletRegistry.getDefaultViewletId();
-			if (this.shouldRestoreSidebar()) {
-				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletId); // help developers and restore last view
-			}
+			// Restore last opened viewlet
+			if (!this.sideBarHidden) {
+				let viewletIdToRestore;
 
-			if (!this.sideBarHidden && !!viewletId) {
-				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
-				compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
+				if (this.shouldRestoreLastOpenedViewlet) {
+					viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
+				} else {
+					viewletIdToRestore = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
+				}
+
+				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletIdToRestore));
+				compositeAndEditorPromises.push(this.viewletService.restoreViewlet(viewletIdToRestore).then(() => viewletTimerEvent.stop()));
 			}
 
 			// Load Panel
@@ -389,11 +393,14 @@ export class Workbench implements IPartService {
 		this.toShutdown.push(this.titlebarPart);
 		serviceCollection.set(ITitleService, this.titlebarPart);
 
-		// Viewlet service (sidebar part)
+		// Sidebar part
 		this.sidebarPart = this.instantiationService.createInstance(SidebarPart, Identifiers.SIDEBAR_PART);
 		this.toDispose.push(this.sidebarPart);
 		this.toShutdown.push(this.sidebarPart);
-		serviceCollection.set(IViewletService, this.sidebarPart);
+
+		// Viewlet service
+		this.viewletService = this.instantiationService.createInstance(ViewletService, this.sidebarPart);
+		serviceCollection.set(IViewletService, this.viewletService);
 
 		// Panel service (panel part)
 		this.panelPart = this.instantiationService.createInstance(PanelPart, Identifiers.PANEL_PART);
@@ -1006,7 +1013,7 @@ export class Workbench implements IPartService {
 		this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
 	}
 
-	private shouldRestoreSidebar(): boolean {
+	private shouldRestoreLastOpenedViewlet(): boolean {
 		if (!this.environmentService.isBuilt) {
 			return true; // always restore sidebar when we are in development mode
 		}
