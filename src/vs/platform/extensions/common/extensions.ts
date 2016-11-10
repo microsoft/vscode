@@ -23,7 +23,7 @@ export interface IExtensionDescription {
 	};
 	readonly main?: string;
 	readonly contributes?: { [point: string]: any; };
-	readonly enableProposedApi?: boolean;
+	enableProposedApi?: boolean;
 }
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');

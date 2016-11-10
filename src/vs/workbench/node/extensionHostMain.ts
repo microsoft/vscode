@@ -59,7 +59,7 @@ export class ExtensionHostMain {
 		errors.setUnexpectedErrorHandler(err => mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err)));
 
 		// Create the ext host API
-		const factory = createApiFactory(initData.configuration, initData.telemetryInfo, threadService, this._extensionService, this._contextService);
+		const factory = createApiFactory(initData, threadService, this._extensionService, this._contextService);
 		defineAPI(factory, this._extensionService);
 	}
 
