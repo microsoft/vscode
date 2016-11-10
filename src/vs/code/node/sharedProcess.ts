@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ISharedProcessInitData {
