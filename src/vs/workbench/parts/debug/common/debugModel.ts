@@ -483,6 +483,10 @@ export class Thread implements debug.IThread {
 	public pause(): TPromise<any> {
 		return this.process.session.pause({ threadId: this.threadId });
 	}
+
+	public reverseContinue(): TPromise<any> {
+		return this.process.session.reverseContinue({ threadId: this.threadId });
+	}
 }
 
 export class Process implements debug.IProcess {

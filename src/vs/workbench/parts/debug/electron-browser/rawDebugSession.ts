@@ -269,13 +269,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		});
 	}
 
-	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
-		return this.send('stepBack', args).then(response => {
-			this.fireFakeContinued(args.threadId);
-			return response;
-		});
-	}
-
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
 		return this.send('continue', args).then(response => {
 			this.fireFakeContinued(args.threadId);
@@ -359,6 +352,20 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 
 	public evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
 		return this.send('evaluate', args);
+	}
+
+	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
+		return this.send('stepBack', args).then(response => {
+			this.fireFakeContinued(args.threadId);
+			return response;
+		});
+	}
+
+	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
+		return this.send('reverseContinue', args).then(response => {
+			this.fireFakeContinued(args.threadId);
+			return response;
+		});
 	}
 
 	public getLengthInSeconds(): number {
