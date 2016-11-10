@@ -217,6 +217,12 @@ export class TestMessageService implements IMessageService {
 export class TestPartService implements IPartService {
 	public _serviceBrand: any;
 
+	private _onTitleBarVisibilityChange = new Emitter<void>();
+
+	public get onTitleBarVisibilityChange(): Event<void> {
+		return this._onTitleBarVisibilityChange.event;
+	}
+
 	public layout(): void { }
 
 	public isCreated(): boolean {
@@ -241,6 +247,10 @@ export class TestPartService implements IPartService {
 
 	public isTitleBarHidden(): boolean {
 		return false;
+	}
+
+	public getTitleBarOffset(): number {
+		return 0;
 	}
 
 	public isStatusBarHidden(): boolean {

@@ -11,13 +11,15 @@ import * as arrays from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem } from 'electron';
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
-import { IPath, VSCodeWindow } from 'vs/code/electron-main/window';
+import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
-import { IUpdateService, State as UpdateState } from 'vs/code/electron-main/update-manager';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import { Keybinding } from 'vs/base/common/keybinding';
 import product from 'vs/platform/product';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 interface IResolvedKeybinding {
 	id: string;
@@ -52,6 +54,8 @@ export class VSCodeMenu {
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
 
+	private menuUpdater: RunOnceScheduler;
+
 	private actionIdKeybindingRequests: string[];
 	private mapLastKnownKeybindingToActionId: { [id: string]: string; };
 	private mapResolvedKeybindingToActionId: { [id: string]: string; };
@@ -62,12 +66,15 @@ export class VSCodeMenu {
 		@IUpdateService private updateService: IUpdateService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWindowsMainService private windowsService: IWindowsMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.actionIdKeybindingRequests = [];
 
 		this.mapResolvedKeybindingToActionId = Object.create(null);
 		this.mapLastKnownKeybindingToActionId = this.storageService.getItem<{ [id: string]: string; }>(VSCodeMenu.lastKnownKeybindingsMapStorageKey) || Object.create(null);
+
+		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
 		this.onConfigurationUpdated(this.configurationService.getConfiguration<IConfiguration>());
 	}
@@ -84,12 +91,12 @@ export class VSCodeMenu {
 			this.isQuitting = true;
 		});
 
-		// Listen to "open" & "close" event from window service
-		this.windowsService.onOpen(paths => this.onOpen(paths));
-		this.windowsService.onClose(_ => this.onClose(this.windowsService.getWindowCount()));
+		// Listen to some events from window service
+		this.windowsService.onRecentPathsChange(paths => this.updateMenu());
+		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
 
 		// Resolve keybindings when any first workbench is loaded
-		this.windowsService.onReady(win => this.resolveKeybindings(win));
+		this.windowsService.onWindowReady(win => this.resolveKeybindings(win));
 
 		// Listen to resolved keybindings
 		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings) => {
@@ -129,7 +136,7 @@ export class VSCodeMenu {
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true /* update menu if changed */));
 
 		// Listen to update service
-		this.updateService.on('change', () => this.updateMenu());
+		this.updateService.onStateChange(() => this.updateMenu());
 	}
 
 	private onConfigurationUpdated(config: IConfiguration, handleMenu?: boolean): void {
@@ -183,6 +190,10 @@ export class VSCodeMenu {
 	}
 
 	private updateMenu(): void {
+		this.menuUpdater.schedule(); // buffer multiple attempts to update the menu
+	}
+
+	private doUpdateMenu(): void {
 
 		// Due to limitations in Electron, it is not possible to update menu items dynamically. The suggested
 		// workaround from Electron is to set the application menu again.
@@ -196,10 +207,6 @@ export class VSCodeMenu {
 				}
 			}, 10 /* delay this because there is an issue with updating a menu when it is open */);
 		}
-	}
-
-	private onOpen(path: IPath): void {
-		this.updateMenu();
 	}
 
 	private onClose(remainingWindowCount: number): void {
@@ -442,7 +449,7 @@ export class VSCodeMenu {
 
 		if (folders.length || files.length) {
 			openRecentMenu.append(__separator__());
-			openRecentMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miClearItems', comment: ['&& denotes a mnemonic'] }, "&&Clear Items")), click: () => { this.windowsService.clearRecentPathsList(); this.updateMenu(); } }));
+			openRecentMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miClearItems', comment: ['&& denotes a mnemonic'] }, "&&Clear Items")), click: () => this.windowsService.clearRecentPathsList() }));
 		}
 	}
 
@@ -453,7 +460,6 @@ export class VSCodeMenu {
 				const success = !!this.windowsService.open({ cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow });
 				if (!success) {
 					this.windowsService.removeFromRecentPathsList(path);
-					this.updateMenu();
 				}
 			}
 		});
@@ -682,7 +688,12 @@ export class VSCodeMenu {
 	private toggleDevTools(): void {
 		const w = this.windowsService.getFocusedWindow();
 		if (w && w.win) {
-			w.win.webContents.toggleDevTools();
+			const contents = w.win.webContents;
+			if (w.hasHiddenTitleBarStyle() && !w.win.isFullScreen() && !contents.isDevToolsOpened()) {
+				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
+			} else {
+				contents.toggleDevTools();
+			}
 		}
 	}
 
@@ -768,11 +779,10 @@ export class VSCodeMenu {
 				return [];
 
 			case UpdateState.UpdateDownloaded:
-				const update = this.updateService.availableUpdate;
 				return [new MenuItem({
 					label: nls.localize('miRestartToUpdate', "Restart To Update..."), click: () => {
 						this.reportMenuActionTelemetry('RestartToUpdate');
-						update.quitAndUpdate();
+						this.updateService.quitAndInstall();
 					}
 				})];
 
@@ -781,10 +791,9 @@ export class VSCodeMenu {
 
 			case UpdateState.UpdateAvailable:
 				if (platform.isLinux) {
-					const update = this.updateService.availableUpdate;
 					return [new MenuItem({
 						label: nls.localize('miDownloadUpdate', "Download Available Update"), click: () => {
-							update.quitAndUpdate();
+							this.updateService.quitAndInstall();
 						}
 					})];
 				}
@@ -799,7 +808,7 @@ export class VSCodeMenu {
 				const result = [new MenuItem({
 					label: nls.localize('miCheckForUpdates', "Check For Updates..."), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
-						this.updateService.checkForUpdates(true);
+						this.updateService.checkForUpdates(true).done(null, err => console.error(err));
 					}, 0)
 				})];
 
@@ -903,7 +912,7 @@ export class VSCodeMenu {
 	}
 
 	private reportMenuActionTelemetry(id: string): void {
-		this.windowsService.sendToFocused('vscode:telemetry', { eventName: 'workbenchActionExecuted', data: { id, from: 'menu' } });
+		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'menu' });
 	}
 }
 

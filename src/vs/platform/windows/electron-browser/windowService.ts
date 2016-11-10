@@ -57,12 +57,28 @@ export class WindowService implements IWindowService {
 		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
 	}
 
+	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
+		return this.windowsService.addToRecentlyOpen(paths);
+	}
+
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
 		return this.windowsService.getRecentlyOpen(this.windowId);
 	}
 
 	focusWindow(): TPromise<void> {
 		return this.windowsService.focusWindow(this.windowId);
+	}
+
+	isMaximized(): TPromise<boolean> {
+		return this.windowsService.isMaximized(this.windowId);
+	}
+
+	maximizeWindow(): TPromise<void> {
+		return this.windowsService.maximizeWindow(this.windowId);
+	}
+
+	unmaximizeWindow(): TPromise<void> {
+		return this.windowsService.unmaximizeWindow(this.windowId);
 	}
 
 	setDocumentEdited(flag: boolean): TPromise<void> {

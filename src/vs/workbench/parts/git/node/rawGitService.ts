@@ -40,7 +40,7 @@ export class RawGitService implements IRawGitService {
 			return TPromise.as(null);
 		}
 
-		return TPromise.as(this.repo.version);
+		return TPromise.as(this.repo.git.version);
 	}
 
 	private getRepositoryRoot(): TPromise<string> {
@@ -196,6 +196,10 @@ export class RawGitService implements IRawGitService {
 		});
 	}
 
+	clone(url: string, parentPath: string): TPromise<string> {
+		return this.repo.git.clone(url, parentPath);
+	}
+
 	getCommitTemplate(): TPromise<string> {
 		return this.repo.getCommitTemplate();
 	}
@@ -228,6 +232,7 @@ export class DelayedRawGitService implements IRawGitService {
 	commit(message: string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.commit(message, amend, stage, signoff)); }
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]> { return this.raw.then(r => r.detectMimetypes(path, treeish)); }
 	show(path: string, treeish?: string): TPromise<string> { return this.raw.then(r => r.show(path, treeish)); }
+	clone(url: string, parentPath: string): TPromise<string> { return this.raw.then(r => r.clone(url, parentPath)); }
 	getCommitTemplate(): TPromise<string> { return this.raw.then(r => r.getCommitTemplate()); }
 	getCommit(ref: string): TPromise<ICommit> { return this.raw.then(r => r.getCommit(ref)); }
 }

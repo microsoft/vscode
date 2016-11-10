@@ -296,8 +296,6 @@ export interface IEnvConfig {
 	preLaunchTask?: string;
 	debugServer?: number;
 	noDebug?: boolean;
-	silentlyAbort?: boolean;
-	configurationNames?: string[];
 }
 
 export interface IConfig extends IEnvConfig {

@@ -405,6 +405,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							args.push('--disableAutomaticTypingAcquisition');
 						}
 					}
+					if (this.apiVersion.has208Features()) {
+						args.push('--enableTelemetry');
+					}
 					electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
 						if (err) {
 							this.lastError = err;
@@ -648,6 +651,25 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					this.host.semanticDiagnosticsReceived(event as Proto.DiagnosticEvent);
 				} else if (event.event === 'configFileDiag') {
 					this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
+				} else if (event.event === 'telemetry') {
+					let telemetryData = (event as Proto.TelemetryEvent).body;
+					let properties: Map<string> = Object.create(null);
+					switch (telemetryData.telemetryEventName) {
+						case 'typingsInstalled':
+							properties['installedPackages'] = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload).installedPackages;
+							break;
+						default:
+							let payload = telemetryData.payload;
+							if (payload) {
+								Object.keys(payload).forEach((key) => {
+									if (payload.hasOwnProperty(key) && is.string(payload[key])) {
+										properties[key] = payload[key];
+									}
+								});
+							}
+							break;
+					}
+					this.logTelemetry(telemetryData.telemetryEventName, properties);
 				}
 			} else {
 				throw new Error('Unknown message type ' + message.type + ' recevied');

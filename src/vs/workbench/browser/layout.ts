@@ -9,7 +9,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPartService, Position, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Position, ILayoutOptions, Parts } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -339,10 +339,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.workbenchSize = this.getWorkbenchArea();
 
 		const isActivityBarHidden = this.partService.isActivityBarHidden();
-		const isSidebarHidden = this.partService.isSideBarHidden();
-		const isPanelHidden = this.partService.isPanelHidden();
+		const isTitlebarHidden = !this.partService.isVisible(Parts.TITLEBAR_PART);
+		const isPanelHidden = !this.partService.isVisible(Parts.PANEL_PART);
+		const isStatusbarHidden = !this.partService.isVisible(Parts.STATUSBAR_PART);
+		const isSidebarHidden = !this.partService.isVisible(Parts.SIDEBAR_PART);
 		const sidebarPosition = this.partService.getSideBarPosition();
-		const isStatusbarHidden = this.partService.isStatusBarHidden();
 
 		// Sidebar
 		let sidebarWidth: number;
@@ -356,7 +357,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		this.statusbarHeight = isStatusbarHidden ? 0 : this.computedStyles.statusbar.height;
-		this.titlebarHeight = this.initialComputedStyles.titlebar.height / getZoomFactor(); // adjust for zoom prevention
+		this.titlebarHeight = isTitlebarHidden ? 0 : this.initialComputedStyles.titlebar.height / getZoomFactor(); // adjust for zoom prevention
 
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
 		let sidebarSize = new Dimension(sidebarWidth, this.sidebarHeight);
@@ -466,6 +467,13 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			workbenchContainer.scrollLeft = 0;
 		}
 
+		// Title Part
+		if (isTitlebarHidden) {
+			this.titlebar.getContainer().hide();
+		} else {
+			this.titlebar.getContainer().show();
+		}
+
 		// Editor Part and Panel part
 		this.editor.getContainer().size(editorSize.width, editorSize.height);
 		this.panel.getContainer().size(panelDimension.width, panelDimension.height);
@@ -503,6 +511,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Statusbar Part
 		this.statusbar.getContainer().position(this.workbenchSize.height - this.statusbarHeight);
+		if (isStatusbarHidden) {
+			this.statusbar.getContainer().hide();
+		} else {
+			this.statusbar.getContainer().show();
+		}
 
 		// Quick open
 		this.quickopen.layout(this.workbenchSize);

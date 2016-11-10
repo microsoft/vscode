@@ -16,17 +16,8 @@
 	-webkit-user-select: none;
 	-webkit-app-region: drag;
 	zoom: 1; /* prevent zooming */
-}
-
-.monaco-workbench > .part.titlebar,
-.titlebar-style-custom .monaco-workbench.fullscreen > .part.titlebar {
-	height: 0; /* needs extra class to be enabled (also disabled in fullscreen mode) */
-	display: none;
-}
-
-.titlebar-style-custom .monaco-workbench > .part.titlebar {
-	height: 22px;
 	line-height: 22px;
+	height: 22px;
 	display: flex;
 }
 
@@ -38,16 +29,6 @@
 	text-overflow: ellipsis;
 	-webkit-app-region: drag;
 	zoom: 1; /* prevent zooming */
-}
-
-.titlebar-style-custom .monaco-workbench.fullscreen .quick-open-widget,
-.titlebar-style-custom .global-message-list {
-	top: 0;
-}
-
-.titlebar-style-custom .monaco-workbench .quick-open-widget,
-.titlebar-style-custom .global-message-list {
-	top: 22px; /* push down quick open and messages when we have a custom title bar */
 }
 
 /* Theming */
