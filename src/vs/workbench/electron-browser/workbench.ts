@@ -247,11 +247,13 @@ export class Workbench implements IPartService {
 
 			// Restore last opened viewlet
 			if (!this.sideBarHidden) {
-				let viewletIdToRestore;
+				let viewletIdToRestore: string;
 
 				if (this.shouldRestoreLastOpenedViewlet) {
 					viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
-				} else {
+				}
+
+				if (!viewletIdToRestore) {
 					viewletIdToRestore = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
 				}
 
