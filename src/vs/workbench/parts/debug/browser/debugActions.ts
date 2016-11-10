@@ -220,29 +220,6 @@ export class StepOutAction extends AbstractDebugAction {
 	}
 }
 
-export class StepBackAction extends AbstractDebugAction {
-	static ID = 'workbench.action.debug.stepBack';
-	static LABEL = nls.localize('stepBackDebug', "Step Back");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action step-back', debugService, keybindingService, 50);
-	}
-
-	public run(thread: debug.IThread): TPromise<any> {
-		if (!(thread instanceof Thread)) {
-			thread = this.debugService.getViewModel().focusedThread;
-		}
-
-		return thread.stepBack();
-	}
-
-	protected isEnabled(state: debug.State): boolean {
-		const process = this.debugService.getViewModel().focusedProcess;
-		return super.isEnabled(state) && state === debug.State.Stopped &&
-			process && process.session.configuration.capabilities.supportsStepBack;
-	}
-}
-
 export class StopAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.stop';
 	static LABEL = nls.localize('stopDebug', "Stop");
@@ -753,5 +730,52 @@ export class FocusProcessAction extends AbstractDebugAction {
 				return this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, true, false);
 			}
 		});
+	}
+}
+
+// Actions used by the chakra debugger
+export class StepBackAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.stepBack';
+	static LABEL = nls.localize('stepBackDebug', "Step Back");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action step-back', debugService, keybindingService, 50);
+	}
+
+	public run(thread: debug.IThread): TPromise<any> {
+		if (!(thread instanceof Thread)) {
+			thread = this.debugService.getViewModel().focusedThread;
+		}
+
+		return thread ? thread.stepBack() : TPromise.as(null);
+	}
+
+	protected isEnabled(state: debug.State): boolean {
+		const process = this.debugService.getViewModel().focusedProcess;
+		return super.isEnabled(state) && state === debug.State.Stopped &&
+			process && process.session.configuration.capabilities.supportsStepBack;
+	}
+}
+
+export class ReverseContinueAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.reverseContinue';
+	static LABEL = nls.localize('reverseContinue', "Reverse");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action reverse-continue', debugService, keybindingService, 60);
+	}
+
+	public run(thread: debug.IThread): TPromise<any> {
+		if (!(thread instanceof Thread)) {
+			thread = this.debugService.getViewModel().focusedThread;
+		}
+
+		return thread ? thread.reverseContinue() : TPromise.as(null);
+	}
+
+	protected isEnabled(state: debug.State): boolean {
+		const process = this.debugService.getViewModel().focusedProcess;
+		return super.isEnabled(state) && state === debug.State.Stopped &&
+			process && process.session.configuration.capabilities.supportsStepBack;
 	}
 }

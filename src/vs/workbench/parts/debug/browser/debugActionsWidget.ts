@@ -18,7 +18,7 @@ import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/acti
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusProcessAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusProcessAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FocusProcessActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -201,6 +201,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 			this.allActions.push(this.instantiationService.createInstance(StepOutAction, StepOutAction.ID, StepOutAction.LABEL));
 			this.allActions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			this.allActions.push(this.instantiationService.createInstance(StepBackAction, StepBackAction.ID, StepBackAction.LABEL));
+			this.allActions.push(this.instantiationService.createInstance(ReverseContinueAction, ReverseContinueAction.ID, ReverseContinueAction.LABEL));
 			this.allActions.push(this.instantiationService.createInstance(FocusProcessAction, FocusProcessAction.ID, FocusProcessAction.LABEL));
 			this.allActions.forEach(a => {
 				this.toDispose.push(a);
@@ -219,6 +220,9 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 				return state === debug.State.Running;
 			}
 			if (a.id === StepBackAction.ID) {
+				return process && process.session.configuration.capabilities.supportsStepBack;
+			}
+			if (a.id === ReverseContinueAction.ID) {
 				return process && process.session.configuration.capabilities.supportsStepBack;
 			}
 			if (a.id === DisconnectAction.ID) {
