@@ -11,13 +11,12 @@ import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel'
 import URI from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IMode } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
 	private textModelChangeListener: IDisposable;
@@ -40,9 +39,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		hasAssociatedFilePath: boolean,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IFileService private fileService: IFileService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IBackupFileService private backupFileService: IBackupFileService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(value, modeId, resource, modeService, modelService);
 
