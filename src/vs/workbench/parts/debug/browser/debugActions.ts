@@ -26,7 +26,7 @@ export class AbstractDebugAction extends Action {
 	constructor(
 		id: string, label: string, cssClass: string,
 		@IDebugService protected debugService: IDebugService,
-		@IKeybindingService protected keybindingService: IKeybindingService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		public weight?: number
 	) {
 		super(id, label, cssClass, false);
@@ -39,6 +39,13 @@ export class AbstractDebugAction extends Action {
 
 	public run(e?: any): TPromise<any> {
 		throw new Error('implement me');
+	}
+
+	public get tooltip(): string {
+		const keybinding = this.keybindingService.lookupKeybindings(this.id)[0];
+		const keybindingLabel = keybinding && this.keybindingService.getLabelFor(keybinding);
+
+		return keybindingLabel ? `${this.label} (${keybindingLabel})` : this.label;
 	}
 
 	protected updateLabel(newLabel: string): void {
@@ -67,15 +74,20 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
-		this.toDispose.push(debugService.getViewModel().onDidSelectConfigurationName(configurationName => {
-			if (configurationName) {
-				this.class = 'debug-action configure';
-				this.tooltip = ConfigureAction.LABEL;
-			} else {
-				this.class = 'debug-action configure notification';
-				this.tooltip = nls.localize('launchJsonNeedsConfigurtion', "Configure or Fix 'launch.json'");
-			}
-		}));
+		this.toDispose.push(debugService.getViewModel().onDidSelectConfigurationName(configurationName => this.updateClass()));
+		this.updateClass();
+	}
+
+	public get tooltip(): string {
+		if (this.debugService.getViewModel().selectedConfigurationName) {
+			return ConfigureAction.LABEL;
+		}
+
+		return nls.localize('launchJsonNeedsConfigurtion', "Configure or Fix 'launch.json'");
+	}
+
+	private updateClass(): void {
+		this.class = this.debugService.getViewModel().selectedConfigurationName ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -93,7 +105,7 @@ export class SelectConfigAction extends AbstractDebugAction {
 	}
 
 	public run(configName: string): TPromise<any> {
-		this.debugService.getViewModel().setSelectedConfigurationName(configName);
+		this.debugService.getViewModel().setSelectedConfigurationName(configName === debug.NO_CONFIGURATIONS_LABEL ? null : configName);
 		return TPromise.as(null);
 	}
 }
