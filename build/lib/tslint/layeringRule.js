@@ -61,7 +61,7 @@ var LayeringRule = (function (_super) {
             }
             if (this._config.disallowed.has(part)) {
                 // BAD - wrong layer
-                var message = "Bad layering. You are not allowed to access '" + part + "' from here, allowed layers are: [" + new Array(...this._config.allowed.keys()).join(', ') + "]";
+                var message = "Bad layering. You are not allowed to access '" + part + "' from here, allowed layers are: [" + new (Array.bind.apply(Array, [void 0].concat((this._config.allowed.keys()))))().join(', ') + "]";
                 this.addFailure(this.createFailure(node.getStart(), node.getWidth(), message));
                 return;
             }
