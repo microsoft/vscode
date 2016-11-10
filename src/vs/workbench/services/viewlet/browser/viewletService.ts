@@ -21,6 +21,7 @@ export class ViewletService implements IViewletService {
 	public _serviceBrand: any;
 
 	private sidebarPart: ISidebar;
+	private viewletRegistry: ViewletRegistry;
 	private enabledExtViewletIds: string[];
 	private extViewlets: ViewletDescriptor[];
 	private _onDidExtViewletsLoad = new Emitter<void>();
@@ -37,6 +38,7 @@ export class ViewletService implements IViewletService {
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		this.sidebarPart = sidebarPart;
+		this.viewletRegistry = <ViewletRegistry>Registry.as(ViewletExtensions.Viewlets);
 
 		const enabledExtViewletsJson = this.storageService.get(ViewletService.ENABLED_EXT_VIEWLETS);
 		this.enabledExtViewletIds = enabledExtViewletsJson ? JSON.parse(enabledExtViewletsJson) : [];
@@ -48,7 +50,7 @@ export class ViewletService implements IViewletService {
 	}
 
 	private onExtensionServiceReady(): void {
-		const viewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
+		const viewlets = this.viewletRegistry.getViewlets();
 		viewlets.forEach(v => {
 			if (v.isExternal) {
 				this.extViewlets.push(v);
@@ -60,6 +62,29 @@ export class ViewletService implements IViewletService {
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
 		return this.sidebarPart.openViewlet(id, focus);
+	}
+
+	public restoreViewlet(id: string): TPromise<IViewlet> {
+		const shouldFocus = false;
+
+		const stockViewletIds = this.getStockViewlets().map(v => v.id);
+		const isStockViewlet = stockViewletIds.indexOf(id) !== -1;
+		if (isStockViewlet) {
+			return this.sidebarPart.openViewlet(id, shouldFocus);
+		} else {
+			return new TPromise<IViewlet>(c => {
+				this.onDidExtViewletsLoad(() => {
+					// It's possible the external viewlet is uninstalled and not available.
+					// Restore file explorer in that case.
+					if (!this.viewletRegistry.getViewlet(id)) {
+						const defaultViewletId = this.viewletRegistry.getDefaultViewletId();
+						this.sidebarPart.openViewlet(defaultViewletId, shouldFocus).then(viewlet => c(viewlet));
+					} else {
+						this.sidebarPart.openViewlet(id, shouldFocus).then(viewlet => c(viewlet));
+					}
+				});
+			});
+		}
 	}
 
 	public toggleViewlet(id: string): TPromise<void> {
@@ -100,8 +125,7 @@ export class ViewletService implements IViewletService {
 
 	// Get an ordered list of all stock viewlets
 	private getStockViewlets(): ViewletDescriptor[] {
-		return (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets))
-			.getViewlets()
+		return this.viewletRegistry.getViewlets()
 			.filter(viewlet => !viewlet.isExternal)
 			.sort((v1, v2) => v1.order - v2.order);
 	}
