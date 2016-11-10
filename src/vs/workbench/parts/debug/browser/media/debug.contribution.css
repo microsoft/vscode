@@ -96,11 +96,13 @@
 	background: url('step-out.svg') center center no-repeat;
 }
 
-.monaco-workbench .debug-action.step-back {
+.monaco-workbench .debug-action.step-back,
+.monaco-workbench .debug-action.reverse-continue {
 	transform: scaleX(-1);
 }
 
 .monaco-workbench .debug-action.continue,
+.monaco-workbench .debug-action.reverse-continue,
 .monaco-workbench .debug-action.start {
 	background: url('continue.svg') center center no-repeat;
 }
@@ -319,15 +321,12 @@
 	background: url('step-out-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .debug-action.step-back,
-.hc-black .monaco-workbench .debug-action.step-back {
-	transform: scaleX(-1);
-}
-
 .vs-dark .monaco-workbench .debug-action.continue,
+.vs-dark .monaco-workbench .debug-action.reverse-continue,
 .vs-dark .monaco-workbench .debug-action.start,
 .hc-black .monaco-workbench .debug-action.continue,
-.hc-black .monaco-workbench .debug-action.start {
+.hc-black .monaco-workbench .debug-action.start,
+.hc-black .monaco-workbench .debug-action.reverse-continue {
 	background: url('continue-inverse.svg') center center no-repeat;
 }
 
