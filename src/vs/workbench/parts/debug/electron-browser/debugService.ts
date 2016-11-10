@@ -950,10 +950,13 @@ export class DebugService implements debug.IDebugService {
 
 			let rawSource: DebugProtocol.Source;
 			for (let t of process.getAllThreads()) {
-				for (let sf of t.getCallStack()) {
-					if (sf.source.uri.toString() === modelUri.toString()) {
-						rawSource = sf.source.raw;
-						break;
+				const callStack = t.getCallStack();
+				if (callStack) {
+					for (let sf of callStack) {
+						if (sf.source.uri.toString() === modelUri.toString()) {
+							rawSource = sf.source.raw;
+							break;
+						}
 					}
 				}
 			}
