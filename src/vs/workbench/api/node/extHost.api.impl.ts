@@ -283,7 +283,10 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', []);
-			})
+			}),
+			registerTreeExplorerNodeProvider: proposedApiFunction(extension, (providerId: string, provider: vscode.TreeExplorerNodeProvider<any>) => {
+				return extHostExplorers.registerTreeExplorerNodeProvider(providerId, provider);
+			}),
 		};
 
 		// namespace: workspace
@@ -347,9 +350,6 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			onWillSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocumentSaveParticipant.onWillSaveTextDocumentEvent(listener, thisArgs, disposables);
 			},
-			registerTreeExplorerNodeProvider: proposedApiFunction(extension, (providerId: string, provider: vscode.TreeExplorerNodeProvider<any>) => {
-				return extHostExplorers.registerTreeExplorerNodeProvider(providerId, provider);
-			}),
 			onDidChangeConfiguration: (listener: () => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);
 			},
