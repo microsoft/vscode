@@ -28,10 +28,7 @@ export class URLChannel implements IURLChannel {
 		private service: IURLService,
 		@IWindowsService windowsService: IWindowsService
 	) {
-		windowsService.onWindowFocus(id => {
-			console.log(id);
-			this.focusedWindowId = id;
-		});
+		windowsService.onWindowFocus(id => this.focusedWindowId = id);
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
