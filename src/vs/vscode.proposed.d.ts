@@ -12,7 +12,7 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	export namespace workspace {
+	export namespace window {
 
 		/**
 		 * Register a [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
