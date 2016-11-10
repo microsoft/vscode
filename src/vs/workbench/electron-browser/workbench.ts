@@ -244,22 +244,17 @@ export class Workbench implements IPartService {
 			const compositeAndEditorPromises: TPromise<any>[] = [];
 
 			// Restore last opened viewlet
-			const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
-			if (this.shouldRestoreSidebar() && !this.sideBarHidden) {
-				const lastOpenedViewlet = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
+			if (!this.sideBarHidden) {
+				let viewletIdToRestore;
 
-				// If last viewlet is external viewlet, delay its restoration until external viewlets loaded
-				if (!viewletRegistry.getViewlet(lastOpenedViewlet)) {
-					this.viewletService.onDidExtViewletsLoad(() => {
-						this.sidebarPart.openViewlet(lastOpenedViewlet, false).done();
-					});
+				if (this.shouldRestoreLastOpenedViewlet) {
+					viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
+				} else {
+					viewletIdToRestore = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
 				}
-				// Otherwise, load last viewlet immediately
-				else {
-					let viewletId = lastOpenedViewlet;
-					const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
-					compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
-				}
+
+				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletIdToRestore));
+				compositeAndEditorPromises.push(this.viewletService.restoreViewlet(viewletIdToRestore).then(() => viewletTimerEvent.stop()));
 			}
 
 			// Load Panel
@@ -992,7 +987,7 @@ export class Workbench implements IPartService {
 		this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
 	}
 
-	private shouldRestoreSidebar(): boolean {
+	private shouldRestoreLastOpenedViewlet(): boolean {
 		if (!this.environmentService.isBuilt) {
 			return true; // always restore sidebar when we are in development mode
 		}
