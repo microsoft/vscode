@@ -20,6 +20,7 @@ import 'vs/editor/browser/editor.all';
 import 'vs/platform/actions/browser/menusExtensionPoint';
 
 // Workbench
+import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarPosition';
