@@ -61,11 +61,16 @@ var LayeringRule = (function (_super) {
             }
             if (this._config.disallowed.has(part)) {
                 // BAD - wrong layer
-                var message = "Bad layering. You are not allowed to access '" + part + "' from here, allowed layers are: [" + new (Array.bind.apply(Array, [void 0].concat((this._config.allowed.keys()))))().join(', ') + "]";
+                var message = "Bad layering. You are not allowed to access '" + part + "' from here, allowed layers are: [" + LayeringRule._print(this._config.allowed) + "]";
                 this.addFailure(this.createFailure(node.getStart(), node.getWidth(), message));
                 return;
             }
         }
+    };
+    LayeringRule._print = function (set) {
+        var r = [];
+        set.forEach(function (e) { return r.push(e); });
+        return r.join(', ');
     };
     return LayeringRule;
 }(Lint.RuleWalker));
