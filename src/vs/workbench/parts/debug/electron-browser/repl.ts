@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./../browser/media/repl';
+import 'vs/css!vs/workbench/parts/debug/browser/media/repl';
 import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { wireCancellationToken } from 'vs/base/common/async';
