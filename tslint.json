@@ -46,6 +46,17 @@
 					"node"
 				]
 			}
+		],
+		"import-patterns": [
+			false,
+			{
+				"target": "**/{node,electron-browser,electron-main}/**",
+				"restrictions": "**/*"
+			},
+			{
+				"target": "**/{common,browser,workbench}/**",
+				"restrictions": "{**/vs/**,assert}"
+			}
 		]
 	}
 }
