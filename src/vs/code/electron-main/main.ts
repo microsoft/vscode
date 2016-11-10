@@ -8,7 +8,7 @@
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
+import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/electron-main/paths';
 import { IWindowsMainService, WindowsManager } from 'vs/code/electron-main/windows';
@@ -35,7 +35,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';

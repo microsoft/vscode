@@ -8,32 +8,7 @@ import * as minimist from 'minimist';
 import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
-
-export interface ParsedArgs extends minimist.ParsedArgs {
-	help?: boolean;
-	version?: boolean;
-	wait?: boolean;
-	diff?: boolean;
-	goto?: boolean;
-	'new-window'?: boolean;
-	'reuse-window'?: boolean;
-	locale?: string;
-	'user-data-dir'?: string;
-	performance?: boolean;
-	verbose?: boolean;
-	logExtensionHostCommunication?: boolean;
-	'disable-extensions'?: boolean;
-	'extensions-dir'?: string;
-	extensionDevelopmentPath?: string;
-	extensionTestsPath?: string;
-	debugBrkPluginHost?: string;
-	debugPluginHost?: string;
-	'list-extensions'?: boolean;
-	'show-versions'?: boolean;
-	'install-extension'?: string | string[];
-	'uninstall-extension'?: string | string[];
-	'open-url'?: string | string[];
-}
+import { ParsedArgs } from '../common/environment';
 
 const options: minimist.Opts = {
 	string: [

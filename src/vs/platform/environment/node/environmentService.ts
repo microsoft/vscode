@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'path';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/package';
