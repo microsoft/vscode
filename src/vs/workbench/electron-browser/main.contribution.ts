@@ -133,7 +133,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.activityBar.visible': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar on the left side of the workbench.")
+			'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
 		}
 	}
 });
