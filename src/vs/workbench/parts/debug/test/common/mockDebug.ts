@@ -177,6 +177,10 @@ export class MockSession implements debug.ISession {
 		return TPromise.as(null);
 	}
 
+	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
+		return TPromise.as(null);
+	}
+
 	public pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse> {
 		return TPromise.as(null);
 	}
