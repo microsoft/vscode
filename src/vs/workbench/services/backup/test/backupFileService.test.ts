@@ -20,7 +20,7 @@ import { FileService } from 'vs/workbench/services/files/node/fileService';
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService(workspace.fsPath, { disableWatcher: true }, null, null, null);
+		const fileService = new FileService(workspace.fsPath, { disableWatcher: true }, null);
 		super(workspace, TestEnvironmentService, fileService);
 
 		this.backupHome = backupHome;

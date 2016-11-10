@@ -96,7 +96,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 		const configurationService = new WorkspaceConfigurationService(workspaceContextService, new TestEventService(), environmentService);
 		const textFileService = workbenchInstantiationService().createInstance(TestDirtyTextFileService, dirty);
 		const events = new utils.TestEventService();
-		const fileService = new FileService(noWorkspace ? null : workspaceDir, { disableWatcher: true }, events, environmentService, configurationService);
+		const fileService = new FileService(noWorkspace ? null : workspaceDir, { disableWatcher: true }, events);
 
 		return configurationService.initialize().then(() => {
 			return {
@@ -359,7 +359,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 			if (error) {
 				return cleanUp(done, error);
 			}
-			
+
 			createServices(workspaceDir, globalSettingsFile).done(services => {
 				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
 
