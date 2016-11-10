@@ -20,7 +20,7 @@ import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/common/
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
-import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/common/treeExplorerActions';
+import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/treeExplorerActions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class TreeExplorerView extends CollapsibleViewletView {
