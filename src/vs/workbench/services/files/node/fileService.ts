@@ -28,14 +28,10 @@ import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
 import mime = require('vs/base/node/mime');
 import flow = require('vs/base/node/flow');
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IEventService } from 'vs/platform/event/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -76,7 +72,6 @@ export class FileService implements IFileService {
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
-	private toUnbind: IDisposable[];
 	private basePath: string;
 	private tmpPath: string;
 	private options: IFileServiceOptions;
@@ -87,14 +82,10 @@ export class FileService implements IFileService {
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
-	private configuredHotExit: boolean;
-
 	constructor(
 		basePath: string,
 		options: IFileServiceOptions,
-		private eventEmitter: IEventService,
-		private environmentService: IEnvironmentService,
-		private configurationService: IConfigurationService
+		private eventEmitter: IEventService
 	) {
 		this.basePath = basePath ? paths.normalize(basePath) : void 0;
 
@@ -128,19 +119,6 @@ export class FileService implements IFileService {
 		this.activeFileChangesWatchers = Object.create(null);
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
-
-		// Configuration changes
-		this.toUnbind = [];
-		if (this.configurationService) {
-			this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
-
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
-			this.onConfigurationChange(configuration);
-		}
-	}
-
-	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		this.configuredHotExit = configuration && configuration.files && configuration.files.hotExit;
 	}
 
 	public updateOptions(options: IFileServiceOptions): void {
@@ -688,8 +666,6 @@ export class FileService implements IFileService {
 			watcher.close();
 		}
 		this.activeFileChangesWatchers = Object.create(null);
-
-		this.toUnbind = dispose(this.toUnbind);
 	}
 }
 
