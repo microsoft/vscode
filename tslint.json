@@ -31,18 +31,14 @@
 				"browser": [
 					"common"
 				],
-				"workbench": [
+				"electron-main": [
 					"common",
-					"browser"
+					"node"
 				],
 				"electron-browser": [
 					"common",
 					"browser",
 					"workbench",
-					"node"
-				],
-				"electron-main": [
-					"common",
 					"node"
 				]
 			}

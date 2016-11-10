@@ -69,10 +69,16 @@ class LayeringRule extends Lint.RuleWalker {
 
 			if (this._config.disallowed.has(part)) {
 				// BAD - wrong layer
-				const message = `Bad layering. You are not allowed to access '${part}' from here, allowed layers are: [${new Array<string>(...<any>this._config.allowed.keys()).join(', ')}]`;
+				const message = `Bad layering. You are not allowed to access '${part}' from here, allowed layers are: [${LayeringRule._print(this._config.allowed)}]`;
 				this.addFailure(this.createFailure(node.getStart(), node.getWidth(), message));
 				return;
 			}
 		}
+	}
+
+	static _print(set: Set<string>): string {
+		let r: string[] = [];
+		set.forEach(e => r.push(e));
+		return r.join(', ');
 	}
 }
