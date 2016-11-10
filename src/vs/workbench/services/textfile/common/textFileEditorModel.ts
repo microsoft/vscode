@@ -271,7 +271,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					if (backupExists) {
 						const restoreResource = this.backupFileService.getBackupResource(this.resource);
 						const restoreOptions = { acceptTextOnly: true, encoding: 'utf-8' };
-						getContentPromise = this.textFileService.resolveTextContent(restoreResource, restoreOptions).then(content => content.value);
+						// Try get restore content, if there is an issue fallback silently to the original file's content
+						getContentPromise = this.textFileService.resolveTextContent(restoreResource, restoreOptions).then(restoreContent => {
+							return restoreContent.value;
+						}, () => content.value);
 					} else {
 						getContentPromise = TPromise.as(content.value);
 					}
