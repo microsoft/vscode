@@ -803,10 +803,12 @@ export class Workbench implements IPartService {
 		}
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
-		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
-		if (hasCustomTitle) {
+		const customTitleStyle = this.getCustomTitleBarStyle();
+		if (customTitleStyle === 'custom') {
 			this._onTitleBarVisibilityChange.fire();
-			this.layout(); // handle title bar when fullscreen changes
+			this.layout(); // custom title needs a relayout
+		} else if (customTitleStyle === 'hidden') {
+			this.layout(); // hidden title needs a relayout
 		}
 	}
 

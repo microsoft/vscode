@@ -17,7 +17,7 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { getZoomFactor } from 'vs/base/browser/browser';
+import { getZoomFactor, isFullscreen } from 'vs/base/browser/browser';
 
 const DEFAULT_MIN_SIDEBAR_PART_WIDTH = 170;
 const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;
@@ -29,7 +29,7 @@ const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
 
 interface ComputedStyles {
 	titlebar: { height: number; };
-	activitybar: { width: number; };
+	activitybar: { width: number; minWidth: number; };
 	sidebar: { minWidth: number; };
 	panel: { minHeight: number; };
 	editor: { minWidth: number; minHeight: number; };
@@ -296,7 +296,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				height: parseInt(titlebarStyle.getPropertyValue('height'), 10)
 			},
 			activitybar: {
-				width: parseInt(activitybarStyle.getPropertyValue('width'), 10)
+				width: parseInt(activitybarStyle.getPropertyValue('width'), 10),
+				minWidth: parseInt(activitybarStyle.getPropertyValue('min-width'), 10)
 			},
 			sidebar: {
 				minWidth: parseInt(sidebarStyle.getPropertyValue('min-width'), 10) || DEFAULT_MIN_SIDEBAR_PART_WIDTH
@@ -358,7 +359,16 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let sidebarSize = new Dimension(sidebarWidth, this.sidebarHeight);
 
 		// Activity Bar
-		this.activitybarWidth = isActivityBarHidden ? 0 : this.initialComputedStyles.activitybar.width / getZoomFactor(); // adjust for zoom prevention
+		if (isActivityBarHidden) {
+			this.activitybarWidth = 0;
+		} else if (isFullscreen()) {
+			this.activitybarWidth = this.initialComputedStyles.activitybar.minWidth; // adjust potential larger width from custom title
+		} else {
+			this.activitybarWidth = this.initialComputedStyles.activitybar.width;
+		}
+
+		this.activitybarWidth /= getZoomFactor(); // adjust for zoom prevention
+
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
 
 		// Panel part

@@ -26,11 +26,6 @@
 	zoom: reset; /* prevent zooming */
 }
 
-.titlebar-style-hidden .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
-	background-position: center center;
-	zoom: 1; /* prevent zooming */
-}
-
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
 	content: "";
 	position: absolute;

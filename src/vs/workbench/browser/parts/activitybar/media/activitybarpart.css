@@ -5,6 +5,7 @@
 
 .monaco-workbench > .part.activitybar {
 	width: 50px;
+	min-width: 50px;
 }
 
 .monaco-workbench > .activitybar > .content {
@@ -20,19 +21,14 @@
 .titlebar-style-hidden .monaco-workbench > .part.activitybar {
 	width: 68px;
 	-webkit-app-region: drag; /* Allow dragging on the wider activitybar */
-	transition: none;
 }
 
 .titlebar-style-hidden .monaco-workbench > .activitybar > .content > .monaco-action-bar.vertical {
-	top: 12px; /* Spacing above the activitybar icons to fit the traffic lights */
-	position: absolute;
-	zoom: 1; /* prevent zooming */
-	width: 100%;
+	padding-top: 16px; /* Spacing above the activitybar icons to fit the traffic lights */
 }
 
 .titlebar-style-hidden .monaco-workbench.fullscreen > .activitybar > .content > .monaco-action-bar.vertical {
-	top: 0px; /* Remove spacing above the activitybar icons to as there are no traffic lights fullscreen */
-	width:100%;
+	padding-top: 0px; /* Remove spacing above the activitybar icons to as there are no traffic lights fullscreen */
 }
 
 .vs .monaco-workbench > .activitybar > .content {
