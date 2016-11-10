@@ -35,7 +35,6 @@ import { IMessageService, CloseAction } from 'vs/platform/message/common/message
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import * as semver from 'semver';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import Event from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
@@ -472,11 +471,10 @@ export class GitService extends EventEmitter
 				}
 
 				return this.raw.getVersion().then(version => {
-					version = version || '';
-					version = version.replace(/^(\d+\.\d+\.\d+).*$/, '$1');
-					version = semver.valid(version);
+					const match = /^(\d+)\.\d+\.\d+/.exec(version || '');
+					const major = match && parseInt(match[1]);
 
-					if (version && semver.satisfies(version, '<2.0.0')) {
+					if (major && major < 2) {
 						messageService.show(severity.Warning, {
 							message: localize('updateGit', "You seem to have git {0} installed. Code works best with git >=2.0.0.", version),
 							actions: [
