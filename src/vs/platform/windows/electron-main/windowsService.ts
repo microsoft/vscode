@@ -9,8 +9,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app } from 'electron';
-import Event from 'vs/base/common/event';
+import Event, { chain } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
+import { IURLService } from 'vs/platform/url/common/url';
 
 // TODO@Joao: remove this dependency, move all implementation to this class
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
@@ -24,11 +25,28 @@ export class WindowsService implements IWindowsService {
 
 	constructor(
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService
-	) { }
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IURLService private urlService: IURLService
+	) {
+		chain(urlService.onOpenURL)
+			.filter(uri => uri.authority === 'file')
+			.on(uri => this.openFileForURI(uri.path), this);
+	}
 
 	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		this.windowsMainService.openFileFolderPicker(forceNewWindow);
+		return TPromise.as(null);
+	}
+
+	openFileForURI(filePath: string): TPromise<void> {
+		if (!filePath || !filePath.length) {
+			return TPromise.as(null);
+		}
+
+		var envServiceArgs = this.environmentService.args;
+		envServiceArgs.goto = true;
+
+		this.windowsMainService.open({ cli: envServiceArgs, pathsToOpen: [filePath] });
 		return TPromise.as(null);
 	}
 
