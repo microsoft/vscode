@@ -735,6 +735,11 @@ export class FocusProcessAction extends AbstractDebugAction {
 
 	public run(processName: string): TPromise<any> {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.name === processName).pop();
-		return this.debugService.setFocusedStackFrameAndEvaluate(null, process);
+		return this.debugService.focusStackFrameAndEvaluate(null, process).then(() => {
+			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+			if (stackFrame) {
+				return this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, true, false);
+			}
+		});
 	}
 }

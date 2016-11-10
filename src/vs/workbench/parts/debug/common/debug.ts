@@ -126,19 +126,10 @@ export interface IThread extends ITreeElement {
 	stoppedDetails: IRawStoppedDetails;
 
 	/**
-	 * Queries the debug adapter for the callstack and returns a promise with
-	 * the stack frames of the callstack.
-	 * If the thread is not stopped, it returns a promise to an empty array.
-	 * Only gets the first 20 stack frames. Calling this method consecutive times
-	 * with getAdditionalStackFrames = true gets the remainder of the call stack.
-	 */
-	getCallStack(getAdditionalStackFrames?: boolean): TPromise<IStackFrame[]>;
-
-	/**
 	 * Gets the callstack if it has already been received from the debug
-	 * adapter, otherwise it returns undefined.
+	 * adapter, otherwise it returns null.
 	 */
-	getCachedCallStack(): IStackFrame[];
+	getCallStack(): IStackFrame[];
 
 	/**
 	 * Invalidates the callstack cache
@@ -372,7 +363,7 @@ export interface IDebugService {
 	/**
 	 * Sets the focused stack frame and evaluates all expresions against the newly focused stack frame,
 	 */
-	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess): TPromise<void>;
+	focusStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess): TPromise<void>;
 
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.

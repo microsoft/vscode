@@ -25,7 +25,7 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
+	public focusStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
 		return TPromise.as(null);
 	}
 

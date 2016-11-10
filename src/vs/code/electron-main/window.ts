@@ -16,7 +16,7 @@ import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
-import { getCommonHTTPHeaders } from 'vs/platform/environment/common/http';
+import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 
 export interface IWindowState {
 	width?: number;

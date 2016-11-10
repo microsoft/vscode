@@ -170,9 +170,9 @@ function main() {
 		timers.beforeLoad = new Date();
 
 		require([
-			'vs/workbench/workbench.main',
-			'vs/nls!vs/workbench/workbench.main',
-			'vs/css!vs/workbench/workbench.main'
+			'vs/workbench/electron-browser/workbench.main',
+			'vs/nls!vs/workbench/electron-browser/workbench.main',
+			'vs/css!vs/workbench/electron-browser/workbench.main'
 		], function () {
 			timers.afterLoad = new Date();
 
