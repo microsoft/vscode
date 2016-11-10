@@ -24,7 +24,6 @@ import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
-import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import CommonEvent, { Emitter, once } from 'vs/base/common/event';
@@ -88,8 +87,6 @@ export interface IWindowsMainService {
 	// events
 	onWindowReady: CommonEvent<VSCodeWindow>;
 	onWindowClose: CommonEvent<number>;
-	onNewWindowOpen: CommonEvent<number>;
-	onWindowFocus: CommonEvent<number>;
 	onRecentPathsChange: CommonEvent<void>;
 
 	// methods
@@ -119,7 +116,7 @@ export interface IWindowsMainService {
 	toggleMenuBar(windowId: number): void;
 }
 
-export class WindowsManager implements IWindowsMainService, IWindowEventService {
+export class WindowsManager implements IWindowsMainService {
 
 	_serviceBrand: any;
 
@@ -133,12 +130,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 	private initialUserEnv: platform.IProcessEnvironment;
 	private windowsState: IWindowsState;
-
-	private _onFocus = new Emitter<number>();
-	onWindowFocus: CommonEvent<number> = this._onFocus.event;
-
-	private _onNewWindow = new Emitter<number>();
-	onNewWindowOpen: CommonEvent<number> = this._onNewWindow.event;
 
 	private _onRecentPathsChange = new Emitter<void>();
 	onRecentPathsChange: CommonEvent<void> = this._onRecentPathsChange.event;
@@ -754,9 +745,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			vscodeWindow.win.on('unresponsive', () => this.onWindowError(vscodeWindow, WindowError.UNRESPONSIVE));
 			vscodeWindow.win.on('close', () => this.onBeforeWindowClose(vscodeWindow));
 			vscodeWindow.win.on('closed', () => this.onWindowClosed(vscodeWindow));
-			vscodeWindow.win.on('focus', () => this._onFocus.fire(vscodeWindow.id));
 
-			this._onNewWindow.fire(vscodeWindow.id);
 			// Lifecycle
 			this.lifecycleService.registerWindow(vscodeWindow);
 		}

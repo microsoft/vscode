@@ -32,8 +32,9 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 import { ISharedProcessInitData } from './sharedProcess';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceChannelClient } from 'vs/platform/message/common/messageIpc';
-import { WindowEventChannelClient } from 'vs/code/common/windowsIpc';
-import { IWindowEventService, ActiveWindowManager } from 'vs/code/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
+import { ActiveWindowManager } from 'vs/code/common/windows';
 
 function quit(err?: Error) {
 	if (err) {
@@ -66,11 +67,11 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
-	const windowEventChannel = server.getChannel('windowEvent', { route: () => 'main' });
-	const windowEventService: IWindowEventService = new WindowEventChannelClient(windowEventChannel);
-	services.set(IWindowEventService, windowEventService);
+	const windowsChannel = server.getChannel('windows', { route: () => 'main' });
+	const windowsService = new WindowsChannelClient(windowsChannel);
+	services.set(IWindowsService, windowsService);
 
-	const activeWindowManager = new ActiveWindowManager(windowEventService);
+	const activeWindowManager = new ActiveWindowManager(windowsService);
 
 	const choiceChannel = server.getChannel('choice', { route: () => activeWindowManager.activeClientId });
 	services.set(IChoiceService, new ChoiceChannelClient(choiceChannel));
