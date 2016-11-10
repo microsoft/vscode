@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 .titlebar-style-hidden .monaco-workbench > .sidebar > .composite.title {
-	-webkit-app-region: drag;
+	-webkit-app-region: drag; /* Allow dragging on part title */
+}
+
+.titlebar-style-hidden .monaco-workbench > .sidebar > .title > .title-actions .action-label {
+	-webkit-app-region: no-drag; /* Still allow to click actions without dragging though */
 }
 
 .monaco-workbench > .sidebar > .title > .title-actions {

@@ -19,8 +19,12 @@
 }
 
 .titlebar-style-hidden .monaco-workbench > .part.activitybar {
-	width: 68px;
+	width: 68px; /* Make some room for window controls */
 	-webkit-app-region: drag; /* Allow dragging on the wider activitybar */
+}
+
+.titlebar-style-hidden .monaco-workbench > .activitybar > .content .monaco-action-bar {
+	-webkit-app-region: no-drag; /* Still allow to click actions without dragging though */
 }
 
 .titlebar-style-hidden .monaco-workbench > .activitybar > .content > .monaco-action-bar.vertical {
