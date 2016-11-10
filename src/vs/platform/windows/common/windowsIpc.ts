@@ -6,10 +6,12 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import Event, { buffer } from 'vs/base/common/event';
+import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService } from './windows';
 
 export interface IWindowsChannel extends IChannel {
+	call(command: 'event:onWindowFocus'): TPromise<number>;
 	call(command: 'openFileFolderPicker', arg: [number, boolean]): TPromise<void>;
 	call(command: 'openFilePicker', arg: [number, boolean, string]): TPromise<void>;
 	call(command: 'openFolderPicker', arg: [number, boolean]): TPromise<void>;
@@ -40,10 +42,15 @@ export interface IWindowsChannel extends IChannel {
 
 export class WindowsChannel implements IWindowsChannel {
 
-	constructor(private service: IWindowsService) { }
+	onWindowFocus: Event<number>;
+
+	constructor(private service: IWindowsService) {
+		this.onWindowFocus = buffer(service.onWindowFocus, true);
+	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
+			case 'event:onWindowFocus': return eventToCall(this.onWindowFocus);
 			case 'openFileFolderPicker': return this.service.openFileFolderPicker(arg[0], arg[1]);
 			case 'openFilePicker': return this.service.openFilePicker(arg[0], arg[1], arg[2]);
 			case 'openFolderPicker': return this.service.openFolderPicker(arg[0], arg[1]);
@@ -79,6 +86,9 @@ export class WindowsChannelClient implements IWindowsService {
 	_serviceBrand: any;
 
 	constructor(private channel: IWindowsChannel) { }
+
+	private _onWindowFocus: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowFocus');
+	get onWindowFocus(): Event<number> { return this._onWindowFocus; }
 
 	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		return this.channel.call('openFileFolderPicker', [windowId, forceNewWindow]);
