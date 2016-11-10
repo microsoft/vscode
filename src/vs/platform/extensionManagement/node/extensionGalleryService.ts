@@ -23,7 +23,7 @@ import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
 import * as url from 'url';
-import { getCommonHTTPHeaders } from 'vs/platform/environment/common/http';
+import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
