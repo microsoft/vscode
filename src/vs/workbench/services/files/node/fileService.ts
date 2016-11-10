@@ -82,11 +82,7 @@ export class FileService implements IFileService {
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
-	constructor(
-		basePath: string,
-		options: IFileServiceOptions,
-		private eventEmitter: IEventService
-	) {
+	constructor(basePath: string, options: IFileServiceOptions, private eventEmitter: IEventService) {
 		this.basePath = basePath ? paths.normalize(basePath) : void 0;
 
 		if (this.basePath && this.basePath.indexOf('\\\\') === 0 && strings.endsWith(this.basePath, paths.sep)) {
@@ -430,6 +426,8 @@ export class FileService implements IFileService {
 
 		return nfcall(extfs.del, absolutePath, this.tmpPath);
 	}
+
+	// Helpers
 
 	private toAbsolutePath(arg1: uri | IFileStat): string {
 		let resource: uri;
