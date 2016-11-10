@@ -42,7 +42,6 @@ interface ComputedStyles {
  */
 export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
-	private static activityBarWidthSettingsKey = 'workbench.activityBar.width';
 	private static sashXWidthSettingsKey = 'workbench.sidebar.width';
 	private static sashYHeightSettingsKey = 'workbench.panel.height';
 
@@ -117,8 +116,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			orientation: Orientation.HORIZONTAL
 		});
 
-		let isActivityBarHidden = this.partService.isActivityBarHidden();
-		this.activitybarWidth = isActivityBarHidden ? 0 : this.storageService.getInteger(WorkbenchLayout.activityBarWidthSettingsKey, StorageScope.GLOBAL, 50);
 		this.sidebarWidth = this.storageService.getInteger(WorkbenchLayout.sashXWidthSettingsKey, StorageScope.GLOBAL, -1);
 		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
 
@@ -363,10 +360,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let sidebarSize = new Dimension(sidebarWidth, this.sidebarHeight);
 
 		// Activity Bar
-		this.activitybarWidth = this.computedStyles.activitybar.width;
-		if (isActivityBarHidden) {
-			this.activitybarWidth = 0;
-		}
+		this.activitybarWidth = isActivityBarHidden ? 0 : this.computedStyles.activitybar.width;
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
 
 		// Panel part
@@ -438,11 +432,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			panelDimension.height = Math.max(DEFAULT_MIN_PANEL_PART_HEIGHT, panelDimension.height);
 		}
 
-		if (!isActivityBarHidden) {
-			this.activitybarWidth = activityBarSize.width;
-			this.storageService.store(WorkbenchLayout.activityBarWidthSettingsKey, this.activitybarWidth, StorageScope.GLOBAL);
-		}
-
 		if (!isSidebarHidden) {
 			this.sidebarWidth = sidebarSize.width;
 			this.storageService.store(WorkbenchLayout.sashXWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
@@ -498,6 +487,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		} else {
 			this.activitybar.getContainer().getHTMLElement().style.left = '';
 			this.activitybar.getContainer().position(this.titlebarHeight, 0, 0, null);
+		}
+		if (isActivityBarHidden) {
+			this.activitybar.getContainer().hide();
+		} else {
+			this.activitybar.getContainer().show();
 		}
 
 		// Sidebar Part
