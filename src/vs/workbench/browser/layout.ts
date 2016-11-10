@@ -17,7 +17,6 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getZoomFactor } from 'vs/base/browser/browser';
 
 const DEFAULT_MIN_SIDEBAR_PART_WIDTH = 170;
@@ -91,9 +90,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IViewletService private viewletService: IViewletService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
 	) {
 		this.parent = parent;
 		this.workbenchContainer = workbenchContainer;
@@ -360,7 +358,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let sidebarSize = new Dimension(sidebarWidth, this.sidebarHeight);
 
 		// Activity Bar
-		this.activitybarWidth = isActivityBarHidden ? 0 : this.computedStyles.activitybar.width;
+		this.activitybarWidth = isActivityBarHidden ? 0 : this.initialComputedStyles.activitybar.width / getZoomFactor(); // adjust for zoom prevention
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
 
 		// Panel part
@@ -480,7 +478,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		// Activity Bar Part
-		this.activitybar.getContainer().size(null, activityBarSize.height);
+		this.activitybar.getContainer().size(activityBarSize.width, activityBarSize.height);
+
 		if (sidebarPosition === Position.LEFT) {
 			this.activitybar.getContainer().getHTMLElement().style.right = '';
 			this.activitybar.getContainer().position(this.titlebarHeight, null, 0, 0);
