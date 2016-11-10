@@ -360,7 +360,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}
 
-		// Trigger listeners only if no auto save occurred and model changes were not blocked
 		this._onDidContentChange.fire();
 	}
 
