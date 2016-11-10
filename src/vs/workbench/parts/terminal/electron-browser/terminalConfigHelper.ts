@@ -7,7 +7,7 @@ import { Builder } from 'vs/base/browser/builder';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { IConfiguration } from 'vs/editor/common/config/defaultConfig';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfiguration } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShell } from 'vs/workbench/parts/terminal/common/terminal';
 import { Platform } from 'vs/base/common/platform';
 
 const DEFAULT_LINE_HEIGHT = 1.2;
@@ -69,24 +69,11 @@ const DEFAULT_ANSI_COLORS = {
 	]
 };
 
-export interface ITerminalFont {
-	fontFamily: string;
-	fontSize: string;
-	lineHeight: number;
-	charWidth: number;
-	charHeight: number;
-}
-
-export interface IShell {
-	executable: string;
-	args: string[];
-}
-
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
  */
-export class TerminalConfigHelper {
+export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public panelContainer: Builder;
 
 	private _charMeasureElement: HTMLElement;
