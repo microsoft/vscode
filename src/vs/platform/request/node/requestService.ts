@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IRequestOptions, IRequestContext, request } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import { IRequestService, IHTTPConfiguration } from 'vs/platform/request/common/request';
+import { IRequestService, IHTTPConfiguration } from 'vs/platform/request/node/request';
 import { IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/configuration/common/configuration';
 
 /**
