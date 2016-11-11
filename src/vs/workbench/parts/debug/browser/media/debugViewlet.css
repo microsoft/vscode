@@ -249,6 +249,14 @@
 	color: initial;
 }
 
+.debug-viewlet .watch-expression {
+	display: flex;
+}
+
+.debug-viewlet .watch-expression .expression {
+	flex : 1;
+}
+
 .debug-viewlet .debug-action.add-watch-expression,
 .debug-viewlet .debug-action.add-function-breakpoint {
 	background: url('add.svg') center center no-repeat;

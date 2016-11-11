@@ -859,8 +859,12 @@ export class WatchExpressionsDataSource implements IDataSource {
 	}
 }
 
-interface IWatchExpressionTemplateData extends IVariableTemplateData {
+interface IWatchExpressionTemplateData {
+	watchExpression: HTMLElement;
 	actionBar: ActionBar;
+	expression: HTMLElement;
+	name: HTMLSpanElement;
+	value: HTMLSpanElement;
 }
 
 export class WatchExpressionsRenderer implements IRenderer {
@@ -893,15 +897,24 @@ export class WatchExpressionsRenderer implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
-		let data: IWatchExpressionTemplateData = Object.create(null);
+		const createVariableTemplate = ((data: IVariableTemplateData, container: HTMLElement) => {
+			data.expression = dom.append(container, $('.expression'));
+			data.name = dom.append(data.expression, $('span.name'));
+			data.value = dom.append(data.expression, $('span.value'));
+		});
+
 		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
-			data.actionBar = new ActionBar(container, { actionRunner: this.actionRunner });
+			const data: IWatchExpressionTemplateData = Object.create(null);
+			data.watchExpression = dom.append(container, $('.watch-expression'));
+			createVariableTemplate(data, data.watchExpression);
+			data.actionBar = new ActionBar(data.watchExpression, { actionRunner: this.actionRunner });
 			data.actionBar.push(this.actionProvider.getExpressionActions(), { icon: true, label: false });
+
+			return data;
 		}
 
-		data.expression = dom.append(container, $('.expression'));
-		data.name = dom.append(data.expression, $('span.name'));
-		data.value = dom.append(data.expression, $('span.value'));
+		const data: IVariableTemplateData = Object.create(null);
+		createVariableTemplate(data, container);
 
 		return data;
 	}
