@@ -202,13 +202,14 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			lineToBreakpointDataMap[bp.lineNumber] = {
 				enabled: bp.enabled,
 				condition: bp.condition,
-				hitCondition: bp.hitCondition
+				hitCondition: bp.hitCondition,
 			};
 		});
 
 		const modelUri = modelData.model.uri;
 		for (let i = 0, len = modelData.breakpointDecorationIds.length; i < len; i++) {
 			const decorationRange = modelData.model.getDecorationRange(modelData.breakpointDecorationIds[i]);
+
 			// check if the line got deleted.
 			if (decorationRange.endColumn - decorationRange.startColumn > 0) {
 				// since we know it is collapsed, it cannot grow to multiple lines
@@ -216,7 +217,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					lineNumber: decorationRange.startLineNumber,
 					enabled: lineToBreakpointDataMap[modelData.breakpointLines[i]].enabled,
 					condition: lineToBreakpointDataMap[modelData.breakpointLines[i]].condition,
-					hitCondition: lineToBreakpointDataMap[modelData.breakpointLines[i]].hitCondition
+					hitCondition: lineToBreakpointDataMap[modelData.breakpointLines[i]].hitCondition,
+					snippet: modelData.model.getLineContent(decorationRange.startLineNumber)
 				});
 			}
 		}

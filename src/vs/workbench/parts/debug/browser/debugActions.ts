@@ -511,7 +511,6 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	}
 }
 
-
 export class SetValueAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.setValue';
 	static LABEL = nls.localize('setValue', "Set Value");
@@ -533,7 +532,6 @@ export class SetValueAction extends AbstractDebugAction {
 		return super.isEnabled(state) && state === debug.State.Stopped && process && process.session.configuration.capabilities.supportsSetVariable;
 	}
 }
-
 
 export class AddWatchExpressionAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.addWatchExpression';

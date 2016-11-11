@@ -1129,20 +1129,25 @@ export class BreakpointsDataSource implements IDataSource {
 	}
 }
 
-interface IExceptionBreakpointTemplateData {
+interface IBaseBreakpointTemplateData {
 	breakpoint: HTMLElement;
-	name: HTMLElement;
 	checkbox: HTMLInputElement;
 	toDisposeBeforeRender: lifecycle.IDisposable[];
 }
 
-interface IBreakpointTemplateData extends IExceptionBreakpointTemplateData {
+interface IExceptionBreakpointTemplateData extends IBaseBreakpointTemplateData {
+	name: HTMLElement;
+}
+
+interface IBreakpointTemplateData extends IBaseBreakpointTemplateData {
 	actionBar: ActionBar;
+	snippet: HTMLElement;
 	lineNumber: HTMLElement;
 	filePath: HTMLElement;
 }
 
-interface IFunctionBreakpointTemplateData extends IExceptionBreakpointTemplateData {
+interface IFunctionBreakpointTemplateData extends IBaseBreakpointTemplateData {
+	name: HTMLElement;
 	actionBar: ActionBar;
 }
 
@@ -1181,13 +1186,13 @@ export class BreakpointsRenderer implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
-		const data: IBreakpointTemplateData = Object.create(null);
+		const data = Object.create(null);
+		data.breakpoint = dom.append(container, $('.breakpoint'));
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
-			data.actionBar = new ActionBar(container, { actionRunner: this.actionRunner });
+			data.actionBar = new ActionBar(data.breakpoint, { actionRunner: this.actionRunner });
 			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
 		}
 
-		data.breakpoint = dom.append(container, $('.breakpoint'));
 		data.toDisposeBeforeRender = [];
 
 		data.checkbox = <HTMLInputElement>$('input');
@@ -1195,11 +1200,13 @@ export class BreakpointsRenderer implements IRenderer {
 
 		dom.append(data.breakpoint, data.checkbox);
 
-		data.name = dom.append(data.breakpoint, $('span.name'));
-
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID) {
-			data.lineNumber = dom.append(data.breakpoint, $('span.line-number'));
-			data.filePath = dom.append(data.breakpoint, $('span.file-path'));
+			data.snippet = dom.append(data.breakpoint, $('span.snippet'));
+			const file = dom.append(data.breakpoint, $('.file'));
+			data.filePath = dom.append(file, $('span.file-name'));
+			data.lineNumber = dom.append(file, $('span.line-number'));
+		} else {
+			data.name = dom.append(data.breakpoint, $('span.name'));
 		}
 
 		return data;
@@ -1235,6 +1242,7 @@ export class BreakpointsRenderer implements IRenderer {
 				ariaLabel: nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint")
 			});
 		} else {
+			dom.addClass(data.name, 'expression');
 			data.name.textContent = functionBreakpoint.name;
 			data.checkbox.checked = functionBreakpoint.enabled;
 			data.breakpoint.title = functionBreakpoint.name;
@@ -1256,9 +1264,15 @@ export class BreakpointsRenderer implements IRenderer {
 	private renderBreakpoint(tree: ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
-		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
+		if (breakpoint.snippet) {
+			dom.addClass(data.snippet, 'expression');
+			data.snippet.textContent = breakpoint.snippet;
+		} else {
+			dom.removeClass(data.snippet, 'expression');
+			data.snippet.textContent = nls.localize('noContent', "no content");
+		}
+		data.filePath.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
 		data.lineNumber.textContent = breakpoint.desiredLineNumber !== breakpoint.lineNumber ? breakpoint.desiredLineNumber + ' \u2192 ' + breakpoint.lineNumber : '' + breakpoint.lineNumber;
-		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
 		data.actionBar.context = breakpoint;
 
