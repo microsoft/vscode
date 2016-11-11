@@ -77,7 +77,7 @@ const tasks = compilations.map(function(tsconfigFile) {
 					sourceMappingURL: !build ? null : f => `${ baseUrl }/${ f.relative }.map`,
 					addComment: !!build,
 					includeContent: !!build,
-					sourceRoot: file => '../'.repeat(file.relative.split(path.sep).length) + 'src'
+					sourceRoot: '../src'
 				}))
 				.pipe(tsFilter.restore)
 				.pipe(build ? nlsDev.createAdditionalLanguageFiles(languages, i18n, out) : es.through())
