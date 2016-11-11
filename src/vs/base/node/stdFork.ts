@@ -50,6 +50,7 @@ function generatePatchedEnv(env: any, stdInPipeName: string, stdOutPipeName: str
 	newEnv['STDOUT_PIPE_NAME'] = stdOutPipeName;
 	newEnv['STDERR_PIPE_NAME'] = stdErrPipeName;
 	newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+	newEnv['ELECTRON_NO_ASAR'] = '1';
 
 	return newEnv;
 }
