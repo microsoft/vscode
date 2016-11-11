@@ -101,7 +101,7 @@ class RunToCursorAction extends EditorAction {
 		const oneTimeListener = debugService.getViewModel().focusedProcess.session.onDidEvent(event => {
 			if (event.event === 'stopped' || event.event === 'exit') {
 				const toRemove = debugService.getModel().getBreakpoints()
-					.filter(bp => bp.desiredLineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop();
+					.filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop();
 				if (toRemove) {
 					debugService.removeBreakpoints(toRemove.getId());
 				}
