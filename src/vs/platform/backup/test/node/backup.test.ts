@@ -15,7 +15,7 @@ import extfs = require('vs/base/node/extfs');
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
-import { BackupService } from 'vs/code/electron-main/backup';
+import { BackupService } from 'vs/platform/backup/node/backup';
 import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 
 class TestBackupService extends BackupService {

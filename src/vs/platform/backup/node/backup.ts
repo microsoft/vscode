@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import * as path from 'path';
 import * as crypto from 'crypto';
-import fs = require('fs');
+import * as fs from 'fs';
+import * as path from 'path';
 import Uri from 'vs/base/common/uri';
 import { readdirSync } from 'vs/base/node/extfs';
 import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
