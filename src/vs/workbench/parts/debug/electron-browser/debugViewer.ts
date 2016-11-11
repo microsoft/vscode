@@ -1257,7 +1257,7 @@ export class BreakpointsRenderer implements IRenderer {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
 		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
-		data.lineNumber.textContent = breakpoint.desiredLineNumber !== breakpoint.lineNumber ? breakpoint.desiredLineNumber + ' \u2192 ' + breakpoint.lineNumber : '' + breakpoint.lineNumber;
+		data.lineNumber.textContent = breakpoint.lineNumber.toString();
 		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
 		data.actionBar.context = breakpoint;

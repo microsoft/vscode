@@ -382,7 +382,7 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 						return paths.basename(first.uri.fsPath).localeCompare(paths.basename(second.uri.fsPath));
 					}
 
-					return first.desiredLineNumber - second.desiredLineNumber;
+					return first.lineNumber - second.lineNumber;
 				}
 			}
 		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'breakpointsAriaTreeLabel' }, "Debug Breakpoints")));

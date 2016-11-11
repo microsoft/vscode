@@ -570,7 +570,6 @@ export class Process implements debug.IProcess {
 
 export class Breakpoint implements debug.IBreakpoint {
 
-	public lineNumber: number;
 	public verified: boolean;
 	public idFromAdapter: number;
 	public message: string;
@@ -578,7 +577,7 @@ export class Breakpoint implements debug.IBreakpoint {
 
 	constructor(
 		public uri: uri,
-		public desiredLineNumber: number,
+		public lineNumber: number,
 		public enabled: boolean,
 		public condition: string,
 		public hitCondition: string
@@ -586,7 +585,6 @@ export class Breakpoint implements debug.IBreakpoint {
 		if (enabled === undefined) {
 			this.enabled = true;
 		}
-		this.lineNumber = this.desiredLineNumber;
 		this.verified = false;
 		this.id = generateUuid();
 	}
@@ -755,6 +753,9 @@ export class Model implements debug.IModel {
 				bp.message = bpData.message;
 			}
 		});
+
+		// Remove duplicate breakpoints. This can happen when an adapter updates a line number of a breakpoint
+		this.breakpoints = distinct(this.breakpoints, bp => bp.uri.toString() + bp.lineNumber);
 		this._onDidChangeBreakpoints.fire();
 	}
 
@@ -762,7 +763,6 @@ export class Model implements debug.IModel {
 		element.enabled = enable;
 		if (element instanceof Breakpoint && !element.enabled) {
 			var breakpoint = <Breakpoint>element;
-			breakpoint.lineNumber = breakpoint.desiredLineNumber;
 			breakpoint.verified = false;
 		}
 
@@ -773,7 +773,6 @@ export class Model implements debug.IModel {
 		this.breakpoints.forEach(bp => {
 			bp.enabled = enable;
 			if (!enable) {
-				bp.lineNumber = bp.desiredLineNumber;
 				bp.verified = false;
 			}
 		});
