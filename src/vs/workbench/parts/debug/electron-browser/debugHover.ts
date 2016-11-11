@@ -169,7 +169,7 @@ export class DebugHoverWidget implements IContentWidget {
 			const result = new Expression(matchingExpression);
 			promise = result.evaluate(process, focusedStackFrame, 'hover').then(() => result);
 		} else {
-			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
+			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word), expressionRange);
 		}
 
 		return promise.then(expression => {
@@ -206,10 +206,10 @@ export class DebugHoverWidget implements IContentWidget {
 		});
 	}
 
-	private findExpressionInStackFrame(namesToFind: string[]): TPromise<IExpression> {
+	private findExpressionInStackFrame(namesToFind: string[], expressionRange: Range): TPromise<IExpression> {
 		return this.debugService.getViewModel().focusedStackFrame.getScopes()
-			// no expensive scopes
-			.then(scopes => scopes.filter(scope => !scope.expensive))
+			// no expensive scopes and if a range of scope is defined it needs to contain the variable
+			.then(scopes => scopes.filter(scope => !scope.expensive && (!scope.range || Range.containsRange(scope.range, expressionRange))))
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
 			// only show if all expressions found have the same value
