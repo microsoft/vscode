@@ -84,9 +84,16 @@ suite('SnippetParser', () => {
 		assert.equal(actual, expected);
 	}
 
-	function assertMarker(value: string, ...ctors: Function[]) {
-		const p = new SnippetParser();
-		const marker = p.parse(value);
+	function assertMarker(marker: Marker[], ...ctors: Function[]);
+	function assertMarker(value: string, ...ctors: Function[]);
+	function assertMarker(valueOrMarker: Marker[] | string, ...ctors: Function[]) {
+		let marker: Marker[];
+		if (typeof valueOrMarker === 'string') {
+			const p = new SnippetParser();
+			marker = p.parse(valueOrMarker);
+		} else {
+			marker = valueOrMarker;
+		}
 		while (marker.length > 0) {
 			let m = marker.pop();
 			let ctor = ctors.pop();
@@ -122,7 +129,6 @@ suite('SnippetParser', () => {
 		assertEscape('far{{id:bern {{id2:basel}}}}boo', 'farbern baselboo');
 	});
 
-
 	test('Parser, placeholder', () => {
 		assertEscapeAndMarker('farboo', 'farboo', Text);
 		assertEscapeAndMarker('far{{}}boo', 'farboo', Text, Placeholder, Text);
@@ -152,6 +158,28 @@ suite('SnippetParser', () => {
 
 		assertEscapeAndMarker('${name:value', '${name:value', Text);
 		assertEscapeAndMarker('${1:bar${2:foobar}', '${1:barfoobar', Text, Placeholder);
+	});
+
+	test('Parser, only textmate', () => {
+		const p = new SnippetParser(true, false);
+		assertMarker(p.parse('far{{}}boo'), Text);
+		assertMarker(p.parse('far{{123}}boo'), Text);
+		assertMarker(p.parse('far\\{{123}}boo'), Text);
+
+		assertMarker(p.parse('far$0boo'), Text, Placeholder, Text);
+		assertMarker(p.parse('far${123}boo'), Text, Placeholder, Text);
+		assertMarker(p.parse('far\\${123}boo'), Text);
+	});
+
+	test('Parser, only internal', () => {
+		const p = new SnippetParser(false, true);
+		assertMarker(p.parse('far{{}}boo'), Text, Placeholder, Text);
+		assertMarker(p.parse('far{{123}}boo'), Text, Placeholder, Text);
+		assertMarker(p.parse('far\\{{123}}boo'), Text);
+
+		assertMarker(p.parse('far$0boo'), Text);
+		assertMarker(p.parse('far${123}boo'), Text);
+		assertMarker(p.parse('far\\${123}boo'), Text);
 	});
 
 	test('Parser, real world', () => {
