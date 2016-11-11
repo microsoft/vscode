@@ -216,7 +216,7 @@
 				<key>blockquote</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)(&gt;) ?</string>
+					<string>(^|\G)[ ]{0,3}(&gt;) ?</string>
 					<key>captures</key>
 					<dict>
 						<key>2</key>
@@ -235,7 +235,7 @@
 						</dict>
 					</array>
 					<key>while</key>
-					<string>(^|\G)(&gt;) ?</string>
+					<string>(^|\G)\s*(&gt;) ?</string>
 				</dict>
 				<key>heading</key>
 				<dict>
