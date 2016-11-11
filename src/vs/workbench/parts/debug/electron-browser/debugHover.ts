@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import lifecycle = require('vs/base/common/lifecycle');
+import * as nls from 'vs/nls';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import dom = require('vs/base/browser/dom');
-import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
-import editorbrowser = require('vs/editor/browser/editorBrowser');
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import debug = require('vs/workbench/parts/debug/common/debug');
-import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
-import viewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/parts/debug/common/debug';
+import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
+import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 
 const $ = dom.$;
 const debugTreeOptions = {
@@ -30,7 +30,7 @@ const debugTreeOptions = {
 const MAX_ELEMENTS_SHOWN = 18;
 const MAX_VALUE_RENDER_LENGTH_IN_HOVER = 4096;
 
-export class DebugHoverWidget implements editorbrowser.IContentWidget {
+export class DebugHoverWidget implements IContentWidget {
 
 	public static ID = 'debug.hoverWidget';
 	// editor.IContentWidget.allowEditorOverflow
@@ -48,14 +48,14 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private stoleFocus: boolean;
 	private toDispose: lifecycle.IDisposable[];
 
-	constructor(private editor: editorbrowser.ICodeEditor, private debugService: debug.IDebugService, private instantiationService: IInstantiationService) {
+	constructor(private editor: ICodeEditor, private debugService: IDebugService, private instantiationService: IInstantiationService) {
 		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
 		this.tree = new Tree(this.treeContainer, {
-			dataSource: new viewer.VariablesDataSource(),
+			dataSource: new VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: new DebugHoverController(editor)
 		}, debugTreeOptions);
@@ -158,7 +158,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		const expressionRange = this.getExactExpressionRange(lineContent, range);
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
-		let promise: TPromise<debug.IExpression>;
+		let promise: TPromise<IExpression>;
 		if (process.session.configuration.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);
 			promise = result.evaluate(process, focusedStackFrame, 'hover').then(() => result);
@@ -183,7 +183,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		});
 	}
 
-	private doFindExpression(container: debug.IExpressionContainer, namesToFind: string[]): TPromise<debug.IExpression> {
+	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): TPromise<IExpression> {
 		return container.getChildren(this.debugService).then(children => {
 			// look for our variable in the list. First find the parents of the hovered variable if there are any.
 			// some languages pass the type as part of the name, so need to check if the last word of the name matches.
@@ -200,7 +200,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		});
 	}
 
-	private findExpressionInStackFrame(namesToFind: string[]): TPromise<debug.IExpression> {
+	private findExpressionInStackFrame(namesToFind: string[]): TPromise<IExpression> {
 		return this.debugService.getViewModel().focusedStackFrame.getScopes()
 			// no expensive scopes
 			.then(scopes => scopes.filter(scope => !scope.expensive))
@@ -210,7 +210,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);
 	}
 
-	private doShow(position: Position, expression: debug.IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
+	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
 		this.showAtPosition = position;
 		this.isVisible = true;
 		this.stoleFocus = focus;
@@ -218,7 +218,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		if (!expression.hasChildren || forceValueHover) {
 			this.complexValueContainer.hidden = true;
 			this.valueContainer.hidden = false;
-			viewer.renderExpressionValue(expression, this.valueContainer, false, MAX_VALUE_RENDER_LENGTH_IN_HOVER);
+			renderExpressionValue(expression, this.valueContainer, false, MAX_VALUE_RENDER_LENGTH_IN_HOVER);
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
 			if (focus) {
@@ -277,12 +277,12 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		}
 	}
 
-	public getPosition(): editorbrowser.IContentWidgetPosition {
+	public getPosition(): IContentWidgetPosition {
 		return this.isVisible ? {
 			position: this.showAtPosition,
 			preference: [
-				editorbrowser.ContentWidgetPositionPreference.ABOVE,
-				editorbrowser.ContentWidgetPositionPreference.BELOW
+				ContentWidgetPositionPreference.ABOVE,
+				ContentWidgetPositionPreference.BELOW
 			]
 		} : null;
 	}
@@ -294,7 +294,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 class DebugHoverController extends DefaultController {
 
-	constructor(private editor: editorbrowser.ICodeEditor) {
+	constructor(private editor: ICodeEditor) {
 		super();
 	}
 
@@ -310,7 +310,7 @@ class DebugHoverController extends DefaultController {
 	}
 }
 
-class VariablesHoverRenderer extends viewer.VariablesRenderer {
+class VariablesHoverRenderer extends VariablesRenderer {
 
 	public getHeight(tree: ITree, element: any): number {
 		return 18;
