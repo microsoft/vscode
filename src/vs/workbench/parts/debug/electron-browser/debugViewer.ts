@@ -1182,12 +1182,12 @@ export class BreakpointsRenderer implements IRenderer {
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
 		const data: IBreakpointTemplateData = Object.create(null);
+		data.breakpoint = dom.append(container, $('.breakpoint'));
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
-			data.actionBar = new ActionBar(container, { actionRunner: this.actionRunner });
+			data.actionBar = new ActionBar(data.breakpoint, { actionRunner: this.actionRunner });
 			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
 		}
 
-		data.breakpoint = dom.append(container, $('.breakpoint'));
 		data.toDisposeBeforeRender = [];
 
 		data.checkbox = <HTMLInputElement>$('input');
@@ -1198,8 +1198,12 @@ export class BreakpointsRenderer implements IRenderer {
 		data.name = dom.append(data.breakpoint, $('span.name'));
 
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID) {
-			data.lineNumber = dom.append(data.breakpoint, $('span.line-number'));
 			data.filePath = dom.append(data.breakpoint, $('span.file-path'));
+			const lineNumberContainer = dom.append(data.breakpoint, $('.line-number-container'));
+			data.lineNumber = dom.append(lineNumberContainer, $('span.line-number'));
+		}
+		if (templateId === BreakpointsRenderer.EXCEPTION_BREAKPOINT_TEMPLATE_ID) {
+			dom.addClass(data.breakpoint, 'exception');
 		}
 
 		return data;
