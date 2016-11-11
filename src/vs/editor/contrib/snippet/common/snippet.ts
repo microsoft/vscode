@@ -474,7 +474,7 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 			snippet.lines.push(...lines);
 
 		} else if (marker instanceof Placeholder) {
-
+			// TODO - not every variable is a placeholder
 			let placeHolder = placeHolders[marker.name];
 			if (!placeHolder) {
 				placeHolders[marker.name] = placeHolder = {
@@ -495,7 +495,14 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 				endColumn: column + Marker.toString(marker.value).length // TODO multiline placeholders!
 			});
 
-			stack.unshift(...marker.value);
+			if (marker.value.length === 0 && marker.isVariable) {
+				// HACK this is here because we falsy advertise
+				// ${foo} as placeholder in our own snippets
+				stack.unshift(new Text(marker.name));
+
+			} else {
+				stack.unshift(...marker.value);
+			}
 		}
 	}
 
