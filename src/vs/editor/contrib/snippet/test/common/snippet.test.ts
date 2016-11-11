@@ -18,6 +18,16 @@ suite('Editor Contrib - Snippets', () => {
 			return new CodeSnippetGlue(marker);
 		}
 
+		static fromInternal(s: string): ICodeSnippet {
+			const marker = new SnippetParser(false, true).parse(s);
+			return new CodeSnippetGlue(marker);
+		}
+
+		static fromTextMate(s: string): ICodeSnippet {
+			const marker = new SnippetParser(true, false).parse(s);
+			return new CodeSnippetGlue(marker);
+		}
+
 		lines: string[] = [];
 		placeHolders: IPlaceHolder[] = [];
 		finishPlaceHolderIndex: number = -1;
@@ -101,12 +111,12 @@ suite('Editor Contrib - Snippets', () => {
 		}
 	}
 
-	function assertInternalAndTextmate(internal: string, textmate: string, callback: (snippet: ICodeSnippet) => any, ignoreNewParser = false) {
+	function assertInternalAndTextmate(internal: string, textmate: string, callback: (snippet: ICodeSnippet) => any, ignoreTextMate = false) {
 
 		// new world
-		callback(CodeSnippetGlue.fromValue(internal));
-		if (!ignoreNewParser) {
-			callback(CodeSnippetGlue.fromValue(textmate));
+		callback(CodeSnippetGlue.fromInternal(internal));
+		if (!ignoreTextMate) {
+			callback(CodeSnippetGlue.fromTextMate(textmate));
 		}
 
 		// old world
