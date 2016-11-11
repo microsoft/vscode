@@ -321,7 +321,7 @@ suite('ExtensionsActions Test', () => {
 
 		instantiationService.get(IExtensionsWorkbenchService).queryLocal().done(extensions => {
 			testObject.extension = extensions[0];
-			instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {id: local.id, version: local.manifest.version})));
+			instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { id: local.id, version: local.manifest.version })));
 			instantiationService.get(IExtensionsWorkbenchService).queryGallery().done(extensions => {
 				assert.ok(!testObject.enabled);
 				done();

@@ -275,7 +275,7 @@ suite('Debug - Model', () => {
 		model.clearThreads(process.getId(), true);
 		assert.equal(process.getThread(stoppedThreadId), null);
 		assert.equal(process.getThread(runningThreadId), null);
-		assert.equal(process.getAllThreads().length, 0 );
+		assert.equal(process.getAllThreads().length, 0);
 	});
 
 	// Expressions
