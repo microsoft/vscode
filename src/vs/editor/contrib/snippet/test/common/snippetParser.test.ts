@@ -130,6 +130,11 @@ suite('SnippetParser', () => {
 		assertEscapeAndMarker('far\\{{123}}boo', 'far{{123}}boo', Text);
 	});
 
+	test('Parser, literal code', () => {
+		assertEscapeAndMarker('far`123`boo', 'far`123`boo', Text);
+		assertEscapeAndMarker('far\\`123\\`boo', 'far\\`123\\`boo', Text);
+	});
+
 	test('Parser, variables/tabstop', () => {
 		assertEscapeAndMarker('$far-boo', '-boo', Placeholder, Text);
 		assertEscapeAndMarker('\\$far-boo', '$far-boo', Text);
@@ -150,7 +155,7 @@ suite('SnippetParser', () => {
 	});
 
 	test('Parser, real world', () => {
-		const marker = new SnippetParser().parse('console.warn(${1: $TM_SELECTED_TEXT })');
+		let marker = new SnippetParser().parse('console.warn(${1: $TM_SELECTED_TEXT })');
 
 		assert.equal(marker[0].toString(), 'console.warn(');
 		assert.ok(marker[1] instanceof Placeholder);
@@ -171,6 +176,11 @@ suite('SnippetParser', () => {
 		assert.equal(nestedPlaceholder.isVariable, true);
 		assert.equal(nestedPlaceholder.name, 'TM_SELECTED_TEXT');
 		assert.equal(nestedPlaceholder.value.length, 0);
+
+		marker = new SnippetParser().parse('$TM_SELECTED_TEXT');
+		assert.equal(marker.length, 1);
+		assert.ok(marker[0] instanceof Placeholder);
+		assert.equal((<Placeholder>marker[0]).isVariable, true);
 	});
 
 	test('Parser, real world, mixed', () => {
