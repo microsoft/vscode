@@ -1140,7 +1140,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 export class RemoveFromEditorHistoryAction extends Action {
 
 	public static ID = 'workbench.action.removeFromEditorHistory';
-	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From Editor History");
+	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From History");
 
 	constructor(
 		id: string,
