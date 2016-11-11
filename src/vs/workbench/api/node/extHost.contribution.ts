@@ -5,9 +5,8 @@
 
 'use strict';
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, InstanceCollection } from './extHost.protocol';

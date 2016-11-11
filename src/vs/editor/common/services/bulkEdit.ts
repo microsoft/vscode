@@ -15,8 +15,7 @@ import { EventType as FileEventType, FileChangesEvent, IFileChange } from 'vs/pl
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection } from 'vs/editor/common/editorCommon';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export interface IResourceEdit {

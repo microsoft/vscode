@@ -9,8 +9,7 @@ import 'vs/css!./selections';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { HorizontalRange, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
-import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { HorizontalRange, LineVisibleRanges, IRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Range } from 'vs/editor/common/core/range';
 
 const enum CornerStyle {

@@ -8,12 +8,11 @@ import URI from 'vs/base/common/uri';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { SyncDescriptor0, createSyncDescriptor, AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
-import { IConstructorSignature2, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature2, IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
 export interface ICommandAction {

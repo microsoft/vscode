@@ -15,7 +15,7 @@ import * as strings from 'vs/base/common/strings';
 import Event, { Emitter } from 'vs/base/common/event';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
-import { IEditorRegistry, Extensions as EditorExtensions, EditorOptions } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions as EditorExtensions, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ICommonCodeEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -25,7 +25,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { Position } from 'vs/platform/editor/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
