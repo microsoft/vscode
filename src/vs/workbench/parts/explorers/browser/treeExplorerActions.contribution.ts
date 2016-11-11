@@ -12,7 +12,7 @@ import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/b
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { toCustomExplorerViewletActionId } from 'vs/workbench/parts/explorers/common/treeExplorer';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

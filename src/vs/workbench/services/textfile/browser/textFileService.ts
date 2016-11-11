@@ -103,8 +103,8 @@ export abstract class TextFileService implements ITextFileService {
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 
 		// Application & Editor focus change
-		this.toUnbind.push(DOM.addDisposableListener(window, 'blur', () => this.onWindowFocusLost()));
-		this.toUnbind.push(DOM.addDisposableListener(window, 'blur', () => this.onEditorFocusChanged(), true));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onEditorFocusChanged(), true));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
 	}
 

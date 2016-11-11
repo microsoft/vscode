@@ -175,7 +175,7 @@ suite('Config', () => {
 			if (error) {
 				return onError(error, done);
 			}
-			
+
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile, { changeBufferDelay: 100 });

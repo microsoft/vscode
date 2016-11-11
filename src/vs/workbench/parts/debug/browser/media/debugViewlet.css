@@ -41,6 +41,15 @@
 	background: url('repl-inverse.svg') center center no-repeat;
 }
 
+.monaco-workbench .debug-action.start {
+	background: url('continue.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-action.start,
+.hc-black .monaco-workbench .debug-action.start {
+	background: url('continue-inverse.svg') center center no-repeat;
+}
+
 /* Debug viewlet trees */
 
 .debug-viewlet .monaco-tree .monaco-tree-row > .content {

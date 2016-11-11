@@ -36,6 +36,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(id);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => { if (this.titleContainer) { this.titleContainer.addClass('blurred'); } }));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => { if (this.titleContainer) { this.titleContainer.removeClass('blurred'); } }));
 	}
 
 	public createContentArea(parent: Builder): Builder {

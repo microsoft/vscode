@@ -43,7 +43,7 @@ export class ValueOutputElement extends OutputElement {
 		public value: string,
 		public severity: severity,
 		public category?: string,
-		public counter: number = 1
+		public counter = 1
 	) {
 		super();
 	}
@@ -53,49 +53,34 @@ export class KeyValueOutputElement extends OutputElement {
 
 	private static MAX_CHILDREN = 1000; // upper bound of children per value
 
-	private children: debug.ITreeElement[];
-	private _valueName: string;
-
 	constructor(public key: string, public valueObj: any, public annotation?: string) {
 		super();
-
-		this._valueName = null;
 	}
 
 	public get value(): string {
-		if (this._valueName === null) {
-			if (this.valueObj === null) {
-				this._valueName = 'null';
-			} else if (Array.isArray(this.valueObj)) {
-				this._valueName = `Array[${this.valueObj.length}]`;
-			} else if (isObject(this.valueObj)) {
-				this._valueName = 'Object';
-			} else if (isString(this.valueObj)) {
-				this._valueName = `"${massageValue(this.valueObj)}"`;
-			} else {
-				this._valueName = String(this.valueObj);
-			}
-
-			if (!this._valueName) {
-				this._valueName = '';
-			}
+		if (this.valueObj === null) {
+			return 'null';
+		} else if (Array.isArray(this.valueObj)) {
+			return `Array[${this.valueObj.length}]`;
+		} else if (isObject(this.valueObj)) {
+			return 'Object';
+		} else if (isString(this.valueObj)) {
+			return `"${massageValue(this.valueObj)}"`;
 		}
 
-		return this._valueName;
+		return String(this.valueObj) || '';
 	}
 
 	public getChildren(): debug.ITreeElement[] {
-		if (!this.children) {
-			if (Array.isArray(this.valueObj)) {
-				this.children = (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map((v, index) => new KeyValueOutputElement(String(index), v, null));
-			} else if (isObject(this.valueObj)) {
-				this.children = Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map(key => new KeyValueOutputElement(key, this.valueObj[key], null));
-			} else {
-				this.children = [];
-			}
+		if (Array.isArray(this.valueObj)) {
+			return (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN)
+				.map((v, index) => new KeyValueOutputElement(String(index), v));
+		} else if (isObject(this.valueObj)) {
+			return Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN)
+				.map(key => new KeyValueOutputElement(key, this.valueObj[key]));
 		}
 
-		return this.children;
+		return [];
 	}
 }
 

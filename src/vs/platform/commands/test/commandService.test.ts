@@ -21,13 +21,13 @@ class SimpleExtensionService implements IExtensionService {
 	onReady(): TPromise<boolean> {
 		return TPromise.as(true);
 	}
-	readExtensionPointContributions<T>(extPoint:IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
+	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
 		return TPromise.as([]);
 	}
 	getExtensionsStatus() {
 		return undefined;
 	}
-	getExtensions() : TPromise<IExtensionDescription[]> {
+	getExtensions(): TPromise<IExtensionDescription[]> {
 		return TPromise.wrap([]);
 	}
 }

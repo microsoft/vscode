@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 
 export class Source {

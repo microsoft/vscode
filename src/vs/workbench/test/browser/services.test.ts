@@ -21,7 +21,7 @@ import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { WorkbenchProgressService, ScopedService } from 'vs/workbench/services/progress/browser/progressService';
 import { DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Position, Direction, IEditor } from 'vs/platform/editor/common/editor';
