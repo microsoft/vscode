@@ -22,7 +22,7 @@
 			}
 		],
 		"layering": [
-			false,
+			true,
 			{
 				"common": [],
 				"node": [
