@@ -73,7 +73,7 @@ suite('Editor Contrib - Snippets', () => {
 
 		assertInternalAndTextmate(
 			'{{first}}-{{2:}}-{{second}}-{{1:}}',
-			'${first:first}-${2}-${second:second}-${1}',
+			'${first}-${2}-${second}-${1}',
 			snippet => {
 				assert.deepEqual(snippet.lines, ['first--second-']);
 				assert.equal(snippet.placeHolders.length, 4);
