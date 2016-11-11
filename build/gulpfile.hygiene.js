@@ -12,6 +12,14 @@ const gulptslint = require('gulp-tslint');
 const tsfmt = require('typescript-formatter');
 const tslint = require('tslint');
 
+/**
+ * Hygiene works by creating cascading subsets of all our files and
+ * passing them through a bunch of checks. Here are the current subsets,
+ * each containing the following one, in mathematical notation:
+ *
+ * all ⊃ eol ⊇ indentation ⊃ copyright ⊃ typescript
+ */
+
 const all = [
 	'*',
 	'build/**/*',
