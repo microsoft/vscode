@@ -43,6 +43,12 @@ export class CodeSnippet implements ICodeSnippet {
 		return snippet;
 	}
 
+	static plain(template: string): CodeSnippet {
+		const snippet = new CodeSnippet();
+		snippet.lines = template.split(/\r\n|\n|\r/);
+		return snippet;
+	}
+
 	static fromEmmet(template: string): CodeSnippet {
 		return EmmetSnippetParser.parse(template);
 	}
