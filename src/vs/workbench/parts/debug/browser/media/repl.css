@@ -131,6 +131,19 @@
 	line-height: 18px;
 }
 
+/* Actions */
+
+.monaco-workbench .debug-action.clear-repl {
+	background: url('clear-repl.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-action.clear-repl,
+.hc-black .monaco-workbench .debug-action.clear-repl {
+	background: url('clear-repl-inverse.svg') center center no-repeat;
+}
+
+/* Output coloring */
+
 .vs .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .warn {
 	color: #cd9731;
 }
