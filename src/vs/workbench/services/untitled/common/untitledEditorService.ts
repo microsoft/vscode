@@ -17,6 +17,11 @@ export interface IUntitledEditorService {
 	_serviceBrand: any;
 
 	/**
+	 * Events for when untitled editors content changes (e.g. any keystroke).
+	 */
+	onDidChangeContent: Event<URI>;
+
+	/**
 	 * Events for when untitled editors change (e.g. getting dirty, saved or reverted).
 	 */
 	onDidChangeDirty: Event<URI>;
@@ -25,6 +30,11 @@ export interface IUntitledEditorService {
 	 * Events for when untitled editor encodings change.
 	 */
 	onDidChangeEncoding: Event<URI>;
+
+	/**
+	 * Events for when untitled editors are disposed.
+	 */
+	onDidDisposeModel: Event<URI>;
 
 	/**
 	 * Returns the untitled editor input matching the provided resource.
@@ -58,7 +68,7 @@ export interface IUntitledEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	createOrGet(resource?: URI, modeId?: string): UntitledEditorInput;
+	createOrGet(resource?: URI, modeId?: string, restoreResource?: URI): UntitledEditorInput;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -73,12 +83,26 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private static CACHE: { [resource: string]: UntitledEditorInput } = Object.create(null);
 	private static KNOWN_ASSOCIATED_FILE_PATHS: { [resource: string]: boolean } = Object.create(null);
 
+	private _onDidChangeContent: Emitter<URI>;
 	private _onDidChangeDirty: Emitter<URI>;
 	private _onDidChangeEncoding: Emitter<URI>;
+	private _onDidDisposeModel: Emitter<URI>;
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		this._onDidChangeContent = new Emitter<URI>();
 		this._onDidChangeDirty = new Emitter<URI>();
 		this._onDidChangeEncoding = new Emitter<URI>();
+		this._onDidDisposeModel = new Emitter<URI>();
+	}
+
+	public get onDidDisposeModel(): Event<URI> {
+		return this._onDidDisposeModel.event;
+	}
+
+	public get onDidChangeContent(): Event<URI> {
+		return this._onDidChangeContent.event;
 	}
 
 	public get onDidChangeDirty(): Event<URI> {
@@ -130,7 +154,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			.map((i) => i.getResource());
 	}
 
-	public createOrGet(resource?: URI, modeId?: string): UntitledEditorInput {
+	public createOrGet(resource?: URI, modeId?: string, restoreResource?: URI): UntitledEditorInput {
 		let hasAssociatedFilePath = false;
 		if (resource) {
 			hasAssociatedFilePath = (resource.scheme === 'file');
@@ -147,10 +171,10 @@ export class UntitledEditorService implements IUntitledEditorService {
 		}
 
 		// Create new otherwise
-		return this.doCreate(resource, hasAssociatedFilePath, modeId);
+		return this.doCreate(resource, hasAssociatedFilePath, modeId, restoreResource);
 	}
 
-	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, modeId?: string): UntitledEditorInput {
+	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, modeId?: string, restoreResource?: URI): UntitledEditorInput {
 		if (!resource) {
 
 			// Create new taking a resource URI that is not already taken
@@ -161,12 +185,16 @@ export class UntitledEditorService implements IUntitledEditorService {
 			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
 		}
 
-		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
+		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, restoreResource);
 		if (input.isDirty()) {
 			setTimeout(() => {
 				this._onDidChangeDirty.fire(resource);
 			}, 0 /* prevent race condition between creating input and emitting dirty event */);
 		}
+
+		const contentListener = input.onDidModelChangeContent(() => {
+			this._onDidChangeContent.fire(resource);
+		});
 
 		const dirtyListener = input.onDidChangeDirty(() => {
 			this._onDidChangeDirty.fire(resource);
@@ -176,13 +204,19 @@ export class UntitledEditorService implements IUntitledEditorService {
 			this._onDidChangeEncoding.fire(resource);
 		});
 
+		const disposeListener = input.onDispose(() => {
+			this._onDidDisposeModel.fire(resource);
+		});
+
 		// Remove from cache on dispose
 		const onceDispose = once(input.onDispose);
 		onceDispose(() => {
 			delete UntitledEditorService.CACHE[input.getResource().toString()];
 			delete UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[input.getResource().toString()];
+			contentListener.dispose();
 			dirtyListener.dispose();
 			encodingListener.dispose();
+			disposeListener.dispose();
 		});
 
 		// Add to cache
@@ -204,7 +238,9 @@ export class UntitledEditorService implements IUntitledEditorService {
 	}
 
 	public dispose(): void {
+		this._onDidChangeContent.dispose();
 		this._onDidChangeDirty.dispose();
 		this._onDidChangeEncoding.dispose();
+		this._onDidDisposeModel.dispose();
 	}
 }

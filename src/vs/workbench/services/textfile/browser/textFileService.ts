@@ -24,6 +24,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IBackupService } from 'vs/workbench/services/backup/common/backup';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -53,7 +54,8 @@ export abstract class TextFileService implements ITextFileService {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IFileService protected fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IBackupService private backupService: IBackupService
 	) {
 		this.toUnbind = [];
 
@@ -96,23 +98,25 @@ export abstract class TextFileService implements ITextFileService {
 	private registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
+		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown(event.quitRequested)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration changes
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 
 		// Application & Editor focus change
-		this.toUnbind.push(DOM.addDisposableListener(window, 'blur', () => this.onWindowFocusLost()));
-		this.toUnbind.push(DOM.addDisposableListener(window, 'blur', () => this.onEditorFocusChanged(), true));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onEditorFocusChanged(), true));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
 	}
 
-	private beforeShutdown(): boolean | TPromise<boolean> {
+	private beforeShutdown(quitRequested: boolean): boolean | TPromise<boolean> {
+		if (this.backupService.isHotExitEnabled) {
+			return this.backupService.backupBeforeShutdown(this.getDirty(), this.models, quitRequested, this.confirmBeforeShutdown.bind(this));
+		}
 
 		// Dirty files need treatment on shutdown
 		if (this.getDirty().length) {
-
 			// If auto save is enabled, save all files and then check again for dirty files
 			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
 				return this.saveAll(false /* files only */).then(() => {
@@ -120,7 +124,7 @@ export abstract class TextFileService implements ITextFileService {
 						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
 					}
 
-					return false; // all good, no veto
+					return this.backupService.cleanupBackupsBeforeShutdown(); // all good, no veto
 				});
 			}
 
@@ -128,7 +132,7 @@ export abstract class TextFileService implements ITextFileService {
 			return this.confirmBeforeShutdown();
 		}
 
-		return false; // no veto
+		return this.backupService.cleanupBackupsBeforeShutdown(); // no veto
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
@@ -141,13 +145,13 @@ export abstract class TextFileService implements ITextFileService {
 					return true; // veto if some saves failed
 				}
 
-				return false; // no veto
+				return this.backupService.cleanupBackupsBeforeShutdown(); // no veto
 			});
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-			return false; // no veto
+			return this.backupService.cleanupBackupsBeforeShutdown(); // no veto
 		}
 
 		// Cancel

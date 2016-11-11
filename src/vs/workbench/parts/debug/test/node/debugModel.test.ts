@@ -57,12 +57,10 @@ suite('Debug - Model', () => {
 
 		assert.equal(model.getBreakpoints().length, 5);
 		var bp = model.getBreakpoints()[0];
-		var originalLineLumber = bp.lineNumber;
 		const update: any = {};
 		update[bp.getId()] = { line: 100, verified: false };
 		model.updateBreakpoints(update);
 		assert.equal(bp.lineNumber, 100);
-		assert.equal(bp.desiredLineNumber, originalLineLumber);
 
 		model.enableOrDisableAllBreakpoints(false);
 		model.getBreakpoints().forEach(bp => {
@@ -275,7 +273,7 @@ suite('Debug - Model', () => {
 		model.clearThreads(process.getId(), true);
 		assert.equal(process.getThread(stoppedThreadId), null);
 		assert.equal(process.getThread(runningThreadId), null);
-		assert.equal(process.getAllThreads().length, 0 );
+		assert.equal(process.getAllThreads().length, 0);
 	});
 
 	// Expressions

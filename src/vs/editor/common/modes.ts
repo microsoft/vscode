@@ -169,6 +169,8 @@ export type SuggestionType = 'method'
 	| 'reference'
 	| 'customcolor';
 
+export type SnippetType = 'internal' | 'textmate';
+
 /**
  * @internal
  */
@@ -185,7 +187,7 @@ export interface ISuggestion {
 	overwriteAfter?: number;
 	additionalTextEdits?: editorCommon.ISingleEditOperation[];
 	command?: Command;
-	isTMSnippet?: boolean;
+	snippetType?: SnippetType;
 	_extensionId?: string;
 }
 

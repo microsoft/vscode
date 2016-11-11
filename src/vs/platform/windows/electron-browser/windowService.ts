@@ -61,6 +61,10 @@ export class WindowService implements IWindowService {
 		return this.windowsService.addToRecentlyOpen(paths);
 	}
 
+	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
+		return this.windowsService.removeFromRecentlyOpen(paths);
+	}
+
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
 		return this.windowsService.getRecentlyOpen(this.windowId);
 	}

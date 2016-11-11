@@ -479,9 +479,8 @@ class SuggestAdapter {
 					suggestion.overwriteAfter = 0;
 				}
 
-				if (this._extensionId) {
-					suggestion._extensionId = this._extensionId;
-				}
+				suggestion._extensionId = this._extensionId;
+				suggestion.snippetType = 'internal';
 
 				// store suggestion
 				result.suggestions.push(suggestion);

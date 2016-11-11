@@ -35,7 +35,7 @@ import service = require('vs/workbench/parts/debug/electron-browser/debugService
 import { DebugErrorEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import { DebugErrorEditor } from 'vs/workbench/parts/debug/browser/debugErrorEditor';
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 

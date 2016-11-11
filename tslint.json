@@ -22,7 +22,7 @@
 			}
 		],
 		"layering": [
-			false,
+			true,
 			{
 				"common": [],
 				"node": [
@@ -38,21 +38,25 @@
 				"electron-browser": [
 					"common",
 					"browser",
-					"workbench",
 					"node"
 				]
 			}
 		],
 		"import-patterns": [
-			false,
+			true,
 			{
-				"target": "**/{node,electron-browser,electron-main}/**",
+				"target": "**/{node,electron-browser,electron-main,extensions}/**",
 				"restrictions": "**/*"
 			},
 			{
+				"target": "{**/**.test.ts,**/test/**}",
+				"restrictions": "{**/vs/**,assert,sinon}"
+			},
+			{
 				"target": "**/{common,browser,workbench}/**",
-				"restrictions": "{**/vs/**,assert}"
+				"restrictions": "**/vs/**"
 			}
-		]
+		],
+		"duplicate-imports": true
 	}
 }

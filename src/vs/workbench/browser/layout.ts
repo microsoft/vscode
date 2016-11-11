@@ -10,7 +10,7 @@ import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickO
 import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService, Position, ILayoutOptions, Parts } from 'vs/workbench/services/part/common/partService';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEventService } from 'vs/platform/event/common/event';
@@ -91,7 +91,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService themeService: IThemeService
 	) {
 		this.parent = parent;
 		this.workbenchContainer = workbenchContainer;
@@ -358,7 +358,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let sidebarSize = new Dimension(sidebarWidth, this.sidebarHeight);
 
 		// Activity Bar
-		this.activitybarWidth = isActivityBarHidden ? 0 : this.initialComputedStyles.activitybar.width / getZoomFactor(); // adjust for zoom prevention
+		this.activitybarWidth = isActivityBarHidden ? 0 : this.computedStyles.activitybar.width;
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
 
 		// Panel part
@@ -478,8 +478,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		// Activity Bar Part
-		this.activitybar.getContainer().size(activityBarSize.width, activityBarSize.height);
-
+		this.activitybar.getContainer().size(null, activityBarSize.height);
 		if (sidebarPosition === Position.LEFT) {
 			this.activitybar.getContainer().getHTMLElement().style.right = '';
 			this.activitybar.getContainer().position(this.titlebarHeight, null, 0, 0);

@@ -12,6 +12,15 @@ const gulptslint = require('gulp-tslint');
 const tsfmt = require('typescript-formatter');
 const tslint = require('tslint');
 
+/**
+ * Hygiene works by creating cascading subsets of all our files and
+ * passing them through a sequence of checks. Here are the current subsets,
+ * named according to the checks performed on them. Each subset contains
+ * the following one, as described in mathematical notation:
+ *
+ * all ⊃ eol ⊇ indentation ⊃ copyright ⊃ typescript
+ */
+
 const all = [
 	'*',
 	'build/**/*',
@@ -43,7 +52,6 @@ const indentationFilter = [
 	'!**/lib/**',
 	'!**/*.d.ts',
 	'!**/*.d.ts.recipe',
-	'!extensions/typescript/server/**',
 	'!test/assert.js',
 	'!**/package.json',
 	'!**/npm-shrinkwrap.json',
@@ -67,15 +75,16 @@ const copyrightFilter = [
 	'!**/*.json',
 	'!**/*.html',
 	'!**/*.template',
-	'!**/test/**',
 	'!**/*.md',
 	'!**/*.bat',
 	'!**/*.cmd',
-	'!resources/win32/bin/code.js',
 	'!**/*.xml',
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
+	'!**/*.opts',
+	'!**/*.disabled',
+	'!resources/win32/bin/code.js',
 	'!extensions/markdown/media/tomorrow.css'
 ];
 
@@ -83,6 +92,7 @@ const tslintFilter = [
 	'src/**/*.ts',
 	'extensions/**/*.ts',
 	'!**/*.d.ts',
+	'!**/fixtures/**',
 	'!**/typings/**',
 	'!**/node_modules/**',
 	'!extensions/typescript/test/colorize-fixtures/**',
@@ -104,7 +114,7 @@ function reportFailures(failures) {
 		const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
 		const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
 
-		console.error(`${ name }:${ line + 1}:${ character + 1 }:${ failure.failure }`);
+		console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
 	});
 }
 
@@ -177,7 +187,7 @@ const hygiene = exports.hygiene = (some, options) => {
 		});
 	});
 
-	const tsl = es.through(function(file) {
+	const tsl = es.through(function (file) {
 		const configuration = tslint.findConfiguration(null, '.');
 		const options = { configuration, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
 		const contents = file.contents.toString('utf8');

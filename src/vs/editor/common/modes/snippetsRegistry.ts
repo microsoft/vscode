@@ -107,7 +107,7 @@ class SnippetsRegistry implements ISnippetsRegistry {
 				documentation: s.description,
 				insertText: s.codeSnippet,
 				noAutoAccept: true,
-				isTMSnippet: true,
+				snippetType: 'textmate',
 				overwriteBefore
 			});
 

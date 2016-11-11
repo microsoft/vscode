@@ -859,8 +859,12 @@ export class WatchExpressionsDataSource implements IDataSource {
 	}
 }
 
-interface IWatchExpressionTemplateData extends IVariableTemplateData {
+interface IWatchExpressionTemplateData {
+	watchExpression: HTMLElement;
 	actionBar: ActionBar;
+	expression: HTMLElement;
+	name: HTMLSpanElement;
+	value: HTMLSpanElement;
 }
 
 export class WatchExpressionsRenderer implements IRenderer {
@@ -893,15 +897,24 @@ export class WatchExpressionsRenderer implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
-		let data: IWatchExpressionTemplateData = Object.create(null);
+		const createVariableTemplate = ((data: IVariableTemplateData, container: HTMLElement) => {
+			data.expression = dom.append(container, $('.expression'));
+			data.name = dom.append(data.expression, $('span.name'));
+			data.value = dom.append(data.expression, $('span.value'));
+		});
+
 		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
-			data.actionBar = new ActionBar(container, { actionRunner: this.actionRunner });
+			const data: IWatchExpressionTemplateData = Object.create(null);
+			data.watchExpression = dom.append(container, $('.watch-expression'));
+			createVariableTemplate(data, data.watchExpression);
+			data.actionBar = new ActionBar(data.watchExpression, { actionRunner: this.actionRunner });
 			data.actionBar.push(this.actionProvider.getExpressionActions(), { icon: true, label: false });
+
+			return data;
 		}
 
-		data.expression = dom.append(container, $('.expression'));
-		data.name = dom.append(data.expression, $('span.name'));
-		data.value = dom.append(data.expression, $('span.value'));
+		const data: IVariableTemplateData = Object.create(null);
+		createVariableTemplate(data, container);
 
 		return data;
 	}
@@ -1182,12 +1195,12 @@ export class BreakpointsRenderer implements IRenderer {
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
 		const data: IBreakpointTemplateData = Object.create(null);
+		data.breakpoint = dom.append(container, $('.breakpoint'));
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
-			data.actionBar = new ActionBar(container, { actionRunner: this.actionRunner });
+			data.actionBar = new ActionBar(data.breakpoint, { actionRunner: this.actionRunner });
 			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
 		}
 
-		data.breakpoint = dom.append(container, $('.breakpoint'));
 		data.toDisposeBeforeRender = [];
 
 		data.checkbox = <HTMLInputElement>$('input');
@@ -1198,8 +1211,12 @@ export class BreakpointsRenderer implements IRenderer {
 		data.name = dom.append(data.breakpoint, $('span.name'));
 
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID) {
-			data.lineNumber = dom.append(data.breakpoint, $('span.line-number'));
 			data.filePath = dom.append(data.breakpoint, $('span.file-path'));
+			const lineNumberContainer = dom.append(data.breakpoint, $('.line-number-container'));
+			data.lineNumber = dom.append(lineNumberContainer, $('span.line-number'));
+		}
+		if (templateId === BreakpointsRenderer.EXCEPTION_BREAKPOINT_TEMPLATE_ID) {
+			dom.addClass(data.breakpoint, 'exception');
 		}
 
 		return data;
@@ -1257,7 +1274,7 @@ export class BreakpointsRenderer implements IRenderer {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
 		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
-		data.lineNumber.textContent = breakpoint.desiredLineNumber !== breakpoint.lineNumber ? breakpoint.desiredLineNumber + ' \u2192 ' + breakpoint.lineNumber : '' + breakpoint.lineNumber;
+		data.lineNumber.textContent = breakpoint.lineNumber.toString();
 		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
 		data.actionBar.context = breakpoint;

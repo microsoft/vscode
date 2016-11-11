@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { memoize  } from 'vs/base/common/decorators';
+import { memoize } from 'vs/base/common/decorators';
 
 suite('Decorators', () => {
 	test('memoize should memoize methods', () => {

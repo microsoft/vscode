@@ -32,7 +32,7 @@ import { ConfigurationService } from 'vs/platform/configuration/node/configurati
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { mkdirp } from 'vs/base/node/pfs';
 import { IChoiceService } from 'vs/platform/message/common/message';
-import { ChoiceCliService } from 'vs/platform/message/common/messageCli';
+import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 
 const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);

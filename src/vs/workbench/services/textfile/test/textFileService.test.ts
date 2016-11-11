@@ -28,6 +28,7 @@ class ServiceAccessor {
 class ShutdownEventImpl implements ShutdownEvent {
 
 	public value: boolean | TPromise<boolean>;
+	public quitRequested: boolean = false;
 
 	veto(value: boolean | TPromise<boolean>): void {
 		this.value = value;

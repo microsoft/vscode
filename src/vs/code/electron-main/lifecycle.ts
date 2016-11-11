@@ -5,12 +5,14 @@
 
 'use strict';
 
+import Uri from 'vs/base/common/uri';
 import { EventEmitter } from 'events';
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
 
@@ -52,7 +54,8 @@ export class LifecycleService implements ILifecycleService {
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILogService private logService: ILogService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IBackupMainService private backupService: IBackupMainService
 	) {
 		this.windowToCloseRequest = Object.create(null);
 		this.quitRequested = false;
@@ -160,6 +163,14 @@ export class LifecycleService implements ILifecycleService {
 			const oneTimeCancelEvent = 'vscode:cancel' + oneTimeEventToken;
 
 			ipc.once(oneTimeOkEvent, () => {
+				// Clear out any workspace backups from workspaces.json that don't have any backups
+				if (vscodeWindow.openedWorkspacePath) {
+					const workspaceResource = Uri.file(vscodeWindow.openedWorkspacePath);
+					if (!this.backupService.hasWorkspaceBackup(workspaceResource)) {
+						this.backupService.removeWorkspaceBackupPathSync(workspaceResource);
+					}
+				}
+
 				c(false); // no veto
 			});
 
@@ -175,7 +186,7 @@ export class LifecycleService implements ILifecycleService {
 				c(true); // veto
 			});
 
-			vscodeWindow.send('vscode:beforeUnload', { okChannel: oneTimeOkEvent, cancelChannel: oneTimeCancelEvent });
+			vscodeWindow.send('vscode:beforeUnload', { okChannel: oneTimeOkEvent, cancelChannel: oneTimeCancelEvent, quitRequested: this.quitRequested });
 		});
 	}
 
