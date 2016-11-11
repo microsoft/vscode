@@ -176,7 +176,7 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 			const emptySettingsContents = this.getEmptyEditableSettingsContent(configurationTarget);
 			const settingsResource = this.getEditableSettingsURI(configurationTarget);
 			return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.configurationService), settingsResource, emptySettingsContents)
-				.then(editors => this.renderActionsForDefaultSettings(editors[0], editors[1], configurationTarget));
+				.then(editors => null /*this.renderActionsForDefaultSettings(editors[0], editors[1], configurationTarget*/);
 		}
 		return this.openEditableSettings(configurationTarget).then(() => null);
 	}
@@ -215,7 +215,7 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 			resource.fsPath === this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE).fsPath ? ConfigurationTarget.WORKSPACE : null;
 	}
 
-	private renderActionsForDefaultSettings(defaultSettingsEditor: IEditor, settingsEditor: IEditor, configurationTarget: ConfigurationTarget) {
+	protected renderActionsForDefaultSettings(defaultSettingsEditor: IEditor, settingsEditor: IEditor, configurationTarget: ConfigurationTarget) {
 		const defaultSettingsEditorControl = <ICodeEditor>defaultSettingsEditor.getControl();
 		if (!this.defaultSettingsActionsRenderer) {
 			this.defaultSettingsActionsRenderer = this.instantiationService.createInstance(DefaultSettingsActionsRenderer, defaultSettingsEditorControl, this);
