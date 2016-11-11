@@ -511,64 +511,6 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	}
 }
 
-<<<<<<< HEAD
-@editorAction
-class ToggleBreakpointAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.debug.action.toggleBreakpoint',
-			label: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
-			alias: 'Debug: Toggle Breakpoint',
-			precondition: null,
-			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyCode.F9
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
-		const debugService = accessor.get(IDebugService);
-
-		const lineNumber = editor.getPosition().lineNumber;
-		const modelUri = editor.getModel().uri;
-		const bp = debugService.getModel().getBreakpoints()
-			.filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === modelUri.toString()).pop();
-
-		if (bp) {
-			return debugService.removeBreakpoints(bp.getId());
-		}
-		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			return debugService.addBreakpoints(modelUri, [{ lineNumber, snippet: editor.getModel().getLineContent(lineNumber) }]);
-		}
-	}
-}
-
-@editorAction
-class EditorConditionalBreakpointAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.debug.action.conditionalBreakpoint',
-			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
-			alias: 'Debug: Add Conditional Breakpoint...',
-			precondition: null
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		const debugService = accessor.get(IDebugService);
-		const instantiationService = accessor.get(IInstantiationService);
-
-		const lineNumber = editor.getPosition().lineNumber;
-		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			BreakpointWidget.createInstance(<editorbrowser.ICodeEditor>editor, lineNumber, instantiationService);
-		}
-	}
-}
-=======
->>>>>>> master
-
 export class SetValueAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.setValue';
 	static LABEL = nls.localize('setValue', "Set Value");
