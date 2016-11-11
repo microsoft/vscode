@@ -106,6 +106,7 @@ export class BackupMainService implements IBackupMainService {
 			}
 			fs.writeFileSync(this.workspacesJsonPath, JSON.stringify(this.workspacesJsonContent));
 		} catch (ex) {
+			console.error('Could not save workspaces.json', ex);
 		}
 	}
 }
