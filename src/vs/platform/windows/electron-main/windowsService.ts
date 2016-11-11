@@ -8,7 +8,9 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { shell, crashReporter } from 'electron';
+import { shell, crashReporter, app } from 'electron';
+import Event from 'vs/base/common/event';
+import { fromEventEmitter } from 'vs/base/node/event';
 
 // TODO@Joao: remove this dependency, move all implementation to this class
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
@@ -16,6 +18,9 @@ import { IWindowsMainService } from 'vs/code/electron-main/windows';
 export class WindowsService implements IWindowsService {
 
 	_serviceBrand: any;
+
+	onWindowOpen: Event<number> = fromEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id);
+	onWindowFocus: Event<number> = fromEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
 
 	constructor(
 		@IWindowsMainService private windowsMainService: IWindowsMainService,

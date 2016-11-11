@@ -109,8 +109,8 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
                 for (var i = 0; i < keyArg.properties.length; i++) {
                     var property = keyArg.properties[i];
                     if (isPropertyAssignment(property)) {
-                        var name_1 = property.name.getText();
-                        if (name_1 === 'key') {
+                        var name = property.name.getText();
+                        if (name === 'key') {
                             var initializer = property.initializer;
                             if (isStringLiteral(initializer)) {
                                 this.recordKey(initializer, this.messageIndex ? callInfo.callExpression.arguments[this.messageIndex] : undefined);

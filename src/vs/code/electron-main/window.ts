@@ -11,12 +11,12 @@ import * as objects from 'vs/base/common/objects';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
-import { getCommonHTTPHeaders } from 'vs/platform/environment/common/http';
+import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IBackupMainService } from 'vs/code/electron-main/backup';
 import Uri from 'vs/base/common/uri';
 

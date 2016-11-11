@@ -294,6 +294,27 @@ declare module DebugProtocol {
 	export interface AttachResponse extends Response {
 	}
 
+	/** Restart request; value of command field is 'restart'.
+		Restarts a debug session. If the capability 'supportsRestartRequest' is missing or has the value false,
+		the client will implement 'restart' by terminating the debug adapter first and then launching it anew.
+		A debug adapter can override this default behaviour by implementing a restart request
+		and setting the capability 'supportsRestartRequest' to true.
+	*/
+	export interface RestartRequest extends Request {
+		// command: 'restart';
+		arguments?: RestartArguments;
+	}
+
+	/** Arguments for 'restart' request.
+		The restart request has no standardized attributes.
+	*/
+	export interface RestartArguments {
+	}
+
+	/** Response to 'restart' request. This is just an acknowledgement, so no body field is required. */
+	export interface RestartResponse extends Response {
+	}
+
 	/** Disconnect request; value of command field is 'disconnect'. */
 	export interface DisconnectRequest extends Request {
 		// command: 'disconnect';
@@ -906,6 +927,8 @@ declare module DebugProtocol {
 		supportedChecksumAlgorithms?: ChecksumAlgorithm[];
 		/** The debug adapter will be responsible for escaping newlines in variable values and evaluation results, and the client will display them as-is. If missing or false the client will escape newlines as needed. */
 		supportsValueEscaping?: boolean;
+		/** The debug adapter supports the RestartRequest. In this case a client should not implement 'restart' by terminating and relaunching the adapter but by calling the RestartRequest. */
+		supportsRestartRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */

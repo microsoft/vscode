@@ -46,7 +46,7 @@ export class ViewModel implements debug.IViewModel {
 			return this._focusedStackFrame;
 		}
 
-		const callStack = this.focusedThread ? this.focusedThread.getCachedCallStack() : null;
+		const callStack = this.focusedThread ? this.focusedThread.getCallStack() : null;
 		return callStack && callStack.length ? callStack[0] : null;
 	}
 

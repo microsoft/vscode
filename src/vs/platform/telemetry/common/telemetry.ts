@@ -5,6 +5,9 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import { guessMimeTypes } from 'vs/base/common/mime';
+import paths = require('vs/base/common/paths');
+import URI from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -146,4 +149,9 @@ export function anonymize(input: string): string {
 		r += ch;
 	}
 	return r;
+}
+
+export function telemetryURIDescriptor(uri: URI): any {
+	const fsPath = uri && uri.fsPath;
+	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: anonymize(fsPath) } : {};
 }

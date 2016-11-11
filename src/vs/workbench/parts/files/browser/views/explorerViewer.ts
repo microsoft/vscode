@@ -258,6 +258,9 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 
 // Explorer Renderer
 export class FileRenderer extends ActionsRenderer implements IRenderer {
+
+	private static ITEM_HEIGHT = 22;
+
 	private state: FileViewletState;
 
 	constructor(
@@ -275,7 +278,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	}
 
 	public getContentHeight(tree: ITree, element: any): number {
-		return 22;
+		return FileRenderer.ITEM_HEIGHT;
 	}
 
 	public renderContents(tree: ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {

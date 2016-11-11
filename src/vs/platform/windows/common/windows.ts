@@ -7,12 +7,16 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
 export interface IWindowsService {
 
 	_serviceBrand: any;
+
+	onWindowOpen: Event<number>;
+	onWindowFocus: Event<number>;
 
 	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
 	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void>;
