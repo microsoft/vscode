@@ -172,7 +172,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private hideHoverWidget(): void {
-		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.isVisible) {
+		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.isVisible()) {
 			this.hideHoverScheduler.schedule();
 		}
 		this.showHoverScheduler.cancel();
