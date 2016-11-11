@@ -45,7 +45,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewletService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
