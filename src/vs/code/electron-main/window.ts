@@ -17,7 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
-import { IBackupMainService } from 'vs/platform/backup/node/backup';
+import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import Uri from 'vs/base/common/uri';
 
 export interface IWindowState {
