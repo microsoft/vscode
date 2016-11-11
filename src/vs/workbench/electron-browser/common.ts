@@ -15,6 +15,7 @@ export interface IOpenFileRequest {
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
+	untitledToRestore?: IPath[];
 }
 
 export interface IWindowConfiguration {

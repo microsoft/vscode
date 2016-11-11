@@ -35,6 +35,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IBackupService } from 'vs/workbench/services/backup/common/backup';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -57,9 +58,10 @@ class TestDirtyTextFileService extends TestTextFileService {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IBackupService backupService: IBackupService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService);
 	}
 
 	public isDirty(resource?: URI): boolean {

@@ -28,10 +28,12 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	public static SCHEMA: string = 'untitled';
 
 	private resource: URI;
+	private restoreResource: URI;
 	private hasAssociatedFilePath: boolean;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
 
+	private _onDidModelChangeContent: Emitter<void>;
 	private _onDidModelChangeEncoding: Emitter<void>;
 
 	private toUnbind: IDisposable[];
@@ -40,18 +42,24 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		resource: URI,
 		hasAssociatedFilePath: boolean,
 		modeId: string,
+		restoreResource: URI,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
-
 		this.resource = resource;
+		this.restoreResource = restoreResource;
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
 		this.toUnbind = [];
+		this._onDidModelChangeContent = new Emitter<void>();
 		this._onDidModelChangeEncoding = new Emitter<void>();
+	}
+
+	public get onDidModelChangeContent(): Event<void> {
+		return this._onDidModelChangeContent.event;
 	}
 
 	public get onDidModelChangeEncoding(): Event<void> {
@@ -79,7 +87,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			return this.cachedModel.isDirty();
 		}
 
-		return this.hasAssociatedFilePath; // untitled files with associated path are always dirty
+		// untitled files with an associated path or restore resource are always dirty
+		return this.hasAssociatedFilePath || !!this.restoreResource;
 	}
 
 	public confirmSave(): ConfirmResult {
@@ -121,6 +130,14 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		return null;
 	}
 
+	public getValue(): string {
+		if (this.cachedModel) {
+			return this.cachedModel.getValue();
+		}
+
+		return null;
+	}
+
 	public setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): void {
 		if (this.cachedModel) {
 			this.cachedModel.setEncoding(encoding);
@@ -134,20 +151,29 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			return TPromise.as(this.cachedModel);
 		}
 
-		// Otherwise Create Model and load
-		const model = this.createModel();
-		return model.load().then((resolvedModel: UntitledEditorModel) => {
-			this.cachedModel = resolvedModel;
+		// Otherwise Create Model and load, restoring from backup if necessary
+		let restorePromise: TPromise<string>;
+		if (this.restoreResource) {
+			restorePromise = this.textFileService.resolveTextContent(this.restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
+		} else {
+			restorePromise = TPromise.as('');
+		}
 
-			return this.cachedModel;
+		return restorePromise.then(content => {
+			const model = this.createModel(content);
+			return model.load().then((resolvedModel: UntitledEditorModel) => {
+				this.cachedModel = resolvedModel;
+
+				return this.cachedModel;
+			});
 		});
 	}
 
-	private createModel(): UntitledEditorModel {
-		const content = '';
+	private createModel(content: string): UntitledEditorModel {
 		const model = this.instantiationService.createInstance(UntitledEditorModel, content, this.modeId, this.resource, this.hasAssociatedFilePath);
 
 		// re-emit some events from the model
+		this.toUnbind.push(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
 		this.toUnbind.push(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this.toUnbind.push(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
 
@@ -170,6 +196,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	public dispose(): void {
+		this._onDidModelChangeContent.dispose();
 		this._onDidModelChangeEncoding.dispose();
 
 		// Listeners
