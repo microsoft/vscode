@@ -3,29 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import lifecycle = require('vs/base/common/lifecycle');
+import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { Range } from 'vs/editor/common/core/range';
-import editorCommon = require('vs/editor/common/editorCommon');
-import editorbrowser = require('vs/editor/browser/editorBrowser');
-import { ServicesAccessor, editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import debug = require('vs/workbench/parts/debug/common/debug');
-import model = require('vs/workbench/parts/debug/common/debugModel');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
+import { Variable, Expression, Thread, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import IDebugService = debug.IDebugService;
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
 
 export class AbstractDebugAction extends Action {
 
@@ -34,10 +26,10 @@ export class AbstractDebugAction extends Action {
 	constructor(
 		id: string, label: string, cssClass: string,
 		@IDebugService protected debugService: IDebugService,
-		@IKeybindingService protected keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		public weight?: number
 	) {
 		super(id, label, cssClass, false);
-		this.debugService = debugService;
 		this.toDispose = [];
 		this.toDispose.push(this.debugService.onDidChangeState(() => this.updateEnablement()));
 
@@ -47,6 +39,13 @@ export class AbstractDebugAction extends Action {
 
 	public run(e?: any): TPromise<any> {
 		throw new Error('implement me');
+	}
+
+	public get tooltip(): string {
+		const keybinding = this.keybindingService.lookupKeybindings(this.id)[0];
+		const keybindingLabel = keybinding && this.keybindingService.getLabelFor(keybinding);
+
+		return keybindingLabel ? `${this.label} (${keybindingLabel})` : this.label;
 	}
 
 	protected updateLabel(newLabel: string): void {
@@ -62,8 +61,8 @@ export class AbstractDebugAction extends Action {
 	}
 
 	public dispose(): void {
-		this.debugService = null;
 		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.debugService = null;
 
 		super.dispose();
 	}
@@ -75,15 +74,20 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
-		this.toDispose.push(debugService.getViewModel().onDidSelectConfigurationName(configurationName => {
-			if (configurationName) {
-				this.class = 'debug-action configure';
-				this.tooltip = ConfigureAction.LABEL;
-			} else {
-				this.class = 'debug-action configure notification';
-				this.tooltip = nls.localize('launchJsonNeedsConfigurtion', "Configure or Fix 'launch.json'");
-			}
-		}));
+		this.toDispose.push(debugService.getViewModel().onDidSelectConfigurationName(configurationName => this.updateClass()));
+		this.updateClass();
+	}
+
+	public get tooltip(): string {
+		if (this.debugService.getViewModel().selectedConfigurationName) {
+			return ConfigureAction.LABEL;
+		}
+
+		return nls.localize('launchJsonNeedsConfigurtion', "Configure or Fix 'launch.json'");
+	}
+
+	private updateClass(): void {
+		this.class = this.debugService.getViewModel().selectedConfigurationName ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -101,12 +105,8 @@ export class SelectConfigAction extends AbstractDebugAction {
 	}
 
 	public run(configName: string): TPromise<any> {
-		this.debugService.getViewModel().setSelectedConfigurationName(configName);
+		this.debugService.getViewModel().setSelectedConfigurationName(configName === debug.NO_CONFIGURATIONS_LABEL ? null : configName);
 		return TPromise.as(null);
-	}
-
-	protected isEnabled(state: debug.State): boolean {
-		return super.isEnabled(state) && state === debug.State.Inactive;
 	}
 }
 
@@ -116,14 +116,19 @@ export class StartAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService, @ICommandService private commandService: ICommandService) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
+		this.debugService.getViewModel().onDidSelectConfigurationName(() => {
+			this.updateEnablement();
+		});
 	}
 
 	public run(): TPromise<any> {
 		return this.commandService.executeCommand('_workbench.startDebug', this.debugService.getViewModel().selectedConfigurationName);
 	}
 
+	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: debug.State): boolean {
-		return super.isEnabled(state) && state === debug.State.Inactive;
+		const process = this.debugService.getModel().getProcesses();
+		return super.isEnabled(state) && process.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName);
 	}
 }
 
@@ -133,7 +138,7 @@ export class RestartAction extends AbstractDebugAction {
 	static RECONNECT_LABEL = nls.localize('reconnectDebug', "Reconnect");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action restart', debugService, keybindingService);
+		super(id, label, 'debug-action restart', debugService, keybindingService, 70);
 		this.setLabel(this.debugService.getViewModel().focusedProcess);
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedProcess)));
 	}
@@ -157,11 +162,11 @@ export class StepOverAction extends AbstractDebugAction {
 	static LABEL = nls.localize('stepOverDebug', "Step Over");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action step-over', debugService, keybindingService);
+		super(id, label, 'debug-action step-over', debugService, keybindingService, 20);
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		if (!(thread instanceof model.Thread)) {
+		if (!(thread instanceof Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
@@ -178,11 +183,11 @@ export class StepIntoAction extends AbstractDebugAction {
 	static LABEL = nls.localize('stepIntoDebug', "Step Into");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action step-into', debugService, keybindingService);
+		super(id, label, 'debug-action step-into', debugService, keybindingService, 30);
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		if (!(thread instanceof model.Thread)) {
+		if (!(thread instanceof Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
@@ -199,11 +204,11 @@ export class StepOutAction extends AbstractDebugAction {
 	static LABEL = nls.localize('stepOutDebug', "Step Out");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action step-out', debugService, keybindingService);
+		super(id, label, 'debug-action step-out', debugService, keybindingService, 40);
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		if (!(thread instanceof model.Thread)) {
+		if (!(thread instanceof Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
@@ -215,35 +220,12 @@ export class StepOutAction extends AbstractDebugAction {
 	}
 }
 
-export class StepBackAction extends AbstractDebugAction {
-	static ID = 'workbench.action.debug.stepBack';
-	static LABEL = nls.localize('stepBackDebug', "Step Back");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action step-back', debugService, keybindingService);
-	}
-
-	public run(thread: debug.IThread): TPromise<any> {
-		if (!(thread instanceof model.Thread)) {
-			thread = this.debugService.getViewModel().focusedThread;
-		}
-
-		return thread.stepBack();
-	}
-
-	protected isEnabled(state: debug.State): boolean {
-		const process = this.debugService.getViewModel().focusedProcess;
-		return super.isEnabled(state) && state === debug.State.Stopped &&
-			process && process.session.configuration.capabilities.supportsStepBack;
-	}
-}
-
 export class StopAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.stop';
 	static LABEL = nls.localize('stopDebug', "Stop");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action stop', debugService, keybindingService);
+		super(id, label, 'debug-action stop', debugService, keybindingService, 80);
 	}
 
 	public run(): TPromise<any> {
@@ -261,7 +243,7 @@ export class DisconnectAction extends AbstractDebugAction {
 	static LABEL = nls.localize('disconnectDebug', "Disconnect");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action disconnect', debugService, keybindingService);
+		super(id, label, 'debug-action disconnect', debugService, keybindingService, 80);
 	}
 
 	public run(): TPromise<any> {
@@ -279,11 +261,11 @@ export class ContinueAction extends AbstractDebugAction {
 	static LABEL = nls.localize('continueDebug', "Continue");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action continue', debugService, keybindingService);
+		super(id, label, 'debug-action continue', debugService, keybindingService, 10);
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		if (!(thread instanceof model.Thread)) {
+		if (!(thread instanceof Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
@@ -300,11 +282,11 @@ export class PauseAction extends AbstractDebugAction {
 	static LABEL = nls.localize('pauseDebug', "Pause");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action pause', debugService, keybindingService);
+		super(id, label, 'debug-action pause', debugService, keybindingService, 10);
 	}
 
 	public run(thread: debug.IThread): TPromise<any> {
-		if (!(thread instanceof model.Thread)) {
+		if (!(thread instanceof Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
@@ -342,7 +324,7 @@ export class RemoveBreakpointAction extends AbstractDebugAction {
 	}
 
 	public run(breakpoint: debug.IBreakpoint): TPromise<any> {
-		return breakpoint instanceof model.Breakpoint ? this.debugService.removeBreakpoints(breakpoint.getId())
+		return breakpoint instanceof Breakpoint ? this.debugService.removeBreakpoints(breakpoint.getId())
 			: this.debugService.removeFunctionBreakpoints(breakpoint.getId());
 	}
 }
@@ -494,7 +476,7 @@ export class AddConditionalBreakpointAction extends AbstractDebugAction {
 	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint...");
 
 	constructor(id: string, label: string,
-		private editor: editorbrowser.ICodeEditor,
+		private editor: ICodeEditor,
 		private lineNumber: number,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -514,7 +496,7 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint...");
 
 	constructor(id: string, label: string,
-		private editor: editorbrowser.ICodeEditor,
+		private editor: ICodeEditor,
 		private lineNumber: number,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -529,6 +511,7 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	}
 }
 
+<<<<<<< HEAD
 @editorAction
 class ToggleBreakpointAction extends EditorAction {
 	constructor() {
@@ -583,17 +566,19 @@ class EditorConditionalBreakpointAction extends EditorAction {
 		}
 	}
 }
+=======
+>>>>>>> master
 
 export class SetValueAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.setValue';
 	static LABEL = nls.localize('setValue', "Set Value");
 
-	constructor(id: string, label: string, private variable: model.Variable, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string, private variable: Variable, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, null, debugService, keybindingService);
 	}
 
 	public run(): TPromise<any> {
-		if (this.variable instanceof model.Variable) {
+		if (this.variable instanceof Variable) {
 			this.debugService.getViewModel().setSelectedExpression(this.variable);
 		}
 
@@ -603,49 +588,6 @@ export class SetValueAction extends AbstractDebugAction {
 	protected isEnabled(state: debug.State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;
 		return super.isEnabled(state) && state === debug.State.Stopped && process && process.session.configuration.capabilities.supportsSetVariable;
-	}
-}
-
-@editorAction
-class RunToCursorAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.debug.action.runToCursor',
-			label: nls.localize('runToCursor', "Debug: Run to Cursor"),
-			alias: 'Debug: Run to Cursor',
-			precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_MODE, debug.CONTEXT_NOT_IN_DEBUG_REPL),
-			menuOpts: {
-				group: 'debug',
-				order: 2
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
-		const debugService = accessor.get(IDebugService);
-
-		if (debugService.state !== debug.State.Stopped) {
-			return TPromise.as(null);
-		}
-		const lineNumber = editor.getPosition().lineNumber;
-		const uri = editor.getModel().uri;
-
-		const oneTimeListener = debugService.getViewModel().focusedProcess.session.onDidEvent(event => {
-			if (event.event === 'stopped' || event.event === 'exit') {
-				const toRemove = debugService.getModel().getBreakpoints()
-					.filter(bp => bp.desiredLineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop();
-				if (toRemove) {
-					debugService.removeBreakpoints(toRemove.getId());
-				}
-				oneTimeListener.dispose();
-			}
-		});
-
-		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop());
-		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints(uri, [{ lineNumber, snippet: editor.getModel().getLineContent(lineNumber) }])).then(() => {
-			debugService.getViewModel().focusedThread.continue();
-		});
 	}
 }
 
@@ -667,86 +609,6 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 }
 
-@editorAction
-class SelectionToReplAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.debug.action.selectionToRepl',
-			label: nls.localize('debugEvaluate', "Debug: Evaluate"),
-			alias: 'Debug: Evaluate',
-			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE, debug.CONTEXT_NOT_IN_DEBUG_REPL),
-			menuOpts: {
-				group: 'debug',
-				order: 0
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
-		const debugService = accessor.get(IDebugService);
-		const panelService = accessor.get(IPanelService);
-
-		const text = editor.getModel().getValueInRange(editor.getSelection());
-		return debugService.addReplExpression(text)
-			.then(() => panelService.openPanel(debug.REPL_ID, true))
-			.then(_ => void 0);
-	}
-}
-
-@editorAction
-class SelectionToWatchExpressionsAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.debug.action.selectionToWatch',
-			label: nls.localize('debugAddToWatch', "Debug: Add to Watch"),
-			alias: 'Debug: Add to Watch',
-			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE, debug.CONTEXT_NOT_IN_DEBUG_REPL),
-			menuOpts: {
-				group: 'debug',
-				order: 1
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
-		const debugService = accessor.get(IDebugService);
-		const viewletService = accessor.get(IViewletService);
-
-		const text = editor.getModel().getValueInRange(editor.getSelection());
-		return viewletService.openViewlet(debug.VIEWLET_ID).then(() => debugService.addWatchExpression(text));
-	}
-}
-
-@editorAction
-class ShowDebugHoverAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.debug.action.showDebugHover',
-			label: nls.localize('showDebugHover', "Debug: Show Hover"),
-			alias: 'Debug: Show Hover',
-			precondition: debug.CONTEXT_IN_DEBUG_MODE,
-			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
-		const position = editor.getPosition();
-		const word = editor.getModel().getWordAtPosition(position);
-		if (!word) {
-			return TPromise.as(null);
-		}
-
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
-		return editor.getContribution<debug.IDebugEditorContribution>(debug.EDITOR_CONTRIBUTION_ID).showHover(range, word.word, true);
-	}
-}
-
 export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.addToWatchExpressions';
 	static LABEL = nls.localize('addToWatchExpressions', "Add to Watch");
@@ -756,7 +618,7 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const name = this.expression instanceof model.Variable ? this.expression.evaluateName : this.expression.name;
+		const name = this.expression instanceof Variable ? this.expression.evaluateName : this.expression.name;
 		return this.debugService.addWatchExpression(name);
 	}
 }
@@ -765,7 +627,7 @@ export class EditWatchExpressionAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.editWatchExpression';
 	static LABEL = nls.localize('editWatchExpression', "Edit Expression");
 
-	constructor(id: string, label: string, private expression: model.Expression, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string, private expression: Expression, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action editWatchExpression', debugService, keybindingService);
 	}
 
@@ -783,7 +645,7 @@ export class RemoveWatchExpressionAction extends AbstractDebugAction {
 		super(id, label, 'debug-action remove', debugService, keybindingService);
 	}
 
-	public run(expression: model.Expression): TPromise<any> {
+	public run(expression: Expression): TPromise<any> {
 		this.debugService.removeWatchExpressions(expression.getId());
 		return TPromise.as(null);
 	}
@@ -905,5 +767,71 @@ export class RunAction extends AbstractDebugAction {
 
 	protected isEnabled(state: debug.State): boolean {
 		return super.isEnabled(state) && state === debug.State.Inactive;
+	}
+}
+
+export class FocusProcessAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.focusProcess';
+	static LABEL = nls.localize('focusProcess', "Focus Process");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService, 100);
+	}
+
+	public run(processName: string): TPromise<any> {
+		const process = this.debugService.getModel().getProcesses().filter(p => p.name === processName).pop();
+		return this.debugService.focusStackFrameAndEvaluate(null, process).then(() => {
+			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+			if (stackFrame) {
+				return this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, true, false);
+			}
+		});
+	}
+}
+
+// Actions used by the chakra debugger
+export class StepBackAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.stepBack';
+	static LABEL = nls.localize('stepBackDebug', "Step Back");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action step-back', debugService, keybindingService, 50);
+	}
+
+	public run(thread: debug.IThread): TPromise<any> {
+		if (!(thread instanceof Thread)) {
+			thread = this.debugService.getViewModel().focusedThread;
+		}
+
+		return thread ? thread.stepBack() : TPromise.as(null);
+	}
+
+	protected isEnabled(state: debug.State): boolean {
+		const process = this.debugService.getViewModel().focusedProcess;
+		return super.isEnabled(state) && state === debug.State.Stopped &&
+			process && process.session.configuration.capabilities.supportsStepBack;
+	}
+}
+
+export class ReverseContinueAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.reverseContinue';
+	static LABEL = nls.localize('reverseContinue', "Reverse");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action reverse-continue', debugService, keybindingService, 60);
+	}
+
+	public run(thread: debug.IThread): TPromise<any> {
+		if (!(thread instanceof Thread)) {
+			thread = this.debugService.getViewModel().focusedThread;
+		}
+
+		return thread ? thread.reverseContinue() : TPromise.as(null);
+	}
+
+	protected isEnabled(state: debug.State): boolean {
+		const process = this.debugService.getViewModel().focusedProcess;
+		return super.isEnabled(state) && state === debug.State.Stopped &&
+			process && process.session.configuration.capabilities.supportsStepBack;
 	}
 }

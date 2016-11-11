@@ -7,7 +7,6 @@
 
 .monaco-workbench .repl {
 	height: 100%;
-	position: relative;
 	box-sizing: border-box;
 	overflow: hidden;
 }
@@ -96,10 +95,6 @@
 	cursor: pointer;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row .content.input-output-pair > .input.expression {
-	cursor: default;
-}
-
 /* Disable repl hover highlight in tree. */
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  {
 	background-color: inherit;
@@ -136,9 +131,18 @@
 	line-height: 18px;
 }
 
-.monaco-workbench .repl .repl-input {
-	background-color: inherit;
+/* Actions */
+
+.monaco-workbench .debug-action.clear-repl {
+	background: url('clear-repl.svg') center center no-repeat;
 }
+
+.vs-dark .monaco-workbench .debug-action.clear-repl,
+.hc-black .monaco-workbench .debug-action.clear-repl {
+	background: url('clear-repl-inverse.svg') center center no-repeat;
+}
+
+/* Output coloring */
 
 .vs .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .warn {
 	color: #cd9731;

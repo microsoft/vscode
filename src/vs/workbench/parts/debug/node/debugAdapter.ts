@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import strings = require('vs/base/common/strings');
-import objects = require('vs/base/common/objects');
-import paths = require('vs/base/common/paths');
-import platform = require('vs/base/common/platform');
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as strings from 'vs/base/common/strings';
+import * as objects from 'vs/base/common/objects';
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -130,7 +130,7 @@ export class Adapter {
 				}
 				const properties = attributes.properties;
 				properties.type = {
-					enum: [this.type, 'composite'],
+					enum: [this.type],
 					description: nls.localize('debugType', "Type of configuration.")
 				};
 				properties.name = {
@@ -145,11 +145,6 @@ export class Adapter {
 				properties.debugServer = {
 					type: 'number',
 					description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode")
-				};
-				properties.configurationNames = {
-					type: 'array',
-					default: [],
-					description: nls.localize('debugConfigurationNames', "Configurations that will be launched as part of this \"composite\" configuration. Only respected if type of this configuration is \"composite\".")
 				};
 				properties.preLaunchTask = {
 					type: ['string', 'null'],

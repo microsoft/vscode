@@ -136,10 +136,16 @@ class ModelMarkerHandler {
 		let {message, source} = marker;
 
 		if (typeof message === 'string') {
+			message = message.trim();
+
 			if (source) {
-				const indent = new Array(source.length + 1 + 3 /*'[] '.length*/).join(' ');
-				message = nls.localize('diagAndSource', "[{0}] {1}", source, message.replace(/\n/g, '\n' + indent));
+				if (/\n/g.test(message)) {
+					message = nls.localize('diagAndSourceMultiline', "[{0}]\n{1}", source, message);
+				} else {
+					message = nls.localize('diagAndSource', "[{0}] {1}", source, message);
+				}
 			}
+
 			hoverMessage = [{ language: '_', value: message }];
 		}
 

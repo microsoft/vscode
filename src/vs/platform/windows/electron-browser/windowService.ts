@@ -17,6 +17,10 @@ export class WindowService implements IWindowService {
 		@IWindowsService private windowsService: IWindowsService
 	) { }
 
+	getCurrentWindowId(): number {
+		return this.windowId;
+	}
+
 	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void> {
 		return this.windowsService.openFileFolderPicker(this.windowId, forceNewWindow);
 	}
@@ -33,7 +37,55 @@ export class WindowService implements IWindowService {
 		return this.windowsService.reloadWindow(this.windowId);
 	}
 
+	openDevTools(): TPromise<void> {
+		return this.windowsService.openDevTools(this.windowId);
+	}
+
 	toggleDevTools(): TPromise<void> {
 		return this.windowsService.toggleDevTools(this.windowId);
+	}
+
+	closeFolder(): TPromise<void> {
+		return this.windowsService.closeFolder(this.windowId);
+	}
+
+	toggleFullScreen(): TPromise<void> {
+		return this.windowsService.toggleFullScreen(this.windowId);
+	}
+
+	setRepresentedFilename(fileName: string): TPromise<void> {
+		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
+	}
+
+	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
+		return this.windowsService.addToRecentlyOpen(paths);
+	}
+
+	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
+		return this.windowsService.getRecentlyOpen(this.windowId);
+	}
+
+	focusWindow(): TPromise<void> {
+		return this.windowsService.focusWindow(this.windowId);
+	}
+
+	isMaximized(): TPromise<boolean> {
+		return this.windowsService.isMaximized(this.windowId);
+	}
+
+	maximizeWindow(): TPromise<void> {
+		return this.windowsService.maximizeWindow(this.windowId);
+	}
+
+	unmaximizeWindow(): TPromise<void> {
+		return this.windowsService.unmaximizeWindow(this.windowId);
+	}
+
+	setDocumentEdited(flag: boolean): TPromise<void> {
+		return this.windowsService.setDocumentEdited(this.windowId, flag);
+	}
+
+	toggleMenuBar(): TPromise<void> {
+		return this.windowsService.toggleMenuBar(this.windowId);
 	}
 }

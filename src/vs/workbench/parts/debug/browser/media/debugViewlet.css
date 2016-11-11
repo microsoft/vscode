@@ -41,6 +41,15 @@
 	background: url('repl-inverse.svg') center center no-repeat;
 }
 
+.monaco-workbench .debug-action.start {
+	background: url('continue.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-action.start,
+.hc-black .monaco-workbench .debug-action.start {
+	background: url('continue-inverse.svg') center center no-repeat;
+}
+
 /* Debug viewlet trees */
 
 .debug-viewlet .monaco-tree .monaco-tree-row > .content {
@@ -60,7 +69,8 @@
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
-.debug-viewlet .monaco-tree .monaco-tree-row.selected .thread > .state > .label {
+.debug-viewlet .monaco-tree .monaco-tree-row.selected .thread > .state > .label,
+.debug-viewlet .monaco-tree .monaco-tree-row.selected .process > .state > .label {
 	background-color: #ffffff;
 	color: #666;
 }
@@ -121,11 +131,13 @@
 	color: inherit;
 }
 
-.debug-viewlet .debug-call-stack .thread {
+.debug-viewlet .debug-call-stack .thread,
+.debug-viewlet .debug-call-stack .process {
 	display: flex;
 }
 
-.debug-viewlet .debug-call-stack .thread > .state {
+.debug-viewlet .debug-call-stack .thread > .state,
+.debug-viewlet .debug-call-stack .process > .state {
 	flex: 1;
 	text-align: right;
 	overflow: hidden;
@@ -134,7 +146,8 @@
 	text-transform: uppercase;
 }
 
-.debug-viewlet .debug-call-stack .thread > .state > .label {
+.debug-viewlet .debug-call-stack .thread > .state > .label,
+.debug-viewlet .debug-call-stack .process > .state > .label {
 	background: rgba(136, 136, 136, 0.3);
 	border-radius: 2px;
 	font-size: 0.8em;

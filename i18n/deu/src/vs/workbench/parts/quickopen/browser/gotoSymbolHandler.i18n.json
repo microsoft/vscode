@@ -8,7 +8,7 @@
 	"array": "Arrays ({0})",
 	"boolean": "Boolesche Werte ({0})",
 	"cannotRunGotoSymbol": "Zuerst eine Textdatei öffnen, um zu einem Symbol zu navigieren",
-	"cannotRunGotoSymbolInFile": "Leider liegen keine Symbolinformationen für die Datei vor.",
+	"cannotRunGotoSymbolInFile": "Keine Symbolinformationen für die Datei vorhanden.",
 	"class": "Klassen ({0})",
 	"entryAriaLabel": "{0}, Symbole",
 	"enum": "Enumerationen ({0})",

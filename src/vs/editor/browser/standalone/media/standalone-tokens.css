@@ -460,7 +460,7 @@
 /* -------------------------------- Begin vs-dark tokens -------------------------------- */
 
 .monaco-editor.vs-dark .token									{ color: #D4D4D4; }
-.monaco-editor.vs-dark .token.whitespace						{ color: rgba(227, 228, 226, 0.16) !important; }
+.monaco-editor.vs-dark .token.vs-whitespace						{ color: rgba(227, 228, 226, 0.16) !important; }
 
 .monaco-editor.vs-dark .token.builtin.function					{ color: #569CD6; }
 

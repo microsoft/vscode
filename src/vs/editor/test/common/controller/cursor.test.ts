@@ -2726,3 +2726,165 @@ function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor)
 	config.dispose();
 	model.dispose();
 }
+
+class ElectricCharMode extends MockMode {
+	constructor() {
+		super();
+		LanguageConfigurationRegistry.register(this.getId(), {
+			__electricCharacterSupport: {
+				docComment: { open: '/**', close: ' */' }
+			},
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
+			]
+		});
+	}
+}
+
+suite('ElectricCharacter', () => {
+	test('does nothing if no electric char', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				''
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 1);
+			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '*');
+		});
+	});
+
+	test('indents in order to match bracket', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				''
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 1);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  }');
+		});
+	});
+
+	test('unindents in order to match bracket', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'    '
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 5);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  }');
+		});
+	});
+
+	test('matches with correct bracket', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'    if (b) {',
+				'    }',
+				'    '
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 4, 1);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(4), '  }    ');
+		});
+	});
+
+	test('does nothing if bracket does not match', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'    if (b) {',
+				'    }',
+				'  }  '
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 4, 6);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(4), '  }  }');
+		});
+	});
+
+	test('matches bracket even in line with content', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'// hello'
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 1);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  }// hello');
+		});
+	});
+
+	test('is no-op if bracket is lined up', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'  '
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 3);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  }');
+		});
+	});
+
+	test('is no-op if there is non-whitespace text before', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'a'
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 2);
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  a}');
+		});
+	});
+
+	test('appends text', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'/*'
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 3);
+			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '/** */');
+		});
+	});
+
+	test('appends text 2', () => {
+		usingCursor({
+			text: [
+				'  if (a) {',
+				'  /*'
+			],
+			modeId: new ElectricCharMode().getId()
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 5);
+			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(2), '  /** */');
+		});
+	});
+});

@@ -21,7 +21,7 @@ import { LocalExtensionType, IExtensionEnablementService } from 'vs/platform/ext
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -668,8 +668,6 @@ export class DisableActionItem extends DropDownMenuActionItem {
 	}
 }
 
-
-
 export class UpdateAllAction extends Action {
 
 	static ID = 'workbench.extensions.action.updateAllExtensions';
@@ -716,7 +714,7 @@ export class ReloadAction extends Action {
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
-	private reloadMessaage: string = '';
+	reloadMessaage: string = '';
 	private throttler: Throttler;
 
 	constructor(

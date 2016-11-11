@@ -11,11 +11,12 @@ import * as objects from 'vs/base/common/objects';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
+import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 
 export interface IWindowState {
 	width?: number;
@@ -29,6 +30,7 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	allowFullscreen?: boolean;
+	titleBarStyle?: 'native' | 'custom';
 }
 
 export enum WindowMode {
@@ -94,6 +96,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	userEnv: platform.IProcessEnvironment;
 
 	zoomLevel?: number;
+	fullscreen?: boolean;
 
 	workspacePath?: string;
 
@@ -107,6 +110,7 @@ export interface IWindowSettings {
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
 	zoomLevel: number;
+	titleBarStyle: 'native' | 'custom';
 }
 
 export class VSCodeWindow {
@@ -118,6 +122,7 @@ export class VSCodeWindow {
 	private static MIN_HEIGHT = 120;
 
 	private options: IWindowCreationOptions;
+	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;
 	private _id: number;
 	private _win: Electron.BrowserWindow;
@@ -176,9 +181,32 @@ export class VSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
+		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom')) {
+			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
+			if (!isDev) {
+				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+				this.hiddenTitleBarStyle = true;
+			}
+		}
+
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
+
+		// TODO@joao: hook this up to some initialization routine
+		// this causes a race between setting the headers and doing
+		// a request that needs them. chances are low
+		getCommonHTTPHeaders().done(headers => {
+			if (!this._win) {
+				return;
+			}
+
+			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+
+			this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
+			});
+		});
 
 		if (isFullscreenOrMaximized) {
 			this.win.maximize();
@@ -199,6 +227,10 @@ export class VSCodeWindow {
 		}
 
 		this.registerListeners();
+	}
+
+	public hasHiddenTitleBarStyle(): boolean {
+		return this.hiddenTitleBarStyle;
 	}
 
 	public get isPluginDevelopmentHost(): boolean {
@@ -416,6 +448,9 @@ export class VSCodeWindow {
 		if (typeof zoomLevel === 'number') {
 			windowConfiguration.zoomLevel = zoomLevel;
 		}
+
+		// Set fullscreen state
+		windowConfiguration.fullscreen = this._win.isFullScreen();
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);

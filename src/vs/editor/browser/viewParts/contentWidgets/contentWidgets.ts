@@ -154,7 +154,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._widgets[widget.getId()] = widgetData;
 
 		let domNode = widget.getDomNode();
-		domNode.style.position = this._context.configuration.editor.viewInfo.fixedOverflowWidgets ? 'fixed' : 'absolute';
+		domNode.style.position = (this._context.configuration.editor.viewInfo.fixedOverflowWidgets && widget.allowEditorOverflow) ? 'fixed' : 'absolute';
 		StyleMutator.setMaxWidth(domNode, this._contentWidth);
 		StyleMutator.setVisibility(domNode, 'hidden');
 		domNode.setAttribute('widgetId', widget.getId());
@@ -272,9 +272,10 @@ export class ViewContentWidgets extends ViewPart {
 		let INNER_HEIGHT = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
 
 		// Leave some clearance to the bottom
+		let TOP_PADDING = 22;
 		let BOTTOM_PADDING = 22;
 
-		let fitsAbove = (absoluteAboveTop >= 0),
+		let fitsAbove = (absoluteAboveTop >= TOP_PADDING),
 			fitsBelow = (absoluteBelowTop + height <= INNER_HEIGHT - BOTTOM_PADDING);
 
 		if (absoluteLeft + width + 20 > INNER_WIDTH) {

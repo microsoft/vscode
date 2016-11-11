@@ -12,6 +12,7 @@
 	"functionBreakpointsNotSupported": "Punti di interruzione delle funzioni non sono supportati da questo tipo di debug",
 	"loadMoreStackFrames": "Carica altri stack frame",
 	"paused": "in pausa",
+	"process": "Processo",
 	"running": "in esecuzione",
 	"stackFrameAriaLabel": "Riga{1} {2} dello stack frame {0}, stack di chiamate, debug",
 	"thread": "Thread",

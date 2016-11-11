@@ -143,8 +143,9 @@ suite('CompletionModel', function () {
 		assertTopScore('Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
 
 		assertTopScore('-mo', 1, '-ms-ime-mode', '-moz-columns');
-
-		// issue #14861
+		// dupe, issue #14861
 		assertTopScore('convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
+		// dupe, issue #14942
+		assertTopScore('is', 0, 'isValidViewletId', 'import statement');
 	});
 });

@@ -28,6 +28,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -65,7 +66,8 @@ export class TabsTitleControl extends TitleControl {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IMenuService menuService: IMenuService,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
@@ -353,8 +355,7 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.appendChild(tabCloseContainer);
 
 			const bar = new ActionBar(tabCloseContainer, { context: { editor, group }, ariaLabel: nls.localize('araLabelTabActions', "Tab actions") });
-			const action = this.showTabCloseButton ? this.closeEditorAction : this.saveEditorAction;
-			bar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
+			bar.push(this.closeEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorAction) });
 
 			this.tabDisposeables.push(bar);
 
@@ -572,21 +573,33 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {
-		const resources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
+		const resources = extractResources(e).filter(d => d.resource.scheme === 'file' || d.resource.scheme === 'untitled');
 
-		// Open resources if found
+		// Handle resources
 		if (resources.length) {
 			DOM.EventHelper.stop(e, true);
 
-			this.editorService.openEditors(resources.map(resource => {
+			// Add external ones to recently open list
+			const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
+			if (externalResources.length) {
+				this.windowService.addToRecentlyOpen(externalResources.map(resource => {
+					return {
+						path: resource.fsPath,
+						isFile: true
+					};
+				}));
+			}
+
+			// Open in Editor
+			this.editorService.openEditors(resources.map(d => {
 				return {
-					input: { resource, options: { pinned: true, index: targetIndex } },
+					input: { resource: d.resource, options: { pinned: true, index: targetIndex } },
 					position: targetPosition
 				};
-			})).done(() => {
+			})).then(() => {
 				this.editorGroupService.focusGroup(targetPosition);
-				window.focus();
-			}, errors.onUnexpectedError);
+				return this.windowService.focusWindow();
+			}).done(null, errors.onUnexpectedError);
 		}
 	}
 

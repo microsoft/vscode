@@ -226,9 +226,7 @@ export class CallStackController extends BaseDebugController {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		if (element instanceof StackFrame) {
-			this.focusStackFrame(element, event, true);
-		}
+		this.focusStackFrame(element, event, true);
 
 		return super.onLeftClick(tree, element, event);
 	}
@@ -238,9 +236,7 @@ export class CallStackController extends BaseDebugController {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		if (element instanceof StackFrame) {
-			this.focusStackFrame(element, event, false);
-		}
+		this.focusStackFrame(element, event, false);
 
 		return super.onEnter(tree, event);
 	}
@@ -278,19 +274,32 @@ export class CallStackController extends BaseDebugController {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === threadAndProcessIds.processId).pop();
 		const thread = process && process.getThread(threadAndProcessIds.threadId);
 		if (thread) {
-			thread.getCallStack(true)
+			(<Thread>thread).fetchCallStack(true)
 				.done(() => tree.refresh(), errors.onUnexpectedError);
 		}
 
 		return true;
 	}
 
-	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
-		this.debugService.setFocusedStackFrameAndEvaluate(stackFrame).done(null, errors.onUnexpectedError);
+	private focusStackFrame(element: any, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+		let stackFrame: debug.IStackFrame;
+		let process: debug.IProcess;
+		if (element instanceof StackFrame) {
+			stackFrame = element;
+			process = element.thread.process;
+		}
+		if (element instanceof Thread) {
+			process = element.process;
+		}
+		if (element instanceof Process) {
+			process = element;
+		}
+
+		this.debugService.focusStackFrameAndEvaluate(stackFrame, process).done(null, errors.onUnexpectedError);
 
 		if (stackFrame) {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			this.debugService.openOrRevealSource(stackFrame.source.uri, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+			this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 		}
 	}
 }
@@ -367,8 +376,8 @@ export class CallStackDataSource implements IDataSource {
 		return TPromise.as(process.getAllThreads());
 	}
 
-	private getThreadChildren(thread: debug.IThread): TPromise<any> {
-		return thread.getCallStack().then((callStack: any[]) => {
+	private getThreadChildren(thread: Thread): TPromise<any> {
+		return thread.fetchCallStack().then((callStack: any[]) => {
 			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
 				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 			}
@@ -395,6 +404,8 @@ interface IThreadTemplateData {
 interface IProcessTemplateData {
 	process: HTMLElement;
 	name: HTMLElement;
+	state: HTMLElement;
+	stateLabel: HTMLSpanElement;
 }
 
 interface IErrorTemplateData {
@@ -451,6 +462,8 @@ export class CallStackRenderer implements IRenderer {
 			let data: IProcessTemplateData = Object.create(null);
 			data.process = dom.append(container, $('.process'));
 			data.name = dom.append(data.process, $('.name'));
+			data.state = dom.append(data.process, $('.state'));
+			data.stateLabel = dom.append(data.state, $('span.label'));
 
 			return data;
 		}
@@ -504,13 +517,18 @@ export class CallStackRenderer implements IRenderer {
 	private renderProcess(process: debug.IProcess, data: IProcessTemplateData): void {
 		data.process.title = nls.localize({ key: 'process', comment: ['Process is a noun'] }, "Process");
 		data.name.textContent = process.name;
+		const stoppedThread = process.getAllThreads().filter(t => t.stopped).pop();
+
+		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")
+			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 	}
 
 	private renderThread(thread: debug.IThread, data: IThreadTemplateData): void {
 		data.thread.title = nls.localize('thread', "Thread");
 		data.name.textContent = thread.name;
-		data.stateLabel.textContent = thread.stopped ? nls.localize('paused', "paused")
-			: nls.localize({ key: 'running', comment: ['indicates state'] }, "running");
+
+		data.stateLabel.textContent = thread.stopped ? nls.localize('pausedOn', "Paused on {0}", thread.stoppedDetails.reason)
+			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 	}
 
 	private renderError(element: string, data: IErrorTemplateData) {

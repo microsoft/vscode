@@ -21,7 +21,7 @@ import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileOperationResult, FileOperationResult, FileChangesEvent, EventType, IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -118,7 +118,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 
 		// Different Input (Reload)
-		return this.editorService.resolveEditorModel(input, true /* Reload */).then(resolvedModel => {
+		return input.resolve(true).then(resolvedModel => {
 
 			// There is a special case where the text editor has to handle binary file editor input: if a binary file
 			// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text

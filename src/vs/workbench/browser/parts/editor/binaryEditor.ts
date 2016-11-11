@@ -13,7 +13,6 @@ import { ResourceViewer } from 'vs/base/browser/ui/resourceviewer/resourceViewer
 import { EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -28,7 +27,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	private binaryContainer: Builder;
 	private scrollbar: DomScrollableElement;
 
-	constructor(id: string, telemetryService: ITelemetryService, private _editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		telemetryService: ITelemetryService
+	) {
 		super(id, telemetryService);
 
 		this._onMetadataChanged = new Emitter<void>();
@@ -40,10 +42,6 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	public getTitle(): string {
 		return this.getInput() ? this.getInput().getName() : nls.localize('binaryEditor', "Binary Viewer");
-	}
-
-	public get editorService() {
-		return this._editorService;
 	}
 
 	public createEditor(parent: Builder): void {
@@ -72,7 +70,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		}
 
 		// Different Input (Reload)
-		return this._editorService.resolveEditorModel(input, true /* Reload */).then((resolvedModel: EditorModel) => {
+		return input.resolve(true).then((resolvedModel: EditorModel) => {
 
 			// Assert Model instance
 			if (!(resolvedModel instanceof BinaryEditorModel)) {
@@ -141,9 +139,8 @@ export class BinaryResourceEditor extends BaseBinaryResourceEditor {
 	public static ID = 'workbench.editors.binaryResourceEditor';
 
 	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(BinaryResourceEditor.ID, telemetryService, editorService);
+		super(BinaryResourceEditor.ID, telemetryService);
 	}
 }

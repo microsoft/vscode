@@ -25,7 +25,7 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
+	public focusStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -174,6 +174,10 @@ export class MockSession implements debug.ISession {
 	}
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
+		return TPromise.as(null);
+	}
+
+	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
 		return TPromise.as(null);
 	}
 

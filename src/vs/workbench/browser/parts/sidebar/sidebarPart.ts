@@ -12,7 +12,7 @@ import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
 import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Scope } from 'vs/workbench/browser/actionBarRegistry';
@@ -25,7 +25,16 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
-export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
+export interface ISidebar {
+	onDidViewletOpen: Event<IViewlet>;
+	onDidViewletClose: Event<IViewlet>;
+	openViewlet(id: string, focus?: boolean): TPromise<IViewlet>;
+	getActiveViewlet(): IViewlet;
+	getLastActiveViewletId(): string;
+	hideActiveViewlet(): TPromise<void>;
+}
+
+export class SidebarPart extends CompositePart<Viewlet> implements ISidebar {
 
 	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 

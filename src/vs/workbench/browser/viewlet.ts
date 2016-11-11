@@ -17,7 +17,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { CollapsibleView, CollapsibleState, FixedCollapsibleView, IView } from 'vs/base/browser/ui/splitview/splitview';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
@@ -153,8 +153,12 @@ export abstract class ViewerViewlet extends Viewlet {
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number) {
+	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number, public isExternal: boolean = false) {
 		super(moduleId, ctorName, id, name, cssClass, order);
+		if (isExternal) {
+			// Pass viewletId to external viewlet, which doesn't know its id until runtime.
+			this.appendStaticArguments([id]);
+		}
 	}
 }
 

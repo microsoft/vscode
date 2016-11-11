@@ -52,6 +52,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 
 	private cachedConfig: any;
 	private cachedWorkspaceConfig: any;
+	private cachedWorkspaceKeys: string[];
 
 	private bulkFetchFromWorkspacePromise: TPromise<any>;
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IConfigFile> };
@@ -125,6 +126,16 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		};
 	}
 
+	public keys() {
+		const keys = this.baseConfigurationService.keys();
+
+		return {
+			default: keys.default,
+			user: keys.user,
+			workspace: this.cachedWorkspaceKeys
+		};
+	}
+
 	public reloadConfiguration(section?: string): TPromise<any> {
 
 		// Reset caches to ensure we are hitting the disk
@@ -143,6 +154,22 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 			// Consolidate (support *.json files in the workspace settings folder)
 			const workspaceConfig = consolidate(workspaceConfigFiles).contents;
 			this.cachedWorkspaceConfig = workspaceConfig;
+
+			// Cache keys
+			const workspaceConfigKeys = [];
+			Object.keys(workspaceConfigFiles).forEach(path => {
+				if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
+					workspaceConfigKeys.push(...Object.keys(workspaceConfigFiles[path].raw));
+				} else {
+					const workspaceConfigs = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
+					workspaceConfigs.forEach(workspaceConfig => {
+						if (path === WORKSPACE_STANDALONE_CONFIGURATIONS[workspaceConfig]) {
+							workspaceConfigKeys.push(...Object.keys(workspaceConfigFiles[path].raw).map(key => `${workspaceConfig}.${key}`));
+						}
+					});
+				}
+			});
+			this.cachedWorkspaceKeys = workspaceConfigKeys;
 
 			// Override base (global < user) with workspace locals (global < user < workspace)
 			return objects.mixin(

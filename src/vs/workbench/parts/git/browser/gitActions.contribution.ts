@@ -21,14 +21,18 @@ import { IGitService, Status, IFileStatus, StatusType } from 'vs/workbench/parts
 import gitei = require('vs/workbench/parts/git/browser/gitEditorInputs');
 import { getSelectedChanges, applyChangesToModel } from 'vs/workbench/parts/git/common/stageRanges';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import wbar = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction, PushToRemoteAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction, InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction } from './gitActions';
+import {
+	OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction,
+	PushToRemoteAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction,
+	InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction
+} from './gitActions';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 

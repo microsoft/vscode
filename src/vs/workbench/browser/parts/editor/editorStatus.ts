@@ -46,7 +46,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewlet, VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 
 function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {

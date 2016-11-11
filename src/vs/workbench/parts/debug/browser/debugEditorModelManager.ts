@@ -133,17 +133,17 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	private createCallStackDecorations(modelUrlStr: string): editorcommon.IModelDeltaDecoration[] {
 		const result: editorcommon.IModelDeltaDecoration[] = [];
 		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-		if (!focusedStackFrame || !focusedStackFrame.thread.getCachedCallStack()) {
+		if (!focusedStackFrame || !focusedStackFrame.thread.getCallStack()) {
 			return result;
 		}
 
 		// only show decorations for the currently focussed thread.
-		focusedStackFrame.thread.getCachedCallStack().filter(sf => sf.source.uri.toString() === modelUrlStr).forEach(sf => {
+		focusedStackFrame.thread.getCallStack().filter(sf => sf.source.uri.toString() === modelUrlStr).forEach(sf => {
 			const wholeLineRange = createRange(sf.lineNumber, sf.column, sf.lineNumber, Number.MAX_VALUE);
 
 			// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
 			// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
-			if (sf === focusedStackFrame.thread.getCachedCallStack()[0]) {
+			if (sf === focusedStackFrame.thread.getCallStack()[0]) {
 				result.push({
 					options: DebugEditorModelManager.TOP_STACK_FRAME_MARGIN,
 					range: createRange(sf.lineNumber, sf.column, sf.lineNumber, sf.column + 1)

@@ -35,7 +35,7 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
@@ -81,6 +81,8 @@ import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
+import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
@@ -156,12 +158,11 @@ export class WorkbenchShell {
 
 		//crash reporting
 		if (!!product.crashReporter) {
-			const crashReporter = instantiationService.createInstance(CrashReporter, pkg.version, product.commit);
-			crashReporter.start(product.crashReporter);
+			instantiationService.createInstance(CrashReporter, product.crashReporter);
 		}
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
 		this.workbench.startup({
 			onWorkbenchStarted: (customKeybindingsCount) => {
 				this.onWorkbenchStarted(customKeybindingsCount);
@@ -212,7 +213,7 @@ export class WorkbenchShell {
 		}
 	}
 
-	private initServiceCollection(container: HTMLElement): [InstantiationService, ServiceCollection] {
+	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
 		const disposables = new Disposables();
 
 		const mainProcessClient = new ElectronIPCClient(String(`window${remote.getCurrentWindow().id}`));
@@ -350,6 +351,10 @@ export class WorkbenchShell {
 
 		const integrityService = instantiationService.createInstance(IntegrityServiceImpl);
 		serviceCollection.set(IIntegrityService, integrityService);
+
+		const updateChannel = mainProcessClient.getChannel('update');
+		const updateChannelClient = new UpdateChannelClient(updateChannel);
+		serviceCollection.set(IUpdateService, updateChannelClient);
 
 		const urlChannel = mainProcessClient.getChannel('url');
 		const urlChannelClient = new URLChannelClient(urlChannel, windowIPCService.getWindowId());

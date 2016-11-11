@@ -412,12 +412,14 @@ class SuggestAdapter {
 	private _commands: CommandsConverter;
 	private _heapService: ExtHostHeapService;
 	private _provider: vscode.CompletionItemProvider;
+	private _extensionId: string;
 
-	constructor(documents: ExtHostDocuments, commands: CommandsConverter, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider) {
+	constructor(documents: ExtHostDocuments, commands: CommandsConverter, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider, extensionId?: string) {
 		this._documents = documents;
 		this._commands = commands;
 		this._heapService = heapService;
 		this._provider = provider;
+		this._extensionId = extensionId;
 	}
 
 	provideCompletionItems(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
@@ -475,6 +477,10 @@ class SuggestAdapter {
 					// default text edit
 					suggestion.overwriteBefore = pos.character - wordRangeBeforePos.start.character;
 					suggestion.overwriteAfter = 0;
+				}
+
+				if (this._extensionId) {
+					suggestion._extensionId = this._extensionId;
 				}
 
 				// store suggestion
@@ -771,9 +777,9 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	// --- suggestion
 
-	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
+	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[], extensionId?: string): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new SuggestAdapter(this._documents, this._commands.converter, this._heapService, provider);
+		this._adapter[handle] = new SuggestAdapter(this._documents, this._commands.converter, this._heapService, provider, extensionId);
 		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}

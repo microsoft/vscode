@@ -8,7 +8,6 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -28,6 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IFileService, FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -45,7 +45,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -54,7 +54,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowIPCService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/electron-browser/extensionHost';
-import { ipcRenderer as ipc } from 'electron';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -87,6 +86,7 @@ export class DebugService implements debug.IDebugService {
 		@IFileService private fileService: IFileService,
 		@IMessageService private messageService: IMessageService,
 		@IPartService private partService: IPartService,
+		@IWindowsService private windowsService: IWindowsService,
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -240,7 +240,7 @@ export class DebugService implements debug.IDebugService {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
 				if (session && session.configuration.capabilities.supportsConfigurationDoneRequest) {
-					session.configurationDone().done(null, e => {
+					return session.configurationDone().done(null, e => {
 						// Disconnect the debug session on configuration done error #10596
 						if (session) {
 							session.disconnect().done(null, errors.onUnexpectedError);
@@ -249,8 +249,10 @@ export class DebugService implements debug.IDebugService {
 					});
 				}
 			};
+
 			const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
-			this.sendAllBreakpoints(process).done(sendConfigurationDone, sendConfigurationDone);
+			this.sendAllBreakpoints(process).then(sendConfigurationDone, sendConfigurationDone)
+				.done(() => this.fetchThreads(session), errors.onUnexpectedError);
 		}));
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidStop(event => {
@@ -274,17 +276,17 @@ export class DebugService implements debug.IDebugService {
 				const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 				const thread = process && process.getThread(threadId);
 				if (thread) {
-					thread.getCallStack().then(callStack => {
+					thread.fetchCallStack().then(callStack => {
 						if (callStack.length > 0) {
 							// focus first stack frame from top that has source location
 							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);
-							this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+							this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 							this.windowService.getWindow().focus();
 							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
 							return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
 						} else {
-							this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+							this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 						}
 					});
 				}
@@ -293,16 +295,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidThread(event => {
 			if (event.body.reason === 'started') {
-				session.threads().done(response => {
-					if (response && response.body && response.body.threads) {
-						response.body.threads.forEach(thread =>
-							this.model.rawUpdate({
-								sessionId: session.getId(),
-								threadId: thread.id,
-								thread
-							}));
-					}
-				}, errors.onUnexpectedError);
+				this.fetchThreads(session).done(undefined, errors.onUnexpectedError);
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(session.getId(), true, event.body.threadId);
 			}
@@ -352,12 +345,25 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
 			if (session && session.configuration.type === 'extensionHost' && this.sessionStates[session.getId()] === debug.State.RunningNoDebug) {
-				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
+				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (session && session.getId() === event.body.sessionId) {
 				this.onSessionEnd(session);
 			}
 		}));
+	}
+
+	private fetchThreads(session: RawDebugSession): TPromise<any> {
+		return session.threads().then(response => {
+			if (response && response.body && response.body.threads) {
+				response.body.threads.forEach(thread =>
+					this.model.rawUpdate({
+						sessionId: session.getId(),
+						threadId: thread.id,
+						thread
+					}));
+			}
+		});
 	}
 
 	private onOutput(event: DebugProtocol.OutputEvent): void {
@@ -439,21 +445,16 @@ export class DebugService implements debug.IDebugService {
 		return !!this.contextService.getWorkspace();
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
+	public focusStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
 		const processes = this.model.getProcesses();
 		if (!process) {
 			process = focusedStackFrame ? focusedStackFrame.thread.process : processes.length ? processes[0] : null;
-		}
-		if (process && !focusedStackFrame) {
-			const thread = process.getAllThreads().pop();
-			const callStack = thread ? thread.getCachedCallStack() : null;
-			focusedStackFrame = callStack && callStack.length ? callStack[0] : null;
 		}
 
 		this.viewModel.setFocusedStackFrame(focusedStackFrame, process);
 		this._onDidChangeState.fire();
 
-		return this.model.evaluateWatchExpressions(process, focusedStackFrame);
+		return this.model.evaluateWatchExpressions(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame);
 	}
 
 	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void> {
@@ -511,7 +512,7 @@ export class DebugService implements debug.IDebugService {
 		this.telemetryService.publicLog('debugService/addReplExpression');
 		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions again since repl evaluation might have changed some.
-			.then(() => this.setFocusedStackFrameAndEvaluate(this.viewModel.focusedStackFrame));
+			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame));
 	}
 
 	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
@@ -558,12 +559,6 @@ export class DebugService implements debug.IDebugService {
 										this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
 									}
 								});
-							}
-							if (configuration.silentlyAbort) {
-								return;
-							}
-							if (strings.equalsIgnoreCase(configuration.type, 'composite') && configuration.configurationNames) {
-								return TPromise.join(configuration.configurationNames.map(name => this.createProcess(name)));
 							}
 
 							if (!this.configurationManager.getAdapter(configuration.type)) {
@@ -640,6 +635,9 @@ export class DebugService implements debug.IDebugService {
 			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
 			const process = this.model.addProcess(configuration.name, session);
 
+			if (this.model.getProcesses().length > 1) {
+				this.viewModel.setMultiProcessView(true);
+			}
 			if (!this.viewModel.focusedProcess) {
 				this.viewModel.setFocusedStackFrame(null, process);
 				this._onDidChangeState.fire();
@@ -804,7 +802,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		this.model.removeProcess(session.getId());
-		this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+		this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 		this.setStateAndEmit(session.getId(), debug.State.Inactive);
 
 		if (this.model.getProcesses().length === 0) {
@@ -817,6 +815,7 @@ export class DebugService implements debug.IDebugService {
 			this.model.updateBreakpoints(data);
 
 			this.inDebugMode.reset();
+			this.viewModel.setMultiProcessView(false);
 
 			if (!this.partService.isSideBarHidden() && this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {
 				this.viewletService.openViewlet(EXPLORER_VIEWLET_ID).done(null, errors.onUnexpectedError);
@@ -907,7 +906,7 @@ export class DebugService implements debug.IDebugService {
 	private transitionToRunningState(session: RawDebugSession, threadId?: number): void {
 		this.model.clearThreads(session.getId(), false, threadId);
 		this.setStateAndEmit(session.getId(), session.requestType === debug.SessionRequestType.LAUNCH_NO_DEBUG ? debug.State.RunningNoDebug : debug.State.Running);
-		this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+		this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 	}
 
 	private getDebugStringEditorInput(process: debug.IProcess, source: Source, value: string, mtype: string): DebugStringEditorInput {
@@ -951,10 +950,13 @@ export class DebugService implements debug.IDebugService {
 
 			let rawSource: DebugProtocol.Source;
 			for (let t of process.getAllThreads()) {
-				for (let sf of t.getCachedCallStack()) {
-					if (sf.source.uri.toString() === modelUri.toString()) {
-						rawSource = sf.source.raw;
-						break;
+				const callStack = t.getCallStack();
+				if (callStack) {
+					for (let sf of callStack) {
+						if (sf.source.uri.toString() === modelUri.toString()) {
+							rawSource = sf.source.raw;
+							break;
+						}
 					}
 				}
 			}

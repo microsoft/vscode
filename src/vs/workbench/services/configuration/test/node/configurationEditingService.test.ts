@@ -12,7 +12,8 @@ import fs = require('fs');
 import * as json from 'vs/base/common/json';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
-import { ParsedArgs, parseArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
@@ -357,7 +358,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 			if (error) {
 				return cleanUp(done, error);
 			}
-			
+
 			createServices(workspaceDir, globalSettingsFile).done(services => {
 				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
 

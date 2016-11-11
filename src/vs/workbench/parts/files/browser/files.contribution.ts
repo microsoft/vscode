@@ -27,7 +27,7 @@ import { BinaryFileEditor } from 'vs/workbench/parts/files/browser/editors/binar
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
@@ -195,7 +195,12 @@ configurationRegistry.registerConfiguration({
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when you save a file.")
+			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file.")
+		},
+		'files.insertFinalNewline': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it.")
 		},
 		'files.autoSave': {
 			'type': 'string',
