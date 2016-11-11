@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
 import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 
@@ -61,6 +62,12 @@ export class ResourceEditorInput extends EditorInput {
 			this.description = description;
 			this._onDidChangeLabel.fire();
 		}
+	}
+
+	public getTelemetryDescriptor(): any {
+		const descriptor = super.getTelemetryDescriptor();
+		descriptor.resource = telemetryURIDescriptor(this.resource);
+		return descriptor;
 	}
 
 	public resolve(refresh?: boolean): TPromise<ITextEditorModel> {
