@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Builder } from 'vs/base/browser/builder';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { IConfiguration } from 'vs/editor/common/config/defaultConfig';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -74,7 +73,7 @@ const DEFAULT_ANSI_COLORS = {
  * specific test cases can be written.
  */
 export class TerminalConfigHelper implements ITerminalConfigHelper {
-	public panelContainer: Builder;
+	public panelContainer: HTMLElement;
 
 	private _charMeasureElement: HTMLElement;
 
@@ -90,7 +89,8 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
-			this._charMeasureElement = this.panelContainer.div().getHTMLElement();
+			this._charMeasureElement = document.createElement('div');
+			this.panelContainer.appendChild(this._charMeasureElement);
 		}
 		let style = this._charMeasureElement.style;
 		style.display = 'block';

@@ -360,7 +360,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}, []);
 	}
 
-	public layout(dimension: Dimension): void {
+	public layout(dimension: { width: number, height: number }): void {
 		let font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
 			return;
