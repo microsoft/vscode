@@ -160,9 +160,16 @@ export class Placeholder extends Marker {
 
 export class SnippetParser {
 
+	private _enableTextMate: boolean;
+	private _enableInternal: boolean;
 	private _scanner = new Scanner();
 	private _token: Token;
 	private _prevToken: Token;
+
+	constructor(enableTextMate: boolean = true, enableInternal: boolean = true) {
+		this._enableTextMate = enableTextMate;
+		this._enableInternal = enableInternal;
+	}
 
 	escape(value: string): string {
 		return Marker.toString(this.parse(value));
@@ -217,9 +224,9 @@ export class SnippetParser {
 	private _parseAny(marker: Marker[]): boolean {
 		if (this._parseEscaped(marker)) {
 			return true;
-		} else if (this._parseInternal(marker)) {
+		} else if (this._enableInternal && this._parseInternal(marker)) {
 			return true;
-		} else if (this._parseTM(marker)) {
+		} else if (this._enableTextMate && this._parseTM(marker)) {
 			return true;
 		}
 	}
@@ -338,9 +345,9 @@ export class SnippetParser {
 	private _parseEscaped(marker: Marker[]): boolean {
 		if (this._accept(TokenType.Backslash)) {
 			if (// Internal style
-				this._accept(TokenType.CurlyOpen) || this._accept(TokenType.CurlyClose) || this._accept(TokenType.Backslash)
+				(this._enableInternal && (this._accept(TokenType.CurlyOpen) || this._accept(TokenType.CurlyClose) || this._accept(TokenType.Backslash)))
 				// TextMate style
-				|| this._accept(TokenType.Dollar)
+				|| (this._enableTextMate && this._accept(TokenType.Dollar))
 			) {
 				// just consume them
 			}

@@ -1,0 +1,141 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Debug actions widget */
+
+.monaco-workbench .debug-actions-widget {
+	background-color: #F3F3F3;
+	box-shadow: 0 5px 8px #A8A8A8;
+	position: absolute;
+	top: 0;
+	z-index: 200;
+	height: 32px;
+	left: 50%;
+	margin-left: -96px;
+	display: flex;
+	padding-left: 7px;
+}
+
+.monaco-workbench .debug-actions-widget .monaco-action-bar .action-item.select-container {
+	margin-right: 7px;
+}
+
+.monaco-workbench .debug-actions-widget .monaco-action-bar .action-item .select-box {
+	background-color: initial;
+	margin-top: 6px;
+}
+
+.monaco-workbench .debug-actions-widget .drag-area {
+	cursor: -webkit-grab;
+	height: 32px;
+	width: 10px;
+	background: url('drag.svg') center center no-repeat;
+}
+
+.monaco-workbench .debug-actions-widget .drag-area.dragged {
+	cursor: -webkit-grabbing;
+}
+
+.monaco-workbench  .debug-actions-widget .monaco-action-bar .action-item > .action-label {
+	width: 32px;
+	height: 32px;
+	margin-right: 0;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-actions-widget,
+.hc-black .monaco-workbench .debug-actions-widget {
+	background-color: #333;
+	box-shadow: 0 5px 8px #000;
+}
+
+/* Debug actionbar actions */
+
+.monaco-workbench .debug-actions-widget .debug-action.step-over,
+.monaco-workbench .debug-actions-widget .debug-action.step-back {
+	background: url('step-over.svg') center center no-repeat;
+}
+
+.monaco-workbench .debug-actions-widget .debug-action.step-into {
+	background: url('step-into.svg') center center no-repeat;
+}
+
+.monaco-workbench .debug-actions-widget .debug-action.step-out {
+	background: url('step-out.svg') center center no-repeat;
+}
+
+.monaco-workbench .debug-actions-widget .debug-action.step-back,
+.monaco-workbench .debug-actions-widget .debug-action.reverse-continue {
+	transform: scaleX(-1);
+}
+
+.monaco-workbench .debug-actions-widget .debug-action.continue,
+.monaco-workbench .debug-actions-widget .debug-action.reverse-continue {
+	background: url('continue.svg') center center no-repeat;
+}
+
+.monaco-workbench .debug-actions-widget .debug-action.restart {
+	background: url('restart.svg') center center no-repeat;
+}
+
+.monaco-workbench .debug-actions-widget .debug-action.pause {
+	background: url('pause.svg') center center no-repeat;
+}
+
+.monaco-workbench .debug-actions-widget .debug-action.stop {
+	background: url('stop.svg') center center no-repeat;
+}
+
+.monaco-workbench .debug-actions-widget .debug-action.disconnect {
+	background: url('disconnect.svg') center center no-repeat;
+}
+
+/* Dark and hc theme actions */
+
+.vs-dark .monaco-workbench .debug-actions-widget .debug-action.step-over,
+.vs-dark .monaco-workbench .debug-actions-widget .debug-action.step-back,
+.hc-black .monaco-workbench .debug-actions-widget .debug-action.step-over,
+.hc-black .monaco-workbench .debug-actions-widget .debug-action.step-back {
+	background: url('step-over-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-actions-widget .debug-action.step-into,
+.hc-black .monaco-workbench .debug-actions-widget .debug-action.step-into {
+	background: url('step-into-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-actions-widget .debug-action.step-out,
+.hc-black .monaco-workbench .debug-actions-widget .debug-action.step-out {
+	background: url('step-out-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-actions-widget .debug-action.continue,
+.vs-dark .monaco-workbench .debug-actions-widget .debug-action.reverse-continue,
+.hc-black .monaco-workbench .debug-actions-widget .debug-action.continue,
+.hc-black .monaco-workbench .debug-actions-widget .debug-action.reverse-continue {
+	background: url('continue-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-actions-widget .debug-action.restart,
+.hc-black .monaco-workbench .debug-actions-widget .debug-action.restart {
+	background: url('restart-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-actions-widget .debug-action.pause,
+.hc-black .monaco-workbench .debug-actions-widget .debug-action.pause {
+	background: url('pause-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-actions-widget .debug-action.stop,
+.hc-black .monaco-workbench .debug-actions-widget .debug-action.stop {
+	background: url('stop-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-actions-widget .debug-action.disconnect,
+.hc-black .monaco-workbench .debug-actions-widget .debug-action.disconnect {
+	background: url('disconnect-inverse.svg') center center no-repeat;
+}

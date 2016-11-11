@@ -5,8 +5,7 @@
 'use strict';
 
 import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
-import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { IAutoClosingPairConditional, IBracketElectricCharacterContribution, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 
 /**

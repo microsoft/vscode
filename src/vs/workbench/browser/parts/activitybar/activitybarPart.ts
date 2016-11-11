@@ -16,7 +16,7 @@ import { IComposite } from 'vs/workbench/common/composite';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Part } from 'vs/workbench/browser/part';
 import { ActivityAction, ActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/activityService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

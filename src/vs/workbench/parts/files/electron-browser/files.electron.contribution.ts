@@ -17,10 +17,9 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { GlobalNewUntitledFileAction, SaveFileAsAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/electron-browser/dirtyFilesTracker';
 import { OpenFolderAction, OpenFileAction, OpenFileFolderAction, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, GlobalCopyPathAction, CopyPathAction, RevealInOSAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 
 class FileViewerActionContributor extends ActionBarContributor {

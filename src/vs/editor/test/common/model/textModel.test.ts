@@ -53,7 +53,7 @@ function assertGuess(expectedInsertSpaces: boolean, expectedTabSize: number, tex
 
 suite('TextModel.toRawText', () => {
 
-	function testToRawText(text:string, expected:IRawText): void {
+	function testToRawText(text: string, expected: IRawText): void {
 		let actual = TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS);
 		assert.deepEqual(actual, expected);
 	}

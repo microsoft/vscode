@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import strings = require('vs/base/common/strings');
-import objects = require('vs/base/common/objects');
-import paths = require('vs/base/common/paths');
-import platform = require('vs/base/common/platform');
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as strings from 'vs/base/common/strings';
+import * as objects from 'vs/base/common/objects';
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

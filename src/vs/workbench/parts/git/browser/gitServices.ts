@@ -12,7 +12,7 @@ import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
 import * as mime from 'vs/base/common/mime';
 import * as paths from 'vs/base/common/paths';
-import { once } from 'vs/base/common/event';
+import Event, { once } from 'vs/base/common/event';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { EditorInput } from 'vs/workbench/common/editor';
 import {
@@ -36,7 +36,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import Event from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 

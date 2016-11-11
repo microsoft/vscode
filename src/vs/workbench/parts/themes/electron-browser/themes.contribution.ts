@@ -17,7 +17,7 @@ import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickop
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Delayer } from 'vs/base/common/async';
 
 class SelectColorThemeAction extends Action {

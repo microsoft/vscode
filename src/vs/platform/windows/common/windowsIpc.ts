@@ -22,6 +22,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'addToRecentlyOpen', arg: { path: string, isFile?: boolean }[]): TPromise<void>;
+	call(command: 'removeFromRecentlyOpen', arg: string[]): TPromise<void>;
 	call(command: 'getRecentlyOpen', arg: number): TPromise<{ files: string[]; folders: string[]; }>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
 	call(command: 'isMaximized', arg: number): TPromise<boolean>;
@@ -65,6 +66,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addToRecentlyOpen': return this.service.addToRecentlyOpen(arg);
+			case 'removeFromRecentlyOpen': return this.service.removeFromRecentlyOpen(arg);
 			case 'getRecentlyOpen': return this.service.getRecentlyOpen(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
 			case 'isMaximized': return this.service.isMaximized(arg);
@@ -135,6 +137,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
 		return this.channel.call('addToRecentlyOpen', paths);
+	}
+
+	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
+		return this.channel.call('removeFromRecentlyOpen', paths);
 	}
 
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {

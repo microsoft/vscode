@@ -13,6 +13,8 @@ import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
 import { distinct } from 'vs/base/common/arrays';
+import { IRange } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
@@ -43,7 +45,7 @@ export class ValueOutputElement extends OutputElement {
 		public value: string,
 		public severity: severity,
 		public category?: string,
-		public counter: number = 1
+		public counter = 1
 	) {
 		super();
 	}
@@ -53,49 +55,34 @@ export class KeyValueOutputElement extends OutputElement {
 
 	private static MAX_CHILDREN = 1000; // upper bound of children per value
 
-	private children: debug.ITreeElement[];
-	private _valueName: string;
-
 	constructor(public key: string, public valueObj: any, public annotation?: string) {
 		super();
-
-		this._valueName = null;
 	}
 
 	public get value(): string {
-		if (this._valueName === null) {
-			if (this.valueObj === null) {
-				this._valueName = 'null';
-			} else if (Array.isArray(this.valueObj)) {
-				this._valueName = `Array[${this.valueObj.length}]`;
-			} else if (isObject(this.valueObj)) {
-				this._valueName = 'Object';
-			} else if (isString(this.valueObj)) {
-				this._valueName = `"${massageValue(this.valueObj)}"`;
-			} else {
-				this._valueName = String(this.valueObj);
-			}
-
-			if (!this._valueName) {
-				this._valueName = '';
-			}
+		if (this.valueObj === null) {
+			return 'null';
+		} else if (Array.isArray(this.valueObj)) {
+			return `Array[${this.valueObj.length}]`;
+		} else if (isObject(this.valueObj)) {
+			return 'Object';
+		} else if (isString(this.valueObj)) {
+			return `"${massageValue(this.valueObj)}"`;
 		}
 
-		return this._valueName;
+		return String(this.valueObj) || '';
 	}
 
 	public getChildren(): debug.ITreeElement[] {
-		if (!this.children) {
-			if (Array.isArray(this.valueObj)) {
-				this.children = (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map((v, index) => new KeyValueOutputElement(String(index), v, null));
-			} else if (isObject(this.valueObj)) {
-				this.children = Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map(key => new KeyValueOutputElement(key, this.valueObj[key], null));
-			} else {
-				this.children = [];
-			}
+		if (Array.isArray(this.valueObj)) {
+			return (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN)
+				.map((v, index) => new KeyValueOutputElement(String(index), v));
+		} else if (isObject(this.valueObj)) {
+			return Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN)
+				.map(key => new KeyValueOutputElement(key, this.valueObj[key]));
 		}
 
-		return this.children;
+		return [];
 	}
 }
 
@@ -320,7 +307,8 @@ export class Scope extends ExpressionContainer implements debug.IScope {
 		reference: number,
 		public expensive: boolean,
 		namedVariables: number,
-		indexedVariables: number
+		indexedVariables: number,
+		public range?: IRange
 	) {
 		super(stackFrame, reference, `scope:${stackFrame.getId()}:${name}:${reference}`, namedVariables, indexedVariables);
 	}
@@ -349,7 +337,8 @@ export class StackFrame implements debug.IStackFrame {
 		if (!this.scopes) {
 			this.scopes = this.thread.process.session.scopes({ frameId: this.frameId }).then(response => {
 				return response && response.body && response.body.scopes ?
-					response.body.scopes.map(rs => new Scope(this, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables)) : [];
+					response.body.scopes.map(rs => new Scope(this, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
+						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : null)) : [];
 			}, err => []);
 		}
 
@@ -581,7 +570,6 @@ export class Process implements debug.IProcess {
 
 export class Breakpoint implements debug.IBreakpoint {
 
-	public lineNumber: number;
 	public verified: boolean;
 	public idFromAdapter: number;
 	public message: string;
@@ -589,7 +577,7 @@ export class Breakpoint implements debug.IBreakpoint {
 
 	constructor(
 		public uri: uri,
-		public desiredLineNumber: number,
+		public lineNumber: number,
 		public enabled: boolean,
 		public condition: string,
 		public hitCondition: string
@@ -597,7 +585,6 @@ export class Breakpoint implements debug.IBreakpoint {
 		if (enabled === undefined) {
 			this.enabled = true;
 		}
-		this.lineNumber = this.desiredLineNumber;
 		this.verified = false;
 		this.id = generateUuid();
 	}
@@ -766,6 +753,9 @@ export class Model implements debug.IModel {
 				bp.message = bpData.message;
 			}
 		});
+
+		// Remove duplicate breakpoints. This can happen when an adapter updates a line number of a breakpoint
+		this.breakpoints = distinct(this.breakpoints, bp => bp.uri.toString() + bp.lineNumber);
 		this._onDidChangeBreakpoints.fire();
 	}
 
@@ -773,7 +763,6 @@ export class Model implements debug.IModel {
 		element.enabled = enable;
 		if (element instanceof Breakpoint && !element.enabled) {
 			var breakpoint = <Breakpoint>element;
-			breakpoint.lineNumber = breakpoint.desiredLineNumber;
 			breakpoint.verified = false;
 		}
 
@@ -784,7 +773,6 @@ export class Model implements debug.IModel {
 		this.breakpoints.forEach(bp => {
 			bp.enabled = enable;
 			if (!enable) {
-				bp.lineNumber = bp.desiredLineNumber;
 				bp.verified = false;
 			}
 		});

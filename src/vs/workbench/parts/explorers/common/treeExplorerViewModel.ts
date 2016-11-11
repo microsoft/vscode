@@ -5,7 +5,6 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { TreeExplorerNodeProvider } from 'vscode';
 
 export interface InternalTreeExplorerNodeContent {
 	label: string;
@@ -13,22 +12,8 @@ export interface InternalTreeExplorerNodeContent {
 	clickCommand: string;
 }
 
-export class InternalTreeExplorerNode implements InternalTreeExplorerNodeContent {
-	private static idCounter = 1;
-
-	id: number;
-
-	label: string;
-	hasChildren: boolean;
-	clickCommand: string;
-
-	constructor(node: any, provider: TreeExplorerNodeProvider<any>) {
-		this.id = InternalTreeExplorerNode.idCounter++;
-
-		this.label = provider.getLabel ? provider.getLabel(node) : node.toString();
-		this.hasChildren = provider.getHasChildren ? provider.getHasChildren(node) : true;
-		this.clickCommand = provider.getClickCommand ? provider.getClickCommand(node) : null;
-	}
+export interface InternalTreeExplorerNode extends InternalTreeExplorerNodeContent {
+	readonly id: string;
 }
 
 export interface InternalTreeExplorerNodeProvider {

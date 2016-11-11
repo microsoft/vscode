@@ -12,7 +12,7 @@ import nls = require('vs/nls');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
-import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
+import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -20,7 +20,6 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, EventType, FileChangeType } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -33,6 +32,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -292,7 +292,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IIntegrityService integrityService: IIntegrityService,
-		@ITitleService titleService: ITitleService
+		@ITitleService titleService: ITitleService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(editorGroupService, editorService, contextService, configurationService, environmentService, integrityService, titleService);
 
@@ -450,6 +451,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.removeFromHistory(arg1);
 		this.removeFromStack(arg1);
 		this.removeFromRecentlyClosedFiles(arg1);
+		this.removeFromRecentlyOpen(arg1);
 	}
 
 	private removeFromHistory(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
@@ -597,6 +599,16 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private removeFromRecentlyClosedFiles(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
 		this.recentlyClosedFiles = this.recentlyClosedFiles.filter(e => !this.matchesFile(e.resource, arg1));
+	}
+
+	private removeFromRecentlyOpen(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
+		if (arg1 instanceof EditorInput || arg1 instanceof FileChangesEvent) {
+			return; // for now do not delete from file events since recently open are likely out of workspace files for which there are no delete events
+		}
+
+		const input = arg1 as IResourceInput;
+
+		this.windowService.removeFromRecentlyOpen([input.resource.fsPath]);
 	}
 
 	private isFileOpened(resource: URI, group: IEditorGroup): boolean {

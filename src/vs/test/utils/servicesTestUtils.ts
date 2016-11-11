@@ -358,6 +358,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
+		services.set(ITelemetryService, NullTelemetryService);
 
 		let inst = new InstantiationService(services);
 
