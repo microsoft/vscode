@@ -38,7 +38,7 @@ import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browse
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { Query } from '../common/extensionQuery';
-import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
+import { OpenGlobalSettingsAction } from 'vs/workbench/parts/settings/browser/openSettingsActions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
