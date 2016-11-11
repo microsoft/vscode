@@ -14,7 +14,6 @@
 .monaco-workbench > .activitybar > .content .monaco-action-bar {
 	text-align: left;
 	background-color: inherit;
-	zoom: reset; /* prevent zooming */
 }
 
 .vs .monaco-workbench > .activitybar > .content {
