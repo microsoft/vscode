@@ -22,7 +22,7 @@ import { EventService } from 'vs/platform/event/common/eventService';
 import { WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { realpath } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');

@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { getConfigurationKeys } from 'vs/platform/configuration/common/model';

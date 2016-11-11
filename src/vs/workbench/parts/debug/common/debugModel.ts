@@ -388,9 +388,9 @@ export class Thread implements debug.IThread {
 	public stopped: boolean;
 
 	constructor(public process: debug.IProcess, public name: string, public threadId: number) {
-		this.promisedCallStack = undefined;
-		this.stoppedDetails = undefined;
-		this.cachedCallStack = undefined;
+		this.promisedCallStack = null;
+		this.stoppedDetails = null;
+		this.cachedCallStack = null;
 		this.stopped = false;
 	}
 
@@ -399,15 +399,22 @@ export class Thread implements debug.IThread {
 	}
 
 	public clearCallStack(): void {
-		this.promisedCallStack = undefined;
-		this.cachedCallStack = undefined;
+		this.promisedCallStack = null;
+		this.cachedCallStack = null;
 	}
 
-	public getCachedCallStack(): debug.IStackFrame[] {
+	public getCallStack(): debug.IStackFrame[] {
 		return this.cachedCallStack;
 	}
 
-	public getCallStack(getAdditionalStackFrames = false): TPromise<debug.IStackFrame[]> {
+	/**
+	 * Queries the debug adapter for the callstack and returns a promise with
+	 * the stack frames of the callstack.
+	 * If the thread is not stopped, it returns a promise to an empty array.
+	 * Only gets the first 20 stack frames. Calling this method consecutive times
+	 * with getAdditionalStackFrames = true gets the remainder of the call stack.
+	 */
+	public fetchCallStack(getAdditionalStackFrames = false): TPromise<debug.IStackFrame[]> {
 		if (!this.stopped) {
 			return TPromise.as([]);
 		}
@@ -439,7 +446,7 @@ export class Thread implements debug.IThread {
 
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
-					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
+					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), null, null);
 				}
 
 				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
@@ -476,11 +483,15 @@ export class Thread implements debug.IThread {
 	public pause(): TPromise<any> {
 		return this.process.session.pause({ threadId: this.threadId });
 	}
+
+	public reverseContinue(): TPromise<any> {
+		return this.process.session.reverseContinue({ threadId: this.threadId });
+	}
 }
 
 export class Process implements debug.IProcess {
 
-	private threads: { [reference: number]: debug.IThread; };
+	private threads: { [reference: number]: Thread; };
 
 	constructor(public name: string, private _session: debug.ISession & debug.ITreeElement) {
 		this.threads = {};
@@ -490,7 +501,7 @@ export class Process implements debug.IProcess {
 		return this._session;
 	}
 
-	public getThread(threadId: number): debug.IThread {
+	public getThread(threadId: number): Thread {
 		return this.threads[threadId];
 	}
 

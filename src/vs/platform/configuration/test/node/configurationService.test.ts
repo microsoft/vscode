@@ -12,7 +12,8 @@ import fs = require('fs');
 
 import { Registry } from 'vs/platform/platform';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { ParsedArgs, parseArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');

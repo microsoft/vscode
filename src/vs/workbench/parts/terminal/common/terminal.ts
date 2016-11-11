@@ -7,10 +7,8 @@
 import Event from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
-import { Builder, Dimension } from 'vs/base/browser/builder';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
@@ -53,11 +51,32 @@ export interface ITerminalConfiguration {
 	};
 }
 
+export interface ITerminalConfigHelper {
+	getTheme(baseThemeId: string): string[];
+	getFont(): ITerminalFont;
+	getFontLigaturesEnabled(): boolean;
+	getCursorBlink(): boolean;
+	getCommandsToSkipShell(): string[];
+}
+
+export interface ITerminalFont {
+	fontFamily: string;
+	fontSize: string;
+	lineHeight: number;
+	charWidth: number;
+	charHeight: number;
+}
+
+export interface IShell {
+	executable: string;
+	args: string[];
+}
+
 export interface ITerminalService {
 	_serviceBrand: any;
 
 	activeTerminalInstanceIndex: number;
-	configHelper: TerminalConfigHelper;
+	configHelper: ITerminalConfigHelper;
 	onActiveInstanceChanged: Event<string>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
@@ -76,7 +95,7 @@ export interface ITerminalService {
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
-	setContainers(panelContainer: Builder, terminalContainer: HTMLElement): void;
+	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 }
 
 export interface ITerminalInstance {
@@ -181,7 +200,7 @@ export interface ITerminalInstance {
 	 *
 	 * @param dimension The dimensions of the container.
 	 */
-	layout(dimension: Dimension): void;
+	layout(dimension: { width: number, height: number }): void;
 
 	/**
 	 * Sets whether the terminal instance's element is visible in the DOM.

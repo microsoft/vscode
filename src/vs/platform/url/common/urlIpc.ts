@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall, Serializer, Deserializer } from 'vs/base/parts/ipc/common/ipc';
 import { IURLService } from './url';
 import Event, { filterEvent } from 'vs/base/common/event';
-import { IWindowsMainService } from 'vs/code/electron-main/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import URI from 'vs/base/common/uri';
 
 const URISerializer: Serializer<URI, any> = uri => uri.toJSON();
@@ -22,10 +22,14 @@ export interface IURLChannel extends IChannel {
 
 export class URLChannel implements IURLChannel {
 
+	private focusedWindowId: number;
+
 	constructor(
 		private service: IURLService,
-		@IWindowsMainService private windowsService: IWindowsMainService
-	) { }
+		@IWindowsService windowsService: IWindowsService
+	) {
+		windowsService.onWindowFocus(id => this.focusedWindowId = id);
+	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
@@ -42,8 +46,7 @@ export class URLChannel implements IURLChannel {
 	 * and fire it only to the focused window.
 	 */
 	private isWindowFocused(windowID: number): boolean {
-		const window = this.windowsService.getFocusedWindow() || this.windowsService.getLastActiveWindow();
-		return window ? window.id === windowID : false;
+		return this.focusedWindowId === windowID;
 	}
 }
 

@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import * as path from 'path';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { IPager } from 'vs/base/common/paging';
@@ -15,7 +15,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
@@ -25,7 +25,7 @@ import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/ex
 import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
