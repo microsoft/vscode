@@ -190,10 +190,6 @@
 	white-space: pre;
 }
 
-.monaco-workbench .debug-viewlet .monaco-tree-row .breakpoint .expression {
-	white-space: nowrap;
-}
-
 .debug-viewlet .debug-call-stack .error {
 	font-style: italic;
 	text-overflow: ellipsis;
@@ -286,6 +282,7 @@
 	padding-right: 0.8em;
 	display: flex;
 	flex: 1;
+	align-items: center;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint .snippet,
@@ -293,6 +290,10 @@
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.debug-viewlet .debug-breakpoints .monaco-tree-row .breakpoint .expression {
+	white-space: nowrap;
 }
 
 .monaco-workbench.windows debug-viewlet .debug-breakpoints .breakpoint > .checkbox,
