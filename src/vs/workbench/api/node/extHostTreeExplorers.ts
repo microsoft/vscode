@@ -6,6 +6,7 @@
 
 import { localize } from 'vs/nls';
 import { TreeExplorerNodeProvider } from 'vscode';
+import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -15,11 +16,26 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
 import * as modes from 'vs/editor/common/modes';
 
+class InternalTreeExplorerNodeImpl implements InternalTreeExplorerNode {
+
+	readonly id: string;
+	label: string;
+	hasChildren: boolean;
+	clickCommand: string;
+
+	constructor(node: any, provider: TreeExplorerNodeProvider<any>) {
+		this.id = defaultGenerator.nextId();
+		this.label = provider.getLabel ? provider.getLabel(node) : node.toString();
+		this.hasChildren = provider.getHasChildren ? provider.getHasChildren(node) : true;
+		this.clickCommand = provider.getClickCommand ? provider.getClickCommand(node) : null;
+	}
+}
+
 export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 	private _proxy: MainThreadTreeExplorersShape;
 
 	private _extNodeProviders: { [providerId: string]: TreeExplorerNodeProvider<any> };
-	private _extNodeMaps: { [providerId: string]: { [id: number]: any } };
+	private _extNodeMaps: { [providerId: string]: { [id: string]: InternalTreeExplorerNode } };
 
 	constructor(
 		threadService: IThreadService,
@@ -51,8 +67,8 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		}
 
 		return asWinJsPromise(() => provider.provideRootNode()).then(extRootNode => {
-			const extNodeMap = Object.create(null);
-			const internalRootNode = new InternalTreeExplorerNode(extRootNode, provider);
+			const extNodeMap: { [id: string]: InternalTreeExplorerNode } = Object.create(null);
+			const internalRootNode = new InternalTreeExplorerNodeImpl(extRootNode, provider);
 
 			extNodeMap[internalRootNode.id] = extRootNode;
 			this._extNodeMaps[providerId] = extNodeMap;
@@ -76,7 +92,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 
 		return asWinJsPromise(() => provider.resolveChildren(extNode)).then(children => {
 			return children.map(extChild => {
-				const internalChild = new InternalTreeExplorerNode(extChild, provider);
+				const internalChild = new InternalTreeExplorerNodeImpl(extChild, provider);
 				extNodeMap[internalChild.id] = extChild;
 				return internalChild;
 			});
