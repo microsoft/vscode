@@ -22,11 +22,6 @@ import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 
 const $ = dom.$;
-const debugTreeOptions = {
-	indentPixels: 6,
-	twistiePixels: 15,
-	ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
-};
 const MAX_ELEMENTS_SHOWN = 18;
 const MAX_VALUE_RENDER_LENGTH_IN_HOVER = 4096;
 
@@ -36,8 +31,8 @@ export class DebugHoverWidget implements IContentWidget {
 	// editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
+	private _isVisible: boolean;
 	private domNode: HTMLElement;
-	public isVisible: boolean;
 	private tree: ITree;
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
@@ -48,7 +43,24 @@ export class DebugHoverWidget implements IContentWidget {
 	private stoleFocus: boolean;
 	private toDispose: lifecycle.IDisposable[];
 
-	constructor(private editor: ICodeEditor, private debugService: IDebugService, private instantiationService: IInstantiationService) {
+	constructor(private editor: ICodeEditor, private debugService: IDebugService, instantiationService: IInstantiationService) {
+		this.toDispose = [];
+		this.create(instantiationService);
+		this.registerListeners();
+
+		this.valueContainer = dom.append(this.domNode, $('.value'));
+		this.valueContainer.tabIndex = 0;
+		this.valueContainer.setAttribute('role', 'tooltip');
+
+		this._isVisible = false;
+		this.showAtPosition = null;
+		this.highlightDecorations = [];
+
+		this.editor.addContentWidget(this);
+		this.editor.applyFontInfo(this.domNode);
+	}
+
+	private create(instantiationService: IInstantiationService): void {
 		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
@@ -56,23 +68,13 @@ export class DebugHoverWidget implements IContentWidget {
 		this.treeContainer.setAttribute('role', 'tree');
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new VariablesDataSource(),
-			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
-			controller: new DebugHoverController(editor)
-		}, debugTreeOptions);
-
-		this.toDispose = [];
-		this.registerListeners();
-
-		this.valueContainer = dom.append(this.domNode, $('.value'));
-		this.valueContainer.tabIndex = 0;
-		this.valueContainer.setAttribute('role', 'tooltip');
-
-		this.isVisible = false;
-		this.showAtPosition = null;
-		this.highlightDecorations = [];
-
-		this.editor.addContentWidget(this);
-		this.editor.applyFontInfo(this.domNode);
+			renderer: instantiationService.createInstance(VariablesHoverRenderer),
+			controller: new DebugHoverController(this.editor)
+		}, {
+				indentPixels: 6,
+				twistiePixels: 15,
+				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
+			});
 	}
 
 	private registerListeners(): void {
@@ -93,6 +95,10 @@ export class DebugHoverWidget implements IContentWidget {
 				this.editor.applyFontInfo(this.domNode);
 			}
 		}));
+	}
+
+	public isVisible(): boolean {
+		return this._isVisible;
 	}
 
 	public getId(): string {
@@ -212,7 +218,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
 		this.showAtPosition = position;
-		this.isVisible = true;
+		this._isVisible = true;
 		this.stoleFocus = focus;
 
 		if (!expression.hasChildren || forceValueHover) {
@@ -264,11 +270,11 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	public hide(): void {
-		if (!this.isVisible) {
+		if (!this._isVisible) {
 			return;
 		}
 
-		this.isVisible = false;
+		this._isVisible = false;
 		this.editor.deltaDecorations(this.highlightDecorations, []);
 		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
@@ -278,7 +284,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	public getPosition(): IContentWidgetPosition {
-		return this.isVisible ? {
+		return this._isVisible ? {
 			position: this.showAtPosition,
 			preference: [
 				ContentWidgetPositionPreference.ABOVE,
@@ -298,7 +304,7 @@ class DebugHoverController extends DefaultController {
 		super();
 	}
 
-	/* protected */ public onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
+	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin = 'mouse'): boolean {
 		if (element.reference > 0) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();
