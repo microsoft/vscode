@@ -24,7 +24,7 @@ import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Scope } from 'vs/workbench/common/memento';
-import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
+import { IOpenSettingsService } from 'vs/workbench/parts/settings/common/openSettings';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/common/editor';
 import { FileChangeType, FileChangesEvent, EventType as FileEventType } from 'vs/platform/files/common/files';
@@ -103,7 +103,8 @@ export class SearchViewlet extends Viewlet {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IReplaceService private replaceService: IReplaceService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IOpenSettingsService private openSettingsService: IOpenSettingsService
 	) {
 		super(Constants.VIEWLET_ID, telemetryService);
 
@@ -877,8 +878,7 @@ export class SearchViewlet extends Viewlet {
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
-						let action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
-						action.run().done(() => action.dispose(), errors.onUnexpectedError);
+						this.openSettingsService.openWorkspaceSettings().done(() => null, errors.onUnexpectedError);
 					});
 				}
 			} else {

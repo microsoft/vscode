@@ -25,7 +25,7 @@ import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarPosition';
 import 'vs/workbench/browser/actions/toggleEditorLayout';
-import 'vs/workbench/browser/actions/openSettings';
+import 'vs/workbench/parts/settings/browser/openSettings.contribution';
 import 'vs/workbench/browser/actions/configureLocale';
 
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
