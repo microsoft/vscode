@@ -33,6 +33,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -292,7 +293,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IIntegrityService integrityService: IIntegrityService,
-		@ITitleService titleService: ITitleService
+		@ITitleService titleService: ITitleService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(editorGroupService, editorService, contextService, configurationService, environmentService, integrityService, titleService);
 
@@ -450,6 +452,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.removeFromHistory(arg1);
 		this.removeFromStack(arg1);
 		this.removeFromRecentlyClosedFiles(arg1);
+		this.removeFromRecentlyOpen(arg1);
 	}
 
 	private removeFromHistory(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
@@ -597,6 +600,16 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private removeFromRecentlyClosedFiles(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
 		this.recentlyClosedFiles = this.recentlyClosedFiles.filter(e => !this.matchesFile(e.resource, arg1));
+	}
+
+	private removeFromRecentlyOpen(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
+		if (arg1 instanceof EditorInput || arg1 instanceof FileChangesEvent) {
+			return; // for now do not delete from file events since recently open are likely out of workspace files for which there are no delete events
+		}
+
+		const input = arg1 as IResourceInput;
+
+		this.windowService.removeFromRecentlyOpen([input.resource.fsPath]);
 	}
 
 	private isFileOpened(resource: URI, group: IEditorGroup): boolean {

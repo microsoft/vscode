@@ -111,8 +111,8 @@ export interface IWindowsMainService {
 	getWindowCount(): number;
 	addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void;
 	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
-	removeFromRecentPathsList(path: string);
-	removeFromRecentPathsList(path: string[]);
+	removeFromRecentPathsList(path: string): void;
+	removeFromRecentPathsList(paths: string[]): void;
 	clearRecentPathsList(): void;
 	toggleMenuBar(windowId: number): void;
 }

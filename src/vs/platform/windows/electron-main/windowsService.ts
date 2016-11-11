@@ -113,6 +113,12 @@ export class WindowsService implements IWindowsService {
 		return TPromise.as(null);
 	}
 
+	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
+		this.windowsMainService.removeFromRecentPathsList(paths);
+
+		return TPromise.as(null);
+	}
+
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 
