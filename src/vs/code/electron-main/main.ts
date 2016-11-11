@@ -34,7 +34,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
-import { IBackupMainService, BackupService } from 'vs/platform/backup/node/backup';
+import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { BackupMainService } from 'vs/platform/backup/node/backupMainService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -427,7 +428,7 @@ function createServices(args): IInstantiationService {
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
-	services.set(IBackupMainService, new SyncDescriptor(BackupService));
+	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
 
 	return new InstantiationService(services, true);
 }
