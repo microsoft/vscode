@@ -61,7 +61,7 @@ export class TerminalPanel extends Panel {
 
 		this._attachEventListeners();
 
-		this._terminalService.setContainers(this.getContainer(), this._terminalContainer);
+		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
 
 		this._register(this._themeService.onDidColorThemeChange(this._updateTheme.bind(this)));
 		this._register(this._configurationService.onDidUpdateConfiguration(this._updateConfig.bind(this)));

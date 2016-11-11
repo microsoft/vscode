@@ -5,7 +5,6 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
-import { Builder } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -152,7 +151,7 @@ export class TerminalService implements ITerminalService {
 		this.setActiveInstanceByIndex(newIndex);
 	}
 
-	public setContainers(panelContainer: Builder, terminalContainer: HTMLElement): void {
+	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
 		this._terminalInstances.forEach(terminalInstance => {

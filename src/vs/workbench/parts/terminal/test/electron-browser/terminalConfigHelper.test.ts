@@ -6,7 +6,6 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Builder } from 'vs/base/browser/builder';
 import { IConfigurationService, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { Platform } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -25,10 +24,10 @@ class MockConfigurationService implements IConfigurationService {
 }
 
 suite('Workbench - TerminalConfigHelper', () => {
-	let fixture: Builder;
+	let fixture: HTMLElement;
 
 	setup(() => {
-		fixture = new Builder(document.body, false);
+		fixture = document.body;
 	});
 
 	test('TerminalConfigHelper - getFont fontFamily', function () {
