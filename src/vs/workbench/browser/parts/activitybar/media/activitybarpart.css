@@ -5,6 +5,7 @@
 
 .monaco-workbench > .part.activitybar {
 	width: 50px;
+	min-width: 50px;
 }
 
 .monaco-workbench > .activitybar > .content {
@@ -15,6 +16,23 @@
 	text-align: left;
 	background-color: inherit;
 	zoom: reset; /* prevent zooming */
+}
+
+.titlebar-style-hidden .monaco-workbench > .part.activitybar {
+	width: 68px; /* Make some room for window controls */
+	-webkit-app-region: drag; /* Allow dragging on the wider activitybar */
+}
+
+.titlebar-style-hidden .monaco-workbench > .activitybar > .content .monaco-action-bar {
+	-webkit-app-region: no-drag; /* Still allow to click actions without dragging though */
+}
+
+.titlebar-style-hidden .monaco-workbench > .activitybar > .content > .monaco-action-bar.vertical {
+	padding-top: 16px; /* Spacing above the activitybar icons to fit the traffic lights */
+}
+
+.titlebar-style-hidden .monaco-workbench.fullscreen > .activitybar > .content > .monaco-action-bar.vertical {
+	padding-top: 0px; /* Remove spacing above the activitybar icons to as there are no traffic lights fullscreen */
 }
 
 .vs .monaco-workbench > .activitybar > .content {

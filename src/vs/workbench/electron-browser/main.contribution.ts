@@ -171,7 +171,7 @@ let properties: { [path: string]: IJSONSchema; } = {
 if (platform.isMacintosh) {
 	properties['window.titleBarStyle'] = {
 		'type': 'string',
-		'enum': ['native', 'custom'],
+		'enum': ['native', 'custom', 'hidden'],
 		'default': 'custom',
 		'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 	};

@@ -30,7 +30,7 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	allowFullscreen?: boolean;
-	titleBarStyle?: 'native' | 'custom';
+	titleBarStyle?: 'native' | 'custom' | 'hidden';
 }
 
 export enum WindowMode {
@@ -110,7 +110,7 @@ export interface IWindowSettings {
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
 	zoomLevel: number;
-	titleBarStyle: 'native' | 'custom';
+	titleBarStyle: 'native' | 'custom' | 'hidden';
 }
 
 export class VSCodeWindow {
@@ -181,7 +181,7 @@ export class VSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
-		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom')) {
+		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom' || this.options.titleBarStyle === 'hidden')) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isDev) {
 				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647

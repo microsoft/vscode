@@ -569,7 +569,7 @@ export class Workbench implements IPartService {
 	}
 
 	public isTitleBarHidden(): boolean {
-		return !this.getCustomTitleBarStyle() || browser.isFullscreen();
+		return this.getCustomTitleBarStyle() !== 'custom' || browser.isFullscreen();
 	}
 
 	public getTitleBarOffset(): number {
@@ -581,7 +581,7 @@ export class Workbench implements IPartService {
 		return offset;
 	}
 
-	private getCustomTitleBarStyle(): 'custom' {
+	private getCustomTitleBarStyle(): 'custom' | 'hidden' {
 		if (!isMacintosh) {
 			return null; // custom title bar is only supported on Mac currently
 		}
@@ -595,7 +595,7 @@ export class Workbench implements IPartService {
 
 		const style = windowConfig && windowConfig.window && windowConfig.window.titleBarStyle;
 
-		if (style === 'custom') {
+		if (style === 'custom' || style === 'hidden') {
 			return style;
 		}
 
@@ -803,10 +803,12 @@ export class Workbench implements IPartService {
 		}
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
-		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
-		if (hasCustomTitle) {
+		const customTitleStyle = this.getCustomTitleBarStyle();
+		if (customTitleStyle === 'custom') {
 			this._onTitleBarVisibilityChange.fire();
-			this.layout(); // handle title bar when fullscreen changes
+			this.layout(); // custom title needs a relayout
+		} else if (customTitleStyle === 'hidden') {
+			this.layout(); // hidden title needs a relayout
 		}
 	}
 
