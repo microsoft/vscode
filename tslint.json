@@ -53,6 +53,7 @@
 				"target": "**/{common,browser,workbench}/**",
 				"restrictions": "{**/vs/**,assert}"
 			}
-		]
+		],
+		"duplicate-imports": true
 	}
 }

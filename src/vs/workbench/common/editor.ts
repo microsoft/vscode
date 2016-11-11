@@ -9,13 +9,12 @@ import Event, { Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/editorCommon';
+import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions, IModel } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
-import { IModel } from 'vs/editor/common/editorCommon';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
 
 export enum ConfirmResult {

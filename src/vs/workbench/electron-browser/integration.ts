@@ -31,10 +31,9 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import * as browser from 'vs/base/browser/browser';
 import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
-import { Position } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IPath, IOpenFileRequest, IWindowConfiguration } from 'vs/workbench/electron-browser/common';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import URI from 'vs/base/common/uri';

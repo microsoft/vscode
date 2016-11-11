@@ -23,7 +23,7 @@ import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/
 import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions } from 'vs/workbench/common/editor';
 import { SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState } from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupOrientation, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -34,7 +34,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorGroupService, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorStacksModel, EditorGroup, EditorIdentifier } from 'vs/workbench/common/editor/editorStacksModel';

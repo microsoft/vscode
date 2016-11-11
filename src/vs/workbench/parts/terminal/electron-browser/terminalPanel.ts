@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
 import { Action, IAction } from 'vs/base/common/actions';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -18,7 +18,6 @@ import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId } from 'vs/platform/theme/common/themes';
