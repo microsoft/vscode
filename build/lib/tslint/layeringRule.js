@@ -49,6 +49,8 @@ var LayeringRule = (function (_super) {
     }
     LayeringRule.prototype.visitImportDeclaration = function (node) {
         var path = node.moduleSpecifier.getText();
+        // remove quotes
+        path = path.slice(1, -1);
         if (path[0] === '.') {
             path = path_1.join(path_1.dirname(node.getSourceFile().fileName), path);
         }
