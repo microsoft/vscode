@@ -21,6 +21,7 @@ export class LifecycleService implements ILifecycleService {
 	private _onShutdown = new Emitter<void>();
 
 	private _willShutdown: boolean;
+	private _quitRequested: boolean;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -31,6 +32,10 @@ export class LifecycleService implements ILifecycleService {
 
 	public get willShutdown(): boolean {
 		return this._willShutdown;
+	}
+
+	public get quitRequested(): boolean {
+		return this._quitRequested;
 	}
 
 	public get onWillShutdown(): Event<ShutdownEvent> {
@@ -45,11 +50,13 @@ export class LifecycleService implements ILifecycleService {
 		const windowId = this.windowService.getWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
-		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string }) => {
+		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string, quitRequested: boolean }) => {
 			this._willShutdown = true;
+			this._quitRequested = reply.quitRequested;
 
 			// trigger onWillShutdown events and veto collecting
-			this.onBeforeUnload().done(veto => {
+			this.onBeforeUnload(reply.quitRequested).done(veto => {
+				this._quitRequested = false;
 				if (veto) {
 					this._willShutdown = false; // reset this flag since the shutdown has been vetoed!
 					ipc.send(reply.cancelChannel, windowId);
@@ -61,13 +68,14 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	private onBeforeUnload(): TPromise<boolean> {
+	private onBeforeUnload(quitRequested: boolean): TPromise<boolean> {
 		const vetos: (boolean | TPromise<boolean>)[] = [];
 
 		this._onWillShutdown.fire({
 			veto(value) {
 				vetos.push(value);
-			}
+			},
+			quitRequested
 		});
 
 		if (vetos.length === 0) {

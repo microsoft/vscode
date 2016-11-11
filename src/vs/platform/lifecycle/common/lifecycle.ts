@@ -22,6 +22,7 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
 export interface ShutdownEvent {
 
 	veto(value: boolean | TPromise<boolean>): void;
+	quitRequested: boolean;
 }
 
 /**
@@ -39,6 +40,12 @@ export interface ILifecycleService {
 	willShutdown: boolean;
 
 	/**
+	 * A flag indications if the application is in the process of quitting all windows. This will be
+	 * set before the onWillShutdown event is fired and reverted to false afterwards.
+	 */
+	quitRequested: boolean;
+
+	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the
 	 * shutdown.
 	 */
@@ -54,6 +61,7 @@ export interface ILifecycleService {
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
 	willShutdown: false,
+	quitRequested: false,
 	onWillShutdown: () => ({ dispose() { } }),
 	onShutdown: () => ({ dispose() { } })
 };
