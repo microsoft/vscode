@@ -106,7 +106,8 @@ export enum StateChange {
 	SAVE_ERROR,
 	SAVED,
 	REVERTED,
-	ENCODING
+	ENCODING,
+	CONTENT_CHANGE
 }
 
 export class TextFileModelChangeEvent {
@@ -182,6 +183,8 @@ export interface IRawTextContent extends IBaseStat {
 
 export interface ITextFileEditorModelManager {
 
+	onModelDisposed: Event<URI>;
+	onModelContentChanged: Event<TextFileModelChangeEvent>;
 	onModelDirty: Event<TextFileModelChangeEvent>;
 	onModelSaveError: Event<TextFileModelChangeEvent>;
 	onModelSaved: Event<TextFileModelChangeEvent>;
@@ -203,6 +206,7 @@ export interface IModelSaveOptions {
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
+	onDidContentChange: Event<void>;
 	onDidStateChange: Event<StateChange>;
 
 	getResource(): URI;
