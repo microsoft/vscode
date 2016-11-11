@@ -44,10 +44,14 @@
 			}
 		],
 		"import-patterns": [
-			false,
+			true,
 			{
 				"target": "**/{node,electron-browser,electron-main}/**",
 				"restrictions": "**/*"
+			},
+			{
+				"target": "**/**.test.ts",
+				"restrictions": "{**/vs/**,assert,sinon}"
 			},
 			{
 				"target": "**/{common,browser,workbench}/**",
