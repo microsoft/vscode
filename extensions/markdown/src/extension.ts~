@@ -223,7 +223,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		return [];
 	}
 
-	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
+	public provideTextDocumentContent(uri: Uri): Thenable<string> {
 		return vscode.workspace.openTextDocument(vscode.Uri.parse(uri.query)).then(document => {
 			const head = [].concat(
 				'<!DOCTYPE html>',
