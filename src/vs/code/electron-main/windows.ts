@@ -90,6 +90,7 @@ export interface IWindowsMainService {
 	// events
 	onWindowReady: CommonEvent<VSCodeWindow>;
 	onWindowClose: CommonEvent<number>;
+	onPathOpen: CommonEvent<IPath>;
 	onRecentPathsChange: CommonEvent<void>;
 
 	// methods
@@ -142,6 +143,9 @@ export class WindowsManager implements IWindowsMainService {
 
 	private _onWindowClose = new Emitter<number>();
 	onWindowClose: CommonEvent<number> = this._onWindowClose.event;
+
+	private _onPathOpen = new Emitter<IPath>();
+	onPathOpen: CommonEvent<IPath> = this._onPathOpen.event;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -508,6 +512,9 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Register new paths for backup
 		this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(p => p.workspacePath).map(p => Uri.file(p.workspacePath)));
+
+		// Emit events
+		iPathsToOpen.forEach(iPath => this._onPathOpen.fire(iPath));
 
 		return arrays.distinct(usedWindows);
 	}

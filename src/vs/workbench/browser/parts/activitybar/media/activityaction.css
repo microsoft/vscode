@@ -17,13 +17,12 @@
 	margin-right: 0;
 	padding: 0 0 0 50px;
 	box-sizing: border-box;
-	background-position: center center;
+	background-position: 9px center;
 	background-repeat: no-repeat;
 	opacity: 0.6;
 	font-size: 15px;
 	color: white;
 	text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
-	zoom: reset; /* prevent zooming */
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
