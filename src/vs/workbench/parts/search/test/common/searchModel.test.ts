@@ -115,7 +115,7 @@ suite('SearchModel', () => {
 		testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1 });
 
 		assert.ok(target.calledOnce);
-		assert.deepEqual(['searchResultsShown', { count: 3, fileCount: 2 }], target.args[0]);
+		assert.deepEqual(['searchResultsShown', { count: 3, fileCount: 2, options: {}, duration: -1 }], target.args[0]);
 	});
 
 	test('Search Model: Search reports timed telemetry on search when progress is not called', function (done) {

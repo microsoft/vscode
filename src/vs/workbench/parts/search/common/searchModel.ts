@@ -5,6 +5,7 @@
 
 import * as timer from 'vs/base/common/timer';
 import paths = require('vs/base/common/paths');
+import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import errors = require('vs/base/common/errors');
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -555,8 +556,8 @@ export class SearchModel extends Disposable {
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
 		this.currentRequest.then(
-			value => this.onSearchCompleted(value),
-			e => this.onSearchError(e),
+			value => this.onSearchCompleted(value, timerEvent.timeTaken()),
+			e => this.onSearchError(e, timerEvent.timeTaken()),
 			p => {
 				progressEmitter.fire();
 				this.onSearchProgress(p);
@@ -566,17 +567,24 @@ export class SearchModel extends Disposable {
 		return this.currentRequest;
 	}
 
-	private onSearchCompleted(completed: ISearchComplete): ISearchComplete {
+	private onSearchCompleted(completed: ISearchComplete, duration: number): ISearchComplete {
 		if (completed) {
 			this._searchResult.add(completed.results, false);
 		}
-		this.telemetryService.publicLog('searchResultsShown', { count: this._searchResult.count(), fileCount: this._searchResult.fileCount() });
+		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
+		delete options.pattern;
+		this.telemetryService.publicLog('searchResultsShown', {
+			count: this._searchResult.count(),
+			fileCount: this._searchResult.fileCount(),
+			options,
+			duration
+		});
 		return completed;
 	}
 
-	private onSearchError(e: any): void {
+	private onSearchError(e: any, duration: number): void {
 		if (errors.isPromiseCanceledError(e)) {
-			this.onSearchCompleted(null);
+			this.onSearchCompleted(null, duration);
 		}
 	}
 
