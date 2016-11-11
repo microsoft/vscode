@@ -266,8 +266,8 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 
 	private getDocumentContentForPreview(document: vscode.TextDocument): string {
 		const content = document.getText();
-		const yamlFrontMatterPreview = vscode.workspace.getConfiguration('markdown')['yamlFrontMatterPreview'];
-		if (yamlFrontMatterPreview === 'strip') {
+		const previewFrontMatter = vscode.workspace.getConfiguration('markdown')['previewFrontMatter'];
+		if (previewFrontMatter === 'hide') {
 			return content.replace(/^-{3}[ \t]*(\r\n|\n)(.|\r\n|\n)*?(\r\n|\n)-{3}[ \t]*(\r\n|\n)/, '');
 		}
 		return content;

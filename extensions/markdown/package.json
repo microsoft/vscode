@@ -121,10 +121,10 @@
 					"default": [],
 					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview. Relative paths are interpreted relative to the folder open in the explorer. If there is no open folder, they are interpreted relative to the location of the markdown file. All '\\' need to be written as '\\\\'."
 				},
-				"markdown.yamlFrontMatterPreview": {
+				"markdown.previewFrontMatter": {
 					"type": ["string"],
-					"default": "strip",
-					"description": "Sets how YAML front matter should be rendered in the markdown preview. 'strip' removes the front matter, while 'none' treats it as markdown content."
+					"default": "hide",
+					"description": "Sets how YAML front matter should be rendered in the markdown preview. 'hide' removes the front matter. Otherwise, the front matter is treated as markdown content"
 				}
 			}
 		}
