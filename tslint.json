@@ -31,20 +31,27 @@
 				"browser": [
 					"common"
 				],
-				"workbench": [
+				"electron-main": [
 					"common",
-					"browser"
+					"node"
 				],
 				"electron-browser": [
 					"common",
 					"browser",
 					"workbench",
 					"node"
-				],
-				"electron-main": [
-					"common",
-					"node"
 				]
+			}
+		],
+		"import-patterns": [
+			false,
+			{
+				"target": "**/{node,electron-browser,electron-main}/**",
+				"restrictions": "**/*"
+			},
+			{
+				"target": "**/{common,browser,workbench}/**",
+				"restrictions": "{**/vs/**,assert}"
 			}
 		]
 	}

@@ -16,11 +16,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/browser/customTreeExplorerService';
+import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/common/customTreeExplorerService';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
-import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/common/treeExplorerActions';
+import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/treeExplorerActions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class TreeExplorerView extends CollapsibleViewletView {

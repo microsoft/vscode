@@ -39,6 +39,7 @@ import { IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdat
 import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
 export interface IEnvironment {
+	isBuilt: boolean;
 	appSettingsHome: string;
 	disableExtensions: boolean;
 	userExtensionsHome: string;

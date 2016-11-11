@@ -15,7 +15,7 @@ import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
 import { trim } from 'vs/base/common/strings';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
@@ -24,12 +24,10 @@ import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
-import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import CommonEvent, { Emitter, once } from 'vs/base/common/event';
 import product from 'vs/platform/product';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -89,8 +87,7 @@ export interface IWindowsMainService {
 	// events
 	onWindowReady: CommonEvent<VSCodeWindow>;
 	onWindowClose: CommonEvent<number>;
-	onNewWindowOpen: CommonEvent<number>;
-	onWindowFocus: CommonEvent<number>;
+	onPathOpen: CommonEvent<IPath>;
 	onRecentPathsChange: CommonEvent<void>;
 
 	// methods
@@ -120,7 +117,7 @@ export interface IWindowsMainService {
 	toggleMenuBar(windowId: number): void;
 }
 
-export class WindowsManager implements IWindowsMainService, IWindowEventService {
+export class WindowsManager implements IWindowsMainService {
 
 	_serviceBrand: any;
 
@@ -135,12 +132,6 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 	private initialUserEnv: platform.IProcessEnvironment;
 	private windowsState: IWindowsState;
 
-	private _onFocus = new Emitter<number>();
-	onWindowFocus: CommonEvent<number> = this._onFocus.event;
-
-	private _onNewWindow = new Emitter<number>();
-	onNewWindowOpen: CommonEvent<number> = this._onNewWindow.event;
-
 	private _onRecentPathsChange = new Emitter<void>();
 	onRecentPathsChange: CommonEvent<void> = this._onRecentPathsChange.event;
 
@@ -149,6 +140,9 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 
 	private _onWindowClose = new Emitter<number>();
 	onWindowClose: CommonEvent<number> = this._onWindowClose.event;
+
+	private _onPathOpen = new Emitter<IPath>();
+	onPathOpen: CommonEvent<IPath> = this._onPathOpen.event;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -491,6 +485,9 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			}
 		}
 
+		// Emit events
+		iPathsToOpen.forEach(iPath => this._onPathOpen.fire(iPath));
+
 		return arrays.distinct(usedWindows);
 	}
 
@@ -755,9 +752,7 @@ export class WindowsManager implements IWindowsMainService, IWindowEventService 
 			vscodeWindow.win.on('unresponsive', () => this.onWindowError(vscodeWindow, WindowError.UNRESPONSIVE));
 			vscodeWindow.win.on('close', () => this.onBeforeWindowClose(vscodeWindow));
 			vscodeWindow.win.on('closed', () => this.onWindowClosed(vscodeWindow));
-			vscodeWindow.win.on('focus', () => this._onFocus.fire(vscodeWindow.id));
 
-			this._onNewWindow.fire(vscodeWindow.id);
 			// Lifecycle
 			this.lifecycleService.registerWindow(vscodeWindow);
 		}

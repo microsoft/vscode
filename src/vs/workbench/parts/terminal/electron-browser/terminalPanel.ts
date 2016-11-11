@@ -14,8 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalFont } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
@@ -62,7 +61,7 @@ export class TerminalPanel extends Panel {
 
 		this._attachEventListeners();
 
-		this._terminalService.setContainers(this.getContainer(), this._terminalContainer);
+		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
 
 		this._register(this._themeService.onDidColorThemeChange(this._updateTheme.bind(this)));
 		this._register(this._configurationService.onDidUpdateConfiguration(this._updateConfig.bind(this)));

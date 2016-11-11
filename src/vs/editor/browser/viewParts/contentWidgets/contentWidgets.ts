@@ -272,9 +272,10 @@ export class ViewContentWidgets extends ViewPart {
 		let INNER_HEIGHT = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
 
 		// Leave some clearance to the bottom
+		let TOP_PADDING = 22;
 		let BOTTOM_PADDING = 22;
 
-		let fitsAbove = (absoluteAboveTop >= 0),
+		let fitsAbove = (absoluteAboveTop >= TOP_PADDING),
 			fitsBelow = (absoluteBelowTop + height <= INNER_HEIGHT - BOTTOM_PADDING);
 
 		if (absoluteLeft + width + 20 > INNER_WIDTH) {

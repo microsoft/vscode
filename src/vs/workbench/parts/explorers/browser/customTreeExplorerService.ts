@@ -4,27 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import Event, { Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import Event, { Emitter } from 'vs/base/common/event';
-
-export const ICustomTreeExplorerService = createDecorator<ICustomTreeExplorerService>('customTreeExplorerService');
-
-export interface ICustomTreeExplorerService {
-	_serviceBrand: any;
-
-	onTreeExplorerNodeProviderRegistered: Event<String>;
-
-	registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void;
-	hasProvider(providerId: string): boolean;
-
-	provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode>;
-	resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]>;
-	executeCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void>;
-}
+import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/common/customTreeExplorerService';
 
 export class CustomTreeExplorerService implements ICustomTreeExplorerService {
 	public _serviceBrand: any;

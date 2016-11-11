@@ -6,7 +6,6 @@
 'use strict';
 
 import { readFile } from 'vs/base/node/pfs';
-import { asText } from 'vs/base/node/request';
 import * as semver from 'semver';
 import * as path from 'path';
 import Event, { Emitter, chain } from 'vs/base/common/event';
@@ -100,14 +99,6 @@ class Extension implements IExtension {
 		return this.local ? this.local.manifest.description : this.gallery.description;
 	}
 
-	private get readmeUrl(): string {
-		if (this.local && this.local.readmeUrl) {
-			return this.local.readmeUrl;
-		}
-
-		return this.gallery && this.gallery.assets.readme;
-	}
-
 	private get changelogUrl(): string {
 		if (this.local && this.local.changelogUrl) {
 			return this.local.changelogUrl;
@@ -180,25 +171,20 @@ class Extension implements IExtension {
 			return TPromise.as(this.local.manifest);
 		}
 
-		return this.galleryService.getAsset(this.gallery.assets.manifest)
-			.then(asText)
-			.then(raw => JSON.parse(raw) as IExtensionManifest);
+		return this.galleryService.getManifest(this.gallery);
 	}
 
 	getReadme(): TPromise<string> {
-		const readmeUrl = this.readmeUrl;
-
-		if (!readmeUrl) {
-			return TPromise.wrapError('not available');
-		}
-
-		const uri = URI.parse(readmeUrl);
-
-		if (uri.scheme === 'file') {
+		if (this.local && this.local.readmeUrl) {
+			const uri = URI.parse(this.local.readmeUrl);
 			return readFile(uri.fsPath, 'utf8');
 		}
 
-		return this.galleryService.getAsset(readmeUrl).then(asText);
+		if (this.gallery) {
+			return this.galleryService.getReadme(this.gallery);
+		}
+
+		return TPromise.wrapError('not available');
 	}
 
 	getChangelog(): TPromise<string> {
@@ -214,6 +200,7 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
+		// TODO@Joao
 		return TPromise.wrapError('not available');
 	}
 

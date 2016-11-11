@@ -26,7 +26,7 @@ export class AbstractDebugAction extends Action {
 	constructor(
 		id: string, label: string, cssClass: string,
 		@IDebugService protected debugService: IDebugService,
-		@IKeybindingService protected keybindingService: IKeybindingService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		public weight?: number
 	) {
 		super(id, label, cssClass, false);
@@ -39,6 +39,13 @@ export class AbstractDebugAction extends Action {
 
 	public run(e?: any): TPromise<any> {
 		throw new Error('implement me');
+	}
+
+	public get tooltip(): string {
+		const keybinding = this.keybindingService.lookupKeybindings(this.id)[0];
+		const keybindingLabel = keybinding && this.keybindingService.getLabelFor(keybinding);
+
+		return keybindingLabel ? `${this.label} (${keybindingLabel})` : this.label;
 	}
 
 	protected updateLabel(newLabel: string): void {
@@ -67,15 +74,20 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
-		this.toDispose.push(debugService.getViewModel().onDidSelectConfigurationName(configurationName => {
-			if (configurationName) {
-				this.class = 'debug-action configure';
-				this.tooltip = ConfigureAction.LABEL;
-			} else {
-				this.class = 'debug-action configure notification';
-				this.tooltip = nls.localize('launchJsonNeedsConfigurtion', "Configure or Fix 'launch.json'");
-			}
-		}));
+		this.toDispose.push(debugService.getViewModel().onDidSelectConfigurationName(configurationName => this.updateClass()));
+		this.updateClass();
+	}
+
+	public get tooltip(): string {
+		if (this.debugService.getViewModel().selectedConfigurationName) {
+			return ConfigureAction.LABEL;
+		}
+
+		return nls.localize('launchJsonNeedsConfigurtion', "Configure or Fix 'launch.json'");
+	}
+
+	private updateClass(): void {
+		this.class = this.debugService.getViewModel().selectedConfigurationName ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -93,7 +105,7 @@ export class SelectConfigAction extends AbstractDebugAction {
 	}
 
 	public run(configName: string): TPromise<any> {
-		this.debugService.getViewModel().setSelectedConfigurationName(configName);
+		this.debugService.getViewModel().setSelectedConfigurationName(configName === debug.NO_CONFIGURATIONS_LABEL ? null : configName);
 		return TPromise.as(null);
 	}
 }
@@ -205,29 +217,6 @@ export class StepOutAction extends AbstractDebugAction {
 
 	protected isEnabled(state: debug.State): boolean {
 		return super.isEnabled(state) && state === debug.State.Stopped;
-	}
-}
-
-export class StepBackAction extends AbstractDebugAction {
-	static ID = 'workbench.action.debug.stepBack';
-	static LABEL = nls.localize('stepBackDebug', "Step Back");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action step-back', debugService, keybindingService, 50);
-	}
-
-	public run(thread: debug.IThread): TPromise<any> {
-		if (!(thread instanceof Thread)) {
-			thread = this.debugService.getViewModel().focusedThread;
-		}
-
-		return thread.stepBack();
-	}
-
-	protected isEnabled(state: debug.State): boolean {
-		const process = this.debugService.getViewModel().focusedProcess;
-		return super.isEnabled(state) && state === debug.State.Stopped &&
-			process && process.session.configuration.capabilities.supportsStepBack;
 	}
 }
 
@@ -741,5 +730,52 @@ export class FocusProcessAction extends AbstractDebugAction {
 				return this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, true, false);
 			}
 		});
+	}
+}
+
+// Actions used by the chakra debugger
+export class StepBackAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.stepBack';
+	static LABEL = nls.localize('stepBackDebug', "Step Back");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action step-back', debugService, keybindingService, 50);
+	}
+
+	public run(thread: debug.IThread): TPromise<any> {
+		if (!(thread instanceof Thread)) {
+			thread = this.debugService.getViewModel().focusedThread;
+		}
+
+		return thread ? thread.stepBack() : TPromise.as(null);
+	}
+
+	protected isEnabled(state: debug.State): boolean {
+		const process = this.debugService.getViewModel().focusedProcess;
+		return super.isEnabled(state) && state === debug.State.Stopped &&
+			process && process.session.configuration.capabilities.supportsStepBack;
+	}
+}
+
+export class ReverseContinueAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.reverseContinue';
+	static LABEL = nls.localize('reverseContinue', "Reverse");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action reverse-continue', debugService, keybindingService, 60);
+	}
+
+	public run(thread: debug.IThread): TPromise<any> {
+		if (!(thread instanceof Thread)) {
+			thread = this.debugService.getViewModel().focusedThread;
+		}
+
+		return thread ? thread.reverseContinue() : TPromise.as(null);
+	}
+
+	protected isEnabled(state: debug.State): boolean {
+		const process = this.debugService.getViewModel().focusedProcess;
+		return super.isEnabled(state) && state === debug.State.Stopped &&
+			process && process.session.configuration.capabilities.supportsStepBack;
 	}
 }

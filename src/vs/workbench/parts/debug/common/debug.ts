@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
@@ -26,6 +27,7 @@ export const CONTEXT_ON_FIRST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onFi
 export const CONTEXT_ON_LAST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onLastDebugReplLine', false);
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
+export const NO_CONFIGURATIONS_LABEL = nls.localize('noConfigurations', "No Configurations");
 
 // raw
 
@@ -87,9 +89,10 @@ export interface ISession {
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
 	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
 	stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse>;
-	stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse>;
 	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
 	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
+	stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse>;
+	reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse>;
 
 	completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse>;
 	setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse>;
@@ -126,19 +129,10 @@ export interface IThread extends ITreeElement {
 	stoppedDetails: IRawStoppedDetails;
 
 	/**
-	 * Queries the debug adapter for the callstack and returns a promise with
-	 * the stack frames of the callstack.
-	 * If the thread is not stopped, it returns a promise to an empty array.
-	 * Only gets the first 20 stack frames. Calling this method consecutive times
-	 * with getAdditionalStackFrames = true gets the remainder of the call stack.
-	 */
-	getCallStack(getAdditionalStackFrames?: boolean): TPromise<IStackFrame[]>;
-
-	/**
 	 * Gets the callstack if it has already been received from the debug
-	 * adapter, otherwise it returns undefined.
+	 * adapter, otherwise it returns null.
 	 */
-	getCachedCallStack(): IStackFrame[];
+	getCallStack(): IStackFrame[];
 
 	/**
 	 * Invalidates the callstack cache
@@ -157,6 +151,7 @@ export interface IThread extends ITreeElement {
 	stepBack(): TPromise<any>;
 	continue(): TPromise<any>;
 	pause(): TPromise<any>;
+	reverseContinue(): TPromise<any>;
 }
 
 export interface IScope extends IExpressionContainer {

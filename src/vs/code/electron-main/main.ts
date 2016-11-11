@@ -8,14 +8,13 @@
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
+import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/electron-main/paths';
 import { IWindowsMainService, WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
-import { WindowEventChannel } from 'vs/code/common/windowsIpc';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -35,11 +34,11 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -167,6 +166,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const instantiationService2 = instantiationService.createChild(services);
 
 	instantiationService2.invokeFunction(accessor => {
+		// TODO@Joao: unfold this
+		windowsMainService = accessor.get(IWindowsMainService);
+
 		// Register more Main IPC services
 		const launchService = accessor.get(ILaunchService);
 		const launchChannel = new LaunchChannel(launchService);
@@ -184,12 +186,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
 		electronIpcServer.registerChannel('windows', windowsChannel);
-
-		// TODO@Joao revisit this
-		// Register windowEvent
-		windowsMainService = accessor.get(IWindowsMainService);
-		const windowEventChannel = new WindowEventChannel(windowsMainService);
-		sharedProcess.done(client => client.registerChannel('windowEvent', windowEventChannel));
+		sharedProcess.done(client => client.registerChannel('windows', windowsChannel));
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with

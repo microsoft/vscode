@@ -16,7 +16,7 @@ import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegis
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/browser/customTreeExplorerService';
+import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/common/customTreeExplorerService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class TreeDataSource implements IDataSource {

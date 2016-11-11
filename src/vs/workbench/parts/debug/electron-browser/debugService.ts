@@ -276,7 +276,7 @@ export class DebugService implements debug.IDebugService {
 				const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 				const thread = process && process.getThread(threadId);
 				if (thread) {
-					thread.getCallStack().then(callStack => {
+					thread.fetchCallStack().then(callStack => {
 						if (callStack.length > 0) {
 							// focus first stack frame from top that has source location
 							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);
@@ -950,10 +950,13 @@ export class DebugService implements debug.IDebugService {
 
 			let rawSource: DebugProtocol.Source;
 			for (let t of process.getAllThreads()) {
-				for (let sf of t.getCachedCallStack()) {
-					if (sf.source.uri.toString() === modelUri.toString()) {
-						rawSource = sf.source.raw;
-						break;
+				const callStack = t.getCallStack();
+				if (callStack) {
+					for (let sf of callStack) {
+						if (sf.source.uri.toString() === modelUri.toString()) {
+							rawSource = sf.source.raw;
+							break;
+						}
 					}
 				}
 			}
