@@ -76,6 +76,16 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
+	private static _codeSnippetForSuggestion({suggestion}: ICompletionItem): CodeSnippet {
+		if (suggestion.snippetType === 'textmate') {
+			return CodeSnippet.fromTextmate(suggestion.insertText);
+		} else if (suggestion.snippetType === 'internal') {
+			return CodeSnippet.fromInternal(suggestion.insertText);
+		} else {
+			return CodeSnippet.plain(suggestion.insertText);
+		}
+	}
+
 	private onDidSelectItem(item: ICompletionItem): void {
 		if (item) {
 			const {suggestion, position} = item;
@@ -87,9 +97,7 @@ export class SuggestController implements IEditorContribution {
 				this.editor.pushUndoStop();
 			}
 
-			const snippet = suggestion.isTMSnippet
-				? CodeSnippet.fromTextmate(suggestion.insertText)
-				: CodeSnippet.fromInternal(suggestion.insertText);
+			const snippet = SuggestController._codeSnippetForSuggestion(item);
 
 			SnippetController.get(this.editor).run(
 				snippet,
