@@ -52,8 +52,11 @@ class LayeringRule extends Lint.RuleWalker {
 	}
 
 	protected visitImportDeclaration(node: ts.ImportDeclaration): void {
-
 		let path = node.moduleSpecifier.getText();
+
+		// remove quotes
+		path = path.slice(1, -1);
+
 		if (path[0] === '.') {
 			path = join(dirname(node.getSourceFile().fileName), path);
 		}

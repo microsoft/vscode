@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IModel as EditorIModel, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IModel as EditorIModel, IEditorContribution, IRange } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -157,6 +157,7 @@ export interface IThread extends ITreeElement {
 export interface IScope extends IExpressionContainer {
 	name: string;
 	expensive: boolean;
+	range?: IRange;
 }
 
 export interface IStackFrame extends ITreeElement {
@@ -185,7 +186,6 @@ export interface IRawBreakpoint {
 export interface IBreakpoint extends IEnablement {
 	uri: uri;
 	lineNumber: number;
-	desiredLineNumber: number;
 	condition: string;
 	hitCondition: string;
 	verified: boolean;

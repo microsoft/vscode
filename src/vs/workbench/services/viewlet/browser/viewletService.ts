@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import Event, { Emitter } from 'vs/base/common/event';
 import { ISidebar } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { Registry } from 'vs/platform/platform';
 import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';

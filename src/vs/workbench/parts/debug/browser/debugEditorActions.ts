@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 @editorAction
 class ToggleBreakpointAction extends EditorAction {
@@ -101,7 +101,7 @@ class RunToCursorAction extends EditorAction {
 		const oneTimeListener = debugService.getViewModel().focusedProcess.session.onDidEvent(event => {
 			if (event.event === 'stopped' || event.event === 'exit') {
 				const toRemove = debugService.getModel().getBreakpoints()
-					.filter(bp => bp.desiredLineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop();
+					.filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop();
 				if (toRemove) {
 					debugService.removeBreakpoints(toRemove.getId());
 				}

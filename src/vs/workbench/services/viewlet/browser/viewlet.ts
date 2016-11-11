@@ -5,9 +5,9 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event from 'vs/base/common/event';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 
 export const IViewletService = createDecorator<IViewletService>('viewletService');

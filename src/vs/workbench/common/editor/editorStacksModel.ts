@@ -1122,9 +1122,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private handleOnEditorOpened(editor: EditorInput): void {
-		if (this.telemetryService) {
-			this.telemetryService.publicLog('editorOpened', editor.getTelemetryDescriptor());
-		}
+		this.telemetryService.publicLog('editorOpened', editor.getTelemetryDescriptor());
 	}
 
 	private handleOnEditorClosed(event: GroupEvent): void {
@@ -1144,9 +1142,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 			}
 		}
 
-		if (this.telemetryService) {
-			this.telemetryService.publicLog('editorClosed', editor.getTelemetryDescriptor());
-		}
+		this.telemetryService.publicLog('editorClosed', editor.getTelemetryDescriptor());
 	}
 
 	public isOpen(resource: URI): boolean;

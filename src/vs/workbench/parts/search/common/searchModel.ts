@@ -14,15 +14,13 @@ import URI from 'vs/base/common/uri';
 import { LinkedMap } from 'vs/base/common/map';
 import { ArraySet } from 'vs/base/common/set';
 import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
-import * as Search from 'vs/platform/search/common/search';
-import { ISearchProgressItem, ISearchComplete, ISearchQuery } from 'vs/platform/search/common/search';
+import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ISearchService } from 'vs/platform/search/common/search';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
@@ -115,7 +113,7 @@ export class FileMatch extends Disposable {
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 
-	constructor(private _query: Search.IPatternInfo, private _parent: SearchResult, private rawMatch: Search.IFileMatch,
+	constructor(private _query: IPatternInfo, private _parent: SearchResult, private rawMatch: IFileMatch,
 		@IModelService private modelService: IModelService, @IReplaceService private replaceService: IReplaceService) {
 		super();
 		this._resource = this.rawMatch.resource;
@@ -324,7 +322,7 @@ export class SearchResult extends Disposable {
 
 	private _fileMatches: LinkedMap<URI, FileMatch>;
 	private _unDisposedFileMatches: LinkedMap<URI, FileMatch>;
-	private _query: Search.IPatternInfo = null;
+	private _query: IPatternInfo = null;
 	private _showHighlights: boolean;
 	private _replacingAll: boolean = false;
 
@@ -338,7 +336,7 @@ export class SearchResult extends Disposable {
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 	}
 
-	public set query(query: Search.IPatternInfo) {
+	public set query(query: IPatternInfo) {
 		this._query = query;
 	}
 
@@ -346,7 +344,7 @@ export class SearchResult extends Disposable {
 		return this._searchModel;
 	}
 
-	public add(raw: Search.IFileMatch[], silent: boolean = false): void {
+	public add(raw: IFileMatch[], silent: boolean = false): void {
 		let changed: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
 			if (!this._fileMatches.has(rawFileMatch.resource)) {

@@ -24,7 +24,7 @@ function extractCharChangeRepresentation(change, expectedChange): ICharChange {
 	};
 }
 
-function extractLineChangeRepresentation(change, expectedChange): IChange|ILineChange {
+function extractLineChangeRepresentation(change, expectedChange): IChange | ILineChange {
 	if (change.charChanges) {
 		let charChanges: ICharChange[] = [];
 		for (let i = 0; i < change.charChanges.length; i++) {

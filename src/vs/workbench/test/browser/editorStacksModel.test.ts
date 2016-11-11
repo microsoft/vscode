@@ -19,6 +19,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { Registry } from 'vs/platform/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import 'vs/workbench/browser/parts/editor/baseEditor';
 
@@ -27,6 +28,7 @@ function create(): EditorStacksModel {
 	inst.stub(IStorageService, new TestStorageService());
 	inst.stub(ILifecycleService, new TestLifecycleService());
 	inst.stub(IWorkspaceContextService, new TestContextService());
+	inst.stub(ITelemetryService, NullTelemetryService);
 
 	const config = new TestConfigurationService();
 	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
@@ -641,6 +643,7 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(ILifecycleService, new TestLifecycleService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
+		inst.stub(ITelemetryService, NullTelemetryService);
 
 		const config = new TestConfigurationService();
 		inst.stub(IConfigurationService, config);
@@ -1175,6 +1178,8 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);
+		inst.stub(ITelemetryService, NullTelemetryService);
+
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
@@ -1217,6 +1222,8 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);
+		inst.stub(ITelemetryService, NullTelemetryService);
+
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
@@ -1298,6 +1305,8 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);
+		inst.stub(ITelemetryService, NullTelemetryService);
+
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
@@ -1347,6 +1356,8 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);
+		inst.stub(ITelemetryService, NullTelemetryService);
+
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
@@ -1387,6 +1398,8 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IStorageService, new TestStorageService());
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);
+		inst.stub(ITelemetryService, NullTelemetryService);
+
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);

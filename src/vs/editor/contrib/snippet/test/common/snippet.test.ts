@@ -6,110 +6,11 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { CodeSnippet, ICodeSnippet, IPlaceHolder } from 'vs/editor/contrib/snippet/common/snippet';
-import { Marker, Placeholder, Text, SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
+import { CodeSnippet, ICodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 
 suite('Editor Contrib - Snippets', () => {
 
-	class CodeSnippetGlue implements ICodeSnippet {
-
-		static fromValue(s: string): ICodeSnippet {
-			const marker = new SnippetParser().parse(s);
-			return new CodeSnippetGlue(marker);
-		}
-
-		lines: string[] = [];
-		placeHolders: IPlaceHolder[] = [];
-		finishPlaceHolderIndex: number = -1;
-
-		private constructor(marker: Marker[]) {
-
-			let placeHolders: { [id: string]: IPlaceHolder } = Object.create(null);
-
-			const stack = [...marker];
-			this.lines = [''];
-			while (stack.length > 0) {
-				const marker = stack.shift();
-				if (marker instanceof Text) {
-					// simple text
-					let lines = marker.string.split(/\r\n|\n|\r/);
-					this.lines[this.lines.length - 1] += lines.shift();
-					this.lines.push(...lines);
-
-				} else if (marker instanceof Placeholder) {
-
-					let placeHolder = placeHolders[marker.name];
-					if (!placeHolder) {
-						placeHolders[marker.name] = placeHolder = {
-							id: marker.name,
-							value: Marker.toString(marker.value),
-							occurences: []
-						};
-						this.placeHolders.push(placeHolder);
-					}
-
-					const line = this.lines.length;
-					const column = this.lines[line - 1].length + 1;
-
-					placeHolder.occurences.push({
-						startLineNumber: line,
-						startColumn: column,
-						endLineNumber: line,
-						endColumn: column + Marker.toString(marker.value).length
-					});
-
-					stack.unshift(...marker.value);
-				}
-			}
-
-			// Named variables (e.g. {greeting} and {greeting:Hello}) are sorted first, followed by
-			// tab-stops and numeric variables (e.g. $1, $2, ${3:foo}) which are sorted in ascending order
-			this.placeHolders.sort((a, b) => {
-				let nonIntegerId = (v: IPlaceHolder) => !(/^\d+$/).test(v.id);
-				let isFinishPlaceHolder = (v: IPlaceHolder) => (v.id === '' && v.value === '') || v.id === '0';
-
-				// Sort finish placeholder last
-				if (isFinishPlaceHolder(a)) {
-					return 1;
-				} else if (isFinishPlaceHolder(b)) {
-					return -1;
-				}
-
-				// Sort named placeholders first
-				if (nonIntegerId(a) && nonIntegerId(b)) {
-					return 0;
-				} else if (nonIntegerId(a)) {
-					return -1;
-				} else if (nonIntegerId(b)) {
-					return 1;
-				}
-
-				if (a.id === b.id) {
-					return 0;
-				}
-
-				return Number(a.id) < Number(b.id) ? -1 : 1;
-			});
-
-			if (this.placeHolders.length > 0 && this.placeHolders[this.placeHolders.length - 1].value === '') {
-				this.finishPlaceHolderIndex = this.placeHolders.length - 1;
-
-				if (this.placeHolders[this.placeHolders.length - 1].id === '0') {
-					this.placeHolders[this.placeHolders.length - 1].id = '';
-				}
-			}
-		}
-	}
-
-	function assertInternalAndTextmate(internal: string, textmate: string, callback: (snippet: ICodeSnippet) => any, ignoreNewParser = false) {
-
-		// new world
-		callback(CodeSnippetGlue.fromValue(internal));
-		if (!ignoreNewParser) {
-			callback(CodeSnippetGlue.fromValue(textmate));
-		}
-
-		// old world
+	function assertInternalAndTextmate(internal: string, textmate: string, callback: (snippet: ICodeSnippet) => any) {
 		callback(CodeSnippet.fromInternal(internal));
 		callback(CodeSnippet.fromTextmate(textmate));
 	}
@@ -180,8 +81,7 @@ suite('Editor Contrib - Snippets', () => {
 				assert.equal(snippet.placeHolders[1].id, 'second');
 				assert.equal(snippet.placeHolders[2].id, '1');
 				assert.equal(snippet.placeHolders[3].id, '2');
-			},
-			true // ignore new parser, the above is invalid TM syntax
+			}
 		);
 	});
 

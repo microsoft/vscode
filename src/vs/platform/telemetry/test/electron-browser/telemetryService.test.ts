@@ -441,7 +441,7 @@ suite('TelemetryService', () => {
 		try {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
-			let service = new TelemetryService({ appender: testAppender, piiPaths: [ settings.personalInfo + '/resources/app/' ] }, undefined);
+			let service = new TelemetryService({ appender: testAppender, piiPaths: [settings.personalInfo + '/resources/app/'] }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 			let dangerousPathWithImportantInfoError: any = new Error(settings.dangerousPathWithImportantInfo);
@@ -472,7 +472,7 @@ suite('TelemetryService', () => {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: testAppender, piiPaths: [ settings.personalInfo + '/resources/app/' ] }, undefined);
+		let service = new TelemetryService({ appender: testAppender, piiPaths: [settings.personalInfo + '/resources/app/'] }, undefined);
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		let dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
