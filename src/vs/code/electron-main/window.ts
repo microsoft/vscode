@@ -197,6 +197,15 @@ export class VSCodeWindow {
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
 
+		// Set relaunch command
+		if (platform.isWindows && product.win32AppUserModelId) {
+			this._win.setAppDetails({
+				appId: product.win32AppUserModelId,
+				relaunchCommand: '"' + process.execPath + '"' + ' -n',
+				relaunchDisplayName: product.nameLong
+			});
+		}
+
 		// TODO@joao: hook this up to some initialization routine
 		// this causes a race between setting the headers and doing
 		// a request that needs them. chances are low
