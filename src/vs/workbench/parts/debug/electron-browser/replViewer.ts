@@ -94,11 +94,10 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
 		// group 0: the full thing :)
 		// group 1: absolute path
-		// group 2: drive letter on windows with trailing backslash or leading slash on mac/linux
-		// group 3: line number
-		// group 4: column number
+		// group 2: line number
+		// group 3: column number
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/(?:file:\/\/)?((\/|[a-zA-Z]:\\)?[^\(\)<>\'\"\[\]:]+):(\d+)(?::(\d+))?/
+		/(?:at |^|[\(<\'\"\[])(?:file:\/\/)?((?:(?:\/|[a-zA-Z]:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?):(\d+)(?::(\d+))?(?:$|[\)>\'\"\]])/
 	];
 
 	private static LINE_HEIGHT_PX = 18;
@@ -362,7 +361,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 				link.textContent = text.substr(match.index, match[0].length);
 				link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
 				linkContainer.appendChild(link);
-				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, Number(match[3]), match[4] && Number(match[4]));
+				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, Number(match[2]), match[3] && Number(match[3]));
 
 				let textAfterLink = text.substr(match.index + match[0].length);
 				if (textAfterLink) {
