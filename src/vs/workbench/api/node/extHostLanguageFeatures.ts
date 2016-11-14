@@ -427,7 +427,7 @@ class SuggestAdapter {
 	}
 
 	private static _isBefore180(extension: IExtensionDescription): boolean {
-		if (extension) {
+		if (extension && extension.engines) {
 			let versionOrRange = extension.engines.vscode;
 			if (semver.valid(versionOrRange)) {
 				return semver.lt(versionOrRange, '1.8.0');
