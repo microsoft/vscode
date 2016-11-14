@@ -27,6 +27,7 @@ import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDe
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 const $ = dom.$;
 
@@ -106,7 +107,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private characterWidth: number;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		// noop
 	}
@@ -342,9 +344,9 @@ export class ReplExpressionsRenderer implements IRenderer {
 			pattern.lastIndex = 0; // the holy grail of software development
 
 			const match = pattern.exec(text);
-			let resource = null;
+			let resource: uri = null;
 			try {
-				resource = match && uri.file(match[1]);
+				resource = match && this.contextService.toResource(match[1]);
 			} catch (e) { }
 
 			if (resource) {
