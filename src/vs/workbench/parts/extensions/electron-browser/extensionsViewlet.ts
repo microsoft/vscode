@@ -302,17 +302,18 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended:workspace/g, '').trim().toLowerCase();
-		const names = this.tipsService.getWorkspaceRecommendations()
-			.filter(name => name.toLowerCase().indexOf(value) > -1);
+		return this.tipsService.getWorkspaceRecommendations()
+			.then(recommendations => {
+				const names = recommendations.filter(name => name.toLowerCase().indexOf(value) > -1);
+				this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
 
-		this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
+				if (!names.length) {
+					return TPromise.as(new PagedModel([]));
+				}
 
-		if (!names.length) {
-			return TPromise.as(new PagedModel([]));
-		}
-
-		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-			.then(result => new PagedModel(result));
+				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+					.then(result => new PagedModel(result));
+			});
 	}
 
 	private openExtension(extension: IExtension): void {
