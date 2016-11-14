@@ -157,9 +157,10 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		let restorePromise: TPromise<string>;
 		if (this.hasBackupToRestore) {
 			// TODO: Pass in only Untitled-x into the constructor, evaluate whether there is a backup here.
-			const restoreResource = URI.from({ scheme: 'file', path: this.resource.fsPath });
+			const restoreResource = this.backupFileService.getBackupResource(this.resource);
 			restorePromise = this.textFileService.resolveTextContent(restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
-			this.resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: paths.basename(this.resource.fsPath) });
+
+			// If the resource restored from backup it doesn't have an associated file path
 			this.hasAssociatedFilePath = false;
 		} else {
 			restorePromise = TPromise.as('');
