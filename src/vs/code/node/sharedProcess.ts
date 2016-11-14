@@ -24,7 +24,8 @@ const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 function _spawnSharedProcess(initData: ISharedProcessInitData, options: ISharedProcessOptions): cp.ChildProcess {
 	const execArgv = [];
 	const env = assign({}, process.env, {
-		AMD_ENTRYPOINT: 'vs/code/node/sharedProcessMain'
+		AMD_ENTRYPOINT: 'vs/code/node/sharedProcessMain',
+		ELECTRON_NO_ASAR: '1'
 	});
 
 	if (options.allowOutput) {

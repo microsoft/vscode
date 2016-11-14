@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import { IStorageService } from 'vs/code/electron-main/storage';
-import { shell, screen, BrowserWindow } from 'electron';
+import { shell, screen, BrowserWindow, systemPreferences } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
@@ -99,6 +99,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
+	highContrast?: boolean;
 
 	workspacePath?: string;
 
@@ -158,7 +159,9 @@ export class VSCodeWindow {
 		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
-		const usesLightTheme = /vs($| )/.test(this.storageService.getItem<string>(VSCodeWindow.colorThemeStorageKey));
+		const themeId = this.storageService.getItem<string>(VSCodeWindow.colorThemeStorageKey);
+		const usesLightTheme = /vs($| )/.test(themeId);
+		const usesHighContrastTheme = /hc-black($| )/.test(themeId) || (platform.isWindows && systemPreferences.isInvertedColorScheme());
 		if (!global.windowShow) {
 			global.windowShow = Date.now();
 		}
@@ -171,7 +174,7 @@ export class VSCodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
+			backgroundColor: usesHighContrastTheme ? '#000000' : usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
@@ -369,6 +372,17 @@ export class VSCodeWindow {
 			this.sendWhenReady('vscode:leaveFullScreen');
 		});
 
+		// React to HC color scheme changes (Windows)
+		if (platform.isWindows) {
+			systemPreferences.on('inverted-color-scheme-changed', () => {
+				if (systemPreferences.isInvertedColorScheme()) {
+					this.sendWhenReady('vscode:enterHighContrast');
+				} else {
+					this.sendWhenReady('vscode:leaveHighContrast');
+				}
+			});
+		}
+
 		// Window Failed to load
 		this._win.webContents.on('did-fail-load', (event: Event, errorCode: string, errorDescription: string) => {
 			console.warn('[electron event]: fail to load, ', errorDescription);
@@ -462,6 +476,9 @@ export class VSCodeWindow {
 
 		// Set fullscreen state
 		windowConfiguration.fullscreen = this._win.isFullScreen();
+
+		// Set High Contrast state
+		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme();
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);
