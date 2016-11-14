@@ -820,8 +820,8 @@ export interface IEditorStacksModel {
 	positionOfGroup(group: IEditorGroup): Position;
 	groupAt(position: Position): IEditorGroup;
 
-	next(): IEditorIdentifier;
-	previous(): IEditorIdentifier;
+	next(jumpGroups: boolean): IEditorIdentifier;
+	previous(jumpGroups: boolean): IEditorIdentifier;
 
 	isOpen(editor: IEditorInput): boolean;
 	isOpen(resource: URI): boolean;
