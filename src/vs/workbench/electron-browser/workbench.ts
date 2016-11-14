@@ -255,7 +255,7 @@ export class Workbench implements IPartService {
 			if (!this.sideBarHidden) {
 				let viewletIdToRestore: string;
 
-				if (this.shouldRestoreLastOpenedViewlet) {
+				if (this.shouldRestoreLastOpenedViewlet()) {
 					viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
 				}
 
