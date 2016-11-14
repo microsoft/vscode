@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import * as labels from 'vs/base/common/labels';
 import { Delayer } from 'vs/base/common/async';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { JSONVisitor, visit, parse, parseTree, findNodeAtLocation } from 'vs/base/common/json';
 import { Registry } from 'vs/platform/platform';
 import { hasClass, getDomNodePagePosition } from 'vs/base/browser/dom';
@@ -37,7 +37,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigu
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IOpenSettingsService } from 'vs/workbench/parts/settings/common/openSettings';
 import { DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/settings/browser/defaultSettingsEditors';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const SETTINGS_INFO_IGNORE_KEY = 'settings.workspace.info.ignore';
 
@@ -52,7 +52,11 @@ interface IWorkbenchSettingsConfiguration {
 export class OpenSettingsService extends Disposable implements IOpenSettingsService {
 
 	_serviceBrand: any;
-	private defaultSettingsActionsRenderer: DefaultSettingsActionsRenderer;
+
+	private configurationTarget: ConfigurationTarget = null;
+	private defaultSettingsActionsRenderer: SettingsActionsRenderer;
+	private userSettingsActionsRenderer: SettingsActionsRenderer;
+	private workspaceSettingsActionsRenderer: SettingsActionsRenderer;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -66,23 +70,22 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IModelService modelService: IModelService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
 	) {
 		super();
-		this._register(modelService.onModelAdded(model => this.bindToModel(model)));
-	}
-
-	private bindToModel(model: editorCommon.IModel) {
-		const configurationTarget = this.getConfigurationTarget(model.uri);
-		if (configurationTarget !== null) {
-			const disposables: IDisposable[] = [];
-			disposables.push(model.onDidChangeContent(() => {
-				if (this.defaultSettingsActionsRenderer) {
-					this.defaultSettingsActionsRenderer.render(configurationTarget);
+		this._register(this.editorGroupService.onEditorsChanged(() => {
+			const activeEditor = this.editorService.getActiveEditor();
+			if (activeEditor) {
+				const editorInput = asFileEditorInput(activeEditor.input);
+				if (editorInput) {
+					const configurationTarget = this.getConfigurationTarget(editorInput.getResource());
+					if (configurationTarget !== null) {
+						this.configurationTarget = configurationTarget;
+					}
 				}
-			}));
-			disposables.push(model.onWillDispose(() => dispose(disposables)));
-		}
+			}
+		}));
 	}
 
 	openGlobalSettings(): TPromise<void> {
@@ -176,7 +179,7 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 			const emptySettingsContents = this.getEmptyEditableSettingsContent(configurationTarget);
 			const settingsResource = this.getEditableSettingsURI(configurationTarget);
 			return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.configurationService), settingsResource, emptySettingsContents)
-				.then(editors => null /*this.renderActionsForDefaultSettings(editors[0], editors[1], configurationTarget)*/);
+				.then(editors => this.renderActionsForDefaultSettings(editors[0]));
 		}
 		return this.openEditableSettings(configurationTarget).then(() => null);
 	}
@@ -215,56 +218,95 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 			resource.fsPath === this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE).fsPath ? ConfigurationTarget.WORKSPACE : null;
 	}
 
-	protected renderActionsForDefaultSettings(defaultSettingsEditor: IEditor, settingsEditor: IEditor, configurationTarget: ConfigurationTarget) {
+	private renderActionsForDefaultSettings(defaultSettingsEditor: IEditor) {
 		const defaultSettingsEditorControl = <ICodeEditor>defaultSettingsEditor.getControl();
 		if (!this.defaultSettingsActionsRenderer) {
-			this.defaultSettingsActionsRenderer = this.instantiationService.createInstance(DefaultSettingsActionsRenderer, defaultSettingsEditorControl, this);
-			let disposables: IDisposable[] = [];
-			this.editorGroupService.onEditorsChanged(() => {
-				const activeEditor = this.editorService.getActiveEditor();
-				if (activeEditor) {
-					const editorInput = asFileEditorInput(activeEditor.input);
-					if (editorInput) {
-						const configurationTarget = this.getConfigurationTarget(editorInput.getResource());
-						if (configurationTarget !== null) {
-							this.defaultSettingsActionsRenderer.render(configurationTarget);
-						}
-					}
-				}
-			}, disposables);
-			defaultSettingsEditorControl.onDidDispose(() => {
+			this.defaultSettingsActionsRenderer = this.instantiationService.createInstance(SettingsActionsRenderer, defaultSettingsEditorControl, this.copyConfiguration.bind(this));
+			const disposable = defaultSettingsEditorControl.getModel().onWillDispose(() => {
 				this.defaultSettingsActionsRenderer.dispose();
 				this.defaultSettingsActionsRenderer = null;
-				dispose(disposables);
+				dispose(disposable);
 			});
 		}
-		this.defaultSettingsActionsRenderer.render(configurationTarget);
+		this.defaultSettingsActionsRenderer.render();
+	}
+
+	protected renderActionsForUserSettingsEditor(settingsEditor: IEditor) {
+		const settingsEditorControl = <ICodeEditor>settingsEditor.getControl();
+		if (!this.userSettingsActionsRenderer) {
+			this.userSettingsActionsRenderer = this.instantiationService.createInstance(SettingsActionsRenderer, settingsEditorControl, this.copyConfiguration.bind(this));
+			const disposable = settingsEditorControl.getModel().onWillDispose(() => {
+				this.userSettingsActionsRenderer.dispose();
+				this.userSettingsActionsRenderer = null;
+				dispose(disposable);
+			});
+		}
+		this.userSettingsActionsRenderer.render();
+	}
+
+	protected renderActionsForWorkspaceSettingsEditor(settingsEditor: IEditor) {
+		const settingsEditorControl = <ICodeEditor>settingsEditor.getControl();
+		if (!this.workspaceSettingsActionsRenderer) {
+			this.workspaceSettingsActionsRenderer = this.instantiationService.createInstance(SettingsActionsRenderer, settingsEditorControl, this.copyConfiguration.bind(this));
+			const disposable = settingsEditorControl.getModel().onWillDispose(() => {
+				this.workspaceSettingsActionsRenderer.dispose();
+				this.workspaceSettingsActionsRenderer = null;
+				dispose(disposable);
+			});
+		}
+		this.workspaceSettingsActionsRenderer.render();
+	}
+
+	private copyConfiguration(configurationValue: IConfigurationValue) {
+		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [configurationValue.key] });
+		this.openEditableSettings(this.configurationTarget, true).then(editor => {
+			const editorControl = <ICodeEditor>editor.getControl();
+			const disposable = editorControl.onDidChangeModelContent(() => {
+				new Delayer(100).trigger((): any => {
+					editorControl.focus();
+					editorControl.setSelection(this.getSelectionRange(configurationValue.key, editorControl.getModel()));
+				});
+				disposable.dispose();
+			});
+			this.configurationEditingService.writeConfiguration(this.configurationTarget, configurationValue)
+				.then(null, error => this.messageService.show(Severity.Error, error));
+		});
+	}
+
+	private getSelectionRange(setting: string, model: editorCommon.IModel): editorCommon.IRange {
+		const tree = parseTree(model.getValue());
+		const node = findNodeAtLocation(tree, [setting]);
+		const position = model.getPositionAt(node.offset);
+		return {
+			startLineNumber: position.lineNumber,
+			startColumn: position.column,
+			endLineNumber: position.lineNumber,
+			endColumn: position.column + node.length
+		};
 	}
 }
 
-class DefaultSettingsActionsRenderer extends Disposable {
+class SettingsActionsRenderer extends Disposable {
 
 	private decorationIds: string[] = [];
-	private configurationTarget: ConfigurationTarget;
 	private configurationsMap: Map<string, IConfigurationNode>;
 
-	constructor(private defaultSettingsEditor: ICodeEditor,
-		private openSettingsService: OpenSettingsService,
+	constructor(private settingsEditor: ICodeEditor,
+		private copyConfiguration: (configurationValue: IConfigurationValue) => void,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super();
-		this._register(this.defaultSettingsEditor.onMouseUp(e => this.onEditorMouseUp(e)));
+		this._register(this.settingsEditor.onMouseUp(e => this.onEditorMouseUp(e)));
+		this._register(this.settingsEditor.getModel().onDidChangeContent(() => this.render()));
 	}
 
-	public render(configurationTarget: ConfigurationTarget): void {
-		this.configurationTarget = configurationTarget;
-		const defaultSettingsModel = this.defaultSettingsEditor.getModel();
+	public render(): void {
+		const defaultSettingsModel = this.settingsEditor.getModel();
 		if (defaultSettingsModel) {
 			defaultSettingsModel.changeDecorations(changeAccessor => {
 				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
@@ -276,7 +318,7 @@ class DefaultSettingsActionsRenderer extends Disposable {
 	}
 
 	private createDecorations(): editorCommon.IModelDeltaDecoration[] {
-		const defaultSettingsModel = this.defaultSettingsEditor.getModel();
+		const settingsModel = this.settingsEditor.getModel();
 		let result: editorCommon.IModelDeltaDecoration[] = [];
 		let parsingConfigurations = false;
 		let parsingConfiguration = false;
@@ -290,7 +332,7 @@ class DefaultSettingsActionsRenderer extends Disposable {
 			},
 			onObjectProperty: (property: string, offset: number, length: number) => {
 				if (!parsingConfiguration) {
-					result.push(this.createDecoration(property, offset, defaultSettingsModel));
+					result.push(this.createDecoration(property, offset, settingsModel));
 				}
 			},
 			onObjectEnd: () => {
@@ -301,7 +343,7 @@ class DefaultSettingsActionsRenderer extends Disposable {
 				}
 			},
 		};
-		visit(defaultSettingsModel.getValue(), visitor);
+		visit(settingsModel.getValue(), visitor);
 		return result;
 	}
 
@@ -313,7 +355,7 @@ class DefaultSettingsActionsRenderer extends Disposable {
 			startLineNumber: position.lineNumber,
 			startColumn: maxColumn,
 			endLineNumber: position.lineNumber,
-			endColumn: maxColumn + 1
+			endColumn: maxColumn
 		};
 		return {
 			range, options: {
@@ -365,7 +407,7 @@ class DefaultSettingsActionsRenderer extends Disposable {
 	}
 
 	private onClick(e: IEditorMouseEvent) {
-		const model = this.defaultSettingsEditor.getModel();
+		const model = this.settingsEditor.getModel();
 		const setting = parse('{' + model.getLineContent(e.target.range.startLineNumber) + '}');
 		const key = Object.keys(setting)[0];
 		let value = setting[key];
@@ -380,8 +422,7 @@ class DefaultSettingsActionsRenderer extends Disposable {
 			});
 			return;
 		}
-		value = jsonSchema.type === 'string' ? '' : value;
-		this.copySetting({ key, value });
+		this.copyConfiguration({ key, value });
 	}
 
 	private getActions(key: string, jsonSchema: IJSONSchema): IAction[] {
@@ -391,14 +432,14 @@ class DefaultSettingsActionsRenderer extends Disposable {
 				label: 'true',
 				enabled: true,
 				run: () => {
-					this.copySetting({ key, value: true });
+					this.copyConfiguration({ key, value: true });
 				}
 			}, <IAction>{
 				id: 'falsyValue',
 				label: 'false',
 				enabled: true,
 				run: () => {
-					this.copySetting({ key, value: false });
+					this.copyConfiguration({ key, value: false });
 				}
 			}];
 		}
@@ -409,38 +450,11 @@ class DefaultSettingsActionsRenderer extends Disposable {
 					label: value,
 					enabled: true,
 					run: () => {
-						this.copySetting({ key, value });
+						this.copyConfiguration({ key, value });
 					}
 				};
 			});
 		}
 		return null;
-	}
-
-	private copySetting(configurationValue: IConfigurationValue) {
-		this.openSettingsService.openEditableSettings(this.configurationTarget, true).then(editor => {
-			const editorControl = <ICodeEditor>editor.getControl();
-			const disposable = editorControl.onDidChangeModelContent(() => {
-				new Delayer(100).trigger((): any => {
-					editorControl.focus();
-					editorControl.setSelection(this.getSelectionRange(configurationValue.key, editorControl.getModel()));
-				});
-				disposable.dispose();
-			});
-			this.configurationEditingService.writeConfiguration(this.configurationTarget, configurationValue)
-				.then(null, error => this.messageService.show(Severity.Error, error));
-		});
-	}
-
-	private getSelectionRange(setting: string, model: editorCommon.IModel): editorCommon.IRange {
-		const tree = parseTree(model.getValue());
-		const node = findNodeAtLocation(tree, [setting]);
-		const position = model.getPositionAt(node.offset);
-		return {
-			startLineNumber: position.lineNumber,
-			startColumn: position.column,
-			endLineNumber: position.lineNumber,
-			endColumn: position.column + node.length
-		};
 	}
 }
