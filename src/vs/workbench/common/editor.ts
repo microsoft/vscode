@@ -205,7 +205,7 @@ export abstract class EditorInput implements IEditorInput {
 	 *
 	 * Subclasses should extend if they can contribute.
 	 */
-	public getTelemetryDescriptor(): any {
+	public getTelemetryDescriptor(): { [key: string]: any; } {
 		return { typeId: this.getTypeId() };
 	}
 
@@ -350,9 +350,9 @@ export abstract class UntitledEditorInput extends EditorInput implements IEncodi
 
 	abstract setEncoding(encoding: string, mode: EncodingMode): void;
 
-	public getTelemetryDescriptor(): any {
+	public getTelemetryDescriptor(): { [key: string]: any; } {
 		const descriptor = super.getTelemetryDescriptor();
-		descriptor.resource = telemetryURIDescriptor(this.getResource());
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
 		return descriptor;
 	}
 }
@@ -395,7 +395,7 @@ export abstract class BaseDiffEditorInput extends EditorInput {
 		return this._modifiedInput.revert();
 	}
 
-	public getTelemetryDescriptor(): any {
+	public getTelemetryDescriptor(): { [key: string]: any; } {
 		const descriptor = this._modifiedInput.getTelemetryDescriptor();
 		return objects.assign(descriptor, super.getTelemetryDescriptor());
 	}

@@ -151,7 +151,13 @@ export function anonymize(input: string): string {
 	return r;
 }
 
-export function telemetryURIDescriptor(uri: URI): any {
+export interface URIDescriptor {
+	mimeType?: string;
+	ext?: string;
+	path?: string;
+}
+
+export function telemetryURIDescriptor(uri: URI): URIDescriptor {
 	const fsPath = uri && uri.fsPath;
 	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: anonymize(fsPath) } : {};
 }
