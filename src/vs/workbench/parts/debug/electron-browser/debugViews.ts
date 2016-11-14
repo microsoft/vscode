@@ -35,6 +35,7 @@ function renderViewTree(container: HTMLElement): HTMLElement {
 }
 
 const $ = builder.$;
+const twistiePixels = 20;
 
 export class VariablesView extends CollapsibleViewletView {
 
@@ -88,7 +89,7 @@ export class VariablesView extends CollapsibleViewletView {
 			controller: new viewer.VariablesController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
 		}, {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
-				twistiePixels: 20
+				twistiePixels
 			});
 
 		const viewModel = this.debugService.getViewModel();
@@ -185,7 +186,7 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 			dnd: this.instantiationService.createInstance(viewer.WatchExpressionsDragAndDrop)
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
-				twistiePixels: 20
+				twistiePixels
 			});
 
 		this.tree.setInput(this.debugService.getModel());
@@ -303,7 +304,7 @@ export class CallStackView extends CollapsibleViewletView {
 			controller: new viewer.CallStackController(this.debugService, this.contextMenuService, actionProvider)
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
-				twistiePixels: 20
+				twistiePixels
 			});
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => {
@@ -387,7 +388,7 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 			}
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'breakpointsAriaTreeLabel' }, "Debug Breakpoints"),
-				twistiePixels: 0
+				twistiePixels
 			});
 
 		const debugModel = this.debugService.getModel();
