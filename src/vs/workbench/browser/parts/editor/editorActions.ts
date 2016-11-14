@@ -870,7 +870,7 @@ export class OpenNextEditor extends BaseNavigateEditorAction {
 	}
 
 	protected navigate(): IEditorIdentifier {
-		return this.editorGroupService.getStacksModel().next();
+		return this.editorGroupService.getStacksModel().next(true /* jump groups */);
 	}
 }
 
@@ -889,7 +889,45 @@ export class OpenPreviousEditor extends BaseNavigateEditorAction {
 	}
 
 	protected navigate(): IEditorIdentifier {
-		return this.editorGroupService.getStacksModel().previous();
+		return this.editorGroupService.getStacksModel().previous(true /* jump groups */);
+	}
+}
+
+export class OpenNextEditorInGroup extends BaseNavigateEditorAction {
+
+	public static ID = 'workbench.action.nextEditorInGroup';
+	public static LABEL = nls.localize('nextEditorInGroup', "Open Next Editor in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, editorGroupService, editorService);
+	}
+
+	protected navigate(): IEditorIdentifier {
+		return this.editorGroupService.getStacksModel().next(false /* do NOT jump groups */);
+	}
+}
+
+export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
+
+	public static ID = 'workbench.action.previousEditorInGroup';
+	public static LABEL = nls.localize('openPreviousEditorInGroup', "Open Previous Editor in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, editorGroupService, editorService);
+	}
+
+	protected navigate(): IEditorIdentifier {
+		return this.editorGroupService.getStacksModel().previous(false /* do NOT jump groups */);
 	}
 }
 
@@ -1081,7 +1119,7 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 export class OpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorInGroupAction {
 
 	public static ID = 'workbench.action.openPreviousRecentlyUsedEditorInGroup';
-	public static LABEL = nls.localize('openPreviousEditorInGroup', "Open Previous Recently Used Editor in Group");
+	public static LABEL = nls.localize('openPreviousRecentlyUsedEditorInGroup', "Open Previous Recently Used Editor in Group");
 
 	constructor(
 		id: string,
@@ -1097,7 +1135,7 @@ export class OpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickOpenEd
 export class OpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorInGroupAction {
 
 	public static ID = 'workbench.action.openNextRecentlyUsedEditorInGroup';
-	public static LABEL = nls.localize('openNextEditorInGroup', "Open Next Recently Used Editor in Group");
+	public static LABEL = nls.localize('openNextRecentlyUsedEditorInGroup', "Open Next Recently Used Editor in Group");
 
 	constructor(
 		id: string,

@@ -9,19 +9,48 @@ import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as collections from 'vs/base/common/collections';
+import { Marker, Placeholder, Text, SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
+
+export interface IIndentationNormalizer {
+	normalizeIndentation(str: string): string;
+}
+
+export interface IPlaceHolder {
+	id: string;
+	value: string;
+	occurences: editorCommon.IRange[];
+}
+
+export interface ICodeSnippet {
+	lines: string[];
+	placeHolders: IPlaceHolder[];
+	finishPlaceHolderIndex: number;
+}
 
 export class CodeSnippet implements ICodeSnippet {
 
 	static fromTextmate(template: string): CodeSnippet {
-		return TextMateSnippetParser.parse(template);
+		const marker = new SnippetParser(true, false).parse(template);
+		const snippet = new CodeSnippet();
+		_fillCodeSnippetFromMarker(snippet, marker);
+		return snippet;
+	}
+
+	static fromInternal(template: string): CodeSnippet {
+		const marker = new SnippetParser(false, true).parse(template);
+		const snippet = new CodeSnippet();
+		_fillCodeSnippetFromMarker(snippet, marker);
+		return snippet;
+	}
+
+	static plain(template: string): CodeSnippet {
+		const snippet = new CodeSnippet();
+		snippet.lines = template.split(/\r\n|\n|\r/);
+		return snippet;
 	}
 
 	static fromEmmet(template: string): CodeSnippet {
 		return EmmetSnippetParser.parse(template);
-	}
-
-	static fromInternal(template: string): CodeSnippet {
-		return InternalFormatSnippetParser.parse(template);
 	}
 
 	public lines: string[] = [];
@@ -345,14 +374,6 @@ const InternalFormatSnippetParser = new class implements ISnippetParser {
 	}
 };
 
-const TextMateSnippetParser = new class implements ISnippetParser {
-
-	parse(template: string): CodeSnippet {
-		template = _convertExternalSnippet(template, ExternalSnippetType.TextMateSnippet);
-		return InternalFormatSnippetParser.parse(template);
-	}
-};
-
 const EmmetSnippetParser = new class implements ISnippetParser {
 
 	parse(template: string): CodeSnippet {
@@ -444,20 +465,87 @@ function _convertExternalSnippet(snippet: string, snippetType: ExternalSnippetTy
 	return convertedSnippet;
 };
 
+function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 
+	let placeHolders: { [id: string]: IPlaceHolder } = Object.create(null);
 
-export interface IPlaceHolder {
-	id: string;
-	value: string;
-	occurences: editorCommon.IRange[];
-}
+	const stack = [...marker];
+	snippet.lines = [''];
+	while (stack.length > 0) {
+		const marker = stack.shift();
+		if (marker instanceof Text) {
+			// simple text
+			let lines = marker.string.split(/\r\n|\n|\r/);
+			snippet.lines[snippet.lines.length - 1] += lines.shift();
+			snippet.lines.push(...lines);
 
-export interface IIndentationNormalizer {
-	normalizeIndentation(str: string): string;
-}
+		} else if (marker instanceof Placeholder) {
+			// TODO - not every variable is a placeholder
+			let placeHolder = placeHolders[marker.name];
+			if (!placeHolder) {
+				placeHolders[marker.name] = placeHolder = {
+					id: marker.name,
+					value: Marker.toString(marker.value),
+					occurences: []
+				};
+				snippet.placeHolders.push(placeHolder);
+			}
 
-export interface ICodeSnippet {
-	lines: string[];
-	placeHolders: IPlaceHolder[];
-	finishPlaceHolderIndex: number;
+			const line = snippet.lines.length;
+			const column = snippet.lines[line - 1].length + 1;
+
+			placeHolder.occurences.push({
+				startLineNumber: line,
+				startColumn: column,
+				endLineNumber: line,
+				endColumn: column + Marker.toString(marker.value).length // TODO multiline placeholders!
+			});
+
+			if (marker.value.length === 0 && marker.isVariable) {
+				// HACK this is here because we falsy advertise
+				// ${foo} as placeholder in our own snippets
+				stack.unshift(new Text(marker.name));
+
+			} else {
+				stack.unshift(...marker.value);
+			}
+		}
+	}
+
+	// Named variables (e.g. {greeting} and {greeting:Hello}) are sorted first, followed by
+	// tab-stops and numeric variables (e.g. $1, $2, ${3:foo}) which are sorted in ascending order
+	snippet.placeHolders.sort((a, b) => {
+		let nonIntegerId = (v: IPlaceHolder) => !(/^\d+$/).test(v.id);
+		let isFinishPlaceHolder = (v: IPlaceHolder) => (v.id === '' && v.value === '') || v.id === '0';
+
+		// Sort finish placeholder last
+		if (isFinishPlaceHolder(a)) {
+			return 1;
+		} else if (isFinishPlaceHolder(b)) {
+			return -1;
+		}
+
+		// Sort named placeholders first
+		if (nonIntegerId(a) && nonIntegerId(b)) {
+			return 0;
+		} else if (nonIntegerId(a)) {
+			return -1;
+		} else if (nonIntegerId(b)) {
+			return 1;
+		}
+
+		if (a.id === b.id) {
+			return 0;
+		}
+
+		return Number(a.id) < Number(b.id) ? -1 : 1;
+	});
+
+	if (snippet.placeHolders.length > 0 && snippet.placeHolders[snippet.placeHolders.length - 1].value === '') {
+		snippet.finishPlaceHolderIndex = snippet.placeHolders.length - 1;
+
+		if (snippet.placeHolders[snippet.placeHolders.length - 1].id === '0') {
+			snippet.placeHolders[snippet.placeHolders.length - 1].id = '';
+		}
+	}
 }

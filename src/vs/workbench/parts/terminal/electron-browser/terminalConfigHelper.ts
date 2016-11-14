@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { IConfiguration } from 'vs/editor/common/config/defaultConfig';
+import { IConfiguration, DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShell } from 'vs/workbench/parts/terminal/common/terminal';
 import { Platform } from 'vs/base/common/platform';

@@ -6,9 +6,8 @@
 
 import { MarkedString, CompletionItemKind, CompletionItem } from 'vscode-languageserver';
 import Strings = require('../utils/strings');
-import { XHRResponse, getErrorStatusDescription } from 'request-light';
+import { XHRResponse, getErrorStatusDescription, xhr } from 'request-light';
 import { JSONWorkerContribution, JSONPath, CompletionsCollector } from 'vscode-json-languageservice';
-import { xhr } from 'request-light';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();

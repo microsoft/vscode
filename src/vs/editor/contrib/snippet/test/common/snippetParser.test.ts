@@ -84,9 +84,16 @@ suite('SnippetParser', () => {
 		assert.equal(actual, expected);
 	}
 
-	function assertMarker(value: string, ...ctors: Function[]) {
-		const p = new SnippetParser();
-		const marker = p.parse(value);
+	function assertMarker(marker: Marker[], ...ctors: Function[]);
+	function assertMarker(value: string, ...ctors: Function[]);
+	function assertMarker(valueOrMarker: Marker[] | string, ...ctors: Function[]) {
+		let marker: Marker[];
+		if (typeof valueOrMarker === 'string') {
+			const p = new SnippetParser();
+			marker = p.parse(valueOrMarker);
+		} else {
+			marker = valueOrMarker;
+		}
 		while (marker.length > 0) {
 			let m = marker.pop();
 			let ctor = ctors.pop();
@@ -122,12 +129,16 @@ suite('SnippetParser', () => {
 		assertEscape('far{{id:bern {{id2:basel}}}}boo', 'farbern baselboo');
 	});
 
-
 	test('Parser, placeholder', () => {
 		assertEscapeAndMarker('farboo', 'farboo', Text);
 		assertEscapeAndMarker('far{{}}boo', 'farboo', Text, Placeholder, Text);
 		assertEscapeAndMarker('far{{123}}boo', 'far123boo', Text, Placeholder, Text);
 		assertEscapeAndMarker('far\\{{123}}boo', 'far{{123}}boo', Text);
+	});
+
+	test('Parser, literal code', () => {
+		assertEscapeAndMarker('far`123`boo', 'far`123`boo', Text);
+		assertEscapeAndMarker('far\\`123\\`boo', 'far\\`123\\`boo', Text);
 	});
 
 	test('Parser, variables/tabstop', () => {
@@ -149,8 +160,30 @@ suite('SnippetParser', () => {
 		assertEscapeAndMarker('${1:bar${2:foobar}', '${1:barfoobar', Text, Placeholder);
 	});
 
+	test('Parser, only textmate', () => {
+		const p = new SnippetParser(true, false);
+		assertMarker(p.parse('far{{}}boo'), Text);
+		assertMarker(p.parse('far{{123}}boo'), Text);
+		assertMarker(p.parse('far\\{{123}}boo'), Text);
+
+		assertMarker(p.parse('far$0boo'), Text, Placeholder, Text);
+		assertMarker(p.parse('far${123}boo'), Text, Placeholder, Text);
+		assertMarker(p.parse('far\\${123}boo'), Text);
+	});
+
+	test('Parser, only internal', () => {
+		const p = new SnippetParser(false, true);
+		assertMarker(p.parse('far{{}}boo'), Text, Placeholder, Text);
+		assertMarker(p.parse('far{{123}}boo'), Text, Placeholder, Text);
+		assertMarker(p.parse('far\\{{123}}boo'), Text);
+
+		assertMarker(p.parse('far$0boo'), Text);
+		assertMarker(p.parse('far${123}boo'), Text);
+		assertMarker(p.parse('far\\${123}boo'), Text);
+	});
+
 	test('Parser, real world', () => {
-		const marker = new SnippetParser().parse('console.warn(${1: $TM_SELECTED_TEXT })');
+		let marker = new SnippetParser().parse('console.warn(${1: $TM_SELECTED_TEXT })');
 
 		assert.equal(marker[0].toString(), 'console.warn(');
 		assert.ok(marker[1] instanceof Placeholder);
@@ -171,6 +204,11 @@ suite('SnippetParser', () => {
 		assert.equal(nestedPlaceholder.isVariable, true);
 		assert.equal(nestedPlaceholder.name, 'TM_SELECTED_TEXT');
 		assert.equal(nestedPlaceholder.value.length, 0);
+
+		marker = new SnippetParser().parse('$TM_SELECTED_TEXT');
+		assert.equal(marker.length, 1);
+		assert.ok(marker[0] instanceof Placeholder);
+		assert.equal((<Placeholder>marker[0]).isVariable, true);
 	});
 
 	test('Parser, real world, mixed', () => {

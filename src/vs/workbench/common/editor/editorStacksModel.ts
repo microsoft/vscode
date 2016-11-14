@@ -948,7 +948,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._groups[position];
 	}
 
-	public next(): IEditorIdentifier {
+	public next(jumpGroups: boolean): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -960,6 +960,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		// Return next in group
 		if (index + 1 < this.activeGroup.count) {
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index + 1) };
+		}
+
+		// Return first if we are not jumping groups
+		if (!jumpGroups) {
+			return { group: this.activeGroup, editor: this.activeGroup.getEditor(0) };
 		}
 
 		// Return first in next group
@@ -974,7 +979,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return { group: firstGroup, editor: firstGroup.getEditor(0) };
 	}
 
-	public previous(): IEditorIdentifier {
+	public previous(jumpGroups: boolean): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -986,6 +991,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		// Return previous in group
 		if (index > 0) {
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index - 1) };
+		}
+
+		// Return last if we are not jumping groups
+		if (!jumpGroups) {
+			return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
 		}
 
 		// Return last in previous group
@@ -1122,9 +1132,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private handleOnEditorOpened(editor: EditorInput): void {
-		if (this.telemetryService) {
-			this.telemetryService.publicLog('editorOpened', editor.getTelemetryDescriptor());
-		}
+		this.telemetryService.publicLog('editorOpened', editor.getTelemetryDescriptor());
 	}
 
 	private handleOnEditorClosed(event: GroupEvent): void {
@@ -1144,9 +1152,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 			}
 		}
 
-		if (this.telemetryService) {
-			this.telemetryService.publicLog('editorClosed', editor.getTelemetryDescriptor());
-		}
+		this.telemetryService.publicLog('editorClosed', editor.getTelemetryDescriptor());
 	}
 
 	public isOpen(resource: URI): boolean;

@@ -7,13 +7,12 @@
 
 import 'vs/css!./media/explorerviewlet';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Scope } from 'vs/workbench/common/memento';
 import { VIEWLET_ID, ExplorerViewletVisible, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
-import { IActionRunner } from 'vs/base/common/actions';
 import { SplitView, Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/browser/views/explorerViewer';

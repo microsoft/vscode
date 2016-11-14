@@ -13,11 +13,11 @@ import * as errors from 'vs/base/common/errors';
 import { EventType } from 'vs/base/common/events';
 import { IActionRunner, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
-import { ITreeOptions, IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
+import { IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
 import { CollapsibleViewletView, AdaptiveCollapsibleViewletView, CollapseAction } from 'vs/workbench/browser/viewlet';
-import * as debug from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IBreakpoint, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import * as viewer from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, AddFunctionBreakpointAction, ToggleBreakpointsActivatedAction, RemoveAllBreakpointsAction } from 'vs/workbench/parts/debug/browser/debugActions';
@@ -26,15 +26,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-
-import IDebugService = debug.IDebugService;
-
-const debugTreeOptions = (ariaLabel: string) => {
-	return <ITreeOptions>{
-		twistiePixels: 20,
-		ariaLabel
-	};
-};
 
 function renderViewTree(container: HTMLElement): HTMLElement {
 	const treeContainer = document.createElement('div');
@@ -95,7 +86,10 @@ export class VariablesView extends CollapsibleViewletView {
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
 			accessibilityProvider: new viewer.VariablesAccessibilityProvider(),
 			controller: new viewer.VariablesController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
-		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Debug Variables")));
+		}, {
+				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
+				twistiePixels: 20
+			});
 
 		const viewModel = this.debugService.getViewModel();
 
@@ -115,7 +109,7 @@ export class VariablesView extends CollapsibleViewletView {
 		}));
 		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			const state = this.debugService.state;
-			collapseAction.enabled = state === debug.State.Running || state === debug.State.Stopped;
+			collapseAction.enabled = state === State.Running || state === State.Stopped;
 		}));
 
 		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
@@ -144,7 +138,7 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 
 	private static MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
-	private toReveal: debug.IExpression;
+	private toReveal: IExpression;
 
 	constructor(
 		actionRunner: IActionRunner,
@@ -189,7 +183,10 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider),
 			dnd: this.instantiationService.createInstance(viewer.WatchExpressionsDragAndDrop)
-		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions")));
+		}, {
+				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
+				twistiePixels: 20
+			});
 
 		this.tree.setInput(this.debugService.getModel());
 
@@ -304,7 +301,10 @@ export class CallStackView extends CollapsibleViewletView {
 			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider),
 			controller: new viewer.CallStackController(this.debugService, this.contextMenuService, actionProvider)
-		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack")));
+		}, {
+				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
+				twistiePixels: 20
+			});
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => {
 			if (!this.onCallStackChangeScheduler.isScheduled()) {
@@ -313,7 +313,7 @@ export class CallStackView extends CollapsibleViewletView {
 		}));
 
 		// Schedule the update of the call stack tree if the viewlet is opened after a session started #14684
-		if (this.debugService.state === debug.State.Stopped) {
+		if (this.debugService.state === State.Stopped) {
 			this.onCallStackChangeScheduler.schedule();
 		}
 	}
@@ -363,8 +363,8 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 			controller: new viewer.BreakpointsController(this.debugService, this.contextMenuService, actionProvider),
 			sorter: {
 				compare(tree: ITree, element: any, otherElement: any): number {
-					const first = <debug.IBreakpoint>element;
-					const second = <debug.IBreakpoint>otherElement;
+					const first = <IBreakpoint>element;
+					const second = <IBreakpoint>otherElement;
 					if (first instanceof ExceptionBreakpoint) {
 						return -1;
 					}
@@ -382,10 +382,13 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 						return paths.basename(first.uri.fsPath).localeCompare(paths.basename(second.uri.fsPath));
 					}
 
-					return first.desiredLineNumber - second.desiredLineNumber;
+					return first.lineNumber - second.lineNumber;
 				}
 			}
-		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'breakpointsAriaTreeLabel' }, "Debug Breakpoints")));
+		}, {
+				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'breakpointsAriaTreeLabel' }, "Debug Breakpoints"),
+				twistiePixels: 0
+			});
 
 		const debugModel = this.debugService.getModel();
 

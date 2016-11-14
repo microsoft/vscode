@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { decodeTextMateToken, decodeTextMateTokens, DecodeMap, TMScopeRegistry, TMLanguageRegistration } from 'vs/editor/node/textMate/TMSyntax';
-import { TMState } from 'vs/editor/common/modes/TMState';
+import { TMState } from 'vs/editor/node/textMate/TMState';
 
 suite('TextMate.TMScopeRegistry', () => {
 

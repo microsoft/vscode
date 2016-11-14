@@ -16,12 +16,13 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
-import { IModelContentChangedEvent } from 'vs/editor/common/editorCommon';
+import { IModelContentChangedEvent, IRawText } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, IFileStat, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -57,6 +58,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
+	private _onDidContentChange: Emitter<void>;
 	private _onDidStateChange: Emitter<StateChange>;
 
 	constructor(
@@ -69,7 +71,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		super(modelService, modeService);
 
@@ -77,7 +80,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.resource = resource;
 		this.toDispose = [];
+		this._onDidContentChange = new Emitter<void>();
 		this._onDidStateChange = new Emitter<StateChange>();
+		this.toDispose.push(this._onDidContentChange);
 		this.toDispose.push(this._onDidStateChange);
 		this.preferredEncoding = preferredEncoding;
 		this.dirty = false;
@@ -108,6 +113,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private onFilesAssociationChange(): void {
 		this.updateTextEditorModelMode();
+	}
+
+	public get onDidContentChange(): Event<void> {
+		return this._onDidContentChange.event;
 	}
 
 	public get onDidStateChange(): Event<StateChange> {
@@ -257,20 +266,36 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			else {
 				diag('load() - created text editor model', this.resource, new Date());
 
-				this.createTextEditorModelPromise = this.createTextEditorModel(content.value, content.resource).then(() => {
-					this.createTextEditorModelPromise = null;
+				return this.backupFileService.hasTextFileBackup(this.resource).then(backupExists => {
+					let getContentPromise: TPromise<IRawText>;
+					if (backupExists) {
+						const restoreResource = this.backupFileService.getBackupResource(this.resource);
+						const restoreOptions = { acceptTextOnly: true, encoding: 'utf-8' };
+						// Try get restore content, if there is an issue fallback silently to the original file's content
+						getContentPromise = this.textFileService.resolveTextContent(restoreResource, restoreOptions).then(restoreContent => {
+							return restoreContent.value;
+						}, () => content.value);
+					} else {
+						getContentPromise = TPromise.as(content.value);
+					}
 
-					this.setDirty(false); // Ensure we are not tracking a stale state
-					this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
+					this.createTextEditorModelPromise = getContentPromise.then(fileContent => {
+						return this.createTextEditorModel(fileContent, content.resource).then(() => {
+							this.createTextEditorModelPromise = null;
 
-					return this;
-				}, (error) => {
-					this.createTextEditorModelPromise = null;
+							this.setDirty(backupExists); // Ensure we are not tracking a stale state
+							this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
 
-					return TPromise.wrapError(error);
+							return this;
+						}, (error) => {
+							this.createTextEditorModelPromise = null;
+
+							return TPromise.wrapError(error);
+						});
+					});
+
+					return this.createTextEditorModelPromise;
 				});
-
-				return this.createTextEditorModelPromise;
 			}
 		}, (error) => {
 
@@ -334,6 +359,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				diag('makeDirty() - prevented save because we are in conflict resolution mode', this.resource, new Date());
 			}
 		}
+
+		this._onDidContentChange.fire();
 	}
 
 	private makeDirty(): void {

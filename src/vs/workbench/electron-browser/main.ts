@@ -19,8 +19,7 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { EventService } from 'vs/platform/event/common/eventService';
-import { WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { realpath } from 'vs/base/node/pfs';
@@ -59,10 +58,12 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
 	const filesToCreate = configuration.filesToCreate && configuration.filesToCreate.length ? toInputs(configuration.filesToCreate) : null;
 	const filesToDiff = configuration.filesToDiff && configuration.filesToDiff.length ? toInputs(configuration.filesToDiff) : null;
+	const untitledToRestore = configuration.untitledToRestore && configuration.untitledToRestore.length ? toInputs(configuration.untitledToRestore) : null;
 	const shellOptions: IOptions = {
 		filesToOpen,
 		filesToCreate,
-		filesToDiff
+		filesToDiff,
+		untitledToRestore
 	};
 
 	if (configuration.performance) {

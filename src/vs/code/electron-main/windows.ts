@@ -14,6 +14,7 @@ import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
+import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { trim } from 'vs/base/common/strings';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
@@ -28,6 +29,7 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import CommonEvent, { Emitter, once } from 'vs/base/common/event';
 import product from 'vs/platform/product';
+import Uri from 'vs/base/common/uri';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -43,6 +45,7 @@ export interface IOpenConfiguration {
 	forceEmpty?: boolean;
 	windowToUse?: VSCodeWindow;
 	diffMode?: boolean;
+	restoreBackups?: boolean;
 }
 
 interface IWindowState {
@@ -111,8 +114,8 @@ export interface IWindowsMainService {
 	getWindowCount(): number;
 	addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void;
 	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
-	removeFromRecentPathsList(path: string);
-	removeFromRecentPathsList(path: string[]);
+	removeFromRecentPathsList(path: string): void;
+	removeFromRecentPathsList(paths: string[]): void;
 	clearRecentPathsList(): void;
 	toggleMenuBar(windowId: number): void;
 }
@@ -150,6 +153,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IBackupMainService private backupService: IBackupMainService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) { }
@@ -376,6 +380,28 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		let configuration: IWindowConfiguration;
+		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
+
+		// Restore any existing backup workspaces
+		if (openConfig.restoreBackups) {
+			const workspacesWithBackups = this.backupService.getWorkspaceBackupPaths();
+
+			workspacesWithBackups.forEach(workspacePath => {
+				if (!fs.existsSync(workspacePath)) {
+					this.backupService.removeWorkspaceBackupPathSync(Uri.file(workspacePath));
+					return;
+				}
+
+				const untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(workspacePath)).map(filePath => {
+					return { filePath: filePath };
+				});
+				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, workspacePath, [], [], [], untitledToRestore);
+				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
+				usedWindows.push(browserWindow);
+
+				openInNewWindow = true; // any other folders to open must open in new window then
+			});
+		}
 
 		// Handle files to open/diff or to create when we dont open a folder
 		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
@@ -416,7 +442,6 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle folders to open
-		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
 		if (foldersToOpen.length > 0) {
 
 			// Check for existing instances
@@ -484,6 +509,9 @@ export class WindowsManager implements IWindowsMainService {
 				this.addToRecentPathsList(recentPaths);
 			}
 		}
+
+		// Register new paths for backup
+		this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(p => p.workspacePath).map(p => Uri.file(p.workspacePath)));
 
 		// Emit events
 		iPathsToOpen.forEach(iPath => this._onPathOpen.fire(iPath));
@@ -626,7 +654,7 @@ export class WindowsManager implements IWindowsMainService {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
 	}
 
-	private toConfiguration(userEnv: platform.IProcessEnvironment, cli: ParsedArgs, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
+	private toConfiguration(userEnv: platform.IProcessEnvironment, cli: ParsedArgs, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], untitledToRestore?: IPath[]): IWindowConfiguration {
 		const configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
@@ -635,6 +663,7 @@ export class WindowsManager implements IWindowsMainService {
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
+		configuration.untitledToRestore = untitledToRestore;
 
 		return configuration;
 	}
