@@ -4334,8 +4334,6 @@ declare module monaco.languages {
         provideHover(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
     }
 
-    export type SnippetType = 'internal' | 'textmate';
-
     /**
      * Interface used to quick fix typing errors while accesing member fields.
      */

@@ -77,12 +77,11 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private static _codeSnippetForSuggestion({suggestion}: ICompletionItem): CodeSnippet {
-		if (suggestion.snippetType === 'textmate') {
-			return CodeSnippet.fromTextmate(suggestion.insertText);
-		} else if (suggestion.snippetType === 'internal') {
-			return CodeSnippet.fromInternal(suggestion.insertText);
-		} else {
-			return CodeSnippet.plain(suggestion.insertText);
+		switch (suggestion.snippetType) {
+			case 'badtextmate': return CodeSnippet.fromTextmate(suggestion.insertText);
+			case 'textmate': return CodeSnippet.fromTextmate(suggestion.insertText, false);
+			case 'internal': return CodeSnippet.fromInternal(suggestion.insertText);
+			default: CodeSnippet.none(suggestion.insertText);
 		}
 	}
 

@@ -29,21 +29,21 @@ export interface ICodeSnippet {
 
 export class CodeSnippet implements ICodeSnippet {
 
-	static fromTextmate(template: string): CodeSnippet {
+	static fromTextmate(template: string, variablesAsPlaceholder: boolean = true): CodeSnippet {
 		const marker = new SnippetParser(true, false).parse(template);
 		const snippet = new CodeSnippet();
-		_fillCodeSnippetFromMarker(snippet, marker);
+		_fillCodeSnippetFromMarker(snippet, marker, variablesAsPlaceholder);
 		return snippet;
 	}
 
 	static fromInternal(template: string): CodeSnippet {
 		const marker = new SnippetParser(false, true).parse(template);
 		const snippet = new CodeSnippet();
-		_fillCodeSnippetFromMarker(snippet, marker);
+		_fillCodeSnippetFromMarker(snippet, marker, true);
 		return snippet;
 	}
 
-	static plain(template: string): CodeSnippet {
+	static none(template: string): CodeSnippet {
 		const snippet = new CodeSnippet();
 		snippet.lines = template.split(/\r\n|\n|\r/);
 		return snippet;
@@ -465,7 +465,7 @@ function _convertExternalSnippet(snippet: string, snippetType: ExternalSnippetTy
 	return convertedSnippet;
 };
 
-function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
+function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[], variablesAsPlaceholder: boolean) {
 
 	let placeHolders: { [id: string]: IPlaceHolder } = Object.create(null);
 
@@ -480,6 +480,12 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 			snippet.lines.push(...lines);
 
 		} else if (marker instanceof Placeholder) {
+
+			if (marker.isVariable && !variablesAsPlaceholder) {
+				stack.unshift(...marker.value);
+				continue;
+			}
+
 			// TODO - not every variable is a placeholder
 			let placeHolder = placeHolders[marker.name];
 			if (!placeHolder) {

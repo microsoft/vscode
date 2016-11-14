@@ -169,7 +169,10 @@ export type SuggestionType = 'method'
 	| 'reference'
 	| 'customcolor';
 
-export type SnippetType = 'internal' | 'textmate';
+/**
+ * @internal
+ */
+export type SnippetType = 'internal' | 'badtextmate' | 'textmate';
 
 /**
  * @internal
