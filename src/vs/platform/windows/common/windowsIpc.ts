@@ -14,7 +14,6 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
 	call(command: 'event:onWindowFocus'): TPromise<number>;
 	call(command: 'openFileFolderPicker', arg: [number, boolean]): TPromise<void>;
-	call(command: 'openFileForURI', arg: string): TPromise<void>;
 	call(command: 'openFilePicker', arg: [number, boolean, string]): TPromise<void>;
 	call(command: 'openFolderPicker', arg: [number, boolean]): TPromise<void>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
@@ -58,7 +57,6 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'event:onWindowOpen': return eventToCall(this.onWindowOpen);
 			case 'event:onWindowFocus': return eventToCall(this.onWindowFocus);
 			case 'openFileFolderPicker': return this.service.openFileFolderPicker(arg[0], arg[1]);
-			case 'openFileForURI': return this.service.openFileForURI(arg);
 			case 'openFilePicker': return this.service.openFilePicker(arg[0], arg[1], arg[2]);
 			case 'openFolderPicker': return this.service.openFolderPicker(arg[0], arg[1]);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
@@ -100,10 +98,6 @@ export class WindowsChannelClient implements IWindowsService {
 
 	private _onWindowFocus: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowFocus');
 	get onWindowFocus(): Event<number> { return this._onWindowFocus; }
-
-	openFileForURI(filePath: string): TPromise<void> {
-		return this.channel.call('openFileForURI', filePath);
-	}
 
 	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		return this.channel.call('openFileFolderPicker', [windowId, forceNewWindow]);
