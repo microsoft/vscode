@@ -1453,28 +1453,79 @@ suite('Editor Stacks Model', () => {
 		model.setActive(group1);
 		group1.setActive(input1);
 
-		let previous = model.previous();
+		let previous = model.previous(true /* jump groups */);
 		assert.equal(previous.group, group2);
 		assert.equal(previous.editor, input6);
 
 		model.setActive(<EditorGroup>previous.group);
 		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
 
-		let next = model.next();
+		let next = model.next(true /* jump groups */);
 		assert.equal(next.group, group1);
 		assert.equal(next.editor, input1);
 
 		model.setActive(group1);
 		group1.setActive(input3);
 
-		next = model.next();
+		next = model.next(true /* jump groups */);
 		assert.equal(next.group, group2);
 		assert.equal(next.editor, input4);
 
 		model.setActive(<EditorGroup>next.group);
 		(<EditorGroup>next.group).setActive(<EditorInput>next.editor);
 
-		previous = model.previous();
+		previous = model.previous(true /* jump groups */);
+		assert.equal(previous.group, group1);
+		assert.equal(previous.editor, input3);
+	});
+
+	test('Stack - Multiple Editors - Navigation (in group)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		group1.openEditor(input1, { pinned: true, active: true });
+		group1.openEditor(input2, { pinned: true, active: true });
+		group1.openEditor(input3, { pinned: true, active: true });
+
+		const input4 = input();
+		const input5 = input();
+		const input6 = input();
+
+		group2.openEditor(input4, { pinned: true, active: true });
+		group2.openEditor(input5, { pinned: true, active: true });
+		group2.openEditor(input6, { pinned: true, active: true });
+
+		model.setActive(group1);
+		group1.setActive(input1);
+
+		let previous = model.previous(false /* do NOT jump groups */);
+		assert.equal(previous.group, group1);
+		assert.equal(previous.editor, input3);
+
+		model.setActive(<EditorGroup>previous.group);
+		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
+
+		let next = model.next(false /* do NOT jump groups */);
+		assert.equal(next.group, group1);
+		assert.equal(next.editor, input1);
+
+		model.setActive(group1);
+		group1.setActive(input3);
+
+		next = model.next(false /* do NOT jump groups */);
+		assert.equal(next.group, group1);
+		assert.equal(next.editor, input1);
+
+		model.setActive(<EditorGroup>next.group);
+		(<EditorGroup>next.group).setActive(<EditorInput>next.editor);
+
+		previous = model.previous(false /* do NOT jump groups */);
 		assert.equal(previous.group, group1);
 		assert.equal(previous.editor, input3);
 	});
