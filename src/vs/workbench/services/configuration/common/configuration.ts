@@ -40,8 +40,7 @@ export interface IWorkspaceConfigurationKeys extends IConfigurationKeys {
 
 export const WORKSPACE_STANDALONE_CONFIGURATIONS = {
 	'tasks': `${WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME}/tasks.json`,
-	'launch': `${WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME}/launch.json`,
-	'extensions': `${WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME}/extensions.json`
+	'launch': `${WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME}/launch.json`
 };
 
 export interface WorkspaceConfigurationNode {

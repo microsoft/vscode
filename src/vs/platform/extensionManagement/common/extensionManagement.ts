@@ -285,7 +285,7 @@ export const IExtensionTipsService = createDecorator<IExtensionTipsService>('ext
 export interface IExtensionTipsService {
 	_serviceBrand: any;
 	getRecommendations(): string[];
-	getWorkspaceRecommendations(): string[];
+	getWorkspaceRecommendations(): TPromise<string[]>;
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");
