@@ -85,6 +85,23 @@ suite('Editor Contrib - Snippets', () => {
 		);
 	});
 
+	test('Variables vs Placeholders', () => {
+
+		let snippet = CodeSnippet.fromTextmate('${first}-${2}-${second}-${1}', true);
+		assert.deepEqual(snippet.lines, ['first--second-']);
+		assert.equal(snippet.placeHolders.length, 4);
+		assert.equal(snippet.placeHolders[0].id, 'first');
+		assert.equal(snippet.placeHolders[1].id, 'second');
+		assert.equal(snippet.placeHolders[2].id, '1');
+		assert.equal(snippet.placeHolders[3].id, '2');
+
+		snippet = CodeSnippet.fromTextmate('${first}-${2}-${second}-${1}', false);
+		assert.deepEqual(snippet.lines, ['---']);
+		assert.equal(snippet.placeHolders.length, 2);
+		assert.equal(snippet.placeHolders[0].id, '1');
+		assert.equal(snippet.placeHolders[1].id, '2');
+	});
+
 	test('nested placeholder', () => {
 		let snippet = CodeSnippet.fromTextmate([
 			'<div${1: id="${2:some_id}"}>',
