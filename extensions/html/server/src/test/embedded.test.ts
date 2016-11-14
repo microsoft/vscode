@@ -7,11 +7,11 @@
 import * as assert from 'assert';
 import * as embeddedSupport from '../embeddedSupport';
 import {TextDocument} from 'vscode-languageserver-types';
-
-import { getLanguageService } from 'vscode-html-languageservice';
+import { getLanguageService} from 'vscode-html-languageservice';
 
 suite('HTML Embedded Support', () => {
 
+	var htmlLanguageService = getLanguageService();
 
 	function assertEmbeddedLanguageId(value: string, expectedLanguageId: string): void {
 		let offset = value.indexOf('|');
@@ -23,7 +23,7 @@ suite('HTML Embedded Support', () => {
 		let ls = getLanguageService();
 		let htmlDoc = ls.parseHTMLDocument(document);
 
-		let languageId = embeddedSupport.getEmbeddedLanguageAtPosition(ls, document, htmlDoc, position);
+		let languageId = embeddedSupport.getEmbeddedLanguageAtPosition(htmlLanguageService, document, htmlDoc, position);
 		assert.equal(languageId, expectedLanguageId);
 	}
 
@@ -34,18 +34,18 @@ suite('HTML Embedded Support', () => {
 		let ls = getLanguageService();
 		let htmlDoc = ls.parseHTMLDocument(document);
 
-		let content = embeddedSupport.getEmbeddedContent(ls, document, htmlDoc, languageId);
-		assert.equal(content, expectedContent);
+		let content = embeddedSupport.getEmbeddedDocument(ls, document, htmlDoc, languageId);
+		assert.equal(content.getText(), expectedContent);
 	}
 
 	test('Styles', function (): any {
-		assertEmbeddedLanguageId('|<html><style>foo { }</style></html>', void 0);
-		assertEmbeddedLanguageId('<html|><style>foo { }</style></html>', void 0);
-		assertEmbeddedLanguageId('<html><st|yle>foo { }</style></html>', void 0);
+		assertEmbeddedLanguageId('|<html><style>foo { }</style></html>', 'html');
+		assertEmbeddedLanguageId('<html|><style>foo { }</style></html>', 'html');
+		assertEmbeddedLanguageId('<html><st|yle>foo { }</style></html>', 'html');
 		assertEmbeddedLanguageId('<html><style>|foo { }</style></html>', 'css');
 		assertEmbeddedLanguageId('<html><style>foo| { }</style></html>', 'css');
 		assertEmbeddedLanguageId('<html><style>foo { }|</style></html>', 'css');
-		assertEmbeddedLanguageId('<html><style>foo { }</sty|le></html>', void 0);
+		assertEmbeddedLanguageId('<html><style>foo { }</sty|le></html>', 'html');
 	});
 
 	test('Style content', function (): any {
@@ -57,19 +57,19 @@ suite('HTML Embedded Support', () => {
 	});
 
 	test('Scripts', function (): any {
-		assertEmbeddedLanguageId('|<html><script>var i = 0;</script></html>', void 0);
-		assertEmbeddedLanguageId('<html|><script>var i = 0;</script></html>', void 0);
-		assertEmbeddedLanguageId('<html><scr|ipt>var i = 0;</script></html>', void 0);
+		assertEmbeddedLanguageId('|<html><script>var i = 0;</script></html>', 'html');
+		assertEmbeddedLanguageId('<html|><script>var i = 0;</script></html>', 'html');
+		assertEmbeddedLanguageId('<html><scr|ipt>var i = 0;</script></html>', 'html');
 		assertEmbeddedLanguageId('<html><script>|var i = 0;</script></html>', 'javascript');
 		assertEmbeddedLanguageId('<html><script>var| i = 0;</script></html>', 'javascript');
 		assertEmbeddedLanguageId('<html><script>var i = 0;|</script></html>', 'javascript');
-		assertEmbeddedLanguageId('<html><script>var i = 0;</scr|ipt></html>', void 0);
+		assertEmbeddedLanguageId('<html><script>var i = 0;</scr|ipt></html>', 'html');
 
 		assertEmbeddedLanguageId('<script type="text/javascript">var| i = 0;</script>', 'javascript');
 		assertEmbeddedLanguageId('<script type="text/ecmascript">var| i = 0;</script>', 'javascript');
 		assertEmbeddedLanguageId('<script type="application/javascript">var| i = 0;</script>', 'javascript');
 		assertEmbeddedLanguageId('<script type="application/ecmascript">var| i = 0;</script>', 'javascript');
-		assertEmbeddedLanguageId('<script type="application/typescript">var| i = 0;</script>', void 0);
+		assertEmbeddedLanguageId('<script type="application/typescript">var| i = 0;</script>', 'html');
 		assertEmbeddedLanguageId('<script type=\'text/javascript\'>var| i = 0;</script>', 'javascript');
 	});
 

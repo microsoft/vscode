@@ -16,14 +16,14 @@ export function getEmbeddedLanguageAtPosition(languageService: LanguageService, 
 			return embeddedContent.languageId;
 		}
 	}
-	return null;
+	return 'html';
 }
 
-export function hasEmbeddedContent(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, embeddedLanguages: { [languageId: string]: boolean }): string[] {
+export function hasEmbeddedContent(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument): string[] {
 	let embeddedLanguageIds: { [languageId: string]: boolean } = {};
 	function collectEmbeddedLanguages(node: Node): void {
 		let c = getEmbeddedContentForNode(languageService, document, node);
-		if (c && embeddedLanguages[c.languageId] && !isWhitespace(document.getText().substring(c.start, c.end))) {
+		if (c && !isWhitespace(document.getText().substring(c.start, c.end))) {
 			embeddedLanguageIds[c.languageId] = true;
 		}
 		node.children.forEach(collectEmbeddedLanguages);
@@ -33,7 +33,7 @@ export function hasEmbeddedContent(languageService: LanguageService, document: T
 	return Object.keys(embeddedLanguageIds);
 }
 
-export function getEmbeddedContent(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, languageId: string): string {
+export function getEmbeddedDocument(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, languageId: string): TextDocument {
 	let contents = [];
 	function collectEmbeddedNodes(node: Node): void {
 		let c = getEmbeddedContentForNode(languageService, document, node);
@@ -54,7 +54,7 @@ export function getEmbeddedContent(languageService: LanguageService, document: T
 		currentPos = c.end;
 	}
 	result = substituteWithWhitespace(result, currentPos, oldContent.length, oldContent);
-	return result;
+	return TextDocument.create(document.uri, languageId, document.version, result);
 }
 
 function substituteWithWhitespace(result, start, end, oldContent) {

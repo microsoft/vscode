@@ -4,14 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {
-	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, FormattingOptions, RequestType, NotificationType,
-	CompletionList, Position, Hover
-} from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType } from 'vscode-languageserver';
+import { DocumentContext, TextDocument, Diagnostic, DocumentLink, Range } from 'vscode-html-languageservice';
+import { getLanguageModes } from './languageModes';
 
-import { HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration, DocumentContext, TextDocument } from 'vscode-html-languageservice';
-import { getLanguageModelCache } from './languageModelCache';
-import { getEmbeddedContent, getEmbeddedLanguageAtPosition, hasEmbeddedContent } from './embeddedSupport';
 import * as url from 'url';
 import * as path from 'path';
 import uri from 'vscode-uri';
@@ -19,50 +15,8 @@ import uri from 'vscode-uri';
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
 
-interface EmbeddedCompletionParams {
-	uri: string;
-	version: number;
-	embeddedLanguageId: string;
-	position: Position;
-}
-
-namespace EmbeddedCompletionRequest {
-	export const type: RequestType<EmbeddedCompletionParams, CompletionList, any> = { get method() { return 'embedded/completion'; } };
-}
-
-interface EmbeddedHoverParams {
-	uri: string;
-	version: number;
-	embeddedLanguageId: string;
-	position: Position;
-}
-
-namespace EmbeddedHoverRequest {
-	export const type: RequestType<EmbeddedCompletionParams, Hover, any> = { get method() { return 'embedded/hover'; } };
-}
-
-interface EmbeddedContentParams {
-	uri: string;
-	embeddedLanguageId: string;
-}
-
-interface EmbeddedContent {
-	content: string;
-	version: number;
-}
-
-namespace EmbeddedContentRequest {
-	export const type: RequestType<EmbeddedContentParams, EmbeddedContent, any> = { get method() { return 'embedded/content'; } };
-}
-
-interface EmbeddedContentChangedParams {
-	uri: string;
-	version: number;
-	embeddedLanguageIds: string[];
-}
-
-namespace EmbeddedContentChangedNotification {
-	export const type: NotificationType<EmbeddedContentChangedParams> = { get method() { return 'embedded/contentchanged'; } };
+namespace ColorSymbolRequest {
+	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
 }
 
 // Create a connection for the server
@@ -78,22 +32,22 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
-let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => getLanguageService().parseHTMLDocument(document));
+let languageModes = getLanguageModes({ 'css': true });
+
 documents.onDidClose(e => {
-	htmlDocuments.onDocumentRemoved(e.document);
+	languageModes.getAllModes().forEach(m => m.onDocumentRemoved(e.document));
 });
 connection.onShutdown(() => {
-	htmlDocuments.dispose();
+	languageModes.getAllModes().forEach(m => m.dispose());
 });
 
 let workspacePath: string;
-let embeddedLanguages: { [languageId: string]: boolean };
+
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspacePath = params.rootPath;
-	embeddedLanguages = params.initializationOptions.embeddedLanguages;
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
@@ -107,25 +61,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	};
 });
 
-// create the JSON language service
-var languageService = getLanguageService();
-
-// The settings interface describes the server relevant settings part
-interface Settings {
-	html: LanguageSettings;
-}
-
-interface LanguageSettings {
-	suggest: CompletionConfiguration;
-	format: HTMLFormatConfiguration;
-}
-
-let languageSettings: LanguageSettings;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	var settings = <Settings>change.settings;
-	languageSettings = settings.html;
+	languageModes.configure(change.settings);
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
@@ -140,10 +79,7 @@ documents.onDidChangeContent(change => {
 // a document has closed: clear all diagnostics
 documents.onDidClose(event => {
 	cleanPendingValidation(event.document);
-	//connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
-	if (embeddedLanguages) {
-		connection.sendNotification(EmbeddedContentChangedNotification.type, { uri: event.document.uri, version: event.document.version, embeddedLanguageIds: [] });
-	}
+	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 });
 
 function cleanPendingValidation(textDocument: TextDocument): void {
@@ -163,79 +99,50 @@ function triggerValidation(textDocument: TextDocument): void {
 }
 
 function validateTextDocument(textDocument: TextDocument): void {
-	let htmlDocument = htmlDocuments.get(textDocument);
-	//let diagnostics = languageService.doValidation(textDocument, htmlDocument);
-	// Send the computed diagnostics to VSCode.
-	//connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-	if (embeddedLanguages) {
-		let embeddedLanguageIds = hasEmbeddedContent(languageService, textDocument, htmlDocument, embeddedLanguages);
-		let p = { uri: textDocument.uri, version: textDocument.version, embeddedLanguageIds };
-		connection.sendNotification(EmbeddedContentChangedNotification.type, p);
-	}
+	let diagnostics: Diagnostic[] = [];
+	languageModes.getAllModesInDocument(textDocument).forEach(mode => {
+		if (mode.doValidation) {
+			diagnostics = diagnostics.concat(mode.doValidation(textDocument));
+		}
+	});
+	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 }
 
 connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
-	let htmlDocument = htmlDocuments.get(document);
-	let options = languageSettings && languageSettings.suggest;
-	let list = languageService.doComplete(document, textDocumentPosition.position, htmlDocument, options);
-	if (list.items.length === 0 && embeddedLanguages) {
-		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
-		if (embeddedLanguageId && embeddedLanguages[embeddedLanguageId]) {
-			return connection.sendRequest(EmbeddedCompletionRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
-		}
+	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
+	if (mode && mode.doComplete) {
+		return mode.doComplete(document, textDocumentPosition.position);
 	}
-	return list;
+	return { isIncomplete: true, items: [] };
 });
 
 connection.onHover(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
-	let htmlDocument = htmlDocuments.get(document);
-	let hover = languageService.doHover(document, textDocumentPosition.position, htmlDocument);
-	if (!hover && embeddedLanguages) {
-		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
-		if (embeddedLanguageId && embeddedLanguages[embeddedLanguageId]) {
-			return connection.sendRequest(EmbeddedHoverRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
-		}
+	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
+	if (mode && mode.doHover) {
+		return mode.doHover(document, textDocumentPosition.position);
 	}
-	return hover;
-});
-
-connection.onRequest(EmbeddedContentRequest.type, parms => {
-	let document = documents.get(parms.uri);
-	if (document) {
-		let htmlDocument = htmlDocuments.get(document);
-		return { content: getEmbeddedContent(languageService, document, htmlDocument, parms.embeddedLanguageId), version: document.version };
-	}
-	return void 0;
+	return null;
 });
 
 connection.onDocumentHighlight(documentHighlightParams => {
 	let document = documents.get(documentHighlightParams.textDocument.uri);
-	let htmlDocument = htmlDocuments.get(document);
-	return languageService.findDocumentHighlights(document, documentHighlightParams.position, htmlDocument);
+	let mode = languageModes.getModeAtPosition(document, documentHighlightParams.position);
+	if (mode && mode.findDocumentHighlight) {
+		return mode.findDocumentHighlight(document, documentHighlightParams.position);
+	}
+	return [];
 });
-
-function merge(src: any, dst: any): any {
-	for (var key in src) {
-		if (src.hasOwnProperty(key)) {
-			dst[key] = src[key];
-		}
-	}
-	return dst;
-}
-
-function getFormattingOptions(formatParams: FormattingOptions) {
-	let formatSettings = languageSettings && languageSettings.format;
-	if (!formatSettings) {
-		return formatParams;
-	}
-	return merge(formatParams, merge(formatSettings, {}));
-}
 
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, formatParams.range, getFormattingOptions(formatParams.options));
+	let startMode = languageModes.getModeAtPosition(document, formatParams.range.start);
+	let endMode = languageModes.getModeAtPosition(document, formatParams.range.end);
+	if (startMode && startMode === endMode && startMode.format) {
+		return startMode.format(document, formatParams.range, formatParams.options);
+	}
+	return null;
 });
 
 connection.onDocumentLinks(documentLinkParam => {
@@ -248,9 +155,27 @@ connection.onDocumentLinks(documentLinkParam => {
 			return url.resolve(document.uri, ref);
 		}
 	};
-	return languageService.findDocumentLinks(document, documentContext);
+	let links: DocumentLink[] = [];
+	languageModes.getAllModesInDocument(document).forEach(m => {
+		if (m.findDocumentLinks) {
+			links = links.concat(m.findDocumentLinks(document, documentContext));
+		}
+	});
+	return links;
 });
 
+connection.onRequest(ColorSymbolRequest.type, uri => {
+	let ranges: Range[] = [];
+	let document = documents.get(uri);
+	if (document) {
+		languageModes.getAllModesInDocument(document).forEach(m => {
+			if (m.findColorSymbols) {
+				ranges = ranges.concat(m.findColorSymbols(document));
+			}
+		});
+	}
+	return ranges;
+});
 
 // Listen on the connection
 connection.listen();
