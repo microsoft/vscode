@@ -30,7 +30,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	private resource: URI;
 	private hasAssociatedFilePath: boolean;
-	private hasBackupToRestore: boolean;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
 
@@ -43,7 +42,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		resource: URI,
 		hasAssociatedFilePath: boolean,
 		modeId: string,
-		hasBackupToRestore: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModeService private modeService: IModeService,
@@ -54,7 +52,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		this.resource = resource;
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
-		this.hasBackupToRestore = hasBackupToRestore;
 		this.toUnbind = [];
 		this._onDidModelChangeContent = new Emitter<void>();
 		this._onDidModelChangeEncoding = new Emitter<void>();
@@ -154,19 +151,17 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		}
 
 		// Otherwise Create Model and load, restoring from backup if necessary
-		let restorePromise: TPromise<string>;
-		if (this.hasBackupToRestore) {
-			// TODO: Pass in only Untitled-x into the constructor, evaluate whether there is a backup here.
-			const restoreResource = this.backupFileService.getBackupResource(this.resource);
-			restorePromise = this.textFileService.resolveTextContent(restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
+		return this.backupFileService.hasBackup(this.resource).then(hasBackup => {
+			if (hasBackup) {
+				// If the resource restored from backup it doesn't have an associated file path
+				this.hasAssociatedFilePath = false;
 
-			// If the resource restored from backup it doesn't have an associated file path
-			this.hasAssociatedFilePath = false;
-		} else {
-			restorePromise = TPromise.as('');
-		}
+				const restoreResource = this.backupFileService.getBackupResource(this.resource);
+				return this.textFileService.resolveTextContent(restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
+			}
 
-		return restorePromise.then(content => {
+			return '';
+		}).then(content => {
 			const model = this.createModel(content);
 			return model.load().then((resolvedModel: UntitledEditorModel) => {
 				this.cachedModel = resolvedModel;

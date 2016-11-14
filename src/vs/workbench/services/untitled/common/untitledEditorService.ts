@@ -185,7 +185,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
 		}
 
-		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, hasBackupToRestore);
+		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
 		if (input.isDirty()) {
 			setTimeout(() => {
 				this._onDidChangeDirty.fire(resource);
