@@ -431,9 +431,11 @@ export class VSCodeWindow {
 		delete configuration.filesToDiff;
 
 		// Update untitled files to restore so they come through in the reloaded window
-		configuration.untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(configuration.workspacePath)).map(filePath => {
-			return { filePath };
-		});
+		if (configuration.workspacePath) {
+			configuration.untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(configuration.workspacePath)).map(filePath => {
+				return { filePath };
+			});
+		}
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in plugin development mode. These options are all development related.
