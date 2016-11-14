@@ -20,6 +20,8 @@ import { IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/s
 import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import * as semver from 'semver';
 
 // --- adapter
 
@@ -412,14 +414,27 @@ class SuggestAdapter {
 	private _commands: CommandsConverter;
 	private _heapService: ExtHostHeapService;
 	private _provider: vscode.CompletionItemProvider;
-	private _extensionId: string;
+	private _extension: IExtensionDescription;
+	private _extensionIsBefore180: boolean;
 
-	constructor(documents: ExtHostDocuments, commands: CommandsConverter, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider, extensionId?: string) {
+	constructor(documents: ExtHostDocuments, commands: CommandsConverter, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider, extension?: IExtensionDescription) {
 		this._documents = documents;
 		this._commands = commands;
 		this._heapService = heapService;
 		this._provider = provider;
-		this._extensionId = extensionId;
+		this._extension = extension;
+		this._extensionIsBefore180 = SuggestAdapter._isBefore180(extension);
+	}
+
+	private static _isBefore180(extension: IExtensionDescription): boolean {
+		if (extension) {
+			let versionOrRange = extension.engines.vscode;
+			if (semver.valid(versionOrRange)) {
+				return semver.lt(versionOrRange, '1.8.0');
+			} else if (semver.validRange(versionOrRange)) {
+				return semver.gtr('1.8.0', versionOrRange);
+			}
+		}
 	}
 
 	provideCompletionItems(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
@@ -479,7 +494,7 @@ class SuggestAdapter {
 					suggestion.overwriteAfter = 0;
 				}
 
-				suggestion._extensionId = this._extensionId;
+				suggestion._extensionId = this._extension && this._extension.id;
 				suggestion.snippetType = 'internal';
 
 				// store suggestion
@@ -776,9 +791,9 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	// --- suggestion
 
-	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[], extensionId?: string): vscode.Disposable {
+	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[], extension?: IExtensionDescription): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new SuggestAdapter(this._documents, this._commands.converter, this._heapService, provider, extensionId);
+		this._adapter[handle] = new SuggestAdapter(this._documents, this._commands.converter, this._heapService, provider, extension);
 		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}
