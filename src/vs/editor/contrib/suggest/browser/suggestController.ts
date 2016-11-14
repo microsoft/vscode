@@ -81,7 +81,7 @@ export class SuggestController implements IEditorContribution {
 			case 'badtextmate': return CodeSnippet.fromTextmate(suggestion.insertText);
 			case 'textmate': return CodeSnippet.fromTextmate(suggestion.insertText, false);
 			case 'internal': return CodeSnippet.fromInternal(suggestion.insertText);
-			default: CodeSnippet.none(suggestion.insertText);
+			default: return CodeSnippet.none(suggestion.insertText);
 		}
 	}
 
