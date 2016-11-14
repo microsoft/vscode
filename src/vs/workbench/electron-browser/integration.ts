@@ -24,6 +24,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/themeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -74,7 +75,8 @@ export class ElectronIntegration {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IThemeService private themeService: IThemeService
 	) {
 	}
 
@@ -142,6 +144,19 @@ export class ElectronIntegration {
 		ipc.on('vscode:leaveFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				browser.setFullscreen(false);
+			});
+		});
+
+		// High Contrast Events
+		ipc.on('vscode:enterHighContrast', (event) => {
+			this.partService.joinCreation().then(() => {
+				this.themeService.setColorTheme(VS_HC_THEME, false);
+			});
+		});
+
+		ipc.on('vscode:leaveHighContrast', (event) => {
+			this.partService.joinCreation().then(() => {
+				this.themeService.setColorTheme(VS_DARK_THEME, false);
 			});
 		});
 

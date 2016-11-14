@@ -95,7 +95,8 @@ export class ExtensionHostProcessWorker {
 				AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 				PIPE_LOGGING: 'true',
 				VERBOSE_LOGGING: true,
-				VSCODE_WINDOW_ID: String(this.windowService.getWindowId())
+				VSCODE_WINDOW_ID: String(this.windowService.getWindowId()),
+				ELECTRON_NO_ASAR: '1'
 			}),
 			// We only detach the extension host on windows. Linux and Mac orphan by default
 			// and detach under Linux and Mac create another process group.
