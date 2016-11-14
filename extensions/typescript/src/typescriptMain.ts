@@ -34,6 +34,7 @@ import FormattingProvider from './features/formattingProvider';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
+import CodeActionProvider from './features/codeActionProvider';
 
 import * as VersionStatus from './utils/versionStatus';
 import * as ProjectStatus from './utils/projectStatus';
@@ -164,6 +165,7 @@ class LanguageProvider {
 			languages.registerRenameProvider(selector, renameProvider);
 			languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n');
 			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
+			languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, modeId));
 			languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
 					// ^(.*\*/)?\s*\}.*$
@@ -427,6 +429,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			let range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);
 			let converted = new Diagnostic(range, text);
 			converted.source = source;
+			converted.code = diagnostic.code;
 			result.push(converted);
 		}
 		return result;
