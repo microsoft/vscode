@@ -223,7 +223,16 @@ configurationRegistry.registerConfiguration({
 			// TODO: Switch to true once sufficiently stable
 			'default': false,
 			'description': nls.localize('hotExit', "Controls whether unsaved files are restored after relaunching. If this is enabled there will be no prompt to save when exiting the editor.")
-		},
+		}
+	}
+});
+
+configurationRegistry.registerConfiguration({
+	id: 'editor',
+	order: 5,
+	type: 'object',
+	title: nls.localize('editorConfigurationTitle', "Editor"),
+	properties: {
 		'editor.formatOnSave': {
 			'type': 'boolean',
 			'default': false,
