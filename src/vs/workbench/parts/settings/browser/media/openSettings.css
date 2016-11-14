@@ -14,10 +14,5 @@
 }
 
 .monaco-editor .view-line :not(.inline-folded).copySetting.select:after {
-	content:" ";
-	background-image: url('ellipsis.svg');
-}
-
-.vs-dark .monaco-editor .view-line :not(.inline-folded).copySetting.select:after {
-	background-image: url('ellipsis-inverse.svg');
+	content:"...";
 }
