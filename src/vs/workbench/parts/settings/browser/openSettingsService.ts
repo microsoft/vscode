@@ -38,7 +38,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IOpenSettingsService } from 'vs/workbench/parts/settings/common/openSettings';
 import { DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/settings/browser/defaultSettingsEditors';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 const SETTINGS_INFO_IGNORE_KEY = 'settings.workspace.info.ignore';
 
@@ -67,12 +66,10 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IModelService modelService: IModelService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@IModelService modelService: IModelService
 	) {
 		super();
 		this._register(modelService.onModelAdded(model => this.bindToModel(model)));
-		this._register(lifecycleService.onShutdown(() => this.dispose()));
 	}
 
 	private bindToModel(model: editorCommon.IModel) {
