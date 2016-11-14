@@ -464,7 +464,7 @@ suite('Glob', () => {
 	test('full path', function () {
 		var p = 'testing/this/foo.txt';
 
-		assert(glob.match(p, 'testing/this/foo.txt'.replace('/', path.sep)));
+		assert(glob.match(p, nativeSep('testing/this/foo.txt')));
 	});
 
 	test('prefix agnostic', function () {
@@ -782,6 +782,7 @@ suite('Glob', () => {
 
 		assert.strictEqual(glob.parse('foo/bar')(nativeSep('foo/baz'), 'baz'), false);
 		assert.strictEqual(glob.parse('foo/bar')(nativeSep('foo/bar'), 'bar'), true);
+		assert.strictEqual(glob.parse('foo/bar/baz')(nativeSep('foo/bar/baz'), 'baz'), true); // #15424
 		assert.strictEqual(glob.parse('foo/bar')(nativeSep('bar/foo/bar'), 'bar'), false);
 		assert.strictEqual(glob.parse('foo/bar/**')(nativeSep('foo/bar/baz'), 'baz'), true);
 		assert.strictEqual(glob.parse('foo/bar/**', { trimForExclusions: true })(nativeSep('foo/bar'), 'bar'), true);
