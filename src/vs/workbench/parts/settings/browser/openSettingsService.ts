@@ -38,6 +38,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IOpenSettingsService } from 'vs/workbench/parts/settings/common/openSettings';
 import { DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/settings/browser/defaultSettingsEditors';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 const SETTINGS_INFO_IGNORE_KEY = 'settings.workspace.info.ignore';
 
@@ -66,10 +67,12 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IModelService private modelService: IModelService
+		@IModelService modelService: IModelService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
-		this._register(this.modelService.onModelAdded(model => this.bindToModel(model)));
+		this._register(modelService.onModelAdded(model => this.bindToModel(model)));
+		this._register(lifecycleService.onShutdown(() => this.dispose()));
 	}
 
 	private bindToModel(model: editorCommon.IModel) {
@@ -176,7 +179,7 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 			const emptySettingsContents = this.getEmptyEditableSettingsContent(configurationTarget);
 			const settingsResource = this.getEditableSettingsURI(configurationTarget);
 			return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.configurationService), settingsResource, emptySettingsContents)
-				.then(editors => null /*this.renderActionsForDefaultSettings(editors[0], editors[1], configurationTarget*/);
+				.then(editors => null /*this.renderActionsForDefaultSettings(editors[0], editors[1], configurationTarget)*/);
 		}
 		return this.openEditableSettings(configurationTarget).then(() => null);
 	}
