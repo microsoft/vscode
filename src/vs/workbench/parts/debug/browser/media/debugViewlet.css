@@ -290,10 +290,6 @@
 	align-items: center;
 }
 
-.debug-viewlet .debug-breakpoints .breakpoint.exception {
-	padding-left: 16px;
-}
-
 .debug-viewlet .debug-breakpoints .breakpoint input {
 	flex-shrink: 0;
 }
@@ -307,10 +303,6 @@
 	overflow: hidden;
 }
 
-
-.debug-viewlet .monaco-tree .monaco-tree-row .breakpoint .monaco-action-bar .action-label {
-	margin-right: 0px;
-}
 
 .debug-viewlet .debug-action.remove {
 	background: url('remove.svg') center center no-repeat;

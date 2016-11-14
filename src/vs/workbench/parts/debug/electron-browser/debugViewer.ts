@@ -1142,21 +1142,17 @@ export class BreakpointsDataSource implements IDataSource {
 	}
 }
 
-interface IExceptionBreakpointTemplateData {
+interface IBaseBreakpointTemplateData {
 	breakpoint: HTMLElement;
 	name: HTMLElement;
 	checkbox: HTMLInputElement;
-	toDisposeBeforeRender: lifecycle.IDisposable[];
+	context: debug.IEnablement;
+	toDispose: lifecycle.IDisposable[];
 }
 
-interface IBreakpointTemplateData extends IExceptionBreakpointTemplateData {
-	actionBar: ActionBar;
+interface IBreakpointTemplateData extends IBaseBreakpointTemplateData {
 	lineNumber: HTMLElement;
 	filePath: HTMLElement;
-}
-
-interface IFunctionBreakpointTemplateData extends IExceptionBreakpointTemplateData {
-	actionBar: ActionBar;
 }
 
 export class BreakpointsRenderer implements IRenderer {
@@ -1196,15 +1192,13 @@ export class BreakpointsRenderer implements IRenderer {
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
 		const data: IBreakpointTemplateData = Object.create(null);
 		data.breakpoint = dom.append(container, $('.breakpoint'));
-		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
-			data.actionBar = new ActionBar(data.breakpoint, { actionRunner: this.actionRunner });
-			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
-		}
-
-		data.toDisposeBeforeRender = [];
 
 		data.checkbox = <HTMLInputElement>$('input');
 		data.checkbox.type = 'checkbox';
+		data.toDispose = [];
+		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
+			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
+		}));
 
 		dom.append(data.breakpoint, data.checkbox);
 
@@ -1223,11 +1217,7 @@ export class BreakpointsRenderer implements IRenderer {
 	}
 
 	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
-		templateData.toDisposeBeforeRender = lifecycle.dispose(templateData.toDisposeBeforeRender);
-		templateData.toDisposeBeforeRender.push(dom.addStandardDisposableListener(templateData.checkbox, 'change', (e) => {
-			this.debugService.enableOrDisableBreakpoints(!element.enabled, element);
-		}));
-
+		templateData.context = element;
 		if (templateId === BreakpointsRenderer.EXCEPTION_BREAKPOINT_TEMPLATE_ID) {
 			this.renderExceptionBreakpoint(element, templateData);
 		} else if (templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
@@ -1237,13 +1227,13 @@ export class BreakpointsRenderer implements IRenderer {
 		}
 	}
 
-	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IExceptionBreakpointTemplateData): void {
+	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IBaseBreakpointTemplateData): void {
 		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;;
 		data.breakpoint.title = data.name.textContent;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 	}
 
-	private renderFunctionBreakpoint(tree: ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IFunctionBreakpointTemplateData): void {
+	private renderFunctionBreakpoint(tree: ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IBaseBreakpointTemplateData): void {
 		const selected = this.debugService.getViewModel().getSelectedFunctionBreakpoint();
 		if (!functionBreakpoint.name || (selected && selected.getId() === functionBreakpoint.getId())) {
 			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, {
@@ -1267,7 +1257,6 @@ export class BreakpointsRenderer implements IRenderer {
 				tree.removeTraits('disabled', [functionBreakpoint]);
 			}
 		}
-		data.actionBar.context = functionBreakpoint;
 	}
 
 	private renderBreakpoint(tree: ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
@@ -1277,7 +1266,6 @@ export class BreakpointsRenderer implements IRenderer {
 		data.lineNumber.textContent = breakpoint.lineNumber.toString();
 		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
-		data.actionBar.context = breakpoint;
 
 		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped || this.debugService.state === debug.State.Initializing;
 		if (debugActive && !breakpoint.verified) {
@@ -1291,9 +1279,7 @@ export class BreakpointsRenderer implements IRenderer {
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
-		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
-			templateData.actionBar.dispose();
-		}
+		lifecycle.dispose(templateData.toDispose);
 	}
 }
 
