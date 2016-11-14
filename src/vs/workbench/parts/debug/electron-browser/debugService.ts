@@ -774,13 +774,21 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public restartProcess(process: debug.IProcess): TPromise<any> {
-		return process ? process.session.disconnect(true).then(() =>
+		if (!process) {
+			return this.createProcess(this.viewModel.selectedConfigurationName);
+		}
+
+		if (process.session.configuration.capabilities.supportsRestartRequest) {
+			return process.session.custom('restart', null);
+		}
+
+		return process.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
 					this.createProcess(process.name).then(() => c(null), err => e(err));
 				}, 300);
 			})
-		) : this.createProcess(this.viewModel.selectedConfigurationName);
+		);
 	}
 
 	private onSessionEnd(session: RawDebugSession): void {
