@@ -5,19 +5,18 @@
 
 'use strict';
 
-import Uri from 'vs/base/common/uri';
 import { EventEmitter } from 'events';
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
 
 const EventTypes = {
-	BEFORE_QUIT: 'before-quit'
+	BEFORE_QUIT: 'before-quit',
+	AFTER_UNLOAD: 'after-unload'
 };
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
@@ -31,6 +30,7 @@ export interface ILifecycleService {
 	wasUpdated: boolean;
 
 	onBeforeQuit(clb: () => void): () => void;
+	onAfterUnload(clb: (VSCodeWindow) => void): () => void;
 	ready(): void;
 	registerWindow(vscodeWindow: VSCodeWindow): void;
 	unload(vscodeWindow: VSCodeWindow): TPromise<boolean /* veto */>;
@@ -54,8 +54,7 @@ export class LifecycleService implements ILifecycleService {
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILogService private logService: ILogService,
-		@IStorageService private storageService: IStorageService,
-		@IBackupMainService private backupService: IBackupMainService
+		@IStorageService private storageService: IStorageService
 	) {
 		this.windowToCloseRequest = Object.create(null);
 		this.quitRequested = false;
@@ -86,6 +85,12 @@ export class LifecycleService implements ILifecycleService {
 		this.eventEmitter.addListener(EventTypes.BEFORE_QUIT, clb);
 
 		return () => this.eventEmitter.removeListener(EventTypes.BEFORE_QUIT, clb);
+	}
+
+	onAfterUnload(clb: (VSCodeWindow) => void): () => void {
+		this.eventEmitter.addListener(EventTypes.AFTER_UNLOAD, clb);
+
+		return () => this.eventEmitter.removeListener(EventTypes.AFTER_UNLOAD, clb);
 	}
 
 	public ready(): void {
@@ -163,13 +168,7 @@ export class LifecycleService implements ILifecycleService {
 			const oneTimeCancelEvent = 'vscode:cancel' + oneTimeEventToken;
 
 			ipc.once(oneTimeOkEvent, () => {
-				// Clear out any workspace backups from workspaces.json that don't have any backups
-				if (vscodeWindow.openedWorkspacePath) {
-					const workspaceResource = Uri.file(vscodeWindow.openedWorkspacePath);
-					if (!this.backupService.hasWorkspaceBackup(workspaceResource)) {
-						this.backupService.removeWorkspaceBackupPathSync(workspaceResource);
-					}
-				}
+				this.eventEmitter.emit(EventTypes.AFTER_UNLOAD, vscodeWindow);
 
 				c(false); // no veto
 			});
