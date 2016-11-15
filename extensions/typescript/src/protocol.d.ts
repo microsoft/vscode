@@ -1524,26 +1524,6 @@ declare namespace ts.server.protocol {
         spans: TextSpan[];
         childItems?: NavigationTree[];
     }
-    type TelemetryEventName = "telemetry";
-    interface TelemetryEvent extends Event {
-        event: TelemetryEventName;
-        body: TelemetryEventBody;
-    }
-    interface TelemetryEventBody {
-        telemetryEventName: string;
-        payload: any;
-    }
-    type TypingsInstalledTelemetryEventName = "typingsInstalled";
-    interface TypingsInstalledTelemetryEventBody extends TelemetryEventBody {
-        telemetryEventName: TypingsInstalledTelemetryEventName;
-        payload: TypingsInstalledTelemetryEventPayload;
-    }
-    interface TypingsInstalledTelemetryEventPayload {
-        /**
-         * Comma separated list of installed typing packages
-         */
-        installedPackages: string;
-    }
     interface NavBarResponse extends Response {
         body?: NavigationBarItem[];
     }
