@@ -172,7 +172,7 @@ export type SuggestionType = 'method'
 /**
  * @internal
  */
-export type SnippetType = 'internal' | 'badtextmate' | 'textmate';
+export type SnippetType = 'internal' | 'textmate';
 
 /**
  * @internal
