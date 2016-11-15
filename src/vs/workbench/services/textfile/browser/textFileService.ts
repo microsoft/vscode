@@ -112,13 +112,14 @@ export abstract class TextFileService implements ITextFileService {
 
 	private beforeShutdown(quitRequested: boolean): boolean | TPromise<boolean> {
 
-		// Special shutdown logic when hot exit is enabled
-		if (this.backupService.isHotExitEnabled) {
-			return this.backupService.backupBeforeShutdown(this.getDirty(), this.models, quitRequested, this.confirmBeforeShutdown.bind(this));
-		}
+		// Dirty files need treatment on shutdown
+		const dirty = this.getDirty();
+		if (dirty.length) {
 
-		// Otherwise: Dirty files need treatment on shutdown
-		if (this.getDirty().length) {
+			// Special shutdown logic when hot exit is enabled
+			if (this.backupService.isHotExitEnabled) {
+				return this.backupService.backupBeforeShutdown(dirty, this.models, quitRequested, this.confirmBeforeShutdown.bind(this));
+			}
 
 			// If auto save is enabled, save all files and then check again for dirty files
 			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
