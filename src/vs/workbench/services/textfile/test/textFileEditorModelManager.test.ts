@@ -282,6 +282,8 @@ suite('Files - TextFileEditorModelManager', () => {
 		let revertedCounter = 0;
 		let savedCounter = 0;
 		let encodingCounter = 0;
+		let disposeCounter = 0;
+		let contentCounter = 0;
 
 		manager.onModelDirty(e => {
 			dirtyCounter++;
@@ -303,6 +305,15 @@ suite('Files - TextFileEditorModelManager', () => {
 			assert.equal(e.resource.toString(), resource1.toString());
 		});
 
+		manager.onModelContentChanged(e => {
+			contentCounter++;
+			assert.equal(e.resource.toString(), resource1.toString());
+		});
+
+		manager.onModelDisposed(e => {
+			disposeCounter++;
+		});
+
 		manager.loadOrCreate(resource1, 'utf8').done(model1 => {
 			return manager.loadOrCreate(resource2, 'utf8').then(model2 => {
 				model1.textEditorModel.setValue('changed');
@@ -315,11 +326,14 @@ suite('Files - TextFileEditorModelManager', () => {
 						model1.dispose();
 						model2.dispose();
 
+						//assert.equal(disposeCounter, 2);
+
 						return model1.revert().then(() => { // should not trigger another event if disposed
 							assert.equal(dirtyCounter, 2);
 							assert.equal(revertedCounter, 1);
 							assert.equal(savedCounter, 1);
 							assert.equal(encodingCounter, 2);
+							//assert.equal(contentCounter, 2);
 
 							model1.dispose();
 							model2.dispose();
