@@ -195,12 +195,12 @@ export class DebugService implements debug.IDebugService {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
-						this.logToRepl(simpleVals.join(' '), sev);
+						this.logToRepl(simpleVals.join(' '), session, sev);
 						simpleVals = [];
 					}
 
 					// show object
-					this.logToRepl(a, sev);
+					this.logToRepl(a, session, sev);
 				}
 
 				// string: watch out for % replacement directive
@@ -229,7 +229,7 @@ export class DebugService implements debug.IDebugService {
 
 			// flush simple values
 			if (simpleVals.length) {
-				this.logToRepl(simpleVals.join(' '), sev);
+				this.logToRepl(simpleVals.join(' '), session, sev);
 			}
 		}
 	}
@@ -515,8 +515,8 @@ export class DebugService implements debug.IDebugService {
 			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame));
 	}
 
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
-		this.model.logToRepl(value, severity);
+	public logToRepl(value: string | { [key: string]: any }, session: debug.ISession, severity?: severity): void {
+		this.model.logToRepl(value, session, severity);
 	}
 
 	public appendReplOutput(value: string, severity?: severity): void {

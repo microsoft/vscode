@@ -27,6 +27,11 @@ function massageValue(value: string): string {
 	return value ? value.replace(/\r\n|\r|\n/g, '↵').replace(/\t/g, '\\t') : value;
 }
 
+function maybeMassageValue(value: string, session: debug.ISession): string {
+	return session.configuration.capabilities.supportsValueEscaping ? value :
+		massageValue(value);
+}
+
 export class OutputElement implements debug.ITreeElement {
 	private static ID_COUNTER = 0;
 
@@ -55,7 +60,7 @@ export class KeyValueOutputElement extends OutputElement {
 
 	private static MAX_CHILDREN = 1000; // upper bound of children per value
 
-	constructor(public key: string, public valueObj: any, public annotation?: string) {
+	constructor(public key: string, public valueObj: any, private session: debug.ISession, public annotation?: string) {
 		super();
 	}
 
@@ -67,7 +72,8 @@ export class KeyValueOutputElement extends OutputElement {
 		} else if (isObject(this.valueObj)) {
 			return 'Object';
 		} else if (isString(this.valueObj)) {
-			return `"${massageValue(this.valueObj)}"`;
+			const massagedValue = maybeMassageValue(this.valueObj, this.session);
+			return `"${massagedValue}"`;
 		}
 
 		return String(this.valueObj) || '';
@@ -76,10 +82,10 @@ export class KeyValueOutputElement extends OutputElement {
 	public getChildren(): debug.ITreeElement[] {
 		if (Array.isArray(this.valueObj)) {
 			return (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN)
-				.map((v, index) => new KeyValueOutputElement(String(index), v));
+				.map((v, index) => new KeyValueOutputElement(String(index), this.session, v));
 		} else if (isObject(this.valueObj)) {
 			return Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN)
-				.map(key => new KeyValueOutputElement(key, this.valueObj[key]));
+				.map(key => new KeyValueOutputElement(key, this.session, this.valueObj[key]));
 		}
 
 		return [];
@@ -213,15 +219,14 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 		}).then(response => {
 			this.available = !!(response && response.body);
 			if (response && response.body) {
-				// Take repl responses verbatim - others get massaged.
-				this.value = context === 'repl' ? response.body.result : massageValue(response.body.result);
+				this.value = maybeMassageValue(response.body.result, process.session);
 				this.reference = response.body.variablesReference;
 				this.namedVariables = response.body.namedVariables;
 				this.indexedVariables = response.body.indexedVariables;
 				this.type = response.body.type;
 			}
 		}, err => {
-			this.value = massageValue(err.message);
+			this.value = maybeMassageValue(err.message, process.session);
 			this.available = false;
 			this.reference = 0;
 		});
@@ -249,7 +254,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		startOfVariables = 0
 	) {
 		super(stackFrame, reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
-		this.value = massageValue(value);
+		this.value = maybeMassageValue(value, stackFrame.thread.process.session);
 	}
 
 	public get evaluateName(): string {
@@ -287,7 +292,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 			variablesReference: (<ExpressionContainer>this.parent).reference
 		}).then(response => {
 			if (response && response.body) {
-				this.value = massageValue(response.body.value);
+				this.value = maybeMassageValue(response.body.value, this.stackFrame.thread.process.session);
 				this.type = response.body.type || this.type;
 				this.reference = response.body.variablesReference;
 				this.namedVariables = response.body.namedVariables;
@@ -818,7 +823,7 @@ export class Model implements debug.IModel {
 			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
+	public logToRepl(value: string | { [key: string]: any }, session: debug.ISession, severity?: severity): void {
 		let elements: OutputElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
 
@@ -836,7 +841,7 @@ export class Model implements debug.IModel {
 
 		// key-value output
 		else {
-			elements.push(new KeyValueOutputElement((<any>value).prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
+			elements.push(new KeyValueOutputElement((<any>value).prototype, value, session, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
 		}
 
 		if (elements.length) {
