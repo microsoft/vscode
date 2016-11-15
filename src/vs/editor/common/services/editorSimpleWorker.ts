@@ -297,28 +297,31 @@ export abstract class BaseEditorSimpleWorker {
 
 		const result: editorCommon.ISingleEditOperation[] = [];
 
-		for (let edit of edits) {
+		for (let {range, text} of edits) {
 
-			const original = model.getValueInRange(edit.range);
-			const modified = edit.text;
-			const changes = stringDiff(original, modified);
+			text = text.replace(/\r\n|\n|\r/g, model.eol);
 
-			if (changes.length <= 1) {
-				result.push(edit);
+			if (model.getValueInRange(range) === text) {
+				// noop
 				continue;
 			}
 
-			const editOffset = model.offsetAt(Range.lift(edit.range).getStartPosition());
+			// compute diff between original and edit.text
+			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
+			const original = model.getValueInRange(range);
+			const changes = stringDiff(original, text);
 
-			for (let j = 0; j < changes.length; j++) {
-				const {originalStart, originalLength, modifiedStart, modifiedLength} = changes[j];
-				const start = model.positionAt(editOffset + originalStart);
-				const end = model.positionAt(editOffset + originalStart + originalLength);
-
-				result.push({
-					text: modified.substr(modifiedStart, modifiedLength),
+			for (const change of changes) {
+				const start = model.positionAt(editOffset + change.originalStart);
+				const end = model.positionAt(editOffset + change.originalStart + change.originalLength);
+				const newEdit: editorCommon.ISingleEditOperation = {
+					text: text.substr(change.modifiedStart, change.modifiedLength),
 					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
-				});
+				};
+
+				if (model.getValueInRange(newEdit.range) !== newEdit.text) {
+					result.push(newEdit);
+				}
 			}
 		}
 

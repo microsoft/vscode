@@ -6,38 +6,45 @@
 
 import * as assert from 'assert';
 import { EditorSimpleWorkerImpl, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
+import { Range } from 'vs/editor/common/core/range';
 
 suite('EditorSimpleWorker', () => {
 
+	class WorkerWithModels extends EditorSimpleWorkerImpl {
 
-	let worker: EditorSimpleWorkerImpl;
+		getModel(uri: string) {
+			return this._getModel(uri);
+		}
+
+		addModel(lines: string[], eol: string = '\n') {
+			const uri = 'test:file#' + Date.now();
+			this.acceptNewModel({
+				url: uri,
+				versionId: 1,
+				value: {
+					EOL: eol,
+					lines,
+					BOM: undefined,
+					containsRTL: undefined,
+					length: undefined,
+					options: undefined
+				}
+			});
+			return this._getModel(uri);
+		}
+	}
+
+	let worker: WorkerWithModels;
 	let model: ICommonModel;
 
 	setup(() => {
-		worker = new class extends EditorSimpleWorkerImpl {
-
-			constructor() {
-				super();
-				this.acceptNewModel({
-					url: 'test:file',
-					versionId: 1,
-					value: {
-						EOL: '\n',
-						lines: [
-							'This is line one', //16
-							'and this is line number two', //27
-							'it is followed by #3', //20
-							'and finished with the fourth.', //29
-						],
-						BOM: undefined,
-						containsRTL: undefined,
-						length: undefined,
-						options: undefined
-					}
-				});
-				model = this._getModel('test:file');
-			}
-		};
+		worker = new WorkerWithModels();
+		model = worker.addModel([
+			'This is line one', //16
+			'and this is line number two', //27
+			'it is followed by #3', //20
+			'and finished with the fourth.', //29
+		]);
 	});
 
 	function assertPositionAt(offset: number, line: number, column: number) {
@@ -78,5 +85,44 @@ suite('EditorSimpleWorker', () => {
 		assertPositionAt(96, 4, 30);
 		assertPositionAt(99, 4, 30);
 		assertPositionAt(Number.MAX_VALUE, 4, 30);
+	});
+
+	test('MoreMinimal', function () {
+
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }], []).then(edits => {
+			assert.equal(edits.length, 1);
+			const [first] = edits;
+			assert.equal(first.text, 'O');
+			assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 14, endLineNumber: 1, endColumn: 15 });
+		});
+	});
+
+	test('MoreMinimal, issue #15385 newline changes only', function () {
+
+		let model = worker.addModel([
+			'{',
+			'\t"a":1',
+			'}'
+		], '\n');
+
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"a":1\r\n}', range: new Range(1, 1, 3, 2) }], []).then(edits => {
+			assert.equal(edits.length, 0);
+		});
+	});
+
+	test('MoreMinimal, issue #15385 newline changes and other', function () {
+
+		let model = worker.addModel([
+			'{',
+			'\t"a":1',
+			'}'
+		], '\n');
+
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"b":1\r\n}', range: new Range(1, 1, 3, 2) }], []).then(edits => {
+			assert.equal(edits.length, 1);
+			const [first] = edits;
+			assert.equal(first.text, 'b');
+			assert.deepEqual(first.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 2, endColumn: 4 });
+		});
 	});
 });
