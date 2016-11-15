@@ -25,6 +25,8 @@ export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', f
 export const CONTEXT_NOT_IN_DEBUG_REPL: ContextKeyExpr = CONTEXT_IN_DEBUG_REPL.toNegated();
 export const CONTEXT_ON_FIRST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onFirsteDebugReplLine', false);
 export const CONTEXT_ON_LAST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onLastDebugReplLine', false);
+export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
+
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
 export const NO_CONFIGURATIONS_LABEL = nls.localize('noConfigurations', "No Configurations");
@@ -478,6 +480,8 @@ export interface IDebugService {
 // Editor interfaces
 export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void>;
+	showBreakpointWidget(lineNumber: number): void;
+	closeBreakpointWidget(): void;
 }
 
 // utils
