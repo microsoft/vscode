@@ -32,7 +32,6 @@ export class BreakpointWidget extends ZoneWidget {
 	private hitCountContext: boolean;
 	private hitCountInput: string;
 	private conditionInput: string;
-	private static lastSelected = 0;
 
 	constructor(editor: ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -67,19 +66,12 @@ export class BreakpointWidget extends ZoneWidget {
 		const uri = this.editor.getModel().uri;
 		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.uri.toString() === uri.toString()).pop();
 
-		let selected = BreakpointWidget.lastSelected;
-		if (breakpoint && breakpoint.condition) {
-			selected = 0;
-		} else if (breakpoint && breakpoint.hitCondition) {
-			selected = 1;
-		}
-		BreakpointWidget.lastSelected = selected;
-		this.hitCountContext = selected === 1;
+		this.hitCountContext = breakpoint && breakpoint.hitCondition && !breakpoint.condition;
+		const selected = this.hitCountContext ? 1 : 0;
 		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count")], selected);
 		selectBox.render(dom.append(container, $('.breakpoint-select-container')));
 		selectBox.onDidSelect(e => {
 			this.hitCountContext = e === 'Hit Count';
-			BreakpointWidget.lastSelected = this.hitCountContext ? 1 : 0;
 			if (this.hitCountContext) {
 				this.conditionInput = this.inputBox.value;
 			} else {
