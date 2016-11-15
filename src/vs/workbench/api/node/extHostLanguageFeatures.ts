@@ -262,11 +262,11 @@ class DocumentFormattingAdapter {
 
 	provideDocumentFormattingEdits(resource: URI, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		const {document, version} = this._documents.getDocumentData(resource);
+		const {document} = this._documents.getDocumentData(resource);
 
 		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
+				return value.map(TypeConverters.TextEdit.from);
 			}
 		});
 	}
@@ -284,12 +284,12 @@ class RangeFormattingAdapter {
 
 	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		const {document, version} = this._documents.getDocumentData(resource);
+		const {document} = this._documents.getDocumentData(resource);
 		const ran = TypeConverters.toRange(range);
 
 		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
+				return value.map(TypeConverters.TextEdit.from);
 			}
 		});
 	}
@@ -309,12 +309,12 @@ class OnTypeFormattingAdapter {
 
 	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		const {document, version} = this._documents.getDocumentData(resource);
+		const {document} = this._documents.getDocumentData(resource);
 		const pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
+				return value.map(TypeConverters.TextEdit.from);
 			}
 		});
 	}

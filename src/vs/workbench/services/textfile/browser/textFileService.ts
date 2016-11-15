@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
@@ -25,6 +26,7 @@ import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorMo
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -55,7 +57,8 @@ export abstract class TextFileService implements ITextFileService {
 		@IFileService protected fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IBackupService private backupService: IBackupService
+		@IBackupService private backupService: IBackupService,
+		@IMessageService private messageService: IMessageService
 	) {
 		this.toUnbind = [];
 
@@ -111,28 +114,50 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private beforeShutdown(quitRequested: boolean): boolean | TPromise<boolean> {
-		if (this.backupService.isHotExitEnabled) {
-			return this.backupService.backupBeforeShutdown(this.getDirty(), this.models, quitRequested, this.confirmBeforeShutdown.bind(this));
-		}
 
 		// Dirty files need treatment on shutdown
-		if (this.getDirty().length) {
-			// If auto save is enabled, save all files and then check again for dirty files
-			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
-				return this.saveAll(false /* files only */).then(() => {
-					if (this.getDirty().length) {
-						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
-					}
+		const dirty = this.getDirty();
+		if (dirty.length) {
 
-					return this.backupService.cleanupBackupsBeforeShutdown(); // all good, no veto
-				});
+			// If auto save is enabled, save all files and then check again for dirty files
+			let handleAutoSave: TPromise<URI[] /* remaining dirty resources */>;
+			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
+				handleAutoSave = this.saveAll(false /* files only */).then(() => this.getDirty());
+			} else {
+				handleAutoSave = TPromise.as(dirty);
 			}
 
-			// Otherwise just confirm what to do
-			return this.confirmBeforeShutdown();
+			return handleAutoSave.then(dirty => {
+
+				// If we still have dirty files, we either have untitled ones or files that cannot be saved
+				// or auto save was not enabled and as such we did not save any dirty files to disk automatically
+				if (dirty.length) {
+
+					// If hot exit is enabled, backup dirty files and allow to exit without confirmation
+					if (this.backupService.isHotExitEnabled) {
+						return this.backupService.backupBeforeShutdown(dirty, this.models, quitRequested).then(result => {
+							if (result.didBackup) {
+								return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
+							}
+
+							// since a backup did not happen, we have to confirm for the dirty files now
+							return this.confirmBeforeShutdown();
+						}, errors => {
+							const firstError = errors[0];
+							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files could not be backed up (Error: {0}), try saving your files to exit.", firstError.message));
+
+							return true; // veto, the backups failed
+						});
+					}
+
+					// Otherwise just confirm from the user what to do with the dirty files
+					return this.confirmBeforeShutdown();
+				}
+			});
 		}
 
-		return this.backupService.cleanupBackupsBeforeShutdown(); // no veto
+		// No dirty files: no veto
+		return this.noVeto({ cleanUpBackups: true });
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
@@ -145,19 +170,27 @@ export abstract class TextFileService implements ITextFileService {
 					return true; // veto if some saves failed
 				}
 
-				return this.backupService.cleanupBackupsBeforeShutdown(); // no veto
+				return this.noVeto({ cleanUpBackups: true });
 			});
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-			return this.backupService.cleanupBackupsBeforeShutdown(); // no veto
+			return this.noVeto({ cleanUpBackups: true });
 		}
 
 		// Cancel
 		else if (confirm === ConfirmResult.CANCEL) {
 			return true; // veto
 		}
+	}
+
+	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
+		if (!options.cleanUpBackups) {
+			return false;
+		}
+
+		return this.backupService.cleanupBackupsBeforeShutdown().then(() => false, () => false);
 	}
 
 	private onWindowFocusLost(): void {
