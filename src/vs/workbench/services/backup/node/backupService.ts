@@ -5,10 +5,9 @@
 
 'use strict';
 
-import * as nls from 'vs/nls';
 import platform = require('vs/base/common/platform');
 import Uri from 'vs/base/common/uri';
-import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupService, IBackupFileService, IBackupResult } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextFileEditorModel, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
@@ -16,7 +15,6 @@ import { IFileService, IFilesConfiguration } from 'vs/platform/files/common/file
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 export class BackupService implements IBackupService {
 
@@ -35,7 +33,6 @@ export class BackupService implements IBackupService {
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IFileService private fileService: IFileService,
-		@IMessageService private messageService: IMessageService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
@@ -129,33 +126,28 @@ export class BackupService implements IBackupService {
 		return this.configuredHotExit && !!this.contextService.getWorkspace();
 	}
 
-	public backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean, confirmCallback: () => boolean | TPromise<boolean>): boolean | TPromise<boolean> {
+	public backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean): TPromise<IBackupResult> {
 		return this.backupFileService.getWorkspaceBackupPaths().then(workspaceBackupPaths => {
 			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
 			// When quit is not requested the confirm callback should be shown when the window being
 			// closed is the only VS Code window open, except for on Mac where hot exit is only
 			// ever activated when quit is requested.
 			if (!quitRequested && (workspaceBackupPaths.length > 1 || platform.isMacintosh)) {
-				return confirmCallback(); // confirm save
+				return TPromise.as({ didBackup: false });
 			}
 
 			// Backup and hot exit
-			return this.backupAll(dirtyToBackup, textFileEditorModelManager).then(() => {
-				return false; // the backup went smoothly, no veto
-			}, errors => {
-				const firstError = errors[0];
-				this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files could not be backed up (Error: {0}), try saving your files to exit.", firstError.message));
-				return true; // veto, the backups failed
-			});
+			return this.backupAll(dirtyToBackup, textFileEditorModelManager).then(() => { return { didBackup: true }; }); // we did backup
 		});
 	}
 
-	public cleanupBackupsBeforeShutdown(): boolean | TPromise<boolean> {
+	public cleanupBackupsBeforeShutdown(): TPromise<void> {
 		const workspace = this.contextService.getWorkspace();
 		if (!workspace) {
-			return false; // no backups to cleanup, no veto
+			return TPromise.as(null); // no backups to cleanup
 		}
-		return this.backupFileService.discardAllWorkspaceBackups().then(() => false, () => false); // no veto
+
+		return this.backupFileService.discardAllWorkspaceBackups();
 	}
 
 	public dispose(): void {
