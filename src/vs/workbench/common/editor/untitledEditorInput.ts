@@ -86,6 +86,11 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			return this.cachedModel.isDirty();
 		}
 
+		// A disposed input is never dirty, even if it was restored from backup
+		if (this.isDisposed()) {
+			return false;
+		}
+
 		// untitled files with an associated path or associated resource
 		return this.hasAssociatedFilePath || !!this.resource;
 	}
