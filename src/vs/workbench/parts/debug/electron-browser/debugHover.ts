@@ -224,7 +224,11 @@ export class DebugHoverWidget implements IContentWidget {
 		if (!expression.hasChildren || forceValueHover) {
 			this.complexValueContainer.hidden = true;
 			this.valueContainer.hidden = false;
-			renderExpressionValue(expression, this.valueContainer, false, MAX_VALUE_RENDER_LENGTH_IN_HOVER);
+			renderExpressionValue(expression, this.valueContainer, {
+				showChanged: false,
+				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_HOVER,
+				preserveWhitespace: true
+			});
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
 			if (focus) {

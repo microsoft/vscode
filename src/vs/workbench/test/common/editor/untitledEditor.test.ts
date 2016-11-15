@@ -146,4 +146,57 @@ suite('Workbench - Untitled Editor', () => {
 			done();
 		});
 	});
+
+	test('onDidChangeContent event', done => {
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet();
+
+		let counter = 0;
+
+		service.onDidChangeContent(r => {
+			counter++;
+			assert.equal(r.toString(), input.getResource().toString());
+		});
+
+		input.resolve().then((model: UntitledEditorModel) => {
+			model.append('foo');
+			assert.equal(counter, 1, 'Dirty model should trigger event');
+
+			model.append('bar');
+			assert.equal(counter, 2, 'Content change when dirty should trigger event');
+
+			model.clearValue();
+			assert.equal(counter, 3, 'Manual revert should trigger event');
+
+			model.append('foo');
+			assert.equal(counter, 4, 'Dirty model should trigger event');
+
+			model.revert();
+			assert.equal(counter, 5, 'Revert should trigger event');
+
+			input.dispose();
+
+			done();
+		});
+	});
+
+	test('onDidDisposeModel event', done => {
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet();
+
+		let counter = 0;
+
+		service.onDidDisposeModel(r => {
+			counter++;
+			assert.equal(r.toString(), input.getResource().toString());
+		});
+
+		input.resolve().then((model: UntitledEditorModel) => {
+			assert.equal(counter, 0);
+			input.dispose();
+			assert.equal(counter, 1);
+
+			done();
+		});
+	});
 });

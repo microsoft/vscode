@@ -182,9 +182,7 @@ export class Repl extends Panel implements IPrivateReplService {
 					suggestions: suggestions
 				})));
 			}
-		},
-			true
-		);
+		});
 
 		this.toDispose.push(this.replInput.onDidScrollChange(e => {
 			if (!e.scrollHeightChanged) {

@@ -229,7 +229,8 @@ configurationRegistry.registerConfiguration({
 
 configurationRegistry.registerConfiguration({
 	id: 'editor',
-	order: 5.5,
+	order: 5,
+	title: nls.localize('editorConfigurationTitle', "Editor"),
 	type: 'object',
 	properties: {
 		'editor.formatOnSave': {

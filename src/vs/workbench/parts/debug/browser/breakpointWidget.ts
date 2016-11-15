@@ -3,29 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import 'vs/css!../browser/media/breakpointWidget';
+import * as nls from 'vs/nls';
 import * as async from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { CommonEditorRegistry, ServicesAccessor, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
-import { EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDebugService, IBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.$;
-const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
-const CLOSE_BREAKPOINT_WIDGET_COMMAND_ID = 'closeBreakpointWidget';
 const EXPRESSION_PLACEHOLDER = nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. 'Enter' to accept, 'esc' to cancel.");
 const EXPRESSION_ARIA_LABEL = nls.localize('breakpointWidgetAriaLabel', "The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.");
 const HIT_COUNT_PLACEHOLDER = nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met. 'Enter' to accept, 'esc' to cancel.");
@@ -33,41 +27,22 @@ const HIT_COUNT_ARIA_LABEL = nls.localize('breakpointWidgetHitCountAriaLabel', "
 
 export class BreakpointWidget extends ZoneWidget {
 
-	public static INSTANCE: BreakpointWidget;
-
 	private inputBox: InputBox;
 	private toDispose: lifecycle.IDisposable[];
-	private breakpointWidgetVisible: IContextKey<boolean>;
 	private hitCountContext: boolean;
 	private hitCountInput: string;
 	private conditionInput: string;
-	private static lastSelected = 0;
 
 	constructor(editor: ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IDebugService private debugService: IDebugService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IDebugService private debugService: IDebugService
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameColor: '#007ACC', frameWidth: 1 });
 
 		this.toDispose = [];
 		this.hitCountInput = '';
 		this.conditionInput = '';
-
 		this.create();
-		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this.breakpointWidgetVisible.set(true);
-		BreakpointWidget.INSTANCE = this;
-		this.toDispose.push(editor.onDidChangeModel(() => this.dispose()));
-	}
-
-	public static createInstance(editor: ICodeEditor, lineNumber: number, instantiationService: IInstantiationService): void {
-		if (BreakpointWidget.INSTANCE) {
-			BreakpointWidget.INSTANCE.dispose();
-		}
-
-		instantiationService.createInstance(BreakpointWidget, editor, lineNumber);
-		BreakpointWidget.INSTANCE.show({ lineNumber, column: 1 }, 2);
 	}
 
 	private get placeholder(): string {
@@ -91,19 +66,12 @@ export class BreakpointWidget extends ZoneWidget {
 		const uri = this.editor.getModel().uri;
 		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.uri.toString() === uri.toString()).pop();
 
-		let selected = BreakpointWidget.lastSelected;
-		if (breakpoint && breakpoint.condition) {
-			selected = 0;
-		} else if (breakpoint && breakpoint.hitCondition) {
-			selected = 1;
-		}
-		BreakpointWidget.lastSelected = selected;
-		this.hitCountContext = selected === 1;
+		this.hitCountContext = breakpoint && breakpoint.hitCondition && !breakpoint.condition;
+		const selected = this.hitCountContext ? 1 : 0;
 		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count")], selected);
 		selectBox.render(dom.append(container, $('.breakpoint-select-container')));
 		selectBox.onDidSelect(e => {
 			this.hitCountContext = e === 'Hit Count';
-			BreakpointWidget.lastSelected = this.hitCountContext ? 1 : 0;
 			if (this.hitCountContext) {
 				this.conditionInput = this.inputBox.value;
 			} else {
@@ -178,32 +146,7 @@ export class BreakpointWidget extends ZoneWidget {
 
 	public dispose(): void {
 		super.dispose();
-		this.breakpointWidgetVisible.reset();
-		BreakpointWidget.INSTANCE = undefined;
 		lifecycle.dispose(this.toDispose);
 		setTimeout(() => this.editor.focus(), 0);
 	}
 }
-
-class CloseBreakpointWidgetCommand extends EditorCommand {
-
-	constructor() {
-		super({
-			id: CLOSE_BREAKPOINT_WIDGET_COMMAND_ID,
-			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
-			kbOpts: {
-				weight: CommonEditorRegistry.commandWeight(8),
-				kbExpr: EditorContextKeys.Focus,
-				primary: KeyCode.Escape,
-				secondary: [KeyMod.Shift | KeyCode.Escape]
-			}
-		});
-	}
-
-	protected runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
-		if (BreakpointWidget.INSTANCE) {
-			BreakpointWidget.INSTANCE.dispose();
-		}
-	}
-}
-CommonEditorRegistry.registerEditorCommand(new CloseBreakpointWidgetCommand());

@@ -104,6 +104,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.quickopen = quickopen;
 		this.toUnbind = [];
 		this.computedStyles = null;
+		this.panelHeightBeforeMaximized = 0;
 
 		this.sashX = new Sash(this.workbenchContainer.getHTMLElement(), this, {
 			baseSize: 5

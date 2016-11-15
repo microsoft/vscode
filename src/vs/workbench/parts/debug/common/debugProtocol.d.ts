@@ -693,7 +693,7 @@ declare module DebugProtocol {
 	/** Response to 'setVariable' request. */
 	export interface SetVariableResponse extends Response {
 		body: {
-			/** The new value of the variable. See capability 'supportsValueEscaping' for details about how to treat newlines in multi-line strings. */
+			/** The new value of the variable. */
 			value: string;
 			/** The type of the new value. Typically shown in the UI when hovering over the value. */
 			type?: string;
@@ -795,7 +795,7 @@ declare module DebugProtocol {
 	/** Response to 'evaluate' request. */
 	export interface EvaluateResponse extends Response {
 		body: {
-			/** The result of the evaluate request. See capability 'supportsValueEscaping' for details about how to treat newlines in multi-lines strings. */
+			/** The result of the evaluate request. */
 			result: string;
 			/** The optional type of the evaluate result. */
 			type?: string;
@@ -925,8 +925,6 @@ declare module DebugProtocol {
 		additionalModuleColumns?: ColumnDescriptor[];
 		/** Checksum algorithms supported by the debug adapter. */
 		supportedChecksumAlgorithms?: ChecksumAlgorithm[];
-		/** The debug adapter will be responsible for escaping newlines in variable values and evaluation results, and the client will display them as-is. If missing or false the client will escape newlines as needed. */
-		supportsValueEscaping?: boolean;
 		/** The debug adapter supports the RestartRequest. In this case a client should not implement 'restart' by terminating and relaunching the adapter but by calling the RestartRequest. */
 		supportsRestartRequest?: boolean;
 	}
@@ -1102,7 +1100,7 @@ declare module DebugProtocol {
 	export interface Variable {
 		/** The variable's name. */
 		name: string;
-		/** The variable's value. This can be a multi-line text, e.g. for a function the body of a function. See capability 'supportsValueEscaping' for details about how to treat newlines in multi-line strings. */
+		/** The variable's value. This can be a multi-line text, e.g. for a function the body of a function. */
 		value: string;
 		/** The type of the variable's value. Typically shown in the UI when hovering over the value. */
 		type?: string;
