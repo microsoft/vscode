@@ -49,6 +49,22 @@
 .monaco-editor .char-insert {
 	background: rgba(155, 185, 85, 0.2);
 }
+
+.my-added, .my-deleted {
+	background-size: 100%;
+	background-repeat: no-repeat;
+	background-position: 0;
+}
+.inline-deleted-margin-view-zone {
+	text-align: right;
+}
+.my-added {
+	background-image: url('addition.svg');
+}
+.my-deleted {
+	background-image: url('deletion.svg');
+}
+
 .monaco-editor.hc-black .line-insert,
 .monaco-editor.hc-black .char-insert {
 	background: none;
