@@ -120,35 +120,40 @@ export abstract class TextFileService implements ITextFileService {
 		if (dirty.length) {
 
 			// If auto save is enabled, save all files and then check again for dirty files
+			let handleAutoSave: TPromise<URI[] /* remaining dirty resources */>;
 			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
-				return this.saveAll(false /* files only */).then(() => {
-					if (this.getDirty().length) {
-						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally as something must have gone wrong while saving them
-					}
-
-					return this.noVeto({ cleanUpBackups: true });
-				});
+				handleAutoSave = this.saveAll(false /* files only */).then(() => this.getDirty());
+			} else {
+				handleAutoSave = TPromise.as(dirty);
 			}
 
-			// If hot exit is enabled, backup dirty files and allow to exit without confirmation
-			if (this.backupService.isHotExitEnabled) {
-				return this.backupService.backupBeforeShutdown(dirty, this.models, quitRequested).then(result => {
-					if (result.didBackup) {
-						return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
+			return handleAutoSave.then(dirty => {
+
+				// If we still have dirty files, we either have untitled ones or files that cannot be saved
+				// or auto save was not enabled and as such we did not save any dirty files to disk automatically
+				if (dirty.length) {
+
+					// If hot exit is enabled, backup dirty files and allow to exit without confirmation
+					if (this.backupService.isHotExitEnabled) {
+						return this.backupService.backupBeforeShutdown(dirty, this.models, quitRequested).then(result => {
+							if (result.didBackup) {
+								return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
+							}
+
+							// since a backup did not happen, we have to confirm for the dirty files now
+							return this.confirmBeforeShutdown();
+						}, errors => {
+							const firstError = errors[0];
+							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files could not be backed up (Error: {0}), try saving your files to exit.", firstError.message));
+
+							return true; // veto, the backups failed
+						});
 					}
 
-					// since a backup did not happen, we have to confirm for the dirty files now
+					// Otherwise just confirm from the user what to do with the dirty files
 					return this.confirmBeforeShutdown();
-				}, errors => {
-					const firstError = errors[0];
-					this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files could not be backed up (Error: {0}), try saving your files to exit.", firstError.message));
-
-					return true; // veto, the backups failed
-				});
-			}
-
-			// Otherwise just confirm from the user what to do with the dirty files
-			return this.confirmBeforeShutdown();
+				}
+			});
 		}
 
 		// No dirty files: no veto
