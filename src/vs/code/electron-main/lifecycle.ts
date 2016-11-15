@@ -15,8 +15,8 @@ import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
 
 const EventTypes = {
-	BEFORE_QUIT: 'before-quit',
-	AFTER_UNLOAD: 'after-unload'
+	BEFORE_CLOSE: 'before-close',
+	BEFORE_QUIT: 'before-quit'
 };
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
@@ -88,9 +88,9 @@ export class LifecycleService implements ILifecycleService {
 	}
 
 	onAfterUnload(clb: (VSCodeWindow) => void): () => void {
-		this.eventEmitter.addListener(EventTypes.AFTER_UNLOAD, clb);
+		this.eventEmitter.addListener(EventTypes.BEFORE_CLOSE, clb);
 
-		return () => this.eventEmitter.removeListener(EventTypes.AFTER_UNLOAD, clb);
+		return () => this.eventEmitter.removeListener(EventTypes.BEFORE_CLOSE, clb);
 	}
 
 	public ready(): void {
@@ -168,7 +168,7 @@ export class LifecycleService implements ILifecycleService {
 			const oneTimeCancelEvent = 'vscode:cancel' + oneTimeEventToken;
 
 			ipc.once(oneTimeOkEvent, () => {
-				this.eventEmitter.emit(EventTypes.AFTER_UNLOAD, vscodeWindow);
+				this.eventEmitter.emit(EventTypes.BEFORE_CLOSE, vscodeWindow);
 
 				c(false); // no veto
 			});
