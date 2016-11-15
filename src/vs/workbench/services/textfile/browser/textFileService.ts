@@ -111,12 +111,15 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private beforeShutdown(quitRequested: boolean): boolean | TPromise<boolean> {
+
+		// Special shutdown logic when hot exit is enabled
 		if (this.backupService.isHotExitEnabled) {
 			return this.backupService.backupBeforeShutdown(this.getDirty(), this.models, quitRequested, this.confirmBeforeShutdown.bind(this));
 		}
 
-		// Dirty files need treatment on shutdown
+		// Otherwise: Dirty files need treatment on shutdown
 		if (this.getDirty().length) {
+
 			// If auto save is enabled, save all files and then check again for dirty files
 			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
 				return this.saveAll(false /* files only */).then(() => {
@@ -124,7 +127,7 @@ export abstract class TextFileService implements ITextFileService {
 						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
 					}
 
-					return this.backupService.cleanupBackupsBeforeShutdown(); // all good, no veto
+					return this.noVeto();
 				});
 			}
 
@@ -132,7 +135,7 @@ export abstract class TextFileService implements ITextFileService {
 			return this.confirmBeforeShutdown();
 		}
 
-		return this.backupService.cleanupBackupsBeforeShutdown(); // no veto
+		return this.noVeto();
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
@@ -145,19 +148,28 @@ export abstract class TextFileService implements ITextFileService {
 					return true; // veto if some saves failed
 				}
 
-				return this.backupService.cleanupBackupsBeforeShutdown(); // no veto
+				return this.noVeto();
 			});
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-			return this.backupService.cleanupBackupsBeforeShutdown(); // no veto
+			return this.noVeto();
 		}
 
 		// Cancel
 		else if (confirm === ConfirmResult.CANCEL) {
 			return true; // veto
 		}
+	}
+
+	private noVeto(): boolean | TPromise<boolean> {
+		const res = this.backupService.cleanupBackupsBeforeShutdown();
+		if (typeof res === 'boolean') {
+			return false;
+		}
+
+		return res.then(() => false, () => false);
 	}
 
 	private onWindowFocusLost(): void {
