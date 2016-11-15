@@ -29,17 +29,17 @@ export interface ICodeSnippet {
 
 export class CodeSnippet implements ICodeSnippet {
 
-	static fromTextmate(template: string, variablesAsPlaceholder: boolean = true): CodeSnippet {
+	static fromTextmate(template: string): CodeSnippet {
 		const marker = new SnippetParser(true, false).parse(template);
 		const snippet = new CodeSnippet();
-		_fillCodeSnippetFromMarker(snippet, marker, variablesAsPlaceholder);
+		_fillCodeSnippetFromMarker(snippet, marker);
 		return snippet;
 	}
 
 	static fromInternal(template: string): CodeSnippet {
 		const marker = new SnippetParser(false, true).parse(template);
 		const snippet = new CodeSnippet();
-		_fillCodeSnippetFromMarker(snippet, marker, true);
+		_fillCodeSnippetFromMarker(snippet, marker);
 		return snippet;
 	}
 
@@ -465,9 +465,14 @@ function _convertExternalSnippet(snippet: string, snippetType: ExternalSnippetTy
 	return convertedSnippet;
 };
 
-function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[], variablesAsPlaceholder: boolean) {
+function _isFinishPlaceHolder(v: IPlaceHolder) {
+	return (v.id === '' && v.value === '') || v.id === '0';
+}
+
+function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 
 	let placeHolders: { [id: string]: IPlaceHolder } = Object.create(null);
+	let hasFinishPlaceHolder = false;
 
 	const stack = [...marker];
 	snippet.lines = [''];
@@ -481,11 +486,6 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[], vari
 
 		} else if (marker instanceof Placeholder) {
 
-			if (marker.isVariable && !variablesAsPlaceholder) {
-				stack.unshift(...marker.value);
-				continue;
-			}
-
 			// TODO - not every variable is a placeholder
 			let placeHolder = placeHolders[marker.name];
 			if (!placeHolder) {
@@ -496,6 +496,7 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[], vari
 				};
 				snippet.placeHolders.push(placeHolder);
 			}
+			hasFinishPlaceHolder = hasFinishPlaceHolder || _isFinishPlaceHolder(placeHolder);
 
 			const line = snippet.lines.length;
 			const column = snippet.lines[line - 1].length + 1;
@@ -516,18 +517,21 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[], vari
 				stack.unshift(...marker.value);
 			}
 		}
+
+		if (stack.length === 0 && !hasFinishPlaceHolder) {
+			stack.push(new Placeholder('0', []));
+		}
 	}
 
 	// Named variables (e.g. {greeting} and {greeting:Hello}) are sorted first, followed by
 	// tab-stops and numeric variables (e.g. $1, $2, ${3:foo}) which are sorted in ascending order
 	snippet.placeHolders.sort((a, b) => {
 		let nonIntegerId = (v: IPlaceHolder) => !(/^\d+$/).test(v.id);
-		let isFinishPlaceHolder = (v: IPlaceHolder) => (v.id === '' && v.value === '') || v.id === '0';
 
 		// Sort finish placeholder last
-		if (isFinishPlaceHolder(a)) {
+		if (_isFinishPlaceHolder(a)) {
 			return 1;
-		} else if (isFinishPlaceHolder(b)) {
+		} else if (_isFinishPlaceHolder(b)) {
 			return -1;
 		}
 
@@ -547,11 +551,8 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[], vari
 		return Number(a.id) < Number(b.id) ? -1 : 1;
 	});
 
-	if (snippet.placeHolders.length > 0 && snippet.placeHolders[snippet.placeHolders.length - 1].value === '') {
+	if (snippet.placeHolders.length > 0) {
 		snippet.finishPlaceHolderIndex = snippet.placeHolders.length - 1;
-
-		if (snippet.placeHolders[snippet.placeHolders.length - 1].id === '0') {
-			snippet.placeHolders[snippet.placeHolders.length - 1].id = '';
-		}
+		snippet.placeHolders[snippet.finishPlaceHolderIndex].id = '';
 	}
 }
