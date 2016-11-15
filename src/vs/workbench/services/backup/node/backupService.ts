@@ -160,9 +160,7 @@ export class BackupService implements IBackupService {
 		if (!workspace) {
 			return false; // no backups to cleanup, no veto
 		}
-		return this.backupFileService.discardAllWorkspaceBackups().then(() => {
-			return false; // no veto
-		});
+		return this.backupFileService.discardAllWorkspaceBackups().then(() => false, () => false); // no veto
 	}
 
 	public dispose(): void {
