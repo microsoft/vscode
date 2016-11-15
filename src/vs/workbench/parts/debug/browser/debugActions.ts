@@ -10,10 +10,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
-import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -478,13 +476,12 @@ export class AddConditionalBreakpointAction extends AbstractDebugAction {
 		private lineNumber: number,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label, null, debugService, keybindingService);
 	}
 
 	public run(): TPromise<any> {
-		BreakpointWidget.createInstance(this.editor, this.lineNumber, this.instantiationService);
+		this.editor.getContribution<debug.IDebugEditorContribution>(debug.EDITOR_CONTRIBUTION_ID).showBreakpointWidget(this.lineNumber);
 		return TPromise.as(null);
 	}
 }
@@ -498,13 +495,12 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 		private lineNumber: number,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label, null, debugService, keybindingService);
 	}
 
 	public run(breakpoint: debug.IBreakpoint): TPromise<any> {
-		BreakpointWidget.createInstance(this.editor, this.lineNumber, this.instantiationService);
+		this.editor.getContribution<debug.IDebugEditorContribution>(debug.EDITOR_CONTRIBUTION_ID).showBreakpointWidget(this.lineNumber);
 		return TPromise.as(null);
 	}
 }

@@ -8,12 +8,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ServicesAccessor, editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { ServicesAccessor, editorAction, EditorAction, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from 'vs/workbench/parts/debug/common/debug';
-import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
@@ -63,11 +60,10 @@ class EditorConditionalBreakpointAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		const debugService = accessor.get(IDebugService);
-		const instantiationService = accessor.get(IInstantiationService);
 
 		const lineNumber = editor.getPosition().lineNumber;
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			BreakpointWidget.createInstance(<ICodeEditor>editor, lineNumber, instantiationService);
+			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber);
 		}
 	}
 }
@@ -195,3 +191,25 @@ class ShowDebugHoverAction extends EditorAction {
 		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showHover(range, word.word, true);
 	}
 }
+
+class CloseBreakpointWidgetCommand extends EditorCommand {
+
+	constructor() {
+		super({
+			id: 'closeBreakpointWidget',
+			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
+			kbOpts: {
+				weight: CommonEditorRegistry.commandWeight(8),
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyCode.Escape,
+				secondary: [KeyMod.Shift | KeyCode.Escape]
+			}
+		});
+	}
+
+	protected runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).closeBreakpointWidget();
+	}
+}
+
+CommonEditorRegistry.registerEditorCommand(new CloseBreakpointWidgetCommand());

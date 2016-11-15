@@ -15,13 +15,14 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
 import { RemoveBreakpointAction, EditConditionalBreakpointAction, ToggleEnablementAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID } from 'vs/workbench/parts/debug/common/debug';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 
 const HOVER_DELAY = 300;
 
@@ -33,6 +34,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private hoverWidget: DebugHoverWidget;
 	private showHoverScheduler: RunOnceScheduler;
 	private hideHoverScheduler: RunOnceScheduler;
+	private breakpointWidget: BreakpointWidget;
 	private hoverRange: Range;
 	private hoveringOver: string;
 
@@ -45,7 +47,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	) {
 		this.breakpointHintDecoration = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService);
-		this.toDispose = [this.hoverWidget];
+		this.toDispose = [];
 		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, this.hoveringOver, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
 		this.registerListeners();
@@ -223,12 +225,36 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	// end hover business
 
+	public showBreakpointWidget(lineNumber: number): void {
+		if (this.breakpointWidget) {
+			this.breakpointWidget.dispose();
+		}
+
+		this.breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, this.editor, lineNumber);
+		this.breakpointWidget.show({ lineNumber, column: 1 }, 2);
+	}
+
+	public closeBreakpointWidget(): void {
+		if (this.breakpointWidget) {
+			this.breakpointWidget.dispose();
+			this.breakpointWidget = null;
+		}
+
+		this.editor.focus();
+	}
+
 	private static BREAKPOINT_HELPER_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-hint-glyph',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
 	public dispose(): void {
+		if (this.breakpointWidget) {
+			this.breakpointWidget.dispose();
+		}
+		if (this.hoverWidget) {
+			this.hoverWidget.dispose();
+		}
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
