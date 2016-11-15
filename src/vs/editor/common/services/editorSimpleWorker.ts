@@ -289,6 +289,11 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- END diff --------------------------------------------------------------------------
 
+
+	// ---- BEGIN minimal edits ---------------------------------------------------------------
+
+	private static _diffLimit = 10000;
+
 	public computeMoreMinimalEdits(modelUrl: string, edits: editorCommon.ISingleEditOperation[], ranges: editorCommon.IRange[]): TPromise<editorCommon.ISingleEditOperation[]> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
@@ -299,17 +304,23 @@ export abstract class BaseEditorSimpleWorker {
 
 		for (let {range, text} of edits) {
 
+			const original = model.getValueInRange(range);
 			text = text.replace(/\r\n|\n|\r/g, model.eol);
 
-			if (model.getValueInRange(range) === text) {
+			if (original === text) {
 				// noop
 				continue;
 			}
 
+			// make sure diff won't take too long
+			if (Math.max(text.length, original.length) > BaseEditorSimpleWorker._diffLimit) {
+				result.push({ range, text });
+				continue;
+			}
+
 			// compute diff between original and edit.text
-			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
-			const original = model.getValueInRange(range);
 			const changes = stringDiff(original, text);
+			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
 
 			for (const change of changes) {
 				const start = model.positionAt(editOffset + change.originalStart);
@@ -327,6 +338,8 @@ export abstract class BaseEditorSimpleWorker {
 
 		return TPromise.as(result);
 	}
+
+	// ---- END minimal edits ---------------------------------------------------------------
 
 	public computeLinks(modelUrl: string): TPromise<ILink[]> {
 		let model = this._getModel(modelUrl);
