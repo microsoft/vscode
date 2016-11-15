@@ -22,8 +22,8 @@ Below is the EBNF for snippets. The `$`-character can be escaped  using backslas
 
 ```
 any         ::= tabstop | placeholder | variable | text
-tabstop     ::= '$' int
-placeholder ::= '${' int '}' | '${' int ':' any '}'
+tabstop     ::= '$' int | '${' int '}'
+placeholder ::= '${' int ':' any '}'
 variable    ::= '$' var | '${' var }' | '${' var ':' any '}'
 var         ::= [_a-zA-Z] [_a-zA-Z0-9]*
 int         ::= [0-9]+
