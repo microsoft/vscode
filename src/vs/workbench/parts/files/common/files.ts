@@ -51,9 +51,9 @@ export abstract class FileEditorInput extends EditorInput implements IFileEditor
 
 	public abstract getEncoding(): string;
 
-	public getTelemetryDescriptor(): any {
+	public getTelemetryDescriptor(): { [key: string]: any; } {
 		const descriptor = super.getTelemetryDescriptor();
-		descriptor.resource = telemetryURIDescriptor(this.getResource());
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
 		return descriptor;
 	}
 }

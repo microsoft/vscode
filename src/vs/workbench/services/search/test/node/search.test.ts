@@ -346,6 +346,29 @@ suite('Search', () => {
 		});
 	});
 
+	test('Files: Include pattern, single files', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			rootFolders: rootfolders(),
+			includePattern: {
+				'site.css': true,
+				'examples/company.js': true,
+				'examples/subfolder/subfile.txt': true
+			}
+		});
+
+		let res: IRawFileMatch[] = [];
+		engine.search((result) => {
+			res.push(result);
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			const basenames = res.map(r => path.basename(r.relativePath));
+			assert.ok(basenames.indexOf('site.css') !== -1, `site.css missing in ${JSON.stringify(basenames)}`);
+			assert.ok(basenames.indexOf('company.js') !== -1, `company.js missing in ${JSON.stringify(basenames)}`);
+			assert.ok(basenames.indexOf('subfile.txt') !== -1, `subfile.txt missing in ${JSON.stringify(basenames)}`);
+			done();
+		});
+	});
+
 	test('Files: extraFiles only', function (done: () => void) {
 		let engine = new FileSearchEngine({
 			rootFolders: [],

@@ -45,7 +45,7 @@ export interface IOpenConfiguration {
 	forceEmpty?: boolean;
 	windowToUse?: VSCodeWindow;
 	diffMode?: boolean;
-	restoreBackups?: boolean;
+	initialStartup?: boolean;
 }
 
 interface IWindowState {
@@ -382,20 +382,18 @@ export class WindowsManager implements IWindowsMainService {
 		let configuration: IWindowConfiguration;
 		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
 
-		// Restore any existing backup workspaces
-		if (openConfig.restoreBackups) {
+		// Restore any existing backup workspaces on the first initial startup
+		if (openConfig.initialStartup) {
 			const workspacesWithBackups = this.backupService.getWorkspaceBackupPaths();
-
 			workspacesWithBackups.forEach(workspacePath => {
 				if (!fs.existsSync(workspacePath)) {
 					this.backupService.removeWorkspaceBackupPathSync(Uri.file(workspacePath));
 					return;
 				}
 
-				const untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(workspacePath)).map(filePath => {
-					return { filePath: filePath };
-				});
+				const untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(workspacePath)).map(filePath => { return { filePath }; });
 				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, workspacePath, [], [], [], untitledToRestore);
+
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 

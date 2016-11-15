@@ -72,6 +72,14 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
+	public computeMoreMinimalEdits(resource: URI, edits: editorCommon.ISingleEditOperation[], ranges: editorCommon.IRange[]): TPromise<editorCommon.ISingleEditOperation[]> {
+		if (!Array.isArray(edits) || edits.length === 0) {
+			return TPromise.as(edits);
+		} else {
+			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits, ranges));
+		}
+	}
+
 	public navigateValueSet(resource: URI, range: editorCommon.IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
 	}
@@ -317,6 +325,12 @@ export class EditorWorkerClient extends Disposable {
 	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.IChange[]> {
 		return this._withSyncedResources([original, modified]).then(proxy => {
 			return proxy.computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
+		});
+	}
+
+	public computeMoreMinimalEdits(resource: URI, edits: editorCommon.ISingleEditOperation[], ranges: editorCommon.IRange[]): TPromise<editorCommon.ISingleEditOperation[]> {
+		return this._withSyncedResources([resource]).then(proxy => {
+			return proxy.computeMoreMinimalEdits(resource.toString(), edits, ranges);
 		});
 	}
 

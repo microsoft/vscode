@@ -130,7 +130,7 @@ export class ExtensionHostProcessWorker {
 					this.extensionService.getExtensions().then(extensions => {
 						const ids: string[] = [];
 						for (const ext of extensions) {
-							if (ext.main) {
+							if (ext.main && this.extensionService.isActivated(ext.id)) {
 								ids.push(ext.id);
 							}
 						}
