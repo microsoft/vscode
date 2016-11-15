@@ -422,7 +422,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new log to the repl. Either a string value or a dictionary (used to inspect complex objects printed to the repl).
 	 */
-	logToRepl(value: string | { [key: string]: any }, severity?: severity): void;
+	logToRepl(value: string | { [key: string]: any }, session: ISession, severity?: severity): void;
 
 	/**
 	 * Appends new output to the repl.
