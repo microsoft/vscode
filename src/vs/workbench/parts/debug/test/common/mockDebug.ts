@@ -63,7 +63,7 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeReplExpressions(): void { }
 
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void { }
+	public logToRepl(value: string | { [key: string]: any }, session: debug.ISession, severity?: severity): void { }
 
 	public appendReplOutput(value: string, severity?: severity): void { }
 
@@ -101,6 +101,9 @@ export class MockDebugService implements debug.IDebugService {
 export class MockSession implements debug.ISession {
 	public readyForBreakpoints = true;
 	public emittedStopped = true;
+
+	constructor(private opts: { capabilities?: DebugProtocol.Capabilities } = {}) {
+	}
 
 	public getId() {
 		return 'mockrawsession';
@@ -141,7 +144,7 @@ export class MockSession implements debug.ISession {
 	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
 		return {
 			type: 'mock',
-			capabilities: {}
+			capabilities: this.opts.capabilities || {}
 		};
 	}
 

@@ -331,10 +331,10 @@ suite('Debug - Model', () => {
 	// Repl output
 
 	test('repl output', () => {
-		model.logToRepl('first line', severity.Error);
-		model.logToRepl('second line', severity.Warning);
-		model.logToRepl('second line', severity.Warning);
-		model.logToRepl('second line', severity.Error);
+		model.logToRepl('first line', rawSession, severity.Error);
+		model.logToRepl('second line', rawSession, severity.Warning);
+		model.logToRepl('second line', rawSession, severity.Warning);
+		model.logToRepl('second line', rawSession, severity.Error);
 
 		let elements = <debugmodel.ValueOutputElement[]>model.getReplElements();
 		assert.equal(elements.length, 3);
@@ -354,7 +354,7 @@ suite('Debug - Model', () => {
 		assert.equal(elements[3].severity, severity.Error);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
-		model.logToRepl(keyValueObject);
+		model.logToRepl(keyValueObject, rawSession);
 		const element = <debugmodel.KeyValueOutputElement>model.getReplElements()[4];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
