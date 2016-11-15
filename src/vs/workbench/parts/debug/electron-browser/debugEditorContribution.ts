@@ -56,7 +56,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
 		this.registerListeners();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this.breakpointWidgetVisible.set(true);
 	}
 
 	private getContextMenuActions(breakpoint: IBreakpoint, uri: uri, lineNumber: number): TPromise<IAction[]> {
