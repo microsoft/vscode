@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import 'vs/css!../browser/media/breakpointWidget';
+import * as nls from 'vs/nls';
 import * as async from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -16,8 +16,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, IBreakpoint, IRawBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.$;
@@ -30,7 +29,6 @@ export class BreakpointWidget extends ZoneWidget {
 
 	private inputBox: InputBox;
 	private toDispose: lifecycle.IDisposable[];
-	private breakpointWidgetVisible: IContextKey<boolean>;
 	private hitCountContext: boolean;
 	private hitCountInput: string;
 	private conditionInput: string;
@@ -38,19 +36,14 @@ export class BreakpointWidget extends ZoneWidget {
 
 	constructor(editor: ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IDebugService private debugService: IDebugService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IDebugService private debugService: IDebugService
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameColor: '#007ACC', frameWidth: 1 });
 
 		this.toDispose = [];
 		this.hitCountInput = '';
 		this.conditionInput = '';
-
 		this.create();
-		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this.breakpointWidgetVisible.set(true);
-		this.toDispose.push(editor.onDidChangeModel(() => this.dispose()));
 	}
 
 	private get placeholder(): string {
@@ -161,7 +154,6 @@ export class BreakpointWidget extends ZoneWidget {
 
 	public dispose(): void {
 		super.dispose();
-		this.breakpointWidgetVisible.reset();
 		lifecycle.dispose(this.toDispose);
 		setTimeout(() => this.editor.focus(), 0);
 	}
