@@ -14,7 +14,6 @@ import { Registry } from 'vs/platform/platform';
 import { hasClass, getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { LinkedMap as Map } from 'vs/base/common/map';
 import { Extensions } from 'vs/workbench/common/actionRegistry';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
@@ -33,7 +32,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IOpenSettingsService } from 'vs/workbench/parts/settings/common/openSettings';
 import { DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/settings/browser/defaultSettingsEditors';
@@ -289,7 +288,6 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 class SettingsActionsRenderer extends Disposable {
 
 	private decorationIds: string[] = [];
-	private configurationsMap: Map<string, IConfigurationNode>;
 
 	constructor(private settingsEditor: ICodeEditor,
 		private copyConfiguration: (configurationValue: IConfigurationValue) => void,
@@ -348,7 +346,7 @@ class SettingsActionsRenderer extends Disposable {
 	}
 
 	private createDecoration(property: string, offset: number, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
-		const jsonSchema: IJSONSchema = this.getConfigurationsMap().get(property);
+		const jsonSchema: IJSONSchema = this.getConfigurationsMap()[property];
 		const position = model.getPositionAt(offset);
 		const maxColumn = model.getLineMaxColumn(position.lineNumber);
 		const range = {
@@ -384,26 +382,8 @@ class SettingsActionsRenderer extends Disposable {
 		}
 	}
 
-	private getConfigurationsMap(): Map<string, IConfigurationNode> {
-		if (!this.configurationsMap) {
-			const configurations = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurations();
-			this.configurationsMap = new Map<string, IConfigurationNode>();
-			configurations.forEach(configuration => this.populateProperties(configuration, this.configurationsMap));
-		}
-		return this.configurationsMap;
-	}
-
-	private populateProperties(configuration: IConfigurationNode, configurationsMap: Map<string, IConfigurationNode>) {
-		if (configuration.properties) {
-			for (const property of Object.keys(configuration.properties)) {
-				configurationsMap.set(property, <IConfigurationNode>configuration.properties[property]);
-			}
-		}
-		if (configuration.allOf) {
-			for (const c of configuration.allOf) {
-				this.populateProperties(c, configurationsMap);
-			}
-		}
+	private getConfigurationsMap(): { [qualifiedKey: string]: IJSONSchema } {
+		return Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 	}
 
 	private onClick(e: IEditorMouseEvent) {
@@ -411,7 +391,7 @@ class SettingsActionsRenderer extends Disposable {
 		const setting = parse('{' + model.getLineContent(e.target.range.startLineNumber) + '}');
 		const key = Object.keys(setting)[0];
 		let value = setting[key];
-		let jsonSchema: IJSONSchema = this.getConfigurationsMap().get(key);
+		let jsonSchema: IJSONSchema = this.getConfigurationsMap()[key];
 		const actions = this.getActions(key, jsonSchema);
 		if (actions) {
 			let elementPosition = getDomNodePagePosition(<HTMLElement>e.target.element);
