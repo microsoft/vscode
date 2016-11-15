@@ -135,8 +135,8 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				element.errorMessage = null;
 				if (renamed && element.value !== inputBox.value) {
 					element.setVariable(inputBox.value)
-						// if everything went fine we need to refresh that tree element since his value updated
-						.done(() => tree.refresh(element, false), errors.onUnexpectedError);
+						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
+						.done(() => debugService.focusStackFrameAndEvaluate(debugService.getViewModel().focusedStackFrame), errors.onUnexpectedError);
 				}
 			}
 
