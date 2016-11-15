@@ -19,22 +19,6 @@ interface Source {
 	version: number;
 }
 
-const actionToEdit = (source: Source, action: Proto.CodeAction) => {
-	const workspaceEdit = new WorkspaceEdit();
-	action.changes.forEach(change => {
-		change.textChanges.forEach(textChange => {
-			workspaceEdit.replace(this.client.asUrl(change.fileName),
-				new Range(textChange.start.line - 1, textChange.start.offset - 1, textChange.end.line - 1, textChange.end.offset - 1),
-				textChange.newText);
-		});
-	});
-	return {
-		title: action.description,
-		command: this.commandId,
-		args: [source, workspaceEdit]
-	};
-};
-
 export default class TypeScriptCodeActionProvider implements CodeActionProvider {
 	private client: ITypescriptServiceClient;
 	private commandId: string;
@@ -80,7 +64,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 				}, token);
 			})
 			.then(response => response.body)
-			.then(codeActions => codeActions.map(action => actionToEdit(source, action)));
+			.then(codeActions => codeActions.map(action => this.actionToEdit(source, action)));
 	}
 
 	private getSupportedCodeActions(context: CodeActionContext): Thenable<number[]> {
@@ -90,6 +74,24 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 					.map(diagnostic => +diagnostic.code)
 					.filter(code => supportedActions[code]);
 			});
+	}
+
+	private actionToEdit(source: Source, action: Proto.CodeAction): Command {
+		const workspaceEdit = new WorkspaceEdit();
+		action.changes.forEach(change => {
+			change.textChanges.forEach(textChange => {
+				workspaceEdit.replace(this.client.asUrl(change.fileName),
+					new Range(
+						textChange.start.line - 1, textChange.start.offset - 1,
+						textChange.end.line - 1, textChange.end.offset - 1),
+					textChange.newText);
+			});
+		});
+		return {
+			title: action.description,
+			command: this.commandId,
+			arguments: [source, workspaceEdit]
+		};
 	}
 
 	private onCodeAction(source: Source, workspaceEdit: WorkspaceEdit) {
