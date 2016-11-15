@@ -124,6 +124,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	public revert(): void {
 		this.dirty = false;
 
+		this._onDidChangeContent.fire();
 		this._onDidChangeDirty.fire();
 	}
 
