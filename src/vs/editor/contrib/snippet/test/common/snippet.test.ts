@@ -42,12 +42,12 @@ suite('Editor Contrib - Snippets', () => {
 			't2:$2, t1:$1',
 			snippet => {
 				assert.deepEqual(snippet.lines, ['t2:, t1:']);
-				assert.equal(snippet.placeHolders.length, 2);
+				assert.equal(snippet.placeHolders.length, 3);
 				assert.equal(snippet.placeHolders[0].id, '1');
 				assert.equal(snippet.placeHolders[0].value, '');
 				assert.equal(snippet.placeHolders[1].id, '2');
 				assert.equal(snippet.placeHolders[1].value, '');
-				assert.equal(snippet.finishPlaceHolderIndex, 1);
+				assert.equal(snippet.finishPlaceHolderIndex, 2);
 			});
 	});
 
@@ -58,48 +58,31 @@ suite('Editor Contrib - Snippets', () => {
 			't2:${2:second}, t3:${3:last}, t1:${1:first}',
 			snippet => {
 				assert.deepEqual(snippet.lines, ['t2:second, t3:last, t1:first']);
-				assert.equal(snippet.placeHolders.length, 3);
+				assert.equal(snippet.placeHolders.length, 4);
 				assert.equal(snippet.placeHolders[0].id, '1');
 				assert.equal(snippet.placeHolders[0].value, 'first');
 				assert.equal(snippet.placeHolders[1].id, '2');
 				assert.equal(snippet.placeHolders[1].value, 'second');
 				assert.equal(snippet.placeHolders[2].id, '3');
 				assert.equal(snippet.placeHolders[2].value, 'last');
-				assert.equal(snippet.finishPlaceHolderIndex, -1);
+				assert.equal(snippet.finishPlaceHolderIndex, 3);
 			});
 	});
 
-	test('Support tab stop order wich does not affect named variable id\'s', () => {
+	test('Support tab stop order which does not affect named variable id\'s', () => {
 
 		assertInternalAndTextmate(
 			'{{first}}-{{2:}}-{{second}}-{{1:}}',
 			'${first}-${2}-${second}-${1}',
 			snippet => {
 				assert.deepEqual(snippet.lines, ['first--second-']);
-				assert.equal(snippet.placeHolders.length, 4);
+				assert.equal(snippet.placeHolders.length, 5);
 				assert.equal(snippet.placeHolders[0].id, 'first');
 				assert.equal(snippet.placeHolders[1].id, 'second');
 				assert.equal(snippet.placeHolders[2].id, '1');
 				assert.equal(snippet.placeHolders[3].id, '2');
 			}
 		);
-	});
-
-	test('Variables vs Placeholders', () => {
-
-		let snippet = CodeSnippet.fromTextmate('${first}-${2}-${second}-${1}', true);
-		assert.deepEqual(snippet.lines, ['first--second-']);
-		assert.equal(snippet.placeHolders.length, 4);
-		assert.equal(snippet.placeHolders[0].id, 'first');
-		assert.equal(snippet.placeHolders[1].id, 'second');
-		assert.equal(snippet.placeHolders[2].id, '1');
-		assert.equal(snippet.placeHolders[3].id, '2');
-
-		snippet = CodeSnippet.fromTextmate('${first}-${2}-${second}-${1}', false);
-		assert.deepEqual(snippet.lines, ['---']);
-		assert.equal(snippet.placeHolders.length, 2);
-		assert.equal(snippet.placeHolders[0].id, '1');
-		assert.equal(snippet.placeHolders[1].id, '2');
 	});
 
 	test('nested placeholder', () => {
@@ -202,7 +185,8 @@ suite('Editor Contrib - Snippets', () => {
 
 		let external = '\n\\$scope.\\$broadcast(\'scroll.infiniteScrollComplete\');\n';
 		let snippet = CodeSnippet.fromTextmate(external);
-		assert.equal(snippet.placeHolders.length, 0);
+		assert.equal(snippet.placeHolders.length, 1);
+		assert.equal(snippet.finishPlaceHolderIndex, 0);
 		assert.deepEqual(snippet.lines, ['', '$scope.$broadcast(\'scroll.infiniteScrollComplete\');', '']);
 	});
 
@@ -256,7 +240,8 @@ suite('Editor Contrib - Snippets', () => {
 		});
 
 		assert.equal(boundSnippet.lines[1], '  test');
-		assert.equal(boundSnippet.placeHolders.length, 2);
+		assert.equal(boundSnippet.placeHolders.length, 3);
+		assert.equal(boundSnippet.finishPlaceHolderIndex, 2);
 		let [first, second] = boundSnippet.placeHolders;
 		assert.equal(first.occurences.length, 1);
 		assert.equal(first.occurences[0].startColumn, 1);

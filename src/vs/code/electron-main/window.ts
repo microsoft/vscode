@@ -446,9 +446,7 @@ export class VSCodeWindow {
 
 		// Update untitled files to restore so they come through in the reloaded window
 		if (configuration.workspacePath) {
-			configuration.untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(configuration.workspacePath)).map(filePath => {
-				return { filePath };
-			});
+			configuration.untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(configuration.workspacePath)).map(filePath => { return { filePath }; });
 		}
 
 		// Some configuration things get inherited if the window is being reloaded and we are

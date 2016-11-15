@@ -23,10 +23,6 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 const MAX_REPL_LENGTH = 10000;
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
-function massageValue(value: string): string {
-	return value ? value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') : value;
-}
-
 export class OutputElement implements debug.ITreeElement {
 	private static ID_COUNTER = 0;
 
@@ -67,7 +63,7 @@ export class KeyValueOutputElement extends OutputElement {
 		} else if (isObject(this.valueObj)) {
 			return 'Object';
 		} else if (isString(this.valueObj)) {
-			return `"${massageValue(this.valueObj)}"`;
+			return this.valueObj;
 		}
 
 		return String(this.valueObj) || '';
@@ -170,7 +166,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	}
 
 	public set value(value: string) {
-		this._value = massageValue(value);
+		this._value = value;
 		this.valueChanged = ExpressionContainer.allValues[this.getId()] &&
 			ExpressionContainer.allValues[this.getId()] !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues[this.getId()] !== value;
 		ExpressionContainer.allValues[this.getId()] = value;
@@ -248,7 +244,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		startOfVariables = 0
 	) {
 		super(stackFrame, reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
-		this.value = massageValue(value);
+		this.value = value;
 	}
 
 	public get evaluateName(): string {

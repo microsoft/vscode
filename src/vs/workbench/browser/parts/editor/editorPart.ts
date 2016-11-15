@@ -36,7 +36,7 @@ import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/messa
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorStacksModel, EditorGroup, EditorIdentifier } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorStacksModel, EditorGroup, EditorIdentifier, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import Event, { Emitter } from 'vs/base/common/event';
 
 class ProgressMonitor {
@@ -145,6 +145,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private registerListeners(): void {
 		this.toUnbind.push(this.stacks.onEditorDirty(identifier => this.onEditorDirty(identifier)));
 		this.toUnbind.push(this.stacks.onEditorDisposed(identifier => this.onEditorDisposed(identifier)));
+		this.toUnbind.push(this.stacks.onEditorOpened(identifier => this.onEditorOpened(identifier)));
+		this.toUnbind.push(this.stacks.onEditorClosed(event => this.onEditorClosed(event)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
@@ -175,6 +177,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private onEditorDisposed(identifier: EditorIdentifier): void {
 		this.pendingEditorInputsToClose.push(identifier);
 		this.startDelayedCloseEditorsFromInputDispose();
+	}
+
+	private onEditorOpened(identifier: EditorIdentifier): void {
+		this.telemetryService.publicLog('editorOpened', identifier.editor.getTelemetryDescriptor());
+	}
+
+	private onEditorClosed(event: GroupEvent): void {
+		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
 	}
 
 	public get onEditorsChanged(): Event<void> {

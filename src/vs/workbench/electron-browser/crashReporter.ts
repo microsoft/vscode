@@ -25,7 +25,8 @@ interface ICrashReporterConfig {
 const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
-	'order': 110.5,
+	'order': 110,
+	title: nls.localize('telemetryConfigurationTitle', "Telemetry"),
 	'type': 'object',
 	'properties': {
 		'telemetry.enableCrashReporter': {

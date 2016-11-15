@@ -14,7 +14,6 @@ import { EditorOptions, EditorInput, } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ICommonCodeEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
 import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
-import { getDefaultValuesContent } from 'vs/platform/configuration/common/model';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -29,6 +28,8 @@ import { IThemeService } from 'vs/workbench/services/themes/common/themeService'
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IFoldingController, ID as FoldingContributionId } from 'vs/editor/contrib/folding/common/folding';
+import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/platform';
 
 export class AbstractSettingsInput extends StringEditorInput {
 
@@ -46,20 +47,125 @@ export class AbstractSettingsInput extends StringEditorInput {
 	}
 }
 
+interface ISettingsGroup {
+	title: string;
+	sections: ISettingsSection[];
+}
+
+interface ISettingsSection {
+	description?: string;
+	settings: ISetting[];
+}
+
+interface ISetting {
+	key: string;
+	value: any;
+	description?: string;
+}
+
+class SettingsModel {
+
+	private settingsGroups: ISettingsGroup[];
+	private indent: string;
+
+	constructor( @IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
+		const editorConfig = this.configurationService.getConfiguration<any>();
+		this.indent = editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t';
+
+		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
+		this.settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
+	}
+
+	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
+		if (config.title) {
+			if (!settingsGroup) {
+				settingsGroup = result.filter(g => g.title === config.title)[0];
+				if (!settingsGroup) {
+					settingsGroup = { sections: [{ settings: [] }], title: config.title };
+					result.push(settingsGroup);
+				}
+			} else {
+				settingsGroup.sections[settingsGroup.sections.length - 1].description = config.title;
+			}
+		}
+		if (config.properties) {
+			if (!settingsGroup) {
+				settingsGroup = { sections: [{ settings: [] }], title: config.id };
+				result.push(settingsGroup);
+			}
+			const configurationSettings = Object.keys(config.properties).map((key) => {
+				const prop = config.properties[key];
+				const value = prop.default;
+				const description = prop.description || '';
+				return { key, value, description };
+			});
+			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
+		}
+		if (config.allOf) {
+			config.allOf.forEach(c => this.parseConfig(c, result, settingsGroup));
+		}
+		return result;
+	}
+
+	private compareConfigurationNodes(c1: IConfigurationNode, c2: IConfigurationNode): number {
+		if (typeof c1.order !== 'number') {
+			return 1;
+		}
+		if (typeof c2.order !== 'number') {
+			return -1;
+		}
+		if (c1.order === c2.order) {
+			const title1 = c1.title || '';
+			const title2 = c2.title || '';
+			return title1.localeCompare(title2);
+		}
+		return c1.order - c2.order;
+	}
+
+	public toContent(): string {
+		let defaultsHeader = '// ' + nls.localize('defaultSettingsHeader', "Overwrite settings by placing them into your settings file.\n");
+		defaultsHeader += '// ' + nls.localize('defaultSettingsHeader2', "See http://go.microsoft.com/fwlink/?LinkId=808995 for the most commonly used settings.\n\n");
+
+		let lastEntry = -1;
+		const result: string[] = [];
+		result.push('{');
+		for (const group of this.settingsGroups) {
+			result.push('// ' + group.title);
+			for (const section of group.sections) {
+				if (section.description) {
+					result.push(this.indent + '// ' + section.description);
+				}
+				for (const setting of section.settings) {
+					result.push(this.indent + '// ' + setting.description);
+					let valueString = JSON.stringify(setting.value, null, this.indent);
+					if (valueString && (typeof setting.value === 'object')) {
+						valueString = valueString.split('\n').join('\n' + this.indent);
+					}
+					if (lastEntry !== -1) {
+						result[lastEntry] += ',';
+					}
+					lastEntry = result.length;
+					result.push(this.indent + JSON.stringify(setting.key) + ': ' + valueString);
+					result.push('');
+				}
+			}
+		}
+		result.push('}');
+
+		return defaultsHeader + result.join('\n');
+	}
+
+}
+
 export class DefaultSettingsInput extends AbstractSettingsInput {
 	static uri: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' }); // URI is used to register JSON schema support
 	private static INSTANCE: DefaultSettingsInput;
 
 	public static getInstance(instantiationService: IInstantiationService, configurationService: IWorkspaceConfigurationService): DefaultSettingsInput {
 		if (!DefaultSettingsInput.INSTANCE) {
-			const editorConfig = configurationService.getConfiguration<any>();
-			const defaults = getDefaultValuesContent(editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t');
-
-			let defaultsHeader = '// ' + nls.localize('defaultSettingsHeader', "Overwrite settings by placing them into your settings file.");
-			defaultsHeader += '\n// ' + nls.localize('defaultSettingsHeader2', "See http://go.microsoft.com/fwlink/?LinkId=808995 for the most commonly used settings.");
-			DefaultSettingsInput.INSTANCE = instantiationService.createInstance(DefaultSettingsInput, nls.localize('defaultName', "Default Settings"), null, defaultsHeader + '\n' + defaults, 'application/json', false);
+			const content = instantiationService.createInstance(SettingsModel).toContent();
+			DefaultSettingsInput.INSTANCE = instantiationService.createInstance(DefaultSettingsInput, nls.localize('defaultName', "Default Settings"), null, content, 'application/json', false);
 		}
-
 		return DefaultSettingsInput.INSTANCE;
 	}
 

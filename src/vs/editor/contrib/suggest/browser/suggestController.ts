@@ -78,8 +78,7 @@ export class SuggestController implements IEditorContribution {
 
 	private static _codeSnippetForSuggestion({suggestion}: ICompletionItem): CodeSnippet {
 		switch (suggestion.snippetType) {
-			case 'badtextmate': return CodeSnippet.fromTextmate(suggestion.insertText);
-			case 'textmate': return CodeSnippet.fromTextmate(suggestion.insertText, false);
+			case 'textmate': return CodeSnippet.fromTextmate(suggestion.insertText);
 			case 'internal': return CodeSnippet.fromInternal(suggestion.insertText);
 			default: return CodeSnippet.none(suggestion.insertText);
 		}

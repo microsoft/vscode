@@ -1111,10 +1111,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		const unbind: IDisposable[] = [];
 		unbind.push(group.onEditorsStructureChanged(editor => this._onModelChanged.fire({ group, editor, structural: true })));
 		unbind.push(group.onEditorStateChanged(editor => this._onModelChanged.fire({ group, editor })));
-		unbind.push(group.onEditorOpened(editor => {
-			this.handleOnEditorOpened(editor);
-			this._onEditorOpened.fire({ editor, group });
-		}));
+		unbind.push(group.onEditorOpened(editor => this._onEditorOpened.fire({ editor, group })));
 		unbind.push(group.onEditorClosed(event => {
 			this.handleOnEditorClosed(event);
 			this._onEditorClosed.fire(event);
@@ -1129,10 +1126,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 		}));
 
 		return group;
-	}
-
-	private handleOnEditorOpened(editor: EditorInput): void {
-		this.telemetryService.publicLog('editorOpened', editor.getTelemetryDescriptor());
 	}
 
 	private handleOnEditorClosed(event: GroupEvent): void {
@@ -1151,8 +1144,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 				});
 			}
 		}
-
-		this.telemetryService.publicLog('editorClosed', editor.getTelemetryDescriptor());
 	}
 
 	public isOpen(resource: URI): boolean;

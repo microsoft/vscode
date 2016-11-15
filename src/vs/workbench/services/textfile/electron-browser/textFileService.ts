@@ -29,6 +29,7 @@ import product from 'vs/platform/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -47,9 +48,10 @@ export class TextFileService extends AbstractTextFileService {
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IModelService private modelService: IModelService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IBackupService backupService: IBackupService
+		@IBackupService backupService: IBackupService,
+		@IMessageService messageService: IMessageService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
