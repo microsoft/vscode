@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector } from 'vscode';
+import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
@@ -33,16 +33,16 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	public collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any> {
 		let defaultValue = {
-			'name': '{{name}}',
-			'description': '{{description}}',
-			'author': '{{author}}',
-			'version': '{{1.0.0}}',
-			'main': '{{pathToMain}}',
+			'name': '${1:name}',
+			'description': '${2:description}',
+			'authors': '${3:author}',
+			'version': '${4:1.0.0}',
+			'main': '${5:pathToMain}',
 			'dependencies': {}
 		};
 		let proposal = new CompletionItem(localize('json.package.default', 'Default package.json'));
 		proposal.kind = CompletionItemKind.Module;
-		proposal.insertText = JSON.stringify(defaultValue, null, '\t');
+		proposal.insertText = new SnippetString(JSON.stringify(defaultValue, null, '\t'));
 		result.add(proposal);
 		return Promise.resolve(null);
 	}
