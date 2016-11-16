@@ -21,7 +21,7 @@ import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 class EditorInputCache {
 

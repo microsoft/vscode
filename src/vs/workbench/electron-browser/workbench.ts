@@ -77,7 +77,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TextFileService } from 'vs/workbench/services/textfile/electron-browser/textFileService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';

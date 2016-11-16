@@ -13,7 +13,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestTextFileService, toResource } from 'vs/test/utils/servicesTestUtils';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';

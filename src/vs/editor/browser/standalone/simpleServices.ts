@@ -26,7 +26,7 @@ import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configu
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class SimpleEditor implements IEditor {
