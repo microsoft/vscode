@@ -23,6 +23,7 @@ export interface IWindowConfiguration {
 		openFilesInNewWindow: boolean;
 		reopenFolders: string;
 		restoreFullscreen: boolean;
+		fullScreenZenMode: boolean;
 		zoomLevel: number;
 		titleBarStyle: 'native' | 'custom';
 	};

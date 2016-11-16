@@ -1077,7 +1077,8 @@ export class Workbench implements IPartService {
 		}
 
 		if (this.zenMode.active) {
-			this.zenMode.transitionedToFullScreen = !browser.isFullscreen();
+			const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+			this.zenMode.transitionedToFullScreen = !browser.isFullscreen() && windowConfig.window.fullScreenZenMode;
 			if (this.zenMode.transitionedToFullScreen) {
 				this.windowService.toggleFullScreen();
 			}
