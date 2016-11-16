@@ -600,7 +600,7 @@ export class Workbench implements IPartService {
 		return true; // any other part cannot be hidden
 	}
 
-	public isTitleBarHidden(): boolean {
+	private isTitleBarHidden(): boolean {
 		return !this.getCustomTitleBarStyle() || browser.isFullscreen();
 	}
 
@@ -634,10 +634,6 @@ export class Workbench implements IPartService {
 		return null;
 	}
 
-	public isStatusBarHidden(): boolean {
-		return this.statusBarHidden;
-	}
-
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.statusBarHidden = hidden;
 
@@ -647,10 +643,6 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	public isActivityBarHidden(): boolean {
-		return this.activityBarHidden;
-	}
-
 	public setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.activityBarHidden = hidden;
 
@@ -658,10 +650,6 @@ export class Workbench implements IPartService {
 		if (!skipLayout) {
 			this.workbenchLayout.layout({ forceStyleRecompute: true });
 		}
-	}
-
-	public isSideBarHidden(): boolean {
-		return this.sideBarHidden;
 	}
 
 	public setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -705,10 +693,6 @@ export class Workbench implements IPartService {
 
 		// Remember in settings
 		this.storageService.store(Workbench.sidebarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
-	}
-
-	public isPanelHidden(): boolean {
-		return this.panelHidden;
 	}
 
 	public setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -866,12 +850,12 @@ export class Workbench implements IPartService {
 		}
 
 		const newStatusbarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.statusbarVisibleConfigurationKey).value;
-		if (newStatusbarHiddenValue !== this.isStatusBarHidden()) {
+		if (newStatusbarHiddenValue !== this.statusBarHidden) {
 			this.setStatusBarHidden(newStatusbarHiddenValue);
 		}
 
 		const newActivityBarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.activityBarVisibleConfigurationKey).value;
-		if (newActivityBarHiddenValue !== this.isActivityBarHidden()) {
+		if (newActivityBarHiddenValue !== this.activityBarHidden) {
 			this.setActivityBarHidden(newActivityBarHiddenValue);
 		}
 	}
