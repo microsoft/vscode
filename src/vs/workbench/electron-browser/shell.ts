@@ -228,7 +228,8 @@ export class WorkbenchShell {
 					extensionsReady: Math.round(timers.perfAfterExtensionLoad - start),
 					ellapsedRequire: Math.round(timers.perfAfterLoadWorkbenchMain - timers.perfBeforeLoadWorkbenchMain),
 					ellapsedViewletRestore: Math.round(restoreViewletDuration),
-					ellapsedEditorRestore: Math.round(restoreEditorsDuration)
+					ellapsedEditorRestore: Math.round(restoreEditorsDuration),
+					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfAfterDOMContentLoaded)
 				},
 				totalmem,
 				cpus,
