@@ -92,6 +92,7 @@ import { IWindowConfiguration } from 'vs/workbench/electron-browser/common';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
+export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
@@ -166,6 +167,7 @@ export class Workbench implements IPartService {
 	private editorBackgroundDelayer: Delayer<void>;
 	private messagesVisibleContext: IContextKey<boolean>;
 	private editorsVisibleContext: IContextKey<boolean>;
+	private inZenMode: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
 	private zenMode: {
 		active: boolean;
@@ -243,6 +245,7 @@ export class Workbench implements IPartService {
 			// Contexts
 			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
 			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
+			this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
 
 			// Register Listeners
 			this.registerListeners();
@@ -842,14 +845,12 @@ export class Workbench implements IPartService {
 
 		// Apply as CSS class
 		const isFullscreen = browser.isFullscreen();
-		let exitedZenMode = false;
 		if (isFullscreen) {
 			this.addClass('fullscreen');
 		} else {
 			this.removeClass('fullscreen');
-			if (this.zenMode.transitionedToFullScreen) {
-				this.zenMode.active = false;
-				exitedZenMode = true;
+			if (this.zenMode.transitionedToFullScreen && this.zenMode.active) {
+				this.toggleZenMode();
 			}
 		}
 
@@ -857,8 +858,6 @@ export class Workbench implements IPartService {
 		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
 		if (hasCustomTitle) {
 			this._onTitleBarVisibilityChange.fire();
-		}
-		if (hasCustomTitle || exitedZenMode) {
 			this.layout(); // handle title bar when fullscreen changes
 		}
 	}
@@ -1070,6 +1069,7 @@ export class Workbench implements IPartService {
 
 	public toggleZenMode(): void {
 		this.zenMode.active = !this.zenMode.active;
+		this.inZenMode.set(this.zenMode.active);
 		Object.keys(this.zenMode.isPartVisible).forEach(key => this.zenMode.isPartVisible[key] = false);
 		if (!this.zenMode.active && this.zenMode.transitionedToFullScreen && browser.isFullscreen()) {
 			// Zen mode transitioned to full screen, now that we are out of zen mode we need to go out of full screen
