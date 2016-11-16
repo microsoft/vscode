@@ -137,13 +137,13 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return configurationService.initialize().then(() => {
-		timers.beforeReady = new Date();
+		timers.perfBeforeDOMContentLoaded = new Date();
 
 		return domContentLoaded().then(() => {
-			timers.afterReady = new Date();
+			timers.perfAfterDOMContentLoaded = new Date();
 
 			// Open Shell
-			const beforeOpen = new Date();
+			const perfBeforeWorkbenchOpen = new Date();
 			const shell = new WorkbenchShell(document.body, workspace, {
 				configurationService,
 				eventService,
@@ -153,7 +153,7 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 			shell.open();
 
 			shell.joinCreation().then(() => {
-				timer.start(timer.Topic.STARTUP, '[renderer] workbench ready', beforeOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
+				timer.start(timer.Topic.STARTUP, '[renderer] workbench ready', perfBeforeWorkbenchOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
 			});
 
 			// Inform user about loading issues from the loader

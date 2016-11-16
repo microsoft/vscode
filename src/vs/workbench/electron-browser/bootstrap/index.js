@@ -176,14 +176,14 @@ function main() {
 		timers.perfStartTime = new Date(configuration.perfStartTime);
 		timers.start = new Date(configuration.perfStartTime);
 		timers.perfWindowLoadTime = new Date(configuration.perfWindowLoadTime);
-		timers.beforeLoad = new Date();
+		timers.perfBeforeLoadWorkbenchMain = new Date();
 
 		require([
 			'vs/workbench/electron-browser/workbench.main',
 			'vs/nls!vs/workbench/electron-browser/workbench.main',
 			'vs/css!vs/workbench/electron-browser/workbench.main'
 		], function () {
-			timers.afterLoad = new Date();
+			timers.perfAfterLoadWorkbenchMain = new Date();
 
 			require('vs/workbench/electron-browser/main')
 				.startup(configuration)

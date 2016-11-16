@@ -414,7 +414,7 @@ export class WorkbenchShell {
 		if (timers.isInitialStartup && timers.perfStartTime) {
 			events.push({
 				startTime: timers.perfStartTime,
-				stopTime: timers.beforeLoad,
+				stopTime: timers.perfBeforeLoadWorkbenchMain,
 				topic: 'Startup',
 				name: '[main] initial start => begin to require(workbench.main.js)',
 				description: 'Time spend in main process until we load JavaScript of the workbench'
@@ -423,8 +423,8 @@ export class WorkbenchShell {
 
 		// Load
 		events.push({
-			startTime: timers.beforeLoad,
-			stopTime: timers.afterLoad,
+			startTime: timers.perfBeforeLoadWorkbenchMain,
+			stopTime: timers.perfAfterLoadWorkbenchMain,
 			topic: 'Startup',
 			name: '[renderer] require(workbench.main.js)',
 			description: 'Time it takes to load VSCodes main modules'
@@ -432,8 +432,8 @@ export class WorkbenchShell {
 
 		// Ready
 		events.push({
-			startTime: timers.beforeReady,
-			stopTime: timers.afterReady,
+			startTime: timers.perfBeforeDOMContentLoaded,
+			stopTime: timers.perfAfterDOMContentLoaded,
 			topic: 'Startup',
 			name: '[renderer] event DOMContentLoaded',
 			description: 'Time it takes for the DOM to emit DOMContentLoaded event'
