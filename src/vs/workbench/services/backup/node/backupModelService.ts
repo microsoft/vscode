@@ -36,7 +36,6 @@ export class BackupModelService implements IBackupModelService {
 		// Listen for text file model changes
 		this.toDispose.push(this.textFileService.models.onModelContentChanged((e) => this.onTextFileModelChanged(e)));
 		this.toDispose.push(this.textFileService.models.onModelSaved((e) => this.discardBackup(e.resource)));
-		this.toDispose.push(this.textFileService.models.onModelReverted((e) => this.discardBackup(e.resource)));
 		this.toDispose.push(this.textFileService.models.onModelDisposed((e) => this.discardBackup(e)));
 
 		// Listen for untitled model changes
