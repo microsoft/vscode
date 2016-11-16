@@ -349,11 +349,13 @@ export class ShowStartupPerformance extends Action {
 
 		if (total > 0) {
 			const entry: any = {};
-			entry['Event'] = '===nodeRequire TOTAL';
+			entry['Event'] = '[renderer] total require()';
 			entry['Took (ms)'] = total;
 			entry['Start (ms)'] = '**';
 			entry['End (ms)'] = '**';
 			result.push(entry);
+
+			result.push({ Event: '------------------------------------------------------' });
 		}
 
 		return result;
@@ -383,20 +385,25 @@ export class ShowStartupPerformance extends Action {
 			}
 		});
 
-		table.push({ Event: '---------------------------' });
+		table.push({ Event: '------------------------------------------------------' });
 
 		if (timers.isInitialStartup) {
 			const loadWindow = Math.round(timers.perfWindowLoadTime);
 			const windowLoadEvent: any = {};
-			windowLoadEvent['Event'] = 'Load Window at';
+			windowLoadEvent['Event'] = '[main] load window at';
 			windowLoadEvent['Start (ms)'] = loadWindow - start;
 			table.push(windowLoadEvent);
 		}
 
-		const sum: any = {};
-		sum['Event'] = 'Total';
-		sum['Took (ms)'] = lastEvent.stopTime.getTime() - start;
-		table.push(sum);
+		const totalExtensions: any = {};
+		totalExtensions['Event'] = '[main, renderer] start => extensions ready';
+		totalExtensions['Took (ms)'] = timers.perfExtensionLoadTime - start;
+		table.push(totalExtensions);
+
+		const totalWorkbench: any = {};
+		totalWorkbench['Event'] = '[main, renderer] start => workbench ready';
+		totalWorkbench['Took (ms)'] = lastEvent.stopTime.getTime() - start;
+		table.push(totalWorkbench);
 
 		// Show dev tools
 		this.windowService.openDevTools();

@@ -103,6 +103,8 @@ export interface ICoreServices {
 	environmentService: IEnvironmentService;
 }
 
+const timers = (<any>window).MonacoEnvironment.timers;
+
 /**
  * The workbench shell contains the workbench with a rich header containing navigation and the activity bar.
  * With the Shell being the top level element in the page, it is also responsible for driving the layouting.
@@ -313,9 +315,14 @@ export class WorkbenchShell {
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
 		serviceCollection.set(IThreadService, this.threadService);
 
+		const extensionTimer = timer.start(timer.Topic.STARTUP, '[renderer] create extension host => extensions onReady()');
 		const extensionService = instantiationService.createInstance(MainProcessExtensionService);
 		serviceCollection.set(IExtensionService, extensionService);
 		extensionHostProcessWorker.start(extensionService);
+		extensionService.onReady().done(() => {
+			extensionTimer.stop();
+			timers.perfExtensionLoadTime = new Date();
+		});
 
 		serviceCollection.set(ICommandService, new CommandService(instantiationService, extensionService));
 
@@ -401,42 +408,39 @@ export class WorkbenchShell {
 	}
 
 	private writeTimers(): void {
-		const timers = (<any>window).MonacoEnvironment.timers;
-		if (timers) {
-			const events: timer.IExistingTimerEvent[] = [];
+		const events: timer.IExistingTimerEvent[] = [];
 
-			// Window
-			if (timers.isInitialStartup && timers.perfStartTime) {
-				events.push({
-					startTime: timers.perfStartTime,
-					stopTime: timers.beforeLoad,
-					topic: 'Startup',
-					name: 'VSCode Startup',
-					description: 'Time it takes to create a window and startup VSCode'
-				});
-			}
-
-			// Load
+		// Window
+		if (timers.isInitialStartup && timers.perfStartTime) {
 			events.push({
-				startTime: timers.beforeLoad,
-				stopTime: timers.afterLoad,
+				startTime: timers.perfStartTime,
+				stopTime: timers.beforeLoad,
 				topic: 'Startup',
-				name: 'Load Modules',
-				description: 'Time it takes to load VSCodes main modules'
+				name: '[main] initial start => begin to require(workbench.main.js)',
+				description: 'Time spend in main process until we load JavaScript of the workbench'
 			});
-
-			// Ready
-			events.push({
-				startTime: timers.beforeReady,
-				stopTime: timers.afterReady,
-				topic: 'Startup',
-				name: 'Event DOMContentLoaded',
-				description: 'Time it takes for the DOM to emit DOMContentLoaded event'
-			});
-
-			// Write to Timer
-			timer.getTimeKeeper().setInitialCollectedEvents(events, timers.start);
 		}
+
+		// Load
+		events.push({
+			startTime: timers.beforeLoad,
+			stopTime: timers.afterLoad,
+			topic: 'Startup',
+			name: '[renderer] require(workbench.main.js)',
+			description: 'Time it takes to load VSCodes main modules'
+		});
+
+		// Ready
+		events.push({
+			startTime: timers.beforeReady,
+			stopTime: timers.afterReady,
+			topic: 'Startup',
+			name: '[renderer] event DOMContentLoaded',
+			description: 'Time it takes for the DOM to emit DOMContentLoaded event'
+		});
+
+		// Write to Timer
+		timer.getTimeKeeper().setInitialCollectedEvents(events, timers.start);
 	}
 
 	public onUnexpectedError(error: any): void {

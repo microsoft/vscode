@@ -263,7 +263,7 @@ export class Workbench implements IPartService {
 					viewletIdToRestore = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
 				}
 
-				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletIdToRestore));
+				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('[renderer] open viewlet {0}', viewletIdToRestore)); // TODO
 				compositeAndEditorPromises.push(this.viewletService.restoreViewlet(viewletIdToRestore).then(() => viewletTimerEvent.stop()));
 			}
 
@@ -275,7 +275,7 @@ export class Workbench implements IPartService {
 			}
 
 			// Load Editors
-			const editorTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Restoring Editor(s)'));
+			const editorTimerEvent = timer.start(timer.Topic.STARTUP, '[renderer] restoring editor view state');
 			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputsWithOptions => {
 				let editorOpenPromise: TPromise<BaseEditor[]>;
 				if (inputsWithOptions.length) {
