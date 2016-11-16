@@ -522,6 +522,15 @@ export class WorkspaceEdit {
 	}
 }
 
+export class SnippetString {
+
+	value: string;
+
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
 export enum DiagnosticSeverity {
 	Hint = 3,
 	Information = 2,
@@ -774,7 +783,8 @@ export class CompletionItem {
 	documentation: string;
 	sortText: string;
 	filterText: string;
-	insertText: string;
+	insertText: string | SnippetString;
+	range: Range;
 	textEdit: TextEdit;
 	additionalTextEdits: TextEdit[];
 	command: vscode.Command;
