@@ -27,3 +27,22 @@ export interface IWindowConfiguration {
 		titleBarStyle: 'native' | 'custom';
 	};
 }
+
+export interface IStartupFingerprint {
+	ellapsed: number;
+	timers: {
+		ellapsedMain?: number;
+		windowLoad?: number;
+		ellapsedExtensions: number;
+		extensionsReady: number;
+		ellapsedRequire: number;
+		ellapsedViewletRestore: number;
+		ellapsedEditorRestore: number;
+		ellapsedWorkbench: number;
+	};
+	totalmem: number;
+	cpus: { count: number; speed: number; model: string; };
+	initialStartup: boolean;
+	hasAccessibilitySupport: boolean;
+	emptyWorkbench: boolean;
+}

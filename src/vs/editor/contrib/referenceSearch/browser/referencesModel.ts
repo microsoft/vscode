@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel, IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { Location } from 'vs/editor/common/modes';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 export class OneReference {
 

@@ -174,7 +174,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 }
 
 export class Expression extends ExpressionContainer implements debug.IExpression {
-	static DEFAULT_VALUE = 'not available';
+	static DEFAULT_VALUE = nls.localize('notAvailable', "not available");
 
 	public available: boolean;
 	public type: string;
