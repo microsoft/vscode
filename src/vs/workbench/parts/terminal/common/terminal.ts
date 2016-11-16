@@ -46,6 +46,7 @@ export interface ITerminalConfiguration {
 			fontSize: number,
 			lineHeight: number,
 			setLocaleVariables: boolean,
+			scrollback: number,
 			commandsToSkipShell: string[]
 		}
 	};
@@ -57,6 +58,7 @@ export interface ITerminalConfigHelper {
 	getFontLigaturesEnabled(): boolean;
 	getCursorBlink(): boolean;
 	getCommandsToSkipShell(): string[];
+	getScrollback(): number;
 }
 
 export interface ITerminalFont {
@@ -194,6 +196,11 @@ export interface ITerminalInstance {
 	 * keybinding system.
 	 */
 	setCommandsToSkipShell(commands: string[]): void;
+
+	/**
+	 * Sets the maximum amount of lines that the buffer can store before discarding old ones.
+	 */
+	setScrollback(lineCount: number): void;
 
 	/**
 	 * Configure the dimensions of the terminal instance.
