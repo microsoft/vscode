@@ -143,7 +143,7 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 			timers.perfAfterDOMContentLoaded = new Date();
 
 			// Open Shell
-			const perfBeforeWorkbenchOpen = new Date();
+			timers.perfBeforeWorkbenchOpen = new Date();
 			const shell = new WorkbenchShell(document.body, workspace, {
 				configurationService,
 				eventService,
@@ -151,10 +151,6 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 				environmentService
 			}, options);
 			shell.open();
-
-			shell.joinCreation().then(() => {
-				timer.start(timer.Topic.STARTUP, '[renderer] workbench ready', perfBeforeWorkbenchOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
-			});
 
 			// Inform user about loading issues from the loader
 			(<any>self).require.config({

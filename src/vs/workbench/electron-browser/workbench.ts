@@ -17,6 +17,7 @@ import { Delayer } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
+import { StopWatch } from 'vs/base/common/stopwatch';
 import errors = require('vs/base/common/errors');
 import { BackupService } from 'vs/workbench/services/backup/node/backupService';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
@@ -252,7 +253,7 @@ export class Workbench implements IPartService {
 			const compositeAndEditorPromises: TPromise<any>[] = [];
 
 			// Restore last opened viewlet
-			let viewletTimerEvent: timer.ITimerEvent;
+			let viewletRestoreStopWatch: StopWatch;
 			if (!this.sideBarHidden) {
 				let viewletIdToRestore: string;
 
@@ -264,8 +265,12 @@ export class Workbench implements IPartService {
 					viewletIdToRestore = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
 				}
 
-				viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('[renderer] open viewlet {0}', viewletIdToRestore));
-				compositeAndEditorPromises.push(this.viewletService.restoreViewlet(viewletIdToRestore).then(() => viewletTimerEvent.stop()));
+				viewletRestoreStopWatch = StopWatch.create();
+				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('[renderer] open viewlet {0}', viewletIdToRestore));
+				compositeAndEditorPromises.push(this.viewletService.restoreViewlet(viewletIdToRestore).then(() => {
+					viewletTimerEvent.stop();
+					viewletRestoreStopWatch.stop();
+				}));
 			}
 
 			// Load Panel
@@ -276,6 +281,7 @@ export class Workbench implements IPartService {
 			}
 
 			// Load Editors
+			const editorRestoreStopWatch = StopWatch.create();
 			const editorTimerEvent = timer.start(timer.Topic.STARTUP, '[renderer] restoring editor view state');
 			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputsWithOptions => {
 				let editorOpenPromise: TPromise<BaseEditor[]>;
@@ -303,6 +309,7 @@ export class Workbench implements IPartService {
 				return editorOpenPromise.then(() => {
 					this.onEditorsChanged(); // make sure we show the proper background in the editor area
 					editorTimerEvent.stop();
+					editorRestoreStopWatch.stop();
 				});
 			}));
 
@@ -312,7 +319,7 @@ export class Workbench implements IPartService {
 				this.creationPromiseComplete(true);
 
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
-					this.callbacks.onWorkbenchStarted(this.keybindingService.customKeybindingsCount(), viewletTimerEvent ? viewletTimerEvent.timeTaken() : 0, editorTimerEvent.timeTaken());
+					this.callbacks.onWorkbenchStarted(this.keybindingService.customKeybindingsCount(), viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0, editorRestoreStopWatch.elapsed());
 				}
 
 				if (error) {

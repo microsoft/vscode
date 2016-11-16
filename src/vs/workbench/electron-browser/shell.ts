@@ -20,6 +20,7 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
+import { IStartupFingerprint } from 'vs/workbench/electron-browser/common';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
 import { ITelemetryService, NullTelemetryService, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
@@ -190,6 +191,9 @@ export class WorkbenchShell {
 
 	private onWorkbenchStarted(customKeybindingsCount: number, restoreViewletDuration: number, restoreEditorsDuration: number): void {
 
+		// Log to timer
+		timer.start(timer.Topic.STARTUP, '[renderer] workbench ready', timers.perfBeforeWorkbenchOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
+
 		// Telemetry: workspace info
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
@@ -203,7 +207,7 @@ export class WorkbenchShell {
 
 		// Telemetry: performance info
 		const workbenchStarted = Date.now();
-		timers.workbenchStarted = workbenchStarted;
+		timers.workbenchStarted = new Date(workbenchStarted);
 		this.extensionService.onReady().done(() => {
 			const initialStartup = !!timers.isInitialStartup;
 			const start = initialStartup ? timers.perfStartTime : timers.perfWindowLoadTime;
@@ -221,7 +225,7 @@ export class WorkbenchShell {
 				console.error(error); // be on the safe side with these hardware method calls
 			}
 
-			const startupTimeEvent: any = {
+			const startupTimeEvent: IStartupFingerprint = {
 				ellapsed: Math.round(workbenchStarted - start),
 				timers: {
 					ellapsedExtensions: Math.round(timers.perfAfterExtensionLoad - timers.perfBeforeExtensionLoad),
@@ -229,7 +233,7 @@ export class WorkbenchShell {
 					ellapsedRequire: Math.round(timers.perfAfterLoadWorkbenchMain - timers.perfBeforeLoadWorkbenchMain),
 					ellapsedViewletRestore: Math.round(restoreViewletDuration),
 					ellapsedEditorRestore: Math.round(restoreEditorsDuration),
-					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfAfterDOMContentLoaded)
+					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen)
 				},
 				totalmem,
 				cpus,
@@ -240,9 +244,11 @@ export class WorkbenchShell {
 
 			if (initialStartup) {
 				startupTimeEvent.timers.ellapsedMain = Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfStartTime);
+				startupTimeEvent.timers.windowLoad = Math.round(timers.perfWindowLoadTime - timers.perfStartTime);
 			}
 
 			this.telemetryService.publicLog('startupTime', startupTimeEvent);
+			timers.fingerprint = startupTimeEvent;
 		});
 
 		// Telemetry: workspace tags

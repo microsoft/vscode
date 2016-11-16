@@ -33,6 +33,7 @@ import { KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
+import { IStartupFingerprint } from 'vs/workbench/electron-browser/common';
 
 import * as os from 'os';
 import { webFrame } from 'electron';
@@ -306,11 +307,15 @@ enum LoaderEventType {
 	NodeBeginNativeRequire = 33,
 	NodeEndNativeRequire = 34
 }
+
 interface ILoaderEvent {
 	type: LoaderEventType;
 	timestamp: number;
 	detail: string;
 }
+
+const timers = (<any>window).MonacoEnvironment.timers;
+
 export class ShowStartupPerformance extends Action {
 
 	public static ID = 'workbench.action.appPerf';
@@ -320,52 +325,49 @@ export class ShowStartupPerformance extends Action {
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
-
-		this.enabled = environmentService.performance;
-	}
-
-	private _analyzeLoaderTimes(): any[] {
-		const stats = <ILoaderEvent[]>(<any>require).getStats();
-		const result = [];
-
-		let total = 0;
-
-		for (let i = 0, len = stats.length; i < len; i++) {
-			if (stats[i].type === LoaderEventType.NodeEndNativeRequire) {
-				if (stats[i - 1].type === LoaderEventType.NodeBeginNativeRequire && stats[i - 1].detail === stats[i].detail) {
-					const entry: any = {};
-					entry['Event'] = 'nodeRequire ' + stats[i].detail;
-					entry['Took (ms)'] = (stats[i].timestamp - stats[i - 1].timestamp);
-					total += (stats[i].timestamp - stats[i - 1].timestamp);
-					entry['Start (ms)'] = '**' + stats[i - 1].timestamp;
-					entry['End (ms)'] = '**' + stats[i - 1].timestamp;
-					result.push(entry);
-				}
-			}
-		}
-
-		if (total > 0) {
-			const entry: any = {};
-			entry['Event'] = '[renderer] total require() node modules';
-			entry['Took (ms)'] = total;
-			entry['Start (ms)'] = '**';
-			entry['End (ms)'] = '**';
-			result.push(entry);
-
-			result.push({ Event: '------------------------------------------------------' });
-		}
-
-		return result;
 	}
 
 	public run(): TPromise<boolean> {
-		const table: any[] = [];
-		table.push(...this._analyzeLoaderTimes());
+		const table: any[] = this.environmentService.performance ? this.getPerformanceTable() : this.getFingerprintTable();
 
-		const timers = (<any>window).MonacoEnvironment.timers;
+		// Show dev tools
+		this.windowService.openDevTools();
+
+		// Print to console
+		setTimeout(() => {
+			console.warn('Run the action again if you do not see the numbers!');
+			(<any>console).table(table);
+		}, 1000);
+
+		return TPromise.as(true);
+	}
+
+	private getFingerprintTable(): any[] {
+		const table: any[] = [];
+		const fingerprint: IStartupFingerprint = timers.fingerprint;
+
+		if (fingerprint.initialStartup) {
+			table.push({ Topic: '[main] initial start => begin to require(workbench.main.js)', 'Took (ms)': fingerprint.timers.ellapsedMain });
+		}
+		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': fingerprint.timers.ellapsedRequire });
+		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': fingerprint.timers.ellapsedExtensions });
+		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': fingerprint.timers.ellapsedViewletRestore });
+		table.push({ Topic: '[renderer] restoring editor view state', 'Took (ms)': fingerprint.timers.ellapsedEditorRestore });
+		table.push({ Topic: '[renderer] workbench ready', 'Took (ms)': fingerprint.timers.ellapsedWorkbench });
+		table.push({ Topic: '------------------------------------------------------' });
+		table.push({ Topic: '[main] load window at', 'Start (ms)': fingerprint.timers.windowLoad });
+		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': fingerprint.timers.extensionsReady });
+		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': fingerprint.ellapsed });
+
+		return table;
+	}
+
+	private getPerformanceTable(): any[] {
+		const table: any[] = [];
+		table.push(...this.analyzeLoaderTimes());
 
 		const start = Math.round(timers.isInitialStartup ? timers.perfStartTime : timers.perfWindowLoadTime);
 
@@ -405,16 +407,41 @@ export class ShowStartupPerformance extends Action {
 		totalWorkbench['Took (ms)'] = timers.workbenchStarted - start;
 		table.push(totalWorkbench);
 
-		// Show dev tools
-		this.windowService.openDevTools();
+		return table;
+	}
 
-		// Print to console
-		setTimeout(() => {
-			console.warn('Run the action again if you do not see the numbers!');
-			(<any>console).table(table);
-		}, 1000);
+	private analyzeLoaderTimes(): any[] {
+		const stats = <ILoaderEvent[]>(<any>require).getStats();
+		const result = [];
 
-		return TPromise.as(true);
+		let total = 0;
+
+		for (let i = 0, len = stats.length; i < len; i++) {
+			if (stats[i].type === LoaderEventType.NodeEndNativeRequire) {
+				if (stats[i - 1].type === LoaderEventType.NodeBeginNativeRequire && stats[i - 1].detail === stats[i].detail) {
+					const entry: any = {};
+					entry['Event'] = 'nodeRequire ' + stats[i].detail;
+					entry['Took (ms)'] = (stats[i].timestamp - stats[i - 1].timestamp);
+					total += (stats[i].timestamp - stats[i - 1].timestamp);
+					entry['Start (ms)'] = '**' + stats[i - 1].timestamp;
+					entry['End (ms)'] = '**' + stats[i - 1].timestamp;
+					result.push(entry);
+				}
+			}
+		}
+
+		if (total > 0) {
+			const entry: any = {};
+			entry['Event'] = '[renderer] total require() node modules';
+			entry['Took (ms)'] = total;
+			entry['Start (ms)'] = '**';
+			entry['End (ms)'] = '**';
+			result.push(entry);
+
+			result.push({ Event: '------------------------------------------------------' });
+		}
+
+		return result;
 	}
 }
 

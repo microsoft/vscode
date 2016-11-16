@@ -165,19 +165,16 @@ function main() {
 			});
 		}
 
-		window.MonacoEnvironment = {};
-
-		const timers = window.MonacoEnvironment.timers = {
-			start: new Date()
-		};
-
 		// Perf Counters
-		timers.isInitialStartup = configuration.isInitialStartup;
-		timers.hasAccessibilitySupport = configuration.accessibilitySupport;
-		timers.perfStartTime = new Date(configuration.perfStartTime);
-		timers.start = new Date(configuration.perfStartTime);
-		timers.perfWindowLoadTime = new Date(configuration.perfWindowLoadTime);
-		timers.perfBeforeLoadWorkbenchMain = new Date();
+		window.MonacoEnvironment = {};
+		const timers = window.MonacoEnvironment.timers = {
+			start: new Date(configuration.isInitialStartup ? configuration.perfStartTime : configuration.perfWindowLoadTime),
+			isInitialStartup: !!configuration.isInitialStartup,
+			hasAccessibilitySupport: !!configuration.accessibilitySupport,
+			perfStartTime: new Date(configuration.perfStartTime),
+			perfWindowLoadTime: new Date(configuration.perfWindowLoadTime),
+			perfBeforeLoadWorkbenchMain: new Date()
+		};
 
 		require([
 			'vs/workbench/electron-browser/workbench.main',
