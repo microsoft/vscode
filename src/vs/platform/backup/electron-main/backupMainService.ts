@@ -10,7 +10,7 @@ import Uri from 'vs/base/common/uri';
 import { readdirSync } from 'vs/base/node/extfs';
 import { IBackupWorkspacesFormat, IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/common/mainLifecycle';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
 
 export class BackupMainService implements IBackupMainService {
@@ -24,14 +24,12 @@ export class BackupMainService implements IBackupMainService {
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleMainService lifecycleService: ILifecycleMainService
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 
-		if (lifecycleService) {
-			lifecycleService.onAfterUnload(this.onAfterUnloadWindow.bind(this));
-		}
+		lifecycleService.onAfterUnload(this.onAfterUnloadWindow.bind(this));
 
 		this.loadSync();
 	}

@@ -19,6 +19,7 @@ import product from 'vs/platform/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import Uri from 'vs/base/common/uri';
+import { ReadyState, IVSCodeWindow } from 'vs/code/common/window';
 
 export interface IWindowState {
 	width?: number;
@@ -49,29 +50,6 @@ export const defaultWindowState = function (mode = WindowMode.Normal): IWindowSt
 		mode: mode
 	};
 };
-
-export enum ReadyState {
-
-	/**
-	 * This window has not loaded any HTML yet
-	 */
-	NONE,
-
-	/**
-	 * This window is loading HTML
-	 */
-	LOADING,
-
-	/**
-	 * This window is navigating to another HTML
-	 */
-	NAVIGATING,
-
-	/**
-	 * This window is done loading HTML
-	 */
-	READY
-}
 
 export interface IPath {
 
@@ -117,7 +95,7 @@ export interface IWindowSettings {
 	titleBarStyle: 'native' | 'custom';
 }
 
-export class VSCodeWindow {
+export class VSCodeWindow implements IVSCodeWindow {
 
 	public static menuBarHiddenKey = 'menuBarHidden';
 	public static colorThemeStorageKey = 'theme';
