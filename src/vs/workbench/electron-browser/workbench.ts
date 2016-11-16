@@ -75,6 +75,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TextFileService } from 'vs/workbench/services/textfile/electron-browser/textFileService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IDirtyDiffService } from 'vs/workbench/services/scm/common/dirtydiff';
+import { DirtyDiffService } from 'vs/workbench/services/scm/common/dirtydiffService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -455,6 +457,9 @@ export class Workbench implements IPartService {
 
 		// Text File Service
 		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
+
+		// DirtyDiff Service
+		serviceCollection.set(IDirtyDiffService, this.instantiationService.createInstance(DirtyDiffService));
 
 		// Backup Model Service
 		serviceCollection.set(IBackupModelService, this.instantiationService.createInstance(BackupModelService));
