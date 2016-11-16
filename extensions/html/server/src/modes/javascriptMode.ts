@@ -7,8 +7,9 @@
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { LanguageService as HTMLLanguageService, HTMLDocument } from 'vscode-html-languageservice';
 import { getEmbeddedDocument } from './embeddedSupport';
-import { Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
+import { CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
 import { LanguageMode } from './languageModes';
+import { getWordAtText } from '../utils/words';
 
 import ts = require('./typescript/typescriptServices');
 import { contents as libdts } from './typescript/lib-ts';
@@ -18,6 +19,8 @@ const DEFAULT_LIB = {
 	CONTENTS: libdts
 };
 const FILE_NAME = 'typescript://singlefile/1';  // the same 'file' is used for all contents
+
+const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
 export function getJavascriptMode(htmlLanguageService: HTMLLanguageService, htmlDocuments: LanguageModelCache<HTMLDocument>): LanguageMode {
 	let compilerOptions = { allowNonTsExtensions: true, allowJs: true, target: ts.ScriptTarget.Latest };
@@ -66,19 +69,40 @@ export function getJavascriptMode(htmlLanguageService: HTMLLanguageService, html
 		},
 		doComplete(document: TextDocument, position: Position): CompletionList {
 			currentTextDocument = jsDocuments.get(document);
-			let completions = jsLanguageService.getCompletionsAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
+			let offset = currentTextDocument.offsetAt(position);
+			let completions = jsLanguageService.getCompletionsAtPosition(FILE_NAME, offset);
+			if (!completions) {
+				return { isIncomplete: false, items: [] };
+			}
+			let replaceRange = convertRange(currentTextDocument, getWordAtText(currentTextDocument.getText(), offset, JS_WORD_REGEX));
 			return {
 				isIncomplete: false,
-				items: !completions ? [] : completions.entries.map(entry => {
+				items: completions.entries.map(entry => {
 					return {
 						uri: document.uri,
 						position: position,
 						label: entry.name,
 						sortText: entry.sortText,
-						kind: convertKind(entry.kind)
+						kind: convertKind(entry.kind),
+						textEdit: TextEdit.replace(replaceRange, entry.name),
+						data: { // data used for resolving item details (see 'doResolve')
+							languageId: 'javascript',
+							uri: document.uri,
+							offset: offset
+						}
 					};
 				})
 			};
+		},
+		doResolve(document: TextDocument, item: CompletionItem): CompletionItem {
+			currentTextDocument = jsDocuments.get(document);
+			let details = jsLanguageService.getCompletionEntryDetails(FILE_NAME, item.data.offset, item.label);
+			if (details) {
+				item.detail = ts.displayPartsToString(details.displayParts);
+				item.documentation = ts.displayPartsToString(details.documentation);
+				delete item.data;
+			}
+			return item;
 		},
 		doHover(document: TextDocument, position: Position): Hover {
 			currentTextDocument = jsDocuments.get(document);
@@ -238,7 +262,7 @@ function convertOptions(options: FormattingOptions, formatSettings?: any): ts.Fo
 		IndentSize: options.tabSize,
 		IndentStyle: ts.IndentStyle.Smart,
 		NewLineCharacter: '\n',
-		BaseIndentSize: 1, // 
+		BaseIndentSize: 1, //
 		InsertSpaceAfterCommaDelimiter: !formatSettings || formatSettings.insertSpaceAfterCommaDelimiter,
 		InsertSpaceAfterSemicolonInForStatements: !formatSettings || formatSettings.insertSpaceAfterSemicolonInForStatements,
 		InsertSpaceBeforeAndAfterBinaryOperators: !formatSettings || formatSettings.insertSpaceBeforeAndAfterBinaryOperators,
