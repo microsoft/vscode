@@ -545,6 +545,7 @@ export class SearchModel extends Disposable {
 
 		const onDone = fromPromise(this.currentRequest);
 		const onDoneStopwatch = stopwatch(onDone);
+		const start = Date.now();
 
 		onDone(() => timerEvent.stop());
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
@@ -556,8 +557,8 @@ export class SearchModel extends Disposable {
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
 		this.currentRequest.then(
-			value => this.onSearchCompleted(value, timerEvent.timeTaken()),
-			e => this.onSearchError(e, timerEvent.timeTaken()),
+			value => this.onSearchCompleted(value, Date.now() - start),
+			e => this.onSearchError(e, Date.now() - start),
 			p => {
 				progressEmitter.fire();
 				this.onSearchProgress(p);
