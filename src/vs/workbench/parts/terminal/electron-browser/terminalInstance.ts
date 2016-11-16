@@ -360,6 +360,12 @@ export class TerminalInstance implements ITerminalInstance {
 		}, []);
 	}
 
+	public setScrollback(lineCount: number): void {
+		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
+			this._xterm.setOption('scrollback', lineCount);
+		}
+	}
+
 	public layout(dimension: { width: number, height: number }): void {
 		let font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
