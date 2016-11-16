@@ -253,7 +253,7 @@ export class WorkbenchShell {
 
 		// Telemetry: workspace tags
 		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
-		workspaceStats.reportWorkspaceTags();
+		workspaceStats.reportWorkspaceTags(this.options);
 
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
