@@ -52,6 +52,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMillies: number;
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
+	private contentChangeEventPromises: TPromise<void>[];
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
@@ -87,6 +88,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.preferredEncoding = preferredEncoding;
 		this.dirty = false;
 		this.autoSavePromises = [];
+		this.contentChangeEventPromises = [];
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
 		this.mapPendingSaveToVersionId = {};
@@ -99,6 +101,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private registerListeners(): void {
 		this.toDispose.push(this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
 		this.toDispose.push(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
+		this.toDispose.push(this.onDidStateChange(e => {
+			if (e === StateChange.REVERTED) {
+				// Refire reverted events as content change events, cancelling any content change
+				// promises that are in flight.
+				this.cancelContentChangeEventPromises();
+				this._onDidContentChange.fire(StateChange.REVERTED);
+			}
+		}));
 	}
 
 	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
@@ -342,7 +352,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (wasDirty) {
 				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
-			this._onDidContentChange.fire(StateChange.REVERTED);
 
 			return;
 		}
@@ -361,7 +370,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}
 
-		this._onDidContentChange.fire(StateChange.CONTENT_CHANGE);
+		this.doContentChangeEvent();
 	}
 
 	private makeDirty(): void {
@@ -373,6 +382,26 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
 			this._onDidStateChange.fire(StateChange.DIRTY);
+		}
+	}
+
+	private doContentChangeEvent(): TPromise<void> {
+		// Cancel any currently running promises to make this the one that succeeds
+		this.cancelContentChangeEventPromises();
+
+		// Create new promise and keep it
+		const promise = TPromise.timeout(1000).then(() => {
+			this._onDidContentChange.fire(StateChange.CONTENT_CHANGE); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+		});
+
+		this.contentChangeEventPromises.push(promise);
+
+		return promise;
+	}
+
+	private cancelContentChangeEventPromises() {
+		while (this.contentChangeEventPromises.length) {
+			this.contentChangeEventPromises.pop().cancel();
 		}
 	}
 
