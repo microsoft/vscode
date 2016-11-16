@@ -85,7 +85,8 @@ const copyrightFilter = [
 	'!**/*.opts',
 	'!**/*.disabled',
 	'!resources/win32/bin/code.js',
-	'!extensions/markdown/media/tomorrow.css'
+	'!extensions/markdown/media/tomorrow.css',
+	'!extensions/html/server/src/modes/typescript/*'
 ];
 
 const tslintFilter = [
