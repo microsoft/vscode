@@ -331,18 +331,36 @@ export class ShowStartupPerformance extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		const table: any[] = this.environmentService.performance ? this.getPerformanceTable() : this.getFingerprintTable();
+		const envTable = this.getFingerprintEnvironment();
+		const perfTable = this.environmentService.performance ? this.getPerformanceTable() : this.getFingerprintTable();
 
 		// Show dev tools
 		this.windowService.openDevTools();
 
 		// Print to console
 		setTimeout(() => {
-			console.warn('Run the action again if you do not see the numbers!');
-			(<any>console).table(table);
+			(<any>console).group('Performance: Environment');
+			(<any>console).table(envTable);
+			(<any>console).groupEnd();
+			(<any>console).group('Performance: Benchmark');
+			(<any>console).table(perfTable);
+			(<any>console).groupEnd();
 		}, 1000);
 
 		return TPromise.as(true);
+	}
+
+	private getFingerprintEnvironment(): any[] {
+		const table: any[] = [];
+		const fingerprint: IStartupFingerprint = timers.fingerprint;
+
+		table.push({ Topic: 'Total Memory', 'Value': `${fingerprint.totalmem / (1024 * 1024 * 1024)}GB` });
+		table.push({ Topic: 'CPUs', 'Value': `${fingerprint.cpus.model} (${fingerprint.cpus.count} x ${fingerprint.cpus.speed})` });
+		table.push({ Topic: 'Initial Startup', 'Value': fingerprint.initialStartup });
+		table.push({ Topic: 'Screen Reader Active', 'Value': fingerprint.hasAccessibilitySupport });
+		table.push({ Topic: 'Empty Workspace', 'Value': fingerprint.emptyWorkbench });
+
+		return table;
 	}
 
 	private getFingerprintTable(): any[] {
@@ -356,9 +374,11 @@ export class ShowStartupPerformance extends Action {
 		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': fingerprint.timers.ellapsedExtensions });
 		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': fingerprint.timers.ellapsedViewletRestore });
 		table.push({ Topic: '[renderer] restoring editor view state', 'Took (ms)': fingerprint.timers.ellapsedEditorRestore });
-		table.push({ Topic: '[renderer] workbench ready', 'Took (ms)': fingerprint.timers.ellapsedWorkbench });
+		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': fingerprint.timers.ellapsedWorkbench });
 		table.push({ Topic: '------------------------------------------------------' });
-		table.push({ Topic: '[main] load window at', 'Start (ms)': fingerprint.timers.windowLoad });
+		if (fingerprint.initialStartup) {
+			table.push({ Topic: '[main] load window at', 'Start (ms)': fingerprint.timers.windowLoad });
+		}
 		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': fingerprint.timers.extensionsReady });
 		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': fingerprint.ellapsed });
 

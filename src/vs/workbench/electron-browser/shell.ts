@@ -192,7 +192,7 @@ export class WorkbenchShell {
 	private onWorkbenchStarted(customKeybindingsCount: number, restoreViewletDuration: number, restoreEditorsDuration: number): void {
 
 		// Log to timer
-		timer.start(timer.Topic.STARTUP, '[renderer] workbench ready', timers.perfBeforeWorkbenchOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
+		timer.start(timer.Topic.STARTUP, '[renderer] overall workbench load', timers.perfBeforeWorkbenchOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
 
 		// Telemetry: workspace info
 		this.telemetryService.publicLog('workspaceLoad', {
