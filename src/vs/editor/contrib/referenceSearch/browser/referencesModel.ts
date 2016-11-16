@@ -138,7 +138,7 @@ export class FileReferences {
 			if (!model) {
 				throw new Error();
 			}
-			this._preview = new FilePreview(<IModel>model.textEditorModel);
+			this._preview = new FilePreview(model.textEditorModel);
 			this._resolved = true;
 			return this;
 

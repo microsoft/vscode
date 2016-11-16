@@ -322,7 +322,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 				this.textModelResolverService.resolve(result.uri).then(model => {
 					let hoverMessage: MarkedString;
 					if (model && model.textEditorModel) {
-						const editorModel = <editorCommon.IModel>model.textEditorModel;
+						const editorModel = model.textEditorModel;
 						let from = Math.max(1, result.range.startLineNumber);
 						let to: number;
 
