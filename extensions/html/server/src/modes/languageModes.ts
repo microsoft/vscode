@@ -5,7 +5,10 @@
 'use strict';
 
 import { HTMLDocument, getLanguageService as getHTMLLanguageService, DocumentContext } from 'vscode-html-languageservice';
-import { Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range, Hover, DocumentHighlight, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
+import {
+	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
+	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions
+} from 'vscode-languageserver-types';
 
 import { getLanguageModelCache } from '../languageModelCache';
 import { getLanguageAtPosition, getLanguagesInContent } from './embeddedSupport';
@@ -17,6 +20,7 @@ export interface LanguageMode {
 	configure?: (options: any) => void;
 	doValidation?: (document: TextDocument) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position) => CompletionList;
+	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
 	doHover?: (document: TextDocument, position: Position) => Hover;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => DocumentHighlight[];
