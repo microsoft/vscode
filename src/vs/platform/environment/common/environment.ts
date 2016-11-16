@@ -51,6 +51,7 @@ export interface IEnvironmentService {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 
+	isBackupEnabled: boolean;
 	backupHome: string;
 	backupWorkspacesPath: string;
 
