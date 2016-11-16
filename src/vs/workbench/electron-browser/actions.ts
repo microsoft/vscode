@@ -340,8 +340,8 @@ export class ShowStartupPerformance extends Action {
 		setTimeout(() => {
 			(<any>console).group('Startup Performance Measurement');
 			const fingerprint: IStartupFingerprint = timers.fingerprint;
-			console.log(`Total Memory: ${(fingerprint.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB`);
 			console.log(`CPUs: ${fingerprint.cpus.model} (${fingerprint.cpus.count} x ${fingerprint.cpus.speed})`);
+			console.log(`Total Memory: ${(fingerprint.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB`);
 			console.log(`Initial Startup: ${fingerprint.initialStartup}`);
 			console.log(`Screen Reader Active: ${fingerprint.hasAccessibilitySupport}`);
 			console.log(`Empty Workspace: ${fingerprint.emptyWorkbench}`);
