@@ -6,7 +6,6 @@
 'use strict';
 
 import * as path from 'path';
-import * as os from 'os';
 import * as fs from 'original-fs';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
@@ -27,7 +26,7 @@ import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import CommonEvent, { Emitter, once } from 'vs/base/common/event';
+import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product';
 import Uri from 'vs/base/common/uri';
 
@@ -256,38 +255,8 @@ export class WindowsManager implements IWindowsMainService {
 			this.storageService.setItem(WindowsManager.windowsStateStorageKey, this.windowsState);
 		});
 
-		let loggedStartupTimes = false;
-		const onceWindowReady = once(this.onWindowReady);
-		onceWindowReady(window => {
-			if (loggedStartupTimes) {
-				return; // only for the first window
-			}
-
-			loggedStartupTimes = true;
-
-			this.logStartupTimes(window);
-		});
-
 		// Update jump list when recent paths change
 		this.onRecentPathsChange(() => this.updateWindowsJumpList());
-	}
-
-	private logStartupTimes(window: VSCodeWindow): void {
-		let totalmem: number;
-		let cpus: { count: number; speed: number; model: string; };
-
-		try {
-			totalmem = os.totalmem();
-
-			const rawCpus = os.cpus();
-			if (rawCpus && rawCpus.length > 0) {
-				cpus = { count: rawCpus.length, speed: rawCpus[0].speed, model: rawCpus[0].model };
-			}
-		} catch (error) {
-			this.logService.log(error); // be on the safe side with these hardware method calls
-		}
-
-		this.telemetryService.publicLog('startupTime', { ellapsed: Date.now() - global.perfStartTime, totalmem, cpus });
 	}
 
 	private onBroadcast(event: string, payload: any): void {

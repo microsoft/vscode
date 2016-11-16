@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import { IStorageService } from 'vs/code/electron-main/storage';
-import { shell, screen, BrowserWindow, systemPreferences } from 'electron';
+import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
@@ -100,6 +100,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
+	accessibilitySupport?: boolean;
 
 	isInitialStartup?: boolean;
 
@@ -475,8 +476,9 @@ export class VSCodeWindow {
 		// Set fullscreen state
 		windowConfiguration.fullscreen = this._win.isFullScreen();
 
-		// Set High Contrast state
+		// Set Accessibility Config
 		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme();
+		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;

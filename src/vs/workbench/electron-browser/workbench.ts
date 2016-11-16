@@ -100,7 +100,7 @@ interface WorkbenchParams {
 
 export interface IWorkbenchCallbacks {
 	onServicesCreated?: () => void;
-	onWorkbenchStarted?: (customKeybindingsCount: number) => void;
+	onWorkbenchStarted?: (customKeybindingsCount: number, restoreViewletDuration: number, restoreEditorsDuration: number) => void;
 }
 
 const Identifiers = {
@@ -252,6 +252,7 @@ export class Workbench implements IPartService {
 			const compositeAndEditorPromises: TPromise<any>[] = [];
 
 			// Restore last opened viewlet
+			let viewletTimerEvent: timer.ITimerEvent;
 			if (!this.sideBarHidden) {
 				let viewletIdToRestore: string;
 
@@ -263,7 +264,7 @@ export class Workbench implements IPartService {
 					viewletIdToRestore = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
 				}
 
-				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('[renderer] open viewlet {0}', viewletIdToRestore)); // TODO
+				viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('[renderer] open viewlet {0}', viewletIdToRestore));
 				compositeAndEditorPromises.push(this.viewletService.restoreViewlet(viewletIdToRestore).then(() => viewletTimerEvent.stop()));
 			}
 
@@ -311,7 +312,7 @@ export class Workbench implements IPartService {
 				this.creationPromiseComplete(true);
 
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
-					this.callbacks.onWorkbenchStarted(this.keybindingService.customKeybindingsCount());
+					this.callbacks.onWorkbenchStarted(this.keybindingService.customKeybindingsCount(), viewletTimerEvent ? viewletTimerEvent.timeTaken() : 0, editorTimerEvent.timeTaken());
 				}
 
 				if (error) {

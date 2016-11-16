@@ -349,7 +349,7 @@ export class ShowStartupPerformance extends Action {
 
 		if (total > 0) {
 			const entry: any = {};
-			entry['Event'] = '[renderer] total require()';
+			entry['Event'] = '[renderer] total require() node modules';
 			entry['Took (ms)'] = total;
 			entry['Start (ms)'] = '**';
 			entry['End (ms)'] = '**';
@@ -397,12 +397,12 @@ export class ShowStartupPerformance extends Action {
 
 		const totalExtensions: any = {};
 		totalExtensions['Event'] = '[main, renderer] start => extensions ready';
-		totalExtensions['Took (ms)'] = timers.perfExtensionLoadTime - start;
+		totalExtensions['Took (ms)'] = timers.perfAfterExtensionLoad - start;
 		table.push(totalExtensions);
 
 		const totalWorkbench: any = {};
 		totalWorkbench['Event'] = '[main, renderer] start => workbench ready';
-		totalWorkbench['Took (ms)'] = lastEvent.stopTime.getTime() - start;
+		totalWorkbench['Took (ms)'] = timers.workbenchStarted - start;
 		table.push(totalWorkbench);
 
 		// Show dev tools
