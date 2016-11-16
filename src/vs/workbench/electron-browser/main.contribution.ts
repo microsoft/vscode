@@ -156,6 +156,11 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'default': false,
 		'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
 	},
+	'window.fullScreenZenMode': {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('fullScreenZenMode', "Controls if zen mode should transition the workbench to full screen mode automatically.")
+	},
 	'window.zoomLevel': {
 		'type': 'number',
 		'default': 0,
