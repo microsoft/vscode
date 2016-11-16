@@ -331,7 +331,6 @@ export class ShowStartupPerformance extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		const envTable = this.getFingerprintEnvironment();
 		const perfTable = this.environmentService.performance ? this.getPerformanceTable() : this.getFingerprintTable();
 
 		// Show dev tools
@@ -339,28 +338,18 @@ export class ShowStartupPerformance extends Action {
 
 		// Print to console
 		setTimeout(() => {
-			(<any>console).group('Performance: Environment');
-			(<any>console).table(envTable);
-			(<any>console).groupEnd();
-			(<any>console).group('Performance: Benchmark');
+			(<any>console).group('Startup Performance Measurement');
+			const fingerprint: IStartupFingerprint = timers.fingerprint;
+			console.log(`Total Memory: ${(fingerprint.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB`);
+			console.log(`CPUs: ${fingerprint.cpus.model} (${fingerprint.cpus.count} x ${fingerprint.cpus.speed})`);
+			console.log(`Initial Startup: ${fingerprint.initialStartup}`);
+			console.log(`Screen Reader Active: ${fingerprint.hasAccessibilitySupport}`);
+			console.log(`Empty Workspace: ${fingerprint.emptyWorkbench}`);
 			(<any>console).table(perfTable);
 			(<any>console).groupEnd();
 		}, 1000);
 
 		return TPromise.as(true);
-	}
-
-	private getFingerprintEnvironment(): any[] {
-		const table: any[] = [];
-		const fingerprint: IStartupFingerprint = timers.fingerprint;
-
-		table.push({ Topic: 'Total Memory', 'Value': `${fingerprint.totalmem / (1024 * 1024 * 1024)}GB` });
-		table.push({ Topic: 'CPUs', 'Value': `${fingerprint.cpus.model} (${fingerprint.cpus.count} x ${fingerprint.cpus.speed})` });
-		table.push({ Topic: 'Initial Startup', 'Value': fingerprint.initialStartup });
-		table.push({ Topic: 'Screen Reader Active', 'Value': fingerprint.hasAccessibilitySupport });
-		table.push({ Topic: 'Empty Workspace', 'Value': fingerprint.emptyWorkbench });
-
-		return table;
 	}
 
 	private getFingerprintTable(): any[] {
