@@ -226,9 +226,10 @@ export interface IEditorOptions {
 	/**
 	 * The width reserved for line decorations (in px).
 	 * Line decorations are placed between line numbers and the editor content.
+	 * You can pass in a string in the format floating point followed by "ch". e.g. 1.3ch.
 	 * Defaults to 10.
 	 */
-	lineDecorationsWidth?: number;
+	lineDecorationsWidth?: number | string;
 	/**
 	 * When revealing the cursor, a virtual padding (px) is added to the cursor, turning it into a rectangle.
 	 * This virtual padding ensures that the cursor gets revealed before hitting the edge of the viewport.
