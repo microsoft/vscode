@@ -344,7 +344,7 @@ export class ViewZones extends ViewPart {
 			StyleMutator.setDisplay(zone.delegate.domNode, newDisplay);
 
 			if (zone.delegate.marginDomNode) {
-				StyleMutator.setTop(zone.delegate.marginDomNode, newTop - ctx.viewportTop);
+				StyleMutator.setTop(zone.delegate.marginDomNode, newTop);
 				StyleMutator.setHeight(zone.delegate.marginDomNode, newHeight);
 				StyleMutator.setDisplay(zone.delegate.marginDomNode, newDisplay);
 			}

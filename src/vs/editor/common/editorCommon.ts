@@ -1151,6 +1151,10 @@ export interface IModelDecorationOptions {
 	 */
 	linesDecorationsClassName?: string;
 	/**
+	 * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
+	 */
+	marginClassName?: string;
+	/**
 	 * If set, the decoration will be rendered inline with the text with this CSS class name.
 	 * Please use this only for CSS rules that must impact the text. For example, use `className`
 	 * to have a background color decoration.
