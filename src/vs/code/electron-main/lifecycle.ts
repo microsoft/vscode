@@ -8,36 +8,18 @@
 import { EventEmitter } from 'events';
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
+import { ReadyState, IVSCodeWindow } from 'vs/code/common/window';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/common/mainLifecycle';
 
 const EventTypes = {
 	BEFORE_CLOSE: 'before-close',
 	BEFORE_QUIT: 'before-quit'
 };
 
-export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
-
-export interface ILifecycleService {
-	_serviceBrand: any;
-
-	/**
-	 * Will be true if an update was applied. Will only be true for each update once.
-	 */
-	wasUpdated: boolean;
-
-	onBeforeQuit(clb: () => void): () => void;
-	onAfterUnload(clb: (VSCodeWindow) => void): () => void;
-	ready(): void;
-	registerWindow(vscodeWindow: VSCodeWindow): void;
-	unload(vscodeWindow: VSCodeWindow): TPromise<boolean /* veto */>;
-	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
-}
-
-export class LifecycleService implements ILifecycleService {
+export class LifecycleService implements ILifecycleMainService {
 
 	_serviceBrand: any;
 
@@ -87,7 +69,7 @@ export class LifecycleService implements ILifecycleService {
 		return () => this.eventEmitter.removeListener(EventTypes.BEFORE_QUIT, clb);
 	}
 
-	onAfterUnload(clb: (VSCodeWindow) => void): () => void {
+	onAfterUnload(clb: (vscodeWindow: IVSCodeWindow) => void): () => void {
 		this.eventEmitter.addListener(EventTypes.BEFORE_CLOSE, clb);
 
 		return () => this.eventEmitter.removeListener(EventTypes.BEFORE_CLOSE, clb);
@@ -123,7 +105,7 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public registerWindow(vscodeWindow: VSCodeWindow): void {
+	public registerWindow(vscodeWindow: IVSCodeWindow): void {
 
 		// Window Before Closing: Main -> Renderer
 		vscodeWindow.win.on('close', (e) => {
@@ -153,7 +135,7 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public unload(vscodeWindow: VSCodeWindow): TPromise<boolean /* veto */> {
+	public unload(vscodeWindow: IVSCodeWindow): TPromise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
 		if (vscodeWindow.readyState !== ReadyState.READY) {
