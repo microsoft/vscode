@@ -351,8 +351,9 @@ export class WindowsManager implements IWindowsMainService {
 		let configuration: IWindowConfiguration;
 		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
 
-		// Restore any existing backup workspaces on the first initial startup
-		if (openConfig.initialStartup) {
+		// Restore any existing backup workspaces on the first initial startup, provided an
+		// extension development path is not being launch.
+		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) {
 			const workspacesWithBackups = this.backupService.getWorkspaceBackupPaths();
 			workspacesWithBackups.forEach(workspacePath => {
 				if (!fs.existsSync(workspacePath)) {
@@ -478,7 +479,9 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Register new paths for backup
-		this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(p => p.workspacePath).map(p => Uri.file(p.workspacePath)));
+		if (!openConfig.cli.extensionDevelopmentPath) {
+			this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(p => p.workspacePath).map(p => Uri.file(p.workspacePath)));
+		}
 
 		// Emit events
 		iPathsToOpen.forEach(iPath => this._onPathOpen.fire(iPath));
