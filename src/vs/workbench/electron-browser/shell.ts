@@ -406,9 +406,9 @@ export class WorkbenchShell {
 			const events: timer.IExistingTimerEvent[] = [];
 
 			// Window
-			if (timers.vscodeStart) {
+			if (timers.perfStartTime) {
 				events.push({
-					startTime: timers.vscodeStart,
+					startTime: timers.perfStartTime,
 					stopTime: timers.beforeLoad,
 					topic: 'Startup',
 					name: 'VSCode Startup',

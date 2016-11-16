@@ -101,6 +101,9 @@ export interface IWindowConfiguration extends ParsedArgs {
 	fullscreen?: boolean;
 	highContrast?: boolean;
 
+	perfStartTime?: number;
+	perfWindowShowTime?: number;
+
 	workspacePath?: string;
 
 	filesToOpen?: IPath[];
@@ -162,12 +165,14 @@ export class VSCodeWindow {
 		const themeId = this.storageService.getItem<string>(VSCodeWindow.colorThemeStorageKey);
 		const usesLightTheme = /vs($| )/.test(themeId);
 		const usesHighContrastTheme = /hc-black($| )/.test(themeId) || (platform.isWindows && systemPreferences.isInvertedColorScheme());
-		if (!global.windowShow) {
-			global.windowShow = Date.now();
-		}
 
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
+
+		const showDirectly = !isFullscreenOrMaximized;
+		if (showDirectly && !global.perfWindowShowTime) {
+			global.perfWindowShowTime = Date.now();
+		}
 
 		const options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
@@ -177,7 +182,7 @@ export class VSCodeWindow {
 			backgroundColor: usesHighContrastTheme ? '#000000' : usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
-			show: !isFullscreenOrMaximized,
+			show: showDirectly,
 			title: product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
@@ -323,8 +328,8 @@ export class VSCodeWindow {
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded
 			if (!this.win.isVisible()) {
-				if (!global.windowShow) {
-					global.windowShow = Date.now();
+				if (!global.perfWindowShowTime) {
+					global.perfWindowShowTime = Date.now();
 				}
 
 				if (this.currentWindowMode === WindowMode.Maximized) {
@@ -477,6 +482,10 @@ export class VSCodeWindow {
 
 		// Set High Contrast state
 		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme();
+
+		// Perf Counters
+		windowConfiguration.perfStartTime = global.perfStartTime;
+		windowConfiguration.perfWindowShowTime = global.perfWindowShowTime;
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);

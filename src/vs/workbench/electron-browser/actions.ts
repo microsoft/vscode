@@ -35,7 +35,7 @@ import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 
 import * as os from 'os';
-import { webFrame, remote } from 'electron';
+import { webFrame } from 'electron';
 
 // --- actions
 
@@ -363,8 +363,10 @@ export class ShowStartupPerformance extends Action {
 		const table: any[] = [];
 		table.push(...this._analyzeLoaderTimes());
 
-		const start = Math.round(remote.getGlobal('vscodeStart'));
-		const windowShowTime = Math.round(remote.getGlobal('windowShow'));
+		const timers = (<any>window).MonacoEnvironment.timers;
+
+		const start = Math.round(timers.perfStartTime);
+		const windowShowTime = Math.round(timers.perfWindowShowTime);
 
 		let lastEvent: timer.ITimerEvent;
 		const events = timer.getTimeKeeper().getCollectedEvents();

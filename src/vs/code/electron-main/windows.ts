@@ -287,7 +287,7 @@ export class WindowsManager implements IWindowsMainService {
 			this.logService.log(error); // be on the safe side with these hardware method calls
 		}
 
-		this.telemetryService.publicLog('startupTime', { ellapsed: Date.now() - global.vscodeStart, totalmem, cpus });
+		this.telemetryService.publicLog('startupTime', { ellapsed: Date.now() - global.perfStartTime, totalmem, cpus });
 	}
 
 	private onBroadcast(event: string, payload: any): void {

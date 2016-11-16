@@ -171,12 +171,10 @@ function main() {
 			start: new Date()
 		};
 
-		if (configuration.performance) {
-			const vscodeStart = remote.getGlobal('vscodeStart');
-			timers.vscodeStart = new Date(vscodeStart);
-			timers.start = new Date(vscodeStart);
-		}
-
+		// Perf Counters
+		timers.perfStartTime = new Date(configuration.perfStartTime);
+		timers.start = new Date(configuration.perfStartTime);
+		timers.perfWindowShowTime = new Date(configuration.perfWindowShowTime);
 		timers.beforeLoad = new Date();
 
 		require([
