@@ -9,7 +9,7 @@ import { merge } from 'vs/base/common/arrays';
 import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventType as FileEventType, FileChangesEvent, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';

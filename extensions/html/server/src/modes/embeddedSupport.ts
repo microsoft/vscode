@@ -7,7 +7,7 @@
 
 import { TextDocument, Position, HTMLDocument, Node, LanguageService, TokenType } from 'vscode-html-languageservice';
 
-export function getEmbeddedLanguageAtPosition(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, position: Position): string {
+export function getLanguageAtPosition(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, position: Position): string {
 	let offset = document.offsetAt(position);
 	let node = htmlDocument.findNodeAt(offset);
 	if (node && node.children.length === 0) {
@@ -19,8 +19,8 @@ export function getEmbeddedLanguageAtPosition(languageService: LanguageService, 
 	return 'html';
 }
 
-export function hasEmbeddedContent(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument): string[] {
-	let embeddedLanguageIds: { [languageId: string]: boolean } = {};
+export function getLanguagesInContent(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument): string[] {
+	let embeddedLanguageIds: { [languageId: string]: boolean } = { html: true };
 	function collectEmbeddedLanguages(node: Node): void {
 		let c = getEmbeddedContentForNode(languageService, document, node);
 		if (c && !isWhitespace(document.getText().substring(c.start, c.end))) {

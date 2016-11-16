@@ -89,24 +89,27 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	private loadWorkspaces(): TPromise<IBackupWorkspacesFormat> {
-		return pfs.fileExists(this.workspacesJsonPath).then(exists => {
-			if (!exists) {
-				return { folderWorkspaces: [] };
+		return pfs.readFile(this.workspacesJsonPath, 'utf8').then(content => {
+			let result: IBackupWorkspacesFormat;
+			try {
+				result = JSON.parse(content.toString());
+				// Ensure folderWorkspaces is a string[]
+				if (result.folderWorkspaces) {
+					const fws = result.folderWorkspaces;
+					if (!Array.isArray(fws) || fws.some(f => typeof f !== 'string')) {
+						result = Object.create(null);
+					}
+				}
+			} catch (ex) {
+				result = Object.create(null);
 			}
 
-			return pfs.readFile(this.workspacesJsonPath, 'utf8').then(content => {
-				try {
-					return JSON.parse(content.toString());
-				} catch (ex) {
-					return [];
-				}
-			}).then(content => {
-				let result = content;
-				if (!result.folderWorkspaces) {
-					result.folderWorkspaces = [];
-				}
-				return result;
-			});
+			if (!result.folderWorkspaces) {
+				result.folderWorkspaces = [];
+			}
+			return result;
+		}, () => {
+			return { folderWorkspaces: [] };
 		});
 	}
 }

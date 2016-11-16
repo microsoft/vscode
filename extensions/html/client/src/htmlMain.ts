@@ -33,13 +33,13 @@ export function activate(context: ExtensionContext) {
 	};
 
 	let documentSelector = ['html', 'handlebars', 'razor'];
-	let embeddedLanguages = { 'css': true };
+	let embeddedLanguages = { css: true, javascript: true };
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
 		synchronize: {
-			configurationSection: ['html'], // Synchronize the setting section 'html' to the server
+			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
 		},
 		initializationOptions: {
 			embeddedLanguages,

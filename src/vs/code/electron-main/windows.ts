@@ -6,7 +6,6 @@
 'use strict';
 
 import * as path from 'path';
-import * as os from 'os';
 import * as fs from 'original-fs';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
@@ -27,7 +26,7 @@ import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import CommonEvent, { Emitter, once } from 'vs/base/common/event';
+import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product';
 import Uri from 'vs/base/common/uri';
 
@@ -256,38 +255,8 @@ export class WindowsManager implements IWindowsMainService {
 			this.storageService.setItem(WindowsManager.windowsStateStorageKey, this.windowsState);
 		});
 
-		let loggedStartupTimes = false;
-		const onceWindowReady = once(this.onWindowReady);
-		onceWindowReady(window => {
-			if (loggedStartupTimes) {
-				return; // only for the first window
-			}
-
-			loggedStartupTimes = true;
-
-			this.logStartupTimes(window);
-		});
-
 		// Update jump list when recent paths change
 		this.onRecentPathsChange(() => this.updateWindowsJumpList());
-	}
-
-	private logStartupTimes(window: VSCodeWindow): void {
-		let totalmem: number;
-		let cpus: { count: number; speed: number; model: string; };
-
-		try {
-			totalmem = os.totalmem();
-
-			const rawCpus = os.cpus();
-			if (rawCpus && rawCpus.length > 0) {
-				cpus = { count: rawCpus.length, speed: rawCpus[0].speed, model: rawCpus[0].model };
-			}
-		} catch (error) {
-			this.logService.log(error); // be on the safe side with these hardware method calls
-		}
-
-		this.telemetryService.publicLog('startupTime', { ellapsed: Date.now() - global.vscodeStart, totalmem, cpus });
 	}
 
 	private onBroadcast(event: string, payload: any): void {
@@ -392,7 +361,7 @@ export class WindowsManager implements IWindowsMainService {
 				}
 
 				const untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(workspacePath)).map(filePath => { return { filePath }; });
-				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, workspacePath, [], [], [], untitledToRestore);
+				configuration = this.toConfiguration(openConfig, workspacePath, [], [], [], untitledToRestore);
 
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
@@ -431,7 +400,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Otherwise open instance with files
 			else {
-				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, null, filesToOpen, filesToCreate, filesToDiff);
+				configuration = this.toConfiguration(openConfig, null, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
@@ -467,7 +436,7 @@ export class WindowsManager implements IWindowsMainService {
 					return; // ignore folders that are already open
 				}
 
-				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff);
+				configuration = this.toConfiguration(openConfig, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
@@ -483,7 +452,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Handle empty
 		if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
-				const configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli);
+				const configuration = this.toConfiguration(openConfig);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
@@ -652,11 +621,12 @@ export class WindowsManager implements IWindowsMainService {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
 	}
 
-	private toConfiguration(userEnv: platform.IProcessEnvironment, cli: ParsedArgs, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], untitledToRestore?: IPath[]): IWindowConfiguration {
-		const configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
+	private toConfiguration(config: IOpenConfiguration, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], untitledToRestore?: IPath[]): IWindowConfiguration {
+		const configuration: IWindowConfiguration = mixin({}, config.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
-		configuration.userEnv = userEnv;
+		configuration.userEnv = this.getWindowUserEnv(config);
+		configuration.isInitialStartup = config.initialStartup;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
