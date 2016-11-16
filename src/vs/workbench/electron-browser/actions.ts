@@ -365,8 +365,7 @@ export class ShowStartupPerformance extends Action {
 
 		const timers = (<any>window).MonacoEnvironment.timers;
 
-		const start = Math.round(timers.perfStartTime);
-		const windowShowTime = Math.round(timers.perfWindowShowTime);
+		const start = Math.round(timers.isInitialStartup ? timers.perfStartTime : timers.perfWindowLoadTime);
 
 		let lastEvent: timer.ITimerEvent;
 		const events = timer.getTimeKeeper().getCollectedEvents();
@@ -386,10 +385,13 @@ export class ShowStartupPerformance extends Action {
 
 		table.push({ Event: '---------------------------' });
 
-		const windowShowEvent: any = {};
-		windowShowEvent['Event'] = 'Show Window at';
-		windowShowEvent['Start (ms)'] = windowShowTime - start;
-		table.push(windowShowEvent);
+		if (timers.isInitialStartup) {
+			const loadWindow = Math.round(timers.perfWindowLoadTime);
+			const windowLoadEvent: any = {};
+			windowLoadEvent['Event'] = 'Load Window at';
+			windowLoadEvent['Start (ms)'] = loadWindow - start;
+			table.push(windowLoadEvent);
+		}
 
 		const sum: any = {};
 		sum['Event'] = 'Total';

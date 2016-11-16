@@ -101,8 +101,10 @@ export interface IWindowConfiguration extends ParsedArgs {
 	fullscreen?: boolean;
 	highContrast?: boolean;
 
+	isInitialStartup?: boolean;
+
 	perfStartTime?: number;
-	perfWindowShowTime?: number;
+	perfWindowLoadTime?: number;
 
 	workspacePath?: string;
 
@@ -169,11 +171,6 @@ export class VSCodeWindow {
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
 
-		const showDirectly = !isFullscreenOrMaximized;
-		if (showDirectly && !global.perfWindowShowTime) {
-			global.perfWindowShowTime = Date.now();
-		}
-
 		const options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
@@ -182,7 +179,7 @@ export class VSCodeWindow {
 			backgroundColor: usesHighContrastTheme ? '#000000' : usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
-			show: showDirectly,
+			show: !isFullscreenOrMaximized,
 			title: product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
@@ -328,10 +325,6 @@ export class VSCodeWindow {
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded
 			if (!this.win.isVisible()) {
-				if (!global.perfWindowShowTime) {
-					global.perfWindowShowTime = Date.now();
-				}
-
 				if (this.currentWindowMode === WindowMode.Maximized) {
 					this.win.maximize();
 				}
@@ -463,6 +456,8 @@ export class VSCodeWindow {
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
+		configuration.isInitialStartup = false; // since this is a reload
+
 		// Load config
 		this.load(configuration);
 	}
@@ -485,7 +480,7 @@ export class VSCodeWindow {
 
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;
-		windowConfiguration.perfWindowShowTime = global.perfWindowShowTime;
+		windowConfiguration.perfWindowLoadTime = Date.now();
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);

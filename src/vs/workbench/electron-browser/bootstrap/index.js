@@ -172,9 +172,10 @@ function main() {
 		};
 
 		// Perf Counters
+		timers.isInitialStartup = configuration.isInitialStartup;
 		timers.perfStartTime = new Date(configuration.perfStartTime);
 		timers.start = new Date(configuration.perfStartTime);
-		timers.perfWindowShowTime = new Date(configuration.perfWindowShowTime);
+		timers.perfWindowLoadTime = new Date(configuration.perfWindowLoadTime);
 		timers.beforeLoad = new Date();
 
 		require([

@@ -406,7 +406,7 @@ export class WorkbenchShell {
 			const events: timer.IExistingTimerEvent[] = [];
 
 			// Window
-			if (timers.perfStartTime) {
+			if (timers.isInitialStartup && timers.perfStartTime) {
 				events.push({
 					startTime: timers.perfStartTime,
 					stopTime: timers.beforeLoad,

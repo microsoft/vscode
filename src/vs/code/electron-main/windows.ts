@@ -392,7 +392,7 @@ export class WindowsManager implements IWindowsMainService {
 				}
 
 				const untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(workspacePath)).map(filePath => { return { filePath }; });
-				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, workspacePath, [], [], [], untitledToRestore);
+				configuration = this.toConfiguration(openConfig, workspacePath, [], [], [], untitledToRestore);
 
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
@@ -431,7 +431,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Otherwise open instance with files
 			else {
-				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, null, filesToOpen, filesToCreate, filesToDiff);
+				configuration = this.toConfiguration(openConfig, null, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
@@ -467,7 +467,7 @@ export class WindowsManager implements IWindowsMainService {
 					return; // ignore folders that are already open
 				}
 
-				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff);
+				configuration = this.toConfiguration(openConfig, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
@@ -483,7 +483,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Handle empty
 		if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
-				const configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli);
+				const configuration = this.toConfiguration(openConfig);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
@@ -652,11 +652,12 @@ export class WindowsManager implements IWindowsMainService {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
 	}
 
-	private toConfiguration(userEnv: platform.IProcessEnvironment, cli: ParsedArgs, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], untitledToRestore?: IPath[]): IWindowConfiguration {
-		const configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
+	private toConfiguration(config: IOpenConfiguration, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], untitledToRestore?: IPath[]): IWindowConfiguration {
+		const configuration: IWindowConfiguration = mixin({}, config.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
-		configuration.userEnv = userEnv;
+		configuration.userEnv = this.getWindowUserEnv(config);
+		configuration.isInitialStartup = config.initialStartup;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
