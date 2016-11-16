@@ -235,9 +235,8 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			});
 
 			// Install model content change listener
-			this.mapResourceToModelContentChangeListener[resource.toString()] = model.onDidContentChange(() => {
-				const newEvent = new TextFileModelChangeEvent(model, StateChange.CONTENT_CHANGE);
-				this._onModelContentChanged.fire(newEvent);
+			this.mapResourceToModelContentChangeListener[resource.toString()] = model.onDidContentChange(e => {
+				this._onModelContentChanged.fire(new TextFileModelChangeEvent(model, e));
 			});
 		}
 

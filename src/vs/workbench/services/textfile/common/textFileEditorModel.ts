@@ -58,7 +58,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
-	private _onDidContentChange: Emitter<void>;
+	private _onDidContentChange: Emitter<StateChange>;
 	private _onDidStateChange: Emitter<StateChange>;
 
 	constructor(
@@ -80,7 +80,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.resource = resource;
 		this.toDispose = [];
-		this._onDidContentChange = new Emitter<void>();
+		this._onDidContentChange = new Emitter<StateChange>();
 		this._onDidStateChange = new Emitter<StateChange>();
 		this.toDispose.push(this._onDidContentChange);
 		this.toDispose.push(this._onDidStateChange);
@@ -115,7 +115,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.updateTextEditorModelMode();
 	}
 
-	public get onDidContentChange(): Event<void> {
+	public get onDidContentChange(): Event<StateChange> {
 		return this._onDidContentChange.event;
 	}
 
@@ -342,6 +342,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (wasDirty) {
 				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
+			this._onDidContentChange.fire(StateChange.REVERTED);
 
 			return;
 		}
@@ -360,7 +361,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}
 
-		this._onDidContentChange.fire();
+		this._onDidContentChange.fire(StateChange.CONTENT_CHANGE);
 	}
 
 	private makeDirty(): void {

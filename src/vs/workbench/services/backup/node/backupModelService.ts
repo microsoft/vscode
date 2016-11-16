@@ -8,7 +8,7 @@
 import Uri from 'vs/base/common/uri';
 import { IBackupService, IBackupModelService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITextFileService, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -45,9 +45,13 @@ export class BackupModelService implements IBackupModelService {
 	}
 
 	private onTextFileModelChanged(event: TextFileModelChangeEvent): void {
-		if (this.backupService.isHotExitEnabled) {
-			const model = this.textFileService.models.get(event.resource);
-			this.backupService.doBackup(model.getResource(), model.getValue());
+		if (event.kind === StateChange.REVERTED) {
+			this.discardBackup(event.resource);
+		} else if (event.kind === StateChange.CONTENT_CHANGE) {
+			if (this.backupService.isHotExitEnabled) {
+				const model = this.textFileService.models.get(event.resource);
+				this.backupService.doBackup(model.getResource(), model.getValue());
+			}
 		}
 	}
 
