@@ -8,6 +8,7 @@
 import { ThrottledDelayer } from 'vs/base/common/async';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as winjs from 'vs/base/common/winjs.base';
+import { memoize } from 'vs/base/common/decorators';
 import * as ext from 'vs/workbench/common/contributions';
 import * as common from 'vs/editor/common/editorCommon';
 import * as widget from 'vs/editor/browser/codeEditor';
@@ -15,6 +16,7 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -65,7 +67,8 @@ class DirtyDiffModelDecorator {
 		@IModelService private modelService: IModelService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
 	) {
 		this.decorations = [];
 		this.diffDelayer = new ThrottledDelayer<void>(200);
@@ -74,25 +77,38 @@ class DirtyDiffModelDecorator {
 		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
 	}
 
+	@memoize
+	private get originalURIPromise(): winjs.TPromise<URI> {
+		return this.dirtyDiffService.getDirtyDiffTextDocument(this.uri)
+			.then(originalUri => this.textModelResolverService.resolve(originalUri)
+				.then(model => {
+					// TODO@Joao cast here?
+					const textEditorModel = model.textEditorModel as common.IModel;
+					this.toDispose.push(textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+
+					return originalUri;
+				}));
+	}
+
 	private triggerDiff(): winjs.Promise {
 		if (!this.diffDelayer) {
 			return winjs.TPromise.as(null);
 		}
 
-		return this.dirtyDiffService.getDirtyDiffTextDocument(this.uri).then(originalUri => {
-			return this.diffDelayer.trigger(() => {
-				if (!this.model || this.model.isDisposed()) {
-					return winjs.TPromise.as<any>([]); // disposed
-				}
+		return this.diffDelayer.trigger(() => {
+			if (!this.model || this.model.isDisposed()) {
+				return winjs.TPromise.as<any>([]); // disposed
+			}
 
-				return this.editorWorkerService.computeDirtyDiff(originalUri, this.model.uri, true);
-			}).then((diff: common.IChange[]) => {
-				if (!this.model || this.model.isDisposed()) {
-					return; // disposed
-				}
+			return this.originalURIPromise
+				.then(uri => this.editorWorkerService.computeDirtyDiff(uri, this.model.uri, true));
 
-				return this.decorations = this.model.deltaDecorations(this.decorations, DirtyDiffModelDecorator.changesToDecorations(diff || []));
-			});
+		}).then((diff: common.IChange[]) => {
+			if (!this.model || this.model.isDisposed()) {
+				return; // disposed
+			}
+
+			return this.decorations = this.model.deltaDecorations(this.decorations, DirtyDiffModelDecorator.changesToDecorations(diff || []));
 		});
 	}
 
