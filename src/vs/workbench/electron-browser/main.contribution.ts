@@ -13,11 +13,13 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { CloseEditorAction, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
-import { MessagesVisibleContext, NoEditorsVisibleContext } from 'vs/workbench/electron-browser/workbench';
+import { MessagesVisibleContext, NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 const closeEditorOrWindowKeybindings: IKeybindings = { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } };
@@ -68,6 +70,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const windowService = accessor.get(IWindowIPCService);
 		windowService.getWindow().close();
 	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: '_workbench.exitZenMode',
+	weight: 0,
+	handler(accessor: ServicesAccessor, configurationOrName: any) {
+		const partService = accessor.get(IPartService);
+		partService.toggleZenMode();
+	},
+	when: InZenModeContext,
+	primary: KeyCode.Escape
 });
 
 // Configuration: Workbench
@@ -155,6 +168,11 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'type': 'boolean',
 		'default': false,
 		'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
+	},
+	'window.fullScreenZenMode': {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('fullScreenZenMode', "Controls if zen mode should transition the workbench to full screen mode automatically.")
 	},
 	'window.zoomLevel': {
 		'type': 'number',

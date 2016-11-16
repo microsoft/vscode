@@ -2024,6 +2024,25 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A snippet string is a template which allows to insert text
+	 * and to control the editor cursor when insertion happens.
+	 *
+	 * A snippet can define tab stops and placeholders with `$1`, `$2`
+	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
+	 * the end of the snippet. Placeholders with equal identifiers are linked,
+	 * that is typing in one will update others too.
+	 */
+	export class SnippetString {
+
+		/**
+		 * The snippet string.
+		 */
+		value: string;
+
+		constructor(value: string);
+	}
+
+	/**
 	 * The rename provider interface defines the contract between extensions and
 	 * the [rename](https://code.visualstudio.com/docs/editor/editingevolved#_rename-symbol)-feature.
 	 */
@@ -2310,19 +2329,32 @@ declare module 'vscode' {
 		filterText: string;
 
 		/**
-		 * A string that should be inserted in a document when selecting
+		 * A string or snippet that should be inserted in a document when selecting
 		 * this completion. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
 		 */
-		insertText: string;
+		insertText: string | SnippetString;
 
 		/**
-		 * An [edit](#TextEdit) which is applied to a document when selecting
-		 * this completion. When an edit is provided the value of
-		 * [insertText](#CompletionItem.insertText) is ignored.
+		 * A range of text that should be replaced by this completion item.
 		 *
-		 * The [range](#Range) of the edit must be single-line and on the same
-		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.
+		 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+		 * current position.
+		 *
+		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
+		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+		 */
+		range: Range;
+
+		/**
+		 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
+		 *
+		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
+		 * this completion. When an edit is provided the value of
+		 * [insertText](#CompletionItem.insertText) is ignored.~~
+		 *
+		 * ~~The [range](#Range) of the edit must be single-line and on the same
+		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
 		 */
 		textEdit: TextEdit;
 
