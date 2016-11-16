@@ -28,8 +28,6 @@ export interface IBackupService {
 	isHotExitEnabled: boolean;
 	backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean): TPromise<IBackupResult>;
 	cleanupBackupsBeforeShutdown(): TPromise<void>;
-
-	doBackup(resource: Uri, content: string, immediate?: boolean): TPromise<void>;
 }
 
 /**

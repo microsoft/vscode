@@ -26,6 +26,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	private _onDidChangeContent: Emitter<void>;
 	private _onDidChangeDirty: Emitter<void>;
 	private _onDidChangeEncoding: Emitter<void>;
+	private contentChangeEventPromises: TPromise<void>[];
 
 	private configuredEncoding: string;
 	private preferredEncoding: string;
@@ -49,6 +50,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this._onDidChangeContent = new Emitter<void>();
 		this._onDidChangeDirty = new Emitter<void>();
 		this._onDidChangeEncoding = new Emitter<void>();
+		this.contentChangeEventPromises = [];
 
 		this.registerListeners();
 	}
@@ -124,7 +126,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	public revert(): void {
 		this.dirty = false;
 
-		this._onDidChangeContent.fire();
+		this.doContentChangeEvent();
 		this._onDidChangeDirty.fire();
 	}
 
@@ -157,10 +159,29 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		else if (!this.dirty) {
 			this.dirty = true;
 			this._onDidChangeDirty.fire();
-
 		}
 
-		this._onDidChangeContent.fire();
+		this.doContentChangeEvent();
+	}
+
+	private doContentChangeEvent(): TPromise<void> {
+		// Cancel any currently running promises to make this the one that succeeds
+		this.cancelContentChangeEventPromises();
+
+		// Create new promise and keep it
+		const promise = TPromise.timeout(1000).then(() => {
+			this._onDidChangeContent.fire(); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+		});
+
+		this.contentChangeEventPromises.push(promise);
+
+		return promise;
+	}
+
+	private cancelContentChangeEventPromises() {
+		while (this.contentChangeEventPromises.length) {
+			this.contentChangeEventPromises.pop().cancel();
+		}
 	}
 
 	public dispose(): void {

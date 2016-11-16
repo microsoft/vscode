@@ -49,7 +49,7 @@ export class BackupModelService implements IBackupModelService {
 		} else if (event.kind === StateChange.CONTENT_CHANGE) {
 			if (this.backupService.isHotExitEnabled) {
 				const model = this.textFileService.models.get(event.resource);
-				this.backupService.doBackup(model.getResource(), model.getValue());
+				this.backupFileService.backupResource(model.getResource(), model.getValue());
 			}
 		}
 	}
@@ -58,7 +58,7 @@ export class BackupModelService implements IBackupModelService {
 		if (this.backupService.isHotExitEnabled) {
 			const input = this.untitledEditorService.get(resource);
 			if (input.isDirty()) {
-				this.backupService.doBackup(resource, input.getValue());
+				this.backupFileService.backupResource(resource, input.getValue());
 			} else {
 				this.backupFileService.discardResourceBackup(resource);
 			}
