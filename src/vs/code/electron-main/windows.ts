@@ -17,10 +17,11 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { trim } from 'vs/base/common/strings';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
-import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
+import { IPath, VSCodeWindow, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
+import { ReadyState } from 'vs/code/common/window';
 import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
-import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/common/mainLifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
@@ -152,7 +153,7 @@ export class WindowsManager implements IWindowsMainService {
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleMainService private lifecycleService: ILifecycleMainService,
 		@IBackupMainService private backupService: IBackupMainService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService
@@ -352,8 +353,9 @@ export class WindowsManager implements IWindowsMainService {
 		let configuration: IWindowConfiguration;
 		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
 
-		// Restore any existing backup workspaces on the first initial startup
-		if (openConfig.initialStartup) {
+		// Restore any existing backup workspaces on the first initial startup, provided an
+		// extension development path is not being launch.
+		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) {
 			const workspacesWithBackups = this.backupService.getWorkspaceBackupPaths();
 			workspacesWithBackups.forEach(workspacePath => {
 				if (!fs.existsSync(workspacePath)) {
@@ -479,7 +481,9 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Register new paths for backup
-		this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(p => p.workspacePath).map(p => Uri.file(p.workspacePath)));
+		if (!openConfig.cli.extensionDevelopmentPath) {
+			this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(p => p.workspacePath).map(p => Uri.file(p.workspacePath)));
+		}
 
 		// Emit events
 		iPathsToOpen.forEach(iPath => this._onPathOpen.fire(iPath));

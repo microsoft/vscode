@@ -24,7 +24,7 @@ export class BackupFileService implements IBackupFileService {
 
 	constructor(
 		private currentWorkspace: Uri,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IFileService private fileService: IFileService
 	) {
 		this.backupHome = environmentService.backupHome;
@@ -32,6 +32,10 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public getWorkspaceBackupPaths(): TPromise<string[]> {
+		if (this.environmentService.isExtensionDevelopment) {
+			return TPromise.as([]);
+		}
+
 		return this.loadWorkspaces().then(workspacesJsonContent => {
 			return workspacesJsonContent.folderWorkspaces;
 		});
@@ -47,7 +51,7 @@ export class BackupFileService implements IBackupFileService {
 
 	public getBackupResource(resource: Uri): Uri {
 		// Hot exit is disabled for empty workspaces
-		if (!this.currentWorkspace) {
+		if (!this.currentWorkspace || this.environmentService.isExtensionDevelopment) {
 			return null;
 		}
 
@@ -63,6 +67,10 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public backupResource(resource: Uri, content: string): TPromise<void> {
+		if (this.environmentService.isExtensionDevelopment) {
+			return TPromise.as(void 0);
+		}
+
 		const backupResource = this.getBackupResource(resource);
 
 		// Hot exit is disabled for empty workspaces
@@ -74,6 +82,10 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public discardResourceBackup(resource: Uri): TPromise<void> {
+		if (this.environmentService.isExtensionDevelopment) {
+			return TPromise.as(void 0);
+		}
+
 		const backupResource = this.getBackupResource(resource);
 
 		// Hot exit is disabled for empty workspaces
@@ -85,6 +97,10 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public discardAllWorkspaceBackups(): TPromise<void> {
+		if (this.environmentService.isExtensionDevelopment) {
+			return TPromise.as(void 0);
+		}
+
 		return this.fileService.del(Uri.file(this.getWorkspaceBackupDirectory()));
 	}
 
