@@ -319,7 +319,8 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const webview = new WebView(
 					this.content,
-					document.querySelector('.monaco-editor-background')
+					document.querySelector('.monaco-editor-background'),
+					{ nodeintegration: false }
 				);
 
 				webview.style(this.themeService.getColorTheme());

@@ -17,7 +17,7 @@ import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { isCommonCodeEditor, ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
+import { isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { HtmlZoneController } from './htmlEditorZone';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
@@ -61,7 +61,7 @@ CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: Serv
 	}
 
 	return accessor.get(ITextModelResolverService).resolve(params.resource).then(model => {
-		const contents = (<IModel>model.textEditorModel).getValue();
+		const contents = model.textEditorModel.getValue();
 		HtmlZoneController.getInstance(codeEditor).addZone(params.lineNumber, contents);
 	});
 

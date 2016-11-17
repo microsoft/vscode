@@ -56,6 +56,9 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
+		if (!this.contextService.getWorkspace()) {
+			return TPromise.as([]);
+		}
 		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'))).then(content => {
 			const extensionsContent = <IExtensionsContent>json.parse(content.value, []);
 			if (extensionsContent.recommendations) {

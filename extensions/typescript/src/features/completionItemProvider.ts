@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 
@@ -159,15 +159,15 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 					suggestionArgumentNames = detail.displayParts
 						.filter(part => part.kind === 'parameterName')
-						.map(part => `{{${part.text}}}`);
+						.map((part, i) => `\${${i + 1}:${part.text}}`);
 
 					if (suggestionArgumentNames.length > 0) {
-						codeSnippet += '(' + suggestionArgumentNames.join(', ') + '){{}}';
+						codeSnippet += '(' + suggestionArgumentNames.join(', ') + ')$0';
 					} else {
 						codeSnippet += '()';
 					}
 
-					item.insertText = codeSnippet;
+					item.insertText = new SnippetString(codeSnippet);
 				}
 
 				return item;

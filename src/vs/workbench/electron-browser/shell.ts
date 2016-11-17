@@ -195,10 +195,15 @@ export class WorkbenchShell {
 		timer.start(timer.Topic.STARTUP, '[renderer] overall workbench load', timers.perfBeforeWorkbenchOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
 
 		// Telemetry: workspace info
+		const { filesToOpen, filesToCreate, filesToDiff, untitledToRestore } = this.options;
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
 			emptyWorkbench: !this.contextService.getWorkspace(),
+			'workbench.filesToOpen': filesToOpen && filesToOpen.length || undefined,
+			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
+			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
+			'workbench.untitledToRestore': untitledToRestore && untitledToRestore.length || undefined,
 			customKeybindingsCount,
 			theme: this.themeService.getColorTheme(),
 			language: platform.language,
@@ -253,7 +258,7 @@ export class WorkbenchShell {
 
 		// Telemetry: workspace tags
 		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
-		workspaceStats.reportWorkspaceTags();
+		workspaceStats.reportWorkspaceTags(this.options);
 
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
