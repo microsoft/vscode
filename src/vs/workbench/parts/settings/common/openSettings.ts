@@ -10,29 +10,31 @@ import URI from 'vs/base/common/uri';
 import { IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export interface ISettingsGroup {
-	range?: IRange;
+	titleRange: IRange;
 	title: string;
 	sections: ISettingsSection[];
 }
 
 export interface ISettingsSection {
-	range?: IRange;
-	description?: string;
+	titleRange?: IRange;
+	title?: string;
 	settings: ISetting[];
 }
 
 export interface ISetting {
-	range?: IRange;
+	range: IRange;
 	key: string;
 	value: any;
-	description?: string;
+	valueRange: IRange;
+	description: string;
 }
 
 export interface IDefaultSettings {
 	uri: URI;
 	content: string;
+	settingsGroups: ISettingsGroup[];
 
-	getSettingsGroups(): ISettingsGroup[];
+	// filterSettings(filter: string): ISettingsGroup[];
 }
 
 export interface IDefaultKeybindings {

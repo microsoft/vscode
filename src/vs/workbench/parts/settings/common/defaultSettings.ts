@@ -9,24 +9,21 @@ import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDefaultSettings, IDefaultKeybindings, ISettingsGroup } from 'vs/workbench/parts/settings/common/openSettings';
+import { IDefaultSettings, IDefaultKeybindings, ISettingsGroup, ISetting } from 'vs/workbench/parts/settings/common/openSettings';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class DefaultSettings implements IDefaultSettings {
 
 	private _uri: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
-	private _content: string;
-	private _settingsGroups: ISettingsGroup[];
 	private indent: string;
+
+	private _settingsGroups: ISettingsGroup[];
+	private _content: string;
 
 	constructor( @IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
 		const editorConfig = this.configurationService.getConfiguration<any>();
 		this.indent = editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t';
-
-		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
-		this._settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
-		this._content = this.toContent();
 	}
 
 	public get uri(): URI {
@@ -34,10 +31,17 @@ export class DefaultSettings implements IDefaultSettings {
 	}
 
 	public get content(): string {
+		if (!this._content) {
+			this._content = this.toContent(this.settingsGroups);
+		}
 		return this._content;
 	}
 
-	public getSettingsGroups(): ISettingsGroup[] {
+	public get settingsGroups(): ISettingsGroup[] {
+		if (!this._settingsGroups) {
+			const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
+			this._settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
+		}
 		return this._settingsGroups;
 	}
 
@@ -46,23 +50,23 @@ export class DefaultSettings implements IDefaultSettings {
 			if (!settingsGroup) {
 				settingsGroup = result.filter(g => g.title === config.title)[0];
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], title: config.title };
+					settingsGroup = { sections: [{ settings: [] }], title: config.title, titleRange: null };
 					result.push(settingsGroup);
 				}
 			} else {
-				settingsGroup.sections[settingsGroup.sections.length - 1].description = config.title;
+				settingsGroup.sections[settingsGroup.sections.length - 1].title = config.title;
 			}
 		}
 		if (config.properties) {
 			if (!settingsGroup) {
-				settingsGroup = { sections: [{ settings: [] }], title: config.id };
+				settingsGroup = { sections: [{ settings: [] }], title: config.id, titleRange: null };
 				result.push(settingsGroup);
 			}
-			const configurationSettings = Object.keys(config.properties).map((key) => {
+			const configurationSettings: ISetting[] = Object.keys(config.properties).map((key) => {
 				const prop = config.properties[key];
 				const value = prop.default;
 				const description = prop.description || '';
-				return { key, value, description };
+				return { key, value, description, range: null, valueRange: null };
 			});
 			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
 		}
@@ -87,63 +91,69 @@ export class DefaultSettings implements IDefaultSettings {
 		return c1.order - c2.order;
 	}
 
-	private toContent(): string {
-		let defaultsHeader = '// ' + nls.localize('defaultSettingsHeader', "Overwrite settings by placing them into your settings file.\n");
-		defaultsHeader += '// ' + nls.localize('defaultSettingsHeader2', "See http://go.microsoft.com/fwlink/?LinkId=808995 for the most commonly used settings.\n\n");
-
-		let lastEntry = -1;
+	private toContent(settingsGroups: ISettingsGroup[]): string {
+		let lastSetting: ISetting = null;
 		const result: string[] = [];
+
+		result.push('// ' + nls.localize('defaultSettingsHeader', "Overwrite settings by placing them into your settings file."));
+		result.push('// ' + nls.localize('defaultSettingsHeader2', "See http://go.microsoft.com/fwlink/?LinkId=808995 for the most commonly used settings."));
 		result.push('{');
-		let lineNumber = 4; // Beginning of settings
-		for (const group of this._settingsGroups) {
-			result.push('// ' + group.title);
-			lineNumber++;
-			group.range = { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 };
+
+		for (const group of settingsGroups) {
+			this.addTitleOrDescription(group.title, '', result);
+			let groupTitleStart = result.length + 1;
+			group.titleRange = { startLineNumber: groupTitleStart, startColumn: 1, endLineNumber: result.length, endColumn: result[result.length - 1].length };
 			for (const section of group.sections) {
-				if (section.description) {
-					result.push(this.indent + '// ' + section.description);
-					lineNumber++;
-					section.range = { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 };
+				if (section.title) {
+					let sectionTitleStart = result.length + 1;
+					this.addTitleOrDescription(section.title, this.indent, result);
+					section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: result.length, endColumn: result[result.length - 1].length };
 				}
 				for (const setting of section.settings) {
-					result.push(this.indent + '// ' + setting.description);
-					lineNumber++;
-					const settingStart = lineNumber;
+					const settingStart = result.length + 1;
+					this.addTitleOrDescription(setting.description, this.indent, result);
+					const valueStart = result.length + 1;
 					let valueString = JSON.stringify(setting.value, null, this.indent);
-					let valueLines = 1;
 					if (valueString && (typeof setting.value === 'object')) {
 						const mulitLineValue = valueString.split('\n');
-						valueString = mulitLineValue.join('\n' + this.indent);
-						valueLines = mulitLineValue.length;
+						result.push(this.indent + JSON.stringify(setting.key) + ': ' + mulitLineValue[0]);
+						for (let i = 1; i < mulitLineValue.length; i++) {
+							result.push(this.indent + mulitLineValue[i]);
+						}
+					} else {
+						result.push(this.indent + JSON.stringify(setting.key) + ': ' + valueString);
 					}
-					if (lastEntry !== -1) {
-						result[lastEntry] += ',';
-					}
-					lastEntry = result.length;
-					result.push(this.indent + JSON.stringify(setting.key) + ': ' + valueString);
-					lineNumber += valueLines;
-					setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 };
+					result[result.length - 1] += ',';
+					lastSetting = setting;
 					result.push('');
-					lineNumber++;
+					setting.valueRange = { startLineNumber: valueStart, startColumn: 1, endLineNumber: result.length, endColumn: result[result.length - 1].length };
+					setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: result.length, endColumn: result[result.length - 1].length };
 				}
 			}
 		}
-		result.push('}');
 
-		return defaultsHeader + result.join('\n');
+		if (lastSetting) {
+			const content = result[lastSetting.range.endLineNumber - 2];
+			result[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
+		}
+		result.push('}');
+		return result.join('\n');
+	}
+
+	private addTitleOrDescription(description: string, indent: string, result: string[]) {
+		const multiLines = description.split('\n');
+		for (const line of multiLines) {
+			result.push(indent + '//' + line);
+		}
 	}
 }
 
 export class DefaultKeybindings implements IDefaultKeybindings {
 
-	private _uri: URI;
+	private _uri: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
 	private _content: string;
 
-	constructor( @IKeybindingService keybindingService: IKeybindingService) {
-		this._uri = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
-
-		const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
-		this._content = defaultsHeader + '\n' + keybindingService.getDefaultKeybindings();
+	constructor( @IKeybindingService private keybindingService: IKeybindingService) {
 	}
 
 	public get uri(): URI {
@@ -151,6 +161,10 @@ export class DefaultKeybindings implements IDefaultKeybindings {
 	}
 
 	public get content(): string {
+		if (!this._content) {
+			const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
+			this._content = defaultsHeader + '\n' + this.keybindingService.getDefaultKeybindings();
+		}
 		return this._content;
 	}
 }
