@@ -603,7 +603,7 @@ export class Workbench implements IPartService {
 		const checkZenMode = (part: Parts) => !this.zenMode.active || this.zenMode.isPartVisible[part.toString()];
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return !this.isTitleBarHidden() && checkZenMode(Parts.TITLEBAR_PART);
+				return this.getCustomTitleBarStyle() && !browser.isFullscreen();
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden && checkZenMode(Parts.SIDEBAR_PART);
 			case Parts.PANEL_PART:
@@ -617,13 +617,9 @@ export class Workbench implements IPartService {
 		return true; // any other part cannot be hidden
 	}
 
-	private isTitleBarHidden(): boolean {
-		return !this.getCustomTitleBarStyle() || browser.isFullscreen();
-	}
-
 	public getTitleBarOffset(): number {
 		let offset = 0;
-		if (!this.isTitleBarHidden()) {
+		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			offset = 22 / browser.getZoomFactor(); // adjust the position based on title bar size and zoom factor
 		}
 
@@ -1070,20 +1066,17 @@ export class Workbench implements IPartService {
 		this.zenMode.active = !this.zenMode.active;
 		this.inZenMode.set(this.zenMode.active);
 		Object.keys(this.zenMode.isPartVisible).forEach(key => this.zenMode.isPartVisible[key] = false);
-		if (!this.zenMode.active && this.zenMode.transitionedToFullScreen && browser.isFullscreen()) {
-			// Zen mode transitioned to full screen, now that we are out of zen mode we need to go out of full screen
-			this.windowService.toggleFullScreen();
-		}
+		// Check if zen mode transitioned to full screen and if now we are out of zen mode -> we need to go out of full screen
+		let toggleFullScreen = !this.zenMode.active && this.zenMode.transitionedToFullScreen && browser.isFullscreen();
 
 		if (this.zenMode.active) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
-			this.zenMode.transitionedToFullScreen = !browser.isFullscreen() && windowConfig.window.fullScreenZenMode;
-			if (this.zenMode.transitionedToFullScreen) {
-				this.windowService.toggleFullScreen();
-			}
+			toggleFullScreen = !browser.isFullscreen() && windowConfig.window.fullScreenZenMode;
+			this.zenMode.transitionedToFullScreen = toggleFullScreen;
 		}
 
-		this.layout();
+		(toggleFullScreen ? this.windowService.toggleFullScreen() : TPromise.as(null))
+			.done(() => this.layout(), errors.onUnexpectedError);
 	}
 
 	private shouldRestoreLastOpenedViewlet(): boolean {
