@@ -15,6 +15,7 @@ import { IFileService, IFilesConfiguration } from 'vs/platform/files/common/file
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class BackupService implements IBackupService {
 
@@ -34,7 +35,8 @@ export class BackupService implements IBackupService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IFileService private fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.toDispose = [];
 		this.backupPromises = [];
@@ -123,10 +125,14 @@ export class BackupService implements IBackupService {
 	public get isHotExitEnabled(): boolean {
 		// If hot exit is enabled then save the dirty files in the workspace and then exit
 		// Hot exit is currently disabled for empty workspaces (#13733).
-		return this.configuredHotExit && !!this.contextService.getWorkspace();
+		return !this.environmentService.isExtensionDevelopment && this.configuredHotExit && !!this.contextService.getWorkspace();
 	}
 
 	public backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean): TPromise<IBackupResult> {
+		if (!this.isHotExitEnabled) {
+			return TPromise.as({ didBackup: false });
+		}
+
 		return this.backupFileService.getWorkspaceBackupPaths().then(workspaceBackupPaths => {
 			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
 			// When quit is not requested the confirm callback should be shown when the window being
@@ -142,9 +148,13 @@ export class BackupService implements IBackupService {
 	}
 
 	public cleanupBackupsBeforeShutdown(): TPromise<void> {
+		if (this.environmentService.isExtensionDevelopment) {
+			return TPromise.as(void 0);
+		}
+
 		const workspace = this.contextService.getWorkspace();
 		if (!workspace) {
-			return TPromise.as(null); // no backups to cleanup
+			return TPromise.as(void 0); // no backups to cleanup
 		}
 
 		return this.backupFileService.discardAllWorkspaceBackups();
