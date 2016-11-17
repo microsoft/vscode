@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import { IStorageService } from 'vs/code/electron-main/storage';
-import { shell, screen, BrowserWindow, systemPreferences } from 'electron';
+import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
@@ -18,6 +18,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import Uri from 'vs/base/common/uri';
 import { ReadyState, IVSCodeWindow } from 'vs/code/common/window';
 
@@ -78,6 +79,12 @@ export interface IWindowConfiguration extends ParsedArgs {
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
+	accessibilitySupport?: boolean;
+
+	isInitialStartup?: boolean;
+
+	perfStartTime?: number;
+	perfWindowLoadTime?: number;
 
 	workspacePath?: string;
 
@@ -85,14 +92,6 @@ export interface IWindowConfiguration extends ParsedArgs {
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
 	untitledToRestore?: IPath[];
-}
-
-export interface IWindowSettings {
-	openFilesInNewWindow: boolean;
-	reopenFolders: 'all' | 'one' | 'none';
-	restoreFullscreen: boolean;
-	zoomLevel: number;
-	titleBarStyle: 'native' | 'custom';
 }
 
 export class VSCodeWindow implements IVSCodeWindow {
@@ -140,9 +139,6 @@ export class VSCodeWindow implements IVSCodeWindow {
 		const themeId = this.storageService.getItem<string>(VSCodeWindow.colorThemeStorageKey);
 		const usesLightTheme = /vs($| )/.test(themeId);
 		const usesHighContrastTheme = /hc-black($| )/.test(themeId) || (platform.isWindows && systemPreferences.isInvertedColorScheme());
-		if (!global.windowShow) {
-			global.windowShow = Date.now();
-		}
 
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
@@ -301,10 +297,6 @@ export class VSCodeWindow implements IVSCodeWindow {
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded
 			if (!this.win.isVisible()) {
-				if (!global.windowShow) {
-					global.windowShow = Date.now();
-				}
-
 				if (this.currentWindowMode === WindowMode.Maximized) {
 					this.win.maximize();
 				}
@@ -436,6 +428,8 @@ export class VSCodeWindow implements IVSCodeWindow {
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
+		configuration.isInitialStartup = false; // since this is a reload
+
 		// Load config
 		this.load(configuration);
 	}
@@ -453,8 +447,13 @@ export class VSCodeWindow implements IVSCodeWindow {
 		// Set fullscreen state
 		windowConfiguration.fullscreen = this._win.isFullScreen();
 
-		// Set High Contrast state
+		// Set Accessibility Config
 		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme();
+		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
+
+		// Perf Counters
+		windowConfiguration.perfStartTime = global.perfStartTime;
+		windowConfiguration.perfWindowLoadTime = Date.now();
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);

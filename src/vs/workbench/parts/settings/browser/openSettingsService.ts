@@ -8,13 +8,8 @@ import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import * as labels from 'vs/base/common/labels';
 import { Delayer } from 'vs/base/common/async';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { JSONVisitor, visit, parse, parseTree, findNodeAtLocation } from 'vs/base/common/json';
-import { Registry } from 'vs/platform/platform';
-import { hasClass, getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Extensions } from 'vs/workbench/common/actionRegistry';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { parseTree, findNodeAtLocation } from 'vs/base/common/json';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -25,18 +20,19 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/common/message';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IOpenSettingsService } from 'vs/workbench/parts/settings/common/openSettings';
-import { DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/settings/browser/defaultSettingsEditors';
+import { IOpenSettingsService, IDefaultSettings, IDefaultKeybindings } from 'vs/workbench/parts/settings/common/openSettings';
+import { DefaultSettings, DefaultKeybindings } from 'vs/workbench/parts/settings/common/defaultSettings';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/settings/browser/defaultSettingsEditors';
+
 
 const SETTINGS_INFO_IGNORE_KEY = 'settings.workspace.info.ignore';
 
@@ -53,9 +49,9 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 	_serviceBrand: any;
 
 	private configurationTarget: ConfigurationTarget = null;
-	private defaultSettingsActionsRenderer: SettingsActionsRenderer;
-	private userSettingsActionsRenderer: SettingsActionsRenderer;
-	private workspaceSettingsActionsRenderer: SettingsActionsRenderer;
+
+	private _defaultSettings: IDefaultSettings;
+	private _defaultKeybindings: IDefaultKeybindings;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -65,7 +61,6 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 		@IMessageService private messageService: IMessageService,
 		@IChoiceService private choiceService: IChoiceService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -87,6 +82,20 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 		}));
 	}
 
+	public get defaultSettings(): IDefaultSettings {
+		if (!this._defaultSettings) {
+			this._defaultSettings = this.instantiationService.createInstance(DefaultSettings);
+		}
+		return this._defaultSettings;
+	}
+
+	public get defaultKeybindings(): IDefaultKeybindings {
+		if (!this._defaultKeybindings) {
+			this._defaultKeybindings = this.instantiationService.createInstance(DefaultKeybindings);
+		}
+		return this._defaultKeybindings;
+	}
+
 	openGlobalSettings(): TPromise<void> {
 		if (this.configurationService.hasWorkspaceConfiguration() && !this.storageService.getBoolean(SETTINGS_INFO_IGNORE_KEY, StorageScope.WORKSPACE)) {
 			this.promptToOpenWorkspaceSettings();
@@ -105,7 +114,7 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 
 	openGlobalKeybindingSettings(): TPromise<void> {
 		const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
-		return this.openTwoEditors(DefaultKeybindingsInput.getInstance(this.instantiationService, this.keybindingService), URI.file(this.environmentService.appKeybindingsPath), emptyContents).then(() => null);
+		return this.openTwoEditors(DefaultKeybindingsInput.getInstance(this.instantiationService, this), URI.file(this.environmentService.appKeybindingsPath), emptyContents).then(() => null);
 	}
 
 	openEditableSettings(configurationTarget: ConfigurationTarget, showVisibleEditor: boolean = false): TPromise<IEditor> {
@@ -124,6 +133,22 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 			resource: settingsResource,
 			options: { pinned: true }
 		}));
+	}
+
+	public copyConfiguration(configurationValue: IConfigurationValue): void {
+		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [configurationValue.key] });
+		this.openEditableSettings(this.configurationTarget, true).then(editor => {
+			const editorControl = <ICodeEditor>editor.getControl();
+			const disposable = editorControl.onDidChangeModelContent(() => {
+				new Delayer(100).trigger((): any => {
+					editorControl.focus();
+					editorControl.setSelection(this.getSelectionRange(configurationValue.key, editorControl.getModel()));
+				});
+				disposable.dispose();
+			});
+			this.configurationEditingService.writeConfiguration(this.configurationTarget, configurationValue)
+				.then(null, error => this.messageService.show(Severity.Error, error));
+		});
 	}
 
 	private isEditorFor(editor: IEditor, configurationTarget: ConfigurationTarget): boolean {
@@ -177,8 +202,7 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 		if (openDefaultSettings) {
 			const emptySettingsContents = this.getEmptyEditableSettingsContent(configurationTarget);
 			const settingsResource = this.getEditableSettingsURI(configurationTarget);
-			return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.configurationService), settingsResource, emptySettingsContents)
-				.then(editors => this.renderActionsForDefaultSettings(editors[0]));
+			return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this), settingsResource, emptySettingsContents).then(() => null);
 		}
 		return this.openEditableSettings(configurationTarget).then(() => null);
 	}
@@ -217,61 +241,6 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 			resource.fsPath === this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE).fsPath ? ConfigurationTarget.WORKSPACE : null;
 	}
 
-	private renderActionsForDefaultSettings(defaultSettingsEditor: IEditor) {
-		const defaultSettingsEditorControl = <ICodeEditor>defaultSettingsEditor.getControl();
-		if (!this.defaultSettingsActionsRenderer) {
-			this.defaultSettingsActionsRenderer = this.instantiationService.createInstance(SettingsActionsRenderer, defaultSettingsEditorControl, this.copyConfiguration.bind(this));
-			const disposable = defaultSettingsEditorControl.getModel().onWillDispose(() => {
-				this.defaultSettingsActionsRenderer.dispose();
-				this.defaultSettingsActionsRenderer = null;
-				dispose(disposable);
-			});
-		}
-		this.defaultSettingsActionsRenderer.render();
-	}
-
-	protected renderActionsForUserSettingsEditor(settingsEditor: IEditor) {
-		const settingsEditorControl = <ICodeEditor>settingsEditor.getControl();
-		if (!this.userSettingsActionsRenderer) {
-			this.userSettingsActionsRenderer = this.instantiationService.createInstance(SettingsActionsRenderer, settingsEditorControl, this.copyConfiguration.bind(this));
-			const disposable = settingsEditorControl.getModel().onWillDispose(() => {
-				this.userSettingsActionsRenderer.dispose();
-				this.userSettingsActionsRenderer = null;
-				dispose(disposable);
-			});
-		}
-		this.userSettingsActionsRenderer.render();
-	}
-
-	protected renderActionsForWorkspaceSettingsEditor(settingsEditor: IEditor) {
-		const settingsEditorControl = <ICodeEditor>settingsEditor.getControl();
-		if (!this.workspaceSettingsActionsRenderer) {
-			this.workspaceSettingsActionsRenderer = this.instantiationService.createInstance(SettingsActionsRenderer, settingsEditorControl, this.copyConfiguration.bind(this));
-			const disposable = settingsEditorControl.getModel().onWillDispose(() => {
-				this.workspaceSettingsActionsRenderer.dispose();
-				this.workspaceSettingsActionsRenderer = null;
-				dispose(disposable);
-			});
-		}
-		this.workspaceSettingsActionsRenderer.render();
-	}
-
-	private copyConfiguration(configurationValue: IConfigurationValue) {
-		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [configurationValue.key] });
-		this.openEditableSettings(this.configurationTarget, true).then(editor => {
-			const editorControl = <ICodeEditor>editor.getControl();
-			const disposable = editorControl.onDidChangeModelContent(() => {
-				new Delayer(100).trigger((): any => {
-					editorControl.focus();
-					editorControl.setSelection(this.getSelectionRange(configurationValue.key, editorControl.getModel()));
-				});
-				disposable.dispose();
-			});
-			this.configurationEditingService.writeConfiguration(this.configurationTarget, configurationValue)
-				.then(null, error => this.messageService.show(Severity.Error, error));
-		});
-	}
-
 	private getSelectionRange(setting: string, model: editorCommon.IModel): editorCommon.IRange {
 		const tree = parseTree(model.getValue());
 		const node = findNodeAtLocation(tree, [setting]);
@@ -285,155 +254,28 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 	}
 }
 
-class SettingsActionsRenderer extends Disposable {
+export class SettingsContentProvider implements ITextModelContentProvider {
 
-	private decorationIds: string[] = [];
-
-	constructor(private settingsEditor: ICodeEditor,
-		private copyConfiguration: (configurationValue: IConfigurationValue) => void,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IMessageService private messageService: IMessageService
+	constructor(
+		@IOpenSettingsService private openSettingsService: IOpenSettingsService,
+		@IModelService private modelService: IModelService,
+		@IModeService private modeService: IModeService
 	) {
-		super();
-		this._register(this.settingsEditor.onMouseUp(e => this.onEditorMouseUp(e)));
-		this._register(this.settingsEditor.getModel().onDidChangeContent(() => this.render()));
 	}
 
-	public render(): void {
-		const defaultSettingsModel = this.settingsEditor.getModel();
-		if (defaultSettingsModel) {
-			defaultSettingsModel.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
-			});
-			defaultSettingsModel.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, this.createDecorations());
-			});
+	public provideTextContent(uri: URI): TPromise<editorCommon.IModel> {
+		if (uri.scheme !== 'vscode') {
+			return null;
 		}
-	}
-
-	private createDecorations(): editorCommon.IModelDeltaDecoration[] {
-		const settingsModel = this.settingsEditor.getModel();
-		let result: editorCommon.IModelDeltaDecoration[] = [];
-		let parsingConfigurations = false;
-		let parsingConfiguration = false;
-		let visitor: JSONVisitor = {
-			onObjectBegin: (offset: number, length: number) => {
-				if (parsingConfigurations) {
-					parsingConfiguration = true;
-				} else {
-					parsingConfigurations = true;
-				}
-			},
-			onObjectProperty: (property: string, offset: number, length: number) => {
-				if (!parsingConfiguration) {
-					result.push(this.createDecoration(property, offset, settingsModel));
-				}
-			},
-			onObjectEnd: () => {
-				if (parsingConfiguration) {
-					parsingConfiguration = false;
-				} else {
-					parsingConfigurations = false;
-				}
-			},
-		};
-		visit(settingsModel.getValue(), visitor);
-		return result;
-	}
-
-	private createDecoration(property: string, offset: number, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
-		const jsonSchema: IJSONSchema = this.getConfigurationsMap()[property];
-		const position = model.getPositionAt(offset);
-		const maxColumn = model.getLineMaxColumn(position.lineNumber);
-		const range = {
-			startLineNumber: position.lineNumber,
-			startColumn: maxColumn,
-			endLineNumber: position.lineNumber,
-			endColumn: maxColumn
-		};
-		return {
-			range, options: {
-				afterContentClassName: `copySetting${(jsonSchema.enum || jsonSchema.type === 'boolean') ? '.select' : ''}`,
-			}
-		};
-	}
-
-	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		let range = e.target.range;
-		if (!range || !range.isEmpty) {
-			return;
+		const defaultSettings = this.openSettingsService.defaultSettings;
+		if (defaultSettings.uri.fsPath === uri.fsPath) {
+			let mode = this.modeService.getOrCreateMode('application/json');
+			return TPromise.as(this.modelService.createModel(defaultSettings.content, mode, uri));
 		}
-		if (!e.event.leftButton) {
-			return;
-		}
-
-		switch (e.target.type) {
-			case editorCommon.MouseTargetType.CONTENT_EMPTY:
-				if (hasClass(<HTMLElement>e.target.element, 'copySetting')) {
-					this.onClick(e);
-				}
-				return;
-			default:
-				return;
-		}
-	}
-
-	private getConfigurationsMap(): { [qualifiedKey: string]: IJSONSchema } {
-		return Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-	}
-
-	private onClick(e: IEditorMouseEvent) {
-		const model = this.settingsEditor.getModel();
-		const setting = parse('{' + model.getLineContent(e.target.range.startLineNumber) + '}');
-		const key = Object.keys(setting)[0];
-		let value = setting[key];
-		let jsonSchema: IJSONSchema = this.getConfigurationsMap()[key];
-		const actions = this.getActions(key, jsonSchema);
-		if (actions) {
-			let elementPosition = getDomNodePagePosition(<HTMLElement>e.target.element);
-			const anchor = { x: elementPosition.left + elementPosition.width, y: elementPosition.top + elementPosition.height + 10 };
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => TPromise.wrap(actions)
-			});
-			return;
-		}
-		this.copyConfiguration({ key, value });
-	}
-
-	private getActions(key: string, jsonSchema: IJSONSchema): IAction[] {
-		if (jsonSchema.type === 'boolean') {
-			return [<IAction>{
-				id: 'truthyValue',
-				label: 'true',
-				enabled: true,
-				run: () => {
-					this.copyConfiguration({ key, value: true });
-				}
-			}, <IAction>{
-				id: 'falsyValue',
-				label: 'false',
-				enabled: true,
-				run: () => {
-					this.copyConfiguration({ key, value: false });
-				}
-			}];
-		}
-		if (jsonSchema.enum) {
-			return jsonSchema.enum.map(value => {
-				return <IAction>{
-					id: value,
-					label: value,
-					enabled: true,
-					run: () => {
-						this.copyConfiguration({ key, value });
-					}
-				};
-			});
+		const defaultKeybindings = this.openSettingsService.defaultKeybindings;
+		if (defaultKeybindings.uri.fsPath === uri.fsPath) {
+			let mode = this.modeService.getOrCreateMode('application/json');
+			return TPromise.as(this.modelService.createModel(defaultKeybindings.content, mode, uri));
 		}
 		return null;
 	}

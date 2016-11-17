@@ -6,7 +6,7 @@
 
 import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType } from 'vscode-languageserver';
 import { DocumentContext, TextDocument, Diagnostic, DocumentLink, Range } from 'vscode-html-languageservice';
-import { getLanguageModes } from './languageModes';
+import { getLanguageModes, LanguageModes } from './modes/languageModes';
 
 import * as url from 'url';
 import * as path from 'path';
@@ -32,31 +32,36 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
-let languageModes = getLanguageModes({ 'css': true });
-
-documents.onDidClose(e => {
-	languageModes.getAllModes().forEach(m => m.onDocumentRemoved(e.document));
-});
-connection.onShutdown(() => {
-	languageModes.getAllModes().forEach(m => m.dispose());
-});
-
 let workspacePath: string;
-
+var languageModes: LanguageModes;
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
 connection.onInitialize((params: InitializeParams): InitializeResult => {
+	let initializationOptions = params.initializationOptions;
+
 	workspacePath = params.rootPath;
+
+	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true });
+	documents.onDidClose(e => {
+		languageModes.getAllModes().forEach(m => m.onDocumentRemoved(e.document));
+	});
+	connection.onShutdown(() => {
+		languageModes.getAllModes().forEach(m => m.dispose());
+	});
+
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: false, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
+			completionProvider: { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
 			hoverProvider: true,
 			documentHighlightProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions['format.enable'],
-			documentLinkProvider: true
+			documentRangeFormattingProvider: initializationOptions && initializationOptions['format.enable'],
+			documentLinkProvider: true,
+			definitionProvider: true,
+			signatureHelpProvider: { triggerCharacters: ['('] },
+			referencesProvider: true
 		}
 	};
 });
@@ -64,7 +69,12 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	languageModes.configure(change.settings);
+	languageModes.getAllModes().forEach(m => {
+		if (m.configure) {
+			m.configure(change.settings);
+		}
+	});
+	documents.all().forEach(triggerValidation);
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
@@ -117,6 +127,18 @@ connection.onCompletion(textDocumentPosition => {
 	return { isIncomplete: true, items: [] };
 });
 
+connection.onCompletionResolve(item => {
+	let data = item.data;
+	if (data && data.languageId && data.uri) {
+		let mode = languageModes.getMode(data.languageId);
+		let document = documents.get(data.uri);
+		if (mode && mode.doResolve && document) {
+			return mode.doResolve(document, item);
+		}
+	}
+	return item;
+});
+
 connection.onHover(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
@@ -133,6 +155,33 @@ connection.onDocumentHighlight(documentHighlightParams => {
 		return mode.findDocumentHighlight(document, documentHighlightParams.position);
 	}
 	return [];
+});
+
+connection.onDefinition(definitionParams => {
+	let document = documents.get(definitionParams.textDocument.uri);
+	let mode = languageModes.getModeAtPosition(document, definitionParams.position);
+	if (mode && mode.findDefinition) {
+		return mode.findDefinition(document, definitionParams.position);
+	}
+	return [];
+});
+
+connection.onReferences(referenceParams => {
+	let document = documents.get(referenceParams.textDocument.uri);
+	let mode = languageModes.getModeAtPosition(document, referenceParams.position);
+	if (mode && mode.findReferences) {
+		return mode.findReferences(document, referenceParams.position);
+	}
+	return [];
+});
+
+connection.onSignatureHelp(signatureHelpParms => {
+	let document = documents.get(signatureHelpParms.textDocument.uri);
+	let mode = languageModes.getModeAtPosition(document, signatureHelpParms.position);
+	if (mode && mode.doSignatureHelp) {
+		return mode.doSignatureHelp(document, signatureHelpParms.position);
+	}
+	return null;
 });
 
 connection.onDocumentRangeFormatting(formatParams => {

@@ -18,7 +18,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { ActivityAction, ActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/activityService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
@@ -187,11 +187,11 @@ class ViewletActivityAction extends ActivityAction {
 		}
 		this.lastRun = now;
 
-		const sideBarHidden = this.partService.isSideBarHidden();
+		const sideBarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
-		if (!sideBarHidden && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
+		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
 			this.partService.setSideBarHidden(true);
 		} else {
 			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);

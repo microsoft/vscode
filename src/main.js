@@ -6,7 +6,7 @@
 'use strict';
 
 // Perf measurements
-global.vscodeStart = Date.now();
+global.perfStartTime = Date.now();
 
 var app = require('electron').app;
 var fs = require('fs');

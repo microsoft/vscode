@@ -365,4 +365,23 @@ suite('Workbench - TerminalConfigHelper', () => {
 		configHelper.panelContainer = fixture;
 		assert.deepEqual(configHelper.getCommandsToSkipShell(), ['foo'], 'terminal.integrated.commandsToSkipShell should be [\'foo\']');
 	});
+
+	test('TerminalConfigHelper - getScrollback', function () {
+		let configurationService: IConfigurationService;
+		let configHelper: TerminalConfigHelper;
+
+		configurationService = new MockConfigurationService({
+			terminal: { integrated: { scrollback: 10 } }
+		});
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
+		configHelper.panelContainer = fixture;
+		assert.deepEqual(configHelper.getScrollback(), 10, 'terminal.integrated.scrollback should be 10');
+
+		configurationService = new MockConfigurationService({
+			terminal: { integrated: { scrollback: 20 } }
+		});
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
+		configHelper.panelContainer = fixture;
+		assert.deepEqual(configHelper.getScrollback(), 20, 'terminal.integrated.scrollback should be 20');
+	});
 });
