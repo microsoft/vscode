@@ -55,6 +55,8 @@ export class API {
 	}
 }
 
+export type ProjectStatusChanagedCallback = (string, boolean) => void;
+
 export interface ITypescriptServiceClient {
 	asAbsolutePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
@@ -62,6 +64,8 @@ export interface ITypescriptServiceClient {
 	info(message: string, data?: any): void;
 	warn(message: string, data?: any): void;
 	error(message: string, data?: any): void;
+
+	onProjectLanguageServiceStateChanged(callback: ProjectStatusChanagedCallback);
 
 	logTelemetry(eventName: string, properties?: { [prop: string]: string });
 

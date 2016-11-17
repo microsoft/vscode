@@ -14,7 +14,7 @@ import { Reader } from './utils/wireProtocol';
 
 import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem } from 'vscode';
 import * as Proto from './protocol';
-import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
+import { ITypescriptServiceClient, ITypescriptServiceClientHost, API, ProjectStatusChanagedCallback } from './typescriptService';
 
 import * as VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
@@ -107,6 +107,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 
+	private onProjectLanguageServiceStateChangedCallbacks: ProjectStatusChanagedCallback[];
+
 	constructor(host: ITypescriptServiceClientHost, storagePath: string, globalState: Memento) {
 		this.host = host;
 		this.storagePath = storagePath;
@@ -124,6 +126,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.exitRequested = false;
 		this.firstStart = Date.now();
 		this.numberRestarts = 0;
+		this.onProjectLanguageServiceStateChangedCallbacks = [];
 
 		this.requestQueue = [];
 		this.pendingResponses = 0;
@@ -177,6 +180,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public onReady(): Promise<void> {
 		return this._onReady.promise;
+	}
+
+	public onProjectLanguageServiceStateChanged(callback: ProjectStatusChanagedCallback) {
+		this.onProjectLanguageServiceStateChangedCallbacks.push(callback);
 	}
 
 	private data2String(data: any): string {
@@ -684,6 +691,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							break;
 					}
 					this.logTelemetry(telemetryData.telemetryEventName, properties);
+				} else if (event.event === 'projectLanguageServiceState') {
+					const data = (event as Proto.ProjectLanguageServiceStateEvent).body;
+					if (data) {
+						this.onProjectLanguageServiceStateChangedCallbacks.forEach(cb =>
+							cb(data.projectName, data.languageServiceEnabled));
+					}
 				}
 			} else {
 				throw new Error('Unknown message type ' + message.type + ' recevied');
