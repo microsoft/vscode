@@ -65,11 +65,11 @@ export class PackageJSONContribution implements IJSONContribution {
 									let keys = results[i].key;
 									if (Array.isArray(keys) && keys.length > 0) {
 										let name = keys[0];
-										let insertText = JSON.stringify(name);
+										let insertText = new SnippetString().appendText(JSON.stringify(name));
 										if (addValue) {
-											insertText += ': "{{*}}"';
+											insertText.appendText(': ').appendPlaceholder('*');
 											if (!isLast) {
-												insertText += ',';
+												insertText.appendText(',');
 											}
 										}
 										let proposal = new CompletionItem(name);
@@ -97,11 +97,11 @@ export class PackageJSONContribution implements IJSONContribution {
 				});
 			} else {
 				this.mostDependedOn.forEach((name) => {
-					let insertText = JSON.stringify(name);
+					let insertText = new SnippetString().appendText(JSON.stringify(name));
 					if (addValue) {
-						insertText += ': "{{*}}"';
+						insertText.appendText(': ').appendPlaceholder('*');
 						if (!isLast) {
-							insertText += ',';
+							insertText.appendText(',');
 						}
 					}
 					let proposal = new CompletionItem(name);
