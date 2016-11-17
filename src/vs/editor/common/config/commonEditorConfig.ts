@@ -270,6 +270,14 @@ class InternalEditorOptionsHelper {
 			renderWhitespace = 'none';
 		}
 
+		let renderLineHighlight = opts.renderLineHighlight;
+		// Compatibility with old true or false values
+		if (<any>renderLineHighlight === true) {
+			renderLineHighlight = 'line';
+		} else if (<any>renderLineHighlight === false) {
+			renderLineHighlight = 'none';
+		}
+
 		let viewInfo = new editorCommon.InternalEditorViewOptions({
 			theme: opts.theme,
 			canUseTranslate3d: canUseTranslate3d,
@@ -294,7 +302,7 @@ class InternalEditorOptionsHelper {
 			renderWhitespace: renderWhitespace,
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
-			renderLineHighlight: toBoolean(opts.renderLineHighlight),
+			renderLineHighlight: renderLineHighlight,
 			scrollbar: scrollbar,
 			fixedOverflowWidgets: toBoolean(opts.fixedOverflowWidgets)
 		});
@@ -845,9 +853,10 @@ let editorConfiguration: IConfigurationNode = {
 			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
 		},
 		'editor.renderLineHighlight': {
-			'type': 'boolean',
+			'type': 'string',
+			'enum': ['none', 'gutter', 'line', 'all'],
 			default: DefaultConfig.editor.renderLineHighlight,
-			description: nls.localize('renderLineHighlight', "Controls whether the editor should render the current line highlight")
+			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight, posibilties are 'none', 'gutter', 'line', and 'all'.")
 		},
 		'editor.codeLens': {
 			'type': 'boolean',
