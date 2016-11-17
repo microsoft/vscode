@@ -20,6 +20,7 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
+import { IStartupFingerprint } from 'vs/workbench/electron-browser/common';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
 import { ITelemetryService, NullTelemetryService, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
@@ -89,6 +90,7 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { remote } from 'electron';
+import * as os from 'os';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -102,6 +104,8 @@ export interface ICoreServices {
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
 }
+
+const timers = (<any>window).MonacoEnvironment.timers;
 
 /**
  * The workbench shell contains the workbench with a rich header containing navigation and the activity bar.
@@ -118,6 +122,7 @@ export class WorkbenchShell {
 	private themeService: ThemeService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
+	private extensionService: MainProcessExtensionService;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -164,8 +169,8 @@ export class WorkbenchShell {
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
 		this.workbench.startup({
-			onWorkbenchStarted: (customKeybindingsCount) => {
-				this.onWorkbenchStarted(customKeybindingsCount);
+			onWorkbenchStarted: (customKeybindingsCount, restoreViewletDuration, restoreEditorsDuration) => {
+				this.onWorkbenchStarted(customKeybindingsCount, restoreViewletDuration, restoreEditorsDuration);
 			}
 		});
 
@@ -184,29 +189,76 @@ export class WorkbenchShell {
 		return workbenchContainer;
 	}
 
-	private onWorkbenchStarted(customKeybindingsCount: number): void {
+	private onWorkbenchStarted(customKeybindingsCount: number, restoreViewletDuration: number, restoreEditorsDuration: number): void {
 
-		// Log to telemetry service
-		const windowSize = {
-			innerHeight: window.innerHeight,
-			innerWidth: window.innerWidth,
-			outerHeight: window.outerHeight,
-			outerWidth: window.outerWidth
-		};
+		// Log to timer
+		timer.start(timer.Topic.STARTUP, '[renderer] overall workbench load', timers.perfBeforeWorkbenchOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
 
-		this.telemetryService.publicLog('workspaceLoad',
-			{
-				userAgent: navigator.userAgent,
-				windowSize: windowSize,
-				emptyWorkbench: !this.contextService.getWorkspace(),
-				customKeybindingsCount,
-				theme: this.themeService.getColorTheme(),
-				language: platform.language,
-				experiments: this.telemetryService.getExperiments()
-			});
+		// Telemetry: workspace info
+		const { filesToOpen, filesToCreate, filesToDiff, untitledToRestore } = this.options;
+		this.telemetryService.publicLog('workspaceLoad', {
+			userAgent: navigator.userAgent,
+			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
+			emptyWorkbench: !this.contextService.getWorkspace(),
+			'workbench.filesToOpen': filesToOpen && filesToOpen.length || undefined,
+			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
+			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
+			'workbench.untitledToRestore': untitledToRestore && untitledToRestore.length || undefined,
+			customKeybindingsCount,
+			theme: this.themeService.getColorTheme(),
+			language: platform.language,
+			experiments: this.telemetryService.getExperiments()
+		});
 
+		// Telemetry: performance info
+		const workbenchStarted = Date.now();
+		timers.workbenchStarted = new Date(workbenchStarted);
+		this.extensionService.onReady().done(() => {
+			const initialStartup = !!timers.isInitialStartup;
+			const start = initialStartup ? timers.perfStartTime : timers.perfWindowLoadTime;
+			let totalmem: number;
+			let cpus: { count: number; speed: number; model: string; };
+
+			try {
+				totalmem = os.totalmem();
+
+				const rawCpus = os.cpus();
+				if (rawCpus && rawCpus.length > 0) {
+					cpus = { count: rawCpus.length, speed: rawCpus[0].speed, model: rawCpus[0].model };
+				}
+			} catch (error) {
+				console.error(error); // be on the safe side with these hardware method calls
+			}
+
+			const startupTimeEvent: IStartupFingerprint = {
+				ellapsed: Math.round(workbenchStarted - start),
+				timers: {
+					ellapsedExtensions: Math.round(timers.perfAfterExtensionLoad - timers.perfBeforeExtensionLoad),
+					extensionsReady: Math.round(timers.perfAfterExtensionLoad - start),
+					ellapsedRequire: Math.round(timers.perfAfterLoadWorkbenchMain - timers.perfBeforeLoadWorkbenchMain),
+					ellapsedViewletRestore: Math.round(restoreViewletDuration),
+					ellapsedEditorRestore: Math.round(restoreEditorsDuration),
+					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen)
+				},
+				totalmem,
+				cpus,
+				initialStartup,
+				hasAccessibilitySupport: !!timers.hasAccessibilitySupport,
+				emptyWorkbench: !this.contextService.getWorkspace()
+			};
+
+			if (initialStartup) {
+				startupTimeEvent.timers.ellapsedMain = Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfStartTime);
+				startupTimeEvent.timers.windowLoad = Math.round(timers.perfWindowLoadTime - timers.perfStartTime);
+			}
+
+			this.telemetryService.publicLog('startupTime', startupTimeEvent);
+			timers.fingerprint = startupTimeEvent;
+		});
+
+		// Telemetry: workspace tags
 		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
-		workspaceStats.reportWorkspaceTags();
+		workspaceStats.reportWorkspaceTags(this.options);
 
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
@@ -313,11 +365,17 @@ export class WorkbenchShell {
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
 		serviceCollection.set(IThreadService, this.threadService);
 
-		const extensionService = instantiationService.createInstance(MainProcessExtensionService);
-		serviceCollection.set(IExtensionService, extensionService);
-		extensionHostProcessWorker.start(extensionService);
+		const extensionTimer = timer.start(timer.Topic.STARTUP, '[renderer] create extension host => extensions onReady()');
+		timers.perfBeforeExtensionLoad = new Date();
+		this.extensionService = instantiationService.createInstance(MainProcessExtensionService);
+		serviceCollection.set(IExtensionService, this.extensionService);
+		extensionHostProcessWorker.start(this.extensionService);
+		this.extensionService.onReady().done(() => {
+			extensionTimer.stop();
+			timers.perfAfterExtensionLoad = new Date();
+		});
 
-		serviceCollection.set(ICommandService, new CommandService(instantiationService, extensionService));
+		serviceCollection.set(ICommandService, new CommandService(instantiationService, this.extensionService));
 
 		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
 		serviceCollection.set(IContextViewService, this.contextViewService);
@@ -401,42 +459,39 @@ export class WorkbenchShell {
 	}
 
 	private writeTimers(): void {
-		const timers = (<any>window).MonacoEnvironment.timers;
-		if (timers) {
-			const events: timer.IExistingTimerEvent[] = [];
+		const events: timer.IExistingTimerEvent[] = [];
 
-			// Window
-			if (timers.vscodeStart) {
-				events.push({
-					startTime: timers.vscodeStart,
-					stopTime: timers.beforeLoad,
-					topic: 'Startup',
-					name: 'VSCode Startup',
-					description: 'Time it takes to create a window and startup VSCode'
-				});
-			}
-
-			// Load
+		// Window
+		if (timers.isInitialStartup && timers.perfStartTime) {
 			events.push({
-				startTime: timers.beforeLoad,
-				stopTime: timers.afterLoad,
+				startTime: timers.perfStartTime,
+				stopTime: timers.perfBeforeLoadWorkbenchMain,
 				topic: 'Startup',
-				name: 'Load Modules',
-				description: 'Time it takes to load VSCodes main modules'
+				name: '[main] initial start => begin to require(workbench.main.js)',
+				description: 'Time spend in main process until we load JavaScript of the workbench'
 			});
-
-			// Ready
-			events.push({
-				startTime: timers.beforeReady,
-				stopTime: timers.afterReady,
-				topic: 'Startup',
-				name: 'Event DOMContentLoaded',
-				description: 'Time it takes for the DOM to emit DOMContentLoaded event'
-			});
-
-			// Write to Timer
-			timer.getTimeKeeper().setInitialCollectedEvents(events, timers.start);
 		}
+
+		// Load
+		events.push({
+			startTime: timers.perfBeforeLoadWorkbenchMain,
+			stopTime: timers.perfAfterLoadWorkbenchMain,
+			topic: 'Startup',
+			name: '[renderer] require(workbench.main.js)',
+			description: 'Time it takes to load VSCodes main modules'
+		});
+
+		// Ready
+		events.push({
+			startTime: timers.perfBeforeDOMContentLoaded,
+			stopTime: timers.perfAfterDOMContentLoaded,
+			topic: 'Startup',
+			name: '[renderer] event DOMContentLoaded',
+			description: 'Time it takes for the DOM to emit DOMContentLoaded event'
+		});
+
+		// Write to Timer
+		timer.getTimeKeeper().setInitialCollectedEvents(events, timers.start);
 	}
 
 	public onUnexpectedError(error: any): void {

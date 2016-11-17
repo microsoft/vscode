@@ -6,10 +6,11 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { mixin } from 'vs/base/common/objects';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, CompletionItem } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, CompletionItem, SnippetString } from 'vs/workbench/api/node/extHostTypes';
 import { IPosition, IRange, ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -21,7 +22,6 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as semver from 'semver';
 
 // --- adapter
 
@@ -415,7 +415,6 @@ class SuggestAdapter {
 	private _heapService: ExtHostHeapService;
 	private _provider: vscode.CompletionItemProvider;
 	private _extension: IExtensionDescription;
-	private _extensionIsBefore180: boolean;
 
 	constructor(documents: ExtHostDocuments, commands: CommandsConverter, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider, extension?: IExtensionDescription) {
 		this._documents = documents;
@@ -423,18 +422,6 @@ class SuggestAdapter {
 		this._heapService = heapService;
 		this._provider = provider;
 		this._extension = extension;
-		this._extensionIsBefore180 = SuggestAdapter._isBefore180(extension);
-	}
-
-	private static _isBefore180(extension: IExtensionDescription): boolean {
-		if (extension && extension.engines) {
-			let versionOrRange = extension.engines.vscode;
-			if (semver.valid(versionOrRange)) {
-				return semver.lt(versionOrRange, '1.8.0');
-			} else if (semver.validRange(versionOrRange)) {
-				return semver.gtr('1.8.0', versionOrRange);
-			}
-		}
 	}
 
 	provideCompletionItems(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
@@ -447,10 +434,6 @@ class SuggestAdapter {
 			const result: modes.ISuggestResult = {
 				suggestions: [],
 			};
-
-			// the default text edit range
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
-				.with({ end: pos });
 
 			let list: CompletionList;
 			if (!value) {
@@ -465,39 +448,21 @@ class SuggestAdapter {
 				result.incomplete = list.isIncomplete;
 			}
 
-			for (let i = 0; i < list.items.length; i++) {
+			// the default text edit range
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
+				.with({ end: pos });
 
-				const item = list.items[i];
-				const suggestion = TypeConverters.Suggest.from(item);
-				suggestion.command = this._commands.toInternal(item.command);
-				ObjectIdentifier.mixin(suggestion, this._heapService.keep(item));
+			for (const item of list.items) {
 
-				if (item.textEdit) {
+				const suggestion = this._convertCompletionItem(item, pos, wordRangeBeforePos);
 
-					const editRange = item.textEdit.range;
-
-					// invalid text edit
-					if (!editRange.isSingleLine || editRange.start.line !== pos.line) {
-						console.warn('INVALID text edit, must be single line and on the same line');
-						continue;
-					}
-
-					// insert the text of the edit and create a dedicated
-					// suggestion-container with overwrite[Before|After]
-					suggestion.insertText = item.textEdit.newText;
-					suggestion.overwriteBefore = pos.character - editRange.start.character;
-					suggestion.overwriteAfter = editRange.end.character - pos.character;
-
-				} else {
-					// default text edit
-					suggestion.overwriteBefore = pos.character - wordRangeBeforePos.start.character;
-					suggestion.overwriteAfter = 0;
+				// bad completion item
+				if (!suggestion) {
+					// converter did warn
+					continue;
 				}
 
-				suggestion._extensionId = this._extension && this._extension.id;
-				suggestion.snippetType = 'internal';
-
-				// store suggestion
+				ObjectIdentifier.mixin(suggestion, this._heapService.keep(item));
 				result.suggestions.push(suggestion);
 			}
 
@@ -516,12 +481,81 @@ class SuggestAdapter {
 		if (!item) {
 			return TPromise.as(suggestion);
 		}
+
 		return asWinJsPromise(token => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
-			resolvedItem = resolvedItem || item;
-			const suggestion = TypeConverters.Suggest.from(resolvedItem);
-			suggestion.command = this._commands.toInternal(resolvedItem.command);
+
+			if (!resolvedItem) {
+				return suggestion;
+			}
+
+			const doc = this._documents.getDocumentData(resource).document;
+			const pos = TypeConverters.toPosition(position);
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos)).with({ end: pos });
+			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos);
+			if (newSuggestion) {
+				mixin(suggestion, newSuggestion, true);
+			}
+
 			return suggestion;
 		});
+	}
+
+	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range): modes.ISuggestion {
+		if (!item.label) {
+			console.warn('INVALID text edit -> must have at least a label');
+			return;
+		}
+
+		const result: modes.ISuggestion = {
+			//
+			label: item.label,
+			type: TypeConverters.CompletionItemKind.from(item.kind),
+			detail: item.detail,
+			documentation: item.documentation,
+			filterText: item.filterText,
+			sortText: item.sortText,
+			//
+			insertText: undefined,
+			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(TypeConverters.TextEdit.from),
+			command: this._commands.toInternal(item.command)
+		};
+
+		// 'insertText'-logic
+		if (item.textEdit) {
+			result.insertText = item.textEdit.newText;
+			result.snippetType = 'internal';
+
+		} else if (typeof item.insertText === 'string') {
+			result.insertText = item.insertText;
+			result.snippetType = 'internal';
+
+		} else if (item.insertText instanceof SnippetString) {
+			result.insertText = item.insertText.value;
+			result.snippetType = 'textmate';
+
+		} else {
+			result.insertText = item.label;
+			result.snippetType = 'internal';
+		}
+
+		// 'overwrite[Before|After]'-logic
+		let range: vscode.Range;
+		if (item.textEdit) {
+			range = item.textEdit.range;
+		} else if (item.range) {
+			range = item.range;
+		} else {
+			range = defaultRange;
+		}
+		result.overwriteBefore = position.character - range.start.character;
+		result.overwriteAfter = range.end.character - position.character;
+
+		if (!range.isSingleLine || range.start.line !== position.line) {
+			console.warn('INVALID text edit -> must be single line and on the same line');
+			return;
+		}
+
+		return result;
 	}
 }
 

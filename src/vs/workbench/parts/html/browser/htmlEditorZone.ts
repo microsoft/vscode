@@ -41,7 +41,7 @@ class HtmlZone implements IViewZone {
 
 	private _onVisibilityChanged(): void {
 		if (this._domNode.hasAttribute('monaco-visible-view-zone') && !this._webview) {
-			this._webview = new Webview(this.domNode, document.querySelector('.monaco-editor-background'));
+			this._webview = new Webview(this.domNode, document.querySelector('.monaco-editor-background'), { nodeintegration: true });
 			this._disposables.push(this._webview);
 			this._webview.contents = [this.htmlContent];
 		}
