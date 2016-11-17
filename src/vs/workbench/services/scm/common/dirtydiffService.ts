@@ -17,14 +17,13 @@ export class DirtyDiffService implements IDirtyDiffService {
 	private providers: IDirtyDiffTextDocumentProvider[] = [];
 
 	getDirtyDiffTextDocument(resource: URI): TPromise<URI> {
-		// TODO@Joao: just take the first
-		const [provider] = this.providers;
+		const promises = this.providers
+			.map(p => p.getDirtyDiffTextDocument(resource));
 
-		if (!provider) {
-			return TPromise.as(null);
-		}
-
-		return provider.getDirtyDiffTextDocument(resource);
+		return TPromise.join(promises).then(originalResources => {
+			// TODO@Joao: just take the first
+			return originalResources.filter(uri => !!uri)[0];
+		});
 	}
 
 	registerDirtyDiffTextDocumentProvider(provider: IDirtyDiffTextDocumentProvider): IDisposable {
