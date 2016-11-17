@@ -7,27 +7,30 @@
 import { IModelService } from 'vs/editor/common/services/modelService';
 import URI from 'vs/base/common/uri';
 import { dispose } from 'vs/base/common/lifecycle';
+import { Throttler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IDirtyDiffTextDocumentProvider, IDirtyDiffService } from 'vs/workbench/services/scm/common/dirtydiff';
+import { IBaselineResourceProvider, ISCMService } from 'vs/workbench/services/scm/common/scm';
 import { IGitService, StatusType, ServiceEvents, ServiceOperations, ServiceState } from 'vs/workbench/parts/git/common/git';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
-export class GitContentProvider implements IWorkbenchContribution, ITextModelContentProvider, IDirtyDiffTextDocumentProvider {
+export class GitContentProvider implements IWorkbenchContribution, ITextModelContentProvider, IBaselineResourceProvider {
+
+	private throttler = new Throttler();
 
 	constructor(
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IModelService private modelService: IModelService,
-		@IDirtyDiffService private dirtyDiffService: IDirtyDiffService,
+		@ISCMService private scmService: ISCMService,
 		@IGitService private gitService: IGitService
 	) {
-		this.dirtyDiffService.registerDirtyDiffTextDocumentProvider(this);
+		this.scmService.registerBaselineResourceProvider(this);
 		textModelResolverService.registerTextModelContentProvider('git-index', this);
 	}
 
-	getDirtyDiffTextDocument(resource: URI): TPromise<URI> {
+	getBaselineResource(resource: URI): TPromise<URI> {
 		return TPromise.as(resource.with({ scheme: 'git-index' }));
 	}
 
@@ -44,9 +47,10 @@ export class GitContentProvider implements IWorkbenchContribution, ITextModelCon
 			.then(contents => this.modelService.createModel(contents, null, uri))
 			.then(model => {
 				const trigger = () => {
-					this.gitService.buffer(path, treeish).
-						then(contents => model.setValue(contents))
-						.done(null, onUnexpectedError);
+					this.throttler.queue(() => {
+						return this.gitService.buffer(path, treeish)
+							.then(contents => model.setValue(contents));
+					}).done(null, onUnexpectedError);
 				};
 
 				const onChanges = () => {

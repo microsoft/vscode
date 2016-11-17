@@ -22,7 +22,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import URI from 'vs/base/common/uri';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IDirtyDiffService } from 'vs/workbench/services/scm/common/dirtydiff';
+import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 
 class DirtyDiffModelDecorator {
 
@@ -63,7 +63,7 @@ class DirtyDiffModelDecorator {
 	constructor(
 		private model: common.IModel,
 		private uri: URI,
-		@IDirtyDiffService private dirtyDiffService: IDirtyDiffService,
+		@ISCMService private dirtyDiffService: ISCMService,
 		@IModelService private modelService: IModelService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -79,7 +79,7 @@ class DirtyDiffModelDecorator {
 
 	@memoize
 	private get originalURIPromise(): winjs.TPromise<URI> {
-		return this.dirtyDiffService.getDirtyDiffTextDocument(this.uri)
+		return this.dirtyDiffService.getBaselineResource(this.uri)
 			.then(originalUri => this.textModelResolverService.resolve(originalUri)
 				.then(model => {
 					// TODO@Joao cast here?
