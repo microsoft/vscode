@@ -62,11 +62,11 @@ export class BowerJSONContribution implements IJSONContribution {
 								for (let i = 0; i < results.length; i++) {
 									let name = results[i].name;
 									let description = results[i].description || '';
-									let insertText = JSON.stringify(name);
+									let insertText = new SnippetString().appendText(JSON.stringify(name));
 									if (addValue) {
-										insertText += ': "{{latest}}"';
+										insertText.appendText(': ').appendPlaceholder('latest');
 										if (!isLast) {
-											insertText += ',';
+											insertText.appendText(',');
 										}
 									}
 									let proposal = new CompletionItem(name);
@@ -91,11 +91,11 @@ export class BowerJSONContribution implements IJSONContribution {
 				});
 			} else {
 				this.topRanked.forEach((name) => {
-					let insertText = JSON.stringify(name);
+					let insertText = new SnippetString().appendText(JSON.stringify(name));
 					if (addValue) {
-						insertText += ': "{{latest}}"';
+						insertText.appendText(': ').appendPlaceholder('latest');
 						if (!isLast) {
-							insertText += ',';
+							insertText.appendText(',');
 						}
 					}
 
