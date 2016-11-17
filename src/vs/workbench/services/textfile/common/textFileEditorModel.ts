@@ -267,19 +267,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				diag('load() - created text editor model', this.resource, new Date());
 
 				return this.backupFileService.hasTextFileBackup(this.resource).then(backupExists => {
-					let getContentPromise: TPromise<IRawText>;
+					let resolveBackupPromise: TPromise<IRawText>;
+
+					// Try get restore content, if there is an issue fallback silently to the original file's content
 					if (backupExists) {
 						const restoreResource = this.backupFileService.getBackupResource(this.resource);
 						const restoreOptions = { acceptTextOnly: true, encoding: 'utf-8' };
-						// Try get restore content, if there is an issue fallback silently to the original file's content
-						getContentPromise = this.textFileService.resolveTextContent(restoreResource, restoreOptions).then(restoreContent => {
-							return restoreContent.value;
-						}, () => content.value);
+
+						resolveBackupPromise = this.textFileService.resolveTextContent(restoreResource, restoreOptions).then(backup => backup.value, error => content.value);
 					} else {
-						getContentPromise = TPromise.as(content.value);
+						resolveBackupPromise = TPromise.as(content.value);
 					}
 
-					this.createTextEditorModelPromise = getContentPromise.then(fileContent => {
+					this.createTextEditorModelPromise = resolveBackupPromise.then(fileContent => {
 						return this.createTextEditorModel(fileContent, content.resource).then(() => {
 							this.createTextEditorModelPromise = null;
 

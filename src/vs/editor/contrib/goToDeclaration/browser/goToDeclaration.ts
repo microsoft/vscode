@@ -32,7 +32,7 @@ import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/refer
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { PeekContext } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -322,7 +322,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 				this.textModelResolverService.resolve(result.uri).then(model => {
 					let hoverMessage: MarkedString;
 					if (model && model.textEditorModel) {
-						const editorModel = <editorCommon.IModel>model.textEditorModel;
+						const editorModel = model.textEditorModel;
 						let from = Math.max(1, result.range.startLineNumber);
 						let to: number;
 

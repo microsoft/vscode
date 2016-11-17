@@ -15,7 +15,7 @@ import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Uri } from 'vscode';
 import { MainThreadWorkspaceShape } from './extHost.protocol';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 

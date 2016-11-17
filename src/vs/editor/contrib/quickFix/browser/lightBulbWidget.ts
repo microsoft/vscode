@@ -8,8 +8,6 @@ import 'vs/css!./lightBulbWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter, any } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
-import { IPosition } from 'vs/editor/common/editorCommon';
-import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { QuickFixComputeEvent } from './quickFixModel';
 
@@ -17,7 +15,7 @@ import { QuickFixComputeEvent } from './quickFixModel';
 export class LightBulbWidget implements IOverlayWidget, IDisposable {
 
 	private _editor: ICodeEditor;
-	private _position: IPosition;
+	private _line: number;
 	private _domNode: HTMLElement;
 	private _visible: boolean;
 	private _onClick = new Emitter<{ x: number, y: number }>();
@@ -37,7 +35,7 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 			this._editor.onDidChangeModelDecorations
 		)(() => {
 			// hide when something has been added to glyph margin
-			if (this._visible && !this._hasSpaceInGlyphMargin(this._position.lineNumber)) {
+			if (this._visible && !this._hasSpaceInGlyphMargin(this._line)) {
 				this.hide();
 			}
 		}));
@@ -88,7 +86,7 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 		const modelNow = this._model;
 		e.fixes.done(fixes => {
 			if (modelNow === this._model && fixes && fixes.length > 0) {
-				this.show(e.position);
+				this.show(e.range.startLineNumber);
 			} else {
 				this.hide();
 			}
@@ -101,12 +99,12 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 		return this._model;
 	}
 
-	show(where: IPosition): void {
-		if (!this._hasSpaceInGlyphMargin(where.lineNumber)) {
+	show(line: number): void {
+		if (!this._hasSpaceInGlyphMargin(line)) {
 			return;
 		}
-		if (!this._visible || !Position.equals(this._position, where)) {
-			this._position = where;
+		if (!this._visible || this._line !== line) {
+			this._line = line;
 			this._visible = true;
 			this._layout();
 		}
@@ -128,7 +126,7 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 	}
 
 	private _layout(): void {
-		const topForLineNumber = this._editor.getTopForLineNumber(this._position.lineNumber);
+		const topForLineNumber = this._editor.getTopForLineNumber(this._line);
 		const editorScrollTop = this._editor.getScrollTop();
 		const top = topForLineNumber - editorScrollTop;
 		this._domNode.style.top = `${top}px`;

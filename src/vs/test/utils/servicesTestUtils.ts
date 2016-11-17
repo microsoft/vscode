@@ -18,13 +18,13 @@ import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/stor
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupService, IBackupFileService, IBackupResult } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -116,9 +116,10 @@ export class TestTextFileService extends TextFileService {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IBackupService backupService: IBackupService
+		@IBackupService backupService: IBackupService,
+		@IMessageService messageService: IMessageService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -292,6 +293,8 @@ export class TestPartService implements IPartService {
 	public setRestoreSidebar(): void {
 
 	}
+
+	public toggleZenMode(): void { }
 }
 
 export class TestEventService extends EventEmitter implements IEventService {
@@ -629,12 +632,12 @@ export class TestBackupService implements IBackupService {
 
 	public isHotExitEnabled: boolean = false;
 
-	public backupBeforeShutdown(): boolean | TPromise<boolean> {
-		return false;
+	public backupBeforeShutdown(): TPromise<IBackupResult> {
+		return TPromise.as({ didBackup: false });
 	}
 
-	public cleanupBackupsBeforeShutdown(): boolean | TPromise<boolean> {
-		return false;
+	public cleanupBackupsBeforeShutdown(): TPromise<void> {
+		return TPromise.as(null);
 	}
 
 	public doBackup(resource: URI, content: string, immediate?: boolean): TPromise<void> {

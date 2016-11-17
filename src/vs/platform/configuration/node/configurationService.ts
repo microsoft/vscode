@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
-import { getDefaultValues, flatten, getConfigurationKeys } from 'vs/platform/configuration/common/model';
+import { getDefaultValues, toValuesTree, getConfigurationKeys } from 'vs/platform/configuration/common/model';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -84,7 +84,7 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 		// make sure to clone the configuration so that the receiver does not tamper with the values
 		return {
 			default: objects.clone(getConfigurationValue<C>(getDefaultValues(), key)),
-			user: objects.clone(getConfigurationValue<C>(flatten(this.rawConfig.getConfig()), key)),
+			user: objects.clone(getConfigurationValue<C>(toValuesTree(this.rawConfig.getConfig()), key)),
 			value: objects.clone(getConfigurationValue<C>(this.getConfiguration(), key))
 		};
 	}
@@ -98,7 +98,7 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 
 	private getConsolidatedConfig(): T {
 		const defaults = getDefaultValues();				// defaults coming from contributions to registries
-		const user = flatten(this.rawConfig.getConfig());	// user configured settings
+		const user = toValuesTree(this.rawConfig.getConfig());	// user configured settings
 
 		return objects.mixin(
 			objects.clone(defaults), 	// target: default values (but dont modify!)
