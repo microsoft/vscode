@@ -226,6 +226,7 @@ export class TerminalPanel extends Panel {
 		this._updateFont();
 		this._updateCursorBlink();
 		this._updateCommandsToSkipShell();
+		this._updateScrollback();
 	}
 
 	private _updateFont(): void {
@@ -262,6 +263,12 @@ export class TerminalPanel extends Panel {
 	private _updateCommandsToSkipShell(): void {
 		this._terminalService.terminalInstances.forEach((instance) => {
 			instance.setCommandsToSkipShell(this._terminalService.configHelper.getCommandsToSkipShell());
+		});
+	}
+
+	private _updateScrollback(): void {
+		this._terminalService.terminalInstances.forEach((instance) => {
+			instance.setScrollback(this._terminalService.configHelper.getScrollback());
 		});
 	}
 }

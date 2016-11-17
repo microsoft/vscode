@@ -9,7 +9,7 @@ import { merge } from 'vs/base/common/arrays';
 import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventType as FileEventType, FileChangesEvent, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -40,13 +40,13 @@ class ChangeRecorder {
 
 	public start(): IRecording {
 
-		var changes: IStringDictionary<IFileChange[]> = Object.create(null);
+		const changes: IStringDictionary<IFileChange[]> = Object.create(null);
 
-		var stop = this._eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
+		const stop = this._eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
 			event.changes.forEach(change => {
 
-				var key = String(change.resource),
-					array = changes[key];
+				const key = String(change.resource);
+				let array = changes[key];
 
 				if (!array) {
 					changes[key] = array = [];
@@ -78,7 +78,7 @@ class EditTask {
 	}
 
 	public addEdit(edit: IResourceEdit): void {
-		var range: IRange;
+		let range: IRange;
 		if (!edit.range) {
 			range = this._model.getFullModelRange();
 		} else {
@@ -98,8 +98,8 @@ class EditTask {
 	}
 
 	protected _getInitialSelections(): Selection[] {
-		var firstRange = this._edits[0].range;
-		var initialSelection = new Selection(
+		const firstRange = this._edits[0].range;
+		const initialSelection = new Selection(
 			firstRange.startLineNumber,
 			firstRange.startColumn,
 			firstRange.endLineNumber,
@@ -109,11 +109,11 @@ class EditTask {
 	}
 
 	private _getEndCursorSelections(inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] {
-		var relevantEditIndex = 0;
-		for (var i = 0; i < inverseEditOperations.length; i++) {
-			var editRange = inverseEditOperations[i].range;
-			for (var j = 0; j < this._initialSelections.length; j++) {
-				var selectionRange = this._initialSelections[j];
+		let relevantEditIndex = 0;
+		for (let i = 0; i < inverseEditOperations.length; i++) {
+			const editRange = inverseEditOperations[i].range;
+			for (let j = 0; j < this._initialSelections.length; j++) {
+				const selectionRange = this._initialSelections[j];
 				if (Range.areIntersectingOrTouching(editRange, selectionRange)) {
 					relevantEditIndex = i;
 					break;
@@ -121,7 +121,7 @@ class EditTask {
 			}
 		}
 
-		var srcRange = inverseEditOperations[relevantEditIndex].range;
+		const srcRange = inverseEditOperations[relevantEditIndex].range;
 		this._endCursorSelection = new Selection(
 			srcRange.endLineNumber,
 			srcRange.endColumn,
@@ -185,7 +185,7 @@ class BulkEditModel {
 	}
 
 	private _addEdit(edit: IResourceEdit): void {
-		var array = this._edits[edit.resource.toString()];
+		let array = this._edits[edit.resource.toString()];
 		if (!array) {
 			this._edits[edit.resource.toString()] = array = [];
 			this._numberOfResourcesToModify += 1;
@@ -201,20 +201,20 @@ class BulkEditModel {
 		}
 
 		this._tasks = [];
-		var promises: TPromise<any>[] = [];
+		const promises: TPromise<any>[] = [];
 
 		if (this.progress) {
 			this.progress.total(this._numberOfResourcesToModify * 2);
 		}
 
 		forEach(this._edits, entry => {
-			var promise = this._textModelResolverService.resolve(URI.parse(entry.key)).then(model => {
+			const promise = this._textModelResolverService.resolve(URI.parse(entry.key)).then(model => {
 				if (!model || !model.textEditorModel) {
 					throw new Error(`Cannot load file ${entry.key}`);
 				}
 
-				var textEditorModel = <IModel>model.textEditorModel,
-					task: EditTask;
+				const textEditorModel = model.textEditorModel;
+				let task: EditTask;
 
 				if (this._sourceModel && textEditorModel.uri.toString() === this._sourceModel.toString()) {
 					this._sourceModelTask = new SourceModelEditTask(textEditorModel, this._sourceSelections);
@@ -238,7 +238,7 @@ class BulkEditModel {
 
 	public apply(): Selection {
 		this._tasks.forEach(task => this.applyTask(task));
-		var r: Selection = null;
+		let r: Selection = null;
 		if (this._sourceModelTask) {
 			r = this._sourceModelTask.getEndCursorSelection();
 		}

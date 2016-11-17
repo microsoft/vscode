@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChange, ILineChange, IRange } from 'vs/editor/common/editorCommon';
+import { IChange, ILineChange, IRange, ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 
 export var ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
@@ -18,5 +18,6 @@ export interface IEditorWorkerService {
 
 	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<ILineChange[]>;
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<IChange[]>;
+	computeMoreMinimalEdits(resource: URI, edits: ISingleEditOperation[], ranges: IRange[]): TPromise<ISingleEditOperation[]>;
 	navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<IInplaceReplaceSupportResult>;
 }

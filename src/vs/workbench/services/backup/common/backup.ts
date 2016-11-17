@@ -14,6 +14,10 @@ export const IBackupService = createDecorator<IBackupService>('backupService');
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 export const IBackupModelService = createDecorator<IBackupModelService>('backupModelService');
 
+export interface IBackupResult {
+	didBackup: boolean;
+}
+
 /**
  * A service that handles the lifecycle of backups, eg. listening for file changes and acting
  * appropriately on shutdown.
@@ -22,8 +26,8 @@ export interface IBackupService {
 	_serviceBrand: any;
 
 	isHotExitEnabled: boolean;
-	backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean, confirmCallback: () => boolean | TPromise<boolean>): boolean | TPromise<boolean>;
-	cleanupBackupsBeforeShutdown(): boolean | TPromise<boolean>;
+	backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean): TPromise<IBackupResult>;
+	cleanupBackupsBeforeShutdown(): TPromise<void>;
 
 	doBackup(resource: Uri, content: string, immediate?: boolean): TPromise<void>;
 }

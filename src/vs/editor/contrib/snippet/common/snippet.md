@@ -12,7 +12,7 @@ Placeholders are tabstops with values, like `${1:foo}`. The placeholder text wil
 Variables
 --
 
-With `$name` or `${name:default}` you can insert the value of a variable. When a variable isn’t set its *default* or the empty string is inserted.
+With `$name` or `${name:default}` you can insert the value of a variable. When a variable isn’t set its *default* or the empty string is inserted. When a varibale is unknown (that is, its name isn’t defined) the name of the variable is inserted and it is transformed into a placeholder.
 
 
 Grammar
@@ -22,8 +22,8 @@ Below is the EBNF for snippets. The `$`-character can be escaped  using backslas
 
 ```
 any         ::= tabstop | placeholder | variable | text
-tabstop     ::= '$' int
-placeholder ::= '${' int '}' | '${' int ':' any '}'
+tabstop     ::= '$' int | '${' int '}'
+placeholder ::= '${' int ':' any '}'
 variable    ::= '$' var | '${' var }' | '${' var ':' any '}'
 var         ::= [_a-zA-Z] [_a-zA-Z0-9]*
 int         ::= [0-9]+

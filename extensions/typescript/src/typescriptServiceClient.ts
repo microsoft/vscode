@@ -661,6 +661,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							if (is.defined(typingsInstalledPayload.installSuccess)) {
 								properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
 							}
+							if (is.string(typingsInstalledPayload.typingsInstallerVersion)) {
+								properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
+							}
 							break;
 						default:
 							let payload = telemetryData.payload;

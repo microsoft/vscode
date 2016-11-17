@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import { IWindowSettings } from 'vs/platform/windows/common/windows';
 
 export interface IPath {
 	filePath: string;
@@ -19,11 +19,24 @@ export interface IOpenFileRequest {
 }
 
 export interface IWindowConfiguration {
-	window: {
-		openFilesInNewWindow: boolean;
-		reopenFolders: string;
-		restoreFullscreen: boolean;
-		zoomLevel: number;
-		titleBarStyle: 'native' | 'custom';
+	window: IWindowSettings;
+}
+
+export interface IStartupFingerprint {
+	ellapsed: number;
+	timers: {
+		ellapsedMain?: number;
+		windowLoad?: number;
+		ellapsedExtensions: number;
+		extensionsReady: number;
+		ellapsedRequire: number;
+		ellapsedViewletRestore: number;
+		ellapsedEditorRestore: number;
+		ellapsedWorkbench: number;
 	};
+	totalmem: number;
+	cpus: { count: number; speed: number; model: string; };
+	initialStartup: boolean;
+	hasAccessibilitySupport: boolean;
+	emptyWorkbench: boolean;
 }

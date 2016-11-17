@@ -37,7 +37,13 @@ const booleanRegex = /^true|false$/i;
 const stringRegex = /^(['"]).*\1$/;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
-export function renderExpressionValue(expressionOrValue: debug.IExpression | string, container: HTMLElement, showChanged: boolean, maxValueRenderLength?: number): void {
+export interface IRenderValueOptions {
+	preserveWhitespace: boolean;
+	showChanged: boolean;
+	maxValueLength?: number;
+}
+
+export function renderExpressionValue(expressionOrValue: debug.IExpression | string, container: HTMLElement, options: IRenderValueOptions): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
 	// remove stale classes
@@ -56,15 +62,19 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		dom.addClass(container, 'string');
 	}
 
-	if (showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
+	if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
 		// value changed color has priority over other colors.
 		container.className = 'value changed';
 	}
 
-	if (maxValueRenderLength && value.length > maxValueRenderLength) {
-		value = value.substr(0, maxValueRenderLength) + '...';
+	if (options.maxValueLength && value.length > options.maxValueLength) {
+		value = value.substr(0, options.maxValueLength) + '...';
 	}
-	container.textContent = value;
+	if (value && !options.preserveWhitespace) {
+		container.textContent = value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+	} else {
+		container.textContent = value;
+	}
 	container.title = value;
 }
 
@@ -76,7 +86,11 @@ export function renderVariable(tree: ITree, variable: Variable, data: IVariableT
 
 	if (variable.value) {
 		data.name.textContent += ':';
-		renderExpressionValue(variable, data.value, showChanged, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
+		renderExpressionValue(variable, data.value, {
+			showChanged,
+			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+			preserveWhitespace: false
+		});
 		data.value.title = variable.value;
 	} else {
 		data.value.textContent = '';
@@ -121,7 +135,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				element.errorMessage = null;
 				if (renamed && element.value !== inputBox.value) {
 					element.setVariable(inputBox.value)
-						// if everything went fine we need to refresh that tree element since his value updated
+						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
 						.done(() => tree.refresh(element, false), errors.onUnexpectedError);
 				}
 			}
@@ -941,7 +955,11 @@ export class WatchExpressionsRenderer implements IRenderer {
 		data.name.textContent = watchExpression.name;
 		if (watchExpression.value) {
 			data.name.textContent += ':';
-			renderExpressionValue(watchExpression, data.value, true, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
+			renderExpressionValue(watchExpression, data.value, {
+				showChanged: true,
+				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+				preserveWhitespace: false
+			});
 			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
 	}

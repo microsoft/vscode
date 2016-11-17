@@ -47,7 +47,7 @@ import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSyste
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -511,7 +511,7 @@ export class DebugService implements debug.IDebugService {
 	public addReplExpression(name: string): TPromise<void> {
 		this.telemetryService.publicLog('debugService/addReplExpression');
 		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
-			// Evaluate all watch expressions again since repl evaluation might have changed some.
+			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
 			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame));
 	}
 
@@ -532,7 +532,9 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public renameWatchExpression(id: string, newName: string): TPromise<void> {
-		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName);
+		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName)
+			// Evaluate all watch expressions and fetch variables again since watch expression evaluation might have changed some.
+			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame));
 	}
 
 	public moveWatchExpression(id: string, position: number): void {
@@ -672,7 +674,7 @@ export class DebugService implements debug.IDebugService {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
-				if (!this.viewModel.changedWorkbenchViewState && !this.partService.isSideBarHidden()) {
+				if (!this.viewModel.changedWorkbenchViewState && this.partService.isVisible(Parts.SIDEBAR_PART)) {
 					// We only want to change the workbench view state on the first debug session #5738 and if the side bar is not hidden
 					this.viewModel.changedWorkbenchViewState = true;
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
@@ -825,7 +827,7 @@ export class DebugService implements debug.IDebugService {
 			this.inDebugMode.reset();
 			this.viewModel.setMultiProcessView(false);
 
-			if (!this.partService.isSideBarHidden() && this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {
+			if (this.partService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {
 				this.viewletService.openViewlet(EXPLORER_VIEWLET_ID).done(null, errors.onUnexpectedError);
 			}
 		}

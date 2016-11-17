@@ -5,7 +5,6 @@
 'use strict';
 
 import Severity from 'vs/base/common/severity';
-import { stringDiff } from 'vs/base/common/diff/diff';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
@@ -154,44 +153,6 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 
 export const TextEdit = {
 
-	minimalEditOperations(edits: vscode.TextEdit[], document: vscode.TextDocument, beforeDocumentVersion: number): ISingleEditOperation[] {
-
-		// document has changed in the meantime and we shouldn't do
-		// offset math as it's likely to be all wrong
-		if (document.version !== beforeDocumentVersion) {
-			return edits.map(TextEdit.from);
-		}
-
-		const result: ISingleEditOperation[] = [];
-
-		for (let edit of edits) {
-
-			const original = document.getText(edit.range);
-			const modified = edit.newText;
-			const changes = stringDiff(original, modified);
-
-			if (changes.length <= 1) {
-				result.push(TextEdit.from(edit));
-				continue;
-			}
-
-			const editOffset = document.offsetAt(edit.range.start);
-
-			for (let j = 0; j < changes.length; j++) {
-				const {originalStart, originalLength, modifiedStart, modifiedLength} = changes[j];
-				const start = fromPosition(<types.Position>document.positionAt(editOffset + originalStart));
-				const end = fromPosition(<types.Position>document.positionAt(editOffset + originalStart + originalLength));
-
-				result.push({
-					text: modified.substr(modifiedStart, modifiedLength),
-					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
-				});
-			}
-		}
-
-		return result;
-	},
-
 	from(edit: vscode.TextEdit): ISingleEditOperation {
 		return <ISingleEditOperation>{
 			text: edit.newText,
@@ -309,23 +270,9 @@ export const CompletionItemKind = {
 	}
 };
 
-export const Suggest = {
+export namespace Suggest {
 
-	from(item: vscode.CompletionItem): modes.ISuggestion {
-		const suggestion: modes.ISuggestion = {
-			label: item.label || '<missing label>',
-			insertText: item.insertText || item.label,
-			type: CompletionItemKind.from(item.kind),
-			detail: item.detail,
-			documentation: item.documentation,
-			sortText: item.sortText,
-			filterText: item.filterText,
-			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(TextEdit.from)
-		};
-		return suggestion;
-	},
-
-	to(position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
+	export function to(position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.type);
@@ -334,14 +281,25 @@ export const Suggest = {
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 
+		// 'overwrite[Before|After]'-logic
 		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;
 		let startPosition = new types.Position(position.line, Math.max(0, position.character - overwriteBefore));
 		let endPosition = position;
 		if (typeof suggestion.overwriteAfter === 'number') {
 			endPosition = new types.Position(position.line, position.character + suggestion.overwriteAfter);
 		}
+		result.range = new types.Range(startPosition, endPosition);
 
-		result.textEdit = types.TextEdit.replace(new types.Range(startPosition, endPosition), suggestion.insertText);
+		// 'inserText'-logic
+		if (suggestion.snippetType === 'textmate') {
+			result.insertText = new types.SnippetString(suggestion.insertText);
+		} else {
+			result.insertText = suggestion.insertText;
+			result.textEdit = new types.TextEdit(result.range, result.insertText);
+		}
+
+		// TODO additionalEdits, command
+
 		return result;
 	}
 };
