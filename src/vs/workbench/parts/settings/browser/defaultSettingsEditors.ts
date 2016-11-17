@@ -187,9 +187,8 @@ export class DefaultSettingsContribution extends Disposable implements editorCom
 
 	private renderDecorations(model: editorCommon.IModel) {
 		this.settingsActions = this.instantiationService.createInstance(SettingsActionsDecorators, this.editor);
-		this.settingsActions.render(this.openSettingsService.defaultSettings.getSettingsGroups());
+		this.settingsActions.render(this.openSettingsService.defaultSettings.settingsGroups);
 	}
-
 }
 
 export class SettingsActionsDecorators extends Disposable {
@@ -228,11 +227,11 @@ export class SettingsActionsDecorators extends Disposable {
 
 	private createDecoration(setting: ISetting, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
 		const jsonSchema: IJSONSchema = this.getConfigurationsMap()[setting.key];
-		const maxColumn = model.getLineMaxColumn(setting.range.startLineNumber + 1);
+		const maxColumn = model.getLineMaxColumn(setting.valueRange.startLineNumber);
 		const range = {
-			startLineNumber: setting.range.startLineNumber + 1,
+			startLineNumber: setting.valueRange.startLineNumber,
 			startColumn: maxColumn,
-			endLineNumber: setting.range.startLineNumber + 1,
+			endLineNumber: setting.valueRange.startLineNumber,
 			endColumn: maxColumn
 		};
 		return {
