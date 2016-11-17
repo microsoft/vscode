@@ -10,7 +10,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IDirtyDiffTextDocumentProvider, IDirtyDiffService } from 'vs/workbench/services/scm/common/dirtydiff';
 import { IGitService, StatusType, ServiceEvents, ServiceOperations, ServiceState } from 'vs/workbench/parts/git/common/git';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
