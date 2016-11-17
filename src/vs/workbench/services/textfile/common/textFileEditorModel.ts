@@ -52,6 +52,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMillies: number;
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
+	private backupAfterMillies: number;
 	private contentChangeEventPromises: TPromise<void>[];
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
 	private disposed: boolean;
@@ -88,6 +89,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.preferredEncoding = preferredEncoding;
 		this.dirty = false;
 		this.autoSavePromises = [];
+		this.backupAfterMillies = 1000;
 		this.contentChangeEventPromises = [];
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
@@ -390,7 +392,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.cancelContentChangeEventPromises();
 
 		// Create new promise and keep it
-		const promise = TPromise.timeout(1000).then(() => {
+		const promise = TPromise.timeout(this.backupAfterMillies).then(() => {
 			this._onDidContentChange.fire(StateChange.CONTENT_CHANGE); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
 		});
 
