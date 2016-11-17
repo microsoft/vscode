@@ -82,8 +82,7 @@ class DirtyDiffModelDecorator {
 		return this.dirtyDiffService.getBaselineResource(this.uri)
 			.then(originalUri => this.textModelResolverService.resolve(originalUri)
 				.then(model => {
-					// TODO@Joao cast here?
-					const textEditorModel = model.textEditorModel as common.IModel;
+					const textEditorModel = model.textEditorModel;
 					this.toDispose.push(textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 
 					return originalUri;
