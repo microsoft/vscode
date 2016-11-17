@@ -54,6 +54,7 @@ export interface IEnvironmentService {
 	backupHome: string;
 	backupWorkspacesPath: string;
 
+	isExtensionDevelopment: boolean;
 	disableExtensions: boolean;
 	extensionsPath: string;
 	extensionDevelopmentPath: string;
