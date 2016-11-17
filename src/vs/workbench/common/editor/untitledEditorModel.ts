@@ -26,6 +26,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	private _onDidChangeContent: Emitter<void>;
 	private _onDidChangeDirty: Emitter<void>;
 	private _onDidChangeEncoding: Emitter<void>;
+
+	private backupAfterMillies: number;
 	private contentChangeEventPromises: TPromise<void>[];
 
 	private configuredEncoding: string;
@@ -50,6 +52,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this._onDidChangeContent = new Emitter<void>();
 		this._onDidChangeDirty = new Emitter<void>();
 		this._onDidChangeEncoding = new Emitter<void>();
+
+		this.backupAfterMillies = 1000;
 		this.contentChangeEventPromises = [];
 
 		this.registerListeners();
@@ -169,7 +173,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this.cancelContentChangeEventPromises();
 
 		// Create new promise and keep it
-		const promise = TPromise.timeout(1000).then(() => {
+		const promise = TPromise.timeout(this.backupAfterMillies).then(() => {
 			this._onDidChangeContent.fire(); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
 		});
 
