@@ -49,7 +49,15 @@ export class GitContentProvider implements IWorkbenchContribution, ITextModelCon
 				const trigger = () => {
 					this.throttler.queue(() => {
 						return this.gitService.buffer(path, treeish)
-							.then(contents => model.setValue(contents));
+							.then(contents => {
+								// TODO@Joao who owns the model? this is confusing
+								// if (!contents) {
+								// 	model.destroy();
+								// 	return;
+								// }
+
+								model.setValue(contents);
+							});
 					}).done(null, onUnexpectedError);
 				};
 
