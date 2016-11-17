@@ -32,7 +32,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public getWorkspaceBackupPaths(): TPromise<string[]> {
-		if (!this.environmentService.isBackupEnabled) {
+		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.as([]);
 		}
 
@@ -51,7 +51,7 @@ export class BackupFileService implements IBackupFileService {
 
 	public getBackupResource(resource: Uri): Uri {
 		// Hot exit is disabled for empty workspaces
-		if (!this.currentWorkspace || !this.environmentService.isBackupEnabled) {
+		if (!this.currentWorkspace || this.environmentService.isExtensionDevelopment) {
 			return null;
 		}
 
@@ -67,7 +67,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public backupResource(resource: Uri, content: string): TPromise<void> {
-		if (!this.environmentService.isBackupEnabled) {
+		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.as(void 0);
 		}
 
@@ -82,7 +82,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public discardResourceBackup(resource: Uri): TPromise<void> {
-		if (!this.environmentService.isBackupEnabled) {
+		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.as(void 0);
 		}
 
@@ -97,7 +97,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public discardAllWorkspaceBackups(): TPromise<void> {
-		if (!this.environmentService.isBackupEnabled) {
+		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.as(void 0);
 		}
 

@@ -125,7 +125,7 @@ export class BackupService implements IBackupService {
 	public get isHotExitEnabled(): boolean {
 		// If hot exit is enabled then save the dirty files in the workspace and then exit
 		// Hot exit is currently disabled for empty workspaces (#13733).
-		return this.environmentService.isBackupEnabled && this.configuredHotExit && !!this.contextService.getWorkspace();
+		return !this.environmentService.isExtensionDevelopment && this.configuredHotExit && !!this.contextService.getWorkspace();
 	}
 
 	public backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean): TPromise<IBackupResult> {
@@ -148,7 +148,7 @@ export class BackupService implements IBackupService {
 	}
 
 	public cleanupBackupsBeforeShutdown(): TPromise<void> {
-		if (!this.environmentService.isBackupEnabled) {
+		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.as(void 0);
 		}
 
