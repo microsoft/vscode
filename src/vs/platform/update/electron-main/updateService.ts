@@ -16,7 +16,7 @@ import { fromEventEmitter } from 'vs/base/node/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from './auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from './auto-updater.linux';
-import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/common/mainLifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/product';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -85,7 +85,7 @@ export class UpdateService implements IUpdateService {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleMainService private lifecycleService: ILifecycleMainService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
