@@ -233,7 +233,7 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._contentLeft = context.configuration.editor.layoutInfo.contentLeft;
 		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
 
-		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background');
+		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS);
 		this.domNode.setWidth(1);
 
 		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
@@ -283,14 +283,6 @@ export class MarginViewOverlays extends ViewOverlays {
 
 	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
-		if (this._canUseTranslate3d) {
-			let transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-			this.domNode.setTransform(transform);
-			this.domNode.setTop(0);
-		} else {
-			this.domNode.setTransform('');
-			this.domNode.setTop(ctx.linesViewportData.visibleRangesDeltaTop);
-		}
 		let height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
 		this.domNode.setHeight(height);
 		this.domNode.setWidth(this._contentLeft);
