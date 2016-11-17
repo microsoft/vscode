@@ -306,9 +306,9 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			delete this.mapResourceToStateChangeListener[resource.toString()];
 		}
 
-		const modelContentCHangeListener = this.mapResourceToModelContentChangeListener[resource.toString()];
-		if (modelContentCHangeListener) {
-			dispose(modelContentCHangeListener);
+		const modelContentChangeListener = this.mapResourceToModelContentChangeListener[resource.toString()];
+		if (modelContentChangeListener) {
+			dispose(modelContentChangeListener);
 			delete this.mapResourceToModelContentChangeListener[resource.toString()];
 		}
 	}

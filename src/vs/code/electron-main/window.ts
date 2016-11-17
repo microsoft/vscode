@@ -18,6 +18,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import Uri from 'vs/base/common/uri';
 
 export interface IWindowState {
@@ -113,15 +114,6 @@ export interface IWindowConfiguration extends ParsedArgs {
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
 	untitledToRestore?: IPath[];
-}
-
-export interface IWindowSettings {
-	openFilesInNewWindow: boolean;
-	reopenFolders: 'all' | 'one' | 'none';
-	restoreFullscreen: boolean;
-	fullScreenZenMode: boolean;
-	zoomLevel: number;
-	titleBarStyle: 'native' | 'custom';
 }
 
 export class VSCodeWindow {
