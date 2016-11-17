@@ -30,10 +30,10 @@ document.addEventListener("DOMContentLoaded", function (event) {
 		initData.activeTheme = activeTheme;
 
 		// webview
-		let defaultStyles = document.getElementById('_defaultStyles');
+		var defaultStyles = document.getElementById('_defaultStyles');
 		defaultStyles.innerHTML = initData.styles;
 
-		let body = getTarget().contentDocument.getElementsByTagName('body');
+		var body = getTarget().contentDocument.getElementsByTagName('body');
 		styleBody(body[0]);
 
 		// iframe
@@ -81,33 +81,33 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 		// script to bubble out link-clicks
 		const defaultScripts = newDocument.createElement('script');
-		defaultScripts.innerHTML = `
-				document.body.addEventListener('click', function(event) {
-					let node = event.target;
-					while (node) {
-						if (node.tagName === 'A' && node.href) {
-							let baseElement = window.document.getElementsByTagName('base')[0];
-							if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
-								let scrollTarget = window.document.getElementById(node.hash.substr(1, node.hash.length - 1));
-								if (scrollTarget) {
-									scrollgetTarget().scrollIntoView();
-								}
-							} else {
-								window.parent.postMessage({ command: 'did-click-link', data: node.href }, 'file://');
-							}
-							event.preventDefault();
-							break;
-						}
-						node = node.parentNode;
-					}
-				});`
+		defaultScripts.innerHTML = [
+			'document.body.addEventListener("click", function(event) {',
+			'	let node = event.target;',
+			'	while (node) {',
+			'		if (node.tagName === "A" && node.href) {',
+			'			let baseElement = window.document.getElementsByTagName("base")[0];',
+			'			if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {',
+			'				let scrollTarget = window.document.getElementById(node.hash.substr(1, node.hash.length - 1));',
+			'				if (scrollTarget) {',
+			'					scrollgetTarget().scrollIntoView();',
+			'				}',
+			'			} else {',
+			'				window.parent.postMessage({ command: "did-click-link", data: node.href }, "file://");',
+			'			}',
+			'			event.preventDefault();',
+			'			break;',
+			'		}',
+			'		node = node.parentNode;',
+			'	}',
+			'});'].join('\n')
 
 
 		newDocument.body.appendChild(defaultScripts);
 		styleBody(newDocument.body);
 
 		// keep current scrollTop around and use later
-		const {scrollTop} = getTarget().contentDocument.body;
+		const scrollTop = getTarget().contentDocument.body.scrollTop;
 
 		// write new content onto iframe
 		getTarget().contentDocument.open('text/html', 'replace');
@@ -119,7 +119,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 		// workaround for https://github.com/Microsoft/vscode/issues/12865
 		// check new scrollTop and reset if neccessary
-		setTimeout(() => {
+		setTimeout(function () {
 			if (scrollTop !== getTarget().contentDocument.body.scrollTop) {
 				getTarget().contentDocument.body.scrollTop = scrollTop;
 			}
@@ -130,8 +130,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 	// forward messages from the embedded iframe
 	window.onmessage = function (message) {
-		const { command, data} = message.data;
-		ipcRenderer.sendToHost(command, data);
+		ipcRenderer.sendToHost(message.data.command, message.data.data);
 	};
 
 	// signal ready
