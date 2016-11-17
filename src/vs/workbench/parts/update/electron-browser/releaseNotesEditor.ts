@@ -91,7 +91,8 @@ export class ReleaseNotesEditor extends BaseEditor {
 			.then<void>(body => {
 				this.webview = new WebView(
 					this.content,
-					document.querySelector('.monaco-editor-background')
+					document.querySelector('.monaco-editor-background'),
+					{ nodeintegration: false }
 				);
 
 				this.webview.baseUrl = `https://code.visualstudio.com/raw/`;

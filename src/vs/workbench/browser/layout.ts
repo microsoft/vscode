@@ -144,11 +144,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.sashX.addListener2('change', (e: ISashEvent) => {
 			let doLayout = false;
 			let sidebarPosition = this.partService.getSideBarPosition();
-			let isSidebarHidden = this.partService.isSideBarHidden();
+			let isSidebarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
 			let newSashWidth = (sidebarPosition === Position.LEFT) ? this.startSidebarWidth + e.currentX - startX : this.startSidebarWidth - e.currentX + startX;
 
 			// Sidebar visible
-			if (!isSidebarHidden) {
+			if (isSidebarVisible) {
 
 				// Automatically hide side bar when a certain threshold is met
 				if (newSashWidth + HIDE_SIDEBAR_WIDTH_THRESHOLD < this.computedStyles.sidebar.minWidth) {
@@ -182,11 +182,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		this.sashY.addListener2('change', (e: ISashEvent) => {
 			let doLayout = false;
-			let isPanelHidden = this.partService.isPanelHidden();
+			let isPanelVisible = this.partService.isVisible(Parts.PANEL_PART);
 			let newSashHeight = this.startPanelHeight - (e.currentY - startY);
 
 			// Panel visible
-			if (!isPanelHidden) {
+			if (isPanelVisible) {
 
 				// Automatically hide panel when a certain threshold is met
 				if (newSashHeight + HIDE_PANEL_HEIGHT_THRESHOLD < this.computedStyles.panel.minHeight) {
@@ -334,7 +334,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		this.workbenchSize = this.getWorkbenchArea();
 
-		const isActivityBarHidden = this.partService.isActivityBarHidden();
+		const isActivityBarHidden = !this.partService.isVisible(Parts.ACTIVITYBAR_PART);
 		const isTitlebarHidden = !this.partService.isVisible(Parts.TITLEBAR_PART);
 		const isPanelHidden = !this.partService.isVisible(Parts.PANEL_PART);
 		const isStatusbarHidden = !this.partService.isVisible(Parts.STATUSBAR_PART);
@@ -541,14 +541,14 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public getVerticalSashLeft(sash: Sash): number {
-		let isSidebarHidden = this.partService.isSideBarHidden();
+		let isSidebarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
 		let sidebarPosition = this.partService.getSideBarPosition();
 
 		if (sidebarPosition === Position.LEFT) {
-			return !isSidebarHidden ? this.sidebarWidth + this.activitybarWidth : this.activitybarWidth;
+			return isSidebarVisible ? this.sidebarWidth + this.activitybarWidth : this.activitybarWidth;
 		}
 
-		return !isSidebarHidden ? this.workbenchSize.width - this.sidebarWidth - this.activitybarWidth : this.workbenchSize.width - this.activitybarWidth;
+		return isSidebarVisible ? this.workbenchSize.width - this.sidebarWidth - this.activitybarWidth : this.workbenchSize.width - this.activitybarWidth;
 	}
 
 	public getVerticalSashHeight(sash: Sash): number {
@@ -556,7 +556,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public getHorizontalSashTop(sash: Sash): number {
-		return 2 + (this.partService.isPanelHidden() ? this.sidebarHeight + this.titlebarHeight : this.sidebarHeight - this.panelHeight + this.titlebarHeight); // Horizontal sash should be a bit lower than the editor area, thus add 2px #5524
+		// Horizontal sash should be a bit lower than the editor area, thus add 2px #5524
+		return 2 + (this.partService.isVisible(Parts.PANEL_PART) ? this.sidebarHeight - this.panelHeight + this.titlebarHeight : this.sidebarHeight + this.titlebarHeight);
 	}
 
 	public getHorizontalSashLeft(sash: Sash): number {

@@ -219,7 +219,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 			hasChanged = true;
 		}
 		else {
-			let maxCharacter = this._lines[lineNumber].length + 1;
+			let maxCharacter = this._lines[lineNumber - 1].length + 1;
 			if (column < 1) {
 				column = 1;
 				hasChanged = true;

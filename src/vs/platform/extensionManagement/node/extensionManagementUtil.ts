@@ -13,7 +13,7 @@ export function extensionEquals(one: IExtensionIdentity, other: IExtensionIdenti
 	return one.publisher === other.publisher && one.name === other.name;
 }
 
-export function getTelemetryData(extension: ILocalExtension | IGalleryExtension): any {
+export function getTelemetryData(extension: ILocalExtension | IGalleryExtension) {
 	const local = extension as ILocalExtension;
 	const gallery = extension as IGalleryExtension;
 

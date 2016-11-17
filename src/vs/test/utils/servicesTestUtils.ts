@@ -293,6 +293,8 @@ export class TestPartService implements IPartService {
 	public setRestoreSidebar(): void {
 
 	}
+
+	public toggleZenMode(): void { }
 }
 
 export class TestEventService extends EventEmitter implements IEventService {
