@@ -524,10 +524,44 @@ export class WorkspaceEdit {
 
 export class SnippetString {
 
+	private _tabstop: number = 1;
+
 	value: string;
 
-	constructor(value: string) {
-		this.value = value;
+	constructor(value?: string) {
+		this.value = value || '';
+	}
+
+	appendText(string: string): SnippetString {
+		this.value += string.replace(/\$/g, '\\$');
+		return this;
+	}
+
+	appendTabstop(number: number = this._tabstop++): SnippetString {
+		this.value += '$';
+		this.value += number;
+		return this;
+	}
+
+	appendPlaceholder(value: string | ((snippet: SnippetString) => any), number: number = this._tabstop++): SnippetString {
+
+		if (typeof value === 'function') {
+			const nested = new SnippetString();
+			nested._tabstop = this._tabstop;
+			value(nested);
+			this._tabstop = nested._tabstop;
+			value = nested.value;
+		} else {
+			value = value.replace(/\$|}/g, '\\$&');
+		}
+
+		this.value += '${';
+		this.value += number;
+		this.value += ':';
+		this.value += value;
+		this.value += '}';
+
+		return this;
 	}
 }
 

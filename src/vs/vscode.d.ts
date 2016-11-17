@@ -2039,7 +2039,35 @@ declare module 'vscode' {
 		 */
 		value: string;
 
-		constructor(value: string);
+		constructor(value?: string);
+
+		/**
+		 * Builder-function that appends the given string to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param string A value to append 'as given'. The string will be escaped.
+		 */
+		appendText(string: string): SnippetString;
+
+		/**
+		 * Builder-function that appends a tabstop (`$1`, `$2` etc) to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param number The number of this tabstop, defaults to an auto-incremet
+		 * value starting at 1.
+		 */
+		appendTabstop(number?: number): SnippetString;
+
+		/**
+		 * Builder-function that appends a placeholder (`${1:value}`) to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param value The value of this placeholder - either a string or a function
+		 * with which a nested snippet can be created.
+		 * @param number The number of this tabstop, defaults to an auto-incremet
+		 * value starting at 1.
+		 */
+		appendPlaceholder(value: string | ((snippet: SnippetString) => any), number?: number): SnippetString;
 	}
 
 	/**
