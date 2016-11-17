@@ -212,6 +212,10 @@ export interface IViewZone {
 	 */
 	domNode: HTMLElement;
 	/**
+	 * An optional dom node for the view zone that will be placed in the margin area.
+	 */
+	marginDomNode?: HTMLElement;
+	/**
 	 * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
 	 */
 	onDomNodeTop?: (top: number) => void;
