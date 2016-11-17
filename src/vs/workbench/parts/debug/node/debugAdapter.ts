@@ -182,16 +182,17 @@ export class Adapter {
 	}
 
 	private getAttributeBasedOnPlatform(key: string): any {
+		let result: any;
 		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && this.rawAdapter.winx86) {
-			return this.rawAdapter.winx86[key];
+			result = this.rawAdapter.winx86[key];
 		} else if (platform.isWindows && this.rawAdapter.win) {
-			return this.rawAdapter.win[key];
+			result = this.rawAdapter.win[key];
 		} else if (platform.isMacintosh && this.rawAdapter.osx) {
-			return this.rawAdapter.osx[key];
+			result = this.rawAdapter.osx[key];
 		} else if (platform.isLinux && this.rawAdapter.linux) {
-			return this.rawAdapter.linux[key];
+			result = this.rawAdapter.linux[key];
 		}
 
-		return this.rawAdapter[key];
+		return result || this.rawAdapter[key];
 	}
 }
