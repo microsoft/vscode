@@ -8,17 +8,17 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IDirtyDiffService, IDirtyDiffTextDocumentProvider } from './dirtydiff';
+import { ISCMService, IBaselineResourceProvider } from './scm';
 
-export class DirtyDiffService implements IDirtyDiffService {
+export class SCMService implements ISCMService {
 
 	_serviceBrand;
 
-	private providers: IDirtyDiffTextDocumentProvider[] = [];
+	private providers: IBaselineResourceProvider[] = [];
 
-	getDirtyDiffTextDocument(resource: URI): TPromise<URI> {
+	getBaselineResource(resource: URI): TPromise<URI> {
 		const promises = this.providers
-			.map(p => p.getDirtyDiffTextDocument(resource));
+			.map(p => p.getBaselineResource(resource));
 
 		return TPromise.join(promises).then(originalResources => {
 			// TODO@Joao: just take the first
@@ -26,7 +26,7 @@ export class DirtyDiffService implements IDirtyDiffService {
 		});
 	}
 
-	registerDirtyDiffTextDocumentProvider(provider: IDirtyDiffTextDocumentProvider): IDisposable {
+	registerBaselineResourceProvider(provider: IBaselineResourceProvider): IDisposable {
 		this.providers = [provider, ...this.providers];
 
 		return toDisposable(() => {

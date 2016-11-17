@@ -10,16 +10,16 @@ import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-export interface IDirtyDiffTextDocumentProvider {
-	getDirtyDiffTextDocument(resource: URI): TPromise<URI>;
+export interface IBaselineResourceProvider {
+	getBaselineResource(resource: URI): TPromise<URI>;
 }
 
-export const IDirtyDiffService = createDecorator<IDirtyDiffService>('dirtyDiff');
+export const ISCMService = createDecorator<ISCMService>('scm');
 
-export interface IDirtyDiffService {
+export interface ISCMService {
 
 	_serviceBrand: any;
 
-	getDirtyDiffTextDocument(resource: URI): TPromise<URI>;
-	registerDirtyDiffTextDocumentProvider(provider: IDirtyDiffTextDocumentProvider): IDisposable;
+	getBaselineResource(resource: URI): TPromise<URI>;
+	registerBaselineResourceProvider(provider: IBaselineResourceProvider): IDisposable;
 }
