@@ -12,6 +12,7 @@ import { ITextFileService, TextFileModelChangeEvent } from 'vs/workbench/service
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 export class BackupModelTracker implements IWorkbenchContribution {
@@ -26,7 +27,8 @@ export class BackupModelTracker implements IWorkbenchContribution {
 		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.toDispose = [];
 
@@ -34,6 +36,10 @@ export class BackupModelTracker implements IWorkbenchContribution {
 	}
 
 	private registerListeners() {
+		if (this.environmentService.isExtensionDevelopment) {
+			return;
+		}
+
 		// Listen for text file model changes
 		this.toDispose.push(this.textFileService.models.onModelContentChanged((e) => this.onTextFileModelChanged(e)));
 		this.toDispose.push(this.textFileService.models.onModelSaved((e) => this.discardBackup(e.resource)));
