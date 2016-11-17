@@ -6,14 +6,15 @@
 'use strict';
 
 import Uri from 'vs/base/common/uri';
-import { IBackupService, IBackupModelService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextFileService, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
-export class BackupModelService implements IBackupModelService {
+export class BackupModelTracker implements IWorkbenchContribution {
 
 	public _serviceBrand: any;
 
@@ -68,5 +69,9 @@ export class BackupModelService implements IBackupModelService {
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
+	}
+
+	public getId(): string {
+		return 'vs.backup.backupModelTracker';
 	}
 }
