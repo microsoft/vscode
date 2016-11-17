@@ -154,7 +154,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	services.set(IWindowsService, new SyncDescriptor(WindowsService));
 	services.set(ILaunchService, new SyncDescriptor(LaunchService));
 
-	if (environmentService.isBuilt && !environmentService.extensionDevelopmentPath && !!product.enableTelemetry) {
+	if (environmentService.isBuilt && !environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
 		const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 		const appender = new TelemetryAppenderClient(channel);
 		const commonProperties = resolveCommonProperties(product.commit, pkg.version);

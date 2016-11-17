@@ -78,7 +78,7 @@ export class ExtensionHostProcessWorker {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
+		this.isExtensionDevelopmentHost = environmentService.isExtensionDevelopment;
 		this.isExtensionDevelopmentDebugging = !!environmentService.debugExtensionHost.break;
 		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break;
 

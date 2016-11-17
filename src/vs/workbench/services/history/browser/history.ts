@@ -190,7 +190,7 @@ export abstract class BaseHistoryService {
 		}
 
 		// Extension Development Host gets a special title to identify itself
-		if (this.environmentService.extensionDevelopmentPath) {
+		if (this.environmentService.isExtensionDevelopment) {
 			return nls.localize('devExtensionWindowTitle', "[Extension Development Host] - {0}", title);
 		}
 

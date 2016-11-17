@@ -65,7 +65,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService
 	) {
 		super(false);
-		this._isDev = !environmentService.isBuilt || !!environmentService.extensionDevelopmentPath;
+		this._isDev = !environmentService.isBuilt || environmentService.isExtensionDevelopment;
 
 		this._messageService = messageService;
 		this._threadService = threadService;
@@ -183,7 +183,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		const version = pkg.version;
 		const builtinExtensions = ExtensionScanner.scanExtensions(version, collector, SystemExtensionsRoot, true);
 		const userExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionsPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, this.environmentService.extensionsPath, false);
-		const developedExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionDevelopmentPath ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, this.environmentService.extensionDevelopmentPath, false);
+		const developedExtensions = this.environmentService.disableExtensions || !this.environmentService.isExtensionDevelopment ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, this.environmentService.extensionDevelopmentPath, false);
 
 		return TPromise.join([builtinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
 			let builtinExtensions = extensionDescriptions[0];
