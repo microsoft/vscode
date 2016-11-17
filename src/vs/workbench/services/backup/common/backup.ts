@@ -12,7 +12,6 @@ import { ITextFileEditorModelManager } from 'vs/workbench/services/textfile/comm
 
 export const IBackupService = createDecorator<IBackupService>('backupService');
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
-export const IBackupModelService = createDecorator<IBackupModelService>('backupModelService');
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -80,13 +79,4 @@ export interface IBackupFileService {
 	 * Discards all backups associated with the current workspace.
 	 */
 	discardAllWorkspaceBackups(): TPromise<void>;
-}
-
-/**
- * A service that handles the shutdown backup/hot exit process. This exists separately to
- * IBackupService purely because BackupService has a hard dependency on ITextFileService which
- * performs backup logic that must perform backup logic during shutdown.
- */
-export interface IBackupModelService {
-	_serviceBrand: any;
 }
