@@ -386,9 +386,8 @@ export class Workbench implements IPartService {
 			}
 		}
 
-		// Empty workbench
+		// Empty workbench: some first time users will not have an untiled file; returning users will always have one
 		else if (!this.workbenchParams.workspace && this.telemetryService.getExperiments().openUntitledFile) {
-			// some first time users will not have an untiled file; returning users will always have one
 			return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
 		}
 
