@@ -21,8 +21,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import errors = require('vs/base/common/errors');
 import { BackupService } from 'vs/workbench/services/backup/node/backupService';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
-import { BackupModelService } from 'vs/workbench/services/backup/node/backupModelService';
-import { IBackupService, IBackupFileService, IBackupModelService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -472,9 +471,6 @@ export class Workbench implements IPartService {
 
 		// Text File Service
 		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
-
-		// Backup Model Service
-		serviceCollection.set(IBackupModelService, this.instantiationService.createInstance(BackupModelService));
 
 		// Text Model Resolver Service
 		serviceCollection.set(ITextModelResolverService, this.instantiationService.createInstance(TextModelResolverService));
