@@ -28,7 +28,7 @@ import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue 
 import { IOpenSettingsService, IDefaultSettings, IDefaultKeybindings } from 'vs/workbench/parts/settings/common/openSettings';
 import { DefaultSettings, DefaultKeybindings } from 'vs/workbench/parts/settings/common/defaultSettings';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITextModelContentProvider } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/settings/browser/defaultSettingsEditors';
