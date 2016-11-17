@@ -15,12 +15,13 @@ import extfs = require('vs/base/node/extfs');
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
-import { BackupMainService } from 'vs/platform/backup/node/backupMainService';
+import { TestLifecycleService } from 'vs/code/test/electron-main/servicesTestUtils';
+import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 
 class TestBackupMainService extends BackupMainService {
 	constructor(backupHome: string, backupWorkspacesPath: string) {
-		super(TestEnvironmentService);
+		super(TestEnvironmentService, new TestLifecycleService());
 
 		this.backupHome = backupHome;
 		this.workspacesJsonPath = backupWorkspacesPath;
