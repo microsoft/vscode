@@ -51,10 +51,10 @@ export interface IEnvironmentService {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 
-	isBackupEnabled: boolean;
 	backupHome: string;
 	backupWorkspacesPath: string;
 
+	isExtensionDevelopment: boolean;
 	disableExtensions: boolean;
 	extensionsPath: string;
 	extensionDevelopmentPath: string;

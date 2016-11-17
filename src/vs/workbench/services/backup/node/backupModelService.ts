@@ -35,7 +35,7 @@ export class BackupModelService implements IBackupModelService {
 	}
 
 	private registerListeners() {
-		if (this.environmentService.isBackupEnabled) {
+		if (this.environmentService.isExtensionDevelopment) {
 			return;
 		}
 
