@@ -13,7 +13,7 @@ import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/wo
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Scope } from 'vs/workbench/browser/actionBarRegistry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -83,7 +83,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISidebar {
 		}
 
 		// First check if sidebar is hidden and show if so
-		if (this.partService.isSideBarHidden()) {
+		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			try {
 				this.blockOpeningViewlet = true;
 				this.partService.setSideBarHidden(false);
@@ -125,7 +125,7 @@ class FocusSideBarAction extends Action {
 	public run(): TPromise<boolean> {
 
 		// Show side bar
-		if (this.partService.isSideBarHidden()) {
+		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			this.partService.setSideBarHidden(false);
 		}
 
