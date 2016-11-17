@@ -308,7 +308,7 @@ export class Workbench implements IPartService {
 				} else {
 					if (this.workbenchParams.options.untitledToRestore && this.workbenchParams.options.untitledToRestore.length) {
 						const untitledToRestoreInputs = this.workbenchParams.options.untitledToRestore.map(resourceInput => {
-							return this.untitledEditorService.createOrGet(resourceInput.resource, null, true);
+							return this.untitledEditorService.createOrGet(resourceInput.resource);
 						});
 						editorOpenPromise = this.editorPart.restoreEditors(untitledToRestoreInputs);
 					} else {
