@@ -67,3 +67,44 @@ export class Disposables extends Disposable {
 		}
 	}
 }
+
+export interface IReference<T> extends IDisposable {
+	readonly object: T;
+}
+
+export abstract class ReferenceCollection<T, R> {
+
+	private references: { [key: string]: { readonly object: R; counter: number; } } = Object.create(null);
+
+	constructor() { }
+
+	acquire(t: T): IReference<R> {
+		const key = this.getKey(t);
+		let reference = this.references[key];
+
+		if (!reference) {
+			reference = this.references[key] = { counter: 0, object: this.create(key) };
+		}
+
+		const { object } = reference;
+		const dispose = () => {
+			if (--reference.counter === 0) {
+				this.destroy(reference.object);
+				delete this.references[key];
+			}
+		};
+
+		reference.counter++;
+
+		return { object, dispose };
+	}
+
+	abstract getKey(t: T): string;
+	abstract create(key: string): R;
+	abstract destroy(object: R): void;
+}
+
+export class ImmortalReference<T> implements IReference<T> {
+	constructor(public object: T) { }
+	dispose(): void { /* noop */ }
+}
