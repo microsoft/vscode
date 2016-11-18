@@ -654,6 +654,7 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 	overviewRuler: editorCommon.IModelDecorationOverviewRulerOptions;
 	glyphMarginClassName: string;
 	linesDecorationsClassName: string;
+	marginClassName: string;
 	inlineClassName: string;
 	beforeContentClassName: string;
 	afterContentClassName: string;
@@ -667,6 +668,7 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 		this.overviewRuler = _normalizeOverviewRulerOptions(options.overviewRuler, options.showInOverviewRuler);
 		this.glyphMarginClassName = cleanClassName(options.glyphMarginClassName || strings.empty);
 		this.linesDecorationsClassName = cleanClassName(options.linesDecorationsClassName || strings.empty);
+		this.marginClassName = cleanClassName(options.marginClassName || strings.empty);
 		this.inlineClassName = cleanClassName(options.inlineClassName || strings.empty);
 		this.beforeContentClassName = cleanClassName(options.beforeContentClassName || strings.empty);
 		this.afterContentClassName = cleanClassName(options.afterContentClassName || strings.empty);
@@ -689,6 +691,7 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 			&& this.showInOverviewRuler === other.showInOverviewRuler
 			&& this.glyphMarginClassName === other.glyphMarginClassName
 			&& this.linesDecorationsClassName === other.linesDecorationsClassName
+			&& this.marginClassName === other.marginClassName
 			&& this.inlineClassName === other.inlineClassName
 			&& this.beforeContentClassName === other.beforeContentClassName
 			&& this.afterContentClassName === other.afterContentClassName
