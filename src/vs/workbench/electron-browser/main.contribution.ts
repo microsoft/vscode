@@ -19,7 +19,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { CloseEditorAction, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
-import { MessagesVisibleContext, NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
+import { MessagesVisibleContext, NoEditorsVisibleContext, InFocusModeContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 const closeEditorOrWindowKeybindings: IKeybindings = { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } };
@@ -73,13 +73,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.exitZenMode',
+	id: 'workbench.action.exitFocusMode',
 	weight: 0,
 	handler(accessor: ServicesAccessor, configurationOrName: any) {
 		const partService = accessor.get(IPartService);
-		partService.toggleZenMode();
+		partService.toggleFocusMode();
 	},
-	when: InZenModeContext,
+	when: InFocusModeContext,
 	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
 });
 
@@ -169,10 +169,10 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'default': false,
 		'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
 	},
-	'window.fullScreenZenMode': {
+	'window.fullScreenFocusMode': {
 		'type': 'boolean',
 		'default': true,
-		'description': nls.localize('fullScreenZenMode', "Controls if zen mode should transition the workbench to full screen mode automatically.")
+		'description': nls.localize('fullScreenFocusMode', "Controls if focus mode should transition the workbench to full screen mode automatically.")
 	},
 	'window.zoomLevel': {
 		'type': 'number',
