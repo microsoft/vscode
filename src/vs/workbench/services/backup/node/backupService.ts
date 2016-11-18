@@ -26,8 +26,6 @@ export class BackupService implements IBackupService {
 
 	private toDispose: IDisposable[];
 
-	private backupPromises: TPromise<void>[];
-
 	private configuredHotExit: boolean;
 
 	constructor(
@@ -39,7 +37,6 @@ export class BackupService implements IBackupService {
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.toDispose = [];
-		this.backupPromises = [];
 
 		this.registerListeners();
 	}
@@ -51,38 +48,6 @@ export class BackupService implements IBackupService {
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
 		// Hot exit is disabled for empty workspaces
 		this.configuredHotExit = this.contextService.getWorkspace() && configuration && configuration.files && configuration.files.hotExit;
-	}
-
-	private backupImmediately(resource: Uri, content: string): TPromise<void> {
-		if (!resource) {
-			return TPromise.as(void 0);
-		}
-
-		return this.doBackup(resource, content, true);
-	}
-
-	public doBackup(resource: Uri, content: string, immediate?: boolean): TPromise<void> {
-		// Cancel any currently running backups to make this the one that succeeds
-		this.cancelBackupPromises();
-
-		if (immediate) {
-			return this.backupFileService.backupResource(resource, content);
-		}
-
-		// Create new backup promise and keep it
-		const promise = TPromise.timeout(1000).then(() => {
-			this.backupFileService.backupResource(resource, content); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
-		});
-
-		this.backupPromises.push(promise);
-
-		return promise;
-	}
-
-	private cancelBackupPromises(): void {
-		while (this.backupPromises.length) {
-			this.backupPromises.pop().cancel();
-		}
 	}
 
 	/**
@@ -106,7 +71,7 @@ export class BackupService implements IBackupService {
 	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: Uri[]): TPromise<void> {
 		// Handle file resources first
 		return TPromise.join(dirtyFileModels.map(model => {
-			return this.backupImmediately(model.getResource(), model.getValue()).then(() => void 0);
+			return this.backupFileService.backupResource(model.getResource(), model.getValue());
 		})).then(results => {
 			// Handle untitled resources
 			const untitledModelPromises = untitledResources.map(untitledResource => this.untitledEditorService.get(untitledResource))
@@ -115,7 +80,7 @@ export class BackupService implements IBackupService {
 
 			return TPromise.join(untitledModelPromises).then(untitledModels => {
 				const untitledBackupPromises = untitledModels.map(model => {
-					return this.backupImmediately(model.getResource(), model.getValue());
+					return this.backupFileService.backupResource(model.getResource(), model.getValue());
 				});
 				return TPromise.join(untitledBackupPromises).then(() => void 0);
 			});
@@ -162,7 +127,5 @@ export class BackupService implements IBackupService {
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
-
-		this.cancelBackupPromises();
 	}
 }

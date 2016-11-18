@@ -7,6 +7,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { EditorModel } from 'vs/workbench/common/editor';
@@ -316,6 +317,9 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		manager.loadOrCreate(resource1, 'utf8').done(model1 => {
 			return manager.loadOrCreate(resource2, 'utf8').then(model2 => {
+				(<any>model1).backupAfterMillies = 0;
+				(<any>model2).backupAfterMillies = 0;
+
 				model1.textEditorModel.setValue('changed');
 				model1.updatePreferredEncoding('utf16');
 
@@ -325,23 +329,26 @@ suite('Files - TextFileEditorModelManager', () => {
 					return model1.save().then(() => {
 						model1.dispose();
 						model2.dispose();
-
-						//assert.equal(disposeCounter, 2);
+						assert.equal(disposeCounter, 2);
 
 						return model1.revert().then(() => { // should not trigger another event if disposed
 							assert.equal(dirtyCounter, 2);
 							assert.equal(revertedCounter, 1);
 							assert.equal(savedCounter, 1);
 							assert.equal(encodingCounter, 2);
-							//assert.equal(contentCounter, 2);
 
-							model1.dispose();
-							model2.dispose();
+							// content change event if done async
+							TPromise.timeout(0).then(() => {
+								assert.equal(contentCounter, 2);
 
-							assert.ok(!accessor.modelService.getModel(resource1));
-							assert.ok(!accessor.modelService.getModel(resource2));
+								model1.dispose();
+								model2.dispose();
 
-							done();
+								assert.ok(!accessor.modelService.getModel(resource1));
+								assert.ok(!accessor.modelService.getModel(resource2));
+
+								done();
+							});
 						});
 					});
 				});

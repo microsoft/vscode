@@ -52,13 +52,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMillies: number;
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
+	private backupAfterMillies: number;
+	private contentChangeEventPromises: TPromise<void>[];
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
 	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
-	private _onDidContentChange: Emitter<void>;
+	private _onDidContentChange: Emitter<StateChange>;
 	private _onDidStateChange: Emitter<StateChange>;
 
 	constructor(
@@ -80,13 +82,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.resource = resource;
 		this.toDispose = [];
-		this._onDidContentChange = new Emitter<void>();
+		this._onDidContentChange = new Emitter<StateChange>();
 		this._onDidStateChange = new Emitter<StateChange>();
 		this.toDispose.push(this._onDidContentChange);
 		this.toDispose.push(this._onDidStateChange);
 		this.preferredEncoding = preferredEncoding;
 		this.dirty = false;
 		this.autoSavePromises = [];
+		this.backupAfterMillies = 1000;
+		this.contentChangeEventPromises = [];
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
 		this.mapPendingSaveToVersionId = {};
@@ -99,6 +103,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private registerListeners(): void {
 		this.toDispose.push(this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
 		this.toDispose.push(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
+		this.toDispose.push(this.onDidStateChange(e => {
+			if (e === StateChange.REVERTED) {
+				// Refire reverted events as content change events, cancelling any content change
+				// promises that are in flight.
+				this.cancelContentChangeEventPromises();
+				this._onDidContentChange.fire(StateChange.REVERTED);
+			}
+		}));
 	}
 
 	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
@@ -115,7 +127,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.updateTextEditorModelMode();
 	}
 
-	public get onDidContentChange(): Event<void> {
+	public get onDidContentChange(): Event<StateChange> {
 		return this._onDidContentChange.event;
 	}
 
@@ -360,7 +372,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}
 
-		this._onDidContentChange.fire();
+		this.doContentChangeEvent();
 	}
 
 	private makeDirty(): void {
@@ -372,6 +384,26 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
 			this._onDidStateChange.fire(StateChange.DIRTY);
+		}
+	}
+
+	private doContentChangeEvent(): TPromise<void> {
+		// Cancel any currently running promises to make this the one that succeeds
+		this.cancelContentChangeEventPromises();
+
+		// Create new promise and keep it
+		const promise = TPromise.timeout(this.backupAfterMillies).then(() => {
+			this._onDidContentChange.fire(StateChange.CONTENT_CHANGE); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+		});
+
+		this.contentChangeEventPromises.push(promise);
+
+		return promise;
+	}
+
+	private cancelContentChangeEventPromises() {
+		while (this.contentChangeEventPromises.length) {
+			this.contentChangeEventPromises.pop().cancel();
 		}
 	}
 
