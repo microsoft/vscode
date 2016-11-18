@@ -280,6 +280,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			const adapter = this.getAdapter(result.type);
 			return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 		}
+		return TPromise.as(null);
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
