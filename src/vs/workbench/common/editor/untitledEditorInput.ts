@@ -49,6 +49,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
+
 		this.resource = resource;
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
@@ -92,7 +93,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		}
 
 		// untitled files with an associated path or associated resource
-		return this.hasAssociatedFilePath || !!this.resource;
+		return this.hasAssociatedFilePath;
 	}
 
 	public confirmSave(): ConfirmResult {
@@ -158,10 +159,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		// Otherwise Create Model and load, restoring from backup if necessary
 		return this.backupFileService.hasBackup(this.resource).then(hasBackup => {
 			if (hasBackup) {
-				// If the resource restored from backup it doesn't have an associated file path
-				this.hasAssociatedFilePath = false;
-
 				const restoreResource = this.backupFileService.getBackupResource(this.resource);
+
 				return this.textFileService.resolveTextContent(restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
 			}
 
