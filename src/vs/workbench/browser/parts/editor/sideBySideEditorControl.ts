@@ -33,7 +33,7 @@ import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleCon
 import { TitleControl, ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { extractResources, IDraggedResource } from 'vs/base/browser/dnd';
+import { extractResources } from 'vs/base/browser/dnd';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export enum Rochade {
@@ -921,11 +921,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const stacks = this.editorGroupService.getStacksModel();
 
 		let overlay: Builder;
-		let draggedResources: IDraggedResource[];
 
 		function cleanUp(): void {
-			draggedResources = void 0;
-
 			if (overlay) {
 				overlay.destroy();
 				overlay = void 0;
@@ -951,7 +948,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
-			const droppedResources = draggedResources;
 			DOM.removeClass(node, 'dropfeedback');
 			cleanUp();
 
@@ -1002,6 +998,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Check for URI transfer
 			else {
+				const droppedResources = extractResources(e).filter(r => r.resource.scheme === 'file' || r.resource.scheme === 'untitled');
 				if (droppedResources.length) {
 
 					// Add external ones to recently open list
@@ -1166,16 +1163,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Drag over
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-
-			// Upon first drag, detect the dragged resources and only take valid ones
-			if (!draggedResources) {
-				draggedResources = extractResources(e).filter(r => r.resource.scheme === 'file' || r.resource.scheme === 'untitled');
-			}
-
-			if (!draggedResources.length && !TitleControl.getDraggedEditor()) {
-				return; // do not show drop feedback if we drag invalid resources or no tab around
-			}
-
 			if (e.target === node) {
 				DOM.addClass(node, 'dropfeedback');
 			}
