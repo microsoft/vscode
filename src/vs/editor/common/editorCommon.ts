@@ -466,9 +466,9 @@ export interface IEditorOptions {
 	renderIndentGuides?: boolean;
 	/**
 	 * Enable rendering of current line highlight.
-	 * Defaults to all.
+	 * Defaults to true.
 	 */
-	renderLineHighlight?: 'none' | 'gutter' | 'line' | 'all';
+	renderLineHighlight?: boolean;
 	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
@@ -669,7 +669,7 @@ export class InternalEditorViewOptions {
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	readonly renderControlCharacters: boolean;
 	readonly renderIndentGuides: boolean;
-	readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
+	readonly renderLineHighlight: boolean;
 	readonly scrollbar: InternalEditorScrollbarOptions;
 	readonly fixedOverflowWidgets: boolean;
 
@@ -700,7 +700,7 @@ export class InternalEditorViewOptions {
 		renderWhitespace: 'none' | 'boundary' | 'all';
 		renderControlCharacters: boolean;
 		renderIndentGuides: boolean;
-		renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
+		renderLineHighlight: boolean;
 		scrollbar: InternalEditorScrollbarOptions;
 		fixedOverflowWidgets: boolean;
 	}) {
@@ -727,7 +727,7 @@ export class InternalEditorViewOptions {
 		this.renderWhitespace = source.renderWhitespace;
 		this.renderControlCharacters = Boolean(source.renderControlCharacters);
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
-		this.renderLineHighlight = source.renderLineHighlight;
+		this.renderLineHighlight = Boolean(source.renderLineHighlight);
 		this.scrollbar = source.scrollbar.clone();
 		this.fixedOverflowWidgets = Boolean(source.fixedOverflowWidgets);
 	}
