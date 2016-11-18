@@ -50,7 +50,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		super(value, modeId, resource, modeService, modelService);
 
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
-		this.dirty = hasAssociatedFilePath || value !== ''; // untitled associated to file path are dirty right away
+		this.dirty = hasAssociatedFilePath || !!value; // untitled associated to file path are dirty right away as well as untitled with content
 
 		this._onDidChangeContent = new Emitter<void>();
 		this._onDidChangeDirty = new Emitter<void>();
@@ -59,6 +59,13 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
 
 		this.registerListeners();
+
+		// Indicate dirty state to listeners
+		if (this.dirty) {
+			setTimeout(() => {
+				this._onDidChangeDirty.fire();
+			}, 0 /* prevent race condition between creating input and emitting dirty event */);
+		}
 	}
 
 	public get onDidChangeContent(): Event<void> {
