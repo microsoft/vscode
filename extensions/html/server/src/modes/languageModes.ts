@@ -11,7 +11,7 @@ import {
 } from 'vscode-languageserver-types';
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { getLanguageAtPosition, getLanguagesInContent } from './embeddedSupport';
+import { getLanguageAtPosition, getLanguagesInContent, getLanguagesInRange } from './embeddedSupport';
 import { getCSSMode } from './cssMode';
 import { getJavascriptMode } from './javascriptMode';
 import { getHTMLMode } from './htmlMode';
@@ -35,9 +35,14 @@ export interface LanguageMode {
 
 export interface LanguageModes {
 	getModeAtPosition(document: TextDocument, position: Position): LanguageMode;
+	getModesInRange(document: TextDocument, range: Range): LanguageModeRange[];
 	getAllModesInDocument(document: TextDocument): LanguageMode[];
 	getAllModes(): LanguageMode[];
 	getMode(languageId: string): LanguageMode;
+}
+
+export interface LanguageModeRange extends Range {
+	mode: LanguageMode;
 }
 
 export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }): LanguageModes {
@@ -68,6 +73,15 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 				}
 			}
 			return result;
+		},
+		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
+			return getLanguagesInRange(htmlLanguageService, document, htmlDocuments.get(document), range).map(r => {
+				return {
+					start: r.start,
+					end: r.end,
+					mode: modes[r.languageId]
+				};
+			});
 		},
 		getAllModes(): LanguageMode[] {
 			let result = [];
