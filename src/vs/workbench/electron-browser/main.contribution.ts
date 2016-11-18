@@ -80,7 +80,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		partService.toggleZenMode();
 	},
 	when: InZenModeContext,
-	primary: KeyCode.Escape
+	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
 });
 
 // Configuration: Workbench
