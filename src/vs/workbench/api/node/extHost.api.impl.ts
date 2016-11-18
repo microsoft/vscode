@@ -211,7 +211,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 				return languageFeatures.registerSignatureHelpProvider(selector, provider, triggerCharacters);
 			},
 			registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, ...triggerCharacters: string[]): vscode.Disposable {
-				return languageFeatures.registerCompletionItemProvider(selector, provider, triggerCharacters, extension);
+				return languageFeatures.registerCompletionItemProvider(selector, provider, triggerCharacters);
 			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return languageFeatures.registerDocumentLinkProvider(selector, provider);
