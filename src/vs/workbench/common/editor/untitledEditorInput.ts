@@ -18,7 +18,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -45,7 +44,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModeService private modeService: IModeService,
-		@IBackupFileService private backupFileService: IBackupFileService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
@@ -156,27 +154,14 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			return TPromise.as(this.cachedModel);
 		}
 
-		// Otherwise Create Model and load, restoring from backup if necessary
-		return this.backupFileService.hasBackup(this.resource).then(hasBackup => {
-			if (hasBackup) {
-				const restoreResource = this.backupFileService.getBackupResource(this.resource);
+		// Otherwise Create Model and load
+		this.cachedModel = this.createModel();
 
-				return this.textFileService.resolveTextContent(restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
-			}
-
-			return '';
-		}).then(content => {
-			const model = this.createModel(content);
-			return model.load().then((resolvedModel: UntitledEditorModel) => {
-				this.cachedModel = resolvedModel;
-
-				return this.cachedModel;
-			});
-		});
+		return this.cachedModel.load();
 	}
 
-	private createModel(content: string): UntitledEditorModel {
-		const model = this.instantiationService.createInstance(UntitledEditorModel, content, this.modeId, this.resource, this.hasAssociatedFilePath);
+	private createModel(): UntitledEditorModel {
+		const model = this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath);
 
 		// re-emit some events from the model
 		this.toUnbind.push(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
