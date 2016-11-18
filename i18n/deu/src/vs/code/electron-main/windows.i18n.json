@@ -10,10 +10,14 @@
 	"appStalled": "Das Fenster reagiert nicht mehr.",
 	"appStalledDetail": "Sie können das Fenster erneut öffnen oder schließen oder weiterhin warten.",
 	"close": "Schließen",
+	"folderDesc": "{0} {1}",
 	"hiddenMenuBar": "Sie können weiterhin auf die Menüleiste zugreifen, in dem Sie die **ALT**-Taste drücken.",
+	"newWindow": "Neues Fenster",
+	"newWindowDesc": "Öffnet ein neues Fenster.",
 	"ok": "OK",
 	"pathNotExistDetail": "Der Pfad \"{0}\" scheint auf dem Datenträger nicht mehr vorhanden zu sein.",
 	"pathNotExistTitle": "Der Pfad ist nicht vorhanden.",
+	"recentFolders": "Zuletzt verwendete Ordner",
 	"reopen": "Erneut öffnen",
 	"wait": "Bitte warten."
 }
