@@ -5,7 +5,11 @@
 'use strict';
 
 
-import { TextDocument, Position, HTMLDocument, Node, LanguageService, TokenType } from 'vscode-html-languageservice';
+import { TextDocument, Position, HTMLDocument, Node, LanguageService, TokenType, Range } from 'vscode-html-languageservice';
+
+export interface LanguageRange extends Range {
+	languageId: string;
+}
 
 export function getLanguageAtPosition(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, position: Position): string {
 	let offset = document.offsetAt(position);
@@ -31,6 +35,50 @@ export function getLanguagesInContent(languageService: LanguageService, document
 
 	htmlDocument.roots.forEach(collectEmbeddedLanguages);
 	return Object.keys(embeddedLanguageIds);
+}
+
+export function getLanguagesInRange(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, range: Range): LanguageRange[] {
+	let ranges: LanguageRange[] = [];
+	let currentPos = range.start;
+	let currentOffset = document.offsetAt(currentPos);
+	let rangeEndOffset = document.offsetAt(range.end);
+	function collectEmbeddedNodes(node: Node): void {
+		if (node.start < rangeEndOffset && node.end > currentOffset) {
+			let c = getEmbeddedContentForNode(languageService, document, node);
+			if (c && c.start < rangeEndOffset) {
+				let startPos = document.positionAt(c.start);
+				if (currentOffset < c.start) {
+					ranges.push({
+						start: currentPos,
+						end: startPos,
+						languageId: 'html'
+					});
+				}
+				let end = Math.min(c.end, rangeEndOffset);
+				let endPos = document.positionAt(end);
+				if (end > c.start) {
+					ranges.push({
+						start: startPos,
+						end: endPos,
+						languageId: c.languageId
+					});
+				}
+				currentOffset = end;
+				currentPos = endPos;
+			}
+		}
+		node.children.forEach(collectEmbeddedNodes);
+	}
+
+	htmlDocument.roots.forEach(collectEmbeddedNodes);
+	if (currentOffset < rangeEndOffset) {
+		ranges.push({
+			start: currentPos,
+			end: range.end,
+			languageId: 'html'
+		});
+	}
+	return ranges;
 }
 
 export function getEmbeddedDocument(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, languageId: string): TextDocument {
