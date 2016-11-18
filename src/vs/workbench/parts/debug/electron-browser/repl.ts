@@ -269,7 +269,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
 			theme: this.themeService.getColorTheme(),
-			renderLineHighlight: 'none',
+			renderLineHighlight: false,
 			fixedOverflowWidgets: true,
 			acceptSuggestionOnEnter: false
 		};
