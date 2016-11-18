@@ -18,6 +18,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -28,7 +29,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	public static SCHEMA: string = 'untitled';
 
 	private resource: URI;
-	private restoreResource: URI;
 	private hasAssociatedFilePath: boolean;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
@@ -42,15 +42,15 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		resource: URI,
 		hasAssociatedFilePath: boolean,
 		modeId: string,
-		restoreResource: URI,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModeService private modeService: IModeService,
+		@IBackupFileService private backupFileService: IBackupFileService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
+
 		this.resource = resource;
-		this.restoreResource = restoreResource;
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
 		this.toUnbind = [];
@@ -87,8 +87,13 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			return this.cachedModel.isDirty();
 		}
 
-		// untitled files with an associated path or restore resource are always dirty
-		return this.hasAssociatedFilePath || !!this.restoreResource;
+		// A disposed input is never dirty, even if it was restored from backup
+		if (this.isDisposed()) {
+			return false;
+		}
+
+		// untitled files with an associated path or associated resource
+		return this.hasAssociatedFilePath;
 	}
 
 	public confirmSave(): ConfirmResult {
@@ -152,14 +157,15 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		}
 
 		// Otherwise Create Model and load, restoring from backup if necessary
-		let restorePromise: TPromise<string>;
-		if (this.restoreResource) {
-			restorePromise = this.textFileService.resolveTextContent(this.restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
-		} else {
-			restorePromise = TPromise.as('');
-		}
+		return this.backupFileService.hasBackup(this.resource).then(hasBackup => {
+			if (hasBackup) {
+				const restoreResource = this.backupFileService.getBackupResource(this.resource);
 
-		return restorePromise.then(content => {
+				return this.textFileService.resolveTextContent(restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
+			}
+
+			return '';
+		}).then(content => {
 			const model = this.createModel(content);
 			return model.load().then((resolvedModel: UntitledEditorModel) => {
 				this.cachedModel = resolvedModel;

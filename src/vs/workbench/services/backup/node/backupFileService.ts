@@ -41,12 +41,12 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public hasTextFileBackup(resource: Uri): TPromise<boolean> {
+	public hasBackup(resource: Uri): TPromise<boolean> {
 		const backupResource = this.getBackupResource(resource);
 		if (!backupResource) {
 			return TPromise.as(false);
 		}
-		return pfs.exists(this.getBackupResource(resource).fsPath);
+		return pfs.exists(backupResource.fsPath);
 	}
 
 	public getBackupResource(resource: Uri): Uri {

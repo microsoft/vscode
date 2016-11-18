@@ -668,7 +668,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return [];
 	}
 
-	public hasTextFileBackup(resource: URI): TPromise<boolean> {
+	public hasBackup(resource: URI): TPromise<boolean> {
 		return TPromise.as(false);
 	}
 
