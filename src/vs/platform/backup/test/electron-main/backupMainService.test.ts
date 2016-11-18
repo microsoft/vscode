@@ -102,9 +102,9 @@ suite('BackupMainService', () => {
 		const untitledBackup2 = path.join(untitledBackupDir, 'foo');
 		pfs.mkdirp(untitledBackupDir).then(() => {
 			pfs.writeFile(untitledBackup1, 'test').then(() => {
-				assert.deepEqual(service.getWorkspaceUntitledFileBackupsSync(fooFile), [untitledBackup1]);
+				assert.deepEqual(service.getWorkspaceUntitledFileBackupsSync(fooFile), ['bar']);
 				pfs.writeFile(untitledBackup2, 'test').then(() => {
-					assert.deepEqual(service.getWorkspaceUntitledFileBackupsSync(fooFile), [untitledBackup1, untitledBackup2]);
+					assert.deepEqual(service.getWorkspaceUntitledFileBackupsSync(fooFile), ['bar', 'foo']);
 					done();
 				});
 			});

@@ -79,7 +79,7 @@ export class BackupMainService implements IBackupMainService {
 
 		// Allow sync here as it's only used in workbench initialization's critical path
 		try {
-			return readdirSync(untitledDir).map(file => path.join(untitledDir, file));
+			return readdirSync(untitledDir);
 		} catch (ex) {
 			return [];
 		}
