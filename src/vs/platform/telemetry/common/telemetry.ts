@@ -5,10 +5,11 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationSource, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
@@ -160,4 +161,15 @@ export interface URIDescriptor {
 export function telemetryURIDescriptor(uri: URI): URIDescriptor {
 	const fsPath = uri && uri.fsPath;
 	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: anonymize(fsPath) } : {};
+}
+
+export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
+	return configurationService.onDidUpdateConfiguration(event => {
+		if (event.source !== ConfigurationSource.Default) {
+			telemetryService.publicLog('updateConfiguration', {
+				configurationSource: ConfigurationSource[event.source],
+				configurationKeys: Object.keys(event.sourceConfig)
+			});
+		}
+	});
 }
