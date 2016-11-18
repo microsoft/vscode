@@ -83,7 +83,7 @@ suite('Workbench - TextModelResolverService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 		model.load().then(() => {
 			accessor.textModelResolverServie.resolve(model.getResource()).then(model => {
-				const editorModel = model.textEditorModel as IModel;
+				const editorModel = model.textEditorModel;
 
 				assert.ok(editorModel);
 				assert.equal(editorModel.getValue(), 'Hello Html');
@@ -99,7 +99,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 		input.resolve().then(() => {
 			accessor.textModelResolverServie.resolve(input.getResource()).then(model => {
-				const editorModel = model.textEditorModel as IModel;
+				const editorModel = model.textEditorModel;
 
 				assert.ok(editorModel);
 
