@@ -11,10 +11,15 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+interface ICache<T> {
+	defaults: T;
+	user: T;
+	consolidated: T;
+}
 
 export class ConfigurationService<T> implements IConfigurationService, IDisposable {
 
@@ -23,11 +28,9 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 	private disposables: IDisposable[];
 
 	private rawConfig: ConfigWatcher<T>;
-	private cache: T;
+	private cache: ICache<T>;
 
 	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent>;
-
-	private _telemetryService: ITelemetryService;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService
@@ -41,19 +44,18 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 		this.disposables.push(toDisposable(() => this.rawConfig.dispose()));
 
 		// Listeners
-		this.disposables.push(this.rawConfig.onDidUpdateConfiguration(event => {
-			this.onConfigurationChange();
-			if (this._telemetryService) {
-				this._telemetryService.publicLog('updateUserConfiguration', { userConfigurationKeys: Object.keys(event.config) });
-			}
-		}));
-		this.disposables.push(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onConfigurationChange()));
+		this.disposables.push(this.rawConfig.onDidUpdateConfiguration(() => this.onConfigurationChange(ConfigurationSource.User)));
+		this.disposables.push(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onConfigurationChange(ConfigurationSource.Default)));
 	}
 
-	private onConfigurationChange(): void {
+	private onConfigurationChange(source: ConfigurationSource): void {
 		this.cache = void 0; // reset our caches
-
-		this._onDidUpdateConfiguration.fire({ config: this.getConfiguration() });
+		const cache = this.getCache();
+		this._onDidUpdateConfiguration.fire({
+			config: this.getConfiguration(),
+			source,
+			sourceConfig: source === ConfigurationSource.Default ? cache.defaults : cache.user
+		});
 	}
 
 	public get onDidUpdateConfiguration(): Event<IConfigurationServiceEvent> {
@@ -71,13 +73,12 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 	}
 
 	public getConfiguration<C>(section?: string): C {
-		let consolidatedConfig = this.cache;
-		if (!consolidatedConfig) {
-			consolidatedConfig = this.getConsolidatedConfig();
-			this.cache = consolidatedConfig;
-		}
+		const cache = this.getCache();
+		return section ? cache.consolidated[section] : cache.consolidated;
+	}
 
-		return section ? consolidatedConfig[section] : consolidatedConfig;
+	private getCache(): ICache<T> {
+		return this.cache || (this.cache = this.consolidateConfigurations());
 	}
 
 	public lookup<C>(key: string): IConfigurationValue<C> {
@@ -96,22 +97,20 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 		};
 	}
 
-	private getConsolidatedConfig(): T {
+	private consolidateConfigurations(): ICache<T> {
 		const defaults = getDefaultValues();				// defaults coming from contributions to registries
 		const user = toValuesTree(this.rawConfig.getConfig());	// user configured settings
 
-		return objects.mixin(
+		const consolidated = objects.mixin(
 			objects.clone(defaults), 	// target: default values (but dont modify!)
 			user,						// source: user settings
 			true						// overwrite
 		);
+
+		return { defaults, user, consolidated };
 	}
 
 	public dispose(): void {
 		this.disposables = dispose(this.disposables);
-	}
-
-	public set telemetryService(value: ITelemetryService) {
-		this._telemetryService = value;
 	}
 }

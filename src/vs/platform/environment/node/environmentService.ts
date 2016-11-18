@@ -80,6 +80,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize
+	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
+
+	@memoize
 	get backupHome(): string { return path.join(this.userDataPath, 'Backups'); }
 
 	@memoize
