@@ -78,6 +78,10 @@ export class BackupFileService implements IBackupFileService {
 			return TPromise.as(void 0);
 		}
 
+		if (resource.scheme === 'file') {
+			content = `${resource.fsPath}\n${content}`;
+		}
+
 		return this.fileService.updateContent(backupResource, content).then(() => void 0);
 	}
 
