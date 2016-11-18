@@ -212,41 +212,14 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			model = this.instantiationService.createInstance(TextFileEditorModel, resource, encoding);
 			modelPromise = model.load();
 
-			// Install state change listener
-			this.mapResourceToStateChangeListener[resource.toString()] = model.onDidStateChange(state => {
-				const event = new TextFileModelChangeEvent(model, state);
-				switch (state) {
-					case StateChange.DIRTY:
-						this._onModelDirty.fire(event);
-						break;
-					case StateChange.SAVE_ERROR:
-						this._onModelSaveError.fire(event);
-						break;
-					case StateChange.SAVED:
-						this._onModelSaved.fire(event);
-						break;
-					case StateChange.REVERTED:
-						this._onModelReverted.fire(event);
-						break;
-					case StateChange.ENCODING:
-						this._onModelEncodingChanged.fire(event);
-						break;
-				}
-			});
-
-			// Install model content change listener
-			this.mapResourceToModelContentChangeListener[resource.toString()] = model.onDidContentChange(e => {
-				this._onModelContentChanged.fire(new TextFileModelChangeEvent(model, e));
-			});
+			// Make known to manager (if not already known)
+			this.add(resource, model);
 		}
 
 		// Store pending loads to avoid race conditions
 		this.mapResourceToPendingModelLoaders[resource.toString()] = modelPromise;
 
 		return modelPromise.then(model => {
-
-			// Make known to manager (if not already known)
-			this.add(resource, model);
 
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders[resource.toString()] = null;
@@ -275,6 +248,33 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		if (knownModel === model) {
 			return; // already cached
 		}
+
+		// Install state change listener
+		this.mapResourceToStateChangeListener[resource.toString()] = model.onDidStateChange(state => {
+			const event = new TextFileModelChangeEvent(model, state);
+			switch (state) {
+				case StateChange.DIRTY:
+					this._onModelDirty.fire(event);
+					break;
+				case StateChange.SAVE_ERROR:
+					this._onModelSaveError.fire(event);
+					break;
+				case StateChange.SAVED:
+					this._onModelSaved.fire(event);
+					break;
+				case StateChange.REVERTED:
+					this._onModelReverted.fire(event);
+					break;
+				case StateChange.ENCODING:
+					this._onModelEncodingChanged.fire(event);
+					break;
+			}
+		});
+
+		// Install model content change listener
+		this.mapResourceToModelContentChangeListener[resource.toString()] = model.onDidContentChange(e => {
+			this._onModelContentChanged.fire(new TextFileModelChangeEvent(model, e));
+		});
 
 		// dispose any previously stored dispose listener for this resource
 		const disposeListener = this.mapResourceToDisposeListener[resource.toString()];

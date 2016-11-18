@@ -298,7 +298,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						return this.createTextEditorModel(fileContent, content.resource).then(() => {
 							this.createTextEditorModelPromise = null;
 
-							this.setDirty(backupExists); // Ensure we are not tracking a stale state
+							if (backupExists) {
+								this.makeDirty();
+							} else {
+								this.setDirty(false); // Ensure we are not tracking a stale state
+							}
+
 							this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
 
 							return this;
