@@ -19,7 +19,6 @@ import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorInput } from 'vs/workbench/common/editor';
 
 export class TextModelResolverService implements ITextModelResolverService {
 
@@ -47,17 +46,6 @@ export class TextModelResolverService implements ITextModelResolverService {
 		// Untitled Schema: go through cached input
 		if (resource.scheme === UntitledEditorInput.SCHEMA) {
 			return this.untitledEditorService.createOrGet(resource).resolve();
-		}
-
-		// In Memory: only works on the active editor
-		if (resource.scheme === network.Schemas.inMemory) {
-			return this.editorService.createInput({ resource }).then(input => {
-				if (input instanceof EditorInput) {
-					return input.resolve();
-				}
-
-				return null;
-			});
 		}
 
 		// Any other resource: use content provider registry
