@@ -9,7 +9,6 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
-import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -29,16 +28,6 @@ export class BackupFileService implements IBackupFileService {
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
-	}
-
-	public getWorkspaceBackupPaths(): TPromise<string[]> {
-		if (this.environmentService.isExtensionDevelopment) {
-			return TPromise.as([]);
-		}
-
-		return this.loadWorkspaces().then(workspacesJsonContent => {
-			return workspacesJsonContent.folderWorkspaces;
-		});
 	}
 
 	public hasBackup(resource: Uri): TPromise<boolean> {
@@ -102,30 +91,5 @@ export class BackupFileService implements IBackupFileService {
 		}
 
 		return this.fileService.del(Uri.file(this.getWorkspaceBackupDirectory()));
-	}
-
-	private loadWorkspaces(): TPromise<IBackupWorkspacesFormat> {
-		return pfs.readFile(this.workspacesJsonPath, 'utf8').then(content => {
-			let result: IBackupWorkspacesFormat;
-			try {
-				result = JSON.parse(content.toString());
-				// Ensure folderWorkspaces is a string[]
-				if (result.folderWorkspaces) {
-					const fws = result.folderWorkspaces;
-					if (!Array.isArray(fws) || fws.some(f => typeof f !== 'string')) {
-						result = Object.create(null);
-					}
-				}
-			} catch (ex) {
-				result = Object.create(null);
-			}
-
-			if (!result.folderWorkspaces) {
-				result.folderWorkspaces = [];
-			}
-			return result;
-		}, () => {
-			return { folderWorkspaces: [] };
-		});
 	}
 }
