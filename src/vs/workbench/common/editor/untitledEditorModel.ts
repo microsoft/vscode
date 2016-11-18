@@ -17,8 +17,12 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IMode } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
+
+	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 1000;
+
 	private textModelChangeListener: IDisposable;
 	private configurationChangeListener: IDisposable;
 
@@ -26,6 +30,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	private _onDidChangeContent: Emitter<void>;
 	private _onDidChangeDirty: Emitter<void>;
 	private _onDidChangeEncoding: Emitter<void>;
+
+	private contentChangeEventScheduler: RunOnceScheduler;
 
 	private configuredEncoding: string;
 	private preferredEncoding: string;
@@ -49,6 +55,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this._onDidChangeContent = new Emitter<void>();
 		this._onDidChangeDirty = new Emitter<void>();
 		this._onDidChangeEncoding = new Emitter<void>();
+
+		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
 
 		this.registerListeners();
 	}
@@ -124,8 +132,11 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	public revert(): void {
 		this.dirty = false;
 
-		this._onDidChangeContent.fire();
+		// Events
 		this._onDidChangeDirty.fire();
+
+		// Handle content change event buffered
+		this.contentChangeEventScheduler.schedule();
 	}
 
 	public load(): TPromise<EditorModel> {
@@ -157,10 +168,10 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		else if (!this.dirty) {
 			this.dirty = true;
 			this._onDidChangeDirty.fire();
-
 		}
 
-		this._onDidChangeContent.fire();
+		// Handle content change event buffered
+		this.contentChangeEventScheduler.schedule();
 	}
 
 	public dispose(): void {
@@ -175,6 +186,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			this.configurationChangeListener.dispose();
 			this.configurationChangeListener = null;
 		}
+
+		this.contentChangeEventScheduler.dispose();
 
 		this._onDidChangeContent.dispose();
 		this._onDidChangeDirty.dispose();

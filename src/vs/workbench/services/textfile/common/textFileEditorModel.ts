@@ -29,6 +29,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService, anonymize } from 'vs/platform/telemetry/common/telemetry';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -36,6 +37,8 @@ import { ITelemetryService, anonymize } from 'vs/platform/telemetry/common/telem
 export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel {
 
 	public static ID = 'workbench.editors.files.textFileEditorModel';
+
+	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 1000;
 
 	private static saveErrorHandler: ISaveErrorHandler;
 	private static saveParticipant: ISaveParticipant;
@@ -52,13 +55,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMillies: number;
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
+	private contentChangeEventScheduler: RunOnceScheduler;
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
 	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
-	private _onDidContentChange: Emitter<void>;
+	private _onDidContentChange: Emitter<StateChange>;
 	private _onDidStateChange: Emitter<StateChange>;
 
 	constructor(
@@ -80,7 +84,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.resource = resource;
 		this.toDispose = [];
-		this._onDidContentChange = new Emitter<void>();
+		this._onDidContentChange = new Emitter<StateChange>();
 		this._onDidStateChange = new Emitter<StateChange>();
 		this.toDispose.push(this._onDidContentChange);
 		this.toDispose.push(this._onDidStateChange);
@@ -90,6 +94,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
 		this.mapPendingSaveToVersionId = {};
+		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidContentChange.fire(StateChange.CONTENT_CHANGE), TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
 
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
 
@@ -99,6 +104,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private registerListeners(): void {
 		this.toDispose.push(this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
 		this.toDispose.push(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
+		this.toDispose.push(this.onDidStateChange(e => {
+			if (e === StateChange.REVERTED) {
+				// Refire reverted events as content change events, cancelling any content change
+				// promises that are in flight.
+				this.contentChangeEventScheduler.cancel();
+				this._onDidContentChange.fire(StateChange.REVERTED);
+			}
+		}));
 	}
 
 	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
@@ -115,7 +128,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.updateTextEditorModelMode();
 	}
 
-	public get onDidContentChange(): Event<void> {
+	public get onDidContentChange(): Event<StateChange> {
 		return this._onDidContentChange.event;
 	}
 
@@ -360,7 +373,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}
 
-		this._onDidContentChange.fire();
+		// Handle content change events
+		this.contentChangeEventScheduler.schedule();
 	}
 
 	private makeDirty(): void {
