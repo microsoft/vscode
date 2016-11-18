@@ -40,9 +40,9 @@
 	"openToSide": "横に並べて開く",
 	"reopenClosedEditor": "閉じたエディターを再度開く",
 	"showAllEditors": "すべてのエディターを表示する",
-	"showEditorsInFirstGroup": "最初のグループでエディターを表示する",
+	"showEditorsInFirstGroup": "最初のグループのエディターを表示する",
 	"showEditorsInGroup": "エディターをグループに表示する",
 	"showEditorsInSecondGroup": "2 番目のグループでエディターを表示する",
-	"showEditorsInThirdGroup": "3 番目のグループでエディターを表示する",
+	"showEditorsInThirdGroup": "3 番目のグループのエディターを表示する",
 	"splitEditor": "エディターの分割"
 }
