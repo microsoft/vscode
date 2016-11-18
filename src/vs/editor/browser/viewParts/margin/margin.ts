@@ -7,6 +7,7 @@
 
 import { StyleMutator } from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -34,7 +35,7 @@ export class Margin extends ViewPart {
 
 	public _createDomNode(): HTMLElement {
 		let domNode = document.createElement('div');
-		domNode.className = 'margin monaco-editor-background';
+		domNode.className = ClassNames.MARGIN + ' monaco-editor-background';
 		domNode.style.position = 'absolute';
 		domNode.setAttribute('role', 'presentation');
 		domNode.setAttribute('aria-hidden', 'true');

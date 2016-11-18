@@ -154,6 +154,7 @@ export const ClassNames = {
 	OVERFLOWING_CONTENT_WIDGETS: 'overflowingContentWidgets',
 	OVERLAY_WIDGETS: 'overlayWidgets',
 	MARGIN_VIEW_OVERLAYS: 'margin-view-overlays',
+	MARGIN: 'margin',
 	LINE_NUMBERS: 'line-numbers',
 	GLYPH_MARGIN: 'glyph-margin',
 	SCROLL_DECORATION: 'scroll-decoration',
