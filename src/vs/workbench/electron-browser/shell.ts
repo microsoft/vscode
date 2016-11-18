@@ -216,10 +216,16 @@ export class WorkbenchShell {
 			const initialStartup = !!timers.isInitialStartup;
 			const start = initialStartup ? timers.perfStartTime : timers.perfWindowLoadTime;
 			let totalmem: number;
+			let freemem: number;
 			let cpus: { count: number; speed: number; model: string; };
+			let platform: string;
+			let release: string;
 
 			try {
 				totalmem = os.totalmem();
+				freemem = os.freemem();
+				platform = os.platform();
+				release = os.release();
 
 				const rawCpus = os.cpus();
 				if (rawCpus && rawCpus.length > 0) {
@@ -239,7 +245,10 @@ export class WorkbenchShell {
 					ellapsedEditorRestore: Math.round(restoreEditorsDuration),
 					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen)
 				},
+				platform,
+				release,
 				totalmem,
+				freemem,
 				cpus,
 				initialStartup,
 				hasAccessibilitySupport: !!timers.hasAccessibilitySupport,
