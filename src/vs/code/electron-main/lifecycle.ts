@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { EventEmitter } from 'events';
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ReadyState, IVSCodeWindow } from 'vs/code/common/window';
@@ -13,11 +12,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/common/mainLifecycle';
-
-const EventTypes = {
-	BEFORE_CLOSE: 'before-close',
-	BEFORE_QUIT: 'before-quit'
-};
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class LifecycleService implements ILifecycleMainService {
 
@@ -25,13 +20,18 @@ export class LifecycleService implements ILifecycleMainService {
 
 	private static QUIT_FROM_UPDATE_MARKER = 'quit.from.update'; // use a marker to find out if an update was applied in the previous session
 
-	private eventEmitter = new EventEmitter();
 	private windowToCloseRequest: { [windowId: string]: boolean };
 	private quitRequested: boolean;
 	private pendingQuitPromise: TPromise<boolean>;
 	private pendingQuitPromiseComplete: TValueCallback<boolean>;
 	private oneTimeListenerTokenGenerator: number;
 	private _wasUpdated: boolean;
+
+	private _onBeforeUnload = new Emitter<IVSCodeWindow>();
+	onBeforeUnload: Event<IVSCodeWindow> = this._onBeforeUnload.event;
+
+	private _onBeforeQuit = new Emitter<void>();
+	onBeforeQuit: Event<void> = this._onBeforeQuit.event;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -58,23 +58,6 @@ export class LifecycleService implements ILifecycleMainService {
 		return this._wasUpdated;
 	}
 
-	/**
-	 * Due to the way we handle lifecycle with eventing, the general app.on('before-quit')
-	 * event cannot be used because it can be called twice on shutdown. Instead the onBeforeQuit
-	 * handler in this module can be used and it is only called once on a shutdown sequence.
-	 */
-	onBeforeQuit(clb: () => void): () => void {
-		this.eventEmitter.addListener(EventTypes.BEFORE_QUIT, clb);
-
-		return () => this.eventEmitter.removeListener(EventTypes.BEFORE_QUIT, clb);
-	}
-
-	onAfterUnload(clb: (vscodeWindow: IVSCodeWindow) => void): () => void {
-		this.eventEmitter.addListener(EventTypes.BEFORE_CLOSE, clb);
-
-		return () => this.eventEmitter.removeListener(EventTypes.BEFORE_CLOSE, clb);
-	}
-
 	public ready(): void {
 		this.registerListeners();
 	}
@@ -86,7 +69,7 @@ export class LifecycleService implements ILifecycleMainService {
 			this.logService.log('Lifecycle#before-quit');
 
 			if (!this.quitRequested) {
-				this.eventEmitter.emit(EventTypes.BEFORE_QUIT); // only send this if this is the first quit request we have
+				this._onBeforeQuit.fire(); // only send this if this is the first quit request we have
 			}
 
 			this.quitRequested = true;
@@ -150,7 +133,7 @@ export class LifecycleService implements ILifecycleMainService {
 			const oneTimeCancelEvent = 'vscode:cancel' + oneTimeEventToken;
 
 			ipc.once(oneTimeOkEvent, () => {
-				this.eventEmitter.emit(EventTypes.BEFORE_CLOSE, vscodeWindow);
+				this._onBeforeUnload.fire(vscodeWindow);
 
 				c(false); // no veto
 			});

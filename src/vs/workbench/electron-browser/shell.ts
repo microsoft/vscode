@@ -23,7 +23,7 @@ import timer = require('vs/base/common/timer');
 import { IStartupFingerprint } from 'vs/workbench/electron-browser/common';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
-import { ITelemetryService, NullTelemetryService, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, NullTelemetryService, configurationTelemetry, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
@@ -87,7 +87,6 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { remote } from 'electron';
 import * as os from 'os';
@@ -217,10 +216,16 @@ export class WorkbenchShell {
 			const initialStartup = !!timers.isInitialStartup;
 			const start = initialStartup ? timers.perfStartTime : timers.perfWindowLoadTime;
 			let totalmem: number;
+			let freemem: number;
 			let cpus: { count: number; speed: number; model: string; };
+			let platform: string;
+			let release: string;
 
 			try {
 				totalmem = os.totalmem();
+				freemem = os.freemem();
+				platform = os.platform();
+				release = os.release();
 
 				const rawCpus = os.cpus();
 				if (rawCpus && rawCpus.length > 0) {
@@ -240,7 +245,10 @@ export class WorkbenchShell {
 					ellapsedEditorRestore: Math.round(restoreEditorsDuration),
 					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen)
 				},
+				platform,
+				release,
 				totalmem,
+				freemem,
 				cpus,
 				initialStartup,
 				hasAccessibilitySupport: !!timers.hasAccessibilitySupport,
@@ -341,9 +349,7 @@ export class WorkbenchShell {
 		}
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
-		if (this.configurationService instanceof WorkspaceConfigurationService) {
-			this.configurationService.telemetryService = this.telemetryService;
-		}
+		disposables.add(configurationTelemetry(this.telemetryService, this.configurationService));
 
 		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);
