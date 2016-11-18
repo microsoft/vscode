@@ -1088,10 +1088,9 @@ declare module monaco.editor {
         /**
          * The width reserved for line decorations (in px).
          * Line decorations are placed between line numbers and the editor content.
-         * You can pass in a string in the format floating point followed by "ch". e.g. 1.3ch.
          * Defaults to 10.
          */
-        lineDecorationsWidth?: number | string;
+        lineDecorationsWidth?: number;
         /**
          * When revealing the cursor, a virtual padding (px) is added to the cursor, turning it into a rectangle.
          * This virtual padding ensures that the cursor gets revealed before hitting the edge of the viewport.
@@ -1582,10 +1581,6 @@ declare module monaco.editor {
          * If set, the decoration will be rendered in the lines decorations with this CSS class name.
          */
         linesDecorationsClassName?: string;
-        /**
-         * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
-         */
-        marginClassName?: string;
         /**
          * If set, the decoration will be rendered inline with the text with this CSS class name.
          * Please use this only for CSS rules that must impact the text. For example, use `className`
@@ -3517,10 +3512,6 @@ declare module monaco.editor {
          * The dom node of the view zone
          */
         domNode: HTMLElement;
-        /**
-         * An optional dom node for the view zone that will be placed in the margin area.
-         */
-        marginDomNode?: HTMLElement;
         /**
          * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
          */

@@ -166,14 +166,7 @@ class InternalEditorOptionsHelper {
 		let glyphMargin = toBoolean(opts.glyphMargin);
 		let lineNumbers = opts.lineNumbers;
 		let lineNumbersMinChars = toInteger(opts.lineNumbersMinChars, 1);
-
-		let lineDecorationsWidth: number;
-		if (typeof opts.lineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(opts.lineDecorationsWidth)) {
-			let multiple = parseFloat(opts.lineDecorationsWidth.substr(0, opts.lineDecorationsWidth.length - 2));
-			lineDecorationsWidth = multiple * fontInfo.typicalHalfwidthCharacterWidth;
-		} else {
-			lineDecorationsWidth = toInteger(opts.lineDecorationsWidth, 0);
-		}
+		let lineDecorationsWidth = toInteger(opts.lineDecorationsWidth, 0);
 		if (opts.folding) {
 			lineDecorationsWidth += 16;
 		}
