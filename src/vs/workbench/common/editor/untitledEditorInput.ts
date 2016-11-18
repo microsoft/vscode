@@ -18,7 +18,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -161,7 +161,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			if (hasBackup) {
 				const restoreResource = this.backupFileService.getBackupResource(this.resource);
 
-				return this.textFileService.resolveTextContent(restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
+				return this.textFileService.resolveTextContent(restoreResource, BACKUP_FILE_RESOLVE_OPTIONS).then(rawTextContent => rawTextContent.value.lines.join('\n'));
 			}
 
 			return '';

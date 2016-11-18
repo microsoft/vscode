@@ -22,7 +22,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, IFileStat, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -287,9 +287,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					// Try get restore content, if there is an issue fallback silently to the original file's content
 					if (backupExists) {
 						const restoreResource = this.backupFileService.getBackupResource(this.resource);
-						const restoreOptions = { acceptTextOnly: true, encoding: 'utf-8' };
-
-						resolveBackupPromise = this.textFileService.resolveTextContent(restoreResource, restoreOptions).then(backup => backup.value, error => content.value);
+						resolveBackupPromise = this.textFileService.resolveTextContent(restoreResource, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => backup.value, error => content.value);
 					} else {
 						resolveBackupPromise = TPromise.as(content.value);
 					}
