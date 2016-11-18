@@ -191,7 +191,6 @@ export interface ISuggestion {
 	additionalTextEdits?: editorCommon.ISingleEditOperation[];
 	command?: Command;
 	snippetType?: SnippetType;
-	_extensionId?: string;
 }
 
 /**
