@@ -9,7 +9,7 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
-import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position } from 'vs/platform/editor/common/editor';
+import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
 import { IExtensionDescription, IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService, ICommand, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -26,7 +26,7 @@ import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configu
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class SimpleEditor implements IEditor {
