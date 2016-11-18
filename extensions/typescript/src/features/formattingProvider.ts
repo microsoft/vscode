@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, FormattingOptions, TextDocument, Position, Range, CancellationToken, TextEdit, WorkspaceConfiguration } from 'vscode';
+import { workspace as Workspace, DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, FormattingOptions, TextDocument, Position, Range, CancellationToken, TextEdit, WorkspaceConfiguration } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -77,6 +77,14 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 		this.client = client;
 		this.config = Configuration.def();
 		this.formatOptions = Object.create(null);
+		Workspace.onDidCloseTextDocument((textDocument) => {
+			let key = textDocument.uri.toString();
+			// When a document gets closed delete the cached formatting options.
+			// This is necessary sine the tsserver now closed a project when its
+			// last file in it closes which drops the stored formatting options
+			// as well.
+			delete this.formatOptions[key];
+		});
 	}
 
 	public updateConfiguration(config: WorkspaceConfiguration): void {
