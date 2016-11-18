@@ -847,10 +847,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
 		clonedOptions.scrollbar.vertical = 'visible';
 		clonedOptions.folding = false;
-		clonedOptions.glyphMargin = false;
 		clonedOptions.codeLens = false;
 		clonedOptions.fixedOverflowWidgets = true;
-		clonedOptions.lineDecorationsWidth = '2ch';
 		return clonedOptions;
 	}
 
@@ -1494,15 +1492,8 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 			let lineChange = lineChanges[i];
 
 			if (isChangeOrDelete(lineChange)) {
-				result.decorations.push({
-					range: new Range(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE),
-					options: {
-						className: 'line-delete',
-						linesDecorationsClassName: 'delete-sign',
-						marginClassName: 'line-delete',
-						isWholeLine: true
-					}
-				});
+
+				result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE, 'line-delete', true));
 				if (!isChangeOrInsert(lineChange) || !lineChange.charChanges) {
 					result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE, 'char-delete', true));
 				}
@@ -1562,15 +1553,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 
 			if (isChangeOrInsert(lineChange)) {
 
-				result.decorations.push({
-					range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE),
-					options: {
-						className: 'line-insert',
-						linesDecorationsClassName: 'insert-sign',
-						marginClassName: 'line-insert',
-						isWholeLine: true
-					}
-				});
+				result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, 'line-insert', true));
 				if (!isChangeOrDelete(lineChange) || !lineChange.charChanges) {
 					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, 'char-insert', true));
 				}
@@ -1688,13 +1671,6 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 
 			// Add overview zones in the overview ruler
 			if (isChangeOrDelete(lineChange)) {
-				result.decorations.push({
-					range: new Range(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE),
-					options: {
-						marginClassName: 'line-delete',
-					}
-				});
-
 				result.overviewZones.push(new editorCommon.OverviewRulerZone(
 					lineChange.originalStartLineNumber,
 					lineChange.originalEndLineNumber,
@@ -1723,15 +1699,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 
 			// Add decorations & overview zones
 			if (isChangeOrInsert(lineChange)) {
-				result.decorations.push({
-					range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE),
-					options: {
-						className: 'line-insert',
-						linesDecorationsClassName: 'insert-sign',
-						marginClassName: 'line-insert',
-						isWholeLine: true
-					}
-				});
+				result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, 'line-insert', true));
 
 				result.overviewZones.push(new editorCommon.OverviewRulerZone(
 					lineChange.modifiedStartLineNumber,
@@ -1797,20 +1765,16 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	}
 
 	_produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone {
-		let marginDomNode = document.createElement('div');
-		marginDomNode.className = 'inline-added-margin-view-zone';
-		Configuration.applyFontInfoSlow(marginDomNode, this.modifiedEditorConfiguration.fontInfo);
-
 		return {
 			afterLineNumber: Math.max(lineChange.originalStartLineNumber, lineChange.originalEndLineNumber),
 			heightInLines: lineChangeModifiedLength,
-			domNode: document.createElement('div'),
-			marginDomNode: marginDomNode
+			domNode: document.createElement('div')
 		};
 	}
 
 	_produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone {
 		let decorations: InlineDecoration[] = [];
+
 		if (lineChange.charChanges) {
 			for (let j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
 				let charChange = lineChange.charChanges[j];
@@ -1824,16 +1788,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		}
 
 		let html: string[] = [];
-		let marginHTML: string[] = [];
-		let lineDecorationsWidth = this.modifiedEditorConfiguration.layoutInfo.decorationsWidth;
-		let lineHeight = this.modifiedEditorConfiguration.lineHeight;
 		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
 			html = html.concat(this.renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorTabSize, lineNumber, decorations));
-
-			let index = lineNumber - lineChange.originalStartLineNumber;
-			marginHTML = marginHTML.concat([
-				`<div class="delete-sign" style="position:absolute;top:${index * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;"></div>`
-			]);
 		}
 
 		let domNode = document.createElement('div');
@@ -1841,17 +1797,11 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		domNode.innerHTML = html.join('');
 		Configuration.applyFontInfoSlow(domNode, this.modifiedEditorConfiguration.fontInfo);
 
-		let marginDomNode = document.createElement('div');
-		marginDomNode.className = 'inline-deleted-margin-view-zone';
-		marginDomNode.innerHTML = marginHTML.join('');
-		Configuration.applyFontInfoSlow(marginDomNode, this.modifiedEditorConfiguration.fontInfo);
-
 		return {
 			shouldNotShrink: true,
 			afterLineNumber: (lineChange.modifiedEndLineNumber === 0 ? lineChange.modifiedStartLineNumber : lineChange.modifiedStartLineNumber - 1),
 			heightInLines: lineChangeOriginalLength,
-			domNode: domNode,
-			marginDomNode: marginDomNode
+			domNode: domNode
 		};
 	}
 
