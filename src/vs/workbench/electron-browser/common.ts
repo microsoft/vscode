@@ -34,7 +34,10 @@ export interface IStartupFingerprint {
 		ellapsedEditorRestore: number;
 		ellapsedWorkbench: number;
 	};
+	platform: string;
+	release: string;
 	totalmem: number;
+	freemem: number;
 	cpus: { count: number; speed: number; model: string; };
 	initialStartup: boolean;
 	hasAccessibilitySupport: boolean;
