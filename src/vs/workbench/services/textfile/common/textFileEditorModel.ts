@@ -94,7 +94,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
 		this.mapPendingSaveToVersionId = {};
+
 		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidContentChange.fire(StateChange.CONTENT_CHANGE), TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
+		this.toDispose.push(this.contentChangeEventScheduler);
 
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
 
