@@ -401,12 +401,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					let args: string[] = [];
 					if (this.apiVersion.has206Features()) {
 						args.push('--useSingleInferredProject');
-						/* https://github.com/Microsoft/vscode/issues/14889
 						if (workspace.getConfiguration().get<boolean>('typescript.disableAutomaticTypeAcquisition', false)) {
-							args.push('--disableAutomaticTypingAcquisition');
-						}
-						*/
-						if (!(process.env.CH_ATA_ENABLE)) {
 							args.push('--disableAutomaticTypingAcquisition');
 						}
 					}
