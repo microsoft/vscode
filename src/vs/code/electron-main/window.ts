@@ -19,7 +19,6 @@ import product from 'vs/platform/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import Uri from 'vs/base/common/uri';
 import { ReadyState, IVSCodeWindow } from 'vs/code/common/window';
 
 export interface IWindowState {
@@ -91,7 +90,6 @@ export interface IWindowConfiguration extends ParsedArgs {
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
-	untitledToRestore?: IPath[];
 }
 
 export class VSCodeWindow implements IVSCodeWindow {
@@ -413,11 +411,6 @@ export class VSCodeWindow implements IVSCodeWindow {
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.filesToDiff;
-
-		// Update untitled files to restore so they come through in the reloaded window
-		if (configuration.workspacePath) {
-			configuration.untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(configuration.workspacePath)).map(filePath => { return { filePath }; });
-		}
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in plugin development mode. These options are all development related.
