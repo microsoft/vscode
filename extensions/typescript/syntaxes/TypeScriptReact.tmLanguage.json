@@ -1064,6 +1064,9 @@
 					"include": "#indexer-declaration"
 				},
 				{
+					"include": "#indexer-mapped-type-declaration"
+				},
+				{
 					"include": "#field-declaration"
 				},
 				{
@@ -1265,6 +1268,38 @@
 			"patterns": [
 				{
 					"include": "#type-annotation"
+				}
+			]
+		},
+		"indexer-mapped-type-declaration": {
+			"name": "meta.indexer.mappedtype.declaration.tsx",
+			"begin": "(?:(?<!\\.|\\$)\\b(readonly)\\s*)?(\\[)\\s*([_$[:alpha:]][_$[:alnum:]]*)\\s+(in)\\s+",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.modifier.tsx"
+				},
+				"2": {
+					"name": "meta.brace.square.tsx"
+				},
+				"3": {
+					"name": "entity.name.type.tsx"
+				},
+				"4": {
+					"name": "keyword.operator.expression.in.tsx"
+				}
+			},
+			"end": "(\\])\\s*(\\?\\s*)?|$",
+			"endCaptures": {
+				"1": {
+					"name": "meta.brace.square.tsx"
+				},
+				"2": {
+					"name": "keyword.operator.optional.tsx"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#type"
 				}
 			]
 		},
@@ -2779,7 +2814,7 @@
 				},
 				{
 					"name": "string.regex.tsx",
-					"begin": "/(?![/*])(?=(?:[^/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+/(?![/*])[gimy]*(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "(?<![_$[:alnum:]])/(?![/*])(?=(?:[^/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+/(?![/*])[gimy]*(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.begin.tsx"
@@ -3570,5 +3605,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/4d0bdebb93aadc25ecbb903ebc897e9cd5fab69c"
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/b5ce6b5632711b9230a33213874b818d994acab9"
 }

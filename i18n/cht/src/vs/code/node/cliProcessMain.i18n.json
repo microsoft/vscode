@@ -11,7 +11,7 @@
 	"notInstalled": "未安裝擴充功能 '{0}'。",
 	"successInstall": "已成功安裝擴充功能 '{0}' v{1}!",
 	"successUninstall": "已成功將擴充功能 '{0}' 解除安裝!",
-	"successVsixInstall": "已成功安裝擴充功能 '{0}'!",
+	"successVsixInstall": "已成功安裝延伸模組 '{0}'!",
 	"uninstalling": "正在將 {0} 解除安裝...",
 	"useId": "請確定您使用完整擴充功能識別碼 (包括發行者)，例如: {0}"
 }

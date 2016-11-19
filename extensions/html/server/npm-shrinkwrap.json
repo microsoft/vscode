@@ -8,9 +8,9 @@
       "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-2.0.0-next.3.tgz"
     },
     "vscode-html-languageservice": {
-      "version": "1.0.1-next.2",
+      "version": "1.0.1-next.3",
       "from": "vscode-html-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-html-languageservice/-/vscode-html-languageservice-1.0.1-next.2.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-html-languageservice/-/vscode-html-languageservice-1.0.1-next.3.tgz"
     },
     "vscode-jsonrpc": {
       "version": "2.4.0",

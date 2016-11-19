@@ -29,7 +29,7 @@ import * as modes from 'vs/editor/common/modes';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { WorkspaceConfigurationNode } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfiguration } from 'vs/workbench/services/configuration/common/configuration';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -54,7 +54,7 @@ export interface IInitData {
 		workspace: IWorkspace;
 	};
 	extensions: IExtensionDescription[];
-	configuration: WorkspaceConfigurationNode;
+	configuration: IWorkspaceConfiguration;
 	telemetryInfo: ITelemetryInfo;
 }
 
@@ -236,7 +236,7 @@ export abstract class ExtHostCommandsShape {
 }
 
 export abstract class ExtHostConfigurationShape {
-	$acceptConfigurationChanged(config: WorkspaceConfigurationNode) { throw ni(); }
+	$acceptConfigurationChanged(entries: IWorkspaceConfiguration) { throw ni(); }
 }
 
 export abstract class ExtHostDiagnosticsShape {
