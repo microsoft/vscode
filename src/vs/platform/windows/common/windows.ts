@@ -88,7 +88,7 @@ export interface IWindowSettings {
 	openFilesInNewWindow: boolean;
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
-	fullScreenZenMode: boolean;
+	fullScreenFocusMode: boolean;
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
 }

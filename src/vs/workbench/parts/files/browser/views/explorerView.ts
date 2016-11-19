@@ -39,7 +39,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ResourceContextKey } from 'vs/platform/actions/common/resourceContextKey';
+import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 
 export class ExplorerView extends CollapsibleViewletView {
 

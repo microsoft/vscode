@@ -6,6 +6,7 @@
 {
 	"DebugConfig.failed": "Не удается создать файл launch.json в папке .vscode ({0}).",
 	"app.launch.json.configurations": "Список конфигураций. Добавьте новые конфигурации или измените существующие с помощью IntelliSense.",
+	"app.launch.json.debugServer": "УСТАРЕЛО И НЕ РЕКОМЕНДУЕТСЯ: перенесите debugServer внутрь конфигурации.",
 	"app.launch.json.title": "Запустить",
 	"app.launch.json.version": "Версия этого формата файла.",
 	"debugNoType": "Параметр type адаптера отладки не может быть опущен и должен иметь тип string.",

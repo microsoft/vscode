@@ -5,7 +5,7 @@
 'use strict';
 
 import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType } from 'vscode-languageserver';
-import { DocumentContext, TextDocument, Diagnostic, DocumentLink, Range } from 'vscode-html-languageservice';
+import { DocumentContext, TextDocument, Diagnostic, DocumentLink, Range, TextEdit } from 'vscode-html-languageservice';
 import { getLanguageModes, LanguageModes } from './modes/languageModes';
 
 import * as url from 'url';
@@ -112,10 +112,18 @@ function validateTextDocument(textDocument: TextDocument): void {
 	let diagnostics: Diagnostic[] = [];
 	languageModes.getAllModesInDocument(textDocument).forEach(mode => {
 		if (mode.doValidation) {
-			diagnostics = diagnostics.concat(mode.doValidation(textDocument));
+			pushAll(diagnostics, mode.doValidation(textDocument));
 		}
 	});
 	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+}
+
+function pushAll<T>(to: T[], from: T[]) {
+	if (from) {
+		for (var i = 0; i < from.length; i++) {
+			to.push(from[i]);
+		}
+	}
 }
 
 connection.onCompletion(textDocumentPosition => {
@@ -186,12 +194,16 @@ connection.onSignatureHelp(signatureHelpParms => {
 
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
-	let startMode = languageModes.getModeAtPosition(document, formatParams.range.start);
-	let endMode = languageModes.getModeAtPosition(document, formatParams.range.end);
-	if (startMode && startMode === endMode && startMode.format) {
-		return startMode.format(document, formatParams.range, formatParams.options);
-	}
-	return null;
+	let ranges = languageModes.getModesInRange(document, formatParams.range);
+	let result: TextEdit[] = [];
+	ranges.forEach(r => {
+		let mode = r.mode;
+		if (mode && mode.format) {
+			let edits = mode.format(document, r, formatParams.options);
+			pushAll(result, edits);
+		}
+	});
+	return result;
 });
 
 connection.onDocumentLinks(documentLinkParam => {
@@ -207,7 +219,7 @@ connection.onDocumentLinks(documentLinkParam => {
 	let links: DocumentLink[] = [];
 	languageModes.getAllModesInDocument(document).forEach(m => {
 		if (m.findDocumentLinks) {
-			links = links.concat(m.findDocumentLinks(document, documentContext));
+			pushAll(links, m.findDocumentLinks(document, documentContext));
 		}
 	});
 	return links;
@@ -219,7 +231,7 @@ connection.onRequest(ColorSymbolRequest.type, uri => {
 	if (document) {
 		languageModes.getAllModesInDocument(document).forEach(m => {
 			if (m.findColorSymbols) {
-				ranges = ranges.concat(m.findColorSymbols(document));
+				pushAll(ranges, m.findColorSymbols(document));
 			}
 		});
 	}

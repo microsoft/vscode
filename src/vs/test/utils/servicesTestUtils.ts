@@ -294,7 +294,7 @@ export class TestPartService implements IPartService {
 
 	}
 
-	public toggleZenMode(): void { }
+	public toggleFocusMode(): void { }
 }
 
 export class TestEventService extends EventEmitter implements IEventService {

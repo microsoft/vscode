@@ -6,10 +6,8 @@
 {
 	"copy": "Copier",
 	"cut": "Couper",
-	"files": "fichiers",
-	"folders": "dossiers",
-	"openRecentPlaceHolder": "Sélectionner un chemin à ouvrir (maintenir la touche Ctrl enfoncée pour l'ouvrir dans une nouvelle fenêtre)",
-	"openRecentPlaceHolderMac": "Sélectionner un chemin (maintenir la touche Cmd enfoncée pour l'ouvrir dans une nouvelle fenêtre)",
+	"developer": "Développeur",
+	"file": "Fichier",
 	"paste": "Coller",
 	"redo": "Rétablir",
 	"selectAll": "Tout Sélectionner",
