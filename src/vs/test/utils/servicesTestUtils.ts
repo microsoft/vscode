@@ -664,10 +664,6 @@ export class TestBackupFileService implements IBackupFileService {
 		return [];
 	}
 
-	public getWorkspaceUntitledFileBackupsSync(workspace: URI): string[] {
-		return [];
-	}
-
 	public hasBackup(resource: URI): TPromise<boolean> {
 		return TPromise.as(false);
 	}
