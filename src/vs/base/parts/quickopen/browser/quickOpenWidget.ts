@@ -798,6 +798,10 @@ export class QuickOpenWidget implements IModelProvider {
 		return this.progressBar;
 	}
 
+	public getInputBox(): InputBox {
+		return this.inputBox;
+	}
+
 	public setExtraClass(clazz: string): void {
 		const previousClass = this.builder.getProperty('extra-class');
 		if (previousClass) {
