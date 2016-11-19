@@ -21,8 +21,6 @@ import { FileEditorInput } from 'vs/workbench/parts/files/common/files';
 // to get all backups that exist on disk.
 export class BackupRestorer implements IWorkbenchContribution {
 
-	public _serviceBrand: any;
-
 	constructor(
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
