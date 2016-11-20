@@ -5,12 +5,14 @@
 'use strict';
 
 import { join } from 'path';
+import { localize } from 'vs/nls';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
 import { realpath, exists } from 'vs/base/node/pfs';
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
 import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions, ICommit } from 'vs/workbench/parts/git/common/git';
 import Event, { Emitter, delayed } from 'vs/base/common/event';
+import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 
 export class RawGitService implements IRawGitService {
 
@@ -190,6 +192,9 @@ export class RawGitService implements IRawGitService {
 		return this.repo.buffer(treeish + ':' + filePath).then(null, e => {
 			if (e instanceof GitError) {
 				return ''; // mostly untracked files end up in a git error
+			}
+			if ((<IFileOperationResult>e).fileOperationResult === FileOperationResult.FILE_IS_BINARY) {
+				return localize('nativeBinaryError', "The file will not be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.");
 			}
 
 			return TPromise.wrapError<string>(e);
