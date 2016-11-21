@@ -3406,7 +3406,6 @@ declare module monaco.editor {
         DeleteWordRight: string;
         DeleteWordStartRight: string;
         DeleteWordEndRight: string;
-        DeleteAllLeft: string;
         DeleteAllRight: string;
         RemoveSecondaryCursors: string;
         CancelSelection: string;
