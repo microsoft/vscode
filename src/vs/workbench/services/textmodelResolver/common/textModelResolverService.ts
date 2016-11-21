@@ -6,6 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
+import { first } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IDisposable, toDisposable, IReference, ReferenceCollection, ImmortalReference } from 'vs/base/common/lifecycle';
@@ -83,14 +84,16 @@ class ResourceModelCollection extends ReferenceCollection<URI, TPromise<ITextEdi
 			return TPromise.as(model);
 		}
 
-		// TODO@Joao just take the first one for now
-		const provider = (this.providers[resource.scheme] || [])[0];
+		const providers = this.providers[resource.scheme] || [];
+		const factories = providers.map(p => () => p.provideTextContent(resource));
 
-		if (!provider) {
-			return TPromise.wrapError(`No model with uri '${resource}' nor a resolver for the scheme '${resource.scheme}'.`);
-		}
+		return first(factories).then(uri => {
+			if (!uri) {
+				return TPromise.wrapError(`Could not resolve any model with uri '${resource}'.`);
+			}
 
-		return provider.provideTextContent(resource);
+			return uri;
+		});
 	}
 }
 
