@@ -45,19 +45,6 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 				description: nls.localize('vscode.extension.contributes.debuggers.label', "Display name for this debug adapter."),
 				type: 'string'
 			},
-			enableBreakpointsFor: {
-				description: nls.localize('vscode.extension.contributes.debuggers.enableBreakpointsFor', "Allow breakpoints for these languages."),
-				type: 'object',
-				properties: {
-					languageIds: {
-						description: nls.localize('vscode.extension.contributes.debuggers.enableBreakpointsFor.languageIds', "List of languages."),
-						type: 'array',
-						items: {
-							type: 'string'
-						}
-					}
-				}
-			},
 			program: {
 				description: nls.localize('vscode.extension.contributes.debuggers.program', "Path to the debug adapter program. Path is either absolute or relative to the extension folder."),
 				type: 'string'
