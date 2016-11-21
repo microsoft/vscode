@@ -27,11 +27,16 @@ export interface ICodeSnippet {
 	finishPlaceHolderIndex: number;
 }
 
+export interface ISnippetVariableResolver {
+	resolve(name: string): string;
+}
+
 export class CodeSnippet implements ICodeSnippet {
 
-	static fromTextmate(template: string): CodeSnippet {
+	static fromTextmate(template: string, variableResolver?: ISnippetVariableResolver): CodeSnippet {
 		const marker = new SnippetParser(true, false).parse(template);
 		const snippet = new CodeSnippet();
+		_resolveSnippetVariables(marker, variableResolver);
 		_fillCodeSnippetFromMarker(snippet, marker);
 		return snippet;
 	}
@@ -465,6 +470,36 @@ function _convertExternalSnippet(snippet: string, snippetType: ExternalSnippetTy
 	return convertedSnippet;
 };
 
+
+function _resolveSnippetVariables(marker: Marker[], resolver: ISnippetVariableResolver) {
+	if (resolver) {
+		const stack = [...marker];
+
+		while (stack.length > 0) {
+			const marker = stack.shift();
+			if (marker instanceof Placeholder) {
+
+				if (marker.isVariable) {
+
+					let value: string;
+					try {
+						value = resolver.resolve(marker.name);
+					} catch (e) {
+						//
+					}
+					if (typeof value === 'string') {
+						marker.value = [new Text(value)];
+						continue;
+					}
+				}
+
+				// 'recurse'
+				stack.unshift(...marker.value);
+			}
+		}
+	}
+}
+
 function _isFinishPlaceHolder(v: IPlaceHolder) {
 	return (v.id === '' && v.value === '') || v.id === '0';
 }
@@ -486,7 +521,11 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 
 		} else if (marker instanceof Placeholder) {
 
-			// TODO - not every variable is a placeholder
+			if (marker.isVariable && marker.value.length === 1 && marker.value[0] instanceof Text) {
+				stack.unshift(marker.value[0]);
+				continue;
+			}
+
 			let placeHolder = placeHolders[marker.name];
 			if (!placeHolder) {
 				placeHolders[marker.name] = placeHolder = {
@@ -519,7 +558,7 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 		}
 
 		if (stack.length === 0 && !hasFinishPlaceHolder) {
-			stack.push(new Placeholder('0', []));
+			stack.push(new Placeholder('0', [], false));
 		}
 	}
 
