@@ -44,6 +44,7 @@ export interface IWindowsService {
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
 	getWindows(): TPromise<{ id: number; path: string; title: string; }[]>;
+	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
 	// TODO@joao: what?
 	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void>;
@@ -88,7 +89,7 @@ export interface IWindowSettings {
 	openFilesInNewWindow: boolean;
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
-	fullScreenZenMode: boolean;
+	fullScreenFocusMode: boolean;
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
 }

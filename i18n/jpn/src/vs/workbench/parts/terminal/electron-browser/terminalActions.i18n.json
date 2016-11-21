@@ -21,6 +21,6 @@
 	"workbench.action.terminal.scrollToTop": "一番上にスクロール",
 	"workbench.action.terminal.scrollUp": "上にスクロール (行)",
 	"workbench.action.terminal.scrollUpPage": "スクロール アップ (ページ)",
-	"workbench.action.terminal.switchTerminalInstance": "スイッチ端末インスタンス",
+	"workbench.action.terminal.switchTerminalInstance": "端末インスタンスをスイッチ",
 	"workbench.action.terminal.toggleTerminal": "統合端末の切り替え"
 }

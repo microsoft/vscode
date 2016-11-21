@@ -22,13 +22,14 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, IFileStat, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService, anonymize } from 'vs/platform/telemetry/common/telemetry';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -36,6 +37,8 @@ import { ITelemetryService, anonymize } from 'vs/platform/telemetry/common/telem
 export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel {
 
 	public static ID = 'workbench.editors.files.textFileEditorModel';
+
+	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 1000;
 
 	private static saveErrorHandler: ISaveErrorHandler;
 	private static saveParticipant: ISaveParticipant;
@@ -52,13 +55,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMillies: number;
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
+	private contentChangeEventScheduler: RunOnceScheduler;
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
 	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
-	private _onDidContentChange: Emitter<void>;
+	private _onDidContentChange: Emitter<StateChange>;
 	private _onDidStateChange: Emitter<StateChange>;
 
 	constructor(
@@ -80,7 +84,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.resource = resource;
 		this.toDispose = [];
-		this._onDidContentChange = new Emitter<void>();
+		this._onDidContentChange = new Emitter<StateChange>();
 		this._onDidStateChange = new Emitter<StateChange>();
 		this.toDispose.push(this._onDidContentChange);
 		this.toDispose.push(this._onDidStateChange);
@@ -91,6 +95,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.lastSaveAttemptTime = 0;
 		this.mapPendingSaveToVersionId = {};
 
+		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidContentChange.fire(StateChange.CONTENT_CHANGE), TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
+		this.toDispose.push(this.contentChangeEventScheduler);
+
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
 
 		this.registerListeners();
@@ -99,6 +106,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private registerListeners(): void {
 		this.toDispose.push(this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
 		this.toDispose.push(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
+		this.toDispose.push(this.onDidStateChange(e => {
+			if (e === StateChange.REVERTED) {
+				// Cancel any content change event promises as they are no longer valid.
+				this.contentChangeEventScheduler.cancel();
+
+				// Refire state change reverted events as content change events
+				this._onDidContentChange.fire(StateChange.REVERTED);
+			}
+		}));
 	}
 
 	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
@@ -115,7 +131,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.updateTextEditorModelMode();
 	}
 
-	public get onDidContentChange(): Event<void> {
+	public get onDidContentChange(): Event<StateChange> {
 		return this._onDidContentChange.event;
 	}
 
@@ -266,15 +282,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			else {
 				diag('load() - created text editor model', this.resource, new Date());
 
-				return this.backupFileService.hasTextFileBackup(this.resource).then(backupExists => {
+				return this.backupFileService.hasBackup(this.resource).then(backupExists => {
 					let resolveBackupPromise: TPromise<IRawText>;
 
 					// Try get restore content, if there is an issue fallback silently to the original file's content
 					if (backupExists) {
 						const restoreResource = this.backupFileService.getBackupResource(this.resource);
-						const restoreOptions = { acceptTextOnly: true, encoding: 'utf-8' };
-
-						resolveBackupPromise = this.textFileService.resolveTextContent(restoreResource, restoreOptions).then(backup => backup.value, error => content.value);
+						resolveBackupPromise = this.textFileService.resolveTextContent(restoreResource, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => backup.value, error => content.value);
 					} else {
 						resolveBackupPromise = TPromise.as(content.value);
 					}
@@ -283,7 +297,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						return this.createTextEditorModel(fileContent, content.resource).then(() => {
 							this.createTextEditorModelPromise = null;
 
-							this.setDirty(backupExists); // Ensure we are not tracking a stale state
+							if (backupExists) {
+								this.makeDirty();
+							} else {
+								this.setDirty(false); // Ensure we are not tracking a stale state
+							}
+
 							this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
 
 							return this;
@@ -360,7 +379,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}
 
-		this._onDidContentChange.fire();
+		// Handle content change events
+		this.contentChangeEventScheduler.schedule();
 	}
 
 	private makeDirty(): void {
@@ -527,6 +547,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 				// Updated resolved stat with updated stat, and keep old for event
 				this.updateVersionOnDiskStat(stat);
+
+				// Cancel any content change event promises as they are no longer valid
+				this.contentChangeEventScheduler.cancel();
 
 				// Emit File Saved Event
 				this._onDidStateChange.fire(StateChange.SAVED);
@@ -749,6 +772,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.createTextEditorModelPromise = null;
 
 		this.cancelAutoSavePromises();
+		this.contentChangeEventScheduler.cancel();
 
 		super.dispose();
 	}

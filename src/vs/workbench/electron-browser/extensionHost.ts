@@ -30,7 +30,7 @@ import { WatchDog } from 'vs/base/common/watchDog';
 import { createQueuedSender, IQueuedSender } from 'vs/base/node/processes';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
-import { IWorkspaceConfigurationService, getWorkspaceConfigurationTree } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationService, getEntries } from 'vs/workbench/services/configuration/common/configuration';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -78,7 +78,7 @@ export class ExtensionHostProcessWorker {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
+		this.isExtensionDevelopmentHost = environmentService.isExtensionDevelopment;
 		this.isExtensionDevelopmentDebugging = !!environmentService.debugExtensionHost.break;
 		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break;
 
@@ -260,7 +260,7 @@ export class ExtensionHostProcessWorker {
 					workspace: this.contextService.getWorkspace()
 				},
 				extensions: extensionDescriptions,
-				configuration: getWorkspaceConfigurationTree(this.configurationService),
+				configuration: getEntries(this.configurationService),
 				telemetryInfo
 			};
 			this.extensionHostProcessQueuedSender.send(stringify(initData));

@@ -111,17 +111,6 @@ export class SuggestController implements IEditorContribution {
 				this.telemetryService.publicLog('suggestSnippetInsert', {
 					hasPlaceholders: snippet.placeHolders.length > 0
 				});
-
-				// telemetry experiment to figure out which extensions use
-				// the internal snippet syntax today and which use the tm
-				// snippet syntax (by accident?)
-				if (suggestion._extensionId) {
-					this.telemetryService.publicLog('suggestSnippetInsert2', {
-						extension: suggestion._extensionId,
-						internalPlaceholders: snippet.placeHolders.length,
-						tmPlaceholders: CodeSnippet.fromTextmate(suggestion.insertText).placeHolders.length
-					});
-				}
 			}
 		}
 

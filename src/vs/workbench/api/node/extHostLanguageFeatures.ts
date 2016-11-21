@@ -21,7 +21,6 @@ import { IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/s
 import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 // --- adapter
 
@@ -414,14 +413,12 @@ class SuggestAdapter {
 	private _commands: CommandsConverter;
 	private _heapService: ExtHostHeapService;
 	private _provider: vscode.CompletionItemProvider;
-	private _extension: IExtensionDescription;
 
-	constructor(documents: ExtHostDocuments, commands: CommandsConverter, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider, extension?: IExtensionDescription) {
+	constructor(documents: ExtHostDocuments, commands: CommandsConverter, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
 		this._commands = commands;
 		this._heapService = heapService;
 		this._provider = provider;
-		this._extension = extension;
 	}
 
 	provideCompletionItems(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
@@ -825,9 +822,9 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	// --- suggestion
 
-	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[], extension?: IExtensionDescription): vscode.Disposable {
+	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new SuggestAdapter(this._documents, this._commands.converter, this._heapService, provider, extension);
+		this._adapter[handle] = new SuggestAdapter(this._documents, this._commands.converter, this._heapService, provider);
 		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}

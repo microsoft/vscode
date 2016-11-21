@@ -61,7 +61,6 @@ suite('Debug - Adapter', () => {
 		assert.equal(adapter.label, rawAdapter.label);
 		assert.equal(adapter.program, paths.join(extensionFolderPath, rawAdapter.program));
 		assert.equal(adapter.runtime, platform.isLinux ? rawAdapter.linux.runtime : platform.isMacintosh ? rawAdapter.osx.runtime : rawAdapter.win.runtime);
-		assert.deepEqual(adapter.initialConfigurations, rawAdapter.initialConfigurations);
 	});
 
 	test('schema attributes', () => {

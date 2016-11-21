@@ -8,7 +8,6 @@ import { localize } from 'vs/nls';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
-import { compare } from 'vs/base/common/strings';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape } from './extHost.protocol';
@@ -74,8 +73,15 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			// update many rows
 			toSync = [];
 			let lastUri: vscode.Uri;
-			for (const entry of first.slice(0).sort(DiagnosticCollection._compareTuplesByUri)) {
-				const [uri, diagnostics] = entry;
+
+			// ensure stable-sort: keep the original
+			// index for otherwise equal items
+			const sortedTuples = first
+				.map((tuple, idx) => ({ tuple, idx }))
+				.sort(DiagnosticCollection._compareIndexedTuplesByUri);
+
+			for (const {tuple} of sortedTuples) {
+				const [uri, diagnostics] = tuple;
 				if (!lastUri || uri.toString() !== lastUri.toString()) {
 					if (lastUri && this._data[lastUri.toString()].length === 0) {
 						delete this._data[lastUri.toString()];
@@ -201,8 +207,18 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		}
 	}
 
-	private static _compareTuplesByUri(a: [vscode.Uri, vscode.Diagnostic[]], b: [vscode.Uri, vscode.Diagnostic[]]): number {
-		return compare(a[0].toString(), b[0].toString());
+	private static _compareIndexedTuplesByUri(a: { tuple: [vscode.Uri, vscode.Diagnostic[]]; idx: number }, b: { tuple: [vscode.Uri, vscode.Diagnostic[]]; idx: number }): number {
+		if (a.tuple[0].toString() < b.tuple[0].toString()) {
+			return -1;
+		} else if (a.tuple[0].toString() > b.tuple[0].toString()) {
+			return 1;
+		} else if (a.idx < b.idx) {
+			return -1;
+		} else if (a.idx > b.idx) {
+			return 1;
+		} else {
+			return 0;
+		}
 	}
 }
 

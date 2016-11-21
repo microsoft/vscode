@@ -378,7 +378,7 @@ export class OneCursor implements IOneCursor {
 		this._setState(modelState, viewState, ensureInEditableRange);
 	}
 
-	private _recoverSelectionFromMarkers(): Selection {
+	public beginRecoverSelectionFromMarkers(): Selection {
 		let start = this.model._getMarker(this._selStartMarker);
 		let end = this.model._getMarker(this._selEndMarker);
 
@@ -389,14 +389,12 @@ export class OneCursor implements IOneCursor {
 		return new Selection(end.lineNumber, end.column, start.lineNumber, start.column);
 	}
 
-	public recoverSelectionFromMarkers(ctx: IOneCursorOperationContext): boolean {
+	public endRecoverSelectionFromMarkers(ctx: IOneCursorOperationContext, recoveredSelection: Selection): boolean {
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.RecoverFromMarkers;
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
 		ctx.shouldReveal = false;
 		ctx.shouldRevealHorizontal = false;
-
-		let recoveredSelection = this._recoverSelectionFromMarkers();
 
 		let selectionStart = new Range(recoveredSelection.selectionStartLineNumber, recoveredSelection.selectionStartColumn, recoveredSelection.selectionStartLineNumber, recoveredSelection.selectionStartColumn);
 		let position = new Position(recoveredSelection.positionLineNumber, recoveredSelection.positionColumn);

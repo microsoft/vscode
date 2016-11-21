@@ -6,11 +6,13 @@
 
 import { Registry } from 'vs/platform/platform';
 import nls = require('vs/nls');
+import URI from 'vs/base/common/uri';
 import { Action, IAction } from 'vs/base/common/actions';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -38,7 +40,7 @@ import {
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 
 // Register String Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
 		StringEditor.ID,
 		nls.localize('textEditor', "Text Editor"),
@@ -53,7 +55,7 @@ import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommand
 );
 
 // Register Text Diff Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
 		TextDiffEditor.ID,
 		nls.localize('textDiffEditor', "Text Diff Editor"),
@@ -66,7 +68,7 @@ import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommand
 );
 
 // Register Binary Resource Diff Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
 		BinaryResourceDiffEditor.ID,
 		nls.localize('binaryDiffEditor', "Binary Diff Editor"),
@@ -78,12 +80,49 @@ import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommand
 	]
 );
 
+interface ISerializedUntitledEditorInput {
+	resource: string;
+}
+
+let untitledEditorServiceAccessor: UntitledEditorServiceAccessor;
+class UntitledEditorServiceAccessor {
+	constructor( @IUntitledEditorService public untitledEditorService: IUntitledEditorService) {
+	}
+}
+
+// Register Editor Input Factory
+class UntitledEditorInputFactory implements IEditorInputFactory {
+
+	constructor() { }
+
+	public serialize(editorInput: EditorInput): string {
+		const untitledEditorInput = <UntitledEditorInput>editorInput;
+		const serialized: ISerializedUntitledEditorInput = {
+			resource: untitledEditorInput.getResource().toString()
+		};
+
+		return JSON.stringify(serialized);
+	}
+
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+		const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
+
+		if (!untitledEditorServiceAccessor) {
+			untitledEditorServiceAccessor = instantiationService.createInstance(UntitledEditorServiceAccessor);
+		}
+
+		return untitledEditorServiceAccessor.untitledEditorService.createOrGet(URI.parse(deserialized.resource));
+	}
+}
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(UntitledEditorInput.ID, UntitledEditorInputFactory);
+
 // Register Editor Status
-const statusBar = (<IStatusbarRegistry>Registry.as(StatusExtensions.Statusbar));
+const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(EditorStatus, StatusbarAlignment.RIGHT, 100 /* High Priority */));
 
 // Register Status Actions
-const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL), 'Change End of Line Sequence');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL), 'Change File Encoding');
@@ -127,7 +166,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 	}
 }
 
-const actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
+const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(

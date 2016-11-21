@@ -310,6 +310,14 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			this.pickOpenWidget.layout(this.layoutDimensions);
 		}
 
+		// Detect cancellation while pick promise is loading
+		let cancelTriggered = false;
+		this.pickOpenWidget.setCallbacks({
+			onOk: () => { /* ignore, handle later */ },
+			onCancel: () => { cancelTriggered = true; },
+			onType: (value: string) => { /* ignore, handle later */ },
+		});
+
 		return new TPromise<IPickOpenEntry | string>((complete, error, progress) => {
 
 			// hide widget when being cancelled
@@ -323,8 +331,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			// Resolve picks
 			picksPromise.then(picks => {
-				if (this.currentPickerToken !== currentPickerToken) {
-					return; // Return if another request came after
+				if (this.currentPickerToken !== currentPickerToken || cancelTriggered) {
+					return complete(void 0); // Return as canceled if another request came after or user canceled
 				}
 
 				picksPromiseDone = true;
@@ -342,7 +350,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				model.setEntries(entries);
 
 				// Handlers
-				this.pickOpenWidget.setCallbacks({
+				const callbacks = {
 					onOk: () => {
 						if (picks.length === 0) {
 							return complete(null);
@@ -410,13 +418,21 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					},
 					onShow: () => this.handleOnShow(true),
 					onHide: (reason) => this.handleOnHide(true, reason)
-				});
+				};
+				this.pickOpenWidget.setCallbacks(callbacks);
 
 				// Set input
 				if (!this.pickOpenWidget.isVisible()) {
 					this.pickOpenWidget.show(model, { autoFocus });
 				} else {
 					this.pickOpenWidget.setInput(model, autoFocus);
+				}
+
+				// The user might have typed something (or options.value was set) so we need to play back
+				// the input box value through our callbacks to filter the result accordingly.
+				const inputValue = this.pickOpenWidget.getInputBox().value;
+				if (inputValue) {
+					callbacks.onType(inputValue);
 				}
 			}, (err) => {
 				this.pickOpenWidget.hide();

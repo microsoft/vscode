@@ -37,14 +37,6 @@ export interface IBackupMainService {
 	removeWorkspaceBackupPathSync(workspace: Uri): void;
 
 	/**
-	 * Gets the set of untitled file backups for a particular workspace.
-	 *
-	 * @param workspace The workspace to get the backups for.
-	 * @return The absolute paths for all the untitled file _backups_.
-	 */
-	getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[];
-
-	/**
 	 * Gets whether the workspace has backup(s) associated with it (ie. if the workspace backup
 	 * directory exists).
 	 *

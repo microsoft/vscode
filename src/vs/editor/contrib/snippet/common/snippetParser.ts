@@ -186,23 +186,31 @@ export class SnippetParser {
 
 		// * fill in default for empty placeHolders
 		// * compact sibling Text markers
-		const placeholders: { [name: string]: Marker[] } = Object.create(null);
-		for (let i = 0; i < marker.length; i++) {
-			let thisMarker = marker[i];
+		function compact(marker: Marker[], placeholders: { [name: string]: Marker[] }) {
 
-			if (thisMarker instanceof Placeholder) {
-				if (placeholders[thisMarker.name] === undefined) {
-					placeholders[thisMarker.name] = thisMarker.value;
-				} else if (thisMarker.value.length === 0) {
-					thisMarker.value = placeholders[thisMarker.name].slice(0);
+			for (let i = 0; i < marker.length; i++) {
+				const thisMarker = marker[i];
+
+				if (thisMarker instanceof Placeholder) {
+					if (placeholders[thisMarker.name] === undefined) {
+						placeholders[thisMarker.name] = thisMarker.value;
+					} else if (thisMarker.value.length === 0) {
+						thisMarker.value = placeholders[thisMarker.name].slice(0);
+					}
+
+					if (thisMarker.value.length > 0) {
+						compact(thisMarker.value, placeholders);
+					}
+
+				} else if (i > 0 && thisMarker instanceof Text && marker[i - 1] instanceof Text) {
+					(<Text>marker[i - 1]).string += (<Text>marker[i]).string;
+					marker.splice(i, 1);
+					i--;
 				}
-
-			} else if (i > 0 && thisMarker instanceof Text && marker[i - 1] instanceof Text) {
-				(<Text>marker[i - 1]).string += (<Text>marker[i]).string;
-				marker.splice(i, 1);
-				i--;
 			}
 		}
+
+		compact(marker, Object.create(null));
 
 		return marker;
 	}
@@ -347,7 +355,7 @@ export class SnippetParser {
 			if (// Internal style
 				(this._enableInternal && (this._accept(TokenType.CurlyOpen) || this._accept(TokenType.CurlyClose) || this._accept(TokenType.Backslash)))
 				// TextMate style
-				|| (this._enableTextMate && this._accept(TokenType.Dollar))
+				|| (this._enableTextMate && (this._accept(TokenType.Dollar) || this._accept(TokenType.CurlyClose)))
 			) {
 				// just consume them
 			}

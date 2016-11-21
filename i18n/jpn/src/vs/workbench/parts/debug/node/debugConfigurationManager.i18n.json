@@ -6,6 +6,7 @@
 {
 	"DebugConfig.failed": "'launch.json' ファイルを '.vscode' フォルダー ({0}) 内に作成できません。",
 	"app.launch.json.configurations": "構成の一覧。IntelliSense を使用して、新しい構成を追加したり、既存の構成を編集したります。",
+	"app.launch.json.debugServer": "非推奨: debugServer を構成内に移動してください。",
 	"app.launch.json.title": "起動",
 	"app.launch.json.version": "このファイル形式のバージョン。",
 	"debugNoType": "デバッグ アダプター 'type' は省略不可で、型 'string' でなければなりません。",
