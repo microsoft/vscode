@@ -123,7 +123,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		if (context && context.element instanceof FileStat) {
 
 			// Any other item with keybinding
-			const keybinding = keybindingForAction(action.id);
+			const keybinding = keybindingForAction(action.id, this.keybindingService);
 			if (keybinding) {
 				return new ActionItem(context, action, { label: true, keybinding: this.keybindingService.getLabelFor(keybinding) });
 			}

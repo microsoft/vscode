@@ -14,7 +14,6 @@ import { endsWith } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
-import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController, CONTEXT_SNIPPET_MODE } from 'vs/editor/contrib/snippet/common/snippetController';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -77,8 +76,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	performSnippetCompletions(): void {
 		if (this._currentSnippets.length === 1) {
 			const snippet = this._currentSnippets[0];
-			const codeSnippet = CodeSnippet.fromTextmate(snippet.codeSnippet);
-			this._snippetController.run(codeSnippet, snippet.prefix.length, 0);
+			this._snippetController.insertSnippet(snippet.codeSnippet, snippet.prefix.length, 0);
 			// } else {
 			// todo@joh - show suggest widget with proposals
 		}

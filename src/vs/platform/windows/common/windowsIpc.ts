@@ -34,6 +34,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: 'showWindow', arg: number): TPromise<void>;
 	call(command: 'getWindows'): TPromise<{ id: number; path: string; title: string; }[]>;
+	call(command: 'getWindowCount'): TPromise<number>;
 	call(command: 'log', arg: [string, string[]]): TPromise<void>;
 	call(command: 'closeExtensionHostWindow', arg: string): TPromise<void>;
 	call(command: 'showItemInFolder', arg: string): TPromise<void>;
@@ -78,6 +79,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'openNewWindow': return this.service.openNewWindow();
 			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();
+			case 'getWindowCount': return this.service.getWindowCount();
 			case 'log': return this.service.log(arg[0], arg[1]);
 			case 'closeExtensionHostWindow': return this.service.closeExtensionHostWindow(arg);
 			case 'showItemInFolder': return this.service.showItemInFolder(arg);
@@ -185,6 +187,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	getWindows(): TPromise<{ id: number; path: string; title: string; }[]> {
 		return this.channel.call('getWindows');
+	}
+
+	getWindowCount(): TPromise<number> {
+		return this.channel.call('getWindowCount');
 	}
 
 	log(severity: string, ...messages: string[]): TPromise<void> {

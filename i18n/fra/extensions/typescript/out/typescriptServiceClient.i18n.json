@@ -6,9 +6,7 @@
 {
 	"channelName": "TypeScript",
 	"close": "Fermer",
-	"doNotCheckAgain": "Ne plus vérifier",
-	"localTSFound": "Le dossier d'espace de travail contient TypeScript version {0}. Voulez-vous utiliser cette version à la place de la version d'ensemble {1} ?",
-	"moreInformation": "Informations",
+	"localTSFound": "Le dossier d'espace de travail contient TypeScript version {0}. Voulez-vous utiliser cette version à la place de la version groupée {1} ?",
 	"neverCheckLocalVesion": "Ne jamais vérifier la version de l'espace de travail",
 	"noServerFound": "Le chemin {0} ne pointe pas vers une installation valide de tsserver. Les fonctionnalités du langage TypeScript vont être désactivées.",
 	"serverCouldNotBeStarted": "Impossible de démarrer le serveur de langage TypeScript. Message d'erreur : {0}",
@@ -16,10 +14,8 @@
 	"serverDiedAfterStart": "Le service de langage TypeScript s'est subitement arrêté 5 fois juste après le démarrage et ne sera pas redémarré. Ouvrez un rapport de bogues.",
 	"updateGlobalWorkspaceCheck": "Mise à jour du paramètre utilisateur 'typescript.check.workspaceVersion' avec la valeur false",
 	"updateLocalWorkspaceCheck": "Mise à jour du paramètre d'espace de travail 'typescript.check.workspaceVersion' avec la valeur false",
-	"updateTscCheck": "Mise à jour du paramètre utilisateur 'typescript.check.tscVersion' avec la valeur false",
 	"updatedtsdk": "Mise à jour du paramètre d'espace de travail 'typescript.tsdk' avec la valeur {0}",
 	"use": "Utiliser l'espace de travail ({0})",
 	"useBundled": "Utiliser l'ensemble d'applications ({0})",
-	"versionMismatch": "Incompatibilité de version ! global tsc ({0}) != Service de langage de VS Code ({1}). Des erreurs de compilation incohérentes risquent de se produire",
 	"versionNumber.custom": "personnalisé"
 }

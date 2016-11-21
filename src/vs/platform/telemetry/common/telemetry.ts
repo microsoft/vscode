@@ -168,8 +168,26 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 		if (event.source !== ConfigurationSource.Default) {
 			telemetryService.publicLog('updateConfiguration', {
 				configurationSource: ConfigurationSource[event.source],
-				configurationKeys: Object.keys(event.sourceConfig)
+				configurationKeys: flattenKeys(event.sourceConfig)
 			});
 		}
 	});
+}
+
+function flattenKeys(value: Object): string[] {
+	if (!value) {
+		return [];
+	}
+	const result: string[] = [];
+	flatKeys(result, '', value);
+	return result;
+}
+
+function flatKeys(result: string[], prefix: string, value: Object): void {
+	if (value && typeof value === 'object' && !Array.isArray(value)) {
+		Object.keys(value)
+			.forEach(key => flatKeys(result, prefix ? `${prefix}.${key}` : key, value[key]));
+	} else {
+		result.push(prefix);
+	}
 }

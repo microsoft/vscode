@@ -13,6 +13,7 @@ import platform = require('vs/platform/platform');
 import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');
+import * as pfs from 'vs/base/node/pfs';
 import errors = require('vs/base/common/errors');
 import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -81,7 +82,7 @@ class OpenSnippetsAction extends actions.Action {
 						'*/',
 						'}'
 					].join('\n');
-					return createFile(snippetPath, defaultContent).then(() => {
+					return pfs.writeFile(snippetPath, defaultContent).then(() => {
 						return this.openFile(snippetPath);
 					}, (err) => {
 						errors.onUnexpectedError(nls.localize('openSnippet.errorOnCreate', 'Unable to create {0}', snippetPath));
@@ -105,17 +106,6 @@ function fileExists(path: string): winjs.TPromise<boolean> {
 			}
 
 			c(false);
-		});
-	});
-}
-
-function createFile(path: string, content: string): winjs.Promise {
-	return new winjs.Promise((c, e, p) => {
-		fs.writeFile(path, content, function (err) {
-			if (err) {
-				e(err);
-			}
-			c(true);
 		});
 	});
 }
