@@ -83,7 +83,7 @@ suite('Workbench - TextModelResolverService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		return model.load().then(() => {
-			return accessor.textModelResolverServie.getModelReference(model.getResource()).then(ref => {
+			return accessor.textModelResolverServie.createModelReference(model.getResource()).then(ref => {
 				const model = ref.object;
 				const editorModel = model.textEditorModel;
 
@@ -99,7 +99,7 @@ suite('Workbench - TextModelResolverService', () => {
 		const input = service.createOrGet();
 
 		input.resolve().then(() => {
-			return accessor.textModelResolverServie.getModelReference(input.getResource()).then(ref => {
+			return accessor.textModelResolverServie.createModelReference(input.getResource()).then(ref => {
 				const model = ref.object;
 				const editorModel = model.textEditorModel;
 

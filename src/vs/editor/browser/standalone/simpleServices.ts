@@ -173,7 +173,7 @@ export class SimpleEditorModelResolverService implements ITextModelResolverServi
 		this.editor = new SimpleEditor(editor);
 	}
 
-	public getModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
 		let model: editorCommon.IModel;
 
 		model = this.editor.withTypedEditor(

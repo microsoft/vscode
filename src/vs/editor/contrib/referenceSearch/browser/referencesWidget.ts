@@ -716,7 +716,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}
 
-		const promise = this._textModelResolverService.getModelReference(reference.uri);
+		const promise = this._textModelResolverService.createModelReference(reference.uri);
 
 		return TPromise.join([promise, this._tree.reveal(reference)]).then(values => {
 			const ref = values[0];

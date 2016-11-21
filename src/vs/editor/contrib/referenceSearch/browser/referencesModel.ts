@@ -144,7 +144,7 @@ export class FileReferences implements IDisposable {
 			return TPromise.as(this);
 		}
 
-		return textModelResolverService.getModelReference(this._uri).then(modelReference => {
+		return textModelResolverService.createModelReference(this._uri).then(modelReference => {
 			const model = modelReference.object;
 
 			if (!model) {

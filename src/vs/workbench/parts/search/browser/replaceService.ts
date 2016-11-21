@@ -57,7 +57,7 @@ class EditorInputCache {
 		if (editorInputPromise) {
 			editorInputPromise.done(() => {
 				if (reloadFromSource) {
-					this.textModelResolverService.getModelReference(fileMatch.resource()).done(ref => {
+					this.textModelResolverService.createModelReference(fileMatch.resource()).done(ref => {
 						const model = ref.object;
 						if (model.textEditorModel) {
 							let replaceResource = this.getReplaceResource(fileMatch.resource());
@@ -109,7 +109,7 @@ class EditorInputCache {
 	}
 
 	private createRightInput(element: FileMatch): TPromise<IEditorInput> {
-		return this.textModelResolverService.getModelReference(element.resource()).then(ref => {
+		return this.textModelResolverService.createModelReference(element.resource()).then(ref => {
 			const model = ref.object;
 			let textEditorModel = model.textEditorModel;
 			let replaceResource = this.getReplaceResource(element.resource());

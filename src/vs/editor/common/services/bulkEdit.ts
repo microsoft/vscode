@@ -217,7 +217,7 @@ class BulkEditModel implements IDisposable {
 		}
 
 		forEach(this._edits, entry => {
-			const promise = this._textModelResolverService.getModelReference(URI.parse(entry.key)).then(ref => {
+			const promise = this._textModelResolverService.createModelReference(URI.parse(entry.key)).then(ref => {
 				const model = ref.object;
 
 				if (!model || !model.textEditorModel) {

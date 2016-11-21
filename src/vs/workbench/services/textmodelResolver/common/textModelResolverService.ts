@@ -114,7 +114,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
 
-	getModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+	createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
 		const uri = resource.toString();
 		let promise = this.promiseCache[uri];
 

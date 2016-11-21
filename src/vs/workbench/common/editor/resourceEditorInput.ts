@@ -73,7 +73,7 @@ export class ResourceEditorInput extends EditorInput {
 
 	resolve(refresh?: boolean): TPromise<ITextEditorModel> {
 		if (!this.promise) {
-			this.promise = this.textModelResolverService.getModelReference(this.resource);
+			this.promise = this.textModelResolverService.createModelReference(this.resource);
 		}
 
 		return this.promise.then(ref => {
