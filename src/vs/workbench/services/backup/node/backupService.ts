@@ -16,6 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 export class BackupService implements IBackupService {
 
@@ -34,7 +35,8 @@ export class BackupService implements IBackupService {
 		@IFileService private fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		this.toDispose = [];
 
@@ -98,12 +100,12 @@ export class BackupService implements IBackupService {
 			return TPromise.as({ didBackup: false });
 		}
 
-		return this.backupFileService.getWorkspaceBackupPaths().then(workspaceBackupPaths => {
+		return this.windowsService.getWindowCount().then(windowCount => {
 			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
 			// When quit is not requested the confirm callback should be shown when the window being
 			// closed is the only VS Code window open, except for on Mac where hot exit is only
 			// ever activated when quit is requested.
-			if (!quitRequested && (workspaceBackupPaths.length > 1 || platform.isMacintosh)) {
+			if (!quitRequested && (windowCount > 1 || platform.isMacintosh)) {
 				return TPromise.as({ didBackup: false });
 			}
 

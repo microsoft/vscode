@@ -40,13 +40,6 @@ export interface IBackupFileService {
 	_serviceBrand: any;
 
 	/**
-	 * Gets the set of active workspace backup paths being tracked for restoration.
-	 *
-	 * @return The set of active workspace backup paths being tracked for restoration.
-	 */
-	getWorkspaceBackupPaths(): TPromise<string[]>;
-
-	/**
 	 * Gets whether a text file has a backup to restore.
 	 *
 	 * @param resource The resource to check.

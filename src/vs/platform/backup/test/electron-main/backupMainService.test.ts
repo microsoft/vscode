@@ -96,21 +96,6 @@ suite('BackupMainService', () => {
 		assert.deepEqual(service.getWorkspaceBackupPaths(), [fooFile.fsPath, barFile.fsPath]);
 	});
 
-	test('getWorkspaceUntitledFileBackupsSync should return untitled file backup resources', done => {
-		const untitledBackupDir = path.join(fooWorkspaceBackupDir, 'untitled');
-		const untitledBackup1 = path.join(untitledBackupDir, 'bar');
-		const untitledBackup2 = path.join(untitledBackupDir, 'foo');
-		pfs.mkdirp(untitledBackupDir).then(() => {
-			pfs.writeFile(untitledBackup1, 'test').then(() => {
-				assert.deepEqual(service.getWorkspaceUntitledFileBackupsSync(fooFile), ['bar']);
-				pfs.writeFile(untitledBackup2, 'test').then(() => {
-					assert.deepEqual(service.getWorkspaceUntitledFileBackupsSync(fooFile), ['bar', 'foo']);
-					done();
-				});
-			});
-		});
-	});
-
 	test('removeWorkspaceBackupPath should remove workspaces from workspaces.json', done => {
 		service.pushWorkspaceBackupPathsSync([fooFile, barFile]);
 		service.removeWorkspaceBackupPathSync(fooFile);
@@ -128,7 +113,7 @@ suite('BackupMainService', () => {
 
 	test('removeWorkspaceBackupPath should fail gracefully when removing a path that doesn\'t exist', done => {
 		const workspacesJson: IBackupWorkspacesFormat = { folderWorkspaces: [fooFile.fsPath] };
-		pfs.writeFileAndFlush(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
+		pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
 			service.removeWorkspaceBackupPathSync(barFile);
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(content);

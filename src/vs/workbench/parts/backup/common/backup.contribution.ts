@@ -8,8 +8,14 @@
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { BackupModelTracker } from 'vs/workbench/parts/backup/common/backupModelTracker';
+import { BackupRestorer } from 'vs/workbench/parts/backup/common/backupRestorer';
 
-// Register Dirty Files Tracker
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
+// Register Backup Model Tracker
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	BackupModelTracker
+);
+
+// Register Backup Restorer
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	BackupRestorer
 );

@@ -194,7 +194,7 @@ export class WorkbenchShell {
 		timer.start(timer.Topic.STARTUP, '[renderer] overall workbench load', timers.perfBeforeWorkbenchOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
 
 		// Telemetry: workspace info
-		const { filesToOpen, filesToCreate, filesToDiff, untitledToRestore } = this.options;
+		const { filesToOpen, filesToCreate, filesToDiff } = this.options;
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
@@ -202,7 +202,6 @@ export class WorkbenchShell {
 			'workbench.filesToOpen': filesToOpen && filesToOpen.length || undefined,
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
-			'workbench.untitledToRestore': untitledToRestore && untitledToRestore.length || undefined,
 			customKeybindingsCount,
 			theme: this.themeService.getColorTheme(),
 			language: platform.language,
@@ -239,11 +238,12 @@ export class WorkbenchShell {
 				ellapsed: Math.round(workbenchStarted - start),
 				timers: {
 					ellapsedExtensions: Math.round(timers.perfAfterExtensionLoad - timers.perfBeforeExtensionLoad),
-					extensionsReady: Math.round(timers.perfAfterExtensionLoad - start),
+					ellapsedExtensionsReady: Math.round(timers.perfAfterExtensionLoad - start),
 					ellapsedRequire: Math.round(timers.perfAfterLoadWorkbenchMain - timers.perfBeforeLoadWorkbenchMain),
 					ellapsedViewletRestore: Math.round(restoreViewletDuration),
 					ellapsedEditorRestore: Math.round(restoreEditorsDuration),
-					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen)
+					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen),
+					ellapsedWindowLoadToRequire: Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfWindowLoadTime)
 				},
 				platform,
 				release,
@@ -256,8 +256,7 @@ export class WorkbenchShell {
 			};
 
 			if (initialStartup) {
-				startupTimeEvent.timers.ellapsedMain = Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfStartTime);
-				startupTimeEvent.timers.windowLoad = Math.round(timers.perfWindowLoadTime - timers.perfStartTime);
+				startupTimeEvent.timers.ellapsedWindowLoad = Math.round(timers.perfWindowLoadTime - timers.perfStartTime);
 			}
 
 			this.telemetryService.publicLog('startupTime', startupTimeEvent);

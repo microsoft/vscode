@@ -1859,7 +1859,7 @@ export class RefreshExplorerView extends Action {
 	}
 }
 
-export function keybindingForAction(id: string, keybindingService?: IKeybindingService): Keybinding {
+export function keybindingForAction(id: string, keybindingService: IKeybindingService): Keybinding {
 	switch (id) {
 		case GlobalNewUntitledFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_N);
