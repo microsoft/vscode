@@ -34,6 +34,7 @@ import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/tre
 import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -389,7 +390,8 @@ export class FileController extends DefaultController {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 
@@ -510,7 +512,7 @@ export class FileController extends DefaultController {
 				});
 			},
 			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),
-			getKeyBinding: (a): Keybinding => keybindingForAction(a.id),
+			getKeyBinding: (a): Keybinding => keybindingForAction(a.id, this.keybindingService),
 			getActionsContext: (event) => {
 				return {
 					viewletState: this.state,

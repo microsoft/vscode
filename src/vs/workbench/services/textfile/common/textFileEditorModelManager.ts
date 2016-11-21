@@ -248,6 +248,11 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			// Make known to manager (if not already known)
 			this.add(resource, model);
 
+			// Model can be dirty if a backup was restored, so we make sure to have this event delivered
+			if (model.isDirty()) {
+				this._onModelDirty.fire(new TextFileModelChangeEvent(model, StateChange.DIRTY));
+			}
+
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders[resource.toString()] = null;
 

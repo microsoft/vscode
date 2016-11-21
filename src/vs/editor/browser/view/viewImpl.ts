@@ -25,12 +25,15 @@ import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/
 import { LayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
 import { CurrentLineHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
+import { CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineMarginHighlight/currentLineMarginHighlight';
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
 import { GlyphMarginOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
 import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
+import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { LinesDecorationsOverlay } from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
+import { MarginViewLineDecorationsOverlay } from 'vs/editor/browser/viewParts/marginDecorations/marginDecorations';
 import { ViewOverlayWidgets } from 'vs/editor/browser/viewParts/overlayWidgets/overlayWidgets';
 import { DecorationsOverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/decorationsOverviewRuler';
 import { OverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/overviewRuler';
@@ -236,10 +239,16 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 		let marginViewOverlays = new MarginViewOverlays(this._context, this.layoutProvider);
 		this.viewParts.push(marginViewOverlays);
+		marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(this._context, this.layoutProvider));
 		marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this._context));
+		marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
 
+		let margin = new Margin(this._context, this.layoutProvider);
+		margin.domNode.appendChild(this.viewZones.marginDomNode);
+		margin.domNode.appendChild(marginViewOverlays.getDomNode());
+		this.viewParts.push(margin);
 
 		// Content widgets
 		this.contentWidgets = new ViewContentWidgets(this._context, this.domNode);
@@ -271,7 +280,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.linesContent.appendChild(this.viewLines.getDomNode());
 		this.linesContent.appendChild(this.contentWidgets.domNode);
 		this.linesContent.appendChild(this.viewCursors.getDomNode());
-		this.overflowGuardContainer.appendChild(marginViewOverlays.getDomNode());
+		this.overflowGuardContainer.appendChild(margin.domNode);
 		this.overflowGuardContainer.appendChild(this.linesContentContainer);
 		this.overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
 		this.overflowGuardContainer.appendChild(this.overlayWidgets.domNode);
