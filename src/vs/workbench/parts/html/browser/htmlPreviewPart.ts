@@ -40,6 +40,7 @@ export class HtmlPreviewPart extends BaseEditor {
 	private _baseUrl: URI;
 
 	private _model: IModel;
+	private _modelReference = EmptyDisposable;
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 
@@ -65,6 +66,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		// unhook listeners
 		this._themeChangeSubscription.dispose();
 		this._modelChangeSubscription.dispose();
+		this._modelReference.dispose();
 		this._model = undefined;
 		super.dispose();
 	}
@@ -142,6 +144,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		}
 
 		this._model = undefined;
+		this._modelReference.dispose();
 		this._modelChangeSubscription.dispose();
 
 		if (!(input instanceof HtmlInput)) {
@@ -149,14 +152,17 @@ export class HtmlPreviewPart extends BaseEditor {
 		}
 
 		return super.setInput(input, options).then(() => {
-			let resourceUri = (<HtmlInput>input).getResource();
-			return this._textModelResolverService.resolve(resourceUri).then(model => {
+			const resourceUri = (<HtmlInput>input).getResource();
+			const modelReference = this._textModelResolverService.getModelReference(resourceUri);
+
+			return modelReference.object.then(model => {
 				if (model instanceof BaseTextEditorModel) {
 					this._model = model.textEditorModel;
 				}
 				if (!this._model) {
 					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
 				}
+				this._modelReference = modelReference;
 				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.contents = this._model.getLinesContent();

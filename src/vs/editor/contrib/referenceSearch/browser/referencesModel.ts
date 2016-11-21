@@ -7,6 +7,7 @@
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import Event, { fromEventEmitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/paths';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
@@ -62,30 +63,37 @@ export class OneReference {
 	}
 }
 
-export class FilePreview {
+export class FilePreview implements IDisposable {
 
-	constructor(private _value: IModel) {
+	constructor(private _model: IModel, private _modelReference: IDisposable) {
 
 	}
 
 	public preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } {
 
 		const {startLineNumber, startColumn, endColumn} = range;
-		const word = this._value.getWordUntilPosition({ lineNumber: startLineNumber, column: startColumn - n });
+		const word = this._model.getWordUntilPosition({ lineNumber: startLineNumber, column: startColumn - n });
 		const beforeRange = new Range(startLineNumber, word.startColumn, startLineNumber, startColumn);
 		const afterRange = new Range(startLineNumber, endColumn, startLineNumber, Number.MAX_VALUE);
 
 		const ret = {
-			before: this._value.getValueInRange(beforeRange).replace(/^\s+/, strings.empty),
-			inside: this._value.getValueInRange(range),
-			after: this._value.getValueInRange(afterRange).replace(/\s+$/, strings.empty)
+			before: this._model.getValueInRange(beforeRange).replace(/^\s+/, strings.empty),
+			inside: this._model.getValueInRange(range),
+			after: this._model.getValueInRange(afterRange).replace(/\s+$/, strings.empty)
 		};
 
 		return ret;
 	}
+
+	dispose(): void {
+		if (this._modelReference) {
+			this._modelReference.dispose();
+			this._modelReference = null;
+		}
+	}
 }
 
-export class FileReferences {
+export class FileReferences implements IDisposable {
 
 	private _children: OneReference[];
 	private _preview: FilePreview;
@@ -134,11 +142,14 @@ export class FileReferences {
 			return TPromise.as(this);
 		}
 
-		return textModelResolverService.resolve(this._uri).then(model => {
+		const modelReference = textModelResolverService.getModelReference(this._uri);
+		const modelPromise = modelReference.object;
+
+		return modelPromise.then(model => {
 			if (!model) {
 				throw new Error();
 			}
-			this._preview = new FilePreview(model.textEditorModel);
+			this._preview = new FilePreview(model.textEditorModel, modelReference);
 			this._resolved = true;
 			return this;
 
@@ -150,9 +161,16 @@ export class FileReferences {
 			return this;
 		});
 	}
+
+	dispose(): void {
+		if (this._preview) {
+			this._preview.dispose();
+			this._preview = null;
+		}
+	}
 }
 
-export class ReferencesModel {
+export class ReferencesModel implements IDisposable {
 
 	private _groups: FileReferences[] = [];
 	private _references: OneReference[] = [];
@@ -237,6 +255,10 @@ export class ReferencesModel {
 		if (nearest) {
 			return this._references[nearest.idx];
 		}
+	}
+
+	dispose(): void {
+		this._groups = dispose(this._groups);
 	}
 
 	private static _compareReferences(a: Location, b: Location): number {
