@@ -27,7 +27,7 @@ import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 
 export class SimpleEditor implements IEditor {
 
@@ -173,7 +173,7 @@ export class SimpleEditorModelResolverService implements ITextModelResolverServi
 		this.editor = new SimpleEditor(editor);
 	}
 
-	public resolve(resource: URI): TPromise<ITextEditorModel> {
+	public getModelReference(resource: URI): IReference<TPromise<ITextEditorModel>> {
 		let model: editorCommon.IModel;
 
 		model = this.editor.withTypedEditor(
@@ -182,10 +182,10 @@ export class SimpleEditorModelResolverService implements ITextModelResolverServi
 		);
 
 		if (!model) {
-			return TPromise.as(null);
+			return new ImmortalReference(TPromise.as(null));
 		}
 
-		return TPromise.as(new SimpleModel(model));
+		return new ImmortalReference(TPromise.as(new SimpleModel(model)));
 	}
 
 	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {

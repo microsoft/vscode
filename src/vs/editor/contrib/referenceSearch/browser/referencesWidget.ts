@@ -10,7 +10,7 @@ import * as collections from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposables } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposables, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -494,6 +494,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _treeContainer: Builder;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
+	private _previewModelReference: IDisposable = EmptyDisposable;
 	private _previewNotAvailableMessage: Model;
 	private _previewContainer: Builder;
 	private _messageContainer: Builder;
@@ -715,11 +716,12 @@ export class ReferenceWidget extends PeekViewWidget {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}
 
-		return TPromise.join([
-			this._textModelResolverService.resolve(reference.uri),
-			this._tree.reveal(reference)
-		]).then(values => {
+		const modelReference = this._textModelResolverService.getModelReference(reference.uri);
+		const modelPromise = modelReference.object;
+
+		return TPromise.join([modelPromise, this._tree.reveal(reference)]).then(values => {
 			if (!this._model) {
+				modelReference.dispose();
 				// disposed
 				return;
 			}
@@ -734,6 +736,9 @@ export class ReferenceWidget extends PeekViewWidget {
 			} else {
 				this._preview.setModel(this._previewNotAvailableMessage);
 			}
+
+			this._previewModelReference.dispose();
+			this._previewModelReference = modelReference;
 
 			// show in tree
 			this._tree.setSelection([reference]);

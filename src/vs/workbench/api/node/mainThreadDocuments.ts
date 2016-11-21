@@ -187,8 +187,14 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	}
 
 	private _handleAsResourceInput(uri: URI): TPromise<boolean> {
-		return this._textModelResolverService.resolve(uri).then(model => {
-			return !!model;
+		const modelReference = this._textModelResolverService.getModelReference(uri);
+		const modelPromise = modelReference.object;
+
+		return modelPromise.then(model => {
+			const result = !!model;
+			modelReference.dispose();
+
+			return result;
 		});
 	}
 
