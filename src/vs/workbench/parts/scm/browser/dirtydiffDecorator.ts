@@ -64,7 +64,7 @@ class DirtyDiffModelDecorator {
 	constructor(
 		private model: common.IModel,
 		private uri: URI,
-		@ISCMService private dirtyDiffService: ISCMService,
+		@ISCMService private scmService: ISCMService,
 		@IModelService private modelService: IModelService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -80,7 +80,7 @@ class DirtyDiffModelDecorator {
 
 	@memoize
 	private get originalURIPromise(): winjs.TPromise<URI> {
-		return this.dirtyDiffService.getBaselineResource(this.uri)
+		return this.scmService.getBaselineResource(this.uri)
 			.then(originalUri => this.textModelResolverService.resolve(originalUri)
 				.then(model => {
 					this.textEditorModel = model.textEditorModel;
