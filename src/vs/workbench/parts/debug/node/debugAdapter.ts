@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IRawAdapter } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -70,6 +70,10 @@ export class Adapter {
 
 	public get variables(): { [key: string]: string } {
 		return this.rawAdapter.variables;
+	}
+
+	public get configurationSnippets(): IJSONSchemaSnippet[] {
+		return this.rawAdapter.configurationSnippets;
 	}
 
 	public merge(secondRawAdapter: IRawAdapter, extensionDescription: IExtensionDescription): void {
