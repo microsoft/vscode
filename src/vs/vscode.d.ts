@@ -2048,6 +2048,7 @@ declare module 'vscode' {
 		 * the [`value`](#SnippetString.value) of this snippet string.
 		 *
 		 * @param string A value to append 'as given'. The string will be escaped.
+		 * @return This snippet string.
 		 */
 		appendText(string: string): SnippetString;
 
@@ -2057,6 +2058,7 @@ declare module 'vscode' {
 		 *
 		 * @param number The number of this tabstop, defaults to an auto-incremet
 		 * value starting at 1.
+		 * @return This snippet string.
 		 */
 		appendTabstop(number?: number): SnippetString;
 
@@ -2068,8 +2070,29 @@ declare module 'vscode' {
 		 * with which a nested snippet can be created.
 		 * @param number The number of this tabstop, defaults to an auto-incremet
 		 * value starting at 1.
+		 * @return This snippet string.
 		 */
 		appendPlaceholder(value: string | ((snippet: SnippetString) => any), number?: number): SnippetString;
+
+		/**
+		 * Builder-function that appends a variable (`$VAR`) to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param name The name of the variable - excluding the `$`.
+		 * @return This snippet string.
+		 */
+		appendVariable(name: string): SnippetString;
+
+		/**
+		 * Builder-function that appends a variable and default value (`${VAR:fallback}`) to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param name The name of the variable (excluding the `$`)
+		 * @param defaultValue The default value which is used when the variable name cannot
+		 * be resolved - either a string or a function with which a nested snippet can be created.
+		 * @return This snippet string.
+		 */
+		appendVariable(name: string, defaultValue: string | ((snippet: SnippetString) => any)): SnippetString;
 	}
 
 	/**
