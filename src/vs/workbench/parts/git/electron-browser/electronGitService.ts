@@ -169,23 +169,23 @@ interface IRawGitServiceBootstrap {
 }
 
 function createRawGitService(gitPath: string, execPath: string, workspaceRoot: string, encoding: string, verbose: boolean): IRawGitService {
-	const promise = new TPromise<IRawGitService>((c, e) => {
-		require(['vs/workbench/parts/git/node/rawGitServiceBootstrap'], ({ createRawGitService }: IRawGitServiceBootstrap) => {
-			findGit(gitPath)
-				.then(({ path, version }) => createRawGitService(path, workspaceRoot, encoding, execPath, version))
-				.done(c, e);
-		}, e);
+	const requirePromise = new TPromise<IRawGitServiceBootstrap>((c, e) => {
+		return require(['vs/workbench/parts/git/node/rawGitServiceBootstrap'], c, e);
 	});
 
-	return new DelayedRawGitService(promise);
+	const servicePromise = requirePromise.then(({ createRawGitService }) => {
+		return findGit(gitPath)
+			.then(({ path, version }) => createRawGitService(path, workspaceRoot, encoding, execPath, version))
+			.then(null, () => new RawGitService(null));
+	});
+
+	return new DelayedRawGitService(servicePromise);
 }
 
 function createUnscopedRawGitService(gitPath: string, execPath: string, encoding: string): IRawGitService {
-	const promise = new TPromise<IRawGitService>((c, e) => {
-		findGit(gitPath)
-			.then(({ path, version }) => new UnscopedGitService(path, version, encoding, execPath))
-			.done(c, e);
-	});
+	const promise = findGit(gitPath)
+		.then(({ path, version }) => new UnscopedGitService(path, version, encoding, execPath))
+		.then(null, () => new RawGitService(null));
 
 	return new DelayedRawGitService(promise);
 }

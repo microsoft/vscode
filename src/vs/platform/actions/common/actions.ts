@@ -111,23 +111,14 @@ export class MenuItemAction extends Action {
 		return result;
 	}
 
-	private _resource: URI;
-
 	constructor(
 		private _item: IMenuItem,
-		@ICommandService private _commandService: ICommandService
+		@ICommandService private _commandService: ICommandService,
+		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		super(MenuItemAction._getMenuItemId(_item), _item.command.title);
 
 		this.order = this._item.order; //TODO@Ben order is menu item property, not an action property
-	}
-
-	set resource(value: URI) {
-		this._resource = value;
-	}
-
-	get resource() {
-		return this._resource;
 	}
 
 	get item(): IMenuItem {
@@ -144,7 +135,8 @@ export class MenuItemAction extends Action {
 
 	run(alt: boolean) {
 		const {id} = alt === true && this._item.alt || this._item.command;
-		return this._commandService.executeCommand(id, this._resource);
+		const resource = this._contextKeyService.getContextKeyValue<URI>('resource');
+		return this._commandService.executeCommand(id, resource);
 	}
 }
 

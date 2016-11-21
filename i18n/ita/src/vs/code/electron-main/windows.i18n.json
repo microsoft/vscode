@@ -10,10 +10,14 @@
 	"appStalled": "La finestra non risponde",
 	"appStalledDetail": "È possibile riaprire la finestra, chiuderla oppure attendere.",
 	"close": "Chiudi",
+	"folderDesc": "{0} {1}",
 	"hiddenMenuBar": "È comunque possibile accedere alla barra dei menu premendo **ALT**.",
+	"newWindow": "Nuova finestra",
+	"newWindowDesc": "Apre una nuova finestra",
 	"ok": "OK",
 	"pathNotExistDetail": "Il percorso '{0}' sembra non esistere più sul disco.",
 	"pathNotExistTitle": "Il percorso non esiste",
+	"recentFolders": "Cartelle recenti",
 	"reopen": "Riapri",
 	"wait": "Continua ad attendere"
 }

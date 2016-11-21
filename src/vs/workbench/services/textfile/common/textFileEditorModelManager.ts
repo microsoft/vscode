@@ -235,9 +235,8 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			});
 
 			// Install model content change listener
-			this.mapResourceToModelContentChangeListener[resource.toString()] = model.onDidContentChange(() => {
-				const newEvent = new TextFileModelChangeEvent(model, StateChange.CONTENT_CHANGE);
-				this._onModelContentChanged.fire(newEvent);
+			this.mapResourceToModelContentChangeListener[resource.toString()] = model.onDidContentChange(e => {
+				this._onModelContentChanged.fire(new TextFileModelChangeEvent(model, e));
 			});
 		}
 
@@ -248,6 +247,11 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 			// Make known to manager (if not already known)
 			this.add(resource, model);
+
+			// Model can be dirty if a backup was restored, so we make sure to have this event delivered
+			if (model.isDirty()) {
+				this._onModelDirty.fire(new TextFileModelChangeEvent(model, StateChange.DIRTY));
+			}
 
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders[resource.toString()] = null;
@@ -306,9 +310,9 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			delete this.mapResourceToStateChangeListener[resource.toString()];
 		}
 
-		const modelContentCHangeListener = this.mapResourceToModelContentChangeListener[resource.toString()];
-		if (modelContentCHangeListener) {
-			dispose(modelContentCHangeListener);
+		const modelContentChangeListener = this.mapResourceToModelContentChangeListener[resource.toString()];
+		if (modelContentChangeListener) {
+			dispose(modelContentChangeListener);
 			delete this.mapResourceToModelContentChangeListener[resource.toString()];
 		}
 	}

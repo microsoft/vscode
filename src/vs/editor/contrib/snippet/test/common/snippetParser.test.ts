@@ -127,6 +127,23 @@ suite('SnippetParser', () => {
 		assertEscape('far{{id:bern {{basel}}}}boo', 'farbern baselboo');
 		assertEscape('far{{id:bern {{id:basel}}}}boo', 'farbern baselboo');
 		assertEscape('far{{id:bern {{id2:basel}}}}boo', 'farbern baselboo');
+
+	});
+
+	test('Parser, TM escaping', () => {
+		assertEscapeAndMarker('foo${1:bar}}', 'foobar}', Text, Placeholder, Text);
+		assertEscapeAndMarker('foo${1:bar}${2:foo}}', 'foobarfoo}', Text, Placeholder, Placeholder, Text);
+
+		assertEscapeAndMarker('foo${1:bar\\}${2:foo}}', 'foobar}foo', Text, Placeholder);
+
+		let [, placeholder] = new SnippetParser(true, false).parse('foo${1:bar\\}${2:foo}}');
+		let {value} = (<Placeholder>placeholder);
+
+		assert.equal((<Placeholder>placeholder).name, '1');
+		assert.ok(value[0] instanceof Text);
+		assert.equal(value[0].toString(), 'bar}');
+		assert.ok(value[1] instanceof Placeholder);
+		assert.equal(value[1].toString(), 'foo');
 	});
 
 	test('Parser, placeholder', () => {

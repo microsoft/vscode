@@ -13,7 +13,6 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { MenuId, MenuRegistry, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService } from 'vs/platform/actions/common/actions';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ResourceContextKey } from 'vs/platform/actions/common/resourceContextKey';
 
 export class MenuService implements IMenuService {
 
@@ -64,7 +63,7 @@ class Menu implements IMenu {
 					group = [groupName, []];
 					this._menuGroups.push(group);
 				}
-				group[1].push(new MenuItemAction(item, this._commandService));
+				group[1].push(new MenuItemAction(item, this._commandService, this._contextKeyService));
 
 				// keep keys for eventing
 				Menu._fillInKbExprKeys(item.when, keysFilter);
@@ -100,7 +99,6 @@ class Menu implements IMenu {
 			const activeActions: MenuItemAction[] = [];
 			for (let action of actions) {
 				if (this._contextKeyService.contextMatchesRules(action.item.when)) {
-					action.resource = ResourceContextKey.Resource.getValue(this._contextKeyService);
 					activeActions.push(action);
 				}
 			}

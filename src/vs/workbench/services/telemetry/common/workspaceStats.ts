@@ -28,11 +28,10 @@ export class WorkspaceStats {
 	private getWorkspaceTags(workbenchOptions: IOptions): winjs.TPromise<{ [index: string]: boolean }> {
 		const tags: { [index: string]: boolean | number } = Object.create(null);
 
-		const { filesToOpen, filesToCreate, filesToDiff, untitledToRestore } = workbenchOptions;
+		const { filesToOpen, filesToCreate, filesToDiff } = workbenchOptions;
 		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || undefined;
 		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || undefined;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || undefined;
-		tags['workbench.untitledToRestore'] = untitledToRestore && untitledToRestore.length || undefined;
 
 		const workspace = this.contextService.getWorkspace();
 		tags['workspace.empty'] = !workspace;

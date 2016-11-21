@@ -206,7 +206,7 @@ export interface IModelSaveOptions {
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
-	onDidContentChange: Event<void>;
+	onDidContentChange: Event<StateChange>;
 	onDidStateChange: Event<StateChange>;
 
 	getResource(): URI;

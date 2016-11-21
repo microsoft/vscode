@@ -12,6 +12,7 @@
 	"functionBreakpointsNotSupported": "이 디버그 형식은 함수 중단점을 지원하지 않습니다.",
 	"loadMoreStackFrames": "더 많은 스택 프레임 로드",
 	"paused": "일시 중지됨",
+	"pausedOn": "{0}에서 일시 중지됨",
 	"process": "프로세스",
 	"running": "실행 중",
 	"stackFrameAriaLabel": "스택 프레임 {0} 줄 {1} {2}, 호출 스택, 디버그",

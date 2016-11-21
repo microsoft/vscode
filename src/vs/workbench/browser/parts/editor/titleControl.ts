@@ -37,7 +37,7 @@ import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEd
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { ResourceContextKey } from 'vs/platform/actions/common/resourceContextKey';
+import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 
 export interface IToolbarActions {
 	primary: IAction[];

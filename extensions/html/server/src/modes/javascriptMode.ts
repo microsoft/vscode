@@ -54,7 +54,7 @@ export function getJavascriptMode(htmlLanguageService: HTMLLanguageService, html
 
 	return {
 		configure(options: any) {
-			settings = options && options.html;
+			settings = options && options.javascript;
 		},
 		doValidation(document: TextDocument): Diagnostic[] {
 			currentTextDocument = jsDocuments.get(document);
@@ -194,15 +194,22 @@ export function getJavascriptMode(htmlLanguageService: HTMLLanguageService, html
 		},
 		format(document: TextDocument, range: Range, formatParams: FormattingOptions): TextEdit[] {
 			currentTextDocument = jsDocuments.get(document);
-			let formatSettings = convertOptions(formatParams, settings && settings.format);
+			let initialIndentLevel = computeInitialIndent(document, range, formatParams) + 1;
+			let formatSettings = convertOptions(formatParams, settings && settings.format, initialIndentLevel);
 			let start = currentTextDocument.offsetAt(range.start);
 			let end = currentTextDocument.offsetAt(range.end);
 			let edits = jsLanguageService.getFormattingEditsForRange(FILE_NAME, start, end, formatSettings);
 			if (edits) {
-				return edits.map(e => ({
-					range: convertRange(currentTextDocument, e.span),
-					newText: e.newText
-				}));
+				let result = [];
+				for (let edit of edits) {
+					if (edit.span.start >= start && edit.span.start + edit.span.length <= end) {
+						result.push({
+							range: convertRange(currentTextDocument, edit.span),
+							newText: edit.newText
+						});
+					}
+				}
+				return result;
 			}
 			return null;
 		},
@@ -255,23 +262,44 @@ function convertKind(kind: string): CompletionItemKind {
 	return CompletionItemKind.Property;
 }
 
-function convertOptions(options: FormattingOptions, formatSettings?: any): ts.FormatCodeOptions {
+function convertOptions(options: FormattingOptions, formatSettings: any, initialIndentLevel: number): ts.FormatCodeOptions {
 	return {
 		ConvertTabsToSpaces: options.insertSpaces,
 		TabSize: options.tabSize,
 		IndentSize: options.tabSize,
 		IndentStyle: ts.IndentStyle.Smart,
 		NewLineCharacter: '\n',
-		BaseIndentSize: 1, //
-		InsertSpaceAfterCommaDelimiter: !formatSettings || formatSettings.insertSpaceAfterCommaDelimiter,
-		InsertSpaceAfterSemicolonInForStatements: !formatSettings || formatSettings.insertSpaceAfterSemicolonInForStatements,
-		InsertSpaceBeforeAndAfterBinaryOperators: !formatSettings || formatSettings.insertSpaceBeforeAndAfterBinaryOperators,
-		InsertSpaceAfterKeywordsInControlFlowStatements: !formatSettings || formatSettings.insertSpaceAfterKeywordsInControlFlowStatements,
-		InsertSpaceAfterFunctionKeywordForAnonymousFunctions: !formatSettings || formatSettings.insertSpaceAfterFunctionKeywordForAnonymousFunctions,
-		InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: formatSettings && formatSettings.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis,
-		InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: formatSettings && formatSettings.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets,
-		InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: formatSettings && formatSettings.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
-		PlaceOpenBraceOnNewLineForControlBlocks: formatSettings && formatSettings.placeOpenBraceOnNewLineForFunctions,
-		PlaceOpenBraceOnNewLineForFunctions: formatSettings && formatSettings.placeOpenBraceOnNewLineForControlBlocks
+		BaseIndentSize: options.tabSize * initialIndentLevel,
+		InsertSpaceAfterCommaDelimiter: Boolean(!formatSettings || formatSettings.insertSpaceAfterCommaDelimiter),
+		InsertSpaceAfterSemicolonInForStatements: Boolean(!formatSettings || formatSettings.insertSpaceAfterSemicolonInForStatements),
+		InsertSpaceBeforeAndAfterBinaryOperators: Boolean(!formatSettings || formatSettings.insertSpaceBeforeAndAfterBinaryOperators),
+		InsertSpaceAfterKeywordsInControlFlowStatements: Boolean(!formatSettings || formatSettings.insertSpaceAfterKeywordsInControlFlowStatements),
+		InsertSpaceAfterFunctionKeywordForAnonymousFunctions: Boolean(!formatSettings || formatSettings.insertSpaceAfterFunctionKeywordForAnonymousFunctions),
+		InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: Boolean(formatSettings && formatSettings.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis),
+		InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: Boolean(formatSettings && formatSettings.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets),
+		InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: Boolean(formatSettings && formatSettings.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces),
+		PlaceOpenBraceOnNewLineForControlBlocks: Boolean(formatSettings && formatSettings.placeOpenBraceOnNewLineForFunctions),
+		PlaceOpenBraceOnNewLineForFunctions: Boolean(formatSettings && formatSettings.placeOpenBraceOnNewLineForControlBlocks)
 	};
+}
+
+function computeInitialIndent(document: TextDocument, range: Range, options: FormattingOptions) {
+	let lineStart = document.offsetAt(Position.create(range.start.line, 0));
+	let content = document.getText();
+
+	let i = lineStart;
+	let nChars = 0;
+	let tabSize = options.tabSize || 4;
+	while (i < content.length) {
+		let ch = content.charAt(i);
+		if (ch === ' ') {
+			nChars++;
+		} else if (ch === '\t') {
+			nChars += tabSize;
+		} else {
+			break;
+		}
+		i++;
+	}
+	return Math.floor(nChars / tabSize);
 }

@@ -42,7 +42,7 @@ export class CloneAction extends Action {
 
 				const result = dialog.showOpenDialog(remote.getCurrentWindow(), {
 					title: localize('directory', "Destination clone directory"),
-					properties: ['openDirectory']
+					properties: ['openDirectory', 'createDirectory']
 				});
 
 				if (!result || result.length === 0) {

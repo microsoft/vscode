@@ -294,7 +294,7 @@ export class TestPartService implements IPartService {
 
 	}
 
-	public toggleZenMode(): void { }
+	public toggleFocusMode(): void { }
 }
 
 export class TestEventService extends EventEmitter implements IEventService {
@@ -664,11 +664,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return [];
 	}
 
-	public getWorkspaceUntitledFileBackupsSync(workspace: URI): string[] {
-		return [];
-	}
-
-	public hasTextFileBackup(resource: URI): TPromise<boolean> {
+	public hasBackup(resource: URI): TPromise<boolean> {
 		return TPromise.as(false);
 	}
 

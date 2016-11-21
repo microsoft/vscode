@@ -167,7 +167,7 @@ let REGEX = (function () {
 		IS_CHILD_OF_CONTENT_WIDGETS: createRegExp(anyNode(), anyNode(), ClassNames.CONTENT_WIDGETS),
 		IS_CHILD_OF_OVERFLOWING_CONTENT_WIDGETS: new RegExp('^' + ClassNames.OVERFLOWING_CONTENT_WIDGETS + '\\/'),
 		IS_CHILD_OF_OVERLAY_WIDGETS: createRegExp(ClassNames.OVERLAY_WIDGETS),
-		IS_CHILD_OF_VIEW_OVERLAYS: createRegExp(ClassNames.MARGIN_VIEW_OVERLAYS),
+		IS_CHILD_OF_MARGIN: createRegExp(ClassNames.MARGIN),
 		IS_CHILD_OF_VIEW_ZONES: createRegExp(anyNode(), anyNode(), ClassNames.VIEW_ZONES),
 	};
 })();
@@ -357,7 +357,7 @@ export class MouseTargetFactory {
 			return this.createMouseTargetFromScrollbar(t, mouseVerticalOffset, mouseColumn);
 		}
 
-		if (REGEX.IS_CHILD_OF_VIEW_OVERLAYS.test(path)) {
+		if (REGEX.IS_CHILD_OF_MARGIN.test(path)) {
 			let offset = Math.abs(e.posx - e.editorPos.left);
 
 			if (offset <= layoutInfo.glyphMarginWidth) {

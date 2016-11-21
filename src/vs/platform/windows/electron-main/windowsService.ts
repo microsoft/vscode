@@ -226,6 +226,10 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(result);
 	}
 
+	getWindowCount(): TPromise<number> {
+		return TPromise.as(this.windowsMainService.getWindows().length);
+	}
+
 	log(severity: string, ...messages: string[]): TPromise<void> {
 		console[severity].apply(console, ...messages);
 		return TPromise.as(null);

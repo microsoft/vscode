@@ -6,10 +6,8 @@
 {
 	"copy": "Kopieren",
 	"cut": "Ausschneiden",
-	"files": "Dateien",
-	"folders": "Ordner",
-	"openRecentPlaceHolder": "Wählen Sie einen zu öffnenden Pfad aus (halten Sie STRG gedrückt, um ein neues Fenster zu öffnen).",
-	"openRecentPlaceHolderMac": "Wählen Sie einen Pfad aus (halten Sie die BEFEHLSTASTE gedrückt, um ein neues Fenster zu öffnen).",
+	"developer": "Entwickler",
+	"file": "Datei",
 	"paste": "Einfügen",
 	"redo": "Wiederholen",
 	"selectAll": "Alles auswählen",
