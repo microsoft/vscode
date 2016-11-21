@@ -99,9 +99,9 @@ export abstract class ReferenceCollection<T, R> {
 		return { object, dispose };
 	}
 
-	abstract getKey(t: T): string;
-	abstract create(key: string): R;
-	abstract destroy(object: R): void;
+	protected abstract getKey(t: T): string;
+	protected abstract create(key: string): R;
+	protected abstract destroy(object: R): void;
 }
 
 export class ImmortalReference<T> implements IReference<T> {
