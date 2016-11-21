@@ -15,7 +15,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeSnippet, CodeSnippet } from './snippet';
+import { ISnippetVariableResolver, ICodeSnippet, CodeSnippet } from './snippet';
+import { SnippetVariablesResolver } from './snippetVariables';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -380,11 +381,13 @@ export class SnippetController {
 	}
 
 	private _editor: editorCommon.ICommonCodeEditor;
+	private _variableResolver: ISnippetVariableResolver;
 	protected _currentController: InsertSnippetController;
 	private _inSnippetMode: IContextKey<boolean>;
 
 	constructor(editor: editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		this._editor = editor;
+		this._variableResolver = new SnippetVariablesResolver(editor);
 		this._currentController = null;
 		this._inSnippetMode = CONTEXT_SNIPPET_MODE.bindTo(contextKeyService);
 	}
@@ -398,6 +401,11 @@ export class SnippetController {
 
 	public getId(): string {
 		return SnippetController.ID;
+	}
+
+	public insertSnippet(template: string, overwriteBefore: number, overwriteAfter: number): void {
+		const snippet = CodeSnippet.fromTextmate(template, this._variableResolver);
+		this.run(snippet, overwriteBefore, overwriteAfter);
 	}
 
 	public run(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?: boolean): void {

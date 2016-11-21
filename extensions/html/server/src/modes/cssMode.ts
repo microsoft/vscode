@@ -17,6 +17,9 @@ export function getCSSMode(htmlLanguageService: HTMLLanguageService, htmlDocumen
 	let getEmbeddedCSSDocument = (document: TextDocument) => getEmbeddedDocument(htmlLanguageService, document, htmlDocuments.get(document), 'css');
 
 	return {
+		getId() {
+			return 'css';
+		},
 		configure(options: any) {
 			cssLanguageService.configure(options && options.css);
 		},

@@ -48,12 +48,30 @@ suite('HTML Embedded Support', () => {
 		assertLanguageId('<html><style>foo { }</sty|le></html>', 'html');
 	});
 
+	test('Style in attribute', function (): any {
+		assertLanguageId('<div id="xy" |style="color: red"/>', 'html');
+		assertLanguageId('<div id="xy" styl|e="color: red"/>', 'html');
+		assertLanguageId('<div id="xy" style=|"color: red"/>', 'html');
+		assertLanguageId('<div id="xy" style="|color: red"/>', 'css');
+		assertLanguageId('<div id="xy" style="color|: red"/>', 'css');
+		assertLanguageId('<div id="xy" style="color: red|"/>', 'css');
+		assertLanguageId('<div id="xy" style="color: red"|/>', 'html');
+		assertLanguageId('<div id="xy" style=\'color: r|ed\'/>', 'css');
+		assertLanguageId('<div id="xy" style|=color:red/>', 'html');
+		assertLanguageId('<div id="xy" style=|color:red/>', 'css');
+		assertLanguageId('<div id="xy" style=color:r|ed/>', 'css');
+		assertLanguageId('<div id="xy" style=color:red|/>', 'css');
+		assertLanguageId('<div id="xy" style=color:red/|>', 'html');
+	});
+
 	test('Style content', function (): any {
 		assertEmbeddedLanguageContent('<html><style>foo { }</style></html>', 'css', '             foo { }               ');
 		assertEmbeddedLanguageContent('<html><script>var i = 0;</script></html>', 'css', '                                        ');
 		assertEmbeddedLanguageContent('<html><style>foo { }</style>Hello<style>foo { }</style></html>', 'css', '             foo { }                    foo { }               ');
 		assertEmbeddedLanguageContent('<html>\n  <style>\n    foo { }  \n  </style>\n</html>\n', 'css', '\n         \n    foo { }  \n  \n\n');
 
+		assertEmbeddedLanguageContent('<div style="color: red"></div>', 'css', '          x{color: red}       ');
+		assertEmbeddedLanguageContent('<div style=color:red></div>', 'css', '         x{color:red}      ');
 	});
 
 	test('Scripts', function (): any {
@@ -73,9 +91,31 @@ suite('HTML Embedded Support', () => {
 		assertLanguageId('<script type=\'text/javascript\'>var| i = 0;</script>', 'javascript');
 	});
 
+	test('Scripts in attribute', function (): any {
+		assertLanguageId('<div |onKeyUp="foo()" onkeydown=\'bar()\'/>', 'html');
+		assertLanguageId('<div onKeyUp=|"foo()" onkeydown=\'bar()\'/>', 'html');
+		assertLanguageId('<div onKeyUp="|foo()" onkeydown=\'bar()\'/>', 'javascript');
+		assertLanguageId('<div onKeyUp="foo(|)" onkeydown=\'bar()\'/>', 'javascript');
+		assertLanguageId('<div onKeyUp="foo()|" onkeydown=\'bar()\'/>', 'javascript');
+		assertLanguageId('<div onKeyUp="foo()"| onkeydown=\'bar()\'/>', 'html');
+		assertLanguageId('<div onKeyUp="foo()" onkeydown=|\'bar()\'/>', 'html');
+		assertLanguageId('<div onKeyUp="foo()" onkeydown=\'|bar()\'/>', 'javascript');
+		assertLanguageId('<div onKeyUp="foo()" onkeydown=\'bar()|\'/>', 'javascript');
+		assertLanguageId('<div onKeyUp="foo()" onkeydown=\'bar()\'|/>', 'html');
+
+		assertLanguageId('<DIV ONKEYUP|=foo()</DIV>', 'html');
+		assertLanguageId('<DIV ONKEYUP=|foo()</DIV>', 'javascript');
+		assertLanguageId('<DIV ONKEYUP=f|oo()</DIV>', 'javascript');
+		assertLanguageId('<DIV ONKEYUP=foo(|)</DIV>', 'javascript');
+		assertLanguageId('<DIV ONKEYUP=foo()|</DIV>', 'javascript');
+		assertLanguageId('<DIV ONKEYUP=foo()<|/DIV>', 'html');
+	});
+
 	test('Script content', function (): any {
 		assertEmbeddedLanguageContent('<html><script>var i = 0;</script></html>', 'javascript', '              var i = 0;                ');
 		assertEmbeddedLanguageContent('<script type="text/javascript">var i = 0;</script>', 'javascript', '                               var i = 0;         ');
+
+		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '              foo();            bar();  ');
 	});
 
 });

@@ -58,12 +58,10 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
 	const filesToCreate = configuration.filesToCreate && configuration.filesToCreate.length ? toInputs(configuration.filesToCreate) : null;
 	const filesToDiff = configuration.filesToDiff && configuration.filesToDiff.length ? toInputs(configuration.filesToDiff) : null;
-	const untitledToRestore = configuration.untitledToRestore && configuration.untitledToRestore.length ? toInputs(configuration.untitledToRestore, true) : null;
 	const shellOptions: IOptions = {
 		filesToOpen,
 		filesToCreate,
-		filesToDiff,
-		untitledToRestore
+		filesToDiff
 	};
 
 	if (configuration.performance) {

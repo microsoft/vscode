@@ -12,6 +12,7 @@
 	"functionBreakpointsNotSupported": "此偵錯類型不支援函式中斷點",
 	"loadMoreStackFrames": "載入更多堆疊框架",
 	"paused": "已暫停",
+	"pausedOn": "暫停於 {0}",
 	"process": "處理序",
 	"running": "正在執行",
 	"stackFrameAriaLabel": "堆疊框架 {0} 第 {1} {2} 行，呼叫堆疊，偵錯",

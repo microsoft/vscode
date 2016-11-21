@@ -9,9 +9,13 @@ import Uri from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResolveContentOptions, IUpdateContentOptions } from 'vs/platform/files/common/files';
 
 export const IBackupService = createDecorator<IBackupService>('backupService');
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
+
+export const BACKUP_FILE_RESOLVE_OPTIONS: IResolveContentOptions = { acceptTextOnly: true, encoding: 'utf-8' };
+export const BACKUP_FILE_UPDATE_OPTIONS: IUpdateContentOptions = { encoding: 'utf-8' };
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -34,13 +38,6 @@ export interface IBackupService {
  */
 export interface IBackupFileService {
 	_serviceBrand: any;
-
-	/**
-	 * Gets the set of active workspace backup paths being tracked for restoration.
-	 *
-	 * @return The set of active workspace backup paths being tracked for restoration.
-	 */
-	getWorkspaceBackupPaths(): TPromise<string[]>;
 
 	/**
 	 * Gets whether a text file has a backup to restore.

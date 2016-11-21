@@ -147,14 +147,28 @@ export class Text extends Marker {
 }
 
 export class Placeholder extends Marker {
-	constructor(public name: string = '', public value: Marker[]) {
+	constructor(public name: string = '', public defaultValue: Marker[]) {
 		super();
 	}
-	get isVariable(): boolean {
-		return isNaN(Number(this.name));
-	}
 	toString() {
-		return Marker.toString(this.value);
+		return Marker.toString(this.defaultValue);
+	}
+}
+
+export class Variable extends Marker {
+
+	resolvedValue: string;
+
+	constructor(public name: string = '', public defaultValue: Marker[]) {
+		super();
+	}
+
+	get isDefined(): boolean {
+		return this.resolvedValue !== undefined;
+	}
+
+	toString() {
+		return this.isDefined ? this.resolvedValue : Marker.toString(this.defaultValue);
 	}
 }
 
@@ -193,14 +207,17 @@ export class SnippetParser {
 
 				if (thisMarker instanceof Placeholder) {
 					if (placeholders[thisMarker.name] === undefined) {
-						placeholders[thisMarker.name] = thisMarker.value;
-					} else if (thisMarker.value.length === 0) {
-						thisMarker.value = placeholders[thisMarker.name].slice(0);
+						placeholders[thisMarker.name] = thisMarker.defaultValue;
+					} else if (thisMarker.defaultValue.length === 0) {
+						thisMarker.defaultValue = placeholders[thisMarker.name].slice(0);
 					}
 
-					if (thisMarker.value.length > 0) {
-						compact(thisMarker.value, placeholders);
+					if (thisMarker.defaultValue.length > 0) {
+						compact(thisMarker.defaultValue, placeholders);
 					}
+
+				} else if (thisMarker instanceof Variable) {
+					compact(thisMarker.defaultValue, placeholders);
 
 				} else if (i > 0 && thisMarker instanceof Text && marker[i - 1] instanceof Text) {
 					(<Text>marker[i - 1]).string += (<Text>marker[i]).string;
@@ -252,8 +269,8 @@ export class SnippetParser {
 
 			if (this._accept(TokenType.VariableName) || this._accept(TokenType.Int)) {
 				// $FOO, $123
-				let name = this._scanner.tokenText(this._prevToken);
-				marker.push(new Placeholder(name, []));
+				const idOrName = this._scanner.tokenText(this._prevToken);
+				marker.push(/^\d+$/.test(idOrName) ? new Placeholder(idOrName, []) : new Variable(idOrName, []));
 				return true;
 
 			} else if (this._accept(TokenType.CurlyOpen)) {
@@ -270,7 +287,8 @@ export class SnippetParser {
 					}
 
 					if (this._accept(TokenType.CurlyClose)) {
-						marker.push(new Placeholder(Marker.toString(name), children));
+						const idOrName = Marker.toString(name);;
+						marker.push(/^\d+$/.test(idOrName) ? new Placeholder(idOrName, children) : new Variable(idOrName, children));
 						return true;
 					}
 
@@ -303,7 +321,7 @@ export class SnippetParser {
 				return false;
 			}
 
-			// ${name:children}, ${name}, ${name:}
+			// {{name:children}}, {{name}}, {{name:}}
 			let name: Marker[] = [];
 			let children: Marker[] = [];
 			let target = name;

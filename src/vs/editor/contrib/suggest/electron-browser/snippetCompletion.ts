@@ -9,7 +9,6 @@ import { Registry } from 'vs/platform/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { ISnippetsRegistry, Extensions, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
@@ -49,7 +48,7 @@ class ShowSnippetsActions extends EditorAction {
 
 		return quickOpenService.pick(picks).then(pick => {
 			if (pick) {
-				SnippetController.get(editor).run(CodeSnippet.fromTextmate(pick.snippet.codeSnippet), 0, 0);
+				SnippetController.get(editor).insertSnippet(pick.snippet.codeSnippet, 0, 0);
 			}
 		});
 	}
