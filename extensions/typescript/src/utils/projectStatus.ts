@@ -138,20 +138,14 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 	return toDispose;
 }
 
-function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: ITypescriptServiceClient): vscode.Disposable[] {
-	client.onProjectLanguageServiceStateChanged((projectName, languageServiceEnabled) => {
+function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: ITypescriptServiceClient) {
+	client.onProjectLanguageServiceStateChanged((projectName: string, languageServiceEnabled) => {
 		if (languageServiceEnabled) {
 			item.hide();
-			return;
+		} else {
+			item.show(projectName, '', () => { });
 		}
-		client.execute('projectInfo', { file: vscode.workspace.rootPath, needFileNameList: true }).then(res => {
-			let {configFileName, fileNames} = res.body;
-
-			let largeRoots = computeLargeRoots(configFileName, fileNames).map(f => `'/${f}/'`).join(', ');
-			item.show('', largeRoots, () => { });
-		});
 	});
-	return [];
 }
 
 export function create(client: ITypescriptServiceClient, isOpen: (path: string) => Promise<boolean>, memento: vscode.Memento) {
@@ -167,8 +161,8 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 		});
 	}));
 
-	if (client.apiVersion.has1xFeatures) {
-		toDispose.push(...createLargeProjectMonitorFromTypeScript(item, client));
+	if (client.apiVersion.has220Features) {
+		createLargeProjectMonitorFromTypeScript(item, client);
 	} else {
 		toDispose.push(...createLargeProjectMonitorForProject(item, client, isOpen, memento));
 	}

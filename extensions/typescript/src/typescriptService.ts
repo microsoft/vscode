@@ -53,6 +53,10 @@ export class API {
 	public has208Features(): boolean {
 		return semver.gte(this._version, '2.0.8');
 	}
+
+	public has220Features(): boolean {
+		return semver.gte(this._version, '2.2.0');
+	}
 }
 
 export type ProjectStatusChanagedCallback = (string, boolean) => void;
