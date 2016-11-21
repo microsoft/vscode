@@ -350,7 +350,6 @@ export class WindowsManager implements IWindowsMainService {
 			filesToOpen = candidates;
 		}
 
-		let configuration: IWindowConfiguration;
 		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
 
 		// Restore any existing backup workspaces on the first initial startup, provided an
@@ -363,9 +362,7 @@ export class WindowsManager implements IWindowsMainService {
 					return;
 				}
 
-				const untitledToRestore = this.backupService.getWorkspaceUntitledFileBackupsSync(Uri.file(workspacePath)).map(filePath => { return { filePath }; });
-				configuration = this.toConfiguration(openConfig, workspacePath, [], [], [], untitledToRestore);
-
+				const configuration = this.toConfiguration(openConfig, workspacePath);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
@@ -403,7 +400,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Otherwise open instance with files
 			else {
-				configuration = this.toConfiguration(openConfig, null, filesToOpen, filesToCreate, filesToDiff);
+				const configuration = this.toConfiguration(openConfig, null, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
@@ -439,7 +436,7 @@ export class WindowsManager implements IWindowsMainService {
 					return; // ignore folders that are already open
 				}
 
-				configuration = this.toConfiguration(openConfig, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff);
+				const configuration = this.toConfiguration(openConfig, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
@@ -626,7 +623,7 @@ export class WindowsManager implements IWindowsMainService {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
 	}
 
-	private toConfiguration(config: IOpenConfiguration, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], untitledToRestore?: IPath[]): IWindowConfiguration {
+	private toConfiguration(config: IOpenConfiguration, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
 		const configuration: IWindowConfiguration = mixin({}, config.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
@@ -636,7 +633,6 @@ export class WindowsManager implements IWindowsMainService {
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
-		configuration.untitledToRestore = untitledToRestore;
 
 		return configuration;
 	}
