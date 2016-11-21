@@ -155,7 +155,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 		return super.setInput(input, options).then(() => {
 			const resourceUri = (<HtmlInput>input).getResource();
-			return this._textModelResolverService.getModelReference(resourceUri).then(ref => {
+			return this._textModelResolverService.createModelReference(resourceUri).then(ref => {
 				const model = ref.object;
 
 				if (model instanceof BaseTextEditorModel) {

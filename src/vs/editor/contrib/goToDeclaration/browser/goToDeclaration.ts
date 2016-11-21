@@ -324,7 +324,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			else {
 				let result = results[0];
 
-				this.textModelResolverService.getModelReference(result.uri).then(ref => {
+				this.textModelResolverService.createModelReference(result.uri).then(ref => {
 					const model = ref.object;
 					let hoverMessage: MarkedString;
 					if (model && model.textEditorModel) {

@@ -62,7 +62,7 @@ CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: Serv
 
 	const textModelResolverService = accessor.get(ITextModelResolverService);
 
-	return textModelResolverService.getModelReference(params.resource).then(ref => {
+	return textModelResolverService.createModelReference(params.resource).then(ref => {
 		const model = ref.object;
 		const contents = model.textEditorModel.getValue();
 		ref.dispose();
