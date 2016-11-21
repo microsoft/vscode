@@ -847,7 +847,7 @@ let editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['none', 'boundary', 'all'],
 			default: DefaultConfig.editor.renderWhitespace,
-			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters, posibilties are 'none', 'boundary', and 'all'. The 'boundary' option does not render single spaces between words.")
+			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters, possibilities are 'none', 'boundary', and 'all'. The 'boundary' option does not render single spaces between words.")
 		},
 		'editor.renderControlCharacters': {
 			'type': 'boolean',
@@ -863,7 +863,7 @@ let editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['none', 'gutter', 'line', 'all'],
 			default: DefaultConfig.editor.renderLineHighlight,
-			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight, posibilties are 'none', 'gutter', 'line', and 'all'.")
+			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight, possibilities are 'none', 'gutter', 'line', and 'all'.")
 		},
 		'editor.codeLens': {
 			'type': 'boolean',
