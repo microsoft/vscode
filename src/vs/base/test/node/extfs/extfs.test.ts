@@ -144,7 +144,7 @@ suite('Extfs', () => {
 
 					assert.equal(fs.readFileSync(testFile), largeString);
 
-					done();
+					extfs.del(parentDir, os.tmpdir(), () => { }, done);
 				});
 			});
 		});
