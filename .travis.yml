@@ -42,7 +42,7 @@ script:
   - gulp electron
   - gulp compile
   - gulp optimize-vscode
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --no-colors --reporter dot --coverage; else ./scripts/test.sh --no-colors --reporter dot; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --reporter dot --coverage; else ./scripts/test.sh --reporter dot; fi
   - ./scripts/test-integration.sh
 
 after_success:
