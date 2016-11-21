@@ -5,9 +5,6 @@ os:
   - linux
   - osx
 
-env:
-  - VSCODE_BUILD_VERBOSE=false
-
 notifications:
   email: false
 
