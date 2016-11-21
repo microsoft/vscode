@@ -13,6 +13,9 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, htmlDocume
 	let settings: any = {};
 
 	return {
+		getId() {
+			return 'html';
+		},
 		configure(options: any) {
 			settings = options && options.html;
 		},

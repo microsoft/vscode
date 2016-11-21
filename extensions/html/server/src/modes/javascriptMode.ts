@@ -53,6 +53,9 @@ export function getJavascriptMode(htmlLanguageService: HTMLLanguageService, html
 	let settings: any = {};
 
 	return {
+		getId() {
+			return 'html';
+		},
 		configure(options: any) {
 			settings = options && options.javascript;
 		},
