@@ -76,6 +76,7 @@ class EditTask implements IDisposable {
 	constructor(model: IModel, modelReference: IDisposable) {
 		this._endCursorSelection = null;
 		this._model = model;
+		this._modelReference = modelReference;
 		this._edits = [];
 	}
 
@@ -142,7 +143,11 @@ class EditTask implements IDisposable {
 	}
 
 	dispose() {
-		this._modelReference.dispose();
+		if (this._model) {
+			this._modelReference.dispose();
+			this._modelReference = null;
+			this._model = null;
+		}
 	}
 }
 
