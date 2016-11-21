@@ -147,11 +147,11 @@ export class Text extends Marker {
 }
 
 export class Placeholder extends Marker {
-	constructor(public name: string = '', public value: Marker[]) {
+	constructor(public name: string = '', public value: Marker[], private _canBeVariable: boolean) {
 		super();
 	}
 	get isVariable(): boolean {
-		return isNaN(Number(this.name));
+		return this._canBeVariable && isNaN(Number(this.name));
 	}
 	toString() {
 		return Marker.toString(this.value);
@@ -253,7 +253,7 @@ export class SnippetParser {
 			if (this._accept(TokenType.VariableName) || this._accept(TokenType.Int)) {
 				// $FOO, $123
 				let name = this._scanner.tokenText(this._prevToken);
-				marker.push(new Placeholder(name, []));
+				marker.push(new Placeholder(name, [], true));
 				return true;
 
 			} else if (this._accept(TokenType.CurlyOpen)) {
@@ -270,7 +270,7 @@ export class SnippetParser {
 					}
 
 					if (this._accept(TokenType.CurlyClose)) {
-						marker.push(new Placeholder(Marker.toString(name), children));
+						marker.push(new Placeholder(Marker.toString(name), children, true));
 						return true;
 					}
 
@@ -303,7 +303,7 @@ export class SnippetParser {
 				return false;
 			}
 
-			// ${name:children}, ${name}, ${name:}
+			// {{name:children}}, {{name}}, {{name:}}
 			let name: Marker[] = [];
 			let children: Marker[] = [];
 			let target = name;
@@ -329,7 +329,7 @@ export class SnippetParser {
 						children = name;
 					}
 
-					marker.push(new Placeholder(Marker.toString(name), children));
+					marker.push(new Placeholder(Marker.toString(name), children, false));
 					return true;
 				}
 
