@@ -10,6 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
 
 function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
@@ -430,11 +431,17 @@ export class Limiter<T> {
 	private runningPromises: number;
 	private maxDegreeOfParalellism: number;
 	private outstandingPromises: ILimitedTaskFactory[];
+	private _onFinished: Emitter<void>;
 
 	constructor(maxDegreeOfParalellism: number) {
 		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
 		this.outstandingPromises = [];
 		this.runningPromises = 0;
+		this._onFinished = new Emitter<void>();
+	}
+
+	public get onFinished(): Event<void> {
+		return this._onFinished.event;
 	}
 
 	queue(promiseFactory: ITask<Promise>): Promise;
@@ -464,7 +471,16 @@ export class Limiter<T> {
 
 	private consumed(): void {
 		this.runningPromises--;
-		this.consume();
+
+		if (this.outstandingPromises.length > 0) {
+			this.consume();
+		} else {
+			this._onFinished.fire();
+		}
+	}
+
+	public dispose(): void {
+		this._onFinished.dispose();
 	}
 }
 

@@ -50,7 +50,7 @@ suite('BackupFileService', () => {
 		// Delete any existing backups completely and then re-create it.
 		extfs.del(backupHome, os.tmpdir(), () => {
 			pfs.mkdirp(backupHome).then(() => {
-				pfs.writeFileAndFlush(workspacesJsonPath, '').then(() => {
+				pfs.writeFile(workspacesJsonPath, '').then(() => {
 					done();
 				});
 			});

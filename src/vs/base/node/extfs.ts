@@ -5,14 +5,13 @@
 
 'use strict';
 
-import uuid = require('vs/base/common/uuid');
-import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
+import * as uuid from 'vs/base/common/uuid';
+import * as strings from 'vs/base/common/strings';
+import * as platform from 'vs/base/common/platform';
+import * as flow from 'vs/base/node/flow';
 
-import flow = require('vs/base/node/flow');
-
-import fs = require('fs');
-import paths = require('path');
+import * as fs from 'fs';
+import * as paths from 'path';
 
 const loop = flow.loop;
 
