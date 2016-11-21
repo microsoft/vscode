@@ -38,7 +38,7 @@ suite('Snippet Variables Resolver', function () {
 			assert.equal(resolver.resolve('something'), undefined);
 
 			editor.setModel(null);
-			assert.equal(resolver.resolve('TM_FILENAME'), undefined);
+			assert.throws(() => resolver.resolve('TM_FILENAME'));
 		});
 	});
 
