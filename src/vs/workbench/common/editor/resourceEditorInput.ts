@@ -20,7 +20,7 @@ export class ResourceEditorInput extends EditorInput {
 
 	static ID: string = 'workbench.editors.resourceEditorInput';
 
-	protected modelReference: IReference<TPromise<ResourceEditorModel>>;
+	protected promise: TPromise<IReference<ResourceEditorModel>>;
 	protected resource: URI;
 
 	private name: string;
@@ -72,16 +72,16 @@ export class ResourceEditorInput extends EditorInput {
 	}
 
 	resolve(refresh?: boolean): TPromise<ITextEditorModel> {
-		if (!this.modelReference) {
-			this.modelReference = this.textModelResolverService.getModelReference(this.resource);
+		if (!this.promise) {
+			this.promise = this.textModelResolverService.getModelReference(this.resource);
 		}
 
-		const modelPromise = this.modelReference.object;
+		return this.promise.then(ref => {
+			const model = ref.object;
 
-		return modelPromise.then(model => {
 			if (!(model instanceof ResourceEditorModel)) {
-				this.modelReference.dispose();
-				this.modelReference = null;
+				ref.dispose();
+				this.promise = null;
 				return TPromise.wrapError(`Unexpected model for ResourceInput: ${this.resource}`); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
 			}
 
@@ -108,9 +108,9 @@ export class ResourceEditorInput extends EditorInput {
 	}
 
 	dispose(): void {
-		if (this.modelReference) {
-			this.modelReference.dispose();
-			this.modelReference = null;
+		if (this.promise) {
+			this.promise.done(ref => ref.dispose());
+			this.promise = null;
 		}
 
 		super.dispose();

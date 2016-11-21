@@ -173,7 +173,7 @@ export class SimpleEditorModelResolverService implements ITextModelResolverServi
 		this.editor = new SimpleEditor(editor);
 	}
 
-	public getModelReference(resource: URI): IReference<TPromise<ITextEditorModel>> {
+	public getModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
 		let model: editorCommon.IModel;
 
 		model = this.editor.withTypedEditor(
@@ -182,10 +182,10 @@ export class SimpleEditorModelResolverService implements ITextModelResolverServi
 		);
 
 		if (!model) {
-			return new ImmortalReference(TPromise.as(null));
+			return TPromise.as(new ImmortalReference(null));
 		}
 
-		return new ImmortalReference(TPromise.as(new SimpleModel(model)));
+		return TPromise.as(new ImmortalReference(new SimpleModel(model)));
 	}
 
 	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {

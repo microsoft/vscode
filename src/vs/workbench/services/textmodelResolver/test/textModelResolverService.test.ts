@@ -78,20 +78,18 @@ suite('Workbench - TextModelResolverService', () => {
 		});
 	});
 
-	test('resolve file', function (done) {
+	test('resolve file', function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8');
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
-		model.load().then(() => {
-			const reference = accessor.textModelResolverServie.getModelReference(model.getResource());
 
-			reference.object.then(model => {
+		return model.load().then(() => {
+			return accessor.textModelResolverServie.getModelReference(model.getResource()).then(ref => {
+				const model = ref.object;
 				const editorModel = model.textEditorModel;
 
 				assert.ok(editorModel);
 				assert.equal(editorModel.getValue(), 'Hello Html');
-				reference.dispose();
-
-				done();
+				ref.dispose();
 			});
 		});
 	});
@@ -101,16 +99,15 @@ suite('Workbench - TextModelResolverService', () => {
 		const input = service.createOrGet();
 
 		input.resolve().then(() => {
-			const reference = accessor.textModelResolverServie.getModelReference(input.getResource());
-			reference.object.then(model => {
+			return accessor.textModelResolverServie.getModelReference(input.getResource()).then(ref => {
+				const model = ref.object;
 				const editorModel = model.textEditorModel;
 
 				assert.ok(editorModel);
-				reference.dispose();
+				ref.dispose();
 
 				input.dispose();
 
-				done();
 			});
 		});
 	});
