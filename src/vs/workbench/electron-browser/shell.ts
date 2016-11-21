@@ -239,11 +239,12 @@ export class WorkbenchShell {
 				ellapsed: Math.round(workbenchStarted - start),
 				timers: {
 					ellapsedExtensions: Math.round(timers.perfAfterExtensionLoad - timers.perfBeforeExtensionLoad),
-					extensionsReady: Math.round(timers.perfAfterExtensionLoad - start),
+					ellapsedExtensionsReady: Math.round(timers.perfAfterExtensionLoad - start),
 					ellapsedRequire: Math.round(timers.perfAfterLoadWorkbenchMain - timers.perfBeforeLoadWorkbenchMain),
 					ellapsedViewletRestore: Math.round(restoreViewletDuration),
 					ellapsedEditorRestore: Math.round(restoreEditorsDuration),
-					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen)
+					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen),
+					ellapsedWindowLoadToRequire: Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfWindowLoadTime)
 				},
 				platform,
 				release,
@@ -256,8 +257,7 @@ export class WorkbenchShell {
 			};
 
 			if (initialStartup) {
-				startupTimeEvent.timers.ellapsedMain = Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfStartTime);
-				startupTimeEvent.timers.windowLoad = Math.round(timers.perfWindowLoadTime - timers.perfStartTime);
+				startupTimeEvent.timers.ellapsedWindowLoad = Math.round(timers.perfWindowLoadTime - timers.perfStartTime);
 			}
 
 			this.telemetryService.publicLog('startupTime', startupTimeEvent);
