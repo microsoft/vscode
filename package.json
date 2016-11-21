@@ -15,10 +15,7 @@
     "compile": "gulp compile",
     "watch": "gulp watch",
     "monaco-editor-setup": "node scripts/monaco-editor-setup.js",
-    "monaco-editor-test": "mocha --only-monaco-editor",
-    "electron": "gulp electron",
-    "hygiene": "gulp hygiene",
-    "optimize": "gulp optimize-vscode"
+    "monaco-editor-test": "mocha --only-monaco-editor"
   },
   "dependencies": {
     "applicationinsights": "0.15.6",
