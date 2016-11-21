@@ -7,7 +7,6 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import timer = require('vs/base/common/timer');
 import { Action } from 'vs/base/common/actions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -331,7 +330,6 @@ export class ShowStartupPerformance extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		const perfTable = this.environmentService.performance ? this.getPerformanceTable() : this.getFingerprintTable();
 
 		// Show dev tools
 		this.windowService.openDevTools();
@@ -346,81 +344,55 @@ export class ShowStartupPerformance extends Action {
 			console.log(`Initial Startup: ${fingerprint.initialStartup}`);
 			console.log(`Screen Reader Active: ${fingerprint.hasAccessibilitySupport}`);
 			console.log(`Empty Workspace: ${fingerprint.emptyWorkbench}`);
-			(<any>console).table(perfTable);
+
+			let nodeModuleLoadTime: number;
+			let nodeModuleLoadDetails: any[];
+			if (this.environmentService.performance) {
+				const nodeModuleTimes = this.analyzeNodeModulesLoadTimes();
+				nodeModuleLoadTime = nodeModuleTimes.duration;
+				nodeModuleLoadDetails = nodeModuleTimes.table;
+			}
+
+			(<any>console).table(this.getFingerprintTable(nodeModuleLoadTime));
+
+			if (nodeModuleLoadDetails) {
+				(<any>console).groupCollapsed('node_modules Load Details');
+				(<any>console).table(nodeModuleLoadDetails);
+				(<any>console).groupEnd();
+			}
 			(<any>console).groupEnd();
 		}, 1000);
 
 		return TPromise.as(true);
 	}
 
-	private getFingerprintTable(): any[] {
+	private getFingerprintTable(nodeModuleLoadTime?: number): any[] {
 		const table: any[] = [];
 		const fingerprint: IStartupFingerprint = timers.fingerprint;
 
 		if (fingerprint.initialStartup) {
-			table.push({ Topic: '[main] initial start => begin to require(workbench.main.js)', 'Took (ms)': fingerprint.timers.ellapsedMain });
+			table.push({ Topic: '[main] start => window.loadUrl()', 'Took (ms)': fingerprint.timers.ellapsedWindowLoad });
 		}
+
+		table.push({ Topic: '[renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': fingerprint.timers.ellapsedWindowLoadToRequire });
 		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': fingerprint.timers.ellapsedRequire });
+
+		if (nodeModuleLoadTime) {
+			table.push({ Topic: '[renderer] -> of which require() node_modules', 'Took (ms)': nodeModuleLoadTime });
+		}
+
 		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': fingerprint.timers.ellapsedExtensions });
 		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': fingerprint.timers.ellapsedViewletRestore });
-		table.push({ Topic: '[renderer] restoring editor view state', 'Took (ms)': fingerprint.timers.ellapsedEditorRestore });
+		table.push({ Topic: '[renderer] restore editor view state', 'Took (ms)': fingerprint.timers.ellapsedEditorRestore });
 		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': fingerprint.timers.ellapsedWorkbench });
 		table.push({ Topic: '------------------------------------------------------' });
-		if (fingerprint.initialStartup) {
-			table.push({ Topic: '[main] load window at', 'Start (ms)': fingerprint.timers.windowLoad });
-		}
-		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': fingerprint.timers.extensionsReady });
+		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': fingerprint.timers.ellapsedExtensionsReady });
 		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': fingerprint.ellapsed });
 
 		return table;
 	}
 
-	private getPerformanceTable(): any[] {
-		const table: any[] = [];
-		table.push(...this.analyzeLoaderTimes());
-
-		const start = Math.round(timers.isInitialStartup ? timers.perfStartTime : timers.perfWindowLoadTime);
-
-		let lastEvent: timer.ITimerEvent;
-		const events = timer.getTimeKeeper().getCollectedEvents();
-		events.forEach((e) => {
-			if (e.topic === 'Startup') {
-				lastEvent = e;
-				const entry: any = {};
-
-				entry['Event'] = e.name;
-				entry['Took (ms)'] = e.stopTime.getTime() - e.startTime.getTime();
-				entry['Start (ms)'] = Math.max(e.startTime.getTime() - start, 0);
-				entry['End (ms)'] = e.stopTime.getTime() - start;
-
-				table.push(entry);
-			}
-		});
-
-		table.push({ Event: '------------------------------------------------------' });
-
-		if (timers.isInitialStartup) {
-			const loadWindow = Math.round(timers.perfWindowLoadTime);
-			const windowLoadEvent: any = {};
-			windowLoadEvent['Event'] = '[main] load window at';
-			windowLoadEvent['Start (ms)'] = loadWindow - start;
-			table.push(windowLoadEvent);
-		}
-
-		const totalExtensions: any = {};
-		totalExtensions['Event'] = '[main, renderer] start => extensions ready';
-		totalExtensions['Took (ms)'] = timers.perfAfterExtensionLoad - start;
-		table.push(totalExtensions);
-
-		const totalWorkbench: any = {};
-		totalWorkbench['Event'] = '[main, renderer] start => workbench ready';
-		totalWorkbench['Took (ms)'] = timers.workbenchStarted - start;
-		table.push(totalWorkbench);
-
-		return table;
-	}
-
-	private analyzeLoaderTimes(): any[] {
+	private analyzeNodeModulesLoadTimes(): { table: any[], duration: number } {
 		const stats = <ILoaderEvent[]>(<any>require).getStats();
 		const result = [];
 
@@ -430,28 +402,29 @@ export class ShowStartupPerformance extends Action {
 			if (stats[i].type === LoaderEventType.NodeEndNativeRequire) {
 				if (stats[i - 1].type === LoaderEventType.NodeBeginNativeRequire && stats[i - 1].detail === stats[i].detail) {
 					const entry: any = {};
+					const dur = (stats[i].timestamp - stats[i - 1].timestamp);
 					entry['Event'] = 'nodeRequire ' + stats[i].detail;
-					entry['Took (ms)'] = (stats[i].timestamp - stats[i - 1].timestamp);
-					total += (stats[i].timestamp - stats[i - 1].timestamp);
-					entry['Start (ms)'] = '**' + stats[i - 1].timestamp;
-					entry['End (ms)'] = '**' + stats[i - 1].timestamp;
+					entry['Took (ms)'] = dur.toFixed(2);
+					total += dur;
+					entry['Start (ms)'] = '**' + stats[i - 1].timestamp.toFixed(2);
+					entry['End (ms)'] = '**' + stats[i - 1].timestamp.toFixed(2);
 					result.push(entry);
 				}
 			}
 		}
 
 		if (total > 0) {
+			result.push({ Event: '------------------------------------------------------' });
+
 			const entry: any = {};
-			entry['Event'] = '[renderer] total require() node modules';
-			entry['Took (ms)'] = total;
+			entry['Event'] = '[renderer] total require() node_modules';
+			entry['Took (ms)'] = total.toFixed(2);
 			entry['Start (ms)'] = '**';
 			entry['End (ms)'] = '**';
 			result.push(entry);
-
-			result.push({ Event: '------------------------------------------------------' });
 		}
 
-		return result;
+		return { table: result, duration: Math.round(total) };
 	}
 }
 

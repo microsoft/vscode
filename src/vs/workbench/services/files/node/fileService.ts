@@ -275,13 +275,13 @@ export class FileService implements IFileService {
 
 					// Write fast if we do UTF 8 without BOM
 					if (!addBom && encodingToWrite === encoding.UTF8) {
-						writeFilePromise = pfs.writeFileAndFlush(absolutePath, value, encoding.UTF8);
+						writeFilePromise = pfs.writeFile(absolutePath, value, encoding.UTF8);
 					}
 
 					// Otherwise use encoding lib
 					else {
 						const encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
-						writeFilePromise = pfs.writeFileAndFlush(absolutePath, encoded);
+						writeFilePromise = pfs.writeFile(absolutePath, encoded);
 					}
 
 					// 4.) set contents

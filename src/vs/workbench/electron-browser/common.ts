@@ -24,10 +24,10 @@ export interface IWindowConfiguration {
 export interface IStartupFingerprint {
 	ellapsed: number;
 	timers: {
-		ellapsedMain?: number;
-		windowLoad?: number;
+		ellapsedWindowLoad?: number;
+		ellapsedWindowLoadToRequire: number;
 		ellapsedExtensions: number;
-		extensionsReady: number;
+		ellapsedExtensionsReady: number;
 		ellapsedRequire: number;
 		ellapsedViewletRestore: number;
 		ellapsedEditorRestore: number;

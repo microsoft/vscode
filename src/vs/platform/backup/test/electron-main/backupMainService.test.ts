@@ -113,7 +113,7 @@ suite('BackupMainService', () => {
 
 	test('removeWorkspaceBackupPath should fail gracefully when removing a path that doesn\'t exist', done => {
 		const workspacesJson: IBackupWorkspacesFormat = { folderWorkspaces: [fooFile.fsPath] };
-		pfs.writeFileAndFlush(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
+		pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
 			service.removeWorkspaceBackupPathSync(barFile);
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(content);
