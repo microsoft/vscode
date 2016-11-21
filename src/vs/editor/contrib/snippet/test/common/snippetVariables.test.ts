@@ -5,6 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
+import { isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetVariablesResolver } from 'vs/editor/contrib/snippet/common/snippetVariables';
@@ -45,13 +46,17 @@ suite('Snippet Variables Resolver', function () {
 
 		variablesTest((editor, resolver) => {
 			assert.equal(resolver.resolve('TM_FILENAME'), 'text.txt');
-			assert.equal(resolver.resolve('TM_DIRECTORY'), '/foo/files');
-			assert.equal(resolver.resolve('TM_FILEPATH'), '/foo/files/text.txt');
+			if (!isWindows) {
+				assert.equal(resolver.resolve('TM_DIRECTORY'), '/foo/files');
+				assert.equal(resolver.resolve('TM_FILEPATH'), '/foo/files/text.txt');
+			}
 
 			editor.setModel(Model.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi')));
 			assert.equal(resolver.resolve('TM_FILENAME'), 'ghi');
-			assert.equal(resolver.resolve('TM_DIRECTORY'), '/abc/def');
-			assert.equal(resolver.resolve('TM_FILEPATH'), '/abc/def/ghi');
+			if (!isWindows) {
+				assert.equal(resolver.resolve('TM_DIRECTORY'), '/abc/def');
+				assert.equal(resolver.resolve('TM_FILEPATH'), '/abc/def/ghi');
+			}
 		});
 	});
 
