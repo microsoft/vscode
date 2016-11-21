@@ -18,7 +18,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IMode } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
@@ -153,7 +153,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		// Check for backups first
 		return this.backupFileService.hasBackup(this.resource).then(hasBackup => {
 			if (hasBackup) {
-				return this.textFileService.resolveTextContent(this.backupFileService.getBackupResource(this.resource)).then(rawTextContent => rawTextContent.value.lines.join('\n'));
+				return this.textFileService.resolveTextContent(this.backupFileService.getBackupResource(this.resource), BACKUP_FILE_RESOLVE_OPTIONS).then(rawTextContent => rawTextContent.value.lines.join('\n'));
 			}
 
 			return null;
