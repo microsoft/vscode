@@ -9,6 +9,8 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { EditorContextKeys, Handler, ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
+import { Range } from 'vs/editor/common/core/range';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
@@ -344,5 +346,41 @@ class InsertLineAfterAction extends HandlerEditorAction {
 				primary: KeyMod.CtrlCmd | KeyCode.Enter
 			}
 		});
+	}
+}
+
+@editorAction
+export class DeleteAllLeftAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'deleteAllLeft',
+			label: nls.localize('lines.deleteAllLeft', "Delete All Left"),
+			alias: 'Delete All Left',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: null,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let selections = editor.getSelections();
+
+		let commands: ICommand[] = [];
+
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let selection = selections[i];
+
+			if (selection.isEmpty()) {
+				console.log(selection.startColumn);
+				commands[i] = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn), '');
+			} else {
+				commands[i] = new ReplaceCommand(selection, '');
+			}
+		}
+
+		editor.executeCommands(this.id, commands);
 	}
 }
