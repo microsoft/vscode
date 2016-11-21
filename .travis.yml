@@ -41,19 +41,11 @@ install:
   - ./scripts/npm.sh install
 
 script:
-  - echo -en 'travis_fold:start:#{hygiene}\\r'
-  - gulp hygiene
-  - echo -en 'travis_fold:end:#{hygiene}\\r'
-  - echo -en 'travis_fold:start:#{electron}\\r'
-  - gulp electron
-  - echo -en 'travis_fold:end:#{electron}\\r'
-  - echo -en 'travis_fold:start:#{compile}\\r'
-  - gulp compile
-  - echo -en 'travis_fold:end:#{compile}\\r'
-  - echo -en 'travis_fold:start:#{optimize}\\r'
-  - gulp optimize-vscode
-  - echo -en 'travis_fold:end:#{optimize}\\r'
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --reporter dot --coverage; else ./scripts/test.sh --reporter dot; fi
+  - gulp hygiene --silent
+  - gulp electron --silent
+  - gulp compile --silent
+  - gulp optimize-vscode --silent
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --no-colors --reporter dot --coverage; else ./scripts/test.sh --no-colors --reporter dot; fi
   - ./scripts/test-integration.sh
 
 after_success:
