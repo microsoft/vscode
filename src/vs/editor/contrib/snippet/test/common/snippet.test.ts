@@ -301,7 +301,7 @@ suite('Editor Contrib - Snippets', () => {
 		assert.equal(snippet.lines[0], 'BAR');
 
 		snippet = CodeSnippet.fromTextmate('${FOO:BAR}', { resolve(): string { return ''; } });
-		assert.equal(snippet.lines[0], '');
+		assert.equal(snippet.lines[0], 'BAR');
 	});
 });
 
