@@ -255,6 +255,7 @@ export abstract class BaseHistoryService {
 interface IStackEntry {
 	input: IEditorInput | IResourceInput;
 	options?: ITextEditorOptions;
+	timestamp: number;
 }
 
 interface IRecentlyClosedFile {
@@ -270,6 +271,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private static MAX_HISTORY_ITEMS = 200;
 	private static MAX_STACK_ITEMS = 20;
 	private static MAX_RECENTLY_CLOSED_EDITORS = 20;
+	private static MERGE_CURSOR_CHANGES_THRESHOLD = 100;
 
 	private stack: IStackEntry[];
 	private index: number;
@@ -406,12 +408,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	protected handleEditorSelectionChangeEvent(editor?: IBaseEditor): void {
-		this.handleEditorEventInStack(editor, true);
+		this.handleEditorEventInStack(editor);
 	}
 
 	protected handleActiveEditorChange(editor?: IBaseEditor): void {
 		this.handleEditorEventInHistory(editor);
-		this.handleEditorEventInStack(editor, false);
+		this.handleEditorEventInStack(editor);
 	}
 
 	private handleEditorEventInHistory(editor?: IBaseEditor): void {
@@ -460,13 +462,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.history = this.history.filter(e => !this.matches(arg1, e));
 	}
 
-	private handleEditorEventInStack(editor: IBaseEditor, storeSelection: boolean): void {
+	private handleEditorEventInStack(editor: IBaseEditor): void {
 		if (this.blockStackChanges) {
 			return; // while we open an editor due to a navigation, we do not want to update our stack
 		}
 
 		if (editor instanceof BaseTextEditor && editor.input) {
-			this.handleTextEditorEvent(<BaseTextEditor>editor, storeSelection);
+			this.handleTextEditorEvent(<BaseTextEditor>editor);
 
 			return;
 		}
@@ -478,14 +480,15 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private handleTextEditorEvent(editor: BaseTextEditor, storeSelection: boolean): void {
+	private handleTextEditorEvent(editor: BaseTextEditor): void {
 		const stateCandidate = new EditorState(editor.input, editor.getSelection());
 		if (!this.currentFileEditorState || this.currentFileEditorState.justifiesNewPushState(stateCandidate)) {
 			this.currentFileEditorState = stateCandidate;
 
 			let options: ITextEditorOptions;
-			if (storeSelection) {
-				const selection = editor.getSelection();
+
+			const selection = editor.getSelection();
+			if (selection) {
 				options = {
 					selection: { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn }
 				};
@@ -514,17 +517,21 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Overwrite an entry in the stack if we have a matching input that comes
 		// with editor options to indicate that this entry is more specific. Also
-		// prevent entries that have the exact same options.
+		// prevent entries that have the exact same options. Finally, Overwrite
+		// entries if we detect that the change came in very fast which indicates
+		// that it was not coming in from a user change but rather rapid programmatic
+		// changes. We just take the last of the changes to not cause too many
+		// entries on the stack.
 		let replace = false;
 		if (this.stack[this.index]) {
 			const currentEntry = this.stack[this.index];
-			if (this.matches(input, currentEntry.input) && this.sameOptions(currentEntry.options, options)) {
+			if (this.matches(input, currentEntry.input) && (this.sameOptions(currentEntry.options, options) || Date.now() - currentEntry.timestamp < HistoryService.MERGE_CURSOR_CHANGES_THRESHOLD)) {
 				replace = true;
 			}
 		}
 
 		const stackInput = this.preferResourceInput(input);
-		const entry = { input: stackInput, options };
+		const entry = { input: stackInput, options, timestamp: Date.now() };
 
 		// If we are not at the end of history, we remove anything after
 		if (this.stack.length > this.index + 1) {
