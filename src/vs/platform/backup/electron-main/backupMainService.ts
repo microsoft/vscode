@@ -7,7 +7,6 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import Uri from 'vs/base/common/uri';
-import { readdirSync } from 'vs/base/node/extfs';
 import { IBackupWorkspacesFormat, IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/common/mainLifecycle';
@@ -72,17 +71,6 @@ export class BackupMainService implements IBackupMainService {
 		}
 		this.workspacesJsonContent.folderWorkspaces.splice(index, 1);
 		this.saveSync();
-	}
-
-	public getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[] {
-		const untitledDir = path.join(this.getWorkspaceBackupDirectory(workspace), 'untitled');
-
-		// Allow sync here as it's only used in workbench initialization's critical path
-		try {
-			return readdirSync(untitledDir);
-		} catch (ex) {
-			return [];
-		}
 	}
 
 	public hasWorkspaceBackup(workspace: Uri): boolean {

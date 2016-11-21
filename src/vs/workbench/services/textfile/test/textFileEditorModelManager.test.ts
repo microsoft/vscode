@@ -10,7 +10,6 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { EditorModel } from 'vs/workbench/common/editor';
 import { join, basename } from 'vs/base/common/paths';
 import { workbenchInstantiationService, TestEditorGroupService, createFileInput, onError } from 'vs/test/utils/servicesTestUtils';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -57,9 +56,9 @@ suite('Files - TextFileEditorModelManager', () => {
 	test('add, remove, clear, get, getAll', function () {
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
-		const model1 = new EditorModel();
-		const model2 = new EditorModel();
-		const model3 = new EditorModel();
+		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random1.txt'), 'utf8');
+		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random2.txt'), 'utf8');
+		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random3.txt'), 'utf8');
 
 		manager.add(URI.file('/test.html'), <any>model1);
 		manager.add(URI.file('/some/other.html'), <any>model2);
@@ -93,6 +92,10 @@ suite('Files - TextFileEditorModelManager', () => {
 		manager.clear();
 		result = manager.getAll();
 		assert.strictEqual(0, result.length);
+
+		model1.dispose();
+		model2.dispose();
+		model3.dispose();
 	});
 
 	test('loadOrCreate', function (done) {
@@ -125,9 +128,9 @@ suite('Files - TextFileEditorModelManager', () => {
 	test('removed from cache when model disposed', function () {
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
-		const model1 = new EditorModel();
-		const model2 = new EditorModel();
-		const model3 = new EditorModel();
+		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random1.txt'), 'utf8');
+		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random2.txt'), 'utf8');
+		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random3.txt'), 'utf8');
 
 		manager.add(URI.file('/test.html'), <any>model1);
 		manager.add(URI.file('/some/other.html'), <any>model2);
@@ -137,6 +140,9 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		model1.dispose();
 		assert(!manager.get(URI.file('/test.html')));
+
+		model2.dispose();
+		model3.dispose();
 	});
 
 	test('disposes model when not open anymore', function () {
