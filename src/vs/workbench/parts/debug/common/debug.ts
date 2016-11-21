@@ -316,7 +316,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	configurationAttributes?: any;
 	configurationSnippets?: IJSONSchemaSnippet[];
 	initialConfigurations?: any[] | string;
-	variables: { [key: string]: string };
+	variables?: { [key: string]: string };
 	aiKey?: string;
 	win?: IRawEnvAdapter;
 	winx86?: IRawEnvAdapter;
