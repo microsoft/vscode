@@ -7,10 +7,10 @@
 import * as nls from 'vs/nls';
 import { merge } from 'vs/base/common/arrays';
 import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventType as FileEventType, FileChangesEvent, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -69,13 +69,12 @@ class EditTask implements IDisposable {
 
 	private _initialSelections: Selection[];
 	private _endCursorSelection: Selection;
-	private _model: IModel;
-	private _modelReference: IDisposable;
+	private get _model(): IModel { return this._modelReference.object.textEditorModel; }
+	private _modelReference: IReference<ITextEditorModel>;
 	private _edits: IIdentifiedSingleEditOperation[];
 
-	constructor(model: IModel, modelReference: IDisposable) {
+	constructor(modelReference: IReference<ITextEditorModel>) {
 		this._endCursorSelection = null;
-		this._model = model;
 		this._modelReference = modelReference;
 		this._edits = [];
 	}
@@ -146,7 +145,6 @@ class EditTask implements IDisposable {
 		if (this._model) {
 			this._modelReference.dispose();
 			this._modelReference = null;
-			this._model = null;
 		}
 	}
 }
@@ -155,8 +153,8 @@ class SourceModelEditTask extends EditTask {
 
 	private _knownInitialSelections: Selection[];
 
-	constructor(model: IModel, modelReference: IDisposable, initialSelections: Selection[]) {
-		super(model, modelReference);
+	constructor(modelReference: IReference<ITextEditorModel>, initialSelections: Selection[]) {
+		super(modelReference);
 		this._knownInitialSelections = initialSelections;
 	}
 
@@ -219,11 +217,9 @@ class BulkEditModel implements IDisposable {
 		}
 
 		forEach(this._edits, entry => {
-			const modelReference = this._textModelResolverService.getModelReference(URI.parse(entry.key));
-			const modelPromise = modelReference.object;
+			const promise = this._textModelResolverService.getModelReference(URI.parse(entry.key)).then(ref => {
+				const model = ref.object;
 
-			// TODO@Joao TODO@Joh: missing reference dispose()
-			const promise = modelPromise.then(model => {
 				if (!model || !model.textEditorModel) {
 					throw new Error(`Cannot load file ${entry.key}`);
 				}
@@ -232,10 +228,10 @@ class BulkEditModel implements IDisposable {
 				let task: EditTask;
 
 				if (this._sourceModel && textEditorModel.uri.toString() === this._sourceModel.toString()) {
-					this._sourceModelTask = new SourceModelEditTask(textEditorModel, modelReference, this._sourceSelections);
+					this._sourceModelTask = new SourceModelEditTask(ref, this._sourceSelections);
 					task = this._sourceModelTask;
 				} else {
-					task = new EditTask(textEditorModel, modelReference);
+					task = new EditTask(ref);
 				}
 
 				entry.value.forEach(edit => task.addEdit(edit));

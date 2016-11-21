@@ -7,15 +7,15 @@
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import Event, { fromEventEmitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/paths';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { Location } from 'vs/editor/common/modes';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 
 export class OneReference {
 
@@ -65,9 +65,11 @@ export class OneReference {
 
 export class FilePreview implements IDisposable {
 
-	constructor(private _model: IModel, private _modelReference: IDisposable) {
+	constructor(private _modelReference: IReference<ITextEditorModel>) {
 
 	}
+
+	private get _model() { return this._modelReference.object.textEditorModel; }
 
 	public preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } {
 
@@ -142,14 +144,15 @@ export class FileReferences implements IDisposable {
 			return TPromise.as(this);
 		}
 
-		const modelReference = textModelResolverService.getModelReference(this._uri);
-		const modelPromise = modelReference.object;
+		return textModelResolverService.getModelReference(this._uri).then(modelReference => {
+			const model = modelReference.object;
 
-		return modelPromise.then(model => {
 			if (!model) {
+				modelReference.dispose();
 				throw new Error();
 			}
-			this._preview = new FilePreview(model.textEditorModel, modelReference);
+
+			this._preview = new FilePreview(modelReference);
 			this._resolved = true;
 			return this;
 

@@ -20,7 +20,7 @@ export interface ITextModelResolverService {
 	 * Provided a resource URI, it will return a model reference
 	 * which should be disposed once not needed anymore.
 	 */
-	getModelReference(resource: URI): IReference<TPromise<ITextEditorModel>>;
+	getModelReference(resource: URI): TPromise<IReference<ITextEditorModel>>;
 
 	/**
 	 * Registers a specific `scheme` content provider.

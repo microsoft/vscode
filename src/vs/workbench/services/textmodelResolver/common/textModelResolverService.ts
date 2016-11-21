@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { first } from 'vs/base/common/async';
+import { first, always } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IDisposable, toDisposable, IReference, ReferenceCollection, ImmortalReference } from 'vs/base/common/lifecycle';
@@ -100,6 +100,8 @@ class ResourceModelCollection extends ReferenceCollection<URI, TPromise<ITextEdi
 export class TextModelResolverService implements ITextModelResolverService {
 
 	_serviceBrand: any;
+
+	private promiseCache: { [uri: string]: TPromise<IReference<ITextEditorModel>> } = Object.create(null);
 	private resourceModelCollection: ResourceModelCollection;
 
 	constructor(
@@ -112,20 +114,36 @@ export class TextModelResolverService implements ITextModelResolverService {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
 
-	getModelReference(resource: URI): IReference<TPromise<ITextEditorModel>> {
+	getModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+		const uri = resource.toString();
+		let promise = this.promiseCache[uri];
+
+		if (promise) {
+			return promise;
+		}
+
+		promise = this.promiseCache[uri] = this.getModel(resource);
+
+		return always(promise, () => delete this.promiseCache[uri]);
+	}
+
+	private getModel(resource: URI): TPromise<IReference<ITextEditorModel>> {
 		// File Schema: use text file service
+		// TODO ImmortalReference is a hack
 		if (resource.scheme === network.Schemas.file) {
-			// TODO ImmortalReference is a hack
-			return new ImmortalReference(this.textFileService.models.loadOrCreate(resource));
+			return this.textFileService.models.loadOrCreate(resource)
+				.then(model => new ImmortalReference(model));
 		}
 
 		// Untitled Schema: go through cached input
+		// TODO ImmortalReference is a hack
 		if (resource.scheme === UntitledEditorInput.SCHEMA) {
-			// TODO ImmortalReference is a hack
-			return new ImmortalReference(this.untitledEditorService.createOrGet(resource).resolve());
+			return this.untitledEditorService.createOrGet(resource).resolve()
+				.then(model => new ImmortalReference(model));
 		}
 
-		return this.resourceModelCollection.acquire(resource);
+		const ref = this.resourceModelCollection.acquire(resource);
+		return ref.object.then(model => ({ object: model, dispose: () => ref.dispose() }));
 	}
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {

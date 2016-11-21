@@ -716,29 +716,32 @@ export class ReferenceWidget extends PeekViewWidget {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}
 
-		const modelReference = this._textModelResolverService.getModelReference(reference.uri);
-		const modelPromise = modelReference.object;
+		const promise = this._textModelResolverService.getModelReference(reference.uri);
 
-		return TPromise.join([modelPromise, this._tree.reveal(reference)]).then(values => {
+		return TPromise.join([promise, this._tree.reveal(reference)]).then(values => {
+			const ref = values[0];
+
 			if (!this._model) {
-				modelReference.dispose();
+				ref.dispose();
 				// disposed
 				return;
 			}
 
+			this._previewModelReference.dispose();
+			this._previewModelReference = EmptyDisposable;
+
 			// show in editor
-			let [model] = values;
+			const model = ref.object;
 			if (model) {
+				this._previewModelReference = ref;
 				this._preview.setModel(model.textEditorModel);
 				var sel = Range.lift(reference.range).collapseToStart();
 				this._preview.setSelection(sel);
 				this._preview.revealRangeInCenter(sel);
 			} else {
 				this._preview.setModel(this._previewNotAvailableMessage);
+				ref.dispose();
 			}
-
-			this._previewModelReference.dispose();
-			this._previewModelReference = modelReference;
 
 			// show in tree
 			this._tree.setSelection([reference]);

@@ -323,9 +323,9 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			// Single result
 			else {
 				let result = results[0];
-				const modelReference = this.textModelResolverService.getModelReference(result.uri);
 
-				modelReference.object.then(model => {
+				this.textModelResolverService.getModelReference(result.uri).then(ref => {
+					const model = ref.object;
 					let hoverMessage: MarkedString;
 					if (model && model.textEditorModel) {
 						const editorModel = model.textEditorModel;
@@ -375,7 +375,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 						};
 					}
 
-					modelReference.dispose();
+					ref.dispose();
 
 					this.addDecoration({
 						startLineNumber: position.lineNumber,

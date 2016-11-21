@@ -57,18 +57,15 @@ class EditorInputCache {
 		if (editorInputPromise) {
 			editorInputPromise.done(() => {
 				if (reloadFromSource) {
-					const modelReference = this.textModelResolverService.getModelReference(fileMatch.resource());
-					const modelPromise = modelReference.object;
-
-					modelPromise.done(model => {
+					this.textModelResolverService.getModelReference(fileMatch.resource()).done(ref => {
+						const model = ref.object;
 						if (model.textEditorModel) {
 							let replaceResource = this.getReplaceResource(fileMatch.resource());
 							this.modelService.getModel(replaceResource).setValue(model.textEditorModel.getValue());
 							this.replaceService.replace(fileMatch, null, replaceResource);
-							modelReference.dispose();
+							ref.dispose();
 						}
 					});
-
 				} else {
 					let replaceResource = this.getReplaceResource(fileMatch.resource());
 					this.modelService.getModel(replaceResource).undo();
@@ -112,18 +109,14 @@ class EditorInputCache {
 	}
 
 	private createRightInput(element: FileMatch): TPromise<IEditorInput> {
-		return new TPromise((c, e, p) => {
-			const modelReference = this.textModelResolverService.getModelReference(element.resource());
-			const modelPromise = modelReference.object;
+		return this.textModelResolverService.getModelReference(element.resource()).then(ref => {
+			const model = ref.object;
+			let textEditorModel = model.textEditorModel;
+			let replaceResource = this.getReplaceResource(element.resource());
+			this.modelService.createModel(textEditorModel.getValue(), textEditorModel.getMode(), replaceResource);
+			ref.dispose();
 
-			modelPromise.then(model => {
-				let textEditorModel = model.textEditorModel;
-				let replaceResource = this.getReplaceResource(element.resource());
-				this.modelService.createModel(textEditorModel.getValue(), textEditorModel.getMode(), replaceResource);
-				modelReference.dispose();
-
-				c(this.editorService.createInput({ resource: replaceResource }));
-			});
+			return this.editorService.createInput({ resource: replaceResource });
 		});
 	}
 
