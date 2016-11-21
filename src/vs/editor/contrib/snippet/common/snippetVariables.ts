@@ -20,7 +20,7 @@ export class SnippetVariablesResolver implements ISnippetVariableResolver {
 	resolve(name: string): string {
 		const model = this._editor.getModel();
 		if (!model) {
-			return;
+			throw new Error();
 		}
 		switch (name) {
 			case 'SELECTION':

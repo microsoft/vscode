@@ -216,6 +216,9 @@ export class SnippetParser {
 						compact(thisMarker.defaultValue, placeholders);
 					}
 
+				} else if (thisMarker instanceof Variable) {
+					compact(thisMarker.defaultValue, placeholders);
+
 				} else if (i > 0 && thisMarker instanceof Text && marker[i - 1] instanceof Text) {
 					(<Text>marker[i - 1]).string += (<Text>marker[i]).string;
 					marker.splice(i, 1);
