@@ -77,13 +77,11 @@ export class Adapter {
 	}
 
 	public merge(secondRawAdapter: IRawAdapter, extensionDescription: IExtensionDescription): void {
-		if (secondRawAdapter.program) {
-			secondRawAdapter.program = paths.join(extensionDescription.extensionFolderPath, secondRawAdapter.program);
+		// Give priority to built in debug adapters
+		if (extensionDescription.isBuiltin) {
+			this.extensionDescription = extensionDescription;
 		}
-		if (secondRawAdapter.runtime) {
-			secondRawAdapter.runtime = paths.join(extensionDescription.extensionFolderPath, secondRawAdapter.runtime);
-		}
-		objects.mixin(this.rawAdapter, secondRawAdapter, true);
+		objects.mixin(this.rawAdapter, secondRawAdapter, extensionDescription.isBuiltin);
 	}
 
 	public getInitialConfigFileContent(): TPromise<string> {
