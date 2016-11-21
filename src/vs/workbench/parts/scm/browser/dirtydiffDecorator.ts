@@ -57,6 +57,7 @@ class DirtyDiffModelDecorator {
 	};
 
 	private decorations: string[];
+	private textEditorModel: common.IModel;
 	private diffDelayer: ThrottledDelayer<void>;
 	private toDispose: lifecycle.IDisposable[];
 
@@ -82,8 +83,8 @@ class DirtyDiffModelDecorator {
 		return this.dirtyDiffService.getBaselineResource(this.uri)
 			.then(originalUri => this.textModelResolverService.resolve(originalUri)
 				.then(model => {
-					const textEditorModel = model.textEditorModel;
-					this.toDispose.push(textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+					this.textEditorModel = model.textEditorModel;
+					this.toDispose.push(this.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 
 					return originalUri;
 				}));
@@ -100,11 +101,15 @@ class DirtyDiffModelDecorator {
 			}
 
 			return this.originalURIPromise
-				.then(uri => this.editorWorkerService.computeDirtyDiff(uri, this.model.uri, true));
+				.then(originalURI => this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true));
 
 		}).then((diff: common.IChange[]) => {
 			if (!this.model || this.model.isDisposed()) {
 				return; // disposed
+			}
+
+			if (this.textEditorModel.getValueLength() === 0) {
+				diff = [];
 			}
 
 			return this.decorations = this.model.deltaDecorations(this.decorations, DirtyDiffModelDecorator.changesToDecorations(diff || []));
