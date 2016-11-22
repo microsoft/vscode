@@ -7,6 +7,7 @@
 
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as platform from 'vs/base/common/platform';
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
@@ -48,8 +49,11 @@ export class BackupFileService implements IBackupFileService {
 			return null;
 		}
 
+		// Windows and Mac paths are case insensitive, we want backups to be too
+		const pathCaseFix = platform.isWindows || platform.isMacintosh ? resource.fsPath.toLowerCase() : resource.fsPath;
+
 		// Only hash the file path if the file is not untitled
-		return resource.scheme === 'untitled' ? resource.fsPath : crypto.createHash('md5').update(resource.fsPath).digest('hex');
+		return resource.scheme === 'untitled' ? pathCaseFix : crypto.createHash('md5').update(pathCaseFix).digest('hex');
 	}
 
 	public getBackupResource(resource: Uri): Uri {
