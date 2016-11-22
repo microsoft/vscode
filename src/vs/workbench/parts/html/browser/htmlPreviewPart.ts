@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { Dimension, Builder } from 'vs/base/browser/builder';
-import { empty as EmptyDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -20,7 +20,7 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import Webview from './webview';
 
 /**
@@ -39,7 +39,8 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	private _baseUrl: URI;
 
-	private _model: IModel;
+	private _modelRef: IReference<ITextEditorModel>;
+	private get _model(): IModel { return this._modelRef.object.textEditorModel; }
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 
@@ -65,7 +66,9 @@ export class HtmlPreviewPart extends BaseEditor {
 		// unhook listeners
 		this._themeChangeSubscription.dispose();
 		this._modelChangeSubscription.dispose();
-		this._model = undefined;
+		if (this._modelRef) {
+			this._modelRef.dispose();
+		}
 		super.dispose();
 	}
 
@@ -121,7 +124,7 @@ export class HtmlPreviewPart extends BaseEditor {
 	}
 
 	private _hasValidModel(): boolean {
-		return this._model && !this._model.isDisposed();
+		return this._modelRef && this._model && !this._model.isDisposed();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -141,7 +144,9 @@ export class HtmlPreviewPart extends BaseEditor {
 			return TPromise.as(undefined);
 		}
 
-		this._model = undefined;
+		if (this._modelRef) {
+			this._modelRef.dispose();
+		}
 		this._modelChangeSubscription.dispose();
 
 		if (!(input instanceof HtmlInput)) {
@@ -149,14 +154,18 @@ export class HtmlPreviewPart extends BaseEditor {
 		}
 
 		return super.setInput(input, options).then(() => {
-			let resourceUri = (<HtmlInput>input).getResource();
-			return this._textModelResolverService.resolve(resourceUri).then(model => {
+			const resourceUri = (<HtmlInput>input).getResource();
+			return this._textModelResolverService.createModelReference(resourceUri).then(ref => {
+				const model = ref.object;
+
 				if (model instanceof BaseTextEditorModel) {
-					this._model = model.textEditorModel;
+					this._modelRef = ref;
 				}
+
 				if (!this._model) {
 					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
 				}
+
 				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.contents = this._model.getLinesContent();

@@ -9,9 +9,6 @@ import URI from 'vs/base/common/uri';
 import network = require('vs/base/common/network');
 import { Registry } from 'vs/platform/platform';
 import { basename, dirname } from 'vs/base/common/paths';
-import types = require('vs/base/common/types');
-import { IDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor } from 'vs/editor/common/editorCommon';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, IEditorRegistry, Extensions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -206,46 +203,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Base Text Editor Support for inmemory resources
 		const resourceInput = <IResourceInput>input;
-		if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.inMemory) {
-
-			// For in-memory resources we only support to resolve the input from the current active editor
-			// because the workbench does not track editor models by in memory URL. This concept is only
-			// being used in the code editor.
-			const activeEditor = this.getActiveEditor();
-			if (activeEditor) {
-				const control = <ICommonEditor>activeEditor.getControl();
-				if (types.isFunction(control.getEditorType)) {
-
-					// Single Editor: If code editor model matches, return input from editor
-					if (control.getEditorType() === EditorType.ICodeEditor) {
-						const codeEditor = <ICodeEditor>control;
-						const model = this.findModel(codeEditor, input);
-						if (model) {
-							return TPromise.as(activeEditor.input);
-						}
-					}
-
-					// Diff Editor: If left or right code editor model matches, return associated input
-					else if (control.getEditorType() === EditorType.IDiffEditor) {
-						const diffInput = <DiffEditorInput>activeEditor.input;
-						const diffCodeEditor = <IDiffEditor>control;
-
-						const originalModel = this.findModel(diffCodeEditor.getOriginalEditor(), input);
-						if (originalModel) {
-							return TPromise.as(diffInput.originalInput);
-						}
-
-						const modifiedModel = this.findModel(diffCodeEditor.getModifiedEditor(), input);
-						if (modifiedModel) {
-							return TPromise.as(diffInput.modifiedInput);
-						}
-					}
-				}
-			}
-		}
 
 		// Untitled file support
-		else if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
+		if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
 			return TPromise.as<EditorInput>(this.untitledEditorService.createOrGet(resourceInput.resource));
 		}
 
@@ -272,15 +232,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 			return typedFileInput;
 		});
-	}
-
-	private findModel(editor: ICommonCodeEditor, input: IResourceInput): IModel {
-		const model = editor.getModel();
-		if (!model) {
-			return null;
-		}
-
-		return model.uri.toString() === input.resource.toString() ? model : null;
 	}
 }
 
