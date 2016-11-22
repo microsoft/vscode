@@ -213,6 +213,8 @@ export abstract class BaseZoomAction extends Action {
 			target = ConfigurationTarget.WORKSPACE;
 		}
 
+		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
+
 		const applyZoom = () => {
 			webFrame.setZoomLevel(level);
 			browser.setZoomFactor(webFrame.getZoomFactor());
