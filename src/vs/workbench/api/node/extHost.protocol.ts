@@ -231,6 +231,8 @@ export abstract class MainProcessExtensionServiceShape {
 }
 
 export abstract class MainThreadSCMShape {
+	$register(id: string, registerOriginalResourceProvider: boolean): void { throw ni(); }
+	$unregister(id: string): void { throw ni(); }
 }
 
 // -- extension host
@@ -362,6 +364,7 @@ export abstract class ExtHostTerminalServiceShape {
 }
 
 export abstract class ExtHostSCMShape {
+	$getBaselineResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
 }
 
 // --- proxy identifiers
@@ -385,7 +388,7 @@ export const MainContext = {
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService', MainThreadTerminalServiceShape),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', MainThreadWorkspaceShape),
 	MainProcessExtensionService: createMainId<MainProcessExtensionServiceShape>('MainProcessExtensionService', MainProcessExtensionServiceShape),
-	MainThreadSCM: createMainId('MainThreadSCM', MainThreadSCMShape)
+	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape)
 };
 
 export const ExtHostContext = {

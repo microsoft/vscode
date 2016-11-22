@@ -94,7 +94,7 @@ declare module 'vscode' {
 		commitCommand?: string;
 		clickCommand?: string;
 		dragCommand?: string;
-		getOriginalResource?(uri: Uri): Uri | Thenable<Uri>;
+		getOriginalResource?(uri: Uri, token: CancellationToken): Uri | Thenable<Uri>;
 	}
 
 	export interface SCMProvider extends Disposable {
