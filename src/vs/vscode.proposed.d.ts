@@ -85,4 +85,29 @@ declare module 'vscode' {
 		 */
 		getClickCommand?(node: T): string;
 	}
+
+	export namespace scm {
+		export function createSCMProvider(id: string, delegate: SCMDelegate): SCMProvider;
+	}
+
+	export interface SCMDelegate {
+		commitCommand: string;
+		clickCommand: string;
+		dragCommand?: string;
+		getOriginalResource?(uri: Uri): Uri | Thenable<Uri>;
+	}
+
+	export interface SCMProvider extends Disposable {
+		createResourceGroup(id: string, label: string): SCMResourceGroup;
+	}
+
+	export interface SCMResourceGroup extends Disposable {
+		set(...resources: SCMResource[]): void;
+		get(): SCMResource[];
+	}
+
+	export interface SCMResource {
+		uri: Uri;
+		// TODO: status type, icon decoration, etc
+	}
 }
