@@ -511,6 +511,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 */
 	ignoreTrimWhitespace?: boolean;
 	/**
+	 * Render +/- indicators for added/deleted changes.
+	 * Defaults to true.
+	 */
+	renderIndicators?: boolean;
+	/**
 	 * Original model should be editable?
 	 * Defaults to false.
 	 */
@@ -4162,6 +4167,11 @@ export interface ICommonDiffEditor extends IEditor {
 	 * @internal
 	 */
 	readonly renderSideBySide: boolean;
+	/**
+	 * Returns whether the diff editor is rendering +/- indicators or not.
+	 * @internal
+	 */
+	readonly renderIndicators: boolean;
 }
 
 /**
