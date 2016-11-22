@@ -20,6 +20,7 @@ import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostTreeExplorers } from 'vs/workbench/api/node/extHostTreeExplorers';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostQuickOpen } from 'vs/workbench/api/node/extHostQuickOpen';
+import { ExtHostSCM } from 'vs/workbench/api/node/extHostSCM';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostStatusBar } from 'vs/workbench/api/node/extHostStatusBar';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
@@ -78,6 +79,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 	const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
 	const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set<ExtHostQuickOpen>(new ExtHostQuickOpen(threadService));
 	const extHostTerminalService = col.define(ExtHostContext.ExtHostTerminalService).set<ExtHostTerminalService>(new ExtHostTerminalService(threadService));
+	const extHostSCM = col.define(ExtHostContext.ExtHostSCM).set<ExtHostSCM>(new ExtHostSCM(threadService));
 	col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
 	col.finish(false, threadService);
 
@@ -361,7 +363,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 		// namespace: scm
 		const scm: typeof vscode.scm = {
 			createSCMProvider: (id, delegate): vscode.SCMProvider => {
-				throw new Error('JOAO not implemented');
+				return extHostSCM.createSCMProvider(id, delegate);
 			}
 		};
 
