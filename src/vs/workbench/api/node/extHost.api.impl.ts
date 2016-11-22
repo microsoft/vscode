@@ -364,6 +364,13 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 		};
 
+		// namespace: scm
+		const scm: typeof vscode.scm = {
+			createSCMProvider: (id, delegate): vscode.SCMProvider => {
+				throw new Error('JOAO not implemented');
+			}
+		};
+
 		return {
 			version: pkg.version,
 			// namespaces
@@ -373,6 +380,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			languages,
 			window,
 			workspace,
+			scm,
 			// types
 			CancellationTokenSource: CancellationTokenSource,
 			CodeLens: extHostTypes.CodeLens,
