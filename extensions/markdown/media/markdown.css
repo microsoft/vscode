@@ -8,6 +8,7 @@ body {
 	font-size: 14px;
 	padding-left: 12px;
 	line-height: 22px;
+	margin-bottom: calc(100vh - 22px);
 }
 
 img {
