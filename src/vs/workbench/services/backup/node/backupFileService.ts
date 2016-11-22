@@ -114,65 +114,61 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public hasBackup(resource: Uri): TPromise<boolean> {
-		const backupResource = this.getBackupResource(resource);
-		if (!backupResource) {
-			return TPromise.as(false);
-		}
-
-		return this.ready.then(model => model.has(backupResource));
-	}
-
-	public loadBackupResource(resource: Uri): TPromise<Uri> {
-		return this.hasBackup(resource).then(hasBackup => {
-			if (hasBackup) {
-				return this.getBackupResource(resource);
+		return this.ready.then(model => {
+			const backupResource = this.getBackupResource(resource);
+			if (!backupResource) {
+				return TPromise.as(false);
 			}
 
-			return void 0;
+			return model.has(backupResource);
 		});
 	}
 
-	public backupResource(resource: Uri, content: string, versionId?: number): TPromise<void> {
-		const backupResource = this.getBackupResource(resource);
-		if (!backupResource) {
-			return TPromise.as(void 0);
-		}
-
-		return this.ready.then(model => {
-			if (model.has(backupResource, versionId)) {
-				return TPromise.as(void 0); // return early if backup version id matches requested one
-			}
-
-			return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => {
-				model.add(backupResource, versionId);
+	public loadBackupResource(resource: Uri): TPromise<Uri> {
+		return this.ready.then(() => {
+			return this.hasBackup(resource).then(hasBackup => {
+				if (hasBackup) {
+					return this.getBackupResource(resource);
+				}
 
 				return void 0;
 			});
 		});
 	}
 
-	public discardResourceBackup(resource: Uri): TPromise<void> {
-		const backupResource = this.getBackupResource(resource);
-		if (!backupResource) {
-			return TPromise.as(void 0);
-		}
-
+	public backupResource(resource: Uri, content: string, versionId?: number): TPromise<void> {
 		return this.ready.then(model => {
-			model.remove(backupResource);
+			const backupResource = this.getBackupResource(resource);
+			if (!backupResource) {
+				return TPromise.as(void 0);
+			}
 
-			return this.fileService.del(backupResource);
+			if (model.has(backupResource, versionId)) {
+				return TPromise.as(void 0); // return early if backup version id matches requested one
+			}
+
+			return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
+		});
+	}
+
+	public discardResourceBackup(resource: Uri): TPromise<void> {
+		return this.ready.then(model => {
+			const backupResource = this.getBackupResource(resource);
+			if (!backupResource) {
+				return TPromise.as(void 0);
+			}
+
+			return this.fileService.del(backupResource).then(() => model.remove(backupResource));
 		});
 	}
 
 	public discardAllWorkspaceBackups(): TPromise<void> {
-		if (!this.backupEnabled) {
-			return TPromise.as(void 0);
-		}
-
 		return this.ready.then(model => {
-			model.clear();
+			if (!this.backupEnabled) {
+				return TPromise.as(void 0);
+			}
 
-			return this.fileService.del(Uri.file(this.backupWorkspacePath));
+			return this.fileService.del(Uri.file(this.backupWorkspacePath)).then(() => model.clear());
 		});
 	}
 
