@@ -230,6 +230,9 @@ export abstract class MainProcessExtensionServiceShape {
 	$onExtensionActivationFailed(extensionId: string): void { throw ni(); }
 }
 
+export abstract class MainThreadSCMShape {
+}
+
 // -- extension host
 
 export abstract class ExtHostCommandsShape {
@@ -358,6 +361,9 @@ export abstract class ExtHostTerminalServiceShape {
 	$acceptTerminalProcessId(id: number, processId: number): void { throw ni(); }
 }
 
+export abstract class ExtHostSCMShape {
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -379,6 +385,7 @@ export const MainContext = {
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService', MainThreadTerminalServiceShape),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', MainThreadWorkspaceShape),
 	MainProcessExtensionService: createMainId<MainProcessExtensionServiceShape>('MainProcessExtensionService', MainProcessExtensionServiceShape),
+	MainThreadSCM: createMainId('MainThreadSCM', MainThreadSCMShape)
 };
 
 export const ExtHostContext = {
@@ -394,5 +401,6 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ExtHostLanguageFeaturesShape),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen', ExtHostQuickOpenShape),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService', ExtHostExtensionServiceShape),
-	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape)
+	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape),
+	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape)
 };
