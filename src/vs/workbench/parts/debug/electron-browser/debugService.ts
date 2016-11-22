@@ -195,12 +195,12 @@ export class DebugService implements debug.IDebugService {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
-						this.logToRepl(simpleVals.join(' '), sev);
+						this.model.logToRepl(simpleVals.join(' '), sev);
 						simpleVals = [];
 					}
 
 					// show object
-					this.logToRepl(a, sev);
+					this.model.logToRepl(a, sev);
 				}
 
 				// string: watch out for % replacement directive
@@ -229,7 +229,7 @@ export class DebugService implements debug.IDebugService {
 
 			// flush simple values
 			if (simpleVals.length) {
-				this.logToRepl(simpleVals.join(' '), sev);
+				this.model.logToRepl(simpleVals.join(' '), sev);
 			}
 		}
 	}
@@ -368,7 +368,7 @@ export class DebugService implements debug.IDebugService {
 
 	private onOutput(event: DebugProtocol.OutputEvent): void {
 		const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
-		this.appendReplOutput(event.body.output, outputSeverity);
+		this.model.appendReplOutput(event.body.output, outputSeverity);
 	}
 
 	private loadBreakpoints(): Breakpoint[] {
@@ -513,14 +513,6 @@ export class DebugService implements debug.IDebugService {
 		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
 			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame));
-	}
-
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
-		this.model.logToRepl(value, severity);
-	}
-
-	public appendReplOutput(value: string, severity?: severity): void {
-		this.model.appendReplOutput(value, severity);
 	}
 
 	public removeReplExpressions(): void {
