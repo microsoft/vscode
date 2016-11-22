@@ -52,12 +52,11 @@ suite('Lifecycle', () => {
 });
 
 suite('Reference Collection', () => {
-	class Collection extends ReferenceCollection<string, number> {
+	class Collection extends ReferenceCollection<number> {
 		private _count = 0;
 		get count() { return this._count; }
-		protected getKey(key): string { return key; }
-		protected create(key: string): number { this._count++; return key.length; }
-		protected destroy(object: number): void { this._count--; }
+		protected createReferencedObject(key: string): number { this._count++; return key.length; }
+		protected destroyReferencedObject(object: number): void { this._count--; }
 	}
 
 	test('simple', () => {

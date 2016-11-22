@@ -17,34 +17,26 @@ import network = require('vs/base/common/network');
 import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-class ResourceModelCollection extends ReferenceCollection<URI, TPromise<ITextEditorModel>> {
+class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
 
 	private providers: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
 
 	constructor(
-		@ITextFileService private textFileService: ITextFileService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModelService private modelService: IModelService
 	) {
 		super();
 	}
 
-	getKey(uri: URI): string {
-		return uri.toString();
-	}
-
-	create(key: string): TPromise<ITextEditorModel> {
+	createReferencedObject(key: string): TPromise<ITextEditorModel> {
 		const resource = URI.parse(key);
 
 		return this.resolveTextModelContent(this.modelService, key)
 			.then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
 	}
 
-	destroy(modelPromise: TPromise<ITextEditorModel>): void {
+	destroyReferencedObject(modelPromise: TPromise<ITextEditorModel>): void {
 		modelPromise.done(model => model.dispose());
 	}
 
@@ -107,9 +99,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
@@ -122,12 +112,12 @@ export class TextModelResolverService implements ITextModelResolverService {
 			return promise;
 		}
 
-		promise = this.promiseCache[uri] = this.getModel(resource);
+		promise = this.promiseCache[uri] = this._createModelReference(resource);
 
 		return always(promise, () => delete this.promiseCache[uri]);
 	}
 
-	private getModel(resource: URI): TPromise<IReference<ITextEditorModel>> {
+	private _createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
 		// File Schema: use text file service
 		// TODO ImmortalReference is a hack
 		if (resource.scheme === network.Schemas.file) {
@@ -142,7 +132,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 				.then(model => new ImmortalReference(model));
 		}
 
-		const ref = this.resourceModelCollection.acquire(resource);
+		const ref = this.resourceModelCollection.acquire(resource.toString());
 		return ref.object.then(model => ({ object: model, dispose: () => ref.dispose() }));
 	}
 

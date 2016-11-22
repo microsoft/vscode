@@ -72,24 +72,23 @@ export interface IReference<T> extends IDisposable {
 	readonly object: T;
 }
 
-export abstract class ReferenceCollection<T, R> {
+export abstract class ReferenceCollection<T> {
 
-	private references: { [key: string]: { readonly object: R; counter: number; } } = Object.create(null);
+	private references: { [key: string]: { readonly object: T; counter: number; } } = Object.create(null);
 
 	constructor() { }
 
-	acquire(t: T): IReference<R> {
-		const key = this.getKey(t);
+	acquire(key: string): IReference<T> {
 		let reference = this.references[key];
 
 		if (!reference) {
-			reference = this.references[key] = { counter: 0, object: this.create(key) };
+			reference = this.references[key] = { counter: 0, object: this.createReferencedObject(key) };
 		}
 
 		const { object } = reference;
 		const dispose = () => {
 			if (--reference.counter === 0) {
-				this.destroy(reference.object);
+				this.destroyReferencedObject(reference.object);
 				delete this.references[key];
 			}
 		};
@@ -99,9 +98,8 @@ export abstract class ReferenceCollection<T, R> {
 		return { object, dispose };
 	}
 
-	protected abstract getKey(t: T): string;
-	protected abstract create(key: string): R;
-	protected abstract destroy(object: R): void;
+	protected abstract createReferencedObject(key: string): T;
+	protected abstract destroyReferencedObject(object: T): void;
 }
 
 export class ImmortalReference<T> implements IReference<T> {
