@@ -173,6 +173,12 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	}
 }
 
+export class OutputExpressionContainer extends ExpressionContainer {
+	constructor(public name: string, stackFrame: debug.IStackFrame, reference: number, public annotation: string) {
+		super(stackFrame, reference, generateUuid());
+	}
+}
+
 export class Expression extends ExpressionContainer implements debug.IExpression {
 	static DEFAULT_VALUE = nls.localize('notAvailable', "not available");
 
@@ -830,7 +836,7 @@ export class Model implements debug.IModel {
 			}
 		} else {
 			// key-value output
-			this.addReplElement(new KeyValueOutputElement((<any>value).prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
+			this.addReplElement(new NameValueOutputElement((<any>value).prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
 		}
 
 		this._onDidChangeREPLElements.fire();
