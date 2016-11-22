@@ -37,10 +37,6 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface ITextEditorModel extends IEditorModel {
-	textEditorModel: any;
-}
-
 export interface IResourceInput {
 
 	/**
