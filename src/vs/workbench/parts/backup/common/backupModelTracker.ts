@@ -65,9 +65,9 @@ export class BackupModelTracker implements IWorkbenchContribution {
 		if (this.backupService.isHotExitEnabled) {
 			const input = this.untitledEditorService.get(resource);
 			if (input.isDirty()) {
-				this.backupFileService.backupResource(resource, input.getValue());
+				input.resolve().then(model => this.backupFileService.backupResource(resource, model.getValue()));
 			} else {
-				this.backupFileService.discardResourceBackup(resource);
+				this.discardBackup(resource);
 			}
 		}
 	}

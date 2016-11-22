@@ -14,17 +14,31 @@ import path = require('path');
 import extfs = require('vs/base/node/extfs');
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
-import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { parseArgs } from 'vs/platform/environment/node/argv';
+
+class TestEnvironmentService extends EnvironmentService {
+
+	constructor(private _backupHome: string, private _backupWorkspacesPath: string) {
+		super(parseArgs(process.argv), process.execPath);
+
+		this._backupHome = this._backupHome || this.backupHome;
+		this._backupWorkspacesPath = this._backupWorkspacesPath || this.backupWorkspacesPath;
+	}
+
+	get backupHome(): string { return this._backupHome; }
+
+	get backupWorkspacesPath(): string { return this._backupWorkspacesPath; }
+}
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
 		const fileService = new FileService(workspace.fsPath, { disableWatcher: true }, null);
-		super(workspace, TestEnvironmentService, fileService);
+		const testEnvironmentService = new TestEnvironmentService(backupHome, workspacesJsonPath);
 
-		this.backupHome = backupHome;
-		this.workspacesJsonPath = workspacesJsonPath;
+		super(workspace, testEnvironmentService, fileService);
 	}
 }
 

@@ -122,7 +122,7 @@ class DirtyDiffModelDecorator {
 	private diff(): winjs.TPromise<common.IChange[]> {
 		return this.originalURIPromise.then(originalURI => {
 			if (!this.model || this.model.isDisposed() || !originalURI) {
-				return winjs.TPromise.as<any>([]); // disposed
+				return winjs.TPromise.as([]); // disposed
 			}
 
 			return this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true);
