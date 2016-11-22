@@ -33,6 +33,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	private _onDidChangeDirty: Emitter<void>;
 	private _onDidChangeEncoding: Emitter<void>;
 
+	private versionId: number;
+
 	private contentChangeEventScheduler: RunOnceScheduler;
 
 	private configuredEncoding: string;
@@ -54,6 +56,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.dirty = false;
+		this.versionId = 0;
 
 		this._onDidChangeContent = new Emitter<void>();
 		this._onDidChangeDirty = new Emitter<void>();
@@ -92,6 +95,10 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
 		this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+	}
+
+	public getVersionId(): number {
+		return this.versionId;
 	}
 
 	public getValue(): string {
@@ -179,6 +186,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	}
 
 	private onModelContentChanged(): void {
+		this.versionId++;
 
 		// mark the untitled editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.

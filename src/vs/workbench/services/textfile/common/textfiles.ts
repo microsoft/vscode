@@ -209,6 +209,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	onDidContentChange: Event<StateChange>;
 	onDidStateChange: Event<StateChange>;
 
+	getVersionId(): number;
+
 	getResource(): URI;
 
 	getLastSaveAttemptTime(): number;
