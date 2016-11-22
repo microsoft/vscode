@@ -3291,8 +3291,8 @@ declare module 'vscode' {
 		 * can store private state. The directory might not exist on disk and creation is
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
 		 *
-		 * Use [`workspaceState`](ExtensionContext#workspaceState) or
-		 * [`globalState`](ExtensionContext#globalState) to store key value data.
+		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
+		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 */
 		storagePath: string;
 	}
