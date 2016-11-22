@@ -20,7 +20,7 @@ import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IExpressionContainer, IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debug';
-import { Model, NameValueOutputElement, Expression, ValueOutputElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
+import { Model, NameValueOutputElement, Expression, ValueOutputElement, Variable, OutputExpressionContainer } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { AddToWatchExpressionsAction, ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
@@ -86,7 +86,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private static VARIABLE_TEMPLATE_ID = 'variable';
 	private static EXPRESSION_TEMPLATE_ID = 'inputOutputPair';
 	private static VALUE_OUTPUT_TEMPLATE_ID = 'outputValue';
-	private static NAME_VALUE_OUTPUT_TEMPLATE_ID = 'outputKeyValue';
+	private static NAME_VALUE_OUTPUT_TEMPLATE_ID = 'outputNameValue';
 
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
 		// group 0: the full thing :)
@@ -146,7 +146,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		if (element instanceof ValueOutputElement) {
 			return ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID;
 		}
-		if (element instanceof NameValueOutputElement) {
+		if (element instanceof NameValueOutputElement || element instanceof OutputExpressionContainer) {
 			return ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID;
 		}
 
@@ -397,7 +397,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		}, event.ctrlKey || event.metaKey).done(null, errors.onUnexpectedError);
 	}
 
-	private renderOutputNameValue(tree: ITree, output: NameValueOutputElement, templateData: IKeyValueOutputTemplateData): void {
+	private renderOutputNameValue(tree: ITree, output: NameValueOutputElement | OutputExpressionContainer, templateData: IKeyValueOutputTemplateData): void {
 
 		// key
 		if (output.name) {
