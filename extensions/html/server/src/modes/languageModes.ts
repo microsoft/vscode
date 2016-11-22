@@ -17,6 +17,7 @@ import { getJavascriptMode } from './javascriptMode';
 import { getHTMLMode } from './htmlMode';
 
 export interface LanguageMode {
+	getId();
 	configure?: (options: any) => void;
 	doValidation?: (document: TextDocument) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position) => CompletionList;
