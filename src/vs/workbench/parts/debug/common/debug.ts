@@ -8,6 +8,7 @@ import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
+import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModel as EditorIModel, IEditorContribution, IRange } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
@@ -313,8 +314,9 @@ export interface IRawEnvAdapter {
 export interface IRawAdapter extends IRawEnvAdapter {
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
+	configurationSnippets?: IJSONSchemaSnippet[];
 	initialConfigurations?: any[] | string;
-	variables: { [key: string]: string };
+	variables?: { [key: string]: string };
 	aiKey?: string;
 	win?: IRawEnvAdapter;
 	winx86?: IRawEnvAdapter;

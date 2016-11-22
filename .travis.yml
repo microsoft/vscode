@@ -5,9 +5,6 @@ os:
   - linux
   - osx
 
-env:
-  - VSCODE_BUILD_VERBOSE=true
-
 notifications:
   email: false
 
@@ -41,11 +38,11 @@ install:
   - ./scripts/npm.sh install
 
 script:
-  - gulp hygiene
-  - gulp electron
-  - gulp compile
-  - gulp optimize-vscode
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --coverage; else ./scripts/test.sh; fi
+  - gulp hygiene --silent
+  - gulp electron --silent
+  - gulp compile --silent
+  - gulp optimize-vscode --silent
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --reporter dot --coverage; else ./scripts/test.sh --reporter dot; fi
   - ./scripts/test-integration.sh
 
 after_success:

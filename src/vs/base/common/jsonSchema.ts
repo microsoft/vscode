@@ -40,11 +40,17 @@ export interface IJSONSchema {
 	enum?: any[];
 	format?: string;
 
-	defaultSnippets?: { label?: string; description?: string; body: any; }[]; // VSCode extension
+	defaultSnippets?: IJSONSchemaSnippet[]; // VSCode extension
 	errorMessage?: string; // VSCode extension
 	deprecatedMessage?: string; // VSCode extension
 }
 
 export interface IJSONSchemaMap {
 	[name: string]: IJSONSchema;
+}
+
+export interface IJSONSchemaSnippet {
+	label?: string;
+	description?: string;
+	body: any;
 }

@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as collections from 'vs/base/common/collections';
-import { Marker, Placeholder, Text, SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
+import { Marker, Variable, Placeholder, Text, SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
 
 export interface IIndentationNormalizer {
 	normalizeIndentation(str: string): string;
@@ -27,11 +27,16 @@ export interface ICodeSnippet {
 	finishPlaceHolderIndex: number;
 }
 
+export interface ISnippetVariableResolver {
+	resolve(name: string): string;
+}
+
 export class CodeSnippet implements ICodeSnippet {
 
-	static fromTextmate(template: string): CodeSnippet {
+	static fromTextmate(template: string, variableResolver?: ISnippetVariableResolver): CodeSnippet {
 		const marker = new SnippetParser(true, false).parse(template);
 		const snippet = new CodeSnippet();
+		_resolveSnippetVariables(marker, variableResolver);
 		_fillCodeSnippetFromMarker(snippet, marker);
 		return snippet;
 	}
@@ -465,6 +470,33 @@ function _convertExternalSnippet(snippet: string, snippetType: ExternalSnippetTy
 	return convertedSnippet;
 };
 
+
+function _resolveSnippetVariables(marker: Marker[], resolver: ISnippetVariableResolver) {
+	if (resolver) {
+		const stack = [...marker];
+
+		while (stack.length > 0) {
+			const marker = stack.shift();
+			if (marker instanceof Variable) {
+
+				try {
+					marker.resolvedValue = resolver.resolve(marker.name);
+				} catch (e) {
+					//
+				}
+				if (marker.isDefined) {
+					continue;
+				}
+			}
+
+			if (marker instanceof Variable || marker instanceof Placeholder) {
+				// 'recurse'
+				stack.unshift(...marker.defaultValue);
+			}
+		}
+	}
+}
+
 function _isFinishPlaceHolder(v: IPlaceHolder) {
 	return (v.id === '' && v.value === '') || v.id === '0';
 }
@@ -486,12 +518,11 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 
 		} else if (marker instanceof Placeholder) {
 
-			// TODO - not every variable is a placeholder
 			let placeHolder = placeHolders[marker.name];
 			if (!placeHolder) {
 				placeHolders[marker.name] = placeHolder = {
 					id: marker.name,
-					value: Marker.toString(marker.value),
+					value: Marker.toString(marker.defaultValue),
 					occurences: []
 				};
 				snippet.placeHolders.push(placeHolder);
@@ -505,16 +536,26 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 				startLineNumber: line,
 				startColumn: column,
 				endLineNumber: line,
-				endColumn: column + Marker.toString(marker.value).length // TODO multiline placeholders!
+				endColumn: column + Marker.toString(marker.defaultValue).length // TODO multiline placeholders!
 			});
 
-			if (marker.value.length === 0 && marker.isVariable) {
-				// HACK this is here because we falsy advertise
-				// ${foo} as placeholder in our own snippets
-				stack.unshift(new Text(marker.name));
+			stack.unshift(...marker.defaultValue);
+
+		} else if (marker instanceof Variable) {
+
+			if (!marker.isDefined && marker.defaultValue.length === 0) {
+				// contine as placeholder
+				// THIS is because of us having falsy
+				// advertised ${foo} as placeholder syntax
+				stack.unshift(new Placeholder(marker.name, [new Text(marker.name)]));
+
+			} else if (marker.isDefined && marker.resolvedValue) {
+				// contine with the value
+				stack.unshift(new Text(marker.resolvedValue));
 
 			} else {
-				stack.unshift(...marker.value);
+				// continue with default values
+				stack.unshift(...marker.defaultValue);
 			}
 		}
 

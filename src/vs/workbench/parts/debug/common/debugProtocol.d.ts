@@ -136,7 +136,7 @@ declare module DebugProtocol {
 	}
 
 	/** Event message for 'output' event type.
-		The event indicates that the target has produced output.
+		The event indicates that the target has produced some output.
 	*/
 	export interface OutputEvent extends Event {
 		// event: 'output';
@@ -145,6 +145,8 @@ declare module DebugProtocol {
 			category?: string;
 			/** The output to report. */
 			output: string;
+			/** If an attribute 'variablesReference' exists and its value is > 0, the output contains objects which can be retrieved by passing variablesReference to the VariablesRequest. */
+			variablesReference?: number;
 			/** Optional data to report. For the 'telemetry' category the data will be sent to telemetry, for the other categories the data is shown in JSON format. */
 			data?: any;
 		};
