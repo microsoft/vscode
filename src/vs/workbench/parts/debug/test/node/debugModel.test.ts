@@ -354,13 +354,13 @@ suite('Debug - Model', () => {
 		assert.equal(elements[3].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
-		model.appendReplOutput(keyValueObject);
-		const element = <debugmodel.KeyValueOutputElement>model.getReplElements()[4];
+		model.appendReplOutput(keyValueObject, severity.Info);
+		const element = <debugmodel.NameValueOutputElement>model.getReplElements()[4];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
 
 		const multiLineContent = 'multi line \n string \n last line';
-		model.appendReplOutput(multiLineContent);
+		model.appendReplOutput(multiLineContent, severity.Info);
 		const multiLineElement = <debugmodel.ValueOutputElement>model.getReplElements()[5];
 		assert.equal(multiLineElement.value, multiLineContent);
 		assert.equal(model.getReplElements().length, 6);
