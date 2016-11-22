@@ -59,7 +59,7 @@ class DirtyDiffModelDecorator {
 
 	private decorations: string[];
 	private baselineModel: common.IModel;
-	private diffDelayer: ThrottledDelayer<void>;
+	private diffDelayer: ThrottledDelayer<common.IChange[]>;
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -73,7 +73,7 @@ class DirtyDiffModelDecorator {
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
 	) {
 		this.decorations = [];
-		this.diffDelayer = new ThrottledDelayer<void>(200);
+		this.diffDelayer = new ThrottledDelayer<common.IChange[]>(200);
 		this.toDispose = [];
 		this.triggerDiff();
 		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
@@ -113,13 +113,13 @@ class DirtyDiffModelDecorator {
 			});
 	}
 
-	private diff(): winjs.Promise {
+	private diff(): winjs.TPromise<common.IChange[]> {
 		return this.originalURIPromise.then(originalURI => {
 			if (!this.model || this.model.isDisposed()) {
-				return winjs.TPromise.as<any>([]); // disposed
+				return winjs.TPromise.as([]); // disposed
 			}
 
-			this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true);
+			return this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true);
 		});
 	}
 
