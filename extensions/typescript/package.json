@@ -11,6 +11,7 @@
 		"vscode": "*"
 	},
 	"dependencies": {
+		"@types/semver": "^5.3.30",
 		"semver": "4.3.6",
 		"vscode-extension-telemetry": "^0.0.5",
 		"vscode-nls": "^2.0.1",
