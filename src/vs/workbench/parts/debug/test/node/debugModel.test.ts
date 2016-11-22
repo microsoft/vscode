@@ -331,33 +331,44 @@ suite('Debug - Model', () => {
 	// Repl output
 
 	test('repl output', () => {
-		model.logToRepl('first line', severity.Error);
-		model.logToRepl('second line', severity.Warning);
-		model.logToRepl('second line', severity.Warning);
-		model.logToRepl('second line', severity.Error);
+		model.appendReplOutput('first line\n', severity.Error);
+		model.appendReplOutput('second line\n', severity.Warning);
+		model.appendReplOutput('second line\n', severity.Warning);
+		model.appendReplOutput('second line\n', severity.Error);
 
 		let elements = <debugmodel.ValueOutputElement[]>model.getReplElements();
 		assert.equal(elements.length, 3);
-		assert.equal(elements[0].value, 'first line');
+		assert.equal(elements[0].value, 'first line\n');
 		assert.equal(elements[0].counter, 1);
 		assert.equal(elements[0].severity, severity.Error);
-		assert.equal(elements[1].value, 'second line');
+		assert.equal(elements[1].value, 'second line\n');
 		assert.equal(elements[1].counter, 2);
 		assert.equal(elements[1].severity, severity.Warning);
 
-		model.appendReplOutput('1', severity.Error);
-		model.appendReplOutput('2', severity.Error);
-		model.appendReplOutput('3', severity.Error);
+		model.appendReplOutput('1', severity.Warning);
+		model.appendReplOutput('2', severity.Warning);
+		model.appendReplOutput('3', severity.Warning);
 		elements = <debugmodel.ValueOutputElement[]>model.getReplElements();
 		assert.equal(elements.length, 4);
 		assert.equal(elements[3].value, '123');
-		assert.equal(elements[3].severity, severity.Error);
+		assert.equal(elements[3].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
-		model.logToRepl(keyValueObject);
+		model.appendReplOutput(keyValueObject);
 		const element = <debugmodel.KeyValueOutputElement>model.getReplElements()[4];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
+
+		const multiLineContent = 'multi line \n string \n last line';
+		model.appendReplOutput(multiLineContent);
+		const multiLineElement = <debugmodel.ValueOutputElement>model.getReplElements()[5];
+		assert.equal(multiLineElement.value, multiLineContent);
+		assert.equal(model.getReplElements().length, 6);
+
+		model.appendReplOutput('second line', severity.Warning);
+		model.appendReplOutput('second line', severity.Warning);
+
+		assert.equal((<debugmodel.ValueOutputElement>model.getReplElements()[6]).value, 'second linesecond line');
 
 		model.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
