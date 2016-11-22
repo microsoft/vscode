@@ -842,9 +842,9 @@ export class Model implements debug.IModel {
 
 	public appendReplOutput(value: string, severity?: severity): void {
 		const elements: OutputElement[] = [];
-		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
-		let lines = value.split('\n');
-		let groupTogether = !!previousOutput && (previousOutput.category === 'output' && severity === previousOutput.severity);
+		const previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
+		const lines = value.split('\n');
+		const groupTogether = !!previousOutput && (previousOutput.category === 'output' && severity === previousOutput.severity);
 
 		if (groupTogether) {
 			// append to previous line if same group

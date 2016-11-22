@@ -5,7 +5,6 @@
 
 import uri from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -62,10 +61,6 @@ export class MockDebugService implements debug.IDebugService {
 	}
 
 	public removeReplExpressions(): void { }
-
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void { }
-
-	public appendReplOutput(value: string, severity?: severity): void { }
 
 	public addWatchExpression(name?: string): TPromise<void> {
 		return TPromise.as(null);

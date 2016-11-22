@@ -123,7 +123,7 @@ export class ExtensionHostProcessWorker {
 				this.extHostWatchDog.start();
 				this.extHostWatchDog.onAlert(() => {
 
-					this.extHostWatchDog.stop();
+					this.extHostWatchDog.reset();
 
 					// log the identifiers of those extensions that
 					// have code and are loaded in the extension host
@@ -134,7 +134,7 @@ export class ExtensionHostProcessWorker {
 								ids.push(ext.id);
 							}
 						}
-						this.telemetryService.publicLog('extHostUnresponsive', { extensionIds: ids });
+						this.telemetryService.publicLog('extHostUnresponsive2', { extensionIds: ids });
 					});
 				});
 			});

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { join } from 'path';
+import { join, isAbsolute, relative } from 'path';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
 import { realpath, exists } from 'vs/base/node/pfs';
@@ -187,6 +187,11 @@ export class RawGitService implements IRawGitService {
 	// careful, this buffers the whole object into memory
 	show(filePath: string, treeish?: string): TPromise<string> {
 		treeish = (!treeish || treeish === '~') ? '' : treeish;
+
+		if (isAbsolute(filePath)) {
+			filePath = relative(this.repo.path, filePath);
+		}
+
 		return this.repo.buffer(treeish + ':' + filePath).then(null, e => {
 			if (e instanceof GitError) {
 				return ''; // mostly untracked files end up in a git error
