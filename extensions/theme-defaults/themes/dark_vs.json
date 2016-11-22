@@ -271,7 +271,8 @@
 			}
 		},
 		{
-			"scope": "metatag.php",
+			"name": "coloring of the PHP start and end tag (<?php and ?>)",
+			"scope": ["punctuation.section.embedded.begin.metatag.php", "punctuation.section.embedded.end.metatag.php"],
 			"settings": {
 				"foreground": "#569cd6"
 			}
