@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 
 const localize = loadMessageBundle();
 const selector = ['javascript', 'javascriptreact'];
@@ -77,7 +77,6 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 				}
 
 				if (fileNames.length > fileLimit) {
-
 					let largeRoots = computeLargeRoots(configFileName, fileNames).map(f => `'/${f}/'`).join(', ');
 
 					currentHint = {
@@ -91,7 +90,14 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 								projectHinted[configFileName] = true;
 								item.hide();
 
-								return vscode.workspace.openTextDocument(configFileName)
+								let configFileUri: vscode.Uri;
+								if (dirname(configFileName).indexOf(vscode.workspace.rootPath) === 0) {
+									configFileUri = vscode.Uri.file(configFileName);
+								} else {
+									configFileUri = vscode.Uri.parse('untitled://' + join(vscode.workspace.rootPath, 'jsconfig.json'));
+								}
+
+								return vscode.workspace.openTextDocument(configFileUri)
 									.then(vscode.window.showTextDocument);
 							}
 						}]
