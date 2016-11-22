@@ -1009,6 +1009,34 @@ export class ShowWorkspaceRecommendedExtensionsAction extends Action {
 	}
 }
 
+export class ShowRecommendedKeymapExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showRecommendedKeymapExtensions';
+	static LABEL = localize('showRecommendedKeymapExtensions', "Show Recommended Keymaps");
+	static SHORT_LABEL = localize('showRecommendedKeymapExtensionsShort', "Keymaps");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@recommended:keymaps ');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
 export class ChangeSortAction extends Action {
 
 	private query: Query;
