@@ -12,6 +12,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
+import * as strings from 'vs/base/common/strings';
 import { distinct } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
@@ -40,7 +41,6 @@ export class ValueOutputElement extends OutputElement {
 	constructor(
 		public value: string,
 		public severity: severity,
-		public category?: string,
 		public counter = 1
 	) {
 		super();
@@ -288,7 +288,6 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 				this.namedVariables = response.body.namedVariables;
 				this.indexedVariables = response.body.indexedVariables;
 			}
-			// TODO@Isidor notify stackFrame that a change has happened so watch expressions get revelauted
 		}, err => {
 			this.errorMessage = err.message;
 		});
@@ -808,63 +807,37 @@ export class Model implements debug.IModel {
 
 	public addReplExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
 		const expression = new Expression(name);
-		this.addReplElements([expression]);
+		this.addReplElement(expression);
 		return expression.evaluate(process, stackFrame, 'repl')
 			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
-		let elements: OutputElement[] = [];
-		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
+	public appendReplOutput(value: string | { [key: string]: any }, severity?: severity): void {
+		const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as ValueOutputElement);
 
-		// string message
 		if (typeof value === 'string') {
-			if (value && value.trim() && previousOutput && previousOutput.value === value && previousOutput.severity === severity) {
-				previousOutput.counter++; // we got the same output (but not an empty string when trimmed) so we just increment the counter
+			const groupTogether = previousOutput instanceof ValueOutputElement && severity === previousOutput.severity;
+			if (groupTogether) {
+				if (strings.endsWith(previousOutput.value, '\n') && previousOutput.value === value && value.trim()) {
+					// we got the same output (but not an empty string when trimmed) so we just increment the counter
+					previousOutput.counter++;
+				} else {
+					// append to previous line if same group
+					previousOutput.value += value;
+				}
 			} else {
-				let lines = value.trim().split('\n');
-				lines.forEach((line, index) => {
-					elements.push(new ValueOutputElement(line, severity));
-				});
+				this.addReplElement(new ValueOutputElement(value, severity));
 			}
+		} else {
+			// key-value output
+			this.addReplElement(new KeyValueOutputElement((<any>value).prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
 		}
 
-		// key-value output
-		else {
-			elements.push(new KeyValueOutputElement((<any>value).prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
-		}
-
-		if (elements.length) {
-			this.addReplElements(elements);
-		}
 		this._onDidChangeREPLElements.fire();
 	}
 
-	public appendReplOutput(value: string, severity?: severity): void {
-		const elements: OutputElement[] = [];
-		const previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
-		const lines = value.split('\n');
-		const groupTogether = !!previousOutput && (previousOutput.category === 'output' && severity === previousOutput.severity);
-
-		if (groupTogether) {
-			// append to previous line if same group
-			previousOutput.value += lines.shift();
-		} else if (previousOutput && previousOutput.value === '') {
-			// remove potential empty lines between different output types
-			this.replElements.pop();
-		}
-
-		// fill in lines as output value elements
-		lines.forEach((line, index) => {
-			elements.push(new ValueOutputElement(line, severity, 'output'));
-		});
-
-		this.addReplElements(elements);
-		this._onDidChangeREPLElements.fire();
-	}
-
-	private addReplElements(newElements: debug.ITreeElement[]): void {
-		this.replElements.push(...newElements);
+	private addReplElement(newElement: debug.ITreeElement): void {
+		this.replElements.push(newElement);
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
 		}

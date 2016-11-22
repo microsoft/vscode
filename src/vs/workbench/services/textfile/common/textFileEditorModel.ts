@@ -140,6 +140,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	/**
+	 * The current version id of the model.
+	 */
+	public getVersionId(): number {
+		return this.versionId;
+	}
+
+	/**
 	 * Set a save error handler to install code that executes when save errors occur.
 	 */
 	public static setSaveErrorHandler(handler: ISaveErrorHandler): void {

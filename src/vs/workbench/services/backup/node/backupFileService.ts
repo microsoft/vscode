@@ -30,39 +30,47 @@ export class BackupFileService implements IBackupFileService {
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 	}
 
+	private get backupEnabled(): boolean {
+		return this.currentWorkspace && !this.environmentService.isExtensionDevelopment; // Hot exit is disabled for empty workspaces and when doing extension development
+	}
+
 	public hasBackup(resource: Uri): TPromise<boolean> {
 		const backupResource = this.getBackupResource(resource);
 		if (!backupResource) {
 			return TPromise.as(false);
 		}
+
 		return pfs.exists(backupResource.fsPath);
 	}
 
-	public getBackupResource(resource: Uri): Uri {
-		// Hot exit is disabled for empty workspaces
-		if (!this.currentWorkspace || this.environmentService.isExtensionDevelopment) {
+	private getBackupHash(resource: Uri): string {
+		if (!this.backupEnabled) {
 			return null;
 		}
 
 		// Only hash the file path if the file is not untitled
-		const backupName = resource.scheme === 'untitled' ? resource.fsPath : crypto.createHash('md5').update(resource.fsPath).digest('hex');
-		const backupPath = path.join(this.getWorkspaceBackupDirectory(), resource.scheme, backupName);
+		return resource.scheme === 'untitled' ? resource.fsPath : crypto.createHash('md5').update(resource.fsPath).digest('hex');
+	}
+
+	public getBackupResource(resource: Uri): Uri {
+		const backupHash = this.getBackupHash(resource);
+		if (!backupHash) {
+			return null;
+		}
+
+		const backupPath = path.join(this.getWorkspaceBackupDirectory(), resource.scheme, backupHash);
+
 		return Uri.file(backupPath);
 	}
 
 	private getWorkspaceBackupDirectory(): string {
 		const workspaceHash = crypto.createHash('md5').update(this.currentWorkspace.fsPath).digest('hex');
+
 		return path.join(this.backupHome, workspaceHash);
 	}
 
 	public backupResource(resource: Uri, content: string): TPromise<void> {
-		if (this.environmentService.isExtensionDevelopment) {
-			return TPromise.as(void 0);
-		}
-
 		const backupResource = this.getBackupResource(resource);
-
-		// Hot exit is disabled for empty workspaces
 		if (!backupResource) {
 			return TPromise.as(void 0);
 		}
@@ -71,13 +79,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public discardResourceBackup(resource: Uri): TPromise<void> {
-		if (this.environmentService.isExtensionDevelopment) {
-			return TPromise.as(void 0);
-		}
-
 		const backupResource = this.getBackupResource(resource);
-
-		// Hot exit is disabled for empty workspaces
 		if (!backupResource) {
 			return TPromise.as(void 0);
 		}
@@ -86,7 +88,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public discardAllWorkspaceBackups(): TPromise<void> {
-		if (this.environmentService.isExtensionDevelopment) {
+		if (!this.backupEnabled) {
 			return TPromise.as(void 0);
 		}
 
