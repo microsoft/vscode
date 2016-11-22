@@ -10,12 +10,11 @@ import {getLocation} from 'jsonc-parser';
 
 export function activate(context) {
 
-	const commands = vscode.commands.getCommands(true);
-
 	//keybindings.json command-suggestions
 	const disposable = vscode.languages.registerCompletionItemProvider({ pattern: '**/keybindings.json' }, {
 
 		provideCompletionItems(document, position, token) {
+			const commands = vscode.commands.getCommands(true); //This is here so updated commands can be fetched later after startup
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			if (location.path[1] === 'command') {
 

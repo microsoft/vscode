@@ -59,6 +59,7 @@ export interface IMenuRegistry {
 	getCommand(id: string): ICommandAction;
 	appendMenuItem(menu: MenuId, item: IMenuItem): IDisposable;
 	getMenuItems(loc: MenuId): IMenuItem[];
+	removeCommand(id: string);
 }
 
 export const MenuRegistry: IMenuRegistry = new class {
@@ -75,6 +76,12 @@ export const MenuRegistry: IMenuRegistry = new class {
 
 	getCommand(id: string): ICommandAction {
 		return this.commands[id];
+	}
+
+	removeCommand(id: string) {
+		if (this.commands[id]) {
+			delete this.commands[id];
+		}
 	}
 
 	appendMenuItem(loc: MenuId, item: IMenuItem): IDisposable {

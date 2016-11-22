@@ -38,6 +38,7 @@ export interface ICommandHandlerDescription {
 export interface ICommandRegistry {
 	registerCommand(id: string, command: ICommandHandler): void;
 	registerCommand(id: string, command: ICommand): void;
+	unregisterCommand(id: string): void;
 	getCommand(id: string): ICommand;
 	getCommands(): ICommandsMap;
 }
@@ -83,6 +84,12 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 				// add as simple handler
 				this._commands[id] = { handler };
 			}
+		}
+	}
+
+	unregisterCommand(id: string): void {
+		if (this._commands[id]) {
+			delete this._commands[id];
 		}
 	}
 

@@ -16,6 +16,7 @@ import { Config as ProcessConfig } from 'vs/base/common/processes';
 import { ValidationStatus, ValidationState, ILogger } from 'vs/base/common/parsers';
 import { NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig, registry as ProblemMatcherRegistry, isNamedProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 import * as TaskSystem from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskCommand } from 'vs/workbench/parts/tasks/common/taskSystem';
 
 /**
  * Defines the problem handling strategy
@@ -91,6 +92,11 @@ export interface TaskDescription {
 	 * output.
 	 */
 	problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
+
+	/**
+	 * Command binding for task
+	 */
+	commandBinding?: ITaskCommand;
 }
 
 /**
@@ -565,6 +571,9 @@ class ConfigurationParser {
 			}
 			if (problemMatchers) {
 				task.problemMatchers = problemMatchers;
+			}
+			if (externalTask.commandBinding) {
+				task.commandBinding = externalTask.commandBinding;
 			}
 			// ToDo@dirkb: this is very special for the tsc watch mode. We should find
 			// a exensible solution for this.

@@ -28,7 +28,7 @@ import * as strings from 'vs/base/common/strings';
 
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IEditor } from 'vs/platform/editor/common/editor';
@@ -60,7 +60,7 @@ import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
 import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
-import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents, checkValidCommand } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -70,6 +70,10 @@ import { ProcessRunnerSystem } from 'vs/workbench/parts/tasks/node/processRunner
 import { ProcessRunnerDetector }  from 'vs/workbench/parts/tasks/node/processRunnerDetector';
 
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { join } from 'vs/base/common/paths';
 
 let $ = Builder.$;
 
@@ -235,8 +239,8 @@ class ConfigureTaskRunnerAction extends Action {
 							let content = JSON.stringify(config, null, '\t');
 							content = [
 								'{',
-									'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-									'\t// for the documentation about the tasks.json format',
+								'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
+								'\t// for the documentation about the tasks.json format',
 							].join('\n') + content.substr(1);
 							return content;
 						} else {
@@ -362,31 +366,6 @@ class RunTaskAction extends AbstractTaskAction {
 	}
 }
 
-function getRunSpecificTaskAction(taskName: string, taskId: string, taskSystem: ITaskSystem) {
-	class RunSpecificTaskAction extends AbstractTaskAction {
-
-		public static ID = 'workbench.action.tasks.runTask/' + taskName;
-		public static TEXT = nls.localize('RunTaskAction.label', "Run Task") + ' - ' + taskName;
-		private quickOpenService: IQuickOpenService;
-
-		constructor(id: string, label: string, @IQuickOpenService quickOpenService:IQuickOpenService,
-			@ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-			@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-			super(id, label, taskService, telemetryService, messageService, contextService);
-		}
-
-		public run(event?:any): Promise {
-			if (!this.canRun()) {
-				return TPromise.as(undefined);
-			}
-			taskSystem.run(taskId);
-			return TPromise.as(null);
-		}
-	}
-
-	return RunSpecificTaskAction;
-}
-
 class StatusBarItem implements IStatusbarItem {
 
 	private panelService: IPanelService;
@@ -446,9 +425,9 @@ class StatusBarItem implements IStatusbarItem {
 		label.appendChild(info);
 		$(info).hide();
 
-//		callOnDispose.push(dom.addListener(icon, 'click', (e:MouseEvent) => {
-//			this.outputService.showOutput(TaskService.OutputChannel, e.ctrlKey || e.metaKey, true);
-//		}));
+		//		callOnDispose.push(dom.addListener(icon, 'click', (e:MouseEvent) => {
+		//			this.outputService.showOutput(TaskService.OutputChannel, e.ctrlKey || e.metaKey, true);
+		//		}));
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e:MouseEvent) => {
 			const panel= this.panelService.getActivePanel();
@@ -457,7 +436,7 @@ class StatusBarItem implements IStatusbarItem {
 			} else {
 				this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 			}
-			}));
+		}));
 
 		let updateStatus = (element:HTMLDivElement, stats:number): boolean => {
 			if (stats > 0) {
@@ -642,7 +621,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.tasks(); //reload tasks for keyboard shortcuts task
 		});
 
-	this.configurationService.onDidUpdateConfiguration(() => {
+		this.configurationService.onDidUpdateConfiguration(() => {
 			this.emit(TaskServiceEvents.ConfigChanged);
 			if (this._taskSystem && this._taskSystem.isActiveSync()) {
 				this.clearTaskSystemPromise = true;
@@ -667,23 +646,52 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 	}
 
-	private refreshTaskKeyboardShortcuts(tasks: TaskDescription[], taskSystem: ITaskSystem): void {
-		let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions);
-		let tasksCategory = nls.localize('tasksCategory', "Tasks");
-
+	private refreshTaskCommands(tasks: TaskDescription[], taskSystem: ITaskSystem): void {
 		//Remove any existing ones
 		this._registeredSpecificTasks.forEach((id) => {
-			workbenchActionsRegistry.unregisterWorkbenchAction(id);
+			MenuRegistry.removeCommand(id);
+			CommandsRegistry.unregisterCommand(id);
 		});
 		this._registeredSpecificTasks = []; //clear existing
 
+		const ids = new IdGenerator('task-cmd-icon-');
+
 		//Re-add them
 		tasks.forEach(t => {
-			let RunSpecificTaskAction = getRunSpecificTaskAction(t.name, t.id, taskSystem);
-			let actionDescriptor = new SyncActionDescriptor(RunSpecificTaskAction, RunSpecificTaskAction.ID, RunSpecificTaskAction.TEXT + ' - ' + t.name);
+			if (t.commandBinding) {
+				let err = checkValidCommand(t.commandBinding);
+				if (err) {
+					this.messageService.show(err.severity, err.message);
+					return;
+				}
 
-			this._registeredSpecificTasks.push(actionDescriptor.id);
-			workbenchActionsRegistry.registerWorkbenchAction(actionDescriptor, 'Tasks: Run Task - ' + t.name, tasksCategory);
+				let { icon, category, title, id } = t.commandBinding;
+
+				if (CommandsRegistry.getCommand(id)) {
+					this.messageService.show(Severity.Error, nls.localize('TaskSystem.IdAlreadyExists', 'A command with the id "{0}" already exists. Please use a different id.', id));
+					return;
+				}
+
+				let iconClass: string;
+				if (icon) {
+					iconClass = ids.nextId();
+					if (typeof icon === 'string') {
+						const path = join(this.contextService.getWorkspace().resource.fsPath, icon);
+						Dom.createCSSRule(`.icon.${iconClass}`, `background-image: url("${path}")`);
+					} else {
+						const light = join(this.contextService.getWorkspace().resource.fsPath, icon.light);
+						const dark = join(this.contextService.getWorkspace().resource.fsPath, icon.dark);
+						Dom.createCSSRule(`.icon.${iconClass}`, `background-image: url("${light}")`);
+						Dom.createCSSRule(`.vs-dark .icon.${iconClass}, hc-black .icon.${iconClass}`, `background-image: url("${dark}")`);
+					}
+				}
+
+				MenuRegistry.addCommand({ id: id, title, category, iconClass });
+				CommandsRegistry.registerCommand(id, () => {
+					taskSystem.run(t.id);
+				});
+				this._registeredSpecificTasks.push(id);
+			}
 		});
 	}
 
@@ -768,7 +776,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						this._taskSystem = result;
 						if (refreshShortcuts) {
 							return result.tasks().then(tasks => {
-								this.refreshTaskKeyboardShortcuts(tasks, result);
+								this.refreshTaskCommands(tasks, result);
 								return result;
 							});
 						}
@@ -888,18 +896,18 @@ class TaskService extends EventEmitter implements ITaskService {
 	public terminate(): TPromise<TerminateResponse> {
 		if (this._taskSystemPromise) {
 			return this.taskSystemPromise.then(taskSystem => {
-					return taskSystem.terminate();
-				}).then(response => {
-					if (response.success) {
-						if (this.clearTaskSystemPromise) {
-							this._taskSystemPromise = null;
-							this.clearTaskSystemPromise = false;
-						}
-						this.emit(TaskServiceEvents.Terminated, {});
-						this.disposeFileChangesListener();
+				return taskSystem.terminate();
+			}).then(response => {
+				if (response.success) {
+					if (this.clearTaskSystemPromise) {
+						this._taskSystemPromise = null;
+						this.clearTaskSystemPromise = false;
 					}
-					return response;
-				});
+					this.emit(TaskServiceEvents.Terminated, {});
+					this.disposeFileChangesListener();
+				}
+				return response;
+			});
 		}
 		return TPromise.as( { success: true} );
 	}
@@ -1349,6 +1357,29 @@ let schema : IJSONSchema =
 					'problemMatcher': {
 						'$ref': '#/definitions/problemMatcherType',
 						'description': nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+					},
+					'commandBinding': {
+						'type': 'object',
+						'description': nls.localize('JsonSchema.tasks.commandBinding', 'Command binding to use in the menu or as a keyboard shortcut'),
+						'required': ['id', 'title'],
+						'properties': {
+							'id': {
+								'type': 'string',
+								'description': nls.localize('JsonSchema.tasks.commandBinding.id', 'ID to identify command')
+							},
+							'title': {
+								'type': 'string',
+								'description': nls.localize('JsonSchema.tasks.commandBinding.title', 'Title of command')
+							},
+							'category': {
+								'type': 'string',
+								'description': nls.localize('JsonSchema.tasks.commandBinding.category', 'Optional category of command')
+							},
+							'icon': {
+								'type': 'string',
+								'description': nls.localize('JsonSchema.tasks.commandBinding.icon', 'Optional icon file name of command')
+							},
+						}
 					}
 				},
 				'defaultSnippets': [
