@@ -195,12 +195,12 @@ export class DebugService implements debug.IDebugService {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
-						this.model.logToRepl(simpleVals.join(' '), sev);
+						this.model.appendReplOutput(simpleVals.join(' '), sev);
 						simpleVals = [];
 					}
 
 					// show object
-					this.model.logToRepl(a, sev);
+					this.model.appendReplOutput(a, sev);
 				}
 
 				// string: watch out for % replacement directive
@@ -229,7 +229,7 @@ export class DebugService implements debug.IDebugService {
 
 			// flush simple values
 			if (simpleVals.length) {
-				this.model.logToRepl(simpleVals.join(' '), sev);
+				this.model.appendReplOutput(simpleVals.join(' '), sev);
 			}
 		}
 	}
