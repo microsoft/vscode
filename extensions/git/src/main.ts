@@ -6,6 +6,7 @@
 'use strict';
 
 import { scm, ExtensionContext, workspace } from 'vscode';
+import * as path from 'path';
 import { findGit, Git } from './git';
 
 export function log(...args: any[]): void {
@@ -36,7 +37,9 @@ export function activate(context: ExtensionContext): any {
 
 		const contentProvider = workspace.registerTextDocumentContentProvider('git-index', {
 			provideTextDocumentContent: uri => {
-				return git.exec(workspace.rootPath, ['show', uri.fsPath]).then(result => {
+				const relativePath = path.relative(workspace.rootPath, uri.fsPath);
+
+				return git.exec(workspace.rootPath, ['show', `HEAD:${relativePath}`]).then(result => {
 					if (result.exitCode !== 0) {
 						return null;
 					}

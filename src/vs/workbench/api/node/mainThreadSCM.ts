@@ -4,22 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainThreadSCMShape } from './extHost.protocol';
+import { ISCMService } from 'vs/workbench/services/scm/common/scm';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape } from './extHost.protocol';
 
 export class MainThreadSCM extends MainThreadSCMShape {
 
-	private _toDispose: IDisposable;
+	private toDispose: IDisposable;
+	private proxy: ExtHostSCMShape;
+	private providers: { [id: string]: IDisposable; } = Object.create(null);
 
 	constructor(
-		@IThreadService threadService: IThreadService
+		@IThreadService threadService: IThreadService,
+		@ISCMService private scmService: ISCMService
 	) {
 		super();
-		// const proxy = threadService.get(ExtHostContext.ExtHostSCM);
+
+		this.proxy = threadService.get(ExtHostContext.ExtHostSCM);
+	}
+
+	$register(id: string, registerOriginalResourceProvider: boolean): void {
+		const disposables = [];
+
+		if (registerOriginalResourceProvider) {
+			const baselineProvider = this.scmService.registerBaselineResourceProvider({
+				getBaselineResource: uri => this.proxy.$getBaselineResource(id, uri)
+			});
+
+			disposables.push(baselineProvider);
+		}
+
+		this.providers[id] = combinedDisposable(disposables);
+	}
+
+	$unregister(id: string): void {
+		const provider = this.providers[id];
+
+		if (!provider) {
+			return;
+		}
+
+		provider.dispose();
+		delete this.providers[id];
 	}
 
 	dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 }
