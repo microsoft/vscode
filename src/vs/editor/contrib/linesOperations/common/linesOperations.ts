@@ -7,10 +7,11 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { EditorContextKeys, Handler, ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
+import { EditorContextKeys, Handler, ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
@@ -366,21 +367,37 @@ export class DeleteAllLeftAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		let selections = editor.getSelections();
+		let selections: Range[] = editor.getSelections();
 
-		let commands: ICommand[] = [];
-
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
-
+		selections.sort(Range.compareRangesUsingStarts);
+		selections = selections.map(selection => {
 			if (selection.isEmpty()) {
-				console.log(selection.startColumn);
-				commands[i] = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn), '');
+				return new Selection(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
 			} else {
-				commands[i] = new ReplaceCommand(selection, '');
+				return selection;
+			}
+		});
+
+		// merge overlapping selections
+		let effectiveRanges: Range[] = [];
+
+		for (let i = 0, count = selections.length - 1; i < count; i++) {
+			let range = selections[i];
+			let nextRange = selections[i + 1];
+
+			if (Range.intersectRanges(range, nextRange) === null) {
+				effectiveRanges.push(range);
+			} else {
+				selections[i + 1] = Range.plusRange(range, nextRange);
 			}
 		}
 
-		editor.executeCommands(this.id, commands);
+		effectiveRanges.push(selections[selections.length - 1]);
+
+		let edits: IIdentifiedSingleEditOperation[] = effectiveRanges.map(range => {
+			return EditOperation.replace(range, '');
+		});
+
+		editor.executeEdits(this.id, edits);
 	}
 }
