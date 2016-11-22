@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import * as lifecycle from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as winjs from 'vs/base/common/winjs.base';
 import { memoize } from 'vs/base/common/decorators';
 import * as ext from 'vs/workbench/common/contributions';
@@ -58,9 +58,9 @@ class DirtyDiffModelDecorator {
 	};
 
 	private decorations: string[];
-	private textEditorModel: common.IModel;
+	private baselineModel: common.IModel;
 	private diffDelayer: ThrottledDelayer<void>;
-	private toDispose: lifecycle.IDisposable[];
+	private toDispose: IDisposable[];
 
 	constructor(
 		private model: common.IModel,
@@ -82,10 +82,12 @@ class DirtyDiffModelDecorator {
 	@memoize
 	private get originalURIPromise(): winjs.TPromise<URI> {
 		return this.scmService.getBaselineResource(this.uri)
-			.then(originalUri => this.textModelResolverService.resolve(originalUri)
-				.then(model => {
-					this.textEditorModel = model.textEditorModel;
-					this.toDispose.push(this.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+			.then(originalUri => this.textModelResolverService.createModelReference(originalUri)
+				.then(ref => {
+					this.baselineModel = ref.object.textEditorModel;
+
+					this.toDispose.push(ref);
+					this.toDispose.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 
 					return originalUri;
 				}));
@@ -96,25 +98,28 @@ class DirtyDiffModelDecorator {
 			return winjs.TPromise.as(null);
 		}
 
-		return this.diffDelayer.trigger(() => {
-			if (!this.model || this.model.isDisposed()) {
-				return winjs.TPromise.as<any>([]); // disposed
-			}
+		return this.diffDelayer
+			.trigger(() => this.diff())
+			.then((diff: common.IChange[]) => {
+				if (!this.model || this.model.isDisposed() || !this.baselineModel || this.baselineModel.isDisposed()) {
+					return; // disposed
+				}
 
-			return this.originalURIPromise
-				.then(originalURI => this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true));
+				if (this.baselineModel.getValueLength() === 0) {
+					diff = [];
+				}
 
-		}).then((diff: common.IChange[]) => {
-			if (!this.model || this.model.isDisposed()) {
-				return; // disposed
-			}
+				return this.decorations = this.model.deltaDecorations(this.decorations, DirtyDiffModelDecorator.changesToDecorations(diff || []));
+			});
+	}
 
-			if (this.textEditorModel.getValueLength() === 0) {
-				diff = [];
-			}
+	private diff(): winjs.Promise {
+		if (!this.model || this.model.isDisposed()) {
+			return winjs.TPromise.as<any>([]); // disposed
+		}
 
-			return this.decorations = this.model.deltaDecorations(this.decorations, DirtyDiffModelDecorator.changesToDecorations(diff || []));
-		});
+		return this.originalURIPromise
+			.then(originalURI => this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true));
 	}
 
 	private static changesToDecorations(diff: common.IChange[]): common.IModelDeltaDecoration[] {
@@ -156,12 +161,16 @@ class DirtyDiffModelDecorator {
 	}
 
 	dispose(): void {
-		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
+
 		if (this.model && !this.model.isDisposed()) {
 			this.model.deltaDecorations(this.decorations, []);
 		}
+
 		this.model = null;
+		this.baselineModel = null;
 		this.decorations = null;
+
 		if (this.diffDelayer) {
 			this.diffDelayer.cancel();
 			this.diffDelayer = null;
@@ -173,7 +182,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 
 	private models: common.IModel[] = [];
 	private decorators: { [modelId: string]: DirtyDiffModelDecorator } = Object.create(null);
-	private toDispose: lifecycle.IDisposable[] = [];
+	private toDispose: IDisposable[] = [];
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -231,7 +240,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 	}
 
 	dispose(): void {
-		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 		this.models.forEach(m => this.decorators[m.id].dispose());
 		this.models = null;
 		this.decorators = null;
