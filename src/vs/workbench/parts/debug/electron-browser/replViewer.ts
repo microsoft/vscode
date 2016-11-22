@@ -19,8 +19,8 @@ import { ITree, IAccessibilityProvider, IDataSource, IRenderer } from 'vs/base/p
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { Model, KeyValueOutputElement, Expression, ValueOutputElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
+import { IExpressionContainer, IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { Model, NameValueOutputElement, Expression, ValueOutputElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { AddToWatchExpressionsAction, ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
@@ -33,30 +33,26 @@ const $ = dom.$;
 
 export class ReplExpressionsDataSource implements IDataSource {
 
-	constructor(private debugService: debug.IDebugService) {
-		// noop
-	}
-
 	public getId(tree: ITree, element: any): string {
 		return element.getId();
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof Model || element.reference > 0 || (element instanceof KeyValueOutputElement && element.getChildren().length > 0);
+		return element instanceof Model || (<IExpressionContainer>element).hasChildren || element instanceof NameValueOutputElement;
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof Model) {
 			return TPromise.as(element.getReplElements());
 		}
-		if (element instanceof KeyValueOutputElement) {
+		if (element instanceof NameValueOutputElement) {
 			return TPromise.as(element.getChildren());
 		}
 		if (element instanceof ValueOutputElement) {
 			return TPromise.as(null);
 		}
 
-		return (<debug.IExpression>element).getChildren(this.debugService);
+		return (<IExpression>element).getChildren();
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
@@ -64,7 +60,7 @@ export class ReplExpressionsDataSource implements IDataSource {
 	}
 }
 
-interface IInputOutputPairTemplateData {
+interface IExpressionTemplateData {
 	input: HTMLElement;
 	output: HTMLElement;
 	value: HTMLElement;
@@ -80,7 +76,7 @@ interface IValueOutputTemplateData {
 interface IKeyValueOutputTemplateData {
 	container: HTMLElement;
 	expression: HTMLElement;
-	key: HTMLElement;
+	name: HTMLElement;
 	value: HTMLElement;
 	annotation: HTMLElement;
 }
@@ -88,9 +84,9 @@ interface IKeyValueOutputTemplateData {
 export class ReplExpressionsRenderer implements IRenderer {
 
 	private static VARIABLE_TEMPLATE_ID = 'variable';
-	private static INPUT_OUTPUT_PAIR_TEMPLATE_ID = 'inputOutputPair';
+	private static EXPRESSION_TEMPLATE_ID = 'inputOutputPair';
 	private static VALUE_OUTPUT_TEMPLATE_ID = 'outputValue';
-	private static KEY_VALUE_OUTPUT_TEMPLATE_ID = 'outputKeyValue';
+	private static NAME_VALUE_OUTPUT_TEMPLATE_ID = 'outputKeyValue';
 
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
 		// group 0: the full thing :)
@@ -145,13 +141,13 @@ export class ReplExpressionsRenderer implements IRenderer {
 			return ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID;
 		}
 		if (element instanceof Expression) {
-			return ReplExpressionsRenderer.INPUT_OUTPUT_PAIR_TEMPLATE_ID;
+			return ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID;
 		}
 		if (element instanceof ValueOutputElement) {
 			return ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID;
 		}
-		if (element instanceof KeyValueOutputElement) {
-			return ReplExpressionsRenderer.KEY_VALUE_OUTPUT_TEMPLATE_ID;
+		if (element instanceof NameValueOutputElement) {
+			return ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID;
 		}
 
 		return null;
@@ -167,8 +163,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 			return data;
 		}
 
-		if (templateId === ReplExpressionsRenderer.INPUT_OUTPUT_PAIR_TEMPLATE_ID) {
-			let data: IInputOutputPairTemplateData = Object.create(null);
+		if (templateId === ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID) {
+			let data: IExpressionTemplateData = Object.create(null);
 			dom.addClass(container, 'input-output-pair');
 			data.input = dom.append(container, $('.input.expression'));
 			data.output = dom.append(container, $('.output.expression'));
@@ -190,13 +186,13 @@ export class ReplExpressionsRenderer implements IRenderer {
 			return data;
 		}
 
-		if (templateId === ReplExpressionsRenderer.KEY_VALUE_OUTPUT_TEMPLATE_ID) {
+		if (templateId === ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID) {
 			let data: IKeyValueOutputTemplateData = Object.create(null);
 			dom.addClass(container, 'output');
 
 			data.container = container;
 			data.expression = dom.append(container, $('.output.expression'));
-			data.key = dom.append(data.expression, $('span.name'));
+			data.name = dom.append(data.expression, $('span.name'));
 			data.value = dom.append(data.expression, $('span.value'));
 			data.annotation = dom.append(data.expression, $('span'));
 
@@ -207,16 +203,16 @@ export class ReplExpressionsRenderer implements IRenderer {
 	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID) {
 			renderVariable(tree, element, templateData, false);
-		} else if (templateId === ReplExpressionsRenderer.INPUT_OUTPUT_PAIR_TEMPLATE_ID) {
-			this.renderInputOutputPair(tree, element, templateData);
+		} else if (templateId === ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID) {
+			this.renderExpression(tree, element, templateData);
 		} else if (templateId === ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID) {
 			this.renderOutputValue(element, templateData);
-		} else if (templateId === ReplExpressionsRenderer.KEY_VALUE_OUTPUT_TEMPLATE_ID) {
-			this.renderOutputKeyValue(tree, element, templateData);
+		} else if (templateId === ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID) {
+			this.renderOutputNameValue(tree, element, templateData);
 		}
 	}
 
-	private renderInputOutputPair(tree: ITree, expression: debug.IExpression, templateData: IInputOutputPairTemplateData): void {
+	private renderExpression(tree: ITree, expression: IExpression, templateData: IExpressionTemplateData): void {
 		templateData.input.textContent = expression.name;
 		renderExpressionValue(expression, templateData.value, {
 			showChanged: false,
@@ -401,13 +397,13 @@ export class ReplExpressionsRenderer implements IRenderer {
 		}, event.ctrlKey || event.metaKey).done(null, errors.onUnexpectedError);
 	}
 
-	private renderOutputKeyValue(tree: ITree, output: KeyValueOutputElement, templateData: IKeyValueOutputTemplateData): void {
+	private renderOutputNameValue(tree: ITree, output: NameValueOutputElement, templateData: IKeyValueOutputTemplateData): void {
 
 		// key
-		if (output.key) {
-			templateData.key.textContent = `${output.key}:`;
+		if (output.name) {
+			templateData.name.textContent = `${output.name}:`;
 		} else {
-			templateData.key.textContent = '';
+			templateData.name.textContent = '';
 		}
 
 		// value
@@ -443,8 +439,8 @@ export class ReplExpressionsAccessibilityProvider implements IAccessibilityProvi
 		if (element instanceof ValueOutputElement) {
 			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", (<ValueOutputElement>element).value);
 		}
-		if (element instanceof KeyValueOutputElement) {
-			return nls.localize('replKeyValueOutputAriaLabel', "Output variable {0} has value {1}, read eval print loop, debug", (<KeyValueOutputElement>element).key, (<KeyValueOutputElement>element).value);
+		if (element instanceof NameValueOutputElement) {
+			return nls.localize('replKeyValueOutputAriaLabel', "Output variable {0} has value {1}, read eval print loop, debug", (<NameValueOutputElement>element).name, (<NameValueOutputElement>element).value);
 		}
 
 		return null;
@@ -491,7 +487,7 @@ export class ReplExpressionsController extends BaseDebugController {
 	private lastSelectedString: string = null;
 
 	constructor(
-		debugService: debug.IDebugService,
+		debugService: IDebugService,
 		contextMenuService: IContextMenuService,
 		actionProvider: IActionProvider,
 		private replInput: ICodeEditor,
@@ -503,7 +499,7 @@ export class ReplExpressionsController extends BaseDebugController {
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <IMouseEvent>eventish;
 		// input and output are one element in the tree => we only expand if the user clicked on the output.
-		if ((element.reference > 0 || (element instanceof KeyValueOutputElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
+		if ((element.reference > 0 || (element instanceof NameValueOutputElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();
 			tree.deselect(element);

@@ -59,7 +59,7 @@ export interface ITreeElement {
 export interface IExpressionContainer extends ITreeElement {
 	stackFrame: IStackFrame;
 	hasChildren: boolean;
-	getChildren(debugService: IDebugService): TPromise<IExpression[]>;
+	getChildren(): TPromise<IExpression[]>;
 }
 
 export interface IExpression extends ITreeElement, IExpressionContainer {
