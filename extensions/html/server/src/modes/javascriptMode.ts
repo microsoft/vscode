@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument } from 'vscode-html-languageservice';
-import { getEmbeddedDocument } from './embeddedSupport';
+import { LanguageModelCache } from '../languageModelCache';
 import { CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
 import { LanguageMode } from './languageModes';
 import { getWordAtText } from '../utils/words';
@@ -22,7 +20,7 @@ const FILE_NAME = 'typescript://singlefile/1';  // the same 'file' is used for a
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
-export function getJavascriptMode(htmlLanguageService: HTMLLanguageService, htmlDocuments: LanguageModelCache<HTMLDocument>): LanguageMode {
+export function getJavascriptMode(jsDocuments: LanguageModelCache<TextDocument>): LanguageMode {
 	let compilerOptions = { allowNonTsExtensions: true, allowJs: true, target: ts.ScriptTarget.Latest };
 	let currentTextDocument: TextDocument;
 	let host = {
@@ -47,9 +45,6 @@ export function getJavascriptMode(htmlLanguageService: HTMLLanguageService, html
 	};
 	let jsLanguageService = ts.createLanguageService(host);
 
-	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => {
-		return getEmbeddedDocument(htmlLanguageService, document, htmlDocuments.get(document), 'javascript');
-	});
 	let settings: any = {};
 
 	return {
@@ -217,10 +212,8 @@ export function getJavascriptMode(htmlLanguageService: HTMLLanguageService, html
 			return null;
 		},
 		onDocumentRemoved(document: TextDocument) {
-			jsDocuments.onDocumentRemoved(document);
 		},
 		dispose() {
-			jsDocuments.dispose();
 			jsLanguageService.dispose();
 		}
 	};

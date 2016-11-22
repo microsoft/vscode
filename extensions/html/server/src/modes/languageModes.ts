@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { HTMLDocument, getLanguageService as getHTMLLanguageService, DocumentContext } from 'vscode-html-languageservice';
+import { getLanguageService as getHTMLLanguageService, DocumentContext } from 'vscode-html-languageservice';
 import {
 	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
 	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions
 } from 'vscode-languageserver-types';
 
-import { getLanguageModelCache } from '../languageModelCache';
-import { getLanguageAtPosition, getLanguagesInContent, getLanguagesInRange } from './embeddedSupport';
+import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
+import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getCSSMode } from './cssMode';
 import { getJavascriptMode } from './javascriptMode';
 import { getHTMLMode } from './htmlMode';
@@ -37,52 +37,58 @@ export interface LanguageMode {
 export interface LanguageModes {
 	getModeAtPosition(document: TextDocument, position: Position): LanguageMode;
 	getModesInRange(document: TextDocument, range: Range): LanguageModeRange[];
-	getAllModesInDocument(document: TextDocument): LanguageMode[];
 	getAllModes(): LanguageMode[];
+	getAllModesInDocument(document: TextDocument): LanguageMode[];
 	getMode(languageId: string): LanguageMode;
+	onDocumentRemoved(document: TextDocument): void;
+	dispose(): void;
 }
 
 export interface LanguageModeRange extends Range {
 	mode: LanguageMode;
+	attributeValue?: boolean;
 }
 
 export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }): LanguageModes {
 
 	var htmlLanguageService = getHTMLLanguageService();
-	let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
+	let documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
 
-	let modes = {
-		'html': getHTMLMode(htmlLanguageService, htmlDocuments),
-		'css': supportedLanguages['css'] && getCSSMode(htmlLanguageService, htmlDocuments),
-		'javascript': supportedLanguages['javascript'] && getJavascriptMode(htmlLanguageService, htmlDocuments)
-	};
+	let modelCaches: LanguageModelCache<any>[] = [];
+	modelCaches.push(documentRegions);
+
+	let modes = {};
+	modes['html'] = getHTMLMode(htmlLanguageService);
+	if (supportedLanguages['css']) {
+		let embeddedCSSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('css'));
+		modelCaches.push(embeddedCSSDocuments);
+		modes['css'] = getCSSMode(embeddedCSSDocuments);
+	}
+	if (supportedLanguages['javascript']) {
+		let embeddedJSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('javascript'));
+		modelCaches.push(embeddedJSDocuments);
+		modes['javascript'] = getJavascriptMode(embeddedJSDocuments);
+	}
 	return {
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode {
-			let languageId = getLanguageAtPosition(htmlLanguageService, document, htmlDocuments.get(document), position);
+			let languageId = documentRegions.get(document).getLanguageAtPosition(position);;
 			if (languageId) {
 				return modes[languageId];
 			}
 			return null;
 		},
-		getAllModesInDocument(document: TextDocument): LanguageMode[] {
-			let result = [];
-			let languageIds = getLanguagesInContent(htmlLanguageService, document, htmlDocuments.get(document));
-			for (let languageId of languageIds) {
-				let mode = modes[languageId];
-				if (mode) {
-					result.push(mode);
-				}
-			}
-			return result;
-		},
 		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
-			return getLanguagesInRange(htmlLanguageService, document, htmlDocuments.get(document), range).map(r => {
+			return documentRegions.get(document).getLanguageRanges(range).map(r => {
 				return {
 					start: r.start,
 					end: r.end,
-					mode: modes[r.languageId]
+					mode: modes[r.languageId],
+					attributeValue: r.attributeValue
 				};
 			});
+		},
+		getAllModesInDocument(document: TextDocument): LanguageMode[] {
+			return documentRegions.get(document).getLanguagesInDocument().map(languageId => modes[languageId]);
 		},
 		getAllModes(): LanguageMode[] {
 			let result = [];
@@ -96,6 +102,20 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		},
 		getMode(languageId: string): LanguageMode {
 			return modes[languageId];
+		},
+		onDocumentRemoved(document: TextDocument) {
+			modelCaches.forEach(mc => mc.onDocumentRemoved(document));
+			for (let mode in modes) {
+				modes[mode].onDocumentRemoved(document);
+			}
+		},
+		dispose(): void {
+			modelCaches.forEach(mc => mc.dispose());
+			modelCaches = [];
+			for (let mode in modes) {
+				modes[mode].dispose();
+			}
+			modes = {};
 		}
 	};
 }
