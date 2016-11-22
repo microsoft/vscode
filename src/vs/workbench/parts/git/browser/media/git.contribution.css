@@ -74,6 +74,7 @@
 	border-bottom: 4px solid transparent;
 	width: 4px;
 	height: 0;
+	z-index: 9;
 }
 
 .monaco-shell .git-branch-dropdown-menu .action-label.git-action.checkout.HEAD {
