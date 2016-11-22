@@ -107,7 +107,7 @@ export class StringEditor extends BaseTextEditor {
 
 			// Set Editor Model
 			const textEditor = this.getControl();
-			const textEditorModel = (<BaseTextEditorModel>resolvedModel).textEditorModel;
+			const textEditorModel = resolvedModel.textEditorModel;
 			textEditor.setModel(textEditorModel);
 
 			// Apply Options from TextOptions
