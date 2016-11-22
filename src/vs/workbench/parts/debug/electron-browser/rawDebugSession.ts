@@ -385,7 +385,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 			});
 		} else if (request.command === 'handshake') {
 			try {
-				const vsda = (<any>require.__$__nodeRequire('vsda'));
+				const vsda = <any>require.__$__nodeRequire('vsda');
 				const obj = new vsda.signer();
 				const sig = obj.sign(request.arguments.value);
 				response.body = {
