@@ -94,11 +94,11 @@ suite('Workbench - TextModelResolverService', () => {
 		});
 	});
 
-	test('resolve untitled', function (done) {
+	test('resolve untitled', function () {
 		const service = accessor.untitledEditorService;
 		const input = service.createOrGet();
 
-		input.resolve().then(() => {
+		return input.resolve().then(() => {
 			return accessor.textModelResolverServie.createModelReference(input.getResource()).then(ref => {
 				const model = ref.object;
 				const editorModel = model.textEditorModel;
@@ -107,7 +107,6 @@ suite('Workbench - TextModelResolverService', () => {
 				ref.dispose();
 
 				input.dispose();
-
 			});
 		});
 	});
