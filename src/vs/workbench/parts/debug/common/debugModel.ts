@@ -36,18 +36,20 @@ export abstract class AbstractOutputElement implements debug.ITreeElement {
 	}
 }
 
-export class ValueOutputElement extends AbstractOutputElement {
+export class OutputElement extends AbstractOutputElement {
+
+	public counter: number;
 
 	constructor(
 		public value: string,
 		public severity: severity,
-		public counter = 1
 	) {
 		super();
+		this.counter = 1;
 	}
 }
 
-export class NameValueOutputElement extends AbstractOutputElement {
+export class OutputNameValueElement extends AbstractOutputElement {
 
 	private static MAX_CHILDREN = 1000; // upper bound of children per value
 
@@ -71,11 +73,11 @@ export class NameValueOutputElement extends AbstractOutputElement {
 
 	public getChildren(): debug.ITreeElement[] {
 		if (Array.isArray(this.valueObj)) {
-			return (<any[]>this.valueObj).slice(0, NameValueOutputElement.MAX_CHILDREN)
-				.map((v, index) => new NameValueOutputElement(String(index), v));
+			return (<any[]>this.valueObj).slice(0, OutputNameValueElement.MAX_CHILDREN)
+				.map((v, index) => new OutputNameValueElement(String(index), v));
 		} else if (isObject(this.valueObj)) {
-			return Object.getOwnPropertyNames(this.valueObj).slice(0, NameValueOutputElement.MAX_CHILDREN)
-				.map(key => new NameValueOutputElement(key, this.valueObj[key]));
+			return Object.getOwnPropertyNames(this.valueObj).slice(0, OutputNameValueElement.MAX_CHILDREN)
+				.map(key => new OutputNameValueElement(key, this.valueObj[key]));
 		}
 
 		return [];
@@ -174,7 +176,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 }
 
 export class OutputExpressionContainer extends ExpressionContainer {
-	constructor(public name: string, stackFrame: debug.IStackFrame, reference: number, public annotation: string) {
+	constructor(public name: string, stackFrame: debug.IStackFrame, reference: number, public annotation = null) {
 		super(stackFrame, reference, generateUuid());
 	}
 }
@@ -818,25 +820,19 @@ export class Model implements debug.IModel {
 			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
-	public appendReplOutput(value: string | { [key: string]: any }, severity?: severity): void {
-		const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as ValueOutputElement);
-
-		if (typeof value === 'string') {
-			const groupTogether = previousOutput instanceof ValueOutputElement && severity === previousOutput.severity;
-			if (groupTogether) {
-				if (strings.endsWith(previousOutput.value, '\n') && previousOutput.value === value && value.trim()) {
-					// we got the same output (but not an empty string when trimmed) so we just increment the counter
-					previousOutput.counter++;
-				} else {
-					// append to previous line if same group
-					previousOutput.value += value;
-				}
+	public appendReplOutput(output: OutputElement | OutputExpressionContainer | OutputNameValueElement): void {
+		const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
+		const groupTogether = output instanceof OutputElement && previousOutput instanceof OutputElement && output.severity === previousOutput.severity;
+		if (groupTogether) {
+			if (strings.endsWith(previousOutput.value, '\n') && previousOutput.value === output.value && output.value.trim()) {
+				// we got the same output (but not an empty string when trimmed) so we just increment the counter
+				previousOutput.counter++;
 			} else {
-				this.addReplElement(new ValueOutputElement(value, severity));
+				// append to previous line if same group
+				previousOutput.value += output.value;
 			}
 		} else {
-			// key-value output
-			this.addReplElement(new NameValueOutputElement((<any>value).prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
+			this.addReplElement(output);
 		}
 
 		this._onDidChangeREPLElements.fire();

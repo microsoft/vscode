@@ -36,7 +36,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
-import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression } from 'vs/workbench/parts/debug/common/debugModel';
+import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, OutputElement, OutputExpressionContainer, OutputNameValueElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { DebugStringEditorInput, DebugErrorEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
@@ -195,12 +195,12 @@ export class DebugService implements debug.IDebugService {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
-						this.model.appendReplOutput(simpleVals.join(' '), sev);
+						this.model.appendReplOutput(new OutputElement(simpleVals.join(' '), sev));
 						simpleVals = [];
 					}
 
 					// show object
-					this.model.appendReplOutput(a, sev);
+					this.model.appendReplOutput(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
 				}
 
 				// string: watch out for % replacement directive
@@ -229,7 +229,7 @@ export class DebugService implements debug.IDebugService {
 
 			// flush simple values
 			if (simpleVals.length) {
-				this.model.appendReplOutput(simpleVals.join(' '), sev);
+				this.model.appendReplOutput(new OutputElement(simpleVals.join(' '), sev));
 			}
 		}
 	}
@@ -325,7 +325,10 @@ export class DebugService implements debug.IDebugService {
 					this.customTelemetryService.publicLog(event.body.output, event.body.data);
 				}
 			} else if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
-				this.onOutput(event);
+				const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
+				const value = event.body.variablesReference ? new OutputExpressionContainer(event.body.output, this.viewModel.focusedStackFrame, event.body.variablesReference)
+					: new OutputElement(event.body.output, outputSeverity);
+				this.model.appendReplOutput(value);
 			}
 		}));
 
@@ -364,11 +367,6 @@ export class DebugService implements debug.IDebugService {
 					}));
 			}
 		});
-	}
-
-	private onOutput(event: DebugProtocol.OutputEvent): void {
-		const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
-		this.model.appendReplOutput(event.body.output, outputSeverity);
 	}
 
 	private loadBreakpoints(): Breakpoint[] {

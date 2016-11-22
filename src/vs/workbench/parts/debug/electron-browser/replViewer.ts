@@ -20,7 +20,7 @@ import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IExpressionContainer, IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debug';
-import { Model, NameValueOutputElement, Expression, ValueOutputElement, Variable, OutputExpressionContainer } from 'vs/workbench/parts/debug/common/debugModel';
+import { Model, OutputNameValueElement, Expression, OutputElement, Variable, OutputExpressionContainer } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { AddToWatchExpressionsAction, ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
@@ -38,17 +38,17 @@ export class ReplExpressionsDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof Model || (<IExpressionContainer>element).hasChildren || element instanceof NameValueOutputElement;
+		return element instanceof Model || (<IExpressionContainer>element).hasChildren || element instanceof OutputNameValueElement;
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof Model) {
 			return TPromise.as(element.getReplElements());
 		}
-		if (element instanceof NameValueOutputElement) {
+		if (element instanceof OutputNameValueElement) {
 			return TPromise.as(element.getChildren());
 		}
-		if (element instanceof ValueOutputElement) {
+		if (element instanceof OutputElement) {
 			return TPromise.as(null);
 		}
 
@@ -143,10 +143,10 @@ export class ReplExpressionsRenderer implements IRenderer {
 		if (element instanceof Expression) {
 			return ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID;
 		}
-		if (element instanceof ValueOutputElement) {
+		if (element instanceof OutputElement) {
 			return ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID;
 		}
-		if (element instanceof NameValueOutputElement || element instanceof OutputExpressionContainer) {
+		if (element instanceof OutputNameValueElement || element instanceof OutputExpressionContainer) {
 			return ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID;
 		}
 
@@ -224,7 +224,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		}
 	}
 
-	private renderOutputValue(output: ValueOutputElement, templateData: IValueOutputTemplateData): void {
+	private renderOutputValue(output: OutputElement, templateData: IValueOutputTemplateData): void {
 
 		// counter
 		if (output.counter > 1) {
@@ -397,7 +397,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		}, event.ctrlKey || event.metaKey).done(null, errors.onUnexpectedError);
 	}
 
-	private renderOutputNameValue(tree: ITree, output: NameValueOutputElement | OutputExpressionContainer, templateData: IKeyValueOutputTemplateData): void {
+	private renderOutputNameValue(tree: ITree, output: OutputNameValueElement | OutputExpressionContainer, templateData: IKeyValueOutputTemplateData): void {
 
 		// key
 		if (output.name) {
@@ -436,11 +436,11 @@ export class ReplExpressionsAccessibilityProvider implements IAccessibilityProvi
 		if (element instanceof Expression) {
 			return nls.localize('replExpressionAriaLabel', "Expression {0} has value {1}, read eval print loop, debug", (<Expression>element).name, (<Expression>element).value);
 		}
-		if (element instanceof ValueOutputElement) {
-			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", (<ValueOutputElement>element).value);
+		if (element instanceof OutputElement) {
+			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", (<OutputElement>element).value);
 		}
-		if (element instanceof NameValueOutputElement) {
-			return nls.localize('replKeyValueOutputAriaLabel', "Output variable {0} has value {1}, read eval print loop, debug", (<NameValueOutputElement>element).name, (<NameValueOutputElement>element).value);
+		if (element instanceof OutputNameValueElement) {
+			return nls.localize('replKeyValueOutputAriaLabel', "Output variable {0} has value {1}, read eval print loop, debug", (<OutputNameValueElement>element).name, (<OutputNameValueElement>element).value);
 		}
 
 		return null;
@@ -499,7 +499,7 @@ export class ReplExpressionsController extends BaseDebugController {
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <IMouseEvent>eventish;
 		// input and output are one element in the tree => we only expand if the user clicked on the output.
-		if ((element.reference > 0 || (element instanceof NameValueOutputElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
+		if ((element.reference > 0 || (element instanceof OutputNameValueElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();
 			tree.deselect(element);
