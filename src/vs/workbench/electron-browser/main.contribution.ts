@@ -17,6 +17,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { CloseEditorAction, KeybindingsReferenceAction, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext, NoEditorsVisibleContext, InFocusModeContext } from 'vs/workbench/electron-browser/workbench';
@@ -77,7 +78,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.exitFocusMode',
-	weight: 0,
+	weight: CommonEditorRegistry.commandWeight(-1000),
 	handler(accessor: ServicesAccessor, configurationOrName: any) {
 		const partService = accessor.get(IPartService);
 		partService.toggleFocusMode();
