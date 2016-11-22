@@ -44,10 +44,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true });
 	documents.onDidClose(e => {
-		languageModes.getAllModes().forEach(m => m.onDocumentRemoved(e.document));
+		languageModes.onDocumentRemoved(e.document);
 	});
 	connection.onShutdown(() => {
-		languageModes.getAllModes().forEach(m => m.dispose());
+		languageModes.dispose();
 	});
 
 	return {
@@ -198,7 +198,7 @@ connection.onDocumentRangeFormatting(formatParams => {
 	let result: TextEdit[] = [];
 	ranges.forEach(r => {
 		let mode = r.mode;
-		if (mode && mode.format) {
+		if (mode && mode.format && !r.attributeValue) {
 			let edits = mode.format(document, r, formatParams.options);
 			pushAll(result, edits);
 		}
