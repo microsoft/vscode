@@ -114,12 +114,13 @@ class DirtyDiffModelDecorator {
 	}
 
 	private diff(): winjs.Promise {
-		if (!this.model || this.model.isDisposed()) {
-			return winjs.TPromise.as<any>([]); // disposed
-		}
+		return this.originalURIPromise.then(originalURI => {
+			if (!this.model || this.model.isDisposed()) {
+				return winjs.TPromise.as<any>([]); // disposed
+			}
 
-		return this.originalURIPromise
-			.then(originalURI => this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true));
+			this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true);
+		});
 	}
 
 	private static changesToDecorations(diff: common.IChange[]): common.IModelDeltaDecoration[] {

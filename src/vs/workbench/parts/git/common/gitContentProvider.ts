@@ -44,7 +44,7 @@ export class GitContentProvider implements IWorkbenchContribution, ITextModelCon
 		const treeish = gitModel.getStatus().find(path, StatusType.INDEX) ? '~' : 'HEAD';
 
 		return this.gitService.buffer(path, treeish)
-			.then(contents => this.modelService.createModel(contents, null, uri))
+			.then(contents => this.modelService.createModel(contents || '', null, uri))
 			.then(model => {
 				const trigger = () => {
 					this.throttler.queue(() => {
