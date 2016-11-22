@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as winjs from 'vs/base/common/winjs.base';
@@ -27,7 +28,7 @@ import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 class DirtyDiffModelDecorator {
 
 	static MODIFIED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
-		linesDecorationsClassName: 'git-dirty-modified-diff-glyph',
+		linesDecorationsClassName: 'dirty-diff-modified-glyph',
 		isWholeLine: true,
 		overviewRuler: {
 			color: 'rgba(0, 122, 204, 0.6)',
@@ -37,7 +38,7 @@ class DirtyDiffModelDecorator {
 	};
 
 	static ADDED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
-		linesDecorationsClassName: 'git-dirty-added-diff-glyph',
+		linesDecorationsClassName: 'dirty-diff-added-glyph',
 		isWholeLine: true,
 		overviewRuler: {
 			color: 'rgba(0, 122, 204, 0.6)',
@@ -47,7 +48,7 @@ class DirtyDiffModelDecorator {
 	};
 
 	static DELETED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
-		linesDecorationsClassName: 'git-dirty-deleted-diff-glyph',
+		linesDecorationsClassName: 'dirty-diff-deleted-glyph',
 		isWholeLine: true,
 		overviewRuler: {
 			color: 'rgba(0, 122, 204, 0.6)',
