@@ -93,7 +93,7 @@ import { IWindowConfiguration } from 'vs/workbench/electron-browser/common';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
-export const InFocusModeContext = new RawContextKey<boolean>('inFocusMode', false);
+export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
@@ -168,9 +168,9 @@ export class Workbench implements IPartService {
 	private editorBackgroundDelayer: Delayer<void>;
 	private messagesVisibleContext: IContextKey<boolean>;
 	private editorsVisibleContext: IContextKey<boolean>;
-	private inFocusMode: IContextKey<boolean>;
+	private inZenMode: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
-	private focusMode: {
+	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
 		isPartVisible: { [part: string]: boolean };
@@ -246,7 +246,7 @@ export class Workbench implements IPartService {
 			// Contexts
 			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
 			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
-			this.inFocusMode = InFocusModeContext.bindTo(this.contextKeyService);
+			this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
 
 			// Register Listeners
 			this.registerListeners();
@@ -532,8 +532,8 @@ export class Workbench implements IPartService {
 		const activityBarVisible = this.configurationService.lookup<string>(Workbench.activityBarVisibleConfigurationKey).value;
 		this.activityBarHidden = !activityBarVisible;
 
-		// Focus mode
-		this.focusMode = {
+		// Zen mode
+		this.zenMode = {
 			active: false,
 			isPartVisible: {},
 			transitionedToFullScreen: false
@@ -594,18 +594,18 @@ export class Workbench implements IPartService {
 	}
 
 	public isVisible(part: Parts): boolean {
-		const checkFocusMode = (part: Parts) => !this.focusMode.active || this.focusMode.isPartVisible[part.toString()];
+		const checkZenMode = (part: Parts) => !this.zenMode.active || this.zenMode.isPartVisible[part.toString()];
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				return this.getCustomTitleBarStyle() && !browser.isFullscreen();
 			case Parts.SIDEBAR_PART:
-				return !this.sideBarHidden && checkFocusMode(Parts.SIDEBAR_PART);
+				return !this.sideBarHidden && checkZenMode(Parts.SIDEBAR_PART);
 			case Parts.PANEL_PART:
-				return !this.panelHidden && checkFocusMode(Parts.PANEL_PART);
+				return !this.panelHidden && checkZenMode(Parts.PANEL_PART);
 			case Parts.STATUSBAR_PART:
-				return !this.statusBarHidden && checkFocusMode(Parts.STATUSBAR_PART);
+				return !this.statusBarHidden && checkZenMode(Parts.STATUSBAR_PART);
 			case Parts.ACTIVITYBAR_PART:
-				return !this.activityBarHidden && checkFocusMode(Parts.ACTIVITYBAR_PART);
+				return !this.activityBarHidden && checkZenMode(Parts.ACTIVITYBAR_PART);
 		}
 
 		return true; // any other part cannot be hidden
@@ -642,8 +642,8 @@ export class Workbench implements IPartService {
 	}
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.focusMode.active) {
-			this.focusMode.isPartVisible[Parts.STATUSBAR_PART.toString()] = !hidden;
+		if (this.zenMode.active) {
+			this.zenMode.isPartVisible[Parts.STATUSBAR_PART.toString()] = !hidden;
 		}
 		this.statusBarHidden = hidden;
 
@@ -655,8 +655,8 @@ export class Workbench implements IPartService {
 	}
 
 	public setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.focusMode.active) {
-			this.focusMode.isPartVisible[Parts.ACTIVITYBAR_PART.toString()] = !hidden;
+		if (this.zenMode.active) {
+			this.zenMode.isPartVisible[Parts.ACTIVITYBAR_PART.toString()] = !hidden;
 		}
 		this.activityBarHidden = hidden;
 
@@ -668,8 +668,8 @@ export class Workbench implements IPartService {
 	}
 
 	public setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.focusMode.active) {
-			this.focusMode.isPartVisible[Parts.SIDEBAR_PART.toString()] = !hidden;
+		if (this.zenMode.active) {
+			this.zenMode.isPartVisible[Parts.SIDEBAR_PART.toString()] = !hidden;
 		}
 
 		this.sideBarHidden = hidden;
@@ -715,8 +715,8 @@ export class Workbench implements IPartService {
 	}
 
 	public setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.focusMode.active) {
-			this.focusMode.isPartVisible[Parts.PANEL_PART.toString()] = !hidden;
+		if (this.zenMode.active) {
+			this.zenMode.isPartVisible[Parts.PANEL_PART.toString()] = !hidden;
 		}
 		this.panelHidden = hidden;
 
@@ -838,8 +838,8 @@ export class Workbench implements IPartService {
 			this.addClass('fullscreen');
 		} else {
 			this.removeClass('fullscreen');
-			if (this.focusMode.transitionedToFullScreen && this.focusMode.active) {
-				this.toggleFocusMode();
+			if (this.zenMode.transitionedToFullScreen && this.zenMode.active) {
+				this.toggleZenMode();
 			}
 		}
 
@@ -1056,17 +1056,17 @@ export class Workbench implements IPartService {
 		this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
 	}
 
-	public toggleFocusMode(): void {
-		this.focusMode.active = !this.focusMode.active;
-		this.inFocusMode.set(this.focusMode.active);
-		Object.keys(this.focusMode.isPartVisible).forEach(key => this.focusMode.isPartVisible[key] = false);
-		// Check if focus mode transitioned to full screen and if now we are out of focus mode -> we need to go out of full screen
-		let toggleFullScreen = !this.focusMode.active && this.focusMode.transitionedToFullScreen && browser.isFullscreen();
+	public toggleZenMode(): void {
+		this.zenMode.active = !this.zenMode.active;
+		this.inZenMode.set(this.zenMode.active);
+		Object.keys(this.zenMode.isPartVisible).forEach(key => this.zenMode.isPartVisible[key] = false);
+		// Check if zen mode transitioned to full screen and if now we are out of zen mode -> we need to go out of full screen
+		let toggleFullScreen = !this.zenMode.active && this.zenMode.transitionedToFullScreen && browser.isFullscreen();
 
-		if (this.focusMode.active) {
+		if (this.zenMode.active) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
-			toggleFullScreen = !browser.isFullscreen() && windowConfig.window.fullScreenFocusMode;
-			this.focusMode.transitionedToFullScreen = toggleFullScreen;
+			toggleFullScreen = !browser.isFullscreen() && windowConfig.window.fullScreenZenMode;
+			this.zenMode.transitionedToFullScreen = toggleFullScreen;
 		}
 
 		(toggleFullScreen ? this.windowService.toggleFullScreen() : TPromise.as(null))

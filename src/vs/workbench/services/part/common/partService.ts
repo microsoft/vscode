@@ -119,7 +119,7 @@ export interface IPartService {
 	setRestoreSidebar(): void;
 
 	/**
-	 * Toggles the workbench in and out of focus mode - parts get hidden and window goes fullscreen.
+	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
-	toggleFocusMode(): void;
+	toggleZenMode(): void;
 }
