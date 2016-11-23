@@ -9,7 +9,6 @@ import 'vs/css!./media/xterm';
 import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
 import nls = require('vs/nls');
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/common/terminal';
@@ -157,10 +156,10 @@ let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.Work
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL), 'Terminal: Kill the Active Terminal Instance', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
+	//linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
 	// Don't apply to Mac since cmd+c works
 	mac: { primary: null }
-}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED)), 'Terminal: Copy Selection', category);
+}, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED), 'Terminal: Copy Selection', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }

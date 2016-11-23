@@ -7,7 +7,8 @@
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import Event from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
@@ -58,5 +59,6 @@ export interface IKeybindingService {
 	getDefaultKeybindings(): string;
 	lookupKeybindings(commandId: string): Keybinding[];
 	customKeybindingsCount(): number;
+	resolve(keybinding: Keybinding, target: IContextKeyServiceTarget): IResolveResult;
 }
 
