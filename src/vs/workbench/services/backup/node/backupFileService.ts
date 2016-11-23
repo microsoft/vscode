@@ -14,8 +14,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-export interface IBackupsFileModel {
-	resolve(backupRoot: string): TPromise<IBackupsFileModel>;
+export interface IBackupFilesModel {
+	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
 
 	add(resource: Uri, versionId?: number): void;
 	has(resource: Uri, versionId?: number): boolean;
@@ -24,10 +24,10 @@ export interface IBackupsFileModel {
 }
 
 // TODO@daniel this should resolve the backups with their file names once we have the metadata in place
-export class BackupsFileModel implements IBackupsFileModel {
+export class BackupFilesModel implements IBackupFilesModel {
 	private cache: { [resource: string]: number /* version ID */ } = Object.create(null);
 
-	resolve(backupRoot: string): TPromise<IBackupsFileModel> {
+	public resolve(backupRoot: string): TPromise<IBackupFilesModel> {
 		return pfs.readDirsInDir(backupRoot).then(backupSchemas => {
 
 			// For all supported schemas
@@ -47,11 +47,11 @@ export class BackupsFileModel implements IBackupsFileModel {
 		}).then(() => this, error => this);
 	}
 
-	add(resource: Uri, versionId = 0): void {
+	public add(resource: Uri, versionId = 0): void {
 		this.cache[resource.toString()] = versionId;
 	}
 
-	has(resource: Uri, versionId?: number): boolean {
+	public has(resource: Uri, versionId?: number): boolean {
 		const cachedVersionId = this.cache[resource.toString()];
 		if (typeof cachedVersionId !== 'number') {
 			return false; // unknown resource
@@ -64,11 +64,11 @@ export class BackupsFileModel implements IBackupsFileModel {
 		return true;
 	}
 
-	remove(resource: Uri): void {
+	public remove(resource: Uri): void {
 		delete this.cache[resource.toString()];
 	}
 
-	clear(): void {
+	public clear(): void {
 		this.cache = Object.create(null);
 	}
 }
@@ -81,7 +81,7 @@ export class BackupFileService implements IBackupFileService {
 	protected workspacesJsonPath: string;
 
 	private backupWorkspacePath: string;
-	private ready: TPromise<IBackupsFileModel>;
+	private ready: TPromise<IBackupFilesModel>;
 
 	constructor(
 		private currentWorkspace: Uri,
@@ -103,8 +103,8 @@ export class BackupFileService implements IBackupFileService {
 		return this.currentWorkspace && !this.environmentService.isExtensionDevelopment; // Hot exit is disabled for empty workspaces and when doing extension development
 	}
 
-	private init(): TPromise<IBackupsFileModel> {
-		const model = new BackupsFileModel();
+	private init(): TPromise<IBackupFilesModel> {
+		const model = new BackupFilesModel();
 
 		if (!this.backupEnabled) {
 			return TPromise.as(model);
@@ -140,11 +140,11 @@ export class BackupFileService implements IBackupFileService {
 		return this.ready.then(model => {
 			const backupResource = this.getBackupResource(resource);
 			if (!backupResource) {
-				return TPromise.as(void 0);
+				return void 0;
 			}
 
 			if (model.has(backupResource, versionId)) {
-				return TPromise.as(void 0); // return early if backup version id matches requested one
+				return void 0; // return early if backup version id matches requested one
 			}
 
 			return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
@@ -155,7 +155,7 @@ export class BackupFileService implements IBackupFileService {
 		return this.ready.then(model => {
 			const backupResource = this.getBackupResource(resource);
 			if (!backupResource) {
-				return TPromise.as(void 0);
+				return void 0;
 			}
 
 			return this.fileService.del(backupResource).then(() => model.remove(backupResource));
@@ -165,14 +165,14 @@ export class BackupFileService implements IBackupFileService {
 	public discardAllWorkspaceBackups(): TPromise<void> {
 		return this.ready.then(model => {
 			if (!this.backupEnabled) {
-				return TPromise.as(void 0);
+				return void 0;
 			}
 
 			return this.fileService.del(Uri.file(this.backupWorkspacePath)).then(() => model.clear());
 		});
 	}
 
-	public getBackupResource(resource: Uri): Uri {
+	protected getBackupResource(resource: Uri): Uri {
 		if (!this.backupEnabled) {
 			return null;
 		}
