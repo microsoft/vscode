@@ -57,7 +57,6 @@ export interface ITreeElement {
 }
 
 export interface IExpressionContainer extends ITreeElement {
-	stackFrame: IStackFrame;
 	hasChildren: boolean;
 	getChildren(): TPromise<IExpression[]>;
 }
@@ -65,7 +64,7 @@ export interface IExpressionContainer extends ITreeElement {
 export interface IExpression extends ITreeElement, IExpressionContainer {
 	name: string;
 	value: string;
-	valueChanged: boolean;
+	valueChanged?: boolean;
 	type?: string;
 }
 

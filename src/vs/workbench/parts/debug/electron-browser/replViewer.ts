@@ -20,7 +20,7 @@ import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IExpressionContainer, IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debug';
-import { Model, OutputNameValueElement, Expression, OutputElement, Variable, OutputExpressionContainer } from 'vs/workbench/parts/debug/common/debugModel';
+import { Model, OutputNameValueElement, Expression, OutputElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { AddToWatchExpressionsAction, ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
@@ -150,7 +150,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		if (element instanceof OutputElement) {
 			return ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID;
 		}
-		if (element instanceof OutputNameValueElement || element instanceof OutputExpressionContainer) {
+		if (element instanceof OutputNameValueElement) {
 			return ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID;
 		}
 
@@ -249,6 +249,30 @@ export class ReplExpressionsRenderer implements IRenderer {
 		}
 
 		templateData.value.className = (output.severity === severity.Warning) ? 'warn' : (output.severity === severity.Error) ? 'error' : 'info';
+	}
+
+	private renderOutputNameValue(tree: ITree, output: OutputNameValueElement, templateData: IKeyValueOutputTemplateData): void {
+		// key
+		if (output.name) {
+			templateData.name.textContent = `${output.name}:`;
+		} else {
+			templateData.name.textContent = '';
+		}
+
+		// value
+		renderExpressionValue(output.value, templateData.value, {
+			showChanged: false,
+			preserveWhitespace: true
+		});
+
+		// annotation if any
+		if (output.annotation) {
+			templateData.annotation.className = 'annotation octicon octicon-info';
+			templateData.annotation.title = output.annotation;
+		} else {
+			templateData.annotation.className = '';
+			templateData.annotation.title = '';
+		}
 	}
 
 	private handleANSIOutput(text: string): HTMLElement | string {
@@ -401,31 +425,6 @@ export class ReplExpressionsRenderer implements IRenderer {
 		}, event.ctrlKey || event.metaKey).done(null, errors.onUnexpectedError);
 	}
 
-	private renderOutputNameValue(tree: ITree, output: OutputNameValueElement | OutputExpressionContainer, templateData: IKeyValueOutputTemplateData): void {
-
-		// key
-		if (output.name) {
-			templateData.name.textContent = `${output.name}:`;
-		} else {
-			templateData.name.textContent = '';
-		}
-
-		// value
-		renderExpressionValue(output.value, templateData.value, {
-			showChanged: false,
-			preserveWhitespace: true
-		});
-
-		// annotation if any
-		if (output.annotation) {
-			templateData.annotation.className = 'annotation octicon octicon-info';
-			templateData.annotation.title = output.annotation;
-		} else {
-			templateData.annotation.className = '';
-			templateData.annotation.title = '';
-		}
-	}
-
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 		// noop
 	}
@@ -503,7 +502,7 @@ export class ReplExpressionsController extends BaseDebugController {
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <IMouseEvent>eventish;
 		// input and output are one element in the tree => we only expand if the user clicked on the output.
-		if ((element.reference > 0 || (element instanceof OutputNameValueElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
+		if ((element.reference > 0 || (element instanceof OutputNameValueElement && element.hasChildren)) && mouseEvent.target.className.indexOf('input expression') === -1) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();
 			tree.deselect(element);
