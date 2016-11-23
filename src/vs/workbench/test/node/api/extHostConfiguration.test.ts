@@ -155,6 +155,17 @@ suite('ExtHostConfiguration', function () {
 		assert.deepEqual(shape.lastArgs[2], { extensions: ['ts'] });
 	});
 
+	test('bogous data, #15834', function () {
+		const shape = new RecordingShape();
+		const allConfig = createExtHostConfiguration({
+			['editor.formatOnSave']: createConfigurationValue(true),
+			['editor.formatOnSave.extensions']: createConfigurationValue(['ts'])
+		}, shape);
+
+		assert.ok(allConfig.getConfiguration('').has('editor.formatOnSave'));
+		assert.ok(!allConfig.getConfiguration('').has('editor.formatOnSave.extensions'));
+	});
+
 	test('update/error-state not OK', function () {
 
 		const shape = new class extends MainThreadConfigurationShape {
