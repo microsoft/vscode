@@ -27,7 +27,7 @@ export type IRawProgressItem<T> = T | T[] | IProgress;
 
 export class SearchService implements IRawSearchService {
 
-	private static BATCH_SIZE = 512;
+	private static BATCH_SIZE = 20;
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
