@@ -17,19 +17,77 @@ export interface HTMLDocumentRegions {
 	getLanguageRanges(range: Range): LanguageRange[];
 	getLanguageAtPosition(position: Position): string;
 	getLanguagesInDocument(): string[];
+	getImportedScripts(): string[];
 }
 
 interface EmbeddedRegion { languageId: string; start: number; end: number; attributeValue?: boolean; };
 
+
 export function getDocumentRegions(languageService: LanguageService, document: TextDocument): HTMLDocumentRegions {
-	let regions = getEmbeddedRegions(languageService, document);
+	let regions: EmbeddedRegion[] = [];
+	let scanner = languageService.createScanner(document.getText());
+	let lastTagName: string;
+	let lastAttributeName: string;
+	let languageIdFromType: string;
+	let importedScripts = [];
+
+	let token = scanner.scan();
+	while (token !== TokenType.EOS) {
+		switch (token) {
+			case TokenType.StartTag:
+				lastTagName = scanner.getTokenText();
+				lastAttributeName = null;
+				languageIdFromType = 'javascript';
+				break;
+			case TokenType.Styles:
+				regions.push({ languageId: 'css', start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
+				break;
+			case TokenType.Script:
+				regions.push({ languageId: languageIdFromType, start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
+				break;
+			case TokenType.AttributeName:
+				lastAttributeName = scanner.getTokenText();
+				break;
+			case TokenType.AttributeValue:
+				if (lastAttributeName === 'src' && lastTagName.toLowerCase() === 'script') {
+					let value = scanner.getTokenText();
+					if (value[0] === '\'' || value[0] === '"') {
+						value = value.substr(1, value.length - 1);
+					}
+					importedScripts.push(value);
+				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
+					if (/["'](text|application)\/(java|ecma)script["']/.test(scanner.getTokenText())) {
+						languageIdFromType = 'javascript';
+					} else {
+						languageIdFromType = void 0;
+					}
+				} else {
+					let attributelLanguageId = getAttributeLanguage(lastAttributeName);
+					if (attributelLanguageId) {
+						let start = scanner.getTokenOffset();
+						let end = scanner.getTokenEnd();
+						let firstChar = document.getText()[start];
+						if (firstChar === '\'' || firstChar === '"') {
+							start++;
+							end--;
+						}
+						regions.push({ languageId: attributelLanguageId, start, end, attributeValue: true });
+					}
+				}
+				lastAttributeName = null;
+				break;
+		}
+		token = scanner.scan();
+	}
 	return {
 		getLanguageRanges: (range: Range) => getLanguageRanges(document, regions, range),
 		getEmbeddedDocument: (languageId: string) => getEmbeddedDocument(document, regions, languageId),
 		getLanguageAtPosition: (position: Position) => getLanguageAtPosition(document, regions, position),
-		getLanguagesInDocument: () => getLanguagesInDocument(document, regions)
+		getLanguagesInDocument: () => getLanguagesInDocument(document, regions),
+		getImportedScripts: () => importedScripts
 	};
 }
+
 
 function getLanguageRanges(document: TextDocument, regions: EmbeddedRegion[], range: Range): LanguageRange[] {
 	let result: LanguageRange[] = [];
@@ -162,58 +220,6 @@ function append(result: string, str: string, n: number): string {
 		str += str;
 	}
 	return result;
-}
-
-function getEmbeddedRegions(languageService: LanguageService, document: TextDocument): EmbeddedRegion[] {
-	let regions: EmbeddedRegion[] = [];
-	let scanner = languageService.createScanner(document.getText());
-	let lastTagName: string;
-	let lastAttributeName: string;
-	let languageIdFromType: string;
-
-	let token = scanner.scan();
-	while (token !== TokenType.EOS) {
-		switch (token) {
-			case TokenType.StartTag:
-				lastTagName = scanner.getTokenText();
-				lastAttributeName = null;
-				languageIdFromType = 'javascript';
-				break;
-			case TokenType.Styles:
-				regions.push({ languageId: 'css', start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
-				break;
-			case TokenType.Script:
-				regions.push({ languageId: languageIdFromType, start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
-				break;
-			case TokenType.AttributeName:
-				lastAttributeName = scanner.getTokenText();
-				break;
-			case TokenType.AttributeValue:
-				if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
-					if (/["'](text|application)\/(java|ecma)script["']/.test(scanner.getTokenText())) {
-						languageIdFromType = 'javascript';
-					} else {
-						languageIdFromType = void 0;
-					}
-				} else {
-					let attributelLanguageId = getAttributeLanguage(lastAttributeName);
-					if (attributelLanguageId) {
-						let start = scanner.getTokenOffset();
-						let end = scanner.getTokenEnd();
-						let firstChar = document.getText()[start];
-						if (firstChar === '\'' || firstChar === '"') {
-							start++;
-							end--;
-						}
-						regions.push({ languageId: attributelLanguageId, start, end, attributeValue: true });
-					}
-				}
-				lastAttributeName = null;
-				break;
-		}
-		token = scanner.scan();
-	}
-	return regions;
 }
 
 function getAttributeLanguage(attributeName: string): string {
