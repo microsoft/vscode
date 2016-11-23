@@ -27,6 +27,7 @@ export class ViewModel implements debug.IViewModel {
 		this._onDidSelectFunctionBreakpoint = new Emitter<debug.IFunctionBreakpoint>();
 		this._onDidSelectConfigurationName = new Emitter<string>();
 		this.changedWorkbenchViewState = false;
+		this.multiProcessView = false;
 	}
 
 	public getId(): string {
