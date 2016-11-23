@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import paths = require('vs/base/common/paths');
-import platform = require('vs/base/common/platform');
+import * as assert from 'assert';
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('Debug - Adapter', () => {
 	let adapter: Adapter;
@@ -49,14 +50,15 @@ suite('Debug - Adapter', () => {
 	};
 
 	setup(() => {
-		adapter = new Adapter(rawAdapter, { extensionFolderPath, id: 'adapter', name: 'myAdapter', version: '1.0.0', publisher: 'vscode', isBuiltin: false, engines: null }, null, null, null);
+		adapter = new Adapter(rawAdapter, { extensionFolderPath, id: 'adapter', name: 'myAdapter', version: '1.0.0', publisher: 'vscode', isBuiltin: false, engines: null },
+			null, new TestConfigurationService(), null);
 	});
 
 	teardown(() => {
 		adapter = null;
 	});
 
-	test('adapter attributes', () => {
+	test('attributes', () => {
 		assert.equal(adapter.type, rawAdapter.type);
 		assert.equal(adapter.label, rawAdapter.label);
 		assert.equal(adapter.program, paths.join(extensionFolderPath, rawAdapter.program));
@@ -77,7 +79,7 @@ suite('Debug - Adapter', () => {
 		assert.equal(!!schemaAttribute['properties']['preLaunchTask'], true);
 	});
 
-	test('adapter merge', () => {
+	test('merge', () => {
 		const runtimeArgs = ['first arg'];
 		adapter.merge({
 			type: 'mock',
@@ -95,5 +97,22 @@ suite('Debug - Adapter', () => {
 
 		assert.deepEqual(adapter.runtimeArgs, runtimeArgs);
 		assert.equal(adapter.program, 'a/b/c/d/mockprogram');
+	});
+
+	test('initial config file content', () => {
+		adapter.getInitialConfigurationContent().then(content => {
+			const expected = ['{',
+				'	"version": "0.2.0",',
+				'	"configurations": [',
+				'		{',
+				'			"name": "Mock-Debug",',
+				'			"type": "mock",',
+				'			"request": "launch",',
+				'			"program": "readme.md"',
+				'		}',
+				'	]',
+				'}'].join('\n');
+			assert.equal(content, expected);
+		}, err => assert.fail());
 	});
 });
