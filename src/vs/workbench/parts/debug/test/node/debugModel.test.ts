@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import { OutputElement, Model, Process, Expression, OutputNameValueElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
@@ -313,7 +313,7 @@ suite('Debug - Model', () => {
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 1, 1);
 		model.addWatchExpression(process, stackFrame, 'console').done();
 		model.addWatchExpression(process, stackFrame, 'console').done();
-		const watchExpressions = model.getWatchExpressions();
+		let watchExpressions = model.getWatchExpressions();
 		assertWatchExpressions(watchExpressions, 'console');
 
 		model.renameWatchExpression(process, stackFrame, watchExpressions[0].getId(), 'new_name').done();
@@ -322,6 +322,13 @@ suite('Debug - Model', () => {
 
 		model.evaluateWatchExpressions(process, null);
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
+
+		model.addWatchExpression(process, stackFrame, 'mockExpression');
+		model.moveWatchExpression(model.getWatchExpressions()[2].getId(), 1);
+		watchExpressions = model.getWatchExpressions();
+		assert.equal(watchExpressions[0].name, 'new_name');
+		assert.equal(watchExpressions[1].name, 'mockExpression');
+		assert.equal(watchExpressions[2].name, 'new_name');
 
 		model.removeWatchExpressions();
 		assert.equal(model.getWatchExpressions().length, 0);
