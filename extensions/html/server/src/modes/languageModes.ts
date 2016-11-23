@@ -7,7 +7,7 @@
 import { getLanguageService as getHTMLLanguageService, DocumentContext } from 'vscode-html-languageservice';
 import {
 	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
-	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions
+	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation
 } from 'vscode-languageserver-types';
 
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
@@ -25,6 +25,7 @@ export interface LanguageMode {
 	doHover?: (document: TextDocument, position: Position) => Hover;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => DocumentHighlight[];
+	findDocumentSymbols?: (document: TextDocument) => SymbolInformation[];
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => DocumentLink[];
 	findDefinition?: (document: TextDocument, position: Position) => Definition;
 	findReferences?: (document: TextDocument, position: Position) => Location[];

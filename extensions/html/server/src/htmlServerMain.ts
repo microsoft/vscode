@@ -5,7 +5,8 @@
 'use strict';
 
 import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType } from 'vscode-languageserver';
-import { DocumentContext, TextDocument, Diagnostic, DocumentLink, Range, TextEdit } from 'vscode-html-languageservice';
+import { DocumentContext } from 'vscode-html-languageservice';
+import { TextDocument, Diagnostic, DocumentLink, Range, TextEdit, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes } from './modes/languageModes';
 
 import * as url from 'url';
@@ -59,6 +60,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			documentHighlightProvider: true,
 			documentRangeFormattingProvider: initializationOptions && initializationOptions['format.enable'],
 			documentLinkProvider: true,
+			documentSymbolProvider: true,
 			definitionProvider: true,
 			signatureHelpProvider: { triggerCharacters: ['('] },
 			referencesProvider: true
@@ -223,6 +225,17 @@ connection.onDocumentLinks(documentLinkParam => {
 		}
 	});
 	return links;
+});
+
+connection.onDocumentSymbol(documentSymbolParms => {
+	let document = documents.get(documentSymbolParms.textDocument.uri);
+	let symbols: SymbolInformation[] = [];
+	languageModes.getAllModesInDocument(document).forEach(m => {
+		if (m.findDocumentSymbols) {
+			pushAll(symbols, m.findDocumentSymbols(document));
+		}
+	});
+	return symbols;
 });
 
 connection.onRequest(ColorSymbolRequest.type, uri => {

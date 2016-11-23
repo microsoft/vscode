@@ -20,6 +20,8 @@ export interface HTMLDocumentRegions {
 	getImportedScripts(): string[];
 }
 
+export var CSS_STYLE_RULE = '__';
+
 interface EmbeddedRegion { languageId: string; start: number; end: number; attributeValue?: boolean; };
 
 
@@ -178,7 +180,7 @@ function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[],
 function getPrefix(c: EmbeddedRegion) {
 	if (c.attributeValue) {
 		switch (c.languageId) {
-			case 'css': return 'x{';
+			case 'css': return CSS_STYLE_RULE + '{';
 		}
 	}
 	return '';

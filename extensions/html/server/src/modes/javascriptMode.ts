@@ -5,7 +5,7 @@
 'use strict';
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
-import { CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
+import { SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
 import { LanguageMode } from './languageModes';
 import { getWordAtText } from '../utils/words';
 import { HTMLDocumentRegions } from './embeddedSupport';
@@ -164,6 +164,42 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			};
 			return null;
 		},
+		findDocumentSymbols(document: TextDocument): SymbolInformation[] {
+			currentTextDocument = jsDocuments.get(document);
+			let items = jsLanguageService.getNavigationBarItems(FILE_NAME);
+			if (items) {
+				let result: SymbolInformation[] = [];
+				let existing = {};
+				let collectSymbols = (item: ts.NavigationBarItem, containerLabel?: string) => {
+					let sig = item.text + item.kind + item.spans[0].start;
+					if (item.kind !== 'script' && !existing[sig]) {
+						let symbol: SymbolInformation = {
+							name: item.text,
+							kind: convertSymbolKind(item.kind),
+							location: {
+								uri: document.uri,
+								range: convertRange(currentTextDocument, item.spans[0])
+							},
+							containerName: containerLabel
+						};
+						existing[sig] = true;
+						result.push(symbol);
+						containerLabel = item.text;
+					}
+
+					if (item.childItems && item.childItems.length > 0) {
+						for (let child of item.childItems) {
+							collectSymbols(child, containerLabel);
+						}
+					}
+
+				};
+
+				items.forEach(item => collectSymbols(item));
+				return result;
+			}
+			return null;
+		},
 		findDefinition(document: TextDocument, position: Position): Definition {
 			currentTextDocument = jsDocuments.get(document);
 			let definition = jsLanguageService.getDefinitionAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
@@ -258,6 +294,33 @@ function convertKind(kind: string): CompletionItemKind {
 	}
 
 	return CompletionItemKind.Property;
+}
+
+function convertSymbolKind(kind: string): SymbolKind {
+	switch (kind) {
+		case 'var':
+		case 'local var':
+		case 'const':
+			return SymbolKind.Variable;
+		case 'function':
+		case 'local function':
+			return SymbolKind.Function;
+		case 'enum':
+			return SymbolKind.Enum;
+		case 'module':
+			return SymbolKind.Module;
+		case 'class':
+			return SymbolKind.Class;
+		case 'interface':
+			return SymbolKind.Interface;
+		case 'method':
+			return SymbolKind.Method;
+		case 'property':
+		case 'getter':
+		case 'setter':
+			return SymbolKind.Property;
+	}
+	return SymbolKind.Variable;
 }
 
 function convertOptions(options: FormattingOptions, formatSettings: any, initialIndentLevel: number): ts.FormatCodeOptions {
