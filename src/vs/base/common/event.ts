@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import CallbackList from 'vs/base/common/callbackList';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { once as onceFn } from 'vs/base/common/functional';
 
 /**
  * To an event a function with one or zero parameters
@@ -124,6 +125,67 @@ export class Emitter<T> {
 			this._callbacks = undefined;
 			this._disposed = true;
 		}
+	}
+}
+
+export class EventMultiplexer<T> implements IDisposable {
+
+	private emitter: Emitter<T>;
+	private hasListeners = false;
+	private events: { event: Event<T>; listener: IDisposable; }[] = [];
+
+	constructor() {
+		this.emitter = new Emitter<T>({
+			onFirstListenerAdd: () => this.onFirstListenerAdd(),
+			onLastListenerRemove: () => this.onLastListenerRemove()
+		});
+	}
+
+	get event(): Event<T> {
+		return this.emitter.event;
+	}
+
+	add(event: Event<T>): IDisposable {
+		const e = { event: event, listener: null };
+		this.events.push(e);
+
+		if (this.hasListeners) {
+			this.hook(e);
+		}
+
+		const dispose = () => {
+			if (this.hasListeners) {
+				this.unhook(e);
+			}
+
+			const idx = this.events.indexOf(e);
+			this.events.splice(idx, 1);
+		};
+
+		return toDisposable(onceFn(dispose));
+	}
+
+	private onFirstListenerAdd(): void {
+		this.hasListeners = true;
+		this.events.forEach(e => this.hook(e));
+	}
+
+	private onLastListenerRemove(): void {
+		this.hasListeners = false;
+		this.events.forEach(e => this.unhook(e));
+	}
+
+	private hook(e: { event: Event<T>; listener: IDisposable; }): void {
+		e.listener = e.event(r => this.emitter.fire(r));
+	}
+
+	private unhook(e: { event: Event<T>; listener: IDisposable; }): void {
+		e.listener.dispose();
+		e.listener = null;
+	}
+
+	dispose(): void {
+		this.emitter.dispose();
 	}
 }
 
