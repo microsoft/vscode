@@ -106,6 +106,9 @@ suite('HTML Embedded Support', () => {
 		assertLanguageId('<DIV ONKEYUP=foo(|)</DIV>', 'javascript');
 		assertLanguageId('<DIV ONKEYUP=foo()|</DIV>', 'javascript');
 		assertLanguageId('<DIV ONKEYUP=foo()<|/DIV>', 'html');
+
+		assertLanguageId('<label data-content="|Checkbox"/>', 'html');
+		assertLanguageId('<label on="|Checkbox"/>', 'html');
 	});
 
 	test('Script content', function (): any {

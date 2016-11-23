@@ -225,7 +225,7 @@ function append(result: string, str: string, n: number): string {
 }
 
 function getAttributeLanguage(attributeName: string): string {
-	let match = attributeName.match(/^(style)|(on\w+)$/i);
+	let match = attributeName.match(/^(style)$|^(on\w+)$/i);
 	if (!match) {
 		return null;
 	}
