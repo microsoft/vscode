@@ -127,6 +127,7 @@ export class TerminalService implements ITerminalService {
 			terminalInstance.setVisible(i === terminalIndex);
 		});
 		this._onActiveInstanceChanged.fire();
+		this.getActiveInstance().focus(true);
 	}
 
 	public setActiveInstanceToNext(): void {
