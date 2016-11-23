@@ -8,7 +8,7 @@ import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache
 import { TextDocument, Position } from 'vscode-languageserver-types';
 import { getCSSLanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { LanguageMode } from './languageModes';
-import { HTMLDocumentRegions } from './embeddedSupport';
+import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 
 export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
 	let cssLanguageService = getCSSLanguageService();
@@ -37,6 +37,10 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 		findDocumentHighlight(document: TextDocument, position: Position) {
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.findDocumentHighlights(embedded, position, cssStylesheets.get(embedded));
+		},
+		findDocumentSymbols(document: TextDocument) {
+			let embedded = embeddedCSSDocuments.get(document);
+			return cssLanguageService.findDocumentSymbols(embedded, cssStylesheets.get(embedded)).filter(s => s.name !== CSS_STYLE_RULE);
 		},
 		findDefinition(document: TextDocument, position: Position) {
 			let embedded = embeddedCSSDocuments.get(document);
