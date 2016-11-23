@@ -18,7 +18,7 @@ import { SearchResult, Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/p
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IOpenSettingsService } from 'vs/workbench/parts/settings/common/openSettings';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -450,7 +450,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 export class ConfigureGlobalExclusionsAction extends Action {
 
-	constructor( @IOpenSettingsService private openSettingsService: IOpenSettingsService) {
+	constructor( @IPreferencesService private preferencesService: IPreferencesService) {
 		super('configureGlobalExclusionsAction');
 
 		this.label = nls.localize('ConfigureGlobalExclusionsAction.label', "Open Settings");
@@ -459,6 +459,6 @@ export class ConfigureGlobalExclusionsAction extends Action {
 	}
 
 	public run(): TPromise<void> {
-		return this.openSettingsService.openGlobalSettings().then(null, errors.onUnexpectedError);
+		return this.preferencesService.openGlobalSettings().then(null, errors.onUnexpectedError);
 	}
 }
