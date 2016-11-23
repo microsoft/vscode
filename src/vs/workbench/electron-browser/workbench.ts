@@ -77,6 +77,7 @@ import { TextFileService } from 'vs/workbench/services/textfile/electron-browser
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 import { SCMService } from 'vs/workbench/services/scm/common/scmService';
+import { GitSCMProvider } from 'vs/workbench/parts/git/electron-browser/gitSCMProvider';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -468,7 +469,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
 
 		// SCM Service
-		serviceCollection.set(ISCMService, this.instantiationService.createInstance(SCMService));
+		serviceCollection.set(ISCMService, this.instantiationService.createInstance(SCMService, new GitSCMProvider()));
 
 		// Text Model Resolver Service
 		serviceCollection.set(ITextModelResolverService, this.instantiationService.createInstance(TextModelResolverService));

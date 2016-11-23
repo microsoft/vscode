@@ -8,13 +8,19 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISCMService, IBaselineResourceProvider } from './scm';
+import { ISCMService, IBaselineResourceProvider, ISCMProvider } from './scm';
 
 export class SCMService implements ISCMService {
 
 	_serviceBrand;
 
 	private providers: IBaselineResourceProvider[] = [];
+
+	constructor(activeProvider: ISCMProvider) {
+		this.activeProvider = activeProvider;
+	}
+
+	activeProvider: ISCMProvider;
 
 	getBaselineResource(resource: URI): TPromise<URI> {
 		const promises = this.providers
