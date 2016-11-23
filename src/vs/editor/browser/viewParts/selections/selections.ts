@@ -9,8 +9,7 @@ import 'vs/css!./selections';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { HorizontalRange, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
-import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { HorizontalRange, LineVisibleRanges, IRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Range } from 'vs/editor/common/core/range';
 
 const enum CornerStyle {
@@ -151,12 +150,8 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 	private _visibleRangesHaveGaps(linesVisibleRanges: LineVisibleRangesWithStyle[]): boolean {
 
-		var i: number,
-			len: number,
-			lineVisibleRanges: LineVisibleRangesWithStyle;
-
-		for (i = 0, len = linesVisibleRanges.length; i < len; i++) {
-			lineVisibleRanges = linesVisibleRanges[i];
+		for (let i = 0, len = linesVisibleRanges.length; i < len; i++) {
+			let lineVisibleRanges = linesVisibleRanges[i];
 
 			if (lineVisibleRanges.ranges.length > 1) {
 				// There are two ranges on the same line
@@ -168,32 +163,20 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	}
 
 	private _enrichVisibleRangesWithStyle(linesVisibleRanges: LineVisibleRangesWithStyle[], previousFrame: LineVisibleRangesWithStyle[]): void {
-		var curLineRange: HorizontalRangeWithStyle,
-			curLeft: number,
-			curRight: number,
-			prevLeft: number,
-			prevRight: number,
-			nextLeft: number,
-			nextRight: number,
-			startStyle: IVisibleRangeEndPointStyle,
-			endStyle: IVisibleRangeEndPointStyle,
-			i: number,
-			len: number;
-
-		var previousFrameTop: HorizontalRangeWithStyle = null,
-			previousFrameBottom: HorizontalRangeWithStyle = null;
+		let previousFrameTop: HorizontalRangeWithStyle = null;
+		let previousFrameBottom: HorizontalRangeWithStyle = null;
 
 		if (previousFrame && previousFrame.length > 0 && linesVisibleRanges.length > 0) {
 
-			var topLineNumber = linesVisibleRanges[0].lineNumber;
-			for (var i = 0; !previousFrameTop && i < previousFrame.length; i++) {
+			let topLineNumber = linesVisibleRanges[0].lineNumber;
+			for (let i = 0; !previousFrameTop && i < previousFrame.length; i++) {
 				if (previousFrame[i].lineNumber === topLineNumber) {
 					previousFrameTop = previousFrame[i].ranges[0];
 				}
 			}
 
-			var bottomLineNumber = linesVisibleRanges[linesVisibleRanges.length - 1].lineNumber;
-			for (var i = previousFrame.length - 1; !previousFrameBottom && i >= 0; i--) {
+			let bottomLineNumber = linesVisibleRanges[linesVisibleRanges.length - 1].lineNumber;
+			for (let i = previousFrame.length - 1; !previousFrameBottom && i >= 0; i--) {
 				if (previousFrame[i].lineNumber === bottomLineNumber) {
 					previousFrameBottom = previousFrame[i].ranges[0];
 				}
@@ -207,26 +190,26 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 			}
 		}
 
-		for (i = 0, len = linesVisibleRanges.length; i < len; i++) {
+		for (let i = 0, len = linesVisibleRanges.length; i < len; i++) {
 			// We know for a fact that there is precisely one range on each line
-			curLineRange = linesVisibleRanges[i].ranges[0];
-			curLeft = curLineRange.left;
-			curRight = curLineRange.left + curLineRange.width;
+			let curLineRange = linesVisibleRanges[i].ranges[0];
+			let curLeft = curLineRange.left;
+			let curRight = curLineRange.left + curLineRange.width;
 
-			startStyle = {
+			let startStyle = {
 				top: CornerStyle.EXTERN,
 				bottom: CornerStyle.EXTERN
 			};
 
-			endStyle = {
+			let endStyle = {
 				top: CornerStyle.EXTERN,
 				bottom: CornerStyle.EXTERN
 			};
 
 			if (i > 0) {
 				// Look above
-				prevLeft = linesVisibleRanges[i - 1].ranges[0].left;
-				prevRight = linesVisibleRanges[i - 1].ranges[0].left + linesVisibleRanges[i - 1].ranges[0].width;
+				let prevLeft = linesVisibleRanges[i - 1].ranges[0].left;
+				let prevRight = linesVisibleRanges[i - 1].ranges[0].left + linesVisibleRanges[i - 1].ranges[0].width;
 
 				if (curLeft === prevLeft) {
 					startStyle.top = CornerStyle.FLAT;
@@ -247,8 +230,8 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 			if (i + 1 < len) {
 				// Look below
-				nextLeft = linesVisibleRanges[i + 1].ranges[0].left;
-				nextRight = linesVisibleRanges[i + 1].ranges[0].left + linesVisibleRanges[i + 1].ranges[0].width;
+				let nextLeft = linesVisibleRanges[i + 1].ranges[0].left;
+				let nextRight = linesVisibleRanges[i + 1].ranges[0].left + linesVisibleRanges[i + 1].ranges[0].width;
 
 				if (curLeft === nextLeft) {
 					startStyle.bottom = CornerStyle.FLAT;

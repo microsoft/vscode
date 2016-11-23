@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector } from 'vscode';
+import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
@@ -33,16 +33,16 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	public collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any> {
 		let defaultValue = {
-			'name': '{{name}}',
-			'description': '{{description}}',
-			'author': '{{author}}',
-			'version': '{{1.0.0}}',
-			'main': '{{pathToMain}}',
+			'name': '${1:name}',
+			'description': '${2:description}',
+			'authors': '${3:author}',
+			'version': '${4:1.0.0}',
+			'main': '${5:pathToMain}',
 			'dependencies': {}
 		};
 		let proposal = new CompletionItem(localize('json.package.default', 'Default package.json'));
 		proposal.kind = CompletionItemKind.Module;
-		proposal.insertText = JSON.stringify(defaultValue, null, '\t');
+		proposal.insertText = new SnippetString(JSON.stringify(defaultValue, null, '\t'));
 		result.add(proposal);
 		return Promise.resolve(null);
 	}
@@ -65,11 +65,11 @@ export class PackageJSONContribution implements IJSONContribution {
 									let keys = results[i].key;
 									if (Array.isArray(keys) && keys.length > 0) {
 										let name = keys[0];
-										let insertText = JSON.stringify(name);
+										let insertText = new SnippetString().appendText(JSON.stringify(name));
 										if (addValue) {
-											insertText += ': "{{*}}"';
+											insertText.appendText(': ').appendPlaceholder('*');
 											if (!isLast) {
-												insertText += ',';
+												insertText.appendText(',');
 											}
 										}
 										let proposal = new CompletionItem(name);
@@ -97,11 +97,11 @@ export class PackageJSONContribution implements IJSONContribution {
 				});
 			} else {
 				this.mostDependedOn.forEach((name) => {
-					let insertText = JSON.stringify(name);
+					let insertText = new SnippetString().appendText(JSON.stringify(name));
 					if (addValue) {
-						insertText += ': "{{*}}"';
+						insertText.appendText(': ').appendPlaceholder('*');
 						if (!isLast) {
-							insertText += ',';
+							insertText.appendText(',');
 						}
 					}
 					let proposal = new CompletionItem(name);
@@ -211,13 +211,11 @@ export class PackageJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			let pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
-				let htmlContent: MarkedString[] = [];
-				htmlContent.push(localize('json.npm.package.hover', '{0}', pack));
 				return this.getInfo(pack).then(infos => {
-					infos.forEach(info => {
-						htmlContent.push(textToMarkedString(info));
-					});
-					return htmlContent;
+					if (infos.length) {
+						return [infos.map(textToMarkedString).join('\n\n')];
+					}
+					return null;
 				});
 			}
 		}

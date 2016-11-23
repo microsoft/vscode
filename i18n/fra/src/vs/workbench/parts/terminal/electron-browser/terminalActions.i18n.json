@@ -17,6 +17,8 @@
 	"workbench.action.terminal.runSelectedText": "Exécuter le texte sélectionné dans le terminal actif",
 	"workbench.action.terminal.scrollDown": "Faire défiler vers le bas (ligne)",
 	"workbench.action.terminal.scrollDownPage": "Faire défiler vers le bas (page)",
+	"workbench.action.terminal.scrollToBottom": "Faire défiler jusqu'en bas",
+	"workbench.action.terminal.scrollToTop": "Faire défiler jusqu'en haut",
 	"workbench.action.terminal.scrollUp": "Faire défiler vers le haut (ligne)",
 	"workbench.action.terminal.scrollUpPage": "Faire défiler vers le haut (page)",
 	"workbench.action.terminal.switchTerminalInstance": "Changer d'instance de terminal",

@@ -8,17 +8,19 @@
     "node": "*"
   },
   "dependencies": {
-    "vscode-html-languageservice": "^1.0.0-next.9",
-    "vscode-languageserver": "^2.6.0-next.3",
+    "vscode-css-languageservice": "^2.0.0-next.3",
+    "vscode-html-languageservice": "^1.0.1-next.4",
+    "vscode-languageserver": "^2.6.2-next.1",
     "vscode-nls": "^1.0.4",
     "vscode-uri": "^1.0.0"
   },
   "scripts": {
     "compile": "gulp compile-extension:json-server",
     "watch": "gulp watch-extension:json-server",
-    "install-service-next": "npm install vscode-html-languageservice@next -f -S",
-    "install-service-local": "npm install ../../../../vscode-html-languageservice -f -S",
+    "install-service-next": "npm install vscode-css-languageservice@next -f -S && npm install vscode-html-languageservice@next -f -S",
+    "install-service-local": "npm install ../../../../vscode-css-languageservice -f -S && npm install ../../../../vscode-html-languageservice -f -S",
     "install-server-next": "npm install vscode-languageserver@next -f -S",
-    "install-server-local": "npm install ../../../../vscode-languageserver-node/server -f -S"
+    "install-server-local": "npm install ../../../../vscode-languageserver-node/server -f -S",
+    "test": "mocha"
   }
 }

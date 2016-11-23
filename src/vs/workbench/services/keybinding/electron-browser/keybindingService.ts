@@ -10,7 +10,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Keybinding } from 'vs/base/common/keybinding';
 import * as platform from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { KeybindingService } from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -102,7 +102,7 @@ let keybindingType: IJSONSchema = {
 	}
 };
 
-let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>('keybindings', {
+let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>('keybindings', [], {
 	description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
 	oneOf: [
 		keybindingType,
@@ -203,7 +203,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		return super.getElectronAcceleratorFor(keybinding);
 	}
 
-	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: IExtensionMessageCollector): boolean {
+	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector): boolean {
 		if (isContributedKeyBindingsArray(keybindings)) {
 			let commandAdded = false;
 			for (let i = 0, len = keybindings.length; i < len; i++) {
@@ -215,7 +215,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		}
 	}
 
-	private _handleKeybinding(isBuiltin: boolean, idx: number, keybindings: ContributedKeyBinding, collector: IExtensionMessageCollector): boolean {
+	private _handleKeybinding(isBuiltin: boolean, idx: number, keybindings: ContributedKeyBinding, collector: ExtensionMessageCollector): boolean {
 
 		let rejects: string[] = [];
 		let commandAdded = false;

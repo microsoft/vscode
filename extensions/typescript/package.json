@@ -11,10 +11,11 @@
 		"vscode": "*"
 	},
 	"dependencies": {
+		"@types/semver": "^5.3.30",
 		"semver": "4.3.6",
 		"vscode-extension-telemetry": "^0.0.5",
 		"vscode-nls": "^2.0.1",
-		"typescript": "^2.0.6-insiders.20161014"
+		"typescript": "2.0.10"
 	},
 	"scripts": {
 		"postinstall": "node ./bin/postinstall",
@@ -81,10 +82,10 @@
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
 				},
-				"typescript.experimentalAutomaticTypeAcquisition": {
+				"typescript.disableAutomaticTypeAcquisition": {
 					"type": "boolean",
 					"default": false,
-					"description": "%typescript.experimentalAutomaticTypeAcquisition%"
+					"description": "%typescript.disableAutomaticTypeAcquisition%"
 				},
 				"typescript.check.workspaceVersion": {
 					"type": "boolean",

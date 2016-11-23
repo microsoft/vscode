@@ -32,6 +32,7 @@ import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/refer
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { PeekContext } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -111,6 +112,8 @@ export class DefinitionAction extends EditorAction {
 			this._openReference(editorService, next, this._configuration.openToSide).then(editor => {
 				if (model.references.length > 1) {
 					this._openInPeek(editorService, editor, model);
+				} else {
+					model.dispose();
 				}
 			});
 		}
@@ -141,6 +144,8 @@ export class DefinitionAction extends EditorAction {
 					return this._openReference(editorService, reference, false);
 				}
 			});
+		} else {
+			model.dispose();
 		}
 	}
 }
@@ -233,7 +238,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	constructor(
 		editor: ICodeEditor,
-		@IEditorService private editorService: IEditorService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@IModeService private modeService: IModeService
 	) {
 		this.toUnhook = [];
@@ -318,10 +323,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			// Single result
 			else {
 				let result = results[0];
-				this.editorService.resolveEditorModel({ resource: result.uri }).then(model => {
+
+				this.textModelResolverService.createModelReference(result.uri).then(ref => {
+					const model = ref.object;
 					let hoverMessage: MarkedString;
 					if (model && model.textEditorModel) {
-						const editorModel = <editorCommon.IModel>model.textEditorModel;
+						const editorModel = model.textEditorModel;
 						let from = Math.max(1, result.range.startLineNumber);
 						let to: number;
 
@@ -367,6 +374,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 							value: source
 						};
 					}
+
+					ref.dispose();
 
 					this.addDecoration({
 						startLineNumber: position.lineNumber,

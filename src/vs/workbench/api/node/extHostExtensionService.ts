@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { dispose } from 'vs/base/common/lifecycle';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
-import { IMessage, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -119,13 +117,22 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
-	constructor(threadService: IThreadService, telemetryService: ITelemetryService, args: { _serviceBrand: any; workspaceStoragePath: string; }) {
-		super(false);
+	constructor(availableExtensions: IExtensionDescription[], threadService: IThreadService, telemetryService: ITelemetryService, args: { _serviceBrand: any; workspaceStoragePath: string; }) {
+		super(true);
+		this._registry.registerExtensions(availableExtensions);
 		this._threadService = threadService;
 		this._storage = new ExtHostStorage(threadService);
 		this._proxy = this._threadService.get(MainContext.MainProcessExtensionService);
 		this._telemetryService = telemetryService;
 		this._workspaceStoragePath = args.workspaceStoragePath;
+	}
+
+	public getAllExtensionDescriptions(): IExtensionDescription[] {
+		return this._registry.getAllExtensionDescriptions();
+	}
+
+	public getExtensionDescription(extensionId: string): IExtensionDescription {
+		return this._registry.getExtensionDescription(extensionId);
 	}
 
 	public $localShowMessage(severity: Severity, msg: string): void {
@@ -176,14 +183,6 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 		}
 
 		return result;
-	}
-
-	public registrationDone(messages: IMessage[]): void {
-		this._proxy.$onExtensionHostReady(ExtensionsRegistry.getAllExtensionDescriptions(), messages).then(() => {
-			// Wait for the main process to acknowledge its receival of the extensions descriptions
-			// before allowing extensions to be activated
-			this._triggerOnReady();
-		});
 	}
 
 	// -- overwriting AbstractExtensionService

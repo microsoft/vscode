@@ -23,7 +23,7 @@ import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/
 import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions } from 'vs/workbench/common/editor';
 import { SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState } from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupOrientation, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -34,10 +34,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorStacksModel, EditorGroup, EditorIdentifier } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorStacksModel, EditorGroup, EditorIdentifier, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import Event, { Emitter } from 'vs/base/common/event';
 
 class ProgressMonitor {
@@ -55,6 +54,7 @@ class ProgressMonitor {
 
 interface IEditorPartUIState {
 	ratio: number[];
+	groupOrientation: GroupOrientation;
 }
 
 interface IEditorReplacement extends EditorIdentifier {
@@ -76,7 +76,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private static GROUP_CENTER = nls.localize('groupTwoVertical', "Center");
 	private static GROUP_RIGHT = nls.localize('groupThreeVertical', "Right");
 	private static GROUP_TOP = nls.localize('groupOneHorizontal', "Top");
-	private static GROUP_MIDDLE = nls.localize('groupTwoHorizontal', "Middle");
+	private static GROUP_MIDDLE = nls.localize('groupTwoHorizontal', "Center");
 	private static GROUP_BOTTOM = nls.localize('groupThreeHorizontal', "Bottom");
 
 	private static EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
@@ -86,11 +86,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private memento: any;
 	private stacks: EditorStacksModel;
 	private previewEditors: boolean;
-	private layoutVertically: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
+	private _onGroupOrientationChanged: Emitter<void>;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
@@ -115,6 +115,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorsChanged = new Emitter<void>();
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
+		this._onGroupOrientationChanged = new Emitter<void>();
 
 		this.visibleEditors = [];
 
@@ -134,7 +135,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			const editorConfig = config.workbench.editor;
 
 			this.previewEditors = editorConfig.enablePreview;
-			this.layoutVertically = editorConfig.sideBySideLayout !== 'horizontal';
 
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 		}
@@ -145,6 +145,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private registerListeners(): void {
 		this.toUnbind.push(this.stacks.onEditorDirty(identifier => this.onEditorDirty(identifier)));
 		this.toUnbind.push(this.stacks.onEditorDisposed(identifier => this.onEditorDisposed(identifier)));
+		this.toUnbind.push(this.stacks.onEditorOpened(identifier => this.onEditorOpened(identifier)));
+		this.toUnbind.push(this.stacks.onEditorClosed(event => this.onEditorClosed(event)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
@@ -161,14 +163,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					}
 				});
 			}
-			this.previewEditors = newPreviewEditors;
 
-			// Rename groups when layout changes
-			const newLayoutVertically = editorConfig.sideBySideLayout !== 'horizontal';
-			if (newLayoutVertically !== this.layoutVertically) {
-				this.layoutVertically = newLayoutVertically;
-				this.renameGroups();
-			}
+			this.previewEditors = newPreviewEditors;
 		}
 	}
 
@@ -183,6 +179,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.startDelayedCloseEditorsFromInputDispose();
 	}
 
+	private onEditorOpened(identifier: EditorIdentifier): void {
+		this.telemetryService.publicLog('editorOpened', identifier.editor.getTelemetryDescriptor());
+	}
+
+	private onEditorClosed(event: GroupEvent): void {
+		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
+	}
+
 	public get onEditorsChanged(): Event<void> {
 		return this._onEditorsChanged.event;
 	}
@@ -193,6 +197,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public get onEditorOpenFail(): Event<EditorInput> {
 		return this._onEditorOpenFail.event;
+	}
+
+	public get onGroupOrientationChanged(): Event<void> {
+		return this._onGroupOrientationChanged.event;
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -804,6 +812,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.sideBySideControl.arrangeGroups(arrangement);
 	}
 
+	public setGroupOrientation(orientation: GroupOrientation): void {
+		this.sideBySideControl.setGroupOrientation(orientation);
+		this._onGroupOrientationChanged.fire();
+
+		// Rename groups when layout changes
+		this.renameGroups();
+	}
+
+	public getGroupOrientation(): GroupOrientation {
+		return this.sideBySideControl.getGroupOrientation();
+	}
+
 	public createContentArea(parent: Builder): Builder {
 
 		// Content Container
@@ -811,13 +831,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			.div()
 			.addClass('content');
 
-		// Side by Side Control
-		this.sideBySideControl = this.instantiationService.createInstance(SideBySideEditorControl, contentArea);
-
-		this.toUnbind.push(this.sideBySideControl.onGroupFocusChanged(() => this.onGroupFocusChanged()));
-
 		// get settings
 		this.memento = this.getMemento(this.storageService, MementoScope.WORKSPACE);
+
+		// Side by Side Control
+		const editorPartState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+		this.sideBySideControl = this.instantiationService.createInstance(SideBySideEditorControl, contentArea, editorPartState && editorPartState.groupOrientation);
+		this.toUnbind.push(this.sideBySideControl.onGroupFocusChanged(() => this.onGroupFocusChanged()));
 
 		return contentArea;
 	}
@@ -1124,7 +1144,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	public shutdown(): void {
 
 		// Persist UI State
-		const editorState: IEditorPartUIState = { ratio: this.sideBySideControl.getRatio() };
+		const editorState: IEditorPartUIState = { ratio: this.sideBySideControl.getRatio(), groupOrientation: this.sideBySideControl.getGroupOrientation() };
 		this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = editorState;
 
 		// Unload all Instantiated Editors
@@ -1344,23 +1364,24 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private renameGroups(): void {
 		const groups = this.stacks.groups;
 		if (groups.length > 0) {
+			const layoutVertically = (this.sideBySideControl.getGroupOrientation() !== 'horizontal');
 
 			// ONE | TWO | THREE
 			if (groups.length > 2) {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), this.layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), this.layoutVertically ? EditorPart.GROUP_CENTER : EditorPart.GROUP_MIDDLE);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.THREE), this.layoutVertically ? EditorPart.GROUP_RIGHT : EditorPart.GROUP_BOTTOM);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), layoutVertically ? EditorPart.GROUP_CENTER : EditorPart.GROUP_MIDDLE);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.THREE), layoutVertically ? EditorPart.GROUP_RIGHT : EditorPart.GROUP_BOTTOM);
 			}
 
 			// ONE | TWO
 			else if (groups.length > 1) {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), this.layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
-				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), this.layoutVertically ? EditorPart.GROUP_RIGHT : EditorPart.GROUP_BOTTOM);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.TWO), layoutVertically ? EditorPart.GROUP_RIGHT : EditorPart.GROUP_BOTTOM);
 			}
 
 			// ONE
 			else {
-				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), this.layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
+				this.stacks.renameGroup(this.stacks.groupAt(Position.ONE), layoutVertically ? EditorPart.GROUP_LEFT : EditorPart.GROUP_TOP);
 			}
 		}
 	}

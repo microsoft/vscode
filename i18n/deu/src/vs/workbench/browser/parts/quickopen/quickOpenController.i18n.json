@@ -11,5 +11,7 @@
 	"inputModeEntry": "Drücken Sie die EINGABETASTE, um Ihre Eingabe zu bestätigen, oder ESC, um den Vorgang abzubrechen.",
 	"inputModeEntryDescription": "{0} (Drücken Sie die EINGABETASTE zur Bestätigung oder ESC, um den Vorgang abzubrechen.)",
 	"noResultsFound1": "Es wurden keine Ergebnisse gefunden.",
-	"quickOpenInput": "Geben Sie \"?\" ein, um Hilfe zu den Aktionen zu erhalten, die hier zur Verfügung stehen."
+	"pickHistory": "Editor-Eintrag auswählen, der aus dem Verlauf entfernt werden soll",
+	"quickOpenInput": "Geben Sie \"?\" ein, um Hilfe zu den Aktionen zu erhalten, die hier zur Verfügung stehen.",
+	"removeFromEditorHistory": "Aus Verlauf entfernen"
 }

@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getMachineId } from '../node/machineId';
+import { getMachineId } from 'vs/base/node/id';
 import { resolveCommonProperties } from '../node/commonProperties';
 
 const SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';

@@ -12,9 +12,8 @@ import { PPromise } from 'vs/base/common/winjs.base';
 import { nullEvent } from 'vs/base/common/timer';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import URI from 'vs/base/common/uri';
-import { IFileMatch, ILineMatch } from 'vs/platform/search/common/search';
+import { IFileMatch, ILineMatch, ISearchService, ISearchComplete, ISearchProgressItem, IUncachedSearchStats } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ISearchService, ISearchComplete, ISearchProgressItem, IUncachedSearchStats } from 'vs/platform/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
 import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -116,7 +115,9 @@ suite('SearchModel', () => {
 		testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1 });
 
 		assert.ok(target.calledOnce);
-		assert.deepEqual(['searchResultsShown', { count: 3, fileCount: 2 }], target.args[0]);
+		const data = target.args[0];
+		data[1].duration = -1;
+		assert.deepEqual(['searchResultsShown', { count: 3, fileCount: 2, options: {}, duration: -1 }], data);
 	});
 
 	test('Search Model: Search reports timed telemetry on search when progress is not called', function (done) {

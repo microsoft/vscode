@@ -96,7 +96,7 @@ export class FileService implements IFileService {
 				message: nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
 				actions: [
 					new Action('install.net', nls.localize('installNet', "Download .NET Framework 4.5"), null, true, () => {
-						shell.openExternal('https://go.microsoft.com/fwlink/?LinkId=786533');
+						window.open('https://go.microsoft.com/fwlink/?LinkId=786533');
 
 						return TPromise.as(true);
 					}),

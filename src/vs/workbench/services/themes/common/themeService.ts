@@ -10,6 +10,10 @@ import Event from 'vs/base/common/event';
 
 export let IThemeService = createDecorator<IThemeService>('themeService');
 
+export const VS_LIGHT_THEME = 'vs';
+export const VS_DARK_THEME = 'vs-dark';
+export const VS_HC_THEME = 'hc-black';
+
 export interface IThemeService {
 	_serviceBrand: any;
 	setColorTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;

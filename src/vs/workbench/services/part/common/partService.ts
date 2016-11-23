@@ -6,18 +6,25 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 
 export enum Parts {
 	ACTIVITYBAR_PART,
 	SIDEBAR_PART,
 	PANEL_PART,
 	EDITOR_PART,
-	STATUSBAR_PART
+	STATUSBAR_PART,
+	TITLEBAR_PART
 }
 
 export enum Position {
 	LEFT,
 	RIGHT
+}
+
+export interface ILayoutOptions {
+	forceStyleRecompute?: boolean;
+	toggleMaximizedPanel?: boolean;
 }
 
 export const IPartService = createDecorator<IPartService>('partService');
@@ -26,9 +33,14 @@ export interface IPartService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
+	 * Emits when the visibility of the title bar changes.
+	 */
+	onTitleBarVisibilityChange: Event<void>;
+
+	/**
 	 * Asks the part service to layout all parts.
 	 */
-	layout(): void;
+	layout(options?: ILayoutOptions): void;
 
 	/**
 	 * Asks the part service to if all parts have been created.
@@ -56,24 +68,19 @@ export interface IPartService {
 	isVisible(part: Parts): boolean;
 
 	/**
-	 * Checks if the statusbar is currently hidden or not
+	 * Set activity bar hidden or not
 	 */
-	isStatusBarHidden(): boolean;
+	setActivityBarHidden(hidden: boolean): void;
 
 	/**
-	 * Checks if the sidebar is currently hidden or not
+	 * Number of pixels (adjusted for zooming) that the title bar (if visible) pushes down the workbench contents.
 	 */
-	isSideBarHidden(): boolean;
+	getTitleBarOffset(): number;
 
 	/**
 	 * Set sidebar hidden or not
 	 */
 	setSideBarHidden(hidden: boolean): void;
-
-	/**
-	 * Checks if the panel part is currently hidden or not
-	 */
-	isPanelHidden(): boolean;
 
 	/**
 	 * Set panel part hidden or not
@@ -110,4 +117,9 @@ export interface IPartService {
 	 * Enables to restore the contents of the sidebar after a restart.
 	 */
 	setRestoreSidebar(): void;
+
+	/**
+	 * Toggles the workbench in and out of focus mode - parts get hidden and window goes fullscreen.
+	 */
+	toggleFocusMode(): void;
 }

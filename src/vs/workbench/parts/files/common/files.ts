@@ -10,6 +10,7 @@ import { EncodingMode, EditorInput, IFileEditorInput, IWorkbenchEditorConfigurat
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * Explorer viewlet id.
@@ -49,6 +50,12 @@ export abstract class FileEditorInput extends EditorInput implements IFileEditor
 	public abstract setEncoding(encoding: string, mode: EncodingMode): void;
 
 	public abstract getEncoding(): string;
+
+	public getTelemetryDescriptor(): { [key: string]: any; } {
+		const descriptor = super.getTelemetryDescriptor();
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
+		return descriptor;
+	}
 }
 
 export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEditorConfiguration {

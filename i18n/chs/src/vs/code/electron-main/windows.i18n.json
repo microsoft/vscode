@@ -10,10 +10,14 @@
 	"appStalled": "窗口不再响应",
 	"appStalledDetail": "可以重新打开或关闭窗，或者保持等待。",
 	"close": "关闭",
+	"folderDesc": "{0} {1}",
 	"hiddenMenuBar": "你仍可以通过按 **Alt** 键访问菜单栏。",
+	"newWindow": "新建窗口",
+	"newWindowDesc": "打开一个新窗口",
 	"ok": "确定",
 	"pathNotExistDetail": "磁盘上似乎不再存在路径“{0}”。",
 	"pathNotExistTitle": "路径不存在",
+	"recentFolders": "最近的文件夹",
 	"reopen": "重新打开",
 	"wait": "保持等待"
 }

@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationService, getEntries } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { MainThreadConfigurationShape, ExtHostContext } from './extHost.protocol';
 
@@ -24,8 +24,11 @@ export class MainThreadConfiguration extends MainThreadConfigurationShape {
 		super();
 		this._configurationEditingService = configurationEditingService;
 		const proxy = threadService.get(ExtHostContext.ExtHostConfiguration);
-		this._toDispose = configurationService.onDidUpdateConfiguration(event => proxy.$acceptConfigurationChanged(event.config));
-		proxy.$acceptConfigurationChanged(configurationService.getConfiguration());
+
+		this._toDispose = configurationService.onDidUpdateConfiguration(() => {
+			const entries = getEntries(configurationService);
+			proxy.$acceptConfigurationChanged(entries);
+		});
 	}
 
 	public dispose(): void {

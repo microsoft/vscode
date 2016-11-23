@@ -149,8 +149,8 @@
 			}
 		},
 		{
-			"name": "brackets of XML tags",
-			"scope": ["meta.tag", "punctuation.tag.js", "punctuation.tag.tsx"],
+			"name": "brackets of XML/HTML tags",
+			"scope": "punctuation.definition.tag",
 			"settings": {
 				"foreground": "#808080"
 			}
@@ -228,6 +228,13 @@
 			}
 		},
 		{
+			"name": "JavaScript string interpolation ${}",
+			"scope": "string.template-expression",
+			"settings": {
+				"foreground": "#569cd6"
+			}
+		},
+		{
 			"scope": "support.type.property-name",
 			"settings": {
 				"foreground": "#9cdcfe"
@@ -243,12 +250,6 @@
 			"scope": "keyword.control",
 			"settings": {
 				"foreground": "#569cd6"
-			}
-		},
-		{
-			"scope": "keyword.control.less",
-			"settings": {
-				"foreground": "#d7ba7d"
 			}
 		},
 		{
@@ -270,7 +271,8 @@
 			}
 		},
 		{
-			"scope": "metatag.php",
+			"name": "coloring of the PHP start and end tag (<?php and ?>)",
+			"scope": ["punctuation.section.embedded.begin.metatag.php", "punctuation.section.embedded.end.metatag.php"],
 			"settings": {
 				"foreground": "#569cd6"
 			}

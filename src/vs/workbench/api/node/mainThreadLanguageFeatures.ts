@@ -16,7 +16,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape } from './extHost.protocol';
-import { LanguageConfigurationRegistry, LanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
 
 export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape {
@@ -226,13 +227,35 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 
 	// --- configuration
 
-	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any> {
+	$setLanguageConfiguration(handle: number, languageId: string, _configuration: vscode.LanguageConfiguration): TPromise<any> {
 
-		if (configuration.__characterPairSupport) {
-			(<LanguageConfiguration>configuration).autoClosingPairs = configuration.__characterPairSupport.autoClosingPairs;
+		let configuration: LanguageConfiguration = {
+			comments: _configuration.comments,
+			brackets: _configuration.brackets,
+			wordPattern: _configuration.wordPattern,
+			indentationRules: _configuration.indentationRules,
+			onEnterRules: _configuration.onEnterRules,
+
+			autoClosingPairs: null,
+			surroundingPairs: null,
+			__electricCharacterSupport: null
+		};
+
+		if (_configuration.__characterPairSupport) {
+			// backwards compatibility
+			configuration.autoClosingPairs = _configuration.__characterPairSupport.autoClosingPairs;
 		}
 
-		this._registrations[handle] = LanguageConfigurationRegistry.register(languageId, <LanguageConfiguration>configuration);
+		if (_configuration.__electricCharacterSupport && _configuration.__electricCharacterSupport.docComment) {
+			configuration.__electricCharacterSupport = {
+				docComment: {
+					open: _configuration.__electricCharacterSupport.docComment.open,
+					close: _configuration.__electricCharacterSupport.docComment.close
+				}
+			};
+		}
+
+		this._registrations[handle] = LanguageConfigurationRegistry.register(languageId, configuration);
 		return undefined;
 	}
 

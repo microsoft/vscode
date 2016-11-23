@@ -6,9 +6,10 @@
 
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
-import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position } from 'vs/platform/editor/common/editor';
+import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
+import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
 import { IExtensionDescription, IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService, ICommand, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -25,6 +26,8 @@ import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configu
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IDisposable, IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 
 export class SimpleEditor implements IEditor {
 
@@ -115,14 +118,14 @@ export class SimpleEditorService implements IEditorService {
 	}
 
 	private doOpenEditor(editor: editorCommon.ICommonCodeEditor, data: IResourceInput): IEditor {
-		var model = this.findModel(editor, data);
+		let model = this.findModel(editor, data);
 		if (!model) {
 			if (data.resource) {
 				if (this.openEditorDelegate) {
 					this.openEditorDelegate(data.resource.toString());
 					return null;
 				} else {
-					var schema = data.resource.scheme;
+					let schema = data.resource.scheme;
 					if (schema === Schemas.http || schema === Schemas.https) {
 						// This is a fully qualified http or https URL
 						window.open(data.resource.toString());
@@ -133,14 +136,13 @@ export class SimpleEditorService implements IEditorService {
 			return null;
 		}
 
-
-		var selection = <editorCommon.IRange>data.options.selection;
+		let selection = <editorCommon.IRange>data.options.selection;
 		if (selection) {
 			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
 				editor.setSelection(selection);
 				editor.revealRangeInCenter(selection);
 			} else {
-				var pos = {
+				let pos = {
 					lineNumber: selection.startLineNumber,
 					column: selection.startColumn
 				};
@@ -153,27 +155,52 @@ export class SimpleEditorService implements IEditorService {
 	}
 
 	private findModel(editor: editorCommon.ICommonCodeEditor, data: IResourceInput): editorCommon.IModel {
-		var model = editor.getModel();
+		let model = editor.getModel();
 		if (model.uri.toString() !== data.resource.toString()) {
 			return null;
 		}
 
 		return model;
 	}
+}
 
-	public resolveEditorModel(typedData: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel> {
-		var model: editorCommon.IModel;
+export class SimpleEditorModelResolverService implements ITextModelResolverService {
+	public _serviceBrand: any;
+
+	private editor: SimpleEditor;
+
+	public setEditor(editor: editorCommon.IEditor): void {
+		this.editor = new SimpleEditor(editor);
+	}
+
+	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+		let model: editorCommon.IModel;
 
 		model = this.editor.withTypedEditor(
-			(editor) => this.findModel(editor, typedData),
-			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), typedData) || this.findModel(diffEditor.getModifiedEditor(), typedData)
+			(editor) => this.findModel(editor, resource),
+			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
 		);
 
 		if (!model) {
-			return TPromise.as(null);
+			return TPromise.as(new ImmortalReference(null));
 		}
 
-		return TPromise.as(new SimpleModel(model));
+		return TPromise.as(new ImmortalReference(new SimpleModel(model)));
+	}
+
+	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
+		return {
+			dispose: function () { /* no op */ }
+		};
+	}
+
+	private findModel(editor: editorCommon.ICommonCodeEditor, resource: URI): editorCommon.IModel {
+		let model = editor.getModel();
+		if (model.uri.toString() !== resource.toString()) {
+			return null;
+		}
+
+		return model;
 	}
 }
 
@@ -224,7 +251,7 @@ export class SimpleMessageService implements IMessageService {
 	}
 
 	public confirm(confirmation: IConfirmation): boolean {
-		var messageText = confirmation.message;
+		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
@@ -277,7 +304,7 @@ export class StandaloneKeybindingService extends KeybindingService {
 		if (commandId === null) {
 			commandId = 'DYNAMIC_' + (++StandaloneKeybindingService.LAST_GENERATED_ID);
 		}
-		var parsedContext = IOSupport.readKeybindingWhen(when);
+		let parsedContext = IOSupport.readKeybindingWhen(when);
 		this._dynamicKeybindings.push({
 			keybinding: keybinding,
 			command: commandId,
@@ -362,5 +389,9 @@ export class SimpleConfigurationService implements IConfigurationService {
 			default: getConfigurationValue<C>(this.getConfiguration(), key),
 			user: getConfigurationValue<C>(this.getConfiguration(), key)
 		};
+	}
+
+	public keys(): IConfigurationKeys {
+		return { default: [], user: [] };
 	}
 }

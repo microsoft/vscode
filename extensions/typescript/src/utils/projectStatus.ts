@@ -9,7 +9,6 @@ import * as vscode from 'vscode';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
 import { dirname, join } from 'path';
-import { exists } from 'fs';
 
 const localize = loadMessageBundle();
 const selector = ['javascript', 'javascriptreact'];
@@ -77,46 +76,7 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 					return;
 				}
 
-				if (!configFileName && vscode.workspace.rootPath) {
-					exists(join(vscode.workspace.rootPath, 'jsconfig.json'), exists => {
-						// don't hint if there is a global jsconfig-file. We can get here due
-						// to TypeScript bugs or jsconfig configurations
-						if (exists) {
-							return;
-						}
-						currentHint = {
-							message: localize('hintCreate', "Create a jsconfig.json to enable richer IntelliSense and code navigation across the entire workspace."),
-							options: [{
-								title: localize('ignore.cmdCreate', 'Ignore'),
-								execute: () => {
-									client.logTelemetry('js.hintProjectCreation.ignored');
-									projectHinted[configFileName] = true;
-									projectHintIgnoreList.push(configFileName);
-									memento.update('projectHintIgnoreList', projectHintIgnoreList);
-									item.hide();
-								}
-							}, {
-								title: localize('cmdCreate', "Create jsconfig.json"),
-								execute: () => {
-									client.logTelemetry('js.hintProjectCreation.accepted');
-									projectHinted[configFileName] = true;
-									item.hide();
-
-									return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + encodeURIComponent(join(vscode.workspace.rootPath, 'jsconfig.json'))))
-										.then(doc => vscode.window.showTextDocument(doc, vscode.ViewColumn.Three))
-										.then(editor => editor.edit(builder => builder.insert(new vscode.Position(0, 0), defaultConfig)));
-								}
-							}]
-						};
-						item.text = '$(light-bulb)';
-						item.tooltip = localize('hintCreate.tooltip', "Create a jsconfig.json to enable richer IntelliSense and code navigation across the entire workspace.");
-						item.color = '#A5DF3B';
-						item.show();
-						client.logTelemetry('js.hintProjectCreation');
-					});
-
-				} else if (fileNames.length > fileLimit) {
-
+				if (fileNames.length > fileLimit) {
 					let largeRoots = computeLargeRoots(configFileName, fileNames).map(f => `'/${f}/'`).join(', ');
 
 					currentHint = {
@@ -130,7 +90,14 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 								projectHinted[configFileName] = true;
 								item.hide();
 
-								return vscode.workspace.openTextDocument(configFileName)
+								let configFileUri: vscode.Uri;
+								if (dirname(configFileName).indexOf(vscode.workspace.rootPath) === 0) {
+									configFileUri = vscode.Uri.file(configFileName);
+								} else {
+									configFileUri = vscode.Uri.parse('untitled://' + join(vscode.workspace.rootPath, 'jsconfig.json'));
+								}
+
+								return vscode.workspace.openTextDocument(configFileUri)
 									.then(vscode.window.showTextDocument);
 							}
 						}]
@@ -195,20 +162,3 @@ function computeLargeRoots(configFileName: string, fileNames: string[]): string[
 
 	return result;
 }
-
-const defaultConfig = `{
-	${localize('jsconfig.heading', '// See https://go.microsoft.com/fwlink/?LinkId=759670\n\t// for the documentation about the jsconfig.json format')}
-	"compilerOptions": {
-		"target": "es6",
-		"module": "commonjs",
-		"allowSyntheticDefaultImports": true
-	},
-	"exclude": [
-		"node_modules",
-		"bower_components",
-		"jspm_packages",
-		"tmp",
-		"temp"
-	]
-}
-`;

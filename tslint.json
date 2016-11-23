@@ -6,15 +6,57 @@
 		"no-unused-variable": true,
 		"curly": true,
 		"class-name": true,
-		"semicolon": ["always"],
+		"semicolon": [
+			"always"
+		],
 		"triple-equals": true,
 		"no-unexternalized-strings": [
 			true,
 			{
-				"signatures": ["localize", "nls.localize"],
+				"signatures": [
+					"localize",
+					"nls.localize"
+				],
 				"keyIndex": 0,
 				"messageIndex": 1
 			}
-		]
+		],
+		"layering": [
+			true,
+			{
+				"common": [],
+				"node": [
+					"common"
+				],
+				"browser": [
+					"common"
+				],
+				"electron-main": [
+					"common",
+					"node"
+				],
+				"electron-browser": [
+					"common",
+					"browser",
+					"node"
+				]
+			}
+		],
+		"import-patterns": [
+			true,
+			{
+				"target": "**/{node,electron-browser,electron-main,extensions}/**",
+				"restrictions": "**/*"
+			},
+			{
+				"target": "{**/**.test.ts,**/test/**}",
+				"restrictions": "{**/vs/**,assert,sinon}"
+			},
+			{
+				"target": "**/{common,browser,workbench}/**",
+				"restrictions": "**/vs/**"
+			}
+		],
+		"duplicate-imports": true
 	}
 }

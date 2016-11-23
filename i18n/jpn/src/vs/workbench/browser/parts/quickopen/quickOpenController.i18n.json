@@ -11,5 +11,7 @@
 	"inputModeEntry": "'Enter' を押して入力を確認するか 'Escape' を押して取り消します",
 	"inputModeEntryDescription": "{0} ('Enter' を押して確認するか 'Escape' を押して取り消します)",
 	"noResultsFound1": "一致する項目はありません",
-	"quickOpenInput": "'?' と入力すると、ここで実行できる処理に関するヘルプが表示されます"
+	"pickHistory": "履歴から削除するエディター エントリを選ぶ",
+	"quickOpenInput": "'?' と入力すると、ここで実行できる処理に関するヘルプが表示されます",
+	"removeFromEditorHistory": "履歴から削除"
 }

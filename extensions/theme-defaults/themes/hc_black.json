@@ -129,7 +129,8 @@
 			}
 		},
 		{
-			"scope": "meta.tag",
+			"name": "brackets of XML/HTML tags",
+			"scope": "punctuation.definition.tag",
 			"settings": {
 				"foreground": "#808080"
 			}
@@ -201,6 +202,13 @@
 			}
 		},
 		{
+			"name": "JavaScript string interpolation ${}",
+			"scope": "string.template-expression",
+			"settings": {
+				"foreground": "#569cd6"
+			}
+		},
+		{
 			"scope": "support.type.property-name",
 			"settings": {
 				"foreground": "#d4d4d4"
@@ -216,12 +224,6 @@
 			"scope": "keyword.control",
 			"settings": {
 				"foreground": "#569cd6"
-			}
-		},
-		{
-			"scope": "keyword.control.less",
-			"settings": {
-				"foreground": "#d7ba7d"
 			}
 		},
 		{

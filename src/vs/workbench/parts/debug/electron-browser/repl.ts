@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./../browser/media/repl';
-import nls = require('vs/nls');
+import 'vs/css!vs/workbench/parts/debug/browser/media/repl';
+import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { wireCancellationToken } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import errors = require('vs/base/common/errors');
-import lifecycle = require('vs/base/common/lifecycle');
-import actions = require('vs/base/common/actions');
-import builder = require('vs/base/browser/builder');
-import dom = require('vs/base/browser/dom');
-import platform = require('vs/base/common/platform');
+import * as errors from 'vs/base/common/errors';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import { IAction } from 'vs/base/common/actions';
+import { Dimension, Builder } from 'vs/base/browser/builder';
+import * as dom from 'vs/base/browser/dom';
+import { isMacintosh } from 'vs/base/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import tree = require('vs/base/parts/tree/browser/tree');
-import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
+import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -29,19 +31,18 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
+import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
 import { ReplEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
-import debug = require('vs/workbench/parts/debug/common/debug');
-import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
-import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import replhistory = require('vs/workbench/parts/debug/common/replHistory');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
+import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 const $ = dom.$;
 
-const replTreeOptions: tree.ITreeOptions = {
+const replTreeOptions: ITreeOptions = {
 	twistiePixels: 20,
 	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel")
 };
@@ -60,21 +61,21 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private static HALF_WIDTH_TYPICAL = 'n';
 
-	private static HISTORY: replhistory.ReplHistory;
+	private static HISTORY: ReplHistory;
 	private static REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
 	private static REPL_INPUT_INITIAL_HEIGHT = 19;
 	private static REPL_INPUT_MAX_HEIGHT = 170;
 
 	private toDispose: lifecycle.IDisposable[];
-	private tree: tree.ITree;
-	private renderer: viewer.ReplExpressionsRenderer;
+	private tree: ITree;
+	private renderer: ReplExpressionsRenderer;
 	private characterWidthSurveyor: HTMLElement;
 	private treeContainer: HTMLElement;
 	private replInput: ReplEditor;
 	private replInputContainer: HTMLElement;
 	private refreshTimeoutHandle: number;
-	private actions: actions.IAction[];
-	private dimension: builder.Dimension;
+	private actions: IAction[];
+	private dimension: Dimension;
 	private replInputHeight: number;
 
 	constructor(
@@ -119,21 +120,12 @@ export class Repl extends Panel implements IPrivateReplService {
 						// Only scroll if we were scrolled all the way down before tree refreshed #10486
 						this.tree.setScrollPosition(1);
 					}
-
-					// If the last repl element has children - auto expand it #6019
-					const elements = this.debugService.getModel().getReplElements();
-					const lastElement = elements.length > 0 ? elements[elements.length - 1] : null;
-					if (lastElement instanceof Expression && lastElement.reference > 0) {
-						return this.tree.expand(elements[elements.length - 1]).then(() =>
-							this.tree.reveal(elements[elements.length - 1], 0)
-						);
-					}
 				}, errors.onUnexpectedError);
 			}, delay);
 		}
 	}
 
-	public create(parent: builder.Builder): TPromise<void> {
+	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 		const container = dom.append(parent.getHTMLElement(), $('.repl'));
 		this.treeContainer = dom.append(container, $('.repl-tree'));
@@ -144,18 +136,18 @@ export class Repl extends Panel implements IPrivateReplService {
 		for (let i = 0; i < 10; i++) {
 			this.characterWidthSurveyor.textContent += this.characterWidthSurveyor.textContent;
 		}
-		this.characterWidthSurveyor.style.fontSize = platform.isMacintosh ? '12px' : '14px';
+		this.characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
 
-		this.renderer = this.instantiationService.createInstance(viewer.ReplExpressionsRenderer);
-		this.tree = new treeimpl.Tree(this.treeContainer, {
-			dataSource: new viewer.ReplExpressionsDataSource(this.debugService),
+		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
+		this.tree = new Tree(this.treeContainer, {
+			dataSource: new ReplExpressionsDataSource(),
 			renderer: this.renderer,
-			accessibilityProvider: new viewer.ReplExpressionsAccessibilityProvider(),
-			controller: new viewer.ReplExpressionsController(this.debugService, this.contextMenuService, new viewer.ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
+			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
+			controller: new ReplExpressionsController(this.debugService, this.contextMenuService, new ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
 		}, replTreeOptions);
 
 		if (!Repl.HISTORY) {
-			Repl.HISTORY = new replhistory.ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
+			Repl.HISTORY = new ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
 		}
 
 		return this.tree.setInput(this.debugService.getModel());
@@ -182,15 +174,15 @@ export class Repl extends Panel implements IPrivateReplService {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
+				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
-				return wireCancellationToken(token, this.debugService.completions(text, position).then(suggestions => ({
-					currentWord: word ? word.word : '',
-					suggestions
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				const completions = focusedStackFrame ? focusedStackFrame.completions(text, position, overwriteBefore) : TPromise.as([]);
+				return wireCancellationToken(token, completions.then(suggestions => ({
+					suggestions: suggestions
 				})));
 			}
-		},
-			true
-		);
+		});
 
 		this.toDispose.push(this.replInput.onDidScrollChange(e => {
 			if (!e.scrollHeightChanged) {
@@ -227,7 +219,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.layout(this.dimension);
 	}
 
-	public layout(dimension: builder.Dimension): void {
+	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
 			this.renderer.setWidth(dimension.width - 25, this.characterWidthSurveyor.clientWidth / this.characterWidthSurveyor.textContent.length);
@@ -244,10 +236,10 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.replInput.focus();
 	}
 
-	public getActions(): actions.IAction[] {
+	public getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
-				this.instantiationService.createInstance(debugactions.ClearReplAction, debugactions.ClearReplAction.ID, debugactions.ClearReplAction.LABEL)
+				this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL)
 			];
 
 			this.actions.forEach(a => {
@@ -277,7 +269,9 @@ export class Repl extends Panel implements IPrivateReplService {
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
 			theme: this.themeService.getColorTheme(),
-			renderLineHighlight: false
+			renderLineHighlight: 'none',
+			fixedOverflowWidgets: true,
+			acceptSuggestionOnEnter: false
 		};
 	}
 
@@ -356,6 +350,19 @@ class AcceptReplInputAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+		SuggestController.get(editor).acceptSelectedSuggestion();
 		accessor.get(IPrivateReplService).acceptReplInput();
 	}
 }
+
+const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+	id: 'repl.action.acceptSuggestion',
+	precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
+	handler: x => x.acceptSelectedSuggestion(),
+	kbOpts: {
+		weight: 50,
+		kbExpr: EditorContextKeys.TextFocus,
+		primary: KeyCode.RightArrow
+	}
+}));

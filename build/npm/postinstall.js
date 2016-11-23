@@ -21,8 +21,12 @@ const extensions = [
 ];
 
 extensions.forEach(extension => {
-	cp.spawnSync(npm, ['install'], {
-		cwd: `extensions/${ extension }`,
+	const result = cp.spawnSync(npm, ['install'], {
+		cwd: `extensions/${extension}`,
 		stdio: 'inherit'
 	});
+
+	if (result.error || result.status !== 0) {
+		process.exit(1);
+	}
 });

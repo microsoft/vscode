@@ -15,6 +15,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export interface GroupEvent extends IGroupEvent {
@@ -693,6 +694,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onEditorDisposed: Emitter<EditorIdentifier>;
 	private _onEditorDirty: Emitter<EditorIdentifier>;
 	private _onEditorLabelChange: Emitter<EditorIdentifier>;
+	private _onEditorOpened: Emitter<EditorIdentifier>;
 	private _onEditorClosed: Emitter<GroupEvent>;
 	private _onModelChanged: Emitter<IStacksModelChangeEvent>;
 
@@ -700,7 +702,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 		private restoreFromStorage: boolean,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.toDispose = [];
 
@@ -717,6 +720,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onEditorDisposed = new Emitter<EditorIdentifier>();
 		this._onEditorDirty = new Emitter<EditorIdentifier>();
 		this._onEditorLabelChange = new Emitter<EditorIdentifier>();
+		this._onEditorOpened = new Emitter<EditorIdentifier>();
 		this._onEditorClosed = new Emitter<GroupEvent>();
 
 		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorClosed);
@@ -766,6 +770,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	public get onEditorLabelChange(): Event<EditorIdentifier> {
 		return this._onEditorLabelChange.event;
+	}
+
+	public get onEditorOpened(): Event<EditorIdentifier> {
+		return this._onEditorOpened.event;
 	}
 
 	public get onEditorClosed(): Event<GroupEvent> {
@@ -940,7 +948,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._groups[position];
 	}
 
-	public next(): IEditorIdentifier {
+	public next(jumpGroups: boolean): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -952,6 +960,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		// Return next in group
 		if (index + 1 < this.activeGroup.count) {
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index + 1) };
+		}
+
+		// Return first if we are not jumping groups
+		if (!jumpGroups) {
+			return { group: this.activeGroup, editor: this.activeGroup.getEditor(0) };
 		}
 
 		// Return first in next group
@@ -966,7 +979,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return { group: firstGroup, editor: firstGroup.getEditor(0) };
 	}
 
-	public previous(): IEditorIdentifier {
+	public previous(jumpGroups: boolean): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -978,6 +991,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		// Return previous in group
 		if (index > 0) {
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index - 1) };
+		}
+
+		// Return last if we are not jumping groups
+		if (!jumpGroups) {
+			return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
 		}
 
 		// Return last in previous group
@@ -1093,6 +1111,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		const unbind: IDisposable[] = [];
 		unbind.push(group.onEditorsStructureChanged(editor => this._onModelChanged.fire({ group, editor, structural: true })));
 		unbind.push(group.onEditorStateChanged(editor => this._onModelChanged.fire({ group, editor })));
+		unbind.push(group.onEditorOpened(editor => this._onEditorOpened.fire({ editor, group })));
 		unbind.push(group.onEditorClosed(event => {
 			this.handleOnEditorClosed(event);
 			this._onEditorClosed.fire(event);

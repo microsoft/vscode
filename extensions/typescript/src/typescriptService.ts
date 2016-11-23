@@ -18,32 +18,40 @@ export interface ITypescriptServiceClientHost {
 
 export class API {
 
-	private version: string;
+	private _version: string;
 
-	constructor(version: string) {
-		this.version = semver.valid(version);
-		if (!this.version) {
-			this.version = '1.0.0';
+	constructor(private _versionString: string) {
+		this._version = semver.valid(_versionString);
+		if (!this._version) {
+			this._version = '1.0.0';
 		} else {
 			// Cut of any prerelease tag since we sometimes consume those
 			// on purpose.
-			let index = version.indexOf('-');
+			let index = _versionString.indexOf('-');
 			if (index >= 0) {
-				this.version = this.version.substr(0, index);
+				this._version = this._version.substr(0, index);
 			}
 		}
 	}
 
+	public get versionString(): string {
+		return this._versionString;
+	}
+
 	public has1xFeatures(): boolean {
-		return semver.gte(this.version, '1.0.0');
+		return semver.gte(this._version, '1.0.0');
 	}
 
 	public has203Features(): boolean {
-		return semver.gte(this.version, '2.0.3');
+		return semver.gte(this._version, '2.0.3');
 	}
 
 	public has206Features(): boolean {
-		return semver.gte(this.version, '2.0.6');
+		return semver.gte(this._version, '2.0.6');
+	}
+
+	public has208Features(): boolean {
+		return semver.gte(this._version, '2.0.8');
 	}
 }
 
@@ -59,6 +67,7 @@ export interface ITypescriptServiceClient {
 
 	experimentalAutoBuild: boolean;
 	apiVersion: API;
+	checkGlobalTSCVersion: boolean;
 
 	execute(command: 'configure', args: Proto.ConfigureRequestArguments, token?: CancellationToken): Promise<Proto.ConfigureResponse>;
 	execute(command: 'open', args: Proto.OpenRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;

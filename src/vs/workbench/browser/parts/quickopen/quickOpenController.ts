@@ -8,6 +8,7 @@
 import 'vs/css!./media/quickopen';
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
+import * as browser from 'vs/base/browser/browser';
 import { Dimension, withElementById } from 'vs/base/browser/builder';
 import strings = require('vs/base/common/strings');
 import filters = require('vs/base/common/filters');
@@ -126,7 +127,9 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	private registerListeners(): void {
-		this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration(e.config));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration(e.config)));
+		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
+		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.positionQuickOpenWidget()));
 	}
 
 	private updateConfiguration(settings: IWorkbenchQuickOpenConfiguration): void {
@@ -279,6 +282,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			const pickOpenContainer = this.pickOpenWidget.create();
 			DOM.addClass(pickOpenContainer, 'show-file-icons');
+			this.positionQuickOpenWidget();
 		}
 
 		// Update otherwise
@@ -306,6 +310,14 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			this.pickOpenWidget.layout(this.layoutDimensions);
 		}
 
+		// Detect cancellation while pick promise is loading
+		let cancelTriggered = false;
+		this.pickOpenWidget.setCallbacks({
+			onOk: () => { /* ignore, handle later */ },
+			onCancel: () => { cancelTriggered = true; },
+			onType: (value: string) => { /* ignore, handle later */ },
+		});
+
 		return new TPromise<IPickOpenEntry | string>((complete, error, progress) => {
 
 			// hide widget when being cancelled
@@ -319,8 +331,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			// Resolve picks
 			picksPromise.then(picks => {
-				if (this.currentPickerToken !== currentPickerToken) {
-					return; // Return if another request came after
+				if (this.currentPickerToken !== currentPickerToken || cancelTriggered) {
+					return complete(void 0); // Return as canceled if another request came after or user canceled
 				}
 
 				picksPromiseDone = true;
@@ -338,7 +350,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				model.setEntries(entries);
 
 				// Handlers
-				this.pickOpenWidget.setCallbacks({
+				const callbacks = {
 					onOk: () => {
 						if (picks.length === 0) {
 							return complete(null);
@@ -406,13 +418,21 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					},
 					onShow: () => this.handleOnShow(true),
 					onHide: (reason) => this.handleOnHide(true, reason)
-				});
+				};
+				this.pickOpenWidget.setCallbacks(callbacks);
 
 				// Set input
 				if (!this.pickOpenWidget.isVisible()) {
 					this.pickOpenWidget.show(model, { autoFocus });
 				} else {
 					this.pickOpenWidget.setInput(model, autoFocus);
+				}
+
+				// The user might have typed something (or options.value was set) so we need to play back
+				// the input box value through our callbacks to filter the result accordingly.
+				const inputValue = this.pickOpenWidget.getInputBox().value;
+				if (inputValue) {
+					callbacks.onType(inputValue);
 				}
 			}, (err) => {
 				this.pickOpenWidget.hide();
@@ -512,6 +532,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			const quickOpenContainer = this.quickOpenWidget.create();
 			DOM.addClass(quickOpenContainer, 'show-file-icons');
+			this.positionQuickOpenWidget();
 		}
 
 		// Layout
@@ -547,6 +568,18 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 
 		return promiseCompletedOnHide;
+	}
+
+	private positionQuickOpenWidget(): void {
+		const titlebarOffset = this.partService.getTitleBarOffset();
+
+		if (this.quickOpenWidget) {
+			this.quickOpenWidget.getElement().style('top', `${titlebarOffset}px`);
+		}
+
+		if (this.pickOpenWidget) {
+			this.pickOpenWidget.getElement().style('top', `${titlebarOffset}px`);
+		}
 	}
 
 	private handleOnShow(isPicker: boolean): void {
@@ -1123,7 +1156,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 export class RemoveFromEditorHistoryAction extends Action {
 
 	public static ID = 'workbench.action.removeFromEditorHistory';
-	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From Editor History");
+	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From History");
 
 	constructor(
 		id: string,

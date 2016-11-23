@@ -86,7 +86,7 @@
 			],
 			"explorer/context": [
 				{
-					"when": "editorLangId == markdown",
+					"when": "resourceLangId == markdown",
 					"command": "markdown.showPreview",
 					"group": "navigation"
 				}
@@ -120,6 +120,11 @@
 					"type": ["array"],
 					"default": [],
 					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview. Relative paths are interpreted relative to the folder open in the explorer. If there is no open folder, they are interpreted relative to the location of the markdown file. All '\\' need to be written as '\\\\'."
+				},
+				"markdown.previewFrontMatter": {
+					"type": ["string"],
+					"default": "hide",
+					"description": "Sets how YAML front matter should be rendered in the markdown preview. 'hide' removes the front matter. Otherwise, the front matter is treated as markdown content"
 				}
 			}
 		}

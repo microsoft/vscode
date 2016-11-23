@@ -22,7 +22,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
 import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);

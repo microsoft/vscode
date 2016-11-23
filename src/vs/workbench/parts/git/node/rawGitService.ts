@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { join } from 'path';
+import { join, isAbsolute, relative } from 'path';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
 import { realpath, exists } from 'vs/base/node/pfs';
@@ -40,7 +40,7 @@ export class RawGitService implements IRawGitService {
 			return TPromise.as(null);
 		}
 
-		return TPromise.as(this.repo.version);
+		return TPromise.as(this.repo.git.version);
 	}
 
 	private getRepositoryRoot(): TPromise<string> {
@@ -187,6 +187,11 @@ export class RawGitService implements IRawGitService {
 	// careful, this buffers the whole object into memory
 	show(filePath: string, treeish?: string): TPromise<string> {
 		treeish = (!treeish || treeish === '~') ? '' : treeish;
+
+		if (isAbsolute(filePath)) {
+			filePath = relative(this.repo.path, filePath);
+		}
+
 		return this.repo.buffer(treeish + ':' + filePath).then(null, e => {
 			if (e instanceof GitError) {
 				return ''; // mostly untracked files end up in a git error
@@ -194,6 +199,10 @@ export class RawGitService implements IRawGitService {
 
 			return TPromise.wrapError<string>(e);
 		});
+	}
+
+	clone(url: string, parentPath: string): TPromise<string> {
+		return this.repo.git.clone(url, parentPath);
 	}
 
 	getCommitTemplate(): TPromise<string> {
@@ -228,6 +237,7 @@ export class DelayedRawGitService implements IRawGitService {
 	commit(message: string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.commit(message, amend, stage, signoff)); }
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]> { return this.raw.then(r => r.detectMimetypes(path, treeish)); }
 	show(path: string, treeish?: string): TPromise<string> { return this.raw.then(r => r.show(path, treeish)); }
+	clone(url: string, parentPath: string): TPromise<string> { return this.raw.then(r => r.clone(url, parentPath)); }
 	getCommitTemplate(): TPromise<string> { return this.raw.then(r => r.getCommitTemplate()); }
 	getCommit(ref: string): TPromise<ICommit> { return this.raw.then(r => r.getCommit(ref)); }
 }

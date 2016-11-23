@@ -12,7 +12,8 @@ import fs = require('fs');
 import * as json from 'vs/base/common/json';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
-import { ParsedArgs, parseArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
@@ -23,16 +24,19 @@ import { WorkspaceConfigurationService } from 'vs/workbench/services/configurati
 import URI from 'vs/base/common/uri';
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { ConfigurationEditingService, WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/node/configurationEditingService';
+import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { ConfigurationTarget, IConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -55,9 +59,11 @@ class TestDirtyTextFileService extends TestTextFileService {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IBackupService backupService: IBackupService,
+		@IMessageService messageService: IMessageService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
 	}
 
 	public isDirty(resource?: URI): boolean {
@@ -67,7 +73,7 @@ class TestDirtyTextFileService extends TestTextFileService {
 
 suite('WorkspaceConfigurationEditingService - Node', () => {
 
-	function createWorkspace(callback: (workspaceDir: string, globalSettingsFile: string, cleanUp: (callback: () => void) => void) => void): void {
+	function createWorkspace(callback: (workspaceDir: string, globalSettingsFile: string, cleanUp: (done: () => void, error?: Error) => void, error: Error) => void): void {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const workspaceDir = path.join(parentDir, 'workspaceconfig', id);
@@ -75,7 +81,15 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 		const globalSettingsFile = path.join(workspaceDir, 'config.json');
 
 		extfs.mkdirp(workspaceSettingsDir, 493, (error) => {
-			callback(workspaceDir, globalSettingsFile, (callback) => extfs.del(parentDir, os.tmpdir(), () => { }, callback));
+			callback(workspaceDir, globalSettingsFile, (done, error) => {
+				extfs.del(parentDir, os.tmpdir(), () => { }, () => {
+					if (error) {
+						assert.fail(error);
+					}
+
+					done();
+				});
+			}, error);
 		});
 	}
 
@@ -116,47 +130,63 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 	});
 
 	test('errors cases - invalid key', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile, false, true /* no workspace */).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile, false, true /* no workspace */).done(services => {
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' }).then(res => {
 				}, (error: IConfigurationEditingError) => {
 					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY);
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
 	test('errors cases - invalid target', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile).done(services => {
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'tasks.something', value: 'value' }).then(res => {
 				}, (error: IConfigurationEditingError) => {
 					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_TARGET);
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
 	test('errors cases - no workspace', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile, false, true /* no workspace */).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile, false, true /* no workspace */).done(services => {
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' }).then(res => {
 				}, (error: IConfigurationEditingError) => {
 					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED);
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
 	test('errors cases - invalid configuration', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile).done(services => {
 				fs.writeFileSync(globalSettingsFile, ',,,,,,,,,,,,,,');
 
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }).then(res => {
@@ -165,26 +195,34 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
 	test('errors cases - dirty', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile, true).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile, true).done(services => {
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }).then(res => {
 				}, (error: IConfigurationEditingError) => {
 					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
 	test('write one setting - empty file', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile).done(services => {
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }).then(res => {
 					const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
 					const parsed = json.parse(contents);
@@ -194,13 +232,17 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
 	test('write one setting - existing file', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile).done(services => {
 				fs.writeFileSync(globalSettingsFile, '{ "my.super.setting": "my.super.value" }');
 
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }).then(res => {
@@ -215,13 +257,17 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
 	test('write workspace standalone setting - empty file', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile).done(services => {
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' }).then(res => {
 					const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
 					const contents = fs.readFileSync(target).toString('utf8');
@@ -232,13 +278,17 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
 	test('write workspace standalone setting - existing file', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile).done(services => {
 				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
 
 				fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
@@ -255,13 +305,17 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
 	test('write workspace standalone setting - empty file - full JSON', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile).done(services => {
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } }).then(res => {
 					const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
 					const contents = fs.readFileSync(target).toString('utf8');
@@ -273,13 +327,17 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
 	test('write workspace standalone setting - existing file - full JSON', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile).done(services => {
 				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
 
 				fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
@@ -295,13 +353,17 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 
 	test('write workspace standalone setting - existing file with JSON errors - full JSON', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createServices(workspaceDir, globalSettingsFile).then(services => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
+			if (error) {
+				return cleanUp(done, error);
+			}
+
+			createServices(workspaceDir, globalSettingsFile).done(services => {
 				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
 
 				fs.writeFileSync(target, '{ "my.super.setting": '); // invalid JSON
@@ -317,7 +379,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
-			});
+			}, error => cleanUp(done, error));
 		});
 	});
 });

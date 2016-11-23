@@ -9,7 +9,7 @@ import Severity from 'vs/base/common/severity';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ipcRenderer as ipc } from 'electron';
 import Event, { Emitter } from 'vs/base/common/event';
 
@@ -21,16 +21,21 @@ export class LifecycleService implements ILifecycleService {
 	private _onShutdown = new Emitter<void>();
 
 	private _willShutdown: boolean;
+	private _quitRequested: boolean;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
-		@IWindowService private windowService: IWindowService
+		@IWindowIPCService private windowService: IWindowIPCService
 	) {
 		this.registerListeners();
 	}
 
 	public get willShutdown(): boolean {
 		return this._willShutdown;
+	}
+
+	public get quitRequested(): boolean {
+		return this._quitRequested;
 	}
 
 	public get onWillShutdown(): Event<ShutdownEvent> {
@@ -45,11 +50,13 @@ export class LifecycleService implements ILifecycleService {
 		const windowId = this.windowService.getWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
-		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string }) => {
+		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string, quitRequested: boolean }) => {
 			this._willShutdown = true;
+			this._quitRequested = reply.quitRequested;
 
 			// trigger onWillShutdown events and veto collecting
-			this.onBeforeUnload().done(veto => {
+			this.onBeforeUnload(reply.quitRequested).done(veto => {
+				this._quitRequested = false;
 				if (veto) {
 					this._willShutdown = false; // reset this flag since the shutdown has been vetoed!
 					ipc.send(reply.cancelChannel, windowId);
@@ -61,13 +68,14 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	private onBeforeUnload(): TPromise<boolean> {
+	private onBeforeUnload(quitRequested: boolean): TPromise<boolean> {
 		const vetos: (boolean | TPromise<boolean>)[] = [];
 
 		this._onWillShutdown.fire({
 			veto(value) {
 				vetos.push(value);
-			}
+			},
+			quitRequested
 		});
 
 		if (vetos.length === 0) {

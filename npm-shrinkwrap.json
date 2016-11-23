@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "dependencies": {
     "agent-base": {
       "version": "1.0.2",
@@ -334,8 +334,8 @@
     },
     "pty.js": {
       "version": "0.3.0",
-      "from": "https://github.com/Tyriar/pty.js/tarball/e42781661143541fa08309adc9b0091e7b8674d3",
-      "resolved": "https://github.com/Tyriar/pty.js/tarball/e42781661143541fa08309adc9b0091e7b8674d3",
+      "from": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
+      "resolved": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
       "dependencies": {
         "extend": {
           "version": "1.2.1",
@@ -405,14 +405,14 @@
       "resolved": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz"
     },
     "vscode-debugprotocol": {
-      "version": "1.13.0",
-      "from": "vscode-debugprotocol@1.13.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.13.0.tgz"
+      "version": "1.14.0",
+      "from": "vscode-debugprotocol@1.14.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.14.0.tgz"
     },
     "vscode-textmate": {
-      "version": "2.2.0",
-      "from": "vscode-textmate@2.2.0",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.2.0.tgz"
+      "version": "2.3.1",
+      "from": "vscode-textmate@2.3.1",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.3.1.tgz"
     },
     "windows-foreground-love": {
       "version": "0.1.0",
@@ -430,9 +430,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "xterm": {
-      "version": "2.0.1",
-      "from": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.7",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#ce674e714a0a0cae1a3738e2934f28e3842debdc"
+      "version": "2.1.0",
+      "from": "xterm@2.1.0",
+      "resolved": "https://registry.npmjs.org/xterm/-/xterm-2.1.0.tgz"
     },
     "yauzl": {
       "version": "2.3.1",

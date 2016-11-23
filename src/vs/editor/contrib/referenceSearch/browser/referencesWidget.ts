@@ -10,7 +10,7 @@ import * as collections from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposables } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposables, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -26,7 +26,6 @@ import { LeftRightWidget } from 'vs/base/browser/ui/leftRightWidget/leftRightWid
 import * as tree from 'vs/base/parts/tree/browser/tree';
 import { DefaultController, LegacyRenderer } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -38,6 +37,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 class DecorationsManager implements IDisposable {
 
@@ -165,7 +165,7 @@ class DecorationsManager implements IDisposable {
 class DataSource implements tree.IDataSource {
 
 	constructor(
-		@IEditorService private _editorService: IEditorService
+		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService
 	) {
 		//
 	}
@@ -193,7 +193,7 @@ class DataSource implements tree.IDataSource {
 		if (element instanceof ReferencesModel) {
 			return TPromise.as(element.groups);
 		} else if (element instanceof FileReferences) {
-			return element.resolve(this._editorService).then(val => {
+			return element.resolve(this._textModelResolverService).then(val => {
 				if (element.failure) {
 					// refresh the element on failure so that
 					// we can update its rendering
@@ -494,6 +494,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _treeContainer: Builder;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
+	private _previewModelReference: IDisposable = EmptyDisposable;
 	private _previewNotAvailableMessage: Model;
 	private _previewContainer: Builder;
 	private _messageContainer: Builder;
@@ -501,7 +502,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	constructor(
 		editor: ICodeEditor,
 		public layoutData: LayoutData,
-		private _editorService: IEditorService,
+		private _textModelResolverService: ITextModelResolverService,
 		private _contextService: IWorkspaceContextService,
 		private _instantiationService: IInstantiationService
 	) {
@@ -556,7 +557,8 @@ export class ReferenceWidget extends PeekViewWidget {
 			var options: editorCommon.IEditorOptions = {
 				scrollBeyondLastLine: false,
 				scrollbar: DefaultConfig.editor.scrollbar,
-				overviewRulerLanes: 2
+				overviewRulerLanes: 2,
+				fixedOverflowWidgets: true
 			};
 
 			this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
@@ -714,24 +716,31 @@ export class ReferenceWidget extends PeekViewWidget {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}
 
-		return TPromise.join([
-			this._editorService.resolveEditorModel({ resource: reference.uri }),
-			this._tree.reveal(reference)
-		]).then(values => {
+		const promise = this._textModelResolverService.createModelReference(reference.uri);
+
+		return TPromise.join([promise, this._tree.reveal(reference)]).then(values => {
+			const ref = values[0];
+
 			if (!this._model) {
+				ref.dispose();
 				// disposed
 				return;
 			}
 
+			this._previewModelReference.dispose();
+			this._previewModelReference = EmptyDisposable;
+
 			// show in editor
-			let [model] = values;
+			const model = ref.object;
 			if (model) {
+				this._previewModelReference = ref;
 				this._preview.setModel(model.textEditorModel);
 				var sel = Range.lift(reference.range).collapseToStart();
 				this._preview.setSelection(sel);
 				this._preview.revealRangeInCenter(sel);
 			} else {
 				this._preview.setModel(this._previewNotAvailableMessage);
+				ref.dispose();
 			}
 
 			// show in tree

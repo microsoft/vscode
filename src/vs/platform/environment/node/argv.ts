@@ -8,38 +8,13 @@ import * as minimist from 'minimist';
 import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
-
-export interface ParsedArgs extends minimist.ParsedArgs {
-	help?: boolean;
-	version?: boolean;
-	wait?: boolean;
-	diff?: boolean;
-	goto?: boolean;
-	'new-window'?: boolean;
-	'reuse-window'?: boolean;
-	locale?: string;
-	'user-data-dir'?: string;
-	performance?: boolean;
-	verbose?: boolean;
-	logExtensionHostCommunication?: boolean;
-	'disable-extensions'?: boolean;
-	extensionHomePath?: string;
-	extensionDevelopmentPath?: string;
-	extensionTestsPath?: string;
-	debugBrkPluginHost?: string;
-	debugPluginHost?: string;
-	'list-extensions'?: boolean;
-	'show-versions'?: boolean;
-	'install-extension'?: string | string[];
-	'uninstall-extension'?: string | string[];
-	'open-url'?: string | string[];
-}
+import { ParsedArgs } from '../common/environment';
 
 const options: minimist.Opts = {
 	string: [
 		'locale',
 		'user-data-dir',
-		'extensionHomePath',
+		'extensions-dir',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
 		'install-extension',
@@ -61,7 +36,8 @@ const options: minimist.Opts = {
 		'logExtensionHostCommunication',
 		'disable-extensions',
 		'list-extensions',
-		'show-versions'
+		'show-versions',
+		'nolazy'
 	],
 	alias: {
 		help: 'h',
@@ -72,7 +48,8 @@ const options: minimist.Opts = {
 		'new-window': 'n',
 		'reuse-window': 'r',
 		performance: 'p',
-		'disable-extensions': 'disableExtensions'
+		'disable-extensions': 'disableExtensions',
+		'extensions-dir': 'extensionHomePath'
 	}
 };
 
@@ -136,7 +113,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in, useful when running as root."),
 	'--verbose': localize('verbose', "Print verbose output (implies --wait)."),
 	'-w, --wait': localize('wait', "Wait for the window to be closed before returning."),
-	'--extensionHomePath': localize('extensionHomePath', "Set the root path for extensions."),
+	'--extensions-dir <dir>': localize('extensionHomePath', "Set the root path for extensions."),
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
 	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
 	'--install-extension <ext>': localize('installExtension', "Installs an extension."),

@@ -9,6 +9,7 @@
 	"closeFolder": "关闭文件夹",
 	"closeMessages": "关闭通知消息",
 	"closeWindow": "关闭窗口",
+	"current": "当前窗口",
 	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "文件",
 	"folders": "文件夹",

@@ -11,7 +11,7 @@ import path = require('path');
 import fs = require('fs');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
@@ -290,6 +290,74 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 				});
 
+			});
+		});
+	});
+
+	test('keys', (done: () => void) => {
+		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'workspaceLookup.service.testSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+
+		function contains(array: string[], key: string): boolean {
+			return array.indexOf(key) >= 0;
+		}
+
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
+			return createService(workspaceDir, globalSettingsFile).then(service => {
+				let keys = service.keys();
+
+				assert.ok(!contains(keys.default, 'something.missing'));
+				assert.ok(!contains(keys.user, 'something.missing'));
+				assert.ok(!contains(keys.workspace, 'something.missing'));
+
+				assert.ok(contains(keys.default, 'workspaceLookup.service.testSetting'));
+				assert.ok(!contains(keys.user, 'workspaceLookup.service.testSetting'));
+				assert.ok(!contains(keys.workspace, 'workspaceLookup.service.testSetting'));
+
+				fs.writeFileSync(globalSettingsFile, '{ "workspaceLookup.service.testSetting": true }');
+
+				return service.reloadConfiguration().then(() => {
+					keys = service.keys();
+
+					assert.ok(contains(keys.default, 'workspaceLookup.service.testSetting'));
+					assert.ok(contains(keys.user, 'workspaceLookup.service.testSetting'));
+					assert.ok(!contains(keys.workspace, 'workspaceLookup.service.testSetting'));
+
+					const settingsFile = path.join(workspaceDir, '.vscode', 'settings.json');
+					fs.writeFileSync(settingsFile, '{ "workspaceLookup.service.testSetting": 55 }');
+
+					return service.reloadConfiguration().then(() => {
+						keys = service.keys();
+
+						assert.ok(contains(keys.default, 'workspaceLookup.service.testSetting'));
+						assert.ok(contains(keys.user, 'workspaceLookup.service.testSetting'));
+						assert.ok(contains(keys.workspace, 'workspaceLookup.service.testSetting'));
+
+						const settingsFile = path.join(workspaceDir, '.vscode', 'tasks.json');
+						fs.writeFileSync(settingsFile, '{ "workspaceLookup.service.taskTestSetting": 55 }');
+
+						return service.reloadConfiguration().then(() => {
+							keys = service.keys();
+
+							assert.ok(!contains(keys.default, 'tasks.workspaceLookup.service.taskTestSetting'));
+							assert.ok(!contains(keys.user, 'tasks.workspaceLookup.service.taskTestSetting'));
+							assert.ok(contains(keys.workspace, 'tasks.workspaceLookup.service.taskTestSetting'));
+
+							service.dispose();
+
+							cleanUp(done);
+						});
+					});
+				});
 			});
 		});
 	});

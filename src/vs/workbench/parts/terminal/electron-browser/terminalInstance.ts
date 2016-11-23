@@ -18,20 +18,23 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, IShell } from 'vs/workbench/parts/terminal/common/terminal';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
-import { TerminalConfigHelper, IShell } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export class TerminalInstance implements ITerminalInstance {
-	private static EOL_REGEX = /\r?\n/g;
+	/** The amount of time to consider terminal errors to be related to the launch */
+	private static readonly LAUNCHING_DURATION = 500;
+	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _idCounter = 1;
 
 	private _id: number;
 	private _isExiting: boolean;
+	private _isLaunching: boolean;
 	private _isVisible: boolean;
 	private _onDisposed: Emitter<TerminalInstance>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
@@ -67,6 +70,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._toDispose = [];
 		this._skipTerminalKeybindings = [];
 		this._isExiting = false;
+		this._isLaunching = true;
 		this._isVisible = false;
 		this._id = TerminalInstance._idCounter++;
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
@@ -100,6 +104,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.open(this._xtermElement);
 
 		this._process.on('message', (message) => {
+			if (!this._xterm) {
+				return;
+			}
 			if (message.type === 'data') {
 				this._xterm.write(message.content);
 			}
@@ -299,10 +306,18 @@ export class TerminalInstance implements ITerminalInstance {
 			if (!this._isExiting) {
 				this.dispose();
 				if (exitCode) {
-					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
+					if (this._isLaunching) {
+						const args = shell.args && shell.args.length ? ' ' + shell.args.map(a => a.indexOf(' ') !== -1 ? `'${a}'` : a).join(' ') : '';
+						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', shell.executable, args, exitCode));
+					} else {
+						this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
+					}
 				}
 			}
 		});
+		setTimeout(() => {
+			this._isLaunching = false;
+		}, TerminalInstance.LAUNCHING_DURATION);
 	}
 
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
@@ -361,7 +376,13 @@ export class TerminalInstance implements ITerminalInstance {
 		}, []);
 	}
 
-	public layout(dimension: Dimension): void {
+	public setScrollback(lineCount: number): void {
+		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
+			this._xterm.setOption('scrollback', lineCount);
+		}
+	}
+
+	public layout(dimension: { width: number, height: number }): void {
 		let font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
 			return;

@@ -10,14 +10,16 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { stat } from 'vs/base/node/pfs';
 import DOM = require('vs/base/browser/dom');
-import DND = require('vs/base/browser/dnd');
+import { extractResources } from 'vs/base/browser/dnd';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 
-import { ipcRenderer as ipc, shell, remote } from 'electron';
+import { remote } from 'electron';
 
 const dialog = remote.dialog;
 
@@ -30,10 +32,14 @@ export class ElectronWindow {
 		shellContainer: HTMLElement,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IWindowsService private windowsService: IWindowsService,
+		@IWindowService private windowService: IWindowService,
+		@ITitleService private titleService: ITitleService
 	) {
 		this.win = win;
 		this.windowId = win.id;
+
 		this.registerListeners();
 	}
 
@@ -43,12 +49,9 @@ export class ElectronWindow {
 		if (platform.platform === platform.Platform.Mac) {
 			this.editorGroupService.onEditorsChanged(() => {
 				const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
-				let representedFilename = '';
-				if (fileInput) {
-					representedFilename = fileInput.getResource().fsPath;
-				}
+				const fileName = fileInput ? fileInput.getResource().fsPath : '';
 
-				ipc.send('vscode:setRepresentedFilename', this.windowId, representedFilename);
+				this.titleService.setRepresentedFilename(fileName);
 			});
 		}
 
@@ -69,7 +72,7 @@ export class ElectronWindow {
 			DOM.EventHelper.stop(e);
 
 			if (!draggedExternalResources) {
-				draggedExternalResources = DND.extractResources(e, true /* external only */);
+				draggedExternalResources = extractResources(e, true /* external only */).map(d => d.resource);
 
 				// Find out if folders are dragged and show the appropiate feedback then
 				this.includesFolder(draggedExternalResources).done(includesFolder => {
@@ -80,7 +83,7 @@ export class ElectronWindow {
 								DOM.EventHelper.stop(e, true);
 
 								this.focus(); // make sure this window has focus so that the open call reaches the right window!
-								ipc.send('vscode:windowOpen', draggedExternalResources.map(r => r.fsPath)); // handled from browser process
+								this.windowsService.windowOpen(draggedExternalResources.map(r => r.fsPath));
 
 								cleanUp();
 							})
@@ -119,18 +122,10 @@ export class ElectronWindow {
 		});
 
 		// Handle window.open() calls
-		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
-			shell.openExternal(url);
-
-			return null;
-		};
-
-		// Patch focus to also focus the entire window
-		const originalFocus = window.focus;
 		const $this = this;
-		window.focus = function () {
-			originalFocus.call(this, arguments);
-			$this.focus();
+		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
+			$this.windowsService.openExternal(url);
+			return null;
 		};
 	}
 
@@ -140,16 +135,8 @@ export class ElectronWindow {
 		})).then(res => res.some(res => !!res));
 	}
 
-	public openNew(): void {
-		ipc.send('vscode:openNewWindow'); // handled from browser process
-	}
-
 	public close(): void {
 		this.win.close();
-	}
-
-	public reload(): void {
-		ipc.send('vscode:reloadWindow', this.windowId);
 	}
 
 	public showMessageBox(options: Electron.ShowMessageBoxOptions): number {
@@ -164,23 +151,7 @@ export class ElectronWindow {
 		return dialog.showSaveDialog(this.win, options); // https://github.com/electron/electron/issues/4936
 	}
 
-	public setFullScreen(fullscreen: boolean): void {
-		ipc.send('vscode:setFullScreen', this.windowId, fullscreen); // handled from browser process
-	}
-
-	public openDevTools(): void {
-		ipc.send('vscode:openDevTools', this.windowId); // handled from browser process
-	}
-
-	public setMenuBarVisibility(visible: boolean): void {
-		ipc.send('vscode:setMenuBarVisibility', this.windowId, visible); // handled from browser process
-	}
-
-	public focus(): void {
-		ipc.send('vscode:focusWindow', this.windowId); // handled from browser process
-	}
-
-	public flashFrame(): void {
-		ipc.send('vscode:flashFrame', this.windowId); // handled from browser process
+	public focus(): TPromise<void> {
+		return this.windowService.focusWindow();
 	}
 }

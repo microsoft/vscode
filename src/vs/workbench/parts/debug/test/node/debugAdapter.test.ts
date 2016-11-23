@@ -9,9 +9,9 @@ import platform = require('vs/base/common/platform');
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 
 suite('Debug - Adapter', () => {
-	var adapter: Adapter;
-	var extensionFolderPath = 'a/b/c/';
-	var rawAdapter = {
+	let adapter: Adapter;
+	const extensionFolderPath = 'a/b/c/';
+	const rawAdapter = {
 		type: 'mock',
 		label: 'Mock Debug',
 		enableBreakpointsFor: { 'languageIds': ['markdown'] },
@@ -61,7 +61,6 @@ suite('Debug - Adapter', () => {
 		assert.equal(adapter.label, rawAdapter.label);
 		assert.equal(adapter.program, paths.join(extensionFolderPath, rawAdapter.program));
 		assert.equal(adapter.runtime, platform.isLinux ? rawAdapter.linux.runtime : platform.isMacintosh ? rawAdapter.osx.runtime : rawAdapter.win.runtime);
-		assert.deepEqual(adapter.initialConfigurations, rawAdapter.initialConfigurations);
 	});
 
 	test('schema attributes', () => {
@@ -76,5 +75,25 @@ suite('Debug - Adapter', () => {
 		assert.equal(!!schemaAttribute['properties']['name'], true);
 		assert.equal(!!schemaAttribute['properties']['type'], true);
 		assert.equal(!!schemaAttribute['properties']['preLaunchTask'], true);
+	});
+
+	test('adapter merge', () => {
+		const runtimeArgs = ['first arg'];
+		adapter.merge({
+			type: 'mock',
+			runtimeArgs,
+			program: 'mockprogram'
+		}, {
+				name: 'my name',
+				id: 'my_id',
+				version: '1.0',
+				publisher: 'mockPublisher',
+				isBuiltin: true,
+				extensionFolderPath: 'a/b/c/d',
+				engines: null
+			});
+
+		assert.deepEqual(adapter.runtimeArgs, runtimeArgs);
+		assert.equal(adapter.program, 'a/b/c/d/mockprogram');
 	});
 });

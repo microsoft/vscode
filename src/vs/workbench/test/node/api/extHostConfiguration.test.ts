@@ -10,6 +10,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationTarget, ConfigurationEditingErrorCode, IConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IWorkspaceConfiguration, IWorkspaceConfigurationValue } from 'vs/workbench/services/configuration/common/configuration';
 
 suite('ExtHostConfiguration', function () {
 
@@ -21,23 +22,113 @@ suite('ExtHostConfiguration', function () {
 		}
 	};
 
-	function createExtHostConfiguration(data: any = {}, shape?: MainThreadConfigurationShape) {
+	function createExtHostConfiguration(data: IWorkspaceConfiguration = Object.create(null), shape?: MainThreadConfigurationShape) {
 		if (!shape) {
 			shape = new class extends MainThreadConfigurationShape { };
 		}
-		const result = new ExtHostConfiguration(shape);
-		result.$acceptConfigurationChanged(data);
-		return result;
+		return new ExtHostConfiguration(shape, data);
 	}
 
-	test('check illegal state', function () {
-		assert.throws(() => new ExtHostConfiguration(new class extends MainThreadConfigurationShape { }).getConfiguration('foo'));
+	function createConfigurationValue<T>(value: T): IWorkspaceConfigurationValue<T> {
+		return {
+			value,
+			default: value,
+			user: undefined,
+			workspace: undefined
+		};
+	}
+
+	test('getConfiguration fails regression test 1.7.1 -> 1.8 #15552', function () {
+		const extHostConfig = createExtHostConfiguration({
+			['search.exclude']: createConfigurationValue({ '**/node_modules': true })
+		});
+
+		assert.equal(extHostConfig.getConfiguration('search.exclude')['**/node_modules'], true);
+		assert.equal(extHostConfig.getConfiguration('search.exclude').get('**/node_modules'), true);
+		assert.equal(extHostConfig.getConfiguration('search').get('exclude')['**/node_modules'], true);
+
+		assert.equal(extHostConfig.getConfiguration('search.exclude').has('**/node_modules'), true);
+		assert.equal(extHostConfig.getConfiguration('search').has('exclude.**/node_modules'), true);
 	});
 
-	test('udate / section to key', function () {
+	test('has/get', function () {
+
+		const all = createExtHostConfiguration({
+			['farboo.config0']: createConfigurationValue(true),
+			['farboo.nested.config1']: createConfigurationValue(42),
+			['farboo.nested.config2']: createConfigurationValue('Das Pferd frisst kein Reis.'),
+			['farboo.config4']: createConfigurationValue('')
+		});
+
+		const config = all.getConfiguration('farboo');
+
+		assert.ok(config.has('config0'));
+		assert.equal(config.get('config0'), true);
+		assert.equal(config.get('config4'), '');
+		assert.equal(config['config0'], true);
+		assert.equal(config['config4'], '');
+		assert.throws(() => config['config4'] = 'valuevalue');
+
+		assert.ok(config.has('nested.config1'));
+		assert.equal(config.get('nested.config1'), 42);
+		assert.ok(config.has('nested.config2'));
+		assert.equal(config.get('nested.config2'), 'Das Pferd frisst kein Reis.');
+
+		assert.ok(config.has('nested'));
+		assert.deepEqual(config.get('nested'), { config1: 42, config2: 'Das Pferd frisst kein Reis.' });
+	});
+
+	test('getConfiguration vs get', function () {
+
+		const all = createExtHostConfiguration({
+			['farboo.config0']: createConfigurationValue(true),
+			['farboo.config4']: createConfigurationValue(38)
+		});
+
+		let config = all.getConfiguration('farboo.config0');
+		assert.equal(config.get(''), undefined);
+		assert.equal(config.has(''), false);
+
+		config = all.getConfiguration('farboo');
+		assert.equal(config.get('config0'), true);
+		assert.equal(config.has('config0'), true);
+	});
+
+	test('getConfiguration vs get', function () {
+
+		const all = createExtHostConfiguration({
+			['farboo.config0']: createConfigurationValue(true),
+			['farboo.config4']: createConfigurationValue(38)
+		});
+
+		let config = all.getConfiguration('farboo.config0');
+		assert.equal(config.get(''), undefined);
+		assert.equal(config.has(''), false);
+
+		config = all.getConfiguration('farboo');
+		assert.equal(config.get('config0'), true);
+		assert.equal(config.has('config0'), true);
+	});
+
+	test('name vs property', function () {
+		const all = createExtHostConfiguration({
+			['farboo.get']: createConfigurationValue('get-prop')
+		});
+		const config = all.getConfiguration('farboo');
+
+		assert.ok(config.has('get'));
+		assert.equal(config.get('get'), 'get-prop');
+		assert.deepEqual(config['get'], config.get);
+		assert.throws(() => config['get'] = <any>'get-prop');
+	});
+
+	test('update/section to key', function () {
 
 		const shape = new RecordingShape();
-		const allConfig = createExtHostConfiguration({ foo: { bar: 1, far: 2 } }, shape);
+		const allConfig = createExtHostConfiguration({
+			['foo.bar']: createConfigurationValue(1),
+			['foo.far']: createConfigurationValue(1)
+		}, shape);
 
 		let config = allConfig.getConfiguration('foo');
 		config.update('bar', 42, true);
@@ -53,7 +144,18 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(shape.lastArgs[1], 'foo.bar');
 	});
 
-	test('update / error-state not OK', function () {
+	test('update, what is #15834', function () {
+		const shape = new RecordingShape();
+		const allConfig = createExtHostConfiguration({
+			['editor.formatOnSave']: createConfigurationValue(true)
+		}, shape);
+
+		allConfig.getConfiguration('editor').update('formatOnSave', { extensions: ['ts'] });
+		assert.equal(shape.lastArgs[1], 'editor.formatOnSave');
+		assert.deepEqual(shape.lastArgs[2], { extensions: ['ts'] });
+	});
+
+	test('update/error-state not OK', function () {
 
 		const shape = new class extends MainThreadConfigurationShape {
 			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<any> {

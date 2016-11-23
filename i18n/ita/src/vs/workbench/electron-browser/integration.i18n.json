@@ -6,10 +6,8 @@
 {
 	"copy": "Copia",
 	"cut": "Taglia",
-	"files": "file",
-	"folders": "cartelle",
-	"openRecentPlaceHolder": "Selezionare un percorso da aprire (tenere premuto CTRL per aprirlo in una nuova finestra)",
-	"openRecentPlaceHolderMac": "Selezionare un percorso (tenere premuto CMD per aprirlo in una nuova finestra)",
+	"developer": "Sviluppatore",
+	"file": "File",
 	"paste": "Incolla",
 	"redo": "Ripristina",
 	"selectAll": "Seleziona tutto",

@@ -7,13 +7,13 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { onWillActivate } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IMonarchLanguage } from 'vs/editor/common/modes/monarch/monarchTypes';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { StaticServices } from 'vs/editor/browser/standalone/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
-import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfiguration, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -45,15 +45,16 @@ export function getLanguages(): ILanguageExtensionPoint[] {
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	let isDisposed = false;
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + languageId, () => {
-		if (!isDisposed) {
+	const desired = 'onLanguage:' + languageId;
+	let disposable = onWillActivate.event((activationEvent) => {
+		if (activationEvent === desired) {
+			// stop listening
+			disposable.dispose();
+			// invoke actual listener
 			callback();
 		}
 	});
-	return {
-		dispose: () => { isDisposed = true; }
-	};
+	return disposable;
 }
 
 /**
@@ -396,7 +397,8 @@ class SuggestAdapter {
 			detail: item.detail,
 			documentation: item.documentation,
 			sortText: item.sortText,
-			filterText: item.filterText
+			filterText: item.filterText,
+			snippetType: 'internal'
 		};
 	}
 
@@ -511,6 +513,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
-		IndentAction: modes.IndentAction
+		IndentAction: IndentAction
 	};
 }

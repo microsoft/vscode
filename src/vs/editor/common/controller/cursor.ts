@@ -5,18 +5,23 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/controller/cursorCollection';
-import { WordNavigationType, IOneCursorOperationContext, IPostOperationRunnable, IViewModelHelper, OneCursor, OneCursorOp } from 'vs/editor/common/controller/oneCursor';
+import { IOneCursorOperationContext, IViewModelHelper, OneCursor, OneCursorOp } from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IColumnSelectResult } from 'vs/editor/common/controller/cursorMoveHelper';
+import { CursorColumns, EditOperationResult } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { WordOperations, WordNavigationType } from 'vs/editor/common/controller/cursorWordOperations';
+import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
+import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
+import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 
 export interface ITypingListener {
 	(): void;
@@ -42,7 +47,6 @@ interface IMultipleCursorOperationContext {
 	isCursorUndo: boolean;
 	executeCommands: editorCommon.ICommand[];
 	isAutoWhitespaceCommand: boolean[];
-	postOperationRunnables: IPostOperationRunnable[];
 	setColumnSelectToLineNumber: number;
 	setColumnSelectToVisualColumn: number;
 }
@@ -244,8 +248,13 @@ export class Cursor extends EventEmitter {
 			this.emitCursorSelectionChanged('model', editorCommon.CursorChangeReason.ContentFlush);
 		} else {
 			if (!this._isHandling) {
+				// Read the markers before entering `_onHandler`, since that would validate
+				// the position and ruin the markers
+				let selections: Selection[] = this.cursors.getAll().map((cursor) => {
+					return cursor.beginRecoverSelectionFromMarkers();
+				});
 				this._onHandler('recoverSelectionFromMarkers', (ctx: IMultipleCursorOperationContext) => {
-					var result = this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => oneCursor.recoverSelectionFromMarkers(oneCtx));
+					var result = this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => oneCursor.endRecoverSelectionFromMarkers(oneCtx, selections[cursorIndex]));
 					ctx.shouldPushStackElementBefore = false;
 					ctx.shouldPushStackElementAfter = false;
 					return result;
@@ -292,7 +301,6 @@ export class Cursor extends EventEmitter {
 			isAutoWhitespaceCommand: [],
 			hasExecutedCommands: false,
 			isCursorUndo: false,
-			postOperationRunnables: [],
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false,
 			setColumnSelectToLineNumber: 0,
@@ -317,6 +325,10 @@ export class Cursor extends EventEmitter {
 		try {
 			var oldSelections = this.cursors.getSelections();
 			var oldViewSelections = this.cursors.getViewSelections();
+
+			// ensure valid state on all cursors
+			this.cursors.ensureValidState();
+
 			var prevCursorsState = this.cursors.saveState();
 
 			var eventSource = source;
@@ -411,34 +423,12 @@ export class Cursor extends EventEmitter {
 		this._columnSelectToLineNumber = ctx.setColumnSelectToLineNumber;
 		this._columnSelectToVisualColumn = ctx.setColumnSelectToVisualColumn;
 
-		ctx.hasExecutedCommands = this._internalExecuteCommands(ctx.executeCommands, ctx.isAutoWhitespaceCommand, ctx.postOperationRunnables) || ctx.hasExecutedCommands;
+		ctx.hasExecutedCommands = this._internalExecuteCommands(ctx.executeCommands, ctx.isAutoWhitespaceCommand) || ctx.hasExecutedCommands;
 		ctx.executeCommands = [];
 
 		if (ctx.shouldPushStackElementAfter) {
 			this.model.pushStackElement();
 			ctx.shouldPushStackElementAfter = false;
-		}
-
-		var hasPostOperationRunnables = false;
-		for (var i = 0, len = ctx.postOperationRunnables.length; i < len; i++) {
-			if (ctx.postOperationRunnables[i]) {
-				hasPostOperationRunnables = true;
-				break;
-			}
-		}
-
-		if (hasPostOperationRunnables) {
-			var postOperationRunnables = ctx.postOperationRunnables.slice(0);
-			ctx.postOperationRunnables = [];
-
-			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
-				if (postOperationRunnables[cursorIndex]) {
-					postOperationRunnables[cursorIndex](oneCtx);
-				}
-				return false;
-			});
-
-			this._interpretHandlerContext(ctx);
 		}
 	}
 
@@ -606,7 +596,7 @@ export class Cursor extends EventEmitter {
 		return loserCursorsMap;
 	}
 
-	private _collapseDeleteCommands(rawCmds: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _collapseDeleteCommands(rawCmds: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
 		if (rawCmds.length === 1) {
 			return;
 		}
@@ -631,7 +621,6 @@ export class Cursor extends EventEmitter {
 		var cursors = commands.map((cmd, i) => {
 			return {
 				range: commands[i].getRange(),
-				postOperationRunnable: postOperationRunnables[i],
 				order: i
 			};
 		});
@@ -662,15 +651,15 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
-	private _internalExecuteCommands(commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _internalExecuteCommands(commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
 		var ctx: IExecContext = {
 			selectionStartMarkers: [],
 			positionMarkers: []
 		};
 
-		this._collapseDeleteCommands(commands, isAutoWhitespaceCommand, postOperationRunnables);
+		this._collapseDeleteCommands(commands, isAutoWhitespaceCommand);
 
-		var r = this._innerExecuteCommands(ctx, commands, isAutoWhitespaceCommand, postOperationRunnables);
+		var r = this._innerExecuteCommands(ctx, commands, isAutoWhitespaceCommand);
 		for (var i = 0; i < ctx.selectionStartMarkers.length; i++) {
 			this.model._removeMarker(ctx.selectionStartMarkers[i]);
 			this.model._removeMarker(ctx.positionMarkers[i]);
@@ -691,7 +680,7 @@ export class Cursor extends EventEmitter {
 		return true;
 	}
 
-	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
 
 		if (this.configuration.editor.readOnly) {
 			return false;
@@ -792,7 +781,6 @@ export class Cursor extends EventEmitter {
 		// Remove losing cursors
 		for (var i = 0; i < losingCursors.length; i++) {
 			selectionsAfter.splice(losingCursors[i], 1);
-			postOperationRunnables.splice(losingCursors[i], 1);
 		}
 
 		return this._interpretCommandResult(selectionsAfter);
@@ -1051,7 +1039,7 @@ export class Cursor extends EventEmitter {
 
 		if (sorted) {
 			cursors = cursors.sort((a, b) => {
-				return Range.compareRangesUsingStarts(a.getSelection(), b.getSelection());
+				return Range.compareRangesUsingStarts(a.modelState.selection, b.modelState.selection);
 			});
 		}
 
@@ -1068,7 +1056,6 @@ export class Cursor extends EventEmitter {
 				shouldRevealHorizontal: true,
 				executeCommand: null,
 				isAutoWhitespaceCommand: false,
-				postOperationRunnable: null,
 				shouldPushStackElementBefore: false,
 				shouldPushStackElementAfter: false
 			};
@@ -1087,7 +1074,6 @@ export class Cursor extends EventEmitter {
 
 			ctx.executeCommands[i] = context.executeCommand;
 			ctx.isAutoWhitespaceCommand[i] = context.isAutoWhitespaceCommand;
-			ctx.postOperationRunnables[i] = context.postOperationRunnable;
 		}
 
 		return result;
@@ -1111,7 +1097,7 @@ export class Cursor extends EventEmitter {
 	private _getColumnSelectToLineNumber(): number {
 		if (!this._columnSelectToLineNumber) {
 			let primaryCursor = this.cursors.getAll()[0];
-			let primaryPos = primaryCursor.getViewPosition();
+			let primaryPos = primaryCursor.viewState.position;
 			return primaryPos.lineNumber;
 		}
 		return this._columnSelectToLineNumber;
@@ -1121,52 +1107,64 @@ export class Cursor extends EventEmitter {
 	private _getColumnSelectToVisualColumn(): number {
 		if (!this._columnSelectToVisualColumn) {
 			let primaryCursor = this.cursors.getAll()[0];
-			let primaryPos = primaryCursor.getViewPosition();
-			return primaryCursor.getViewVisibleColumnFromColumn(primaryPos.lineNumber, primaryPos.column);
+			let primaryPos = primaryCursor.viewState.position;
+			return CursorColumns.visibleColumnFromColumn2(primaryCursor.config, primaryCursor.viewModel, primaryPos);
 		}
 		return this._columnSelectToVisualColumn;
 	}
 
 	private _columnSelectMouse(ctx: IMultipleCursorOperationContext): boolean {
-		let cursors = this.cursors.getAll();
-		let result = OneCursorOp.columnSelectMouse(cursors[0], ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventData.mouseColumn - 1);
+		let primary = this.cursors.getAll()[0];
+
+		// validate `eventData`
+		let validatedPosition = primary.model.validatePosition(ctx.eventData.position);
+		let validatedViewPosition: Position;
+		if (ctx.eventData.viewPosition) {
+			validatedViewPosition = primary.validateViewPosition(ctx.eventData.viewPosition.lineNumber, ctx.eventData.viewPosition.column, validatedPosition);
+		} else {
+			validatedViewPosition = primary.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
+		}
+
+		let result = ColumnSelection.columnSelect(primary.config, primary.viewModel, primary.viewState.selection.getStartPosition(), validatedViewPosition.lineNumber, ctx.eventData.mouseColumn - 1);
+		let selections = result.viewSelections.map(viewSel => primary.convertViewSelectionToModelSelection(viewSel));
 
 		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
 		ctx.shouldReveal = true;
 		ctx.setColumnSelectToLineNumber = result.toLineNumber;
 		ctx.setColumnSelectToVisualColumn = result.toVisualColumn;
 
-		this.cursors.setSelections(result.selections, result.viewSelections);
+		this.cursors.setSelections(selections, result.viewSelections);
 		return true;
 	}
 
 	private _columnSelectOp(ctx: IMultipleCursorOperationContext, op: (cursor: OneCursor, toViewLineNumber: number, toViewVisualColumn: number) => IColumnSelectResult): boolean {
 		let primary = this.cursors.getAll()[0];
 		let result = op(primary, this._getColumnSelectToLineNumber(), this._getColumnSelectToVisualColumn());
+		let selections = result.viewSelections.map(viewSel => primary.convertViewSelectionToModelSelection(viewSel));
 
 		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
 		ctx.shouldReveal = true;
 		ctx.setColumnSelectToLineNumber = result.toLineNumber;
 		ctx.setColumnSelectToVisualColumn = result.toVisualColumn;
 
-		this.cursors.setSelections(result.selections, result.viewSelections);
+		this.cursors.setSelections(selections, result.viewSelections);
 		return true;
 	}
 
 	private _columnSelectLeft(ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectLeft(cursor, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectLeft(cursor.config, cursor.viewModel, cursor.viewState, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _columnSelectRight(ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectRight(cursor, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectRight(cursor.config, cursor.viewModel, cursor.viewState, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _columnSelectUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectUp(isPaged, cursor, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectUp(cursor.config, cursor.viewModel, cursor.viewState, isPaged, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _columnSelectDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectDown(isPaged, cursor, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectDown(cursor.config, cursor.viewModel, cursor.viewState, isPaged, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _createCursor(ctx: IMultipleCursorOperationContext): boolean {
@@ -1346,21 +1344,9 @@ export class Cursor extends EventEmitter {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.expandLineSelection(oneCursor, oneCtx));
 	}
 
-	private _lineInsertBefore(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.lineInsertBefore(oneCursor, oneCtx));
-	}
-
-	private _lineInsertAfter(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.lineInsertAfter(oneCursor, oneCtx));
-	}
-
-	private _lineBreakInsert(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.lineBreakInsert(oneCursor, oneCtx));
-	}
-
 	private _word(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
 		this.cursors.killSecondaryCursors();
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.word(oneCursor, inSelectionMode, ctx.eventData.position, oneCtx));
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.word(oneCursor, inSelectionMode, oneCursor.validatePosition(ctx.eventData.position), oneCtx));
 	}
 
 	private _lastCursorWord(ctx: IMultipleCursorOperationContext): boolean {
@@ -1371,7 +1357,7 @@ export class Cursor extends EventEmitter {
 		var lastAddedCursor = this.cursors.getLastAddedCursor();
 		this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
 			if (oneCursor === lastAddedCursor) {
-				return OneCursorOp.word(oneCursor, true, ctx.eventData.position, oneCtx);
+				return OneCursorOp.word(oneCursor, true, oneCursor.validatePosition(ctx.eventData.position), oneCtx);
 			}
 			return false;
 		});
@@ -1391,22 +1377,63 @@ export class Cursor extends EventEmitter {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.cancelSelection(oneCursor, oneCtx));
 	}
 
+	// -------------------- START editing operations
+
+	private _doApplyEdit(cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext, callable: (oneCursor: OneCursor, cursorIndex: number) => EditOperationResult): boolean {
+		let r = callable(oneCursor, cursorIndex);
+		if (r) {
+			oneCtx.executeCommand = r.command;
+			oneCtx.shouldPushStackElementBefore = r.shouldPushStackElementBefore;
+			oneCtx.shouldPushStackElementAfter = r.shouldPushStackElementAfter;
+			oneCtx.isAutoWhitespaceCommand = r.isAutoWhitespaceCommand;
+			oneCtx.shouldRevealHorizontal = r.shouldRevealHorizontal;
+			oneCtx.cursorPositionChangeReason = r.cursorPositionChangeReason;
+		}
+		return true;
+	}
+
+	private _applyEditForAll(ctx: IMultipleCursorOperationContext, callable: (oneCursor: OneCursor, cursorIndex: number) => EditOperationResult): boolean {
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => this._doApplyEdit(cursorIndex, oneCursor, oneCtx, callable), false, false);
+	}
+
+	private _applyEditForAllSorted(ctx: IMultipleCursorOperationContext, callable: (oneCursor: OneCursor, cursorIndex: number) => EditOperationResult): boolean {
+		return this._invokeForAllSorted(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => this._doApplyEdit(cursorIndex, oneCursor, oneCtx, callable), false, false);
+	}
+
+	private _lineInsertBefore(ctx: IMultipleCursorOperationContext): boolean {
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.lineInsertBefore(cursor.config, cursor.model, cursor.modelState));
+	}
+
+	private _lineInsertAfter(ctx: IMultipleCursorOperationContext): boolean {
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.lineInsertAfter(cursor.config, cursor.model, cursor.modelState));
+	}
+
+	private _lineBreakInsert(ctx: IMultipleCursorOperationContext): boolean {
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.lineBreakInsert(cursor.config, cursor.model, cursor.modelState));
+	}
+
 	private _type(ctx: IMultipleCursorOperationContext): boolean {
 		var text = ctx.eventData.text;
 
 		if (ctx.eventSource === 'keyboard') {
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
-			var i: number, len: number, chr: string;
-			for (i = 0, len = text.length; i < len; i++) {
-				chr = text.charAt(i);
+			for (let i = 0, len = text.length; i < len; i++) {
+				let charCode = text.charCodeAt(i);
+				let chr: string;
+				if (strings.isHighSurrogate(charCode) && i + 1 < len) {
+					chr = text.charAt(i) + text.charAt(i + 1);
+					i++;
+				} else {
+					chr = text.charAt(i);
+				}
 
 				this.charactersTyped += chr;
 
 				// Here we must interpret each typed character individually, that's why we create a new context
 				ctx.hasExecutedCommands = this._createAndInterpretHandlerCtx(ctx.eventSource, ctx.eventData, (charHandlerCtx: IMultipleCursorOperationContext) => {
 
-					this._invokeForAll(charHandlerCtx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.type(oneCursor, chr, oneCtx), false, false);
+					this._applyEditForAll(charHandlerCtx, (cursor) => TypeOperations.typeWithInterceptors(cursor.config, cursor.model, cursor.modelState, chr));
 
 					// The last typed character gets to win
 					ctx.cursorPositionChangeReason = charHandlerCtx.cursorPositionChangeReason;
@@ -1417,7 +1444,7 @@ export class Cursor extends EventEmitter {
 
 			}
 		} else {
-			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.actualType(oneCursor, text, false, oneCtx));
+			this._applyEditForAll(ctx, (cursor) => TypeOperations.typeWithoutInterceptors(cursor.config, cursor.model, cursor.modelState, text));
 		}
 
 		return true;
@@ -1426,30 +1453,85 @@ export class Cursor extends EventEmitter {
 	private _replacePreviousChar(ctx: IMultipleCursorOperationContext): boolean {
 		let text = ctx.eventData.text;
 		let replaceCharCnt = ctx.eventData.replaceCharCnt;
-		return this._invokeForAll(ctx, (cursorIndex, oneCursor, oneCtx) => OneCursorOp.replacePreviousChar(oneCursor, text, replaceCharCnt, oneCtx), false, false);
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.replacePreviousChar(cursor.config, cursor.model, cursor.modelState, text, replaceCharCnt));
 	}
 
 	private _tab(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.tab(oneCursor, oneCtx), false, false);
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.tab(cursor.config, cursor.model, cursor.modelState));
 	}
 
 	private _indent(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.indent(oneCursor, oneCtx));
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.indent(cursor.config, cursor.model, cursor.modelState));
 	}
 
 	private _outdent(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.outdent(oneCursor, oneCtx));
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.outdent(cursor.config, cursor.model, cursor.modelState));
+	}
+
+	private _distributePasteToCursors(ctx: IMultipleCursorOperationContext): string[] {
+		if (ctx.eventData.pasteOnNewLine) {
+			return null;
+		}
+
+		var selections = this.cursors.getSelections();
+		if (selections.length === 1) {
+			return null;
+		}
+
+		for (var i = 0; i < selections.length; i++) {
+			if (selections[i].startLineNumber !== selections[i].endLineNumber) {
+				return null;
+			}
+		}
+
+		var pastePieces = ctx.eventData.text.split(/\r\n|\r|\n/);
+		if (pastePieces.length !== selections.length) {
+			return null;
+		}
+
+		return pastePieces;
 	}
 
 	private _paste(ctx: IMultipleCursorOperationContext): boolean {
 		var distributedPaste = this._distributePasteToCursors(ctx);
 
 		if (distributedPaste) {
-			return this._invokeForAllSorted(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.paste(oneCursor, distributedPaste[cursorIndex], false, oneCtx));
+			return this._applyEditForAllSorted(ctx, (cursor, cursorIndex) => TypeOperations.paste(cursor.config, cursor.model, cursor.modelState, distributedPaste[cursorIndex], false));
 		} else {
-			return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.paste(oneCursor, ctx.eventData.text, ctx.eventData.pasteOnNewLine, oneCtx));
+			return this._applyEditForAll(ctx, (cursor) => TypeOperations.paste(cursor.config, cursor.model, cursor.modelState, ctx.eventData.text, ctx.eventData.pasteOnNewLine));
 		}
 	}
+
+	private _deleteLeft(ctx: IMultipleCursorOperationContext): boolean {
+		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteLeft(cursor.config, cursor.model, cursor.modelState));
+	}
+
+	private _deleteWordLeft(whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
+		return this._applyEditForAll(ctx, (cursor) => WordOperations.deleteWordLeft(cursor.config, cursor.model, cursor.modelState, whitespaceHeuristics, wordNavigationType));
+	}
+
+	private _deleteRight(ctx: IMultipleCursorOperationContext): boolean {
+		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteRight(cursor.config, cursor.model, cursor.modelState));
+	}
+
+	private _deleteWordRight(whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
+		return this._applyEditForAll(ctx, (cursor) => WordOperations.deleteWordRight(cursor.config, cursor.model, cursor.modelState, whitespaceHeuristics, wordNavigationType));
+	}
+
+	private _deleteAllLeft(ctx: IMultipleCursorOperationContext): boolean {
+		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteAllLeft(cursor.config, cursor.model, cursor.modelState));
+	}
+
+	private _deleteAllRight(ctx: IMultipleCursorOperationContext): boolean {
+		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteAllRight(cursor.config, cursor.model, cursor.modelState));
+	}
+
+	private _cut(ctx: IMultipleCursorOperationContext): boolean {
+		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.cut(cursor.config, cursor.model, cursor.modelState, this.enableEmptySelectionClipboard));
+	}
+
+	// -------------------- END editing operations
+
 
 	private _revealLine(ctx: IMultipleCursorOperationContext): boolean {
 		const revealLineArg: editorCommon.RevealLineArguments = ctx.eventData;
@@ -1503,10 +1585,10 @@ export class Cursor extends EventEmitter {
 		let noOfLines = editorScrollArg.value || 1;
 		switch (editorScrollArg.by) {
 			case editorCommon.EditorScrollByUnit.Page:
-				noOfLines = cursor.getPageSize() * noOfLines;
+				noOfLines = cursor.config.pageSize * noOfLines;
 				break;
 			case editorCommon.EditorScrollByUnit.HalfPage:
-				noOfLines = Math.round(cursor.getPageSize() / 2) * noOfLines;
+				noOfLines = Math.round(cursor.config.pageSize / 2) * noOfLines;
 				break;
 		}
 		this.emitCursorScrollRequest((up ? -1 : 1) * noOfLines, !!editorScrollArg.revealCursor);
@@ -1539,58 +1621,6 @@ export class Cursor extends EventEmitter {
 		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Down, value: 1 };
 		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.WrappedLine;
 		return this._editorScroll(ctx);
-	}
-
-	private _distributePasteToCursors(ctx: IMultipleCursorOperationContext): string[] {
-		if (ctx.eventData.pasteOnNewLine) {
-			return null;
-		}
-
-		var selections = this.cursors.getSelections();
-		if (selections.length === 1) {
-			return null;
-		}
-
-		for (var i = 0; i < selections.length; i++) {
-			if (selections[i].startLineNumber !== selections[i].endLineNumber) {
-				return null;
-			}
-		}
-
-		var pastePieces = ctx.eventData.text.split(/\r\n|\r|\n/);
-		if (pastePieces.length !== selections.length) {
-			return null;
-		}
-
-		return pastePieces;
-	}
-
-	private _deleteLeft(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteLeft(oneCursor, oneCtx), false, false);
-	}
-
-	private _deleteWordLeft(whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteWordLeft(oneCursor, whitespaceHeuristics, wordNavigationType, oneCtx), false, false);
-	}
-
-	private _deleteRight(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteRight(oneCursor, oneCtx), false, false);
-	}
-
-	private _deleteWordRight(whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteWordRight(oneCursor, whitespaceHeuristics, wordNavigationType, oneCtx), false, false);
-	}
-
-	private _deleteAllLeft(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteAllLeft(oneCursor, oneCtx), false, false);
-	}
-
-	private _deleteAllRight(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteAllRight(oneCursor, oneCtx), false, false);
-	}
-
-	private _cut(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.cut(oneCursor, this.enableEmptySelectionClipboard, oneCtx));
 	}
 
 	private _undo(ctx: IMultipleCursorOperationContext): boolean {

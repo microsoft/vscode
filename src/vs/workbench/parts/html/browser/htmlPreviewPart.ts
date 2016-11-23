@@ -10,17 +10,17 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { Dimension, Builder } from 'vs/base/browser/builder';
-import { empty as EmptyDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import Webview from './webview';
 
 /**
@@ -30,7 +30,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	static ID: string = 'workbench.editor.htmlPreviewPart';
 
-	private _editorService: IWorkbenchEditorService;
+	private _textModelResolverService: ITextModelResolverService;
 	private _themeService: IThemeService;
 	private _openerService: IOpenerService;
 	private _webview: Webview;
@@ -39,20 +39,21 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	private _baseUrl: URI;
 
-	private _model: IModel;
+	private _modelRef: IReference<ITextEditorModel>;
+	private get _model(): IModel { return this._modelRef.object.textEditorModel; }
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IThemeService themeService: IThemeService,
 		@IOpenerService openerService: IOpenerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService);
 
-		this._editorService = editorService;
+		this._textModelResolverService = textModelResolverService;
 		this._themeService = themeService;
 		this._openerService = openerService;
 		this._baseUrl = contextService.toResource('/');
@@ -65,7 +66,9 @@ export class HtmlPreviewPart extends BaseEditor {
 		// unhook listeners
 		this._themeChangeSubscription.dispose();
 		this._modelChangeSubscription.dispose();
-		this._model = undefined;
+		if (this._modelRef) {
+			this._modelRef.dispose();
+		}
 		super.dispose();
 	}
 
@@ -77,7 +80,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			this._webview = new Webview(this._container, document.querySelector('.monaco-editor-background'));
+			this._webview = new Webview(this._container, document.querySelector('.monaco-editor-background'), { nodeintegration: true });
 			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
 
 			this._webviewDisposables = [
@@ -121,7 +124,7 @@ export class HtmlPreviewPart extends BaseEditor {
 	}
 
 	private _hasValidModel(): boolean {
-		return this._model && !this._model.isDisposed();
+		return this._modelRef && this._model && !this._model.isDisposed();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -141,7 +144,9 @@ export class HtmlPreviewPart extends BaseEditor {
 			return TPromise.as(undefined);
 		}
 
-		this._model = undefined;
+		if (this._modelRef) {
+			this._modelRef.dispose();
+		}
 		this._modelChangeSubscription.dispose();
 
 		if (!(input instanceof HtmlInput)) {
@@ -149,14 +154,18 @@ export class HtmlPreviewPart extends BaseEditor {
 		}
 
 		return super.setInput(input, options).then(() => {
-			let resourceUri = (<HtmlInput>input).getResource();
-			return this._editorService.resolveEditorModel({ resource: resourceUri }).then(model => {
+			const resourceUri = (<HtmlInput>input).getResource();
+			return this._textModelResolverService.createModelReference(resourceUri).then(ref => {
+				const model = ref.object;
+
 				if (model instanceof BaseTextEditorModel) {
-					this._model = model.textEditorModel;
+					this._modelRef = ref;
 				}
+
 				if (!this._model) {
 					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
 				}
+
 				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.contents = this._model.getLinesContent();

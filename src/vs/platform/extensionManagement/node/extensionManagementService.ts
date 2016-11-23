@@ -243,9 +243,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private rollback(localExtension: ILocalExtension, dependecies: IGalleryExtension[]): TPromise<void> {
-		return this.uninstall(localExtension)
+		return this.doUninstall(localExtension.id)
 			.then(() => this.filterOutUninstalled(dependecies))
-			.then(installed => TPromise.join(installed.map((i) => this.uninstall(i))))
+			.then(installed => TPromise.join(installed.map((i) => this.doUninstall(i.id))))
 			.then(() => null);
 	}
 
@@ -323,7 +323,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
 		return this.preUninstallExtension(extension.id)
-			.then(() => this.hasDependencies(extension, installed) ? this.promptAndUninstall(extension, installed) : this.uninstallWithDependencies(extension, [], installed))
+			.then(() => this.hasDependencies(extension, installed) ? this.promptForDependenciesAndUninstall(extension, installed) : this.promptAndUninstall(extension, installed))
 			.then(() => this.postUninstallExtension(extension.id),
 			error => {
 				this.postUninstallExtension(extension.id, error);
@@ -338,14 +338,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return false;
 	}
 
-	private promptAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
+	private promptForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
 		const message = nls.localize('uninstallDependeciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName || extension.manifest.name);
 		const options = [
 			nls.localize('uninstallOnly', "Only"),
 			nls.localize('uninstallAll', "All"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.choiceService.choose(Severity.Info, message, options)
+		return this.choiceService.choose(Severity.Info, message, options, true)
 			.then<void>(value => {
 				if (value === 0) {
 					return this.uninstallWithDependencies(extension, [], installed);
@@ -358,13 +358,41 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			}, error => TPromise.wrapError(errors.canceled()));
 	}
 
+	private promptAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
+		const message = nls.localize('uninstallConfirmation', "Are you sure you want to uninstall '{0}'?", extension.manifest.displayName || extension.manifest.name);
+		const options = [
+			nls.localize('ok', "Ok"),
+			nls.localize('cancel', "Cancel")
+		];
+		return this.choiceService.choose(Severity.Info, message, options, true)
+			.then<void>(value => {
+				if (value === 0) {
+					return this.uninstallWithDependencies(extension, [], installed);
+				}
+				return TPromise.wrapError(errors.canceled());
+			}, error => TPromise.wrapError(errors.canceled()));
+	}
+
 	private uninstallWithDependencies(extension: ILocalExtension, dependencies: ILocalExtension[], installed: ILocalExtension[]): TPromise<void> {
 		const dependenciesToUninstall = this.filterDependents(extension, dependencies, installed);
-		let dependents = this.getDependents(extension, installed).filter(dependent => dependenciesToUninstall.indexOf(dependent) === -1);
+		let dependents = this.getDependents(extension, installed).filter(dependent => extension !== dependent && dependenciesToUninstall.indexOf(dependent) === -1);
 		if (dependents.length) {
-			return TPromise.wrapError<void>(nls.localize('hasDependentsError', "Cannot uninstall extension '{0}'. Some of the installed extensions depends on this.", extension.manifest.displayName || extension.manifest.name));
+			return TPromise.wrapError<void>(this.getDependentsErrorMessage(extension, dependents));
 		}
 		return TPromise.join([this.uninstallExtension(extension.id), ...dependenciesToUninstall.map(d => this.doUninstall(d.id))]).then(() => null);
+	}
+
+	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
+		if (dependents.length === 1) {
+			return nls.localize('singleDependentError', "Cannot uninstall extension '{0}'. Extension '{1}' depends on this.",
+				extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name);
+		}
+		if (dependents.length === 2) {
+			return nls.localize('twoDependentsError', "Cannot uninstall extension '{0}'. Extensions '{1}' and '{2}' depend on this.",
+				extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name, dependents[1].manifest.displayName || dependents[1].manifest.name);
+		}
+		return nls.localize('multipleDependentsError', "Cannot uninstall extension '{0}'. Extensions '{1}', '{2}' and others depend on this.",
+			extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name, dependents[1].manifest.displayName || dependents[1].manifest.name);
 	}
 
 	private getDependenciesToUninstallRecursively(extension: ILocalExtension, installed: ILocalExtension[], checked: ILocalExtension[]): ILocalExtension[] {

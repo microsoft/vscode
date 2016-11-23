@@ -46,7 +46,7 @@ class ModelLineBasedBuilder {
 		this.hash.update(lines.join('\n') + '\n');
 	}
 
-	public finish(totalLength: number, carriageReturnCnt: number, opts: ITextModelCreationOptions): ModelBuilderResult {
+	public finish(totalLength: number, carriageReturnCnt: number, containsRTL: boolean, opts: ITextModelCreationOptions): ModelBuilderResult {
 
 		let lineFeedCnt = this.lines.length - 1;
 		let EOL = '';
@@ -85,6 +85,7 @@ class ModelLineBasedBuilder {
 				EOL: EOL,
 				lines: this.lines,
 				length: totalLength,
+				containsRTL: containsRTL,
 				options: resolvedOpts
 			},
 			hash: this.hash.digest('hex')
@@ -107,6 +108,7 @@ export class ModelBuilder {
 	private totalCRCount: number;
 	private lineBasedBuilder: ModelLineBasedBuilder;
 	private totalLength: number;
+	private containsRTL: boolean;
 
 	public static fromStringStream(stream: IStringStream, options: ITextModelCreationOptions): TPromise<ModelBuilderResult> {
 		return new TPromise<ModelBuilderResult>((c, e, p) => {
@@ -139,6 +141,7 @@ export class ModelBuilder {
 		this.totalCRCount = 0;
 		this.lineBasedBuilder = new ModelLineBasedBuilder();
 		this.totalLength = 0;
+		this.containsRTL = false;
 	}
 
 	private _updateCRCount(chunk: string): void {
@@ -158,6 +161,10 @@ export class ModelBuilder {
 		this.totalLength += chunk.length;
 
 		this._updateCRCount(chunk);
+
+		if (!this.containsRTL) {
+			this.containsRTL = strings.containsRTL(chunk);
+		}
 
 		// Avoid dealing with a chunk that ends in \r (push the \r to the next chunk)
 		if (this.leftoverEndsInCR) {
@@ -189,6 +196,6 @@ export class ModelBuilder {
 			finalLines.push('');
 		}
 		this.lineBasedBuilder.acceptLines(finalLines);
-		return this.lineBasedBuilder.finish(this.totalLength, this.totalCRCount, opts);
+		return this.lineBasedBuilder.finish(this.totalLength, this.totalCRCount, this.containsRTL, opts);
 	}
 }

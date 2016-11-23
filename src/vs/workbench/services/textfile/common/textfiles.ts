@@ -12,7 +12,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
 import { IFileStat, IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Event as BaseEvent, PropertyChangeEvent } from 'vs/base/common/events';
 
 
@@ -106,7 +106,8 @@ export enum StateChange {
 	SAVE_ERROR,
 	SAVED,
 	REVERTED,
-	ENCODING
+	ENCODING,
+	CONTENT_CHANGE
 }
 
 export class TextFileModelChangeEvent {
@@ -182,6 +183,8 @@ export interface IRawTextContent extends IBaseStat {
 
 export interface ITextFileEditorModelManager {
 
+	onModelDisposed: Event<URI>;
+	onModelContentChanged: Event<TextFileModelChangeEvent>;
 	onModelDirty: Event<TextFileModelChangeEvent>;
 	onModelSaveError: Event<TextFileModelChangeEvent>;
 	onModelSaved: Event<TextFileModelChangeEvent>;
@@ -192,7 +195,7 @@ export interface ITextFileEditorModelManager {
 
 	getAll(resource?: URI): ITextFileEditorModel[];
 
-	loadOrCreate(resource: URI, preferredEncoding: string, refresh?: boolean): TPromise<ITextEditorModel>;
+	loadOrCreate(resource: URI, preferredEncoding?: string, refresh?: boolean): TPromise<ITextEditorModel>;
 }
 
 export interface IModelSaveOptions {
@@ -203,7 +206,10 @@ export interface IModelSaveOptions {
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
+	onDidContentChange: Event<StateChange>;
 	onDidStateChange: Event<StateChange>;
+
+	getVersionId(): number;
 
 	getResource(): URI;
 

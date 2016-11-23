@@ -121,8 +121,14 @@ export class ViewContentWidgets extends ViewPart {
 			// below can read out the adjusted width/height of widgets
 			let keys = Object.keys(this._widgets);
 			for (let i = 0, len = keys.length; i < len; i++) {
-				let widgetId = keys[i];
-				StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
+				const widgetId = keys[i];
+				const widgetData = this._widgets[widgetId];
+				const widget = widgetData.widget;
+				const maxWidth = widgetData.allowEditorOverflow
+					? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
+					: this._contentWidth;
+
+				StyleMutator.setMaxWidth(widget.getDomNode(), maxWidth);
 			}
 		}
 
@@ -148,7 +154,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._widgets[widget.getId()] = widgetData;
 
 		let domNode = widget.getDomNode();
-		domNode.style.position = 'absolute';
+		domNode.style.position = (this._context.configuration.editor.viewInfo.fixedOverflowWidgets && widget.allowEditorOverflow) ? 'fixed' : 'absolute';
 		StyleMutator.setMaxWidth(domNode, this._contentWidth);
 		StyleMutator.setVisibility(domNode, 'hidden');
 		domNode.setAttribute('widgetId', widget.getId());
@@ -266,9 +272,10 @@ export class ViewContentWidgets extends ViewPart {
 		let INNER_HEIGHT = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
 
 		// Leave some clearance to the bottom
+		let TOP_PADDING = 22;
 		let BOTTOM_PADDING = 22;
 
-		let fitsAbove = (absoluteAboveTop >= 0),
+		let fitsAbove = (absoluteAboveTop >= TOP_PADDING),
 			fitsBelow = (absoluteBelowTop + height <= INNER_HEIGHT - BOTTOM_PADDING);
 
 		if (absoluteLeft + width + 20 > INNER_WIDTH) {
@@ -282,13 +289,13 @@ export class ViewContentWidgets extends ViewPart {
 			left -= delta;
 		}
 
-		return {
-			aboveTop: aboveTop,
-			fitsAbove: fitsAbove,
-			belowTop: belowTop,
-			fitsBelow: fitsBelow,
-			left: left
-		};
+		if (this._context.configuration.editor.viewInfo.fixedOverflowWidgets) {
+			aboveTop = absoluteAboveTop;
+			belowTop = absoluteBelowTop;
+			left = absoluteLeft;
+		}
+
+		return { aboveTop, fitsAbove, belowTop, fitsBelow, left };
 	}
 
 	private _prepareRenderWidgetAtExactPosition(position: Position, ctx: IRenderingContext): IMyWidgetRenderData {

@@ -5,19 +5,21 @@
 
 'use strict';
 
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import nls = require('vs/nls');
 import product from 'vs/platform/product';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
-import { IConfirmation } from 'vs/platform/message/common/message';
+import { IConfirmation, Severity, IChoiceService } from 'vs/platform/message/common/message';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Action } from 'vs/base/common/actions';
 
-export class MessageService extends WorkbenchMessageService {
+export class MessageService extends WorkbenchMessageService implements IChoiceService {
 
 	constructor(
 		container: HTMLElement,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(container, telemetryService);
@@ -27,27 +29,17 @@ export class MessageService extends WorkbenchMessageService {
 		if (!confirmation.primaryButton) {
 			confirmation.primaryButton = nls.localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes");
 		}
-
 		if (!confirmation.secondaryButton) {
 			confirmation.secondaryButton = nls.localize('cancelButton', "Cancel");
 		}
 
 		let opts: Electron.ShowMessageBoxOptions = {
-			title: confirmation.title || product.nameLong,
+			title: confirmation.title,
 			message: confirmation.message,
-			buttons: [
-				isLinux ? this.mnemonicLabel(confirmation.secondaryButton) : this.mnemonicLabel(confirmation.primaryButton),
-				isLinux ? this.mnemonicLabel(confirmation.primaryButton) : this.mnemonicLabel(confirmation.secondaryButton)
-			],
-			noLink: true,
+			buttons: [confirmation.primaryButton, confirmation.secondaryButton],
+			defaultId: 0,
 			cancelId: 1
 		};
-
-		// Linux: buttons are swapped
-		if (isLinux) {
-			opts.defaultId = 1;
-			opts.cancelId = 0;
-		}
 
 		if (confirmation.detail) {
 			opts.detail = confirmation.detail;
@@ -57,13 +49,50 @@ export class MessageService extends WorkbenchMessageService {
 			opts.type = confirmation.type;
 		}
 
-		let result = this.windowService.getWindow().showMessageBox(opts);
-
-		if (isLinux) {
-			return result === 1 ? true : false; // Linux: buttons are swapped
-		}
+		let result = this.showMessageBox(opts);
 
 		return result === 0 ? true : false;
+	}
+
+	public choose(severity: Severity, message: string, options: string[], modal: boolean = false): TPromise<number> {
+		if (modal) {
+			const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
+			return TPromise.wrap(this.showMessageBox({ message, buttons: options, type }));
+		}
+
+		let onCancel = null;
+
+		const promise = new TPromise((c, e) => {
+			const callback = index => () => {
+				c(index);
+				return TPromise.as(true);
+			};
+
+			const actions = options.map((option, index) => new Action('?', option, '', true, callback(index)));
+
+			onCancel = this.show(severity, { message, actions }, () => promise.cancel());
+		}, () => onCancel());
+
+		return promise;
+	}
+
+	private showMessageBox(opts: Electron.ShowMessageBoxOptions): number {
+		opts.buttons = opts.buttons.map(button => this.mnemonicLabel(button));
+		opts.buttons = isLinux ? opts.buttons.reverse() : opts.buttons;
+
+		if (opts.defaultId !== void 0) {
+			opts.defaultId = isLinux ? opts.buttons.length - opts.defaultId - 1 : opts.defaultId;
+		}
+
+		if (opts.cancelId !== void 0) {
+			opts.cancelId = isLinux ? opts.buttons.length - opts.cancelId - 1 : opts.cancelId;
+		}
+
+		opts.noLink = true;
+		opts.title = opts.title || product.nameLong;
+
+		const result = this.windowService.getWindow().showMessageBox(opts);
+		return isLinux ? opts.buttons.length - result - 1 : result;
 	}
 
 	private mnemonicLabel(label: string): string {

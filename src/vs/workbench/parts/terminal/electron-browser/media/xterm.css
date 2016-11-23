@@ -131,6 +131,11 @@
 	bottom: 0;
 }
 
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-rows > div {
+	/* Lines containing spans and text nodes ocassionally wrap despite being the same width (#327) */
+	white-space: nowrap;
+}
+
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-scroll-area {
 	visibility: hidden;
 }

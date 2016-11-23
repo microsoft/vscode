@@ -147,7 +147,10 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 
 	private updateMaxHeight(): void {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
+		const { fontSize, lineHeight } = this._editor.getConfiguration().fontInfo;
 
+		this._domNode.style.fontSize = `${fontSize}px`;
+		this._domNode.style.lineHeight = `${lineHeight}px`;
 		this._domNode.style.maxHeight = `${height}px`;
 	}
 }

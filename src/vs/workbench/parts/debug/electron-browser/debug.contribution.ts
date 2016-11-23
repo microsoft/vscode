@@ -7,7 +7,6 @@ import 'vs/css!../browser/media/debug.contribution';
 import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -28,7 +27,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
 import {
-	StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, StepBackAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
+	StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
 	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction
 } from 'vs/workbench/parts/debug/browser/debugActions';
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
@@ -36,7 +35,7 @@ import service = require('vs/workbench/parts/debug/electron-browser/debugService
 import { DebugErrorEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import { DebugErrorEditor } from 'vs/workbench/parts/debug/browser/debugErrorEditor';
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -118,7 +117,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepOverAction, StepOverAction.ID, StepOverAction.LABEL, { primary: KeyCode.F10 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Step Over', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepIntoAction, StepIntoAction.ID, StepIntoAction.LABEL, { primary: KeyCode.F11 }, debug.CONTEXT_IN_DEBUG_MODE, KeybindingsRegistry.WEIGHT.workbenchContrib(1)), 'Debug: Step Into', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepOutAction, StepOutAction.ID, StepOutAction.LABEL, { primary: KeyMod.Shift | KeyCode.F11 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Step Out', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(StepBackAction, StepBackAction.ID, StepBackAction.LABEL, { primary: KeyMod.Shift | KeyCode.F10 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Step Back', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(RestartAction, RestartAction.ID, RestartAction.LABEL, { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F5 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Restart', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StopAction, StopAction.ID, StopAction.LABEL, { primary: KeyMod.Shift | KeyCode.F5 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Stop', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisconnectAction, DisconnectAction.ID, DisconnectAction.LABEL), 'Debug: Disconnect', debugCategory);
@@ -137,19 +135,9 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(FocusReplAction, Focus
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: '_workbench.startDebug',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, configuration: any) {
+	handler(accessor: ServicesAccessor, configurationOrName: any) {
 		const debugService = accessor.get(debug.IDebugService);
-		if (typeof configuration === 'string') {
-			const configurationManager = debugService.getConfigurationManager();
-			return configurationManager.setConfiguration(configuration)
-				.then(() => {
-					return configurationManager.configuration ? debugService.createSession(false)
-						: TPromise.wrapError(new Error(nls.localize('launchConfigDoesNotExist', "Launch configuration '{0}' does not exist.", configuration)));
-				});
-		}
-
-		const noDebug = configuration && !!configuration.noDebug;
-		return debugService.createSession(noDebug, configuration);
+		return debugService.createProcess(configurationOrName);
 	},
 	when: debug.CONTEXT_NOT_IN_DEBUG_MODE,
 	primary: undefined
@@ -176,12 +164,12 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'debug.allowBreakpointsEverywhere': {
 			type: 'boolean',
-			description: nls.localize('allowBreakpointsEverywhere', "Allows setting breakpoints for all files, no matter the extension."),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "Allows setting breakpoint in any file"),
 			default: false
 		},
 		'debug.openExplorerOnEnd': {
 			type: 'boolean',
-			description: nls.localize('openExplorerOnEnd', "Automatically open explorer viewlet on the end of a debug session."),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open explorer viewlet on the end of a debug session"),
 			default: false
 		}
 	}

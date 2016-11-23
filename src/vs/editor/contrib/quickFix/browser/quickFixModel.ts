@@ -61,14 +61,14 @@ class QuickFixOracle {
 
 	private _markerAtPosition(): IMarker {
 
-		const {positionLineNumber, positionColumn} = this._editor.getSelection();
+		const position = this._editor.getPosition();
 		const {uri} = this._editor.getModel();
 		const markers = this._markerService.read({ resource: uri }).sort(Range.compareRangesUsingStarts);
 
-		let idx = arrays.findFirst(markers, marker => marker.startLineNumber >= positionLineNumber);
-		while (idx < markers.length && markers[idx].startLineNumber === positionLineNumber) {
+		let idx = arrays.findFirst(markers, marker => marker.endLineNumber >= position.lineNumber);
+		while (idx < markers.length && markers[idx].endLineNumber >= position.lineNumber) {
 			const marker = markers[idx];
-			if (marker.startColumn <= positionColumn && marker.endColumn >= positionColumn) {
+			if (Range.containsPosition(marker, position)) {
 				return marker;
 			}
 			idx++;
@@ -130,17 +130,17 @@ export class QuickFixModel {
 	}
 
 	private _update(): void {
-		dispose(this._quickFixOracle);
+
+		if (this._quickFixOracle) {
+			dispose(this._quickFixOracle);
+			this._onDidChangeFixes.fire(undefined);
+		}
 
 		if (this._editor.getModel()
 			&& CodeActionProviderRegistry.has(this._editor.getModel())
 			&& !this._editor.getConfiguration().readOnly) {
 
 			this._quickFixOracle = new QuickFixOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
-
-		} else {
-			// signal unavailable
-			this._onDidChangeFixes.fire(undefined);
 		}
 	}
 

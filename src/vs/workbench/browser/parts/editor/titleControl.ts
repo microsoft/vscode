@@ -37,7 +37,7 @@ import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEd
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { ResourceContextKey } from 'vs/platform/actions/common/resourceContextKey';
+import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -79,6 +79,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	private previewEditors: boolean;
 	private showTabs: boolean;
+	protected showTabCloseButton: boolean;
 
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
@@ -154,6 +155,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
 		this.previewEditors = config.workbench && config.workbench.editor && config.workbench.editor.enablePreview;
 		this.showTabs = config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
+		this.showTabCloseButton = config.workbench && config.workbench.editor && config.workbench.editor.showTabCloseButton;
 	}
 
 	private updateSplitActionEnablement(): void {

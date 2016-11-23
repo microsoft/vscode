@@ -14,9 +14,10 @@
 	"terminal.integrated.setLocaleVariables": "Contrôle si les variables locales sont définies au démarrage du terminal. La valeur par défaut est true sur OS X, false sur les autres plateformes.",
 	"terminal.integrated.shell.linux": "Chemin de l'interpréteur de commandes utilisé par le terminal sur Linux.",
 	"terminal.integrated.shell.osx": "Chemin de l'interpréteur de commandes utilisé par le terminal sur OS X.",
-	"terminal.integrated.shell.windows": "Chemin de l'interpréteur de commandes utilisé par le terminal sur Windows. Quand vous vous servez des interpréteurs de commandes fournis avec Windows (cmd, PowerShell ou Bash sur Ubuntu), préférez C:Windowssysnative à C:WindowsSystem32 pour utiliser les versions 64 bits.",
+	"terminal.integrated.shell.windows": "Chemin de l'interpréteur de commandes utilisé par le terminal sur Windows. Quand vous vous servez des interpréteurs de commandes fournis avec Windows (cmd, PowerShell ou Bash sur Ubuntu), préférez C:\\Windows\\sysnative à C:\\Windows\\System32 pour utiliser les versions 64 bits.",
 	"terminal.integrated.shellArgs.linux": "Arguments de ligne de commande à utiliser sur le terminal Linux.",
 	"terminal.integrated.shellArgs.osx": "Arguments de ligne de commande à utiliser sur le terminal OS X.",
+	"terminal.integrated.shellArgs.windows": "Arguments de ligne de commande à utiliser sur le terminal Windows.",
 	"terminalCategory": "Terminal",
 	"terminalIntegratedConfigurationTitle": "Terminal intégré",
 	"viewCategory": "Affichage"

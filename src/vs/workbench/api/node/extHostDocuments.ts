@@ -5,6 +5,7 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -199,8 +200,9 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 		data.dispose();
 	}
 
-	public $acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void {
+	public $acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[], isDirty: boolean): void {
 		let data = this._documentData[strURL];
+		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
 		this._onDidChangeDocumentEventEmitter.fire({
 			document: data.document,
@@ -261,7 +263,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 				positionAt(offset) { return data.positionAt(offset); },
 				validateRange(ran) { return data.validateRange(ran); },
 				validatePosition(pos) { return data.validatePosition(pos); },
-				getWordRangeAtPosition(pos) { return data.getWordRangeAtPosition(pos); }
+				getWordRangeAtPosition(pos, regexp?) { return data.getWordRangeAtPosition(pos, regexp); }
 			};
 		}
 		return this._document;
@@ -409,12 +411,14 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		return new Position(line, character);
 	}
 
-	getWordRangeAtPosition(_position: vscode.Position): vscode.Range {
+	getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range {
 		let position = this.validatePosition(_position);
-
+		if (!regexp || regExpLeadsToEndlessLoop(regexp)) {
+			regexp = getWordDefinitionFor(this._languageId);
+		}
 		let wordAtText = getWordAtText(
 			position.character + 1,
-			ensureValidWordDefinition(getWordDefinitionFor(this._languageId)),
+			ensureValidWordDefinition(regexp),
 			this._lines[position.line],
 			0
 		);

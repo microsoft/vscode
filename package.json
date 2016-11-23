@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.7.0",
-  "electronVersion": "1.3.8",
-  "distro": "b1e023235579beebbb3cc127676cc91cc7f3e823",
+  "version": "1.8.0",
+  "electronVersion": "1.4.6",
+  "distro": "cc6a2710b81e898b8cde2b51ba29e178980009e8",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -12,6 +12,7 @@
     "test": "mocha",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
+    "compile": "gulp compile",
     "watch": "gulp watch",
     "monaco-editor-setup": "node scripts/monaco-editor-setup.js",
     "monaco-editor-test": "mocha --only-monaco-editor"
@@ -29,12 +30,12 @@
     "iconv-lite": "0.4.13",
     "minimist": "1.2.0",
     "native-keymap": "0.3.0",
-    "pty.js": "https://github.com/Tyriar/pty.js/tarball/e42781661143541fa08309adc9b0091e7b8674d3",
+    "pty.js": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
     "semver": "4.3.6",
-    "vscode-debugprotocol": "1.13.0",
-    "vscode-textmate": "2.2.0",
+    "vscode-debugprotocol": "1.14.0",
+    "vscode-textmate": "2.3.1",
     "winreg": "1.2.0",
-    "xterm": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.7",
+    "xterm": "2.1.0",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
@@ -65,7 +66,7 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.6.0",
-    "gulp-tsb": "^2.0.1",
+    "gulp-tsb": "^2.0.2",
     "gulp-tslint": "^4.3.0",
     "gulp-uglify": "^2.0.0",
     "gulp-util": "^3.0.6",
@@ -88,7 +89,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^3.3.0",
-    "typescript": "^2.0.3",
+    "typescript": "2.0.3",
     "typescript-formatter": "3.1.0",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",

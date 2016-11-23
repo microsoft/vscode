@@ -7,6 +7,7 @@
 	"ascending": "Порядок сортировки: ↑",
 	"descending": "Порядок сортировки: ↓",
 	"extensions": "Расширения",
+	"no extensions found": "Расширений не найдено.",
 	"outdatedExtensions": "Устаревшие расширения: {0}",
 	"searchExtensions": "Поиск расширений в Marketplace",
 	"sort by installs": "Сортировать по: числу установок",

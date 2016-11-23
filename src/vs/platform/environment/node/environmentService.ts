@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'path';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/package';
@@ -30,7 +29,7 @@ function getUniqueUserId(): string {
 	return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 }
 
-function getIPCHandleBaseName(): string {
+function getIPCHandlePrefix(): string {
 	let name = pkg.name;
 
 	// Support to run VS Code multiple times as different user
@@ -47,8 +46,9 @@ function getIPCHandleBaseName(): string {
 	return path.join(os.tmpdir(), name);
 }
 
-const IPCHandlePrefix = getIPCHandleBaseName();
-const IPCHandleSuffix = process.platform === 'win32' ? '-sock' : '.sock';
+function getIPCHandleSuffix(): string {
+	return process.platform === 'win32' ? '-sock' : '.sock';
+}
 
 export class EnvironmentService implements IEnvironmentService {
 
@@ -62,7 +62,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get execPath(): string { return this._execPath; }
 
 	@memoize
-	get userHome(): string { return path.join(os.homedir(), product.dataFolderName); }
+	get userHome(): string { return os.homedir(); }
+
+	@memoize
+	get userProductHome(): string { return path.join(this.userHome, product.dataFolderName); }
 
 	@memoize
 	get userDataPath(): string { return parseUserDataDir(this._args, process); }
@@ -77,7 +80,16 @@ export class EnvironmentService implements IEnvironmentService {
 	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize
-	get extensionsPath(): string { return path.normalize(this._args.extensionHomePath || path.join(this.userHome, 'extensions')); }
+	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
+
+	@memoize
+	get backupHome(): string { return path.join(this.userDataPath, 'Backups'); }
+
+	@memoize
+	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
+
+	@memoize
+	get extensionsPath(): string { return path.normalize(this._args['extensions-dir'] || path.join(this.userProductHome, 'extensions')); }
 
 	@memoize
 	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }
@@ -97,10 +109,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
 	@memoize
-	get mainIPCHandle(): string { return `${IPCHandlePrefix}-${pkg.version}${IPCHandleSuffix}`; }
+	get mainIPCHandle(): string { return `${getIPCHandlePrefix()}-${pkg.version}${getIPCHandleSuffix()}`; }
 
 	@memoize
-	get sharedIPCHandle(): string { return `${IPCHandlePrefix}-${pkg.version}-shared${IPCHandleSuffix}`; }
+	get sharedIPCHandle(): string { return `${getIPCHandlePrefix()}-${pkg.version}-shared${getIPCHandleSuffix()}`; }
 
 	constructor(private _args: ParsedArgs, private _execPath: string) { }
 }

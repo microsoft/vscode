@@ -25,6 +25,7 @@ import { IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewW
 import { ReferencesModel, OneReference } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -55,6 +56,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private _editorService: IEditorService,
+		@ITextModelResolverService private _textModelResolverService,
 		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IMessageService private _messageService: IMessageService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
@@ -102,7 +104,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}));
 		const storageKey = 'peekViewLayout';
 		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
-		this._widget = new ReferenceWidget(this._editor, data, this._editorService, this._contextService, this._instantiationService);
+		this._widget = new ReferenceWidget(this._editor, data, this._textModelResolverService, this._contextService, this._instantiationService);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
@@ -145,6 +147,11 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			if (requestId !== this._requestIdPool || !this._widget) {
 				return;
 			}
+
+			if (this._model) {
+				this._model.dispose();
+			}
+
 			this._model = model;
 
 			// measure time it stays open
@@ -192,7 +199,10 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}
 		this._referenceSearchVisible.reset();
 		this._disposables = dispose(this._disposables);
-		this._model = null;
+		if (this._model) {
+			this._model.dispose();
+			this._model = null;
+		}
 		this._editor.focus();
 		this._requestIdPool += 1; // Cancel pending requests
 	}

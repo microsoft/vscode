@@ -11,7 +11,7 @@ const toDelete = new Set(['tsc.js', 'tsserverlibrary.js', 'typescript.js', 'type
 
 const root = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib');
 for (let name of fs.readdirSync(root)) {
-	if (name === 'lib.d.ts' || name.match(/^lib\..*\.d\.ts$/)) {
+	if (name === 'lib.d.ts' || name.match(/^lib\..*\.d\.ts$/) || name === 'protocol.d.ts') {
 		continue;
 	}
 

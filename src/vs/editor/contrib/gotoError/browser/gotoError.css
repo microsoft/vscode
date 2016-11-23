@@ -9,6 +9,7 @@
 	background-color: white;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-editor.vs-dark .marker-widget {
@@ -36,5 +37,7 @@
 }
 
 .monaco-editor .marker-widget .descriptioncontainer {
-	white-space: pre-wrap;
+	white-space: pre;
+	-webkit-user-select: text;
+	user-select: text;
 }

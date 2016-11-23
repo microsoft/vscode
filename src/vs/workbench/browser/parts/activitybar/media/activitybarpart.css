@@ -3,19 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.panel.expanded {
-	transform: rotate(180deg);
-}
-
 .monaco-workbench > .part.activitybar {
-	z-index: 20;
-	min-width: 50px;
 	width: 50px;
-	transition: width 0.2s ease-out;
-}
-
-.monaco-workbench > .activitybar.help {
-	width: 280px;
 }
 
 .monaco-workbench > .activitybar > .content {
@@ -24,19 +13,7 @@
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar {
 	text-align: left;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-top {
 	background-color: inherit;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom {
-	position: absolute;
-	bottom: 0;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom .action-item {
-	padding-bottom: 0;
 }
 
 .vs .monaco-workbench > .activitybar > .content {
@@ -45,16 +22,6 @@
 
 .vs-dark .monaco-workbench > .activitybar > .content {
 	background-color: #333;
-}
-
-/* Global Toolbar */
-.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-label.toolbar-toggle-more {
-	background-image: url('ellipsis-global.svg');
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item > .dropdown,
-.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item > .dropdown > .dropdown-label {
-	width: 100%;
 }
 
 /* High Contrast Theming */
