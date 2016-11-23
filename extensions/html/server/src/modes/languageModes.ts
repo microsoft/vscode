@@ -60,14 +60,10 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	let modes = {};
 	modes['html'] = getHTMLMode(htmlLanguageService);
 	if (supportedLanguages['css']) {
-		let embeddedCSSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('css'));
-		modelCaches.push(embeddedCSSDocuments);
-		modes['css'] = getCSSMode(embeddedCSSDocuments);
+		modes['css'] = getCSSMode(documentRegions);
 	}
 	if (supportedLanguages['javascript']) {
-		let embeddedJSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('javascript'));
-		modelCaches.push(embeddedJSDocuments);
-		modes['javascript'] = getJavascriptMode(embeddedJSDocuments);
+		modes['javascript'] = getJavascriptMode(documentRegions);
 	}
 	return {
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode {

@@ -8,9 +8,11 @@ import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache
 import { TextDocument, Position } from 'vscode-languageserver-types';
 import { getCSSLanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { LanguageMode } from './languageModes';
+import { HTMLDocumentRegions } from './embeddedSupport';
 
-export function getCSSMode(embeddedCSSDocuments: LanguageModelCache<TextDocument>): LanguageMode {
+export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
 	let cssLanguageService = getCSSLanguageService();
+	let embeddedCSSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('css'));
 	let cssStylesheets = getLanguageModelCache<Stylesheet>(10, 60, document => cssLanguageService.parseStylesheet(document));
 
 	return {
@@ -49,9 +51,11 @@ export function getCSSMode(embeddedCSSDocuments: LanguageModelCache<TextDocument
 			return cssLanguageService.findColorSymbols(embedded, cssStylesheets.get(embedded));
 		},
 		onDocumentRemoved(document: TextDocument) {
+			embeddedCSSDocuments.onDocumentRemoved(document);
 			cssStylesheets.onDocumentRemoved(document);
 		},
 		dispose() {
+			embeddedCSSDocuments.dispose();
 			cssStylesheets.dispose();
 		}
 	};

@@ -22,10 +22,9 @@ suite('HTML Javascript Support', () => {
 
 		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
 
-		let documentRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
+		let documentRegions = getLanguageModelCache<embeddedSupport.HTMLDocumentRegions>(10, 60, document => embeddedSupport.getDocumentRegions(htmlLanguageService, document));
 
-		let embeddedJSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.getEmbeddedDocument('javascript'));
-		var mode = getJavascriptMode(embeddedJSDocuments);
+		var mode = getJavascriptMode(documentRegions);
 
 		let position = document.positionAt(offset);
 		let list = mode.doComplete(document, position);
@@ -40,5 +39,6 @@ suite('HTML Javascript Support', () => {
 
 	test('Completions', function (): any {
 		assertCompletions('<html><script>window.|</script></html>', ['location']);
+		assertCompletions('<html><script>$.|</script></html>', ['getJSON']);
 	});
 });

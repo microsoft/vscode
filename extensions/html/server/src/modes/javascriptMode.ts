@@ -4,28 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { LanguageModelCache } from '../languageModelCache';
+import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
 import { LanguageMode } from './languageModes';
 import { getWordAtText } from '../utils/words';
+import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
+import { join } from 'path';
 
 const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
+const JQUERY_D_TS = join(__dirname, '../../lib/jquery.d.ts');
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
-export function getJavascriptMode(jsDocuments: LanguageModelCache<TextDocument>): LanguageMode {
+export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
+	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('javascript'));
+
 	let compilerOptions = { allowNonTsExtensions: true, allowJs: true, target: ts.ScriptTarget.Latest };
 	let currentTextDocument: TextDocument;
 	let host = {
 		getCompilationSettings: () => compilerOptions,
-		getScriptFileNames: () => [FILE_NAME],
+		getScriptFileNames: () => [FILE_NAME, JQUERY_D_TS],
 		getScriptVersion: (fileName: string) => {
 			if (fileName === FILE_NAME) {
 				return String(currentTextDocument.version);
 			}
-			return '1'; // default lib is static
+			return '1'; // default lib an jquery.d.ts are static
 		},
 		getScriptSnapshot: (fileName: string) => {
 			let text = fileName === FILE_NAME ? currentTextDocument.getText() : ts.sys.readFile(fileName);
@@ -35,7 +40,7 @@ export function getJavascriptMode(jsDocuments: LanguageModelCache<TextDocument>)
 				getChangeRange: () => void 0
 			};
 		},
-		getCurrentDirectory: () => ts.sys.getCurrentDirectory(),
+		getCurrentDirectory: () => '',
 		getDefaultLibFileName: (options) => ts.getDefaultLibFilePath(options)
 	};
 	let jsLanguageService = ts.createLanguageService(host);
@@ -207,9 +212,11 @@ export function getJavascriptMode(jsDocuments: LanguageModelCache<TextDocument>)
 			return null;
 		},
 		onDocumentRemoved(document: TextDocument) {
+			jsDocuments.onDocumentRemoved(document);
 		},
 		dispose() {
 			jsLanguageService.dispose();
+			jsDocuments.dispose();
 		}
 	};
 };
