@@ -219,3 +219,7 @@
 .hc-black .monaco-workbench .monaco-tree-row:not(.selected) .expression .name {
 	color: inherit;
 }
+
+.hc-black .monaco-editor .debug-top-stack-frame-line {
+	background: rgba(255, 255, 0, 0.5);
+}
