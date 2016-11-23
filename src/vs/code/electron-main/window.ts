@@ -17,7 +17,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
-import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import { ReadyState, IVSCodeWindow } from 'vs/code/common/window';
 
@@ -121,8 +120,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService,
-		@IBackupMainService private backupService: IBackupMainService
+		@IStorageService private storageService: IStorageService
 	) {
 		this.options = config;
 		this._lastFocusTime = -1;

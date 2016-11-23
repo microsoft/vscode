@@ -92,7 +92,7 @@ export class VSCodeMenu {
 		});
 
 		// Listen to some events from window service
-		this.windowsService.onPathOpen(path => this.updateMenu());
+		this.windowsService.onPathsOpen(paths => this.updateMenu());
 		this.windowsService.onRecentPathsChange(paths => this.updateMenu());
 		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
 
