@@ -9,26 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Event, { Emitter, once, EventMultiplexer } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-
-export interface ISCMResource {
-	uri: URI;
-}
-
-export interface ISCMResourceGroup {
-	onChange: Event<void>;
-	set(...resources: ISCMResource[]): void;
-	get(): ISCMResource[];
-}
-
-export interface ISCMProvider extends IDisposable {
-	onChange: Event<void>;
-	resourceGroups: ISCMResourceGroup[];
-
-	commit(message: string): TPromise<void>;
-	click(uri: URI): TPromise<void>;
-	drag(from: URI, to: URI): TPromise<void>;
-	getOriginalResource(uri: URI): TPromise<URI>;
-}
+import { ISCMProvider, ISCMResource, ISCMResourceGroup } from './scm';
 
 export class ResourceGroup implements ISCMResourceGroup, IDisposable {
 
