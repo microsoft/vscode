@@ -26,7 +26,7 @@ suite('Debug - Model', () => {
 	// Breakpoints
 
 	test('breakpoints simple', () => {
-		var modelUri = uri.file('/myfolder/myfile.js');
+		const modelUri = uri.file('/myfolder/myfile.js');
 		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
 		assert.equal(model.areBreakpointsActivated(), true);
 		assert.equal(model.getBreakpoints().length, 2);
@@ -36,7 +36,7 @@ suite('Debug - Model', () => {
 	});
 
 	test('breakpoints toggling', () => {
-		var modelUri = uri.file('/myfolder/myfile.js');
+		const modelUri = uri.file('/myfolder/myfile.js');
 		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
 		model.addBreakpoints(modelUri, [{ lineNumber: 12, enabled: true, condition: 'fake condition' }]);
 		assert.equal(model.getBreakpoints().length, 3);
@@ -50,13 +50,13 @@ suite('Debug - Model', () => {
 	});
 
 	test('breakpoints two files', () => {
-		var modelUri1 = uri.file('/myfolder/my file first.js');
-		var modelUri2 = uri.file('/secondfolder/second/second file.js');
+		const modelUri1 = uri.file('/myfolder/my file first.js');
+		const modelUri2 = uri.file('/secondfolder/second/second file.js');
 		model.addBreakpoints(modelUri1, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
 		model.addBreakpoints(modelUri2, [{ lineNumber: 1, enabled: true }, { lineNumber: 2, enabled: true }, { lineNumber: 3, enabled: false }]);
 
 		assert.equal(model.getBreakpoints().length, 5);
-		var bp = model.getBreakpoints()[0];
+		const bp = model.getBreakpoints()[0];
 		const update: any = {};
 		update[bp.getId()] = { line: 100, verified: false };
 		model.updateBreakpoints(update);
@@ -73,13 +73,29 @@ suite('Debug - Model', () => {
 		assert.equal(model.getBreakpoints().length, 3);
 	});
 
+	test('breakpoints conditions', () => {
+		const modelUri1 = uri.file('/myfolder/my file first.js');
+		model.addBreakpoints(modelUri1, [{ lineNumber: 5, condition: 'i < 5', hitCondition: '17' }, { lineNumber: 10, condition: 'j < 3' }]);
+		const breakpoints = model.getBreakpoints();
+
+		assert.equal(breakpoints[0].condition, 'i < 5');
+		assert.equal(breakpoints[0].hitCondition, '17');
+		assert.equal(breakpoints[1].condition, 'j < 3');
+		assert.equal(!!breakpoints[1].hitCondition, false);
+
+		assert.equal(model.getBreakpoints().length, 2);
+		model.removeBreakpoints(model.getBreakpoints());
+		assert.equal(model.getBreakpoints().length, 0);
+	});
+
 	// Threads
 
 	test('threads simple', () => {
-		var threadId = 1;
-		var threadName = 'firstThread';
+		const threadId = 1;
+		const threadName = 'firstThread';
 
 		model.addProcess('mockProcess', rawSession);
+		assert.equal(model.getProcesses().length, 1);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
 			threadId: threadId,
@@ -94,6 +110,9 @@ suite('Debug - Model', () => {
 
 		model.clearThreads(process.getId(), true);
 		assert.equal(process.getThread(threadId), null);
+		assert.equal(model.getProcesses().length, 1);
+		model.removeProcess(process.getId());
+		assert.equal(model.getProcesses().length, 0);
 	});
 
 	test('threads multiple wtih allThreadsStopped', () => {
