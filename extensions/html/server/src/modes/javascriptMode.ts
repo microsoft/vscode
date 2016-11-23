@@ -9,14 +9,9 @@ import { CompletionItem, Location, SignatureHelp, SignatureInformation, Paramete
 import { LanguageMode } from './languageModes';
 import { getWordAtText } from '../utils/words';
 
-import ts = require('./typescript/typescriptServices');
-import { contents as libdts } from './typescript/lib-ts';
+import * as ts from 'typescript';
 
-const DEFAULT_LIB = {
-	NAME: 'defaultLib:lib.d.ts',
-	CONTENTS: libdts
-};
-const FILE_NAME = 'typescript://singlefile/1';  // the same 'file' is used for all contents
+const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
@@ -33,15 +28,15 @@ export function getJavascriptMode(jsDocuments: LanguageModelCache<TextDocument>)
 			return '1'; // default lib is static
 		},
 		getScriptSnapshot: (fileName: string) => {
-			let text = fileName === FILE_NAME ? currentTextDocument.getText() : DEFAULT_LIB.CONTENTS;
+			let text = fileName === FILE_NAME ? currentTextDocument.getText() : ts.sys.readFile(fileName);
 			return {
 				getText: (start, end) => text.substring(start, end),
 				getLength: () => text.length,
 				getChangeRange: () => void 0
 			};
 		},
-		getCurrentDirectory: () => '',
-		getDefaultLibFileName: options => DEFAULT_LIB.NAME
+		getCurrentDirectory: () => ts.sys.getCurrentDirectory(),
+		getDefaultLibFileName: (options) => ts.getDefaultLibFilePath(options)
 	};
 	let jsLanguageService = ts.createLanguageService(host);
 
