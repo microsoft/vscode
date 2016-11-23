@@ -285,7 +285,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
 			this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Environment") })
-				.then(adapter => adapter ? adapter.getInitialConfigFileContent() : null)
+				.then(adapter => adapter ? adapter.getInitialConfigurationContent() : null)
 				.then(content => {
 					if (!content) {
 						return false;
