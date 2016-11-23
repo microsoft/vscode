@@ -138,14 +138,12 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		if (telemetryService.getExperiments().showCommandsWatermark) {
-			lifecycleService.onShutdown(this.dispose, this);
-			this.partService.joinCreation().then(() => {
-				this.create();
-			});
-		}
+		lifecycleService.onShutdown(this.dispose, this);
+		this.partService.joinCreation().then(() => {
+			this.create();
+		});
 	}
 
 	public getId() {
@@ -160,7 +158,8 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		const box = $(watermark)
 			.div({ 'class': 'watermark-box' });
 		const folder = !!this.contextService.getWorkspace();
-		const firstSession = !this.storageService.get('telemetry.lastSessionDate');
+		const firstSession = this.telemetryService.getExperiments().showFirstSessionWatermark &&
+			!this.storageService.get('telemetry.lastSessionDate');
 		const selected = (folder ? folderEntries : firstSession ? firstSessionEntries : noFolderEntries)
 			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);
 		const update = () => {
