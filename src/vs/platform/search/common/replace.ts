@@ -2,32 +2,35 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {IPatternInfo} from 'vs/platform/search/common/search';
-
-const BACKSLASH_CHAR_CODE = '\\'.charCodeAt(0);
-const DOLLAR_CHAR_CODE = '$'.charCodeAt(0);
-const ZERO_CHAR_CODE = '0'.charCodeAt(0);
-const ONE_CHAR_CODE = '1'.charCodeAt(0);
-const NINE_CHAR_CODE = '9'.charCodeAt(0);
-const BACK_TICK_CHAR_CODE = '`'.charCodeAt(0);
-const SINGLE_QUOTE_CHAR_CODE = '`'.charCodeAt(0);
-const n_CHAR_CODE = 'n'.charCodeAt(0);
-const t_CHAR_CODE = 't'.charCodeAt(0);
+import { IPatternInfo } from 'vs/platform/search/common/search';
+import { CharCode } from 'vs/base/common/charCode';
 
 export class ReplacePattern {
 
 	private _replacePattern: string;
-	private _searchRegExp: RegExp;
-	private _hasParameters: boolean= false;
+	private _hasParameters: boolean = false;
+	private _regExp: RegExp;
 
-	constructor(private replaceString: string, private searchPatternInfo: IPatternInfo) {
-		this._replacePattern= replaceString;
-		if (searchPatternInfo.isRegExp) {
-			this._searchRegExp= strings.createRegExp(searchPatternInfo.pattern, searchPatternInfo.isRegExp, searchPatternInfo.isCaseSensitive, searchPatternInfo.isWordMatch, true);
+	constructor(replaceString: string, searchPatternInfo: IPatternInfo)
+	constructor(replaceString: string, parseParameters: boolean, regEx: RegExp)
+	constructor(replaceString: string, arg2: any, arg3?: any) {
+		this._replacePattern = replaceString;
+		let searchPatternInfo: IPatternInfo;
+		let parseParameters: boolean;
+		if (typeof arg2 === 'boolean') {
+			parseParameters = arg2;
+		} else {
+			searchPatternInfo = arg2;
+			parseParameters = searchPatternInfo.isRegExp;
+		}
+		if (parseParameters) {
 			this.parseReplaceString(replaceString);
+		}
+		this._regExp = arg3 ? arg3 : strings.createRegExp(searchPatternInfo.pattern, searchPatternInfo.isRegExp, { matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: searchPatternInfo.isMultiline, global: false });
+		if (this._regExp.global) {
+			this._regExp = strings.createRegExp(this._regExp.source, true, { matchCase: !this._regExp.ignoreCase, wholeWord: false, multiline: this._regExp.multiline, global: false });
 		}
 	}
 
@@ -39,11 +42,28 @@ export class ReplacePattern {
 		return this._replacePattern;
 	}
 
-	public getReplaceString(matchedString: string): string {
-		if (this.hasParameters) {
-			return matchedString.replace(this._searchRegExp, this.pattern);
+	public get regExp(): RegExp {
+		return this._regExp;
+	}
+
+	/**
+	* Returns the replace string for the first match in the given text.
+	* If text has no matches then returns null.
+	*/
+	public getReplaceString(text: string): string {
+		this._regExp.lastIndex = 0;
+		let match = this._regExp.exec(text);
+		if (match) {
+			if (this.hasParameters) {
+				if (match[0] === text) {
+					return text.replace(this._regExp, this.pattern);
+				}
+				let replaceString = text.replace(this._regExp, this.pattern);
+				return replaceString.substr(match.index, match[0].length - (text.length - replaceString.length));
+			}
+			return this.pattern;
 		}
-		return this.pattern;
+		return null;
 	}
 
 	/**
@@ -62,7 +82,7 @@ export class ReplacePattern {
 		for (let i = 0, len = replaceString.length; i < len; i++) {
 			let chCode = replaceString.charCodeAt(i);
 
-			if (chCode === BACKSLASH_CHAR_CODE) {
+			if (chCode === CharCode.Backslash) {
 
 				// move to next char
 				i++;
@@ -76,15 +96,15 @@ export class ReplacePattern {
 				let replaceWithCharacter: string = null;
 
 				switch (nextChCode) {
-					case BACKSLASH_CHAR_CODE:
+					case CharCode.Backslash:
 						// \\ => \
 						replaceWithCharacter = '\\';
 						break;
-					case n_CHAR_CODE:
+					case CharCode.n:
 						// \n => LF
 						replaceWithCharacter = '\n';
 						break;
-					case t_CHAR_CODE:
+					case CharCode.t:
 						// \t => TAB
 						replaceWithCharacter = '\t';
 						break;
@@ -96,7 +116,7 @@ export class ReplacePattern {
 				}
 			}
 
-			if (chCode === DOLLAR_CHAR_CODE) {
+			if (chCode === CharCode.DollarSign) {
 
 				// move to next char
 				i++;
@@ -110,26 +130,26 @@ export class ReplacePattern {
 				let replaceWithCharacter: string = null;
 
 				switch (nextChCode) {
-					case ZERO_CHAR_CODE:
+					case CharCode.Digit0:
 						// $0 => $&
 						replaceWithCharacter = '$&';
 						this._hasParameters = true;
 						break;
-					case BACK_TICK_CHAR_CODE:
-					case SINGLE_QUOTE_CHAR_CODE:
+					case CharCode.BackTick:
+					case CharCode.SingleQuote:
 						this._hasParameters = true;
 						break;
 					default:
 						// check if it is a valid string parameter $n (0 <= n <= 99). $0 is already handled by now.
-						if (!this.between(nextChCode, ONE_CHAR_CODE, NINE_CHAR_CODE)) {
+						if (!this.between(nextChCode, CharCode.Digit1, CharCode.Digit9)) {
 							break;
 						}
 						if (i === replaceString.length - 1) {
 							this._hasParameters = true;
 							break;
 						}
-						let charCode= replaceString.charCodeAt(++i);
-						if (!this.between(charCode, ZERO_CHAR_CODE, NINE_CHAR_CODE)) {
+						let charCode = replaceString.charCodeAt(++i);
+						if (!this.between(charCode, CharCode.Digit0, CharCode.Digit9)) {
 							this._hasParameters = true;
 							--i;
 							break;
@@ -138,8 +158,8 @@ export class ReplacePattern {
 							this._hasParameters = true;
 							break;
 						}
-						charCode= replaceString.charCodeAt(++i);
-						if (!this.between(charCode, ZERO_CHAR_CODE, NINE_CHAR_CODE)) {
+						charCode = replaceString.charCodeAt(++i);
+						if (!this.between(charCode, CharCode.Digit0, CharCode.Digit9)) {
 							this._hasParameters = true;
 							--i;
 							break;
@@ -159,11 +179,10 @@ export class ReplacePattern {
 			return;
 		}
 
-		this._replacePattern= result + replaceString.substring(substrFrom);
+		this._replacePattern = result + replaceString.substring(substrFrom);
 	}
 
 	private between(value: number, from: number, to: number): boolean {
 		return from <= value && value <= to;
 	}
 }
-

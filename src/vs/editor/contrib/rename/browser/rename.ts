@@ -6,32 +6,33 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {isPromiseCanceledError} from 'vs/base/common/errors';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import Severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
-import {RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IProgressService} from 'vs/platform/progress/common/progress';
-import {editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {IRange, ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
-import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {rename} from '../common/rename';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IEventService } from 'vs/platform/event/common/event';
+import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { IRange, ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { BulkEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { rename } from '../common/rename';
 import RenameInputField from './renameInputField';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 // ---  register actions and commands
 
 const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
 
+@editorContribution
 class RenameController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.renameController';
 
-	public static get(editor:ICommonCodeEditor): RenameController {
+	public static get(editor: ICommonCodeEditor): RenameController {
 		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
@@ -39,10 +40,10 @@ class RenameController implements IEditorContribution {
 	private _renameInputVisible: IContextKey<boolean>;
 
 	constructor(
-		private editor:ICodeEditor,
+		private editor: ICodeEditor,
 		@IMessageService private _messageService: IMessageService,
 		@IEventService private _eventService: IEventService,
-		@IEditorService private _editorService: IEditorService,
+		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService,
 		@IProgressService private _progressService: IProgressService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
@@ -131,7 +132,7 @@ class RenameController implements IEditorContribution {
 
 		// start recording of file changes so that we can figure out if a file that
 		// is to be renamed conflicts with another (concurrent) modification
-		let edit = createBulkEdit(this._eventService, this._editorService, <ICodeEditor>this.editor);
+		let edit = createBulkEdit(this._eventService, this._textModelResolverService, <ICodeEditor>this.editor);
 
 		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
 			if (result.rejectReason) {
@@ -165,12 +166,13 @@ export class RenameAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
-		return RenameController.get(editor).run();
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+		let controller = RenameController.get(editor);
+		if (controller) {
+			return controller.run();
+		}
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(RenameController);
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);
 

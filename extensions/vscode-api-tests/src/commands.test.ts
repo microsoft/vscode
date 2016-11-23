@@ -6,12 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {join} from 'path';
-import {commands, workspace, window, Uri, ViewColumn} from 'vscode';
+import { join } from 'path';
+import { commands, workspace, window, Uri, ViewColumn } from 'vscode';
 
 suite('commands namespace tests', () => {
 
-	test('getCommands', function(done) {
+	test('getCommands', function (done) {
 
 		let p1 = commands.getCommands().then(commands => {
 			let hasOneWithUnderscore = false;
@@ -40,10 +40,26 @@ suite('commands namespace tests', () => {
 		}, done);
 	});
 
+	test('command with args', function () {
+
+		let args: IArguments;
+		let registration = commands.registerCommand('t1', function () {
+			args = arguments;
+		});
+
+		return commands.executeCommand('t1', 'start').then(() => {
+			registration.dispose();
+
+			assert.ok(args);
+			assert.equal(args.length, 1);
+			assert.equal(args[0], 'start');
+		});
+	});
+
 	test('editorCommand with extra args', function () {
 
 		let args: IArguments;
-		let registration = commands.registerTextEditorCommand('t1', function() {
+		let registration = commands.registerTextEditorCommand('t1', function () {
 			args = arguments;
 		});
 

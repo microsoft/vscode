@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {MainThreadLanguagesShape} from './extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { MainThreadLanguagesShape } from './extHost.protocol';
 
 export class MainThreadLanguages extends MainThreadLanguagesShape {
 

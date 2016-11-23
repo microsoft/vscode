@@ -10,7 +10,13 @@ import { TerminateResponse } from 'vs/base/common/processes';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
+
+export interface IRegisteredTask {
+	id: string;
+	command: IDisposable;
+}
 
 export type ITaskIcon = string | { light: string; dark: string; };
 
@@ -159,7 +165,7 @@ export interface TaskDescription {
 	/**
 	 * The problem watchers to use for this task
 	 */
-	problemMatchers?:ProblemMatcher[];
+	problemMatchers?: ProblemMatcher[];
 
 	/**
 	 * Command binding for task
@@ -178,7 +184,7 @@ export interface CommandOptions {
 	 * The environment of the executed program or shell. If omitted
 	 * the parent process' environment is used.
 	 */
-	env?: { [key:string]: string; };
+	env?: { [key: string]: string; };
 }
 
 
@@ -190,12 +196,12 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * The command to execute
 	 */
-	command?:string;
+	command?: string;
 
 	/**
 	 * Whether the task is a shell command or not
 	 */
-	isShellCommand?:boolean;
+	isShellCommand?: boolean;
 
 	/**
 	 * Additional command options
@@ -205,12 +211,12 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * General args
 	 */
-	args?:string[];
+	args?: string[];
 
 	/**
 	 * The configured tasks
 	 */
-	tasks?: { [id:string]: TaskDescription; };
+	tasks?: { [id: string]: TaskDescription; };
 }
 
 /**
@@ -221,7 +227,7 @@ export interface TaskRunnerConfiguration extends BaseTaskRunnerConfiguration {
 	/**
 	 * The command to execute. Not optional.
 	 */
-	command:string;
+	command: string;
 }
 
 export interface ITaskSummary {
@@ -231,9 +237,21 @@ export interface ITaskSummary {
 	exitCode?: number;
 }
 
-export interface ITaskRunResult {
-	restartOnFileChanges?: string;
+export enum TaskExecuteKind {
+	Started = 1,
+	Active = 2
+}
+
+export interface ITaskExecuteResult {
+	kind: TaskExecuteKind;
 	promise: TPromise<ITaskSummary>;
+	started?: {
+		restartOnFileChanges?: string;
+	};
+	active?: {
+		same: boolean;
+		watching: boolean;
+	};
 }
 
 export namespace TaskSystemEvents {
@@ -253,11 +271,11 @@ export interface TaskEvent {
 }
 
 export interface ITaskSystem extends IEventEmitter {
-	build(): ITaskRunResult;
-	rebuild(): ITaskRunResult;
-	clean(): ITaskRunResult;
-	runTest(): ITaskRunResult;
-	run(taskIdentifier: string): ITaskRunResult;
+	build(): ITaskExecuteResult;
+	rebuild(): ITaskExecuteResult;
+	clean(): ITaskExecuteResult;
+	runTest(): ITaskExecuteResult;
+	run(taskIdentifier: string): ITaskExecuteResult;
 	isActive(): TPromise<boolean>;
 	isActiveSync(): boolean;
 	canAutoTerminate(): boolean;
@@ -273,5 +291,5 @@ export interface TaskConfiguration {
 	/**
 	 * The build system to use. If omitted program is used.
 	 */
-	buildSystem?:string;
+	buildSystem?: string;
 }

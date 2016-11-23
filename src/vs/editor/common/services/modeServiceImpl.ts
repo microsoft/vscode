@@ -5,32 +5,31 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
+import { onUnexpectedError } from 'vs/base/common/errors';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
-import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
-import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
-import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
-import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {Token} from 'vs/editor/common/modes/supports';
+import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
+import { ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService } from 'vs/editor/common/services/modeService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AbstractState } from 'vs/editor/common/modes/abstractState';
+import { Token } from 'vs/editor/common/core/token';
+import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 
-let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
+export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', [], {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
 	type: 'array',
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { id: '{{languageId}}', aliases: ['{{label}}'], extensions: ['{{extension}}'], configuration: './language-configuration.json'} }],
+		defaultSnippets: [{ body: { id: '{{languageId}}', aliases: ['{{label}}'], extensions: ['{{extension}}'], configuration: './language-configuration.json' } }],
 		properties: {
 			id: {
 				description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
@@ -95,7 +94,7 @@ function isUndefinedOrStringArray(value: string[]): boolean {
 	return value.every(item => typeof item === 'string');
 }
 
-function isValidLanguageExtensionPoint(value:ILanguageExtensionPoint, collector:IExtensionMessageCollector): boolean {
+function isValidLanguageExtensionPoint(value: ILanguageExtensionPoint, collector: ExtensionMessageCollector): boolean {
 	if (!value) {
 		collector.error(nls.localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
 		return false;
@@ -137,7 +136,6 @@ export class ModeServiceImpl implements IModeService {
 	private _instantiationService: IInstantiationService;
 	protected _extensionService: IExtensionService;
 
-	private _activationPromises: { [modeId: string]: TPromise<modes.IMode>; };
 	private _instantiatedModes: { [modeId: string]: modes.IMode; };
 
 	private _registry: LanguagesRegistry;
@@ -148,11 +146,13 @@ export class ModeServiceImpl implements IModeService {
 	private _onDidCreateMode: Emitter<modes.IMode> = new Emitter<modes.IMode>();
 	public onDidCreateMode: Event<modes.IMode> = this._onDidCreateMode.event;
 
-	constructor(instantiationService:IInstantiationService, extensionService:IExtensionService) {
+	constructor(
+		instantiationService: IInstantiationService,
+		extensionService: IExtensionService
+	) {
 		this._instantiationService = instantiationService;
 		this._extensionService = extensionService;
 
-		this._activationPromises = {};
 		this._instantiatedModes = {};
 
 		this._registry = new LanguagesRegistry();
@@ -161,11 +161,6 @@ export class ModeServiceImpl implements IModeService {
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
 		return this._registry.isRegisteredMode(mimetypeOrModeId);
-	}
-
-	public isCompatMode(modeId:string): boolean {
-		let compatModeData = this._registry.getCompatMode(modeId);
-		return (compatModeData ? true : false);
 	}
 
 	public getRegisteredModes(): string[] {
@@ -180,6 +175,10 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getExtensions(alias);
 	}
 
+	public getFilenames(alias: string): string[] {
+		return this._registry.getFilenames(alias);
+	}
+
 	public getMimeForMode(modeId: string): string {
 		return this._registry.getMimeForMode(modeId);
 	}
@@ -188,7 +187,7 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getLanguageName(modeId);
 	}
 
-	public getModeIdForLanguageName(alias:string): string {
+	public getModeIdForLanguageName(alias: string): string {
 		return this._registry.getModeIdForLanguageNameLowercase(alias);
 	}
 
@@ -208,7 +207,7 @@ export class ModeServiceImpl implements IModeService {
 
 	// --- instantiation
 
-	public lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[]{
+	public lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[] {
 		var r: IModeLookupResult[] = [];
 		var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
@@ -255,7 +254,7 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?:string): string {
+	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string {
 		var modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
 
 		if (modeIds.length > 0) {
@@ -285,7 +284,7 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?:string): TPromise<modes.IMode> {
+	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?: string): TPromise<modes.IMode> {
 		return this.onReady().then(() => {
 			var modeId = this.getModeIdByFilenameOrFirstLine(filename, firstLine);
 			// Fall back to plain text if no mode was found
@@ -293,113 +292,28 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	private _getOrCreateMode(modeId: string): TPromise<modes.IMode> {
-		if (this._instantiatedModes.hasOwnProperty(modeId)) {
-			return TPromise.as(this._instantiatedModes[modeId]);
-		}
+	private _getOrCreateMode(modeId: string): modes.IMode {
+		if (!this._instantiatedModes.hasOwnProperty(modeId)) {
+			this._instantiatedModes[modeId] = this._instantiationService.createInstance(FrankensteinMode, {
+				id: modeId
+			});
 
-		if (this._activationPromises.hasOwnProperty(modeId)) {
-			return this._activationPromises[modeId];
-		}
-		var c, e;
-		var promise = new TPromise((cc,ee,pp) => { c = cc; e = ee; });
-		this._activationPromises[modeId] = promise;
-
-		this._createMode(modeId).then((mode) => {
-			this._instantiatedModes[modeId] = mode;
-			delete this._activationPromises[modeId];
-
-			this._onDidCreateMode.fire(mode);
+			this._onDidCreateMode.fire(this._instantiatedModes[modeId]);
 
 			this._extensionService.activateByEvent(`onLanguage:${modeId}`).done(null, onUnexpectedError);
-
-			return this._instantiatedModes[modeId];
-		}).then(c, e);
-
-		return promise;
-	}
-
-	private _createMode(modeId:string): TPromise<modes.IMode> {
-		let modeDescriptor = this._createModeDescriptor(modeId);
-
-		let compatModeData = this._registry.getCompatMode(modeId);
-		if (compatModeData) {
-			// This is a compatibility mode
-
-			let resolvedDeps: TPromise<modes.IMode[]> = null;
-			if (Array.isArray(compatModeData.deps)) {
-				resolvedDeps = TPromise.join(compatModeData.deps.map(dep => this.getOrCreateMode(dep)));
-			} else {
-				resolvedDeps = TPromise.as<modes.IMode[]>(null);
-			}
-
-			return resolvedDeps.then(_ => {
-				let compatModeAsyncDescriptor = createAsyncDescriptor1<modes.IModeDescriptor, modes.IMode>(compatModeData.moduleId, compatModeData.ctorName);
-				return this._instantiationService.createInstance(compatModeAsyncDescriptor, modeDescriptor);
-			});
 		}
-
-		return TPromise.as<modes.IMode>(this._instantiationService.createInstance(FrankensteinMode, modeDescriptor));
-	}
-
-	private _createModeDescriptor(modeId:string): modes.IModeDescriptor {
-		return {
-			id: modeId
-		};
-	}
-
-	private _registerTokenizationSupport<T>(mode:modes.IMode, callback: (mode: modes.IMode) => T): IDisposable {
-		if (mode.setTokenizationSupport) {
-			return mode.setTokenizationSupport(callback);
-		} else {
-			console.warn('Cannot register tokenizationSupport on mode ' + mode.getId() + ' because it does not support it.');
-			return EmptyDisposable;
-		}
-	}
-
-	private registerModeSupport<T>(modeId: string, callback: (mode: modes.IMode) => T): IDisposable {
-		if (this._instantiatedModes.hasOwnProperty(modeId)) {
-			return this._registerTokenizationSupport(this._instantiatedModes[modeId], callback);
-		}
-
-		let cc: (disposable:IDisposable)=>void;
-		let promise = new TPromise<IDisposable>((c, e) => { cc = c; });
-
-		let disposable = this.onDidCreateMode((mode) => {
-			if (mode.getId() !== modeId) {
-				return;
-			}
-
-			cc(this._registerTokenizationSupport(mode, callback));
-			disposable.dispose();
-		});
-
-		return {
-			dispose: () => {
-				promise.done(disposable => disposable.dispose(), null);
-			}
-		};
-	}
-
-	public registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable {
-		return this.registerModeSupport(modeId, callback);
-	}
-
-	public registerTokenizationSupport2(modeId: string, support: modes.TokensProvider): IDisposable {
-		return this.registerModeSupport(modeId, (mode) => {
-			return new TokenizationSupport2Adapter(mode, support);
-		});
+		return this._instantiatedModes[modeId];
 	}
 }
 
 export class TokenizationState2Adapter implements modes.IState {
 
-	private _mode: modes.IMode;
+	private _modeId: string;
 	private _actual: modes.IState2;
 	private _stateData: modes.IState;
 
-	constructor(mode: modes.IMode, actual: modes.IState2, stateData: modes.IState) {
-		this._mode = mode;
+	constructor(modeId: string, actual: modes.IState2, stateData: modes.IState) {
+		this._modeId = modeId;
 		this._actual = actual;
 		this._stateData = stateData;
 	}
@@ -407,10 +321,10 @@ export class TokenizationState2Adapter implements modes.IState {
 	public get actual(): modes.IState2 { return this._actual; }
 
 	public clone(): TokenizationState2Adapter {
-		return new TokenizationState2Adapter(this._mode, this._actual.clone(), AbstractState.safeClone(this._stateData));
+		return new TokenizationState2Adapter(this._modeId, this._actual.clone(), AbstractState.safeClone(this._stateData));
 	}
 
-	public equals(other:modes.IState): boolean {
+	public equals(other: modes.IState): boolean {
 		if (other instanceof TokenizationState2Adapter) {
 			if (!this._actual.equals(other._actual)) {
 				return false;
@@ -420,11 +334,11 @@ export class TokenizationState2Adapter implements modes.IState {
 		return false;
 	}
 
-	public getMode(): modes.IMode {
-		return this._mode;
+	public getModeId(): string {
+		return this._modeId;
 	}
 
-	public tokenize(stream:any): any {
+	public tokenize(stream: any): any {
 		throw new Error('Unexpected tokenize call!');
 	}
 
@@ -432,29 +346,29 @@ export class TokenizationState2Adapter implements modes.IState {
 		return this._stateData;
 	}
 
-	public setStateData(stateData:modes.IState): void {
+	public setStateData(stateData: modes.IState): void {
 		this._stateData = stateData;
 	}
 }
 
 export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
-	private _mode: modes.IMode;
+	private _modeId: string;
 	private _actual: modes.TokensProvider;
 
-	constructor(mode: modes.IMode, actual: modes.TokensProvider) {
-		this._mode = mode;
+	constructor(modeId: string, actual: modes.TokensProvider) {
+		this._modeId = modeId;
 		this._actual = actual;
 	}
 
 	public getInitialState(): modes.IState {
-		return new TokenizationState2Adapter(this._mode, this._actual.getInitialState(), null);
+		return new TokenizationState2Adapter(this._modeId, this._actual.getInitialState(), null);
 	}
 
-	public tokenize(line:string, state:modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
+	public tokenize(line: string, state: modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
 		if (state instanceof TokenizationState2Adapter) {
 			let actualResult = this._actual.tokenize(line, state.actual);
-			let tokens: modes.IToken[] = [];
+			let tokens: Token[] = [];
 			actualResult.tokens.forEach((t) => {
 				if (typeof t.scopes === 'string') {
 					tokens.push(new Token(t.startIndex + offsetDelta, <string>t.scopes));
@@ -467,8 +381,8 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 			return {
 				tokens: tokens,
 				actualStopOffset: offsetDelta + line.length,
-				endState: new TokenizationState2Adapter(state.getMode(), actualResult.endState, state.getStateData()),
-				modeTransitions: [{ startIndex: offsetDelta, mode: state.getMode() }],
+				endState: new TokenizationState2Adapter(state.getModeId(), actualResult.endState, state.getStateData()),
+				modeTransitions: [new ModeTransition(offsetDelta, state.getModeId())],
 			};
 		}
 		throw new Error('Unexpected state to tokenize with!');
@@ -481,14 +395,14 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	private _onReadyPromise: TPromise<boolean>;
 
 	constructor(
-		@IInstantiationService instantiationService:IInstantiationService,
-		@IExtensionService extensionService:IExtensionService,
-		@IConfigurationService configurationService:IConfigurationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(instantiationService, extensionService);
 		this._configurationService = configurationService;
 
-		languagesExtPoint.setHandler((extensions:IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
+		languagesExtPoint.setHandler((extensions: IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
 			let allValidLanguages: IValidLanguageExtensionPoint[] = [];
 
 			for (let i = 0, len = extensions.length; i < len; i++) {
@@ -545,7 +459,10 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		// Register based on settings
 		if (configuration.files && configuration.files.associations) {
 			Object.keys(configuration.files.associations).forEach(pattern => {
-				mime.registerTextMime({ mime: this.getMimeForMode(configuration.files.associations[pattern]), filepattern: pattern, userConfigured: true });
+				const langId = configuration.files.associations[pattern];
+				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;
+
+				mime.registerTextMime({ id: langId, mime: mimetype, filepattern: pattern, userConfigured: true });
 			});
 		}
 	}

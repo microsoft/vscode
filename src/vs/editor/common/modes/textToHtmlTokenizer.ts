@@ -4,26 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
-import {IMode, IState, ITokenizationSupport} from 'vs/editor/common/modes';
-import {NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
+import { IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
+import { NullState, nullTokenize } from 'vs/editor/common/modes/nullMode';
 
-export function tokenizeToHtmlContent(text: string, mode: IMode): IHTMLContentElement {
-	return _tokenizeToHtmlContent(text, _getSafeTokenizationSupport(mode));
+export function tokenizeToHtmlContent(text: string, languageId: string): IHTMLContentElement {
+	return _tokenizeToHtmlContent(text, _getSafeTokenizationSupport(languageId));
 }
 
-export function tokenizeToString(text: string, mode: IMode, extraTokenClass?: string): string {
-	return _tokenizeToString(text, _getSafeTokenizationSupport(mode), extraTokenClass);
+export function tokenizeToString(text: string, languageId: string, extraTokenClass?: string): string {
+	return _tokenizeToString(text, _getSafeTokenizationSupport(languageId), extraTokenClass);
 }
 
-function _getSafeTokenizationSupport(mode: IMode): ITokenizationSupport {
-	if (mode && mode.tokenizationSupport) {
-		return mode.tokenizationSupport;
+function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
+	let tokenizationSupport = TokenizationRegistry.get(languageId);
+	if (tokenizationSupport) {
+		return tokenizationSupport;
 	}
 	return {
 		getInitialState: () => new NullState(null, null),
-		tokenize: (buffer:string, state: IState, deltaOffset:number = 0, stopAtOffset?:number) => nullTokenize(null, buffer, state, deltaOffset, stopAtOffset)
+		tokenize: (buffer: string, state: IState, deltaOffset: number = 0, stopAtOffset?: number) => nullTokenize(null, buffer, state, deltaOffset, stopAtOffset)
 	};
 }
 
@@ -68,7 +69,7 @@ function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSuppo
 		result += '<br/>';
 	};
 
-	result = '<div style="white-space: pre-wrap;">';
+	result = `<div class="monaco-tokenized-source">`;
 	_tokenizeLines(text, tokenizationSupport, emitToken, emitNewLine);
 	result += '</div>';
 
@@ -95,7 +96,7 @@ function _tokenizeLines(text: string, tokenizationSupport: ITokenizationSupport,
 	}
 }
 
-function _tokenizeLine(line: string, tokenizationSupport:ITokenizationSupport, emitToken: IEmitTokenFunc, startState: IState): IState {
+function _tokenizeLine(line: string, tokenizationSupport: ITokenizationSupport, emitToken: IEmitTokenFunc, startState: IState): IState {
 	var tokenized = tokenizationSupport.tokenize(line, startState),
 		endState = tokenized.endState,
 		tokens = tokenized.tokens,

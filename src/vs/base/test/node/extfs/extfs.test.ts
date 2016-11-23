@@ -14,6 +14,7 @@ import fs = require('fs');
 import uuid = require('vs/base/common/uuid');
 import strings = require('vs/base/common/strings');
 import extfs = require('vs/base/node/extfs');
+import { onError } from 'vs/test/utils/servicesTestUtils';
 
 suite('Extfs', () => {
 
@@ -23,10 +24,66 @@ suite('Extfs', () => {
 		const newDir = path.join(parentDir, 'extfs', id);
 
 		extfs.mkdirp(newDir, 493, (error) => {
-			assert.ok(!error);
+			if (error) {
+				return onError(error, done);
+			}
+
 			assert.ok(fs.existsSync(newDir));
 
 			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+		}); // 493 = 0755
+	});
+
+	test('delSync - swallows file not found error', function () {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		extfs.delSync(newDir);
+
+		assert.ok(!fs.existsSync(newDir));
+	});
+
+	test('delSync - simple', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		extfs.mkdirp(newDir, 493, (error) => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+			fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+
+			extfs.delSync(newDir);
+
+			assert.ok(!fs.existsSync(newDir));
+			done();
+		}); // 493 = 0755
+	});
+
+	test('delSync - recursive folder structure', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		extfs.mkdirp(newDir, 493, (error) => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+			fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+
+			fs.mkdirSync(path.join(newDir, 'somefolder'));
+			fs.writeFileSync(path.join(newDir, 'somefolder', 'somefile.txt'), 'Contents');
+
+			extfs.delSync(newDir);
+
+			assert.ok(!fs.existsSync(newDir));
+			done();
 		}); // 493 = 0755
 	});
 
@@ -39,7 +96,10 @@ suite('Extfs', () => {
 		const targetDir2 = path.join(parentDir, id2);
 
 		extfs.copy(sourceDir, targetDir, (error) => {
-			assert.ok(!error);
+			if (error) {
+				return onError(error, done);
+			}
+
 			assert.ok(fs.existsSync(targetDir));
 			assert.ok(fs.existsSync(path.join(targetDir, 'index.html')));
 			assert.ok(fs.existsSync(path.join(targetDir, 'site.css')));
@@ -48,7 +108,10 @@ suite('Extfs', () => {
 			assert.ok(fs.existsSync(path.join(targetDir, 'examples', 'small.jxs')));
 
 			extfs.mv(targetDir, targetDir2, (error) => {
-				assert.ok(!error);
+				if (error) {
+					return onError(error, done);
+				}
+
 				assert.ok(!fs.existsSync(targetDir));
 				assert.ok(fs.existsSync(targetDir2));
 				assert.ok(fs.existsSync(path.join(targetDir2, 'index.html')));
@@ -58,14 +121,21 @@ suite('Extfs', () => {
 				assert.ok(fs.existsSync(path.join(targetDir2, 'examples', 'small.jxs')));
 
 				extfs.mv(path.join(targetDir2, 'index.html'), path.join(targetDir2, 'index_moved.html'), (error) => {
-					assert.ok(!error);
+					if (error) {
+						return onError(error, done);
+					}
+
 					assert.ok(!fs.existsSync(path.join(targetDir2, 'index.html')));
 					assert.ok(fs.existsSync(path.join(targetDir2, 'index_moved.html')));
 
 					extfs.del(parentDir, os.tmpdir(), (error) => {
-						assert.ok(!error);
+						if (error) {
+							return onError(error, done);
+						}
 					}, (error) => {
-						assert.ok(!error);
+						if (error) {
+							return onError(error, done);
+						}
 						assert.ok(!fs.existsSync(parentDir));
 						done();
 					});
@@ -81,7 +151,10 @@ suite('Extfs', () => {
 			const newDir = path.join(parentDir, 'extfs', id, 'öäü');
 
 			extfs.mkdirp(newDir, 493, (error) => {
-				assert.ok(!error);
+				if (error) {
+					return onError(error, done);
+				}
+
 				assert.ok(fs.existsSync(newDir));
 
 				extfs.readdir(path.join(parentDir, 'extfs', id), (error, children) => {
@@ -102,20 +175,29 @@ suite('Extfs', () => {
 		const testFile = path.join(newDir, 'flushed.txt');
 
 		extfs.mkdirp(newDir, 493, (error) => {
-			assert.ok(!error);
+			if (error) {
+				return onError(error, done);
+			}
+
 			assert.ok(fs.existsSync(newDir));
 
 			extfs.writeFileAndFlush(testFile, 'Hello World', null, (error) => {
-				assert.ok(!error);
+				if (error) {
+					return onError(error, done);
+				}
+
 				assert.equal(fs.readFileSync(testFile), 'Hello World');
 
 				const largeString = (new Array(100 * 1024)).join('Large String\n');
 
 				extfs.writeFileAndFlush(testFile, largeString, null, (error) => {
-					assert.ok(!error);
+					if (error) {
+						return onError(error, done);
+					}
+
 					assert.equal(fs.readFileSync(testFile), largeString);
 
-					done();
+					extfs.del(parentDir, os.tmpdir(), () => { }, done);
 				});
 			});
 		});

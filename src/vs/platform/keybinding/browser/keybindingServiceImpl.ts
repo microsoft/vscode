@@ -6,32 +6,36 @@
 
 import 'vs/css!./keybindings';
 import * as nls from 'vs/nls';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {KeyCode, Keybinding} from 'vs/base/common/keyCodes';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import {isFalsyOrEmpty} from 'vs/base/common/arrays';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import * as dom from 'vs/base/browser/dom';
-import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {ICommandService, CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingItem, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
-import {IMessageService} from 'vs/platform/message/common/message';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IKeybindingItem, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IMessageService } from 'vs/platform/message/common/message';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export abstract class KeybindingService implements IKeybindingService {
 	public _serviceBrand: any;
 
-	private _toDispose: IDisposable[] = [];
+	protected toDispose: IDisposable[] = [];
+
 	private _cachedResolver: KeybindingResolver;
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
+	private _onDidUpdateKeybindings: Emitter<void>;
 
 	private _contextKeyService: IContextKeyService;
-	private _commandService: ICommandService;
+	protected _commandService: ICommandService;
 	private _statusService: IStatusbarService;
 	private _messageService: IMessageService;
 
@@ -50,14 +54,16 @@ export abstract class KeybindingService implements IKeybindingService {
 		this._firstTimeComputingResolver = true;
 		this._currentChord = 0;
 		this._currentChordStatusMessage = null;
+		this._onDidUpdateKeybindings = new Emitter<void>();
+		this.toDispose.push(this._onDidUpdateKeybindings);
 	}
 
 	public dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 
 	protected _beginListening(domNode: HTMLElement): void {
-		this._toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			this._dispatch(keyEvent);
 		}));
@@ -69,6 +75,10 @@ export abstract class KeybindingService implements IKeybindingService {
 			this._firstTimeComputingResolver = false;
 		}
 		return this._cachedResolver;
+	}
+
+	get onDidUpdateKeybindings(): Event<void> {
+		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
@@ -87,8 +97,9 @@ export abstract class KeybindingService implements IKeybindingService {
 		return keybinding._toElectronAccelerator();
 	}
 
-		protected updateResolver(): void {
+	protected updateResolver(): void {
 		this._cachedResolver = null;
+		this._onDidUpdateKeybindings.fire();
 	}
 
 	protected _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
@@ -131,11 +142,7 @@ export abstract class KeybindingService implements IKeybindingService {
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 
-	protected _getCommandHandler(commandId: string): ICommandHandler {
-		return CommandsRegistry.getCommand(commandId).handler;
-	}
-
-	private _dispatch(e: IKeyboardEvent): void {
+	protected _dispatch(e: IKeyboardEvent): void {
 		let isModifierKey = (e.keyCode === KeyCode.Ctrl || e.keyCode === KeyCode.Shift || e.keyCode === KeyCode.Alt || e.keyCode === KeyCode.Meta);
 		if (isModifierKey) {
 			return;
@@ -175,11 +182,9 @@ export abstract class KeybindingService implements IKeybindingService {
 				e.preventDefault();
 			}
 			let commandId = resolveResult.commandId.replace(/^\^/, '');
-			this._commandService.executeCommand(commandId, {}).done(undefined, err => {
+			this._commandService.executeCommand(commandId, resolveResult.commandArgs || {}).done(undefined, err => {
 				this._messageService.show(Severity.Warning, err);
 			});
 		}
 	}
-
-
 }

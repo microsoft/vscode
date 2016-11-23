@@ -12,5 +12,8 @@
 	"format.preserveNewLines": "Indica se è necessario mantenere interruzioni di riga esistenti prima degli elementi. Funziona solo prima degli elementi e non all'interno di tag o per il testo.",
 	"format.unformatted": "Elenco di tag, separati da virgole, che non devono essere riformattati. Con 'null' viene usata l'impostazione predefinita che prevede l'uso di tutti i tag elencati in https://www.w3.org/TR/html5/dom.html#phrasing-content.",
 	"format.wrapLineLength": "Numero massimo di caratteri per riga (0 = disabilita).",
-	"htmlConfigurationTitle": "HTML"
+	"htmlConfigurationTitle": "HTML",
+	"suggest.angular1": "Consente di configurare se il supporto del linguaggio HTML predefinito suggerisce tag e proprietà di Angular V1.",
+	"suggest.html5": "Consente di configurare se il supporto del linguaggio HTML predefinito suggerisce tag, proprietà e valori di HTML5.",
+	"suggest.ionic": "Consente di configurare se il supporto del linguaggio HTML predefinito suggerisce tag, proprietà e valori di Ionic."
 }

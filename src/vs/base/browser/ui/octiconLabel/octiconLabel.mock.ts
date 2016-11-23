@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import octiconLabel = require('vs/base/browser/ui/octiconLabel/octiconLabel');
-import {escape} from 'vs/base/common/strings';
+import { escape } from 'vs/base/common/strings';
 
-function expand(text:string): string {
+function expand(text: string): string {
 	return text;
 }
 

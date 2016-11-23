@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Range} from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {EditStack} from 'vs/editor/common/model/editStack';
-import {ILineEdit, ILineMarker, ModelLine} from 'vs/editor/common/model/modelLine';
-import {DeferredEventsBuilder, TextModelWithDecorations} from 'vs/editor/common/model/textModelWithDecorations';
-import {IMode} from 'vs/editor/common/modes';
+import { EditStack } from 'vs/editor/common/model/editStack';
+import { ILineEdit, ILineMarker, ModelLine } from 'vs/editor/common/model/modelLine';
+import { DeferredEventsBuilder, TextModelWithDecorations } from 'vs/editor/common/model/textModelWithDecorations';
 import * as strings from 'vs/base/common/strings';
-import {Selection} from 'vs/editor/common/core/selection';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -25,35 +23,34 @@ export interface IValidatedEditOperation {
 	isAutoWhitespaceEdit: boolean;
 }
 
-interface IIdentifiedLineEdit extends ILineEdit{
+interface IIdentifiedLineEdit extends ILineEdit {
 	lineNumber: number;
 }
 
 export class EditableTextModel extends TextModelWithDecorations implements editorCommon.IEditableTextModel {
 
-	public onDidChangeRawContent(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
+	public onDidChangeRawContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
 	}
-	public onDidChangeContent(listener: (e:editorCommon.IModelContentChangedEvent2)=>void): IDisposable {
+	public onDidChangeContent(listener: (e: editorCommon.IModelContentChangedEvent2) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelContentChanged2, listener);
 	}
 
-	private _commandManager:EditStack;
+	private _commandManager: EditStack;
 
 	// for extra details about change events:
-	private _isUndoing:boolean;
-	private _isRedoing:boolean;
+	private _isUndoing: boolean;
+	private _isRedoing: boolean;
 
 	// editable range
-	private _hasEditableRange:boolean;
-	private _editableRangeId:string;
+	private _hasEditableRange: boolean;
+	private _editableRangeId: string;
 
 	private _trimAutoWhitespaceLines: number[];
 
-	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
+	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText, languageId: string) {
 		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged);
-		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged2);
-		super(allowedEventTypes, rawText, modeOrPromise);
+		super(allowedEventTypes, rawText, languageId);
 
 		this._commandManager = new EditStack(this);
 
@@ -70,8 +67,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		super.dispose();
 	}
 
-	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
-		super._resetValue(e, newValue);
+	protected _resetValue(newValue: editorCommon.IRawText): void {
+		super._resetValue(newValue);
 
 		// Destroy my edit history and settings
 		this._commandManager = new EditStack(this);
@@ -84,7 +81,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		this._commandManager.pushStackElement();
 	}
 
-	public pushEditOperations(beforeCursorState:Selection[], editOperations:editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:editorCommon.ICursorStateComputer): Selection[] {
+	public pushEditOperations(beforeCursorState: Selection[], editOperations: editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer: editorCommon.ICursorStateComputer): Selection[] {
 		return this.deferredEmit(() => {
 			if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 				// Go through each saved line number and insert a trim whitespace edit
@@ -172,7 +169,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	 * Transform operations such that they represent the same logic edit,
 	 * but that they also do not cause OOM crashes.
 	 */
-	private _reduceOperations(operations:IValidatedEditOperation[]): IValidatedEditOperation[] {
+	private _reduceOperations(operations: IValidatedEditOperation[]): IValidatedEditOperation[] {
 		if (operations.length < 1000) {
 			// We know from empirical testing that a thousand edits work fine regardless of their shape.
 			return operations;
@@ -186,10 +183,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		return [this._toSingleEditOperation(operations)];
 	}
 
-	_toSingleEditOperation(operations:IValidatedEditOperation[]): IValidatedEditOperation {
+	_toSingleEditOperation(operations: IValidatedEditOperation[]): IValidatedEditOperation {
 		let forceMoveMarkers = false,
 			firstEditRange = operations[0].range,
-			lastEditRange = operations[operations.length-1].range,
+			lastEditRange = operations[operations.length - 1].range,
 			entireEditRange = new Range(firstEditRange.startLineNumber, firstEditRange.startColumn, lastEditRange.endLineNumber, lastEditRange.endColumn),
 			lastEndLineNumber = firstEditRange.startLineNumber,
 			lastEndColumn = firstEditRange.startColumn,
@@ -243,7 +240,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		};
 	}
 
-	private static _sortOpsAscending(a:IValidatedEditOperation, b:IValidatedEditOperation): number {
+	private static _sortOpsAscending(a: IValidatedEditOperation, b: IValidatedEditOperation): number {
 		let r = Range.compareRangesUsingEnds(a.range, b.range);
 		if (r === 0) {
 			return a.sortIndex - b.sortIndex;
@@ -251,7 +248,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		return r;
 	}
 
-	private static _sortOpsDescending(a:IValidatedEditOperation, b:IValidatedEditOperation): number {
+	private static _sortOpsDescending(a: IValidatedEditOperation, b: IValidatedEditOperation): number {
 		let r = Range.compareRangesUsingEnds(a.range, b.range);
 		if (r === 0) {
 			return b.sortIndex - a.sortIndex;
@@ -259,15 +256,21 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		return -r;
 	}
 
-	public applyEdits(rawOperations:editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
+	public applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
 		if (rawOperations.length === 0) {
 			return [];
 		}
 
-		let operations:IValidatedEditOperation[] = [];
+		let mightContainRTL = this._mightContainRTL;
+
+		let operations: IValidatedEditOperation[] = [];
 		for (let i = 0; i < rawOperations.length; i++) {
 			let op = rawOperations[i];
 			let validatedRange = this.validateRange(op.range);
+			if (!mightContainRTL && op.text) {
+				// check if the new inserted text contains RTL
+				mightContainRTL = strings.containsRTL(op.text);
+			}
 			operations[i] = {
 				sortIndex: i,
 				identifier: op.identifier,
@@ -308,7 +311,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		let reverseRanges = EditableTextModel._getInverseEditRanges(operations);
 		let reverseOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
-		let newTrimAutoWhitespaceCandidates: { lineNumber:number,oldContent:string }[] = [];
+		let newTrimAutoWhitespaceCandidates: { lineNumber: number, oldContent: string }[] = [];
 
 		for (let i = 0; i < operations.length; i++) {
 			let op = operations[i];
@@ -331,17 +334,18 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 							continue;
 						}
 					}
-					newTrimAutoWhitespaceCandidates.push({ lineNumber:lineNumber, oldContent:currentLineContent });
+					newTrimAutoWhitespaceCandidates.push({ lineNumber: lineNumber, oldContent: currentLineContent });
 				}
 			}
 		}
 
+		this._mightContainRTL = mightContainRTL;
 		this._applyEdits(operations);
 
 		this._trimAutoWhitespaceLines = null;
 		if (this._options.trimAutoWhitespace && newTrimAutoWhitespaceCandidates.length > 0) {
 			// sort line numbers auto whitespace removal candidates for next edit descending
-			newTrimAutoWhitespaceCandidates.sort((a,b) => b.lineNumber - a.lineNumber);
+			newTrimAutoWhitespaceCandidates.sort((a, b) => b.lineNumber - a.lineNumber);
 
 			this._trimAutoWhitespaceLines = [];
 			for (let i = 0, len = newTrimAutoWhitespaceCandidates.length; i < len; i++) {
@@ -368,12 +372,12 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	/**
 	 * Assumes `operations` are validated and sorted ascending
 	 */
-	public static _getInverseEditRanges(operations:IValidatedEditOperation[]): Range[] {
-		let result:Range[] = [];
+	public static _getInverseEditRanges(operations: IValidatedEditOperation[]): Range[] {
+		let result: Range[] = [];
 
 		let prevOpEndLineNumber: number;
 		let prevOpEndColumn: number;
-		let prevOp:IValidatedEditOperation = null;
+		let prevOp: IValidatedEditOperation = null;
 		for (let i = 0, len = operations.length; i < len; i++) {
 			let op = operations[i];
 
@@ -423,7 +427,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		return result;
 	}
 
-	private _applyEdits(operations:IValidatedEditOperation[]): void {
+	private _applyEdits(operations: IValidatedEditOperation[]): void {
 
 		const tabSize = this._options.tabSize;
 
@@ -431,12 +435,12 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		operations.sort(EditableTextModel._sortOpsDescending);
 
 
-		this._withDeferredEvents((deferredEventsBuilder:DeferredEventsBuilder) => {
+		this._withDeferredEvents((deferredEventsBuilder: DeferredEventsBuilder) => {
 			let contentChangedEvents: editorCommon.IModelContentChangedEvent[] = [];
 			let contentChanged2Events: editorCommon.IModelContentChangedEvent2[] = [];
 			let lineEditsQueue: IIdentifiedLineEdit[] = [];
 
-			let queueLineEdit = (lineEdit:IIdentifiedLineEdit) => {
+			let queueLineEdit = (lineEdit: IIdentifiedLineEdit) => {
 				if (lineEdit.startColumn === lineEdit.endColumn && lineEdit.text.length === 0) {
 					// empty edit => ignore it
 					return;
@@ -589,8 +593,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					this._invalidateLine(spliceLineNumber - 1);
 
 					// Lines in the middle
-					let newLinesContent:string[] = [];
-					let newLinesLengths:number[] = [];
+					let newLinesContent: string[] = [];
+					let newLinesLengths: number[] = [];
 					for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
 						let newLineNumber = startLineNumber + j;
 						this._lines.splice(newLineNumber - 1, 0, new ModelLine(newLineNumber, op.lines[j], tabSize));
@@ -649,10 +653,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				let finalVersionId = this.getVersionId() + versionBumps;
 				this._setVersionId(finalVersionId);
 
-				for (let i = contentChangedEvents.length - 1, versionId = finalVersionId; i >= 0; i--, versionId--) {
+				for (let i = contentChangedEvents.length - 1, versionId = finalVersionId; i >= 0; i-- , versionId--) {
 					contentChangedEvents[i].versionId = versionId;
 				}
-				for (let i = contentChanged2Events.length - 1, versionId = finalVersionId; i >= 0; i--, versionId--) {
+				for (let i = contentChanged2Events.length - 1, versionId = finalVersionId; i >= 0; i-- , versionId--) {
 					contentChanged2Events[i].versionId = versionId;
 				}
 
@@ -728,7 +732,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		});
 	}
 
-	public setEditableRange(range:editorCommon.IRange): void {
+	public setEditableRange(range: editorCommon.IRange): void {
 		this._commandManager.clear();
 		if (this._hasEditableRange) {
 			this.removeTrackedRange(this._editableRangeId);

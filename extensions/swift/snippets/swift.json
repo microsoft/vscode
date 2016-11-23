@@ -7,86 +7,70 @@
 		"prefix": "po",
 		"body": "print(\"\\($1)\")$0"
 	},
-
 	"repeat...while loop": {
-
 		"prefix": "repeat",
 		"body": [
 			"repeat {",
 			"	$0",
-			"} while ${true}"
+			"} while ${1:true}"
 		],
 		"description": "repeat...while loop"
 	},
-
 	"While loop": {
-
 		"prefix": "while",
 		"body": [
-			"while ${true} {",
+			"while ${1:true} {",
 			"	$0",
 			"}"
 		],
 		"description": "While loop"
 	},
-
 	"For-In statement": {
-
 		"prefix": "forin",
 		"body": [
-			"for ${item} in ${collection} {",
+			"for ${1:item} in ${2:collection} {",
 			"	$0",
 			"}"
 		],
 		"description": "For-In statement"
 	},
-
 	"Reverse for loop": {
-
 		"prefix": "forr",
 		"body": [
-			"for var ${i} = ${length} - 1; ${i} >= 0; ${i}-- {",
+			"for var ${1:i} = ${2:length} - 1; ${1:i} >= 0; ${1:i}-- {",
 			"	$0",
 			"}"
 		],
 		"description": "Reverse for loop"
 	},
-
 	"for loop": {
-
 		"prefix": "for",
 		"body": [
-			"for var ${i} = 0; ${i} < ${length}; ${i}++ {",
+			"for var ${1:i} = 0; ${1:i} < ${2:length}; ${1:i}++ {",
 			"	$0",
 			"}"
 		],
 		"description": "for loop"
 	},
-
 	"if statement": {
-
 		"prefix": "if",
 		"body": [
-			"if ${true} {",
+			"if ${1:true} {",
 			"	$0",
 			"}"
 		],
 		"description": "if statement"
 	},
-
 	"else-if statement": {
-
 		"prefix": "elif",
 		"body": [
-			"else if ${true} {",
+			"else if ${1:true} {",
 			"	$0",
 			"}"
 		],
 		"description": "if statement"
 	},
-
 	"Else statement": {
-
 		"prefix": "else",
 		"body": [
 			"else {",
@@ -95,35 +79,29 @@
 		],
 		"description": "Else statement"
 	},
-
 	"Guard statement": {
-
 		"prefix": "guard",
 		"body": [
-			"guard let ${a} = ${optional} else {",
+			"guard let ${1:a} = ${2:optional} else {",
 			"	$0",
 			"}"
 		],
 		"description": "Guard statement"
 	},
-
 	"Optional Binding statement": {
-
 		"prefix": "ifnil",
 		"body": [
-			"if let ${a} = ${optional} {",
+			"if let ${1:a} = ${2:optional} {",
 			"	$0",
 			"}"
 		],
 		"description": "Optional Binding statement"
 	},
-
 	"Switch statement": {
-
 		"prefix": "switch",
 		"body": [
-			"switch ${switch_on} {",
-			"case ${a}:",
+			"switch ${1:switch_on} {",
+			"case ${2:a}:",
 			"	$0",
 			"default:",
 			"	$1",
@@ -131,28 +109,25 @@
 		],
 		"description": "Switch statement"
 	},
-
 	"Do catch": {
-
 		"prefix": "docatch",
 		"body": [
 			"do {",
-			"	try ${function that throws}",
-			"} catch ${pattern} {",
+			"	try ${1:function that throws}",
+			"} catch ${2:pattern} {",
 			"	$0",
 			"}"
 		],
 		"description": "Try catch"
 	},
-
 	"Enum": {
-
 		"prefix": "enum",
 		"body": [
-			"enum ${Name} {",
+			"enum ${1:Name} {",
 			"	case $0",
 			"}"
 		],
 		"description": "Enum"
 	}
 }
+

@@ -7,13 +7,13 @@
 
 import 'vs/css!./viewCursors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames} from 'vs/editor/browser/editorBrowser';
-import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import {ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import {ViewContext} from 'vs/editor/common/view/viewContext';
-import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
-import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {TimeoutTimer, IntervalTimer} from 'vs/base/common/async';
+import { ClassNames } from 'vs/editor/browser/editorBrowser';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
 import * as browsers from 'vs/base/browser/browser';
 
 const ANIMATIONS_SUPPORTED = !browsers.isIE9;
@@ -38,6 +38,7 @@ export class ViewCursors extends ViewPart {
 
 	private _primaryCursor: ViewCursor;
 	private _secondaryCursors: ViewCursor[];
+	private _renderData: IViewCursorRenderData[];
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -48,6 +49,7 @@ export class ViewCursors extends ViewPart {
 
 		this._primaryCursor = new ViewCursor(this._context, false);
 		this._secondaryCursors = [];
+		this._renderData = [];
 
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._updateDomClassName();
@@ -76,8 +78,8 @@ export class ViewCursors extends ViewPart {
 
 	public onModelFlushed(): boolean {
 		this._primaryCursor.onModelFlushed();
-		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			var domNode = this._secondaryCursors[i].getDomNode();
+		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
+			let domNode = this._secondaryCursors[i].getDomNode();
 			domNode.parentNode.removeChild(domNode);
 		}
 		this._secondaryCursors = [];
@@ -97,13 +99,18 @@ export class ViewCursors extends ViewPart {
 		return true;
 	}
 	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
-		var shouldRender = (position: editorCommon.IPosition) => {
-			return e.fromLineNumber <= position.lineNumber && position.lineNumber <= e.toLineNumber;
+		let shouldRender = (position: editorCommon.IPosition) => {
+			for (let i = 0, len = e.ranges.length; i < len; i++) {
+				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
+					return true;
+				}
+			}
+			return false;
 		};
 		if (shouldRender(this._primaryCursor.getPosition())) {
 			return true;
 		}
-		for (var i = 0; i < this._secondaryCursors.length; i++) {
+		for (let i = 0; i < this._secondaryCursors.length; i++) {
 			if (shouldRender(this._secondaryCursors[i].getPosition())) {
 				return true;
 			}
@@ -116,22 +123,22 @@ export class ViewCursors extends ViewPart {
 
 		if (this._secondaryCursors.length < e.secondaryPositions.length) {
 			// Create new cursors
-			var addCnt = e.secondaryPositions.length - this._secondaryCursors.length;
-			for (var i = 0; i < addCnt; i++) {
-				var newCursor = new ViewCursor(this._context, true);
+			let addCnt = e.secondaryPositions.length - this._secondaryCursors.length;
+			for (let i = 0; i < addCnt; i++) {
+				let newCursor = new ViewCursor(this._context, true);
 				this._primaryCursor.getDomNode().parentNode.insertBefore(newCursor.getDomNode(), this._primaryCursor.getDomNode().nextSibling);
 				this._secondaryCursors.push(newCursor);
 			}
 		} else if (this._secondaryCursors.length > e.secondaryPositions.length) {
 			// Remove some cursors
-			var removeCnt = this._secondaryCursors.length - e.secondaryPositions.length;
-			for (var i = 0; i < removeCnt; i++) {
+			let removeCnt = this._secondaryCursors.length - e.secondaryPositions.length;
+			for (let i = 0; i < removeCnt; i++) {
 				this._secondaryCursors[0].getDomNode().parentNode.removeChild(this._secondaryCursors[0].getDomNode());
 				this._secondaryCursors.splice(0, 1);
 			}
 		}
 
-		for (var i = 0; i < e.secondaryPositions.length; i++) {
+		for (let i = 0; i < e.secondaryPositions.length; i++) {
 			this._secondaryCursors[i].onCursorPositionChanged(e.secondaryPositions[i], e.isInEditableRange);
 		}
 
@@ -157,7 +164,7 @@ export class ViewCursors extends ViewPart {
 		if (e.viewInfo.cursorStyle || e.viewInfo.cursorBlinking) {
 			this._updateDomClassName();
 		}
-		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
+		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].onConfigurationChanged(e);
 		}
 		return true;
@@ -281,7 +288,7 @@ export class ViewCursors extends ViewPart {
 
 	private _show(): void {
 		this._primaryCursor.show();
-		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
+		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].show();
 		}
 		this._isVisible = true;
@@ -289,7 +296,7 @@ export class ViewCursors extends ViewPart {
 
 	private _hide(): void {
 		this._primaryCursor.hide();
-		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
+		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].hide();
 		}
 		this._isVisible = false;
@@ -303,15 +310,23 @@ export class ViewCursors extends ViewPart {
 		}
 
 		this._primaryCursor.prepareRender(ctx);
-		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
+		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].prepareRender(ctx);
 		}
 	}
 
 	public render(ctx: IRestrictedRenderingContext): void {
-		this._primaryCursor.render(ctx);
-		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._secondaryCursors[i].render(ctx);
+		this._renderData = [];
+		this._renderData.push(this._primaryCursor.render(ctx));
+		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
+			this._renderData.push(this._secondaryCursors[i].render(ctx));
 		}
+
+		// Keep only data of cursors that are visible
+		this._renderData = this._renderData.filter(d => !!d);
+	}
+
+	public getLastRenderData(): IViewCursorRenderData[] {
+		return this._renderData;
 	}
 }

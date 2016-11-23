@@ -9,8 +9,8 @@ import {
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, RequestType
 } from 'vscode-languageserver';
 
-import {getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet} from 'vscode-css-languageservice';
-import {getLanguageModelCache} from './languageModelCache';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
+import { getLanguageModelCache } from './languageModelCache';
 
 namespace ColorSymbolRequest {
 	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
@@ -44,7 +44,7 @@ connection.onShutdown(() => {
 });
 
 // After the server has started the client sends an initilize request. The server receives
-// in the passed params the rootPath of the workspace plus the client capabilites.
+// in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	return {
 		capabilities: {
@@ -62,7 +62,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	};
 });
 
-let languageServices : { [id:string]: LanguageService} = {
+let languageServices: { [id: string]: LanguageService } = {
 	css: getCSSLanguageService(),
 	scss: getSCSSLanguageService(),
 	less: getLESSLanguageService()
@@ -90,7 +90,7 @@ function updateConfiguration(settings: Settings) {
 	documents.all().forEach(triggerValidation);
 }
 
-let pendingValidationRequests : {[uri:string]:number} = {};
+let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
 const validationDelayMs = 200;
 
 // The content of a text document has changed. This event is emitted
@@ -172,8 +172,11 @@ connection.onCodeAction(codeActionParams => {
 
 connection.onRequest(ColorSymbolRequest.type, uri => {
 	let document = documents.get(uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).findColorSymbols(document, stylesheet);
+	if (document) {
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).findColorSymbols(document, stylesheet);
+	}
+	return [];
 });
 
 connection.onRenameRequest(renameParameters => {

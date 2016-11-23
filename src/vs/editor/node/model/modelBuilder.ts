@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IStringStream} from 'vs/platform/files/common/files';
+import { IStringStream } from 'vs/platform/files/common/files';
 import * as crypto from 'crypto';
-import {DefaultEndOfLine, ITextModelCreationOptions, ITextModelResolvedOptions, IRawText} from 'vs/editor/common/editorCommon';
+import { DefaultEndOfLine, ITextModelCreationOptions, TextModelResolvedOptions, IRawText } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
-import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { CharCode } from 'vs/base/common/charCode';
 
 export class ModelBuilderResult {
 	rawText: IRawText;
@@ -30,7 +31,7 @@ class ModelLineBasedBuilder {
 		this.currLineIndex = 0;
 	}
 
-	public acceptLines(lines:string[]): void {
+	public acceptLines(lines: string[]): void {
 		if (this.currLineIndex === 0) {
 			// Remove the BOM (if present)
 			if (strings.startsWithUTF8BOM(lines[0])) {
@@ -45,7 +46,7 @@ class ModelLineBasedBuilder {
 		this.hash.update(lines.join('\n') + '\n');
 	}
 
-	public finish(totalLength:number, carriageReturnCnt:number, opts:ITextModelCreationOptions): ModelBuilderResult {
+	public finish(totalLength: number, carriageReturnCnt: number, containsRTL: boolean, opts: ITextModelCreationOptions): ModelBuilderResult {
 
 		let lineFeedCnt = this.lines.length - 1;
 		let EOL = '';
@@ -60,22 +61,22 @@ class ModelLineBasedBuilder {
 			EOL = '\n';
 		}
 
-		let resolvedOpts: ITextModelResolvedOptions;
+		let resolvedOpts: TextModelResolvedOptions;
 		if (opts.detectIndentation) {
 			let guessedIndentation = guessIndentation(this.lines, opts.tabSize, opts.insertSpaces);
-			resolvedOpts = {
+			resolvedOpts = new TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
-			};
+			});
 		} else {
-			resolvedOpts = {
+			resolvedOpts = new TextModelResolvedOptions({
 				tabSize: opts.tabSize,
 				insertSpaces: opts.insertSpaces,
 				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
-			};
+			});
 		}
 
 		return {
@@ -84,6 +85,7 @@ class ModelLineBasedBuilder {
 				EOL: EOL,
 				lines: this.lines,
 				length: totalLength,
+				containsRTL: containsRTL,
 				options: resolvedOpts
 			},
 			hash: this.hash.digest('hex')
@@ -91,7 +93,7 @@ class ModelLineBasedBuilder {
 	}
 }
 
-export function computeHash(rawText:IRawText): string {
+export function computeHash(rawText: IRawText): string {
 	let hash = crypto.createHash('sha1');
 	for (let i = 0, len = rawText.lines.length; i < len; i++) {
 		hash.update(rawText.lines[i] + '\n');
@@ -106,8 +108,9 @@ export class ModelBuilder {
 	private totalCRCount: number;
 	private lineBasedBuilder: ModelLineBasedBuilder;
 	private totalLength: number;
+	private containsRTL: boolean;
 
-	public static fromStringStream(stream:IStringStream, options:ITextModelCreationOptions): TPromise<ModelBuilderResult> {
+	public static fromStringStream(stream: IStringStream, options: ITextModelCreationOptions): TPromise<ModelBuilderResult> {
 		return new TPromise<ModelBuilderResult>((c, e, p) => {
 			let done = false;
 			let builder = new ModelBuilder();
@@ -138,9 +141,10 @@ export class ModelBuilder {
 		this.totalCRCount = 0;
 		this.lineBasedBuilder = new ModelLineBasedBuilder();
 		this.totalLength = 0;
+		this.containsRTL = false;
 	}
 
-	private _updateCRCount(chunk:string): void {
+	private _updateCRCount(chunk: string): void {
 		// Count how many \r are present in chunk to determine the majority EOL sequence
 		let chunkCarriageReturnCnt = 0;
 		let lastCarriageReturnIndex = -1;
@@ -150,7 +154,7 @@ export class ModelBuilder {
 		this.totalCRCount += chunkCarriageReturnCnt;
 	}
 
-	public acceptChunk(chunk:string): void {
+	public acceptChunk(chunk: string): void {
 		if (chunk.length === 0) {
 			return;
 		}
@@ -158,11 +162,15 @@ export class ModelBuilder {
 
 		this._updateCRCount(chunk);
 
+		if (!this.containsRTL) {
+			this.containsRTL = strings.containsRTL(chunk);
+		}
+
 		// Avoid dealing with a chunk that ends in \r (push the \r to the next chunk)
 		if (this.leftoverEndsInCR) {
 			chunk = '\r' + chunk;
 		}
-		if (chunk.charCodeAt(chunk.length - 1) === 13 /*\r*/) {
+		if (chunk.charCodeAt(chunk.length - 1) === CharCode.CarriageReturn) {
 			this.leftoverEndsInCR = true;
 			chunk = chunk.substr(0, chunk.length - 1);
 		} else {
@@ -182,12 +190,12 @@ export class ModelBuilder {
 		this.leftoverPrevChunk = lines[lines.length - 1];
 	}
 
-	public finish(opts:ITextModelCreationOptions): ModelBuilderResult {
+	public finish(opts: ITextModelCreationOptions): ModelBuilderResult {
 		let finalLines = [this.leftoverPrevChunk];
 		if (this.leftoverEndsInCR) {
 			finalLines.push('');
 		}
 		this.lineBasedBuilder.acceptLines(finalLines);
-		return this.lineBasedBuilder.finish(this.totalLength, this.totalCRCount, opts);
+		return this.lineBasedBuilder.finish(this.totalLength, this.totalCRCount, this.containsRTL, opts);
 	}
 }

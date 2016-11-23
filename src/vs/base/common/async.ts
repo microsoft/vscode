@@ -10,6 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
 
 function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
@@ -23,11 +24,13 @@ export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
 	}
 }
 
-export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Thenable<T>): TPromise<T> {
+export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
 	let source = new CancellationTokenSource();
-	return new TPromise<T>((resolve, reject) => {
+	return new TPromise<T>((resolve, reject, progress) => {
 		let item = callback(source.token);
-		if (isThenable<T>(item)) {
+		if (item instanceof TPromise) {
+			item.then(resolve, reject, progress);
+		} else if (isThenable<T>(item)) {
 			item.then(resolve, reject);
 		} else {
 			resolve(item);
@@ -41,15 +44,15 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Th
  * Hook a cancellation token to a WinJS Promise
  */
 export function wireCancellationToken<T>(token: CancellationToken, promise: TPromise<T>, resolveAsUndefinedWhenCancelled?: boolean): Thenable<T> {
-	token.onCancellationRequested(() => promise.cancel());
+	const subscription = token.onCancellationRequested(() => promise.cancel());
 	if (resolveAsUndefinedWhenCancelled) {
-		return promise.then(undefined, err => {
+		promise = promise.then(undefined, err => {
 			if (!errors.isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err);
 			}
 		});
 	}
-	return promise;
+	return always(promise, () => subscription.dispose());
 }
 
 export interface ITask<T> {
@@ -366,22 +369,22 @@ export function always<T>(promise: TPromise<T>, f: Function): TPromise<T> {
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.
  */
-export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]> {
+export function sequence<T>(promiseFactories: ITask<TPromise<T>>[]): TPromise<T[]> {
 	const results: T[] = [];
 
 	// reverse since we start with last element using pop()
-	promiseFactory = promiseFactory.reverse();
+	promiseFactories = promiseFactories.reverse();
 
 	function next(): Promise {
-		if (promiseFactory.length) {
-			return promiseFactory.pop()();
+		if (promiseFactories.length) {
+			return promiseFactories.pop()();
 		}
 
 		return null;
 	}
 
 	function thenHandler(result: any): Promise {
-		if (result) {
+		if (result !== undefined && result !== null) {
 			results.push(result);
 		}
 
@@ -396,12 +399,35 @@ export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]>
 	return TPromise.as(null).then(thenHandler);
 }
 
+export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t): TPromise<T> {
+	promiseFactories = [...promiseFactories.reverse()];
+
+	const loop = () => {
+		if (promiseFactories.length === 0) {
+			return TPromise.as(null);
+		}
+
+		const factory = promiseFactories.pop();
+		const promise = factory();
+
+		return promise.then(result => {
+			if (shouldStop(result)) {
+				return TPromise.as(result);
+			}
+
+			return loop();
+		});
+	};
+
+	return loop();
+}
+
 export function once<T extends Function>(fn: T): T {
 	const _this = this;
 	let didCall = false;
 	let result: any;
 
-	return function() {
+	return function () {
 		if (didCall) {
 			return result;
 		}
@@ -428,11 +454,17 @@ export class Limiter<T> {
 	private runningPromises: number;
 	private maxDegreeOfParalellism: number;
 	private outstandingPromises: ILimitedTaskFactory[];
+	private _onFinished: Emitter<void>;
 
 	constructor(maxDegreeOfParalellism: number) {
 		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
 		this.outstandingPromises = [];
 		this.runningPromises = 0;
+		this._onFinished = new Emitter<void>();
+	}
+
+	public get onFinished(): Event<void> {
+		return this._onFinished.event;
 	}
 
 	queue(promiseFactory: ITask<Promise>): Promise;
@@ -462,7 +494,26 @@ export class Limiter<T> {
 
 	private consumed(): void {
 		this.runningPromises--;
-		this.consume();
+
+		if (this.outstandingPromises.length > 0) {
+			this.consume();
+		} else {
+			this._onFinished.fire();
+		}
+	}
+
+	public dispose(): void {
+		this._onFinished.dispose();
+	}
+}
+
+/**
+ * A queue is handles one promise at a time and guarantees that at any time only one promise is executing.
+ */
+export class Queue<T> extends Limiter<T> {
+
+	constructor() {
+		super(1);
 	}
 }
 
@@ -486,7 +537,7 @@ export class TimeoutTimer extends Disposable {
 		}
 	}
 
-	cancelAndSet(runner: () => void, timeout:number): void {
+	cancelAndSet(runner: () => void, timeout: number): void {
 		this.cancel();
 		this._token = platform.setTimeout(() => {
 			this._token = -1;
@@ -527,7 +578,7 @@ export class IntervalTimer extends Disposable {
 		}
 	}
 
-	cancelAndSet(runner: () => void, interval:number): void {
+	cancelAndSet(runner: () => void, interval: number): void {
 		this.cancel();
 		this._token = platform.setInterval(() => {
 			runner();
@@ -607,4 +658,10 @@ export function ninvoke(thisArg: any, fn: Function, ...args: any[]): Promise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
 	return new Promise((c, e) => fn.call(thisArg, ...args, (err, result) => err ? e(err) : c(result)));
+}
+
+interface IQueuedPromise<T> {
+	t: ITask<TPromise<T>>;
+	c: ValueCallback;
+	e: ErrorCallback;
 }

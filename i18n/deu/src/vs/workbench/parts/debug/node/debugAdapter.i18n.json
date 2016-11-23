@@ -9,8 +9,9 @@
 	"debugOSXConfiguration": "OS X-spezifische Startkonfigurationsattribute.",
 	"debugPrelaunchTask": "Ein Task, der ausgeführt werden soll, bevor die Debugsitzung beginnt.",
 	"debugRequest": "Der Anforderungstyp der Konfiguration. Der Wert kann \"launch\" oder \"attach\" sein.",
+	"debugServer": "Nur für die Entwicklung von Debugerweiterungen: Wenn ein Port angegeben ist, versucht der VS-Code, eine Verbindung mit einem Debugadapter herzustellen, der im Servermodus ausgeführt wird.",
 	"debugType": "Der Typ der Konfiguration.",
 	"debugWindowsConfiguration": "Windows-spezifische Startkonfigurationsattribute.",
-	"internalConsoleOptions": "Steuert das Verhalten der internen Debugkonsole.",
+	"internalConsoleOptions": "Steuert das Verhalten der internen Debugging-Konsole.",
 	"relativePathsNotConverted": "Relative Pfade werden nicht mehr automatisch in absolute Pfade konvertiert. Verwenden Sie ggf. ${workspaceRoot} als Präfix."
 }

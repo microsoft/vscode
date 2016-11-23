@@ -5,16 +5,17 @@
 
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
-import {IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorStacksModel, IEditorGroup } from 'vs/workbench/common/editor';
 import Event from 'vs/base/common/event';
-import {EditorInputEvent} from 'vs/workbench/common/editor';
 
 export enum GroupArrangement {
 	MINIMIZE_OTHERS,
-	EVEN_WIDTH
+	EVEN
 }
+
+export type GroupOrientation = 'vertical' | 'horizontal';
 
 export const IEditorGroupService = createDecorator<IEditorGroupService>('editorGroupService');
 
@@ -31,11 +32,6 @@ export interface IEditorGroupService {
 	onEditorsChanged: Event<void>;
 
 	/**
-	 * Emitted when an editor is about to open.
-	 */
-	onEditorOpening: Event<EditorInputEvent>;
-
-	/**
 	 * Emitted when opening an editor fails.
 	 */
 	onEditorOpenFail: Event<IEditorInput>;
@@ -44,6 +40,11 @@ export interface IEditorGroupService {
 	 * Emitted when a editors are moved to another position.
 	 */
 	onEditorsMoved: Event<void>;
+
+	/**
+	 * Emitted when the editor group orientation was changed.
+	 */
+	onGroupOrientationChanged: Event<void>;
 
 	/**
 	 * Keyboard focus the editor group at the provided position.
@@ -67,6 +68,17 @@ export interface IEditorGroupService {
 	 * Allows to arrange editor groups according to the GroupArrangement enumeration.
 	 */
 	arrangeGroups(arrangement: GroupArrangement): void;
+
+	/**
+	 * Changes the editor group layout between vertical and horizontal orientation. Only applies
+	 * if more than one editor is opened.
+	 */
+	setGroupOrientation(orientation: GroupOrientation): void;
+
+	/**
+	 * Returns the current editor group layout.
+	 */
+	getGroupOrientation(): GroupOrientation;
 
 	/**
 	 * Adds the pinned state to an editor, removing it from being a preview editor.

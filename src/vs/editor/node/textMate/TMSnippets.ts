@@ -5,28 +5,28 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {parse} from 'vs/base/common/json';
+import { parse } from 'vs/base/common/json';
 import * as paths from 'vs/base/common/paths';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {readFile} from 'vs/base/node/pfs';
-import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ISnippetsRegistry, Extensions, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {CodeSnippet, ExternalSnippetType} from 'vs/editor/contrib/snippet/common/snippet';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { readFile } from 'vs/base/node/pfs';
+import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ISnippetsRegistry, Extensions, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import platform = require('vs/platform/platform');
+import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
 
 export interface ISnippetsExtensionPoint {
 	language: string;
 	path: string;
 }
 
-let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISnippetsExtensionPoint[]>('snippets', {
+let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISnippetsExtensionPoint[]>('snippets', [languagesExtPoint], {
 	description: nls.localize('vscode.extension.contributes.snippets', 'Contributes snippets.'),
 	type: 'array',
-	defaultSnippets: [ { body: [{ language: '', path: '' }] }],
+	defaultSnippets: [{ body: [{ language: '', path: '' }] }],
 	items: {
 		type: 'object',
-		defaultSnippets: [ { body: { language: '{{id}}', path: './snippets/{{id}}.json.'} }] ,
+		defaultSnippets: [{ body: { language: '{{id}}', path: './snippets/{{id}}.json.' } }],
 		properties: {
 			language: {
 				description: nls.localize('vscode.extension.contributes.snippets-language', 'Language identifier for which this snippet is contributed to.'),
@@ -43,21 +43,21 @@ let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISnippets
 export class MainProcessTextMateSnippet {
 	private _modeService: IModeService;
 
-	constructor(@IModeService modeService: IModeService) {
+	constructor( @IModeService modeService: IModeService) {
 		this._modeService = modeService;
 
 		snippetsExtensionPoint.setHandler((extensions) => {
 			for (let i = 0; i < extensions.length; i++) {
 				let tmSnippets = extensions[i].value;
 				for (let j = 0; j < tmSnippets.length; j++) {
-					this._withSnippetContribution(extensions[i].description.extensionFolderPath, tmSnippets[j], extensions[i].collector);
+					this._withSnippetContribution(extensions[i].description.name, extensions[i].description.extensionFolderPath, tmSnippets[j], extensions[i].collector);
 				}
 			}
 		});
 	}
 
-	private _withSnippetContribution(extensionFolderPath: string, snippet: ISnippetsExtensionPoint, collector: IExtensionMessageCollector): void {
-		if (!snippet.language || (typeof snippet.language !== 'string')) {
+	private _withSnippetContribution(extensionName: string, extensionFolderPath: string, snippet: ISnippetsExtensionPoint, collector: ExtensionMessageCollector): void {
+		if (!snippet.language || (typeof snippet.language !== 'string') || !this._modeService.isRegisteredMode(snippet.language)) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", snippetsExtensionPoint.name, String(snippet.language)));
 			return;
 		}
@@ -76,7 +76,7 @@ export class MainProcessTextMateSnippet {
 			if (mode.getId() !== modeId) {
 				return;
 			}
-			readAndRegisterSnippets(modeId, normalizedAbsolutePath);
+			readAndRegisterSnippets(modeId, normalizedAbsolutePath, extensionName);
 			disposable.dispose();
 		});
 	}
@@ -84,20 +84,23 @@ export class MainProcessTextMateSnippet {
 
 let snippetsRegistry = <ISnippetsRegistry>platform.Registry.as(Extensions.Snippets);
 
-export function readAndRegisterSnippets(modeId: string, filePath: string): TPromise<void> {
+export function readAndRegisterSnippets(modeId: string, filePath: string, ownerName: string): TPromise<void> {
 	return readFile(filePath).then(fileContents => {
-		let snippets = parseSnippetFile(fileContents.toString());
+		let snippets = parseSnippetFile(fileContents.toString(), ownerName);
 		snippetsRegistry.registerSnippets(modeId, snippets, filePath);
 	});
 }
 
-function parseSnippetFile(snippetFileContent: string): ISnippet[] {
+function parseSnippetFile(snippetFileContent: string, owner: string): ISnippet[] {
 	let snippetsObj = parse(snippetFileContent);
+	if (!snippetsObj || typeof snippetsObj !== 'object') {
+		return [];
+	}
 
 	let topLevelProperties = Object.keys(snippetsObj);
 	let result: ISnippet[] = [];
 
-	let processSnippet = (snippet: any, description: string) => {
+	let processSnippet = (snippet: any, name: string) => {
 		let prefix = snippet['prefix'];
 		let bodyStringOrArray = snippet['body'];
 
@@ -106,14 +109,13 @@ function parseSnippetFile(snippetFileContent: string): ISnippet[] {
 		}
 
 		if (typeof prefix === 'string' && typeof bodyStringOrArray === 'string') {
-			let codeSnippet = CodeSnippet.convertExternalSnippet(bodyStringOrArray, ExternalSnippetType.TextMateSnippet);
-			if (codeSnippet !== null) {
-				result.push({
-					prefix,
-					description: snippet['description'] || description,
-					codeSnippet
-				});
-			}
+			result.push({
+				name,
+				owner,
+				prefix,
+				description: snippet['description'] || name,
+				codeSnippet: bodyStringOrArray
+			});
 		}
 	};
 

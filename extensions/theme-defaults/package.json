@@ -33,6 +33,13 @@
 				"uiTheme": "hc-black",
 				"path": "./themes/hc_black.json"
 			}
+		],
+		"iconThemes": [
+			{
+				"id": "vs-minimal",
+				"label": "Minimal (Visual Studio Code)",
+				"path": "./fileicons/vs_minimal_icons.json"
+			}
 		]
 	}
 }

@@ -7,18 +7,18 @@
 
 import nls = require('vs/nls');
 
-import {fileExists} from 'vs/base/node/pfs';
+import { fileExists } from 'vs/base/node/pfs';
 import fs = require('fs');
-import {dirname, join, normalize, isValidBasename} from 'vs/base/common/paths';
+import { dirname, join, normalize, isValidBasename } from 'vs/base/common/paths';
 
-import {EmmetEditorAction, EmmetActionContext} from 'vs/workbench/parts/emmet/node/emmetActions';
-import {Action} from 'vs/base/common/actions';
+import { EmmetEditorAction, EmmetActionContext } from 'vs/workbench/parts/emmet/node/emmetActions';
+import { Action } from 'vs/base/common/actions';
 
-import {ServicesAccessor, editorAction} from 'vs/editor/common/editorCommonExtensions';
-import {EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import { ServicesAccessor, editorAction } from 'vs/editor/common/editorCommonExtensions';
+import { EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IQuickOpenService, IInputOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 @editorAction
 class EncodeDecodeDataUrlAction extends EmmetEditorAction {
@@ -43,7 +43,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		return join(parent, fileName);
 	}
 
-	public runEmmetAction(accessor:ServicesAccessor, ctx:EmmetActionContext) {
+	public runEmmetAction(accessor: ServicesAccessor, ctx: EmmetActionContext) {
 		const workspaceContext = accessor.get(IWorkspaceContextService);
 		const messageService = accessor.get(IMessageService);
 		const quickOpenService = accessor.get(IQuickOpenService);
@@ -83,17 +83,17 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 				const message = nls.localize('warnEscalation', "File **{0}** already exists.  Do you want to overwrite the existing file?", this.imageFilePath);
 				const actions = [
-					new Action('cancel', nls.localize('cancel', "Cancel"), '', true),
 					new Action('ok', nls.localize('ok', "OK"), '', true, () => {
 						this.encodeDecode(ctx, this.imageFilePath);
 						return null;
-					})
+					}),
+					new Action('cancel', nls.localize('cancel', "Cancel"), '', true)
 				];
 				messageService.show(Severity.Warning, { message, actions });
 			});
 	}
 
-	public encodeDecode(ctx:EmmetActionContext, filepath?: string) {
+	public encodeDecode(ctx: EmmetActionContext, filepath?: string) {
 		ctx.editorAccessor.prompt = (): string => {
 			return filepath;
 		};
@@ -103,7 +103,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		}
 	}
 
-	private isValidInput(messageService:IMessageService, input: any): boolean {
+	private isValidInput(messageService: IMessageService, input: any): boolean {
 		if (input === undefined) {
 			return false;
 		}

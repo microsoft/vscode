@@ -4,37 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import network = require('vs/base/common/network');
-import {guessMimeTypes} from 'vs/base/common/mime';
-import {Registry} from 'vs/platform/platform';
-import {basename, dirname} from 'vs/base/common/paths';
-import types = require('vs/base/common/types');
-import {IDiffEditor, ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor} from 'vs/editor/common/editorCommon';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, IEditorRegistry, Extensions} from 'vs/workbench/common/editor';
-import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
+import { Registry } from 'vs/platform/platform';
+import { basename, dirname } from 'vs/base/common/paths';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, IEditorRegistry, Extensions } from 'vs/workbench/common/editor';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 
 export interface IEditorPart {
-	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
-	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
-	openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
-	replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
+	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
+	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, position?: Position): TPromise<BaseEditor>;
+	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<BaseEditor[]>;
+	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<BaseEditor[]>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
 	closeAllEditors(except?: Position): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
-	getActiveEditorInput(): EditorInput;
+	getActiveEditorInput(): IEditorInput;
 }
 
 export class WorkbenchEditorService implements IWorkbenchEditorService {
@@ -70,7 +66,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return false;
 		}
 
-		return this.getVisibleEditors().some((editor) => {
+		return this.getVisibleEditors().some(editor => {
 			if (!editor.input) {
 				return false;
 			}
@@ -80,7 +76,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			}
 
 			if (includeDiff && editor.input instanceof DiffEditorInput) {
-				let diffInput = <DiffEditorInput>editor.input;
+				const diffInput = <DiffEditorInput>editor.input;
 				return input.matches(diffInput.modifiedInput) || input.matches(diffInput.originalInput);
 			}
 
@@ -103,20 +99,21 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		// Support opening foreign resources (such as a http link that points outside of the workbench)
-		let resourceInput = <IResourceInput>input;
+		const resourceInput = <IResourceInput>input;
 		if (resourceInput.resource instanceof URI) {
-			let schema = resourceInput.resource.scheme;
+			const schema = resourceInput.resource.scheme;
 			if (schema === network.Schemas.http || schema === network.Schemas.https) {
 				window.open(resourceInput.resource.toString(true));
+
 				return TPromise.as<IEditor>(null);
 			}
 		}
 
 		// Untyped Text Editor Support (required for code that uses this service below workbench level)
-		let textInput = <IResourceInput>input;
-		return this.createInput(textInput).then((typedFileInput: EditorInput) => {
-			if (typedFileInput) {
-				return this.doOpenEditor(typedFileInput, TextEditorOptions.from(textInput), arg2);
+		const textInput = <IResourceInput>input;
+		return this.createInput(textInput).then(typedInput => {
+			if (typedInput) {
+				return this.doOpenEditor(typedInput, TextEditorOptions.from(textInput), arg2);
 			}
 
 			return TPromise.as<IEditor>(null);
@@ -195,22 +192,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.closeAllEditors(except);
 	}
 
-	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
-	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
-	public resolveEditorModel(input: any, refresh?: boolean): TPromise<IEditorModel> {
-		return this.createInput(input).then((workbenchInput: IEditorInput) => {
-			if (workbenchInput) {
-
-				// Resolve if applicable
-				if (workbenchInput instanceof EditorInput) {
-					return workbenchInput.resolve(!!refresh);
-				}
-			}
-
-			return TPromise.as<IEditorModel>(null);
-		});
-	}
-
 	public createInput(input: EditorInput): TPromise<EditorInput>;
 	public createInput(input: IResourceInput): TPromise<EditorInput>;
 	public createInput(input: any): TPromise<IEditorInput> {
@@ -221,53 +202,16 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		// Base Text Editor Support for inmemory resources
-		let resourceInput = <IResourceInput>input;
-		if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.inMemory) {
-
-			// For in-memory resources we only support to resolve the input from the current active editor
-			// because the workbench does not track editor models by in memory URL. This concept is only
-			// being used in the code editor.
-			let activeEditor = this.getActiveEditor();
-			if (activeEditor) {
-				let control = <ICommonEditor>activeEditor.getControl();
-				if (types.isFunction(control.getEditorType)) {
-
-					// Single Editor: If code editor model matches, return input from editor
-					if (control.getEditorType() === EditorType.ICodeEditor) {
-						let codeEditor = <ICodeEditor>control;
-						let model = this.findModel(codeEditor, input);
-						if (model) {
-							return TPromise.as(activeEditor.input);
-						}
-					}
-
-					// Diff Editor: If left or right code editor model matches, return associated input
-					else if (control.getEditorType() === EditorType.IDiffEditor) {
-						let diffInput = <DiffEditorInput>activeEditor.input;
-						let diffCodeEditor = <IDiffEditor>control;
-
-						let originalModel = this.findModel(diffCodeEditor.getOriginalEditor(), input);
-						if (originalModel) {
-							return TPromise.as(diffInput.originalInput);
-						}
-
-						let modifiedModel = this.findModel(diffCodeEditor.getModifiedEditor(), input);
-						if (modifiedModel) {
-							return TPromise.as(diffInput.modifiedInput);
-						}
-					}
-				}
-			}
-		}
+		const resourceInput = <IResourceInput>input;
 
 		// Untitled file support
-		else if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
+		if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
 			return TPromise.as<EditorInput>(this.untitledEditorService.createOrGet(resourceInput.resource));
 		}
 
 		// Base Text Editor Support for file resources
 		else if (this.fileInputDescriptor && resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
-			return this.createFileInput(resourceInput.resource, resourceInput.mime, resourceInput.encoding);
+			return this.createFileInput(resourceInput.resource, resourceInput.encoding);
 		}
 
 		// Treat an URI as ResourceEditorInput
@@ -281,23 +225,13 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.as<EditorInput>(null);
 	}
 
-	private createFileInput(resource: URI, mime?: string, encoding?: string): TPromise<IFileEditorInput> {
+	private createFileInput(resource: URI, encoding?: string): TPromise<IFileEditorInput> {
 		return this.instantiationService.createInstance(this.fileInputDescriptor).then((typedFileInput) => {
 			typedFileInput.setResource(resource);
-			typedFileInput.setMime(mime || guessMimeTypes(resource.fsPath).join(', '));
 			typedFileInput.setPreferredEncoding(encoding);
 
 			return typedFileInput;
 		});
-	}
-
-	private findModel(editor: ICommonCodeEditor, input: IResourceInput): IModel {
-		let model = editor.getModel();
-		if (!model) {
-			return null;
-		}
-
-		return model.uri.toString() === input.resource.toString() ? model : null;
 	}
 }
 

@@ -6,6 +6,8 @@
 {
 	"copy": "Kopieren",
 	"cut": "Ausschneiden",
+	"developer": "Entwickler",
+	"file": "Datei",
 	"paste": "Einfügen",
 	"redo": "Wiederholen",
 	"selectAll": "Alles auswählen",

@@ -6,24 +6,24 @@
 
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {Range} from 'vs/editor/common/core/range';
-import {ICommonCodeEditor, ICursorPositionChangedEvent, EditorContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, IActionOptions, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {TokenSelectionSupport, ILogicalSelectionEntry} from './tokenSelectionSupport';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Range } from 'vs/editor/common/core/range';
+import { ICommonCodeEditor, ICursorPositionChangedEvent, EditorContextKeys, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { editorAction, ServicesAccessor, IActionOptions, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { TokenSelectionSupport, ILogicalSelectionEntry } from './tokenSelectionSupport';
 
 // --- selection state machine
 
 class State {
 
-	public editor:ICommonCodeEditor;
-	public next:State;
-	public previous:State;
-	public selection:Range;
+	public editor: ICommonCodeEditor;
+	public next: State;
+	public previous: State;
+	public selection: Range;
 
-	constructor(editor:ICommonCodeEditor) {
+	constructor(editor: ICommonCodeEditor) {
 		this.editor = editor;
 		this.next = null;
 		this.previous = null;
@@ -32,16 +32,17 @@ class State {
 }
 
 // --- shared state between grow and shrink actions
-var state:State = null;
+var state: State = null;
 var ignoreSelection = false;
 
 // -- action implementation
 
+@commonEditorContribution
 class SmartSelectController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.smartSelectController';
 
-	public static get(editor:ICommonCodeEditor): SmartSelectController {
+	public static get(editor: ICommonCodeEditor): SmartSelectController {
 		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
 	}
 
@@ -61,7 +62,7 @@ class SmartSelectController implements IEditorContribution {
 		return SmartSelectController.ID;
 	}
 
-	public run(forward:boolean): TPromise<void> {
+	public run(forward: boolean): TPromise<void> {
 
 		var selection = this.editor.getSelection();
 		var model = this.editor.getModel();
@@ -73,7 +74,7 @@ class SmartSelectController implements IEditorContribution {
 			}
 		}
 
-		var promise:TPromise<void> = TPromise.as(null);
+		var promise: TPromise<void> = TPromise.as(null);
 		if (!state) {
 			promise = this._tokenSelectionSupport.getRangesToPosition(model.uri, selection.getStartPosition()).then((elements: ILogicalSelectionEntry[]) => {
 
@@ -146,13 +147,16 @@ abstract class AbstractSmartSelect extends EditorAction {
 
 	private _forward: boolean;
 
-	constructor(forward: boolean, opts:IActionOptions) {
+	constructor(forward: boolean, opts: IActionOptions) {
 		super(opts);
 		this._forward = forward;
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
-		return SmartSelectController.get(editor).run(this._forward);
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+		let controller = SmartSelectController.get(editor);
+		if (controller) {
+			return controller.run(this._forward);
+		}
 	}
 }
 
@@ -189,6 +193,3 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 		});
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorContribution(SmartSelectController);

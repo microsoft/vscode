@@ -5,12 +5,14 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IRange} from 'vs/editor/common/editorCommon';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { onUnexpectedError, illegalArgument } from 'vs/base/common/errors';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { IRange } from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
+import { ISearchConfiguration } from 'vs/platform/search/common/search';
+import glob = require('vs/base/common/glob');
 
 /**
  * Interface used to navigate to types by value.
@@ -78,3 +80,12 @@ CommonEditorRegistry.registerLanguageCommand('_executeWorkspaceSymbolProvider', 
 	}
 	return getWorkspaceSymbols(query);
 });
+
+export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
+	search: {
+		quickOpen: {
+			includeSymbols: boolean;
+		},
+		exclude: glob.IExpression;
+	};
+}

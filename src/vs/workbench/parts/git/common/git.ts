@@ -107,7 +107,7 @@ export interface IFileStatus {
 	getPathComponents(): string[];
 	getMimetype(): string;
 	getStatus(): Status;
-	getRename():string;
+	getRename(): string;
 	clone(): IFileStatus;
 	update(other: IFileStatus): void;
 }
@@ -149,7 +149,7 @@ export interface IModel extends IEventEmitter {
 
 export interface IGitOperation extends IDisposable {
 	id: string;
-	run(): TPromise<any>;
+	run(): TPromise<IRawStatus>;
 }
 
 // Service enums
@@ -284,15 +284,16 @@ export interface IRawGitService {
 	checkout(treeish?: string, filePaths?: string[]): TPromise<IRawStatus>;
 	clean(filePaths: string[]): TPromise<IRawStatus>;
 	undo(): TPromise<IRawStatus>;
-	reset(treeish:string, hard?: boolean): TPromise<IRawStatus>;
-	revertFiles(treeish:string, filePaths?: string[]): TPromise<IRawStatus>;
+	reset(treeish: string, hard?: boolean): TPromise<IRawStatus>;
+	revertFiles(treeish: string, filePaths?: string[]): TPromise<IRawStatus>;
 	fetch(): TPromise<IRawStatus>;
 	pull(rebase?: boolean): TPromise<IRawStatus>;
-	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus>;
+	push(remote?: string, name?: string, options?: IPushOptions): TPromise<IRawStatus>;
 	sync(): TPromise<IRawStatus>;
-	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus>;
+	commit(message: string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
+	clone(url: string, parentPath: string): TPromise<string>;
 	getCommitTemplate(): TPromise<string>;
 	getCommit(ref: string): TPromise<ICommit>;
 }
@@ -313,19 +314,19 @@ export interface IGitService extends IEventEmitter {
 	checkout(treeish?: string, files?: IFileStatus[]): TPromise<IModel>;
 	clean(files: IFileStatus[]): TPromise<IModel>;
 	undo(): TPromise<IModel>;
-	reset(treeish:string, hard?: boolean): TPromise<IModel>;
-	revertFiles(treeish:string, files?: IFileStatus[]): TPromise<IModel>;
+	reset(treeish: string, hard?: boolean): TPromise<IModel>;
+	revertFiles(treeish: string, files?: IFileStatus[]): TPromise<IModel>;
 	fetch(): TPromise<IModel>;
 	pull(rebase?: boolean): TPromise<IModel>;
-	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IModel>;
+	push(remote?: string, name?: string, options?: IPushOptions): TPromise<IModel>;
 	sync(): TPromise<IModel>;
-	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IModel>;
+	commit(message: string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IModel>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	buffer(path: string, treeish?: string): TPromise<string>;
+	clone(url: string, parentPath: string): TPromise<string>;
 
 	getState(): ServiceState;
 	getModel(): IModel;
-	show(path: string, status: IFileStatus, treeish?: string, mimetype?: string): TPromise<string>;
 	getInput(status: IFileStatus): TPromise<EditorInput>;
 	isInitialized(): boolean;
 	isIdle(): boolean;
@@ -337,10 +338,4 @@ export interface IGitService extends IEventEmitter {
 
 export interface IAskpassService {
 	askpass(id: string, host: string, command: string): TPromise<ICredentials>;
-}
-
-// Utils
-
-export function isValidBranchName(value: string): boolean {
-	return !/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$/.test(value);
 }

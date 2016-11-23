@@ -5,31 +5,17 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import {
 	EventType, IModelContentChangedEvent, IModelContentChangedFlushEvent, IModelContentChangedLineChangedEvent,
 	IModelContentChangedLinesDeletedEvent, IModelContentChangedLinesInsertedEvent
 } from 'vs/editor/common/editorCommon';
-import {Model} from 'vs/editor/common/model/model';
-import {BracketMode} from 'vs/editor/test/common/testModes';
-import {TextModel, IParsedSearchRequest} from 'vs/editor/common/model/textModel';
+import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 // --------- utils
-
-function isNotABracket(model:Model, lineNumber:number, column:number) {
-	var match = model.matchBracket(new Position(lineNumber, column));
-	assert.equal(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
-}
-
-function isBracket(model:Model, lineNumber1:number, column11:number, column12:number, lineNumber2:number, column21:number, column22:number) {
-	var match = model.matchBracket(new Position(lineNumber1, column11));
-	assert.deepEqual(match, [
-		new Range(lineNumber1, column11, lineNumber1, column12),
-		new Range(lineNumber2, column21, lineNumber2, column22)
-	], 'is matching brackets at ' + lineNumber1 + ', ' + column11);
-}
 
 var LINE1 = 'My First Line';
 var LINE2 = '\t\tMy Second Line';
@@ -145,7 +131,7 @@ suite('Editor Model - Model', () => {
 				assert.equal((<IModelContentChangedLinesInsertedEvent>e).fromLineNumber, 2, 'ModelContentChangedLinesInserted fromLineNumber');
 				assert.equal((<IModelContentChangedLinesInsertedEvent>e).toLineNumber, 2, 'ModelContentChangedLinesInserted toLineNumber');
 			} else {
-				assert.ok (false);
+				assert.ok(false);
 			}
 
 		});
@@ -252,7 +238,7 @@ suite('Editor Model - Model', () => {
 				assert.equal((<IModelContentChangedLinesDeletedEvent>e).fromLineNumber, 2);
 				assert.equal((<IModelContentChangedLinesDeletedEvent>e).toLineNumber, 2);
 			} else {
-				assert.ok (false);
+				assert.ok(false);
 			}
 
 		});
@@ -280,7 +266,7 @@ suite('Editor Model - Model', () => {
 				assert.equal((<IModelContentChangedLinesDeletedEvent>e).fromLineNumber, 2);
 				assert.equal((<IModelContentChangedLinesDeletedEvent>e).toLineNumber, 3);
 			} else {
-				assert.ok (false);
+				assert.ok(false);
 			}
 
 		});
@@ -323,12 +309,12 @@ suite('Editor Model - Model', () => {
 	// --------- setValue
 	test('setValue eventing', () => {
 		var listenerCalls = 0;
-		thisModel.onDidChangeRawContent((e:IModelContentChangedEvent) => {
+		thisModel.onDidChangeRawContent((e: IModelContentChangedEvent) => {
 			listenerCalls++;
 
 			assert.equal(e.changeType, EventType.ModelRawContentChangedFlush);
 
-			assert.deepEqual((<IModelContentChangedFlushEvent>e).detail.lines, [ 'new value' ]);
+			assert.deepEqual((<IModelContentChangedFlushEvent>e).detail.lines, ['new value']);
 		});
 		thisModel.setValue('new value');
 		assert.equal(listenerCalls, 1, 'listener calls');
@@ -358,7 +344,7 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	teardown(() => {
-		thisModel.destroy();
+		thisModel.dispose();
 	});
 
 	test('model getValue', () => {
@@ -378,112 +364,6 @@ suite('Editor Model - Model Line Separators', () => {
 });
 
 
-// --------- bracket matching
-
-suite('Editor Model - bracket Matching', () => {
-
-	var thisModel: Model;
-	var bracketMode = new BracketMode();
-
-	setup(() => {
-		var text =
-			'var bar = {' + '\n' +
-			'foo: {' + '\n' +
-			'}, bar: {hallo: [{' + '\n' +
-			'}, {' + '\n' +
-			'}]}}';
-		thisModel = Model.createFromString(text, undefined, bracketMode);
-	});
-
-	teardown(() => {
-		thisModel.destroy();
-	});
-
-	test('Model bracket matching 1', () => {
-
-		var brackets = [
-			[1, 11, 12, 5, 4, 5],
-			[1, 12, 11, 5, 4, 5],
-			[5, 5, 4, 1, 11, 12],
-
-			[2, 6, 7, 3, 1, 2],
-			[2, 7, 6, 3, 1, 2],
-			[3, 1, 2, 2, 6, 7],
-			[3, 2, 1, 2, 6, 7],
-
-			[3, 9, 10, 5, 3, 4],
-			[3, 10, 9, 5, 3, 4],
-			[5, 4, 3, 3, 9, 10],
-
-			[3, 17, 18, 5, 2, 3],
-			[3, 18, 17, 5, 2, 3],
-			[5, 3, 2, 3, 17, 18],
-
-			[3, 19, 18, 4, 1, 2],
-			[4, 2, 1, 3, 18, 19],
-			[4, 1, 2, 3, 18, 19],
-
-			[4, 4, 5, 5, 1, 2],
-			[4, 5, 4, 5, 1, 2],
-			[5, 2, 1, 4, 4, 5],
-			[5, 1, 2, 4, 4, 5]
-		];
-		var i, len, b, isABracket = {1:{}, 2:{}, 3:{}, 4:{}, 5:{}};
-
-		for (i = 0, len = brackets.length; i < len; i++) {
-			b = brackets[i];
-			isBracket(thisModel, b[0], b[1], b[2], b[3], b[4], b[5]);
-			isABracket[b[0]][b[1]] = true;
-		}
-
-		for (i = 1, len = thisModel.getLineCount(); i <= len; i++) {
-			var line = thisModel.getLineContent(i), j, lenJ;
-			for (j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
-				if (!isABracket[i].hasOwnProperty(j)) {
-					isNotABracket(thisModel, i, j);
-				}
-			}
-		}
-	});
-});
-
-
-suite('Editor Model - bracket Matching 2', () => {
-
-	var thisModel: Model;
-	var bracketMode = new BracketMode();
-
-	setup(() => {
-		var text =
-			')]}{[(' + '\n' +
-			')]}{[(';
-		thisModel = Model.createFromString(text, undefined, bracketMode);
-	});
-
-	teardown(() => {
-		thisModel.destroy();
-	});
-
-	test('Model bracket matching', () => {
-		isNotABracket(thisModel, 1, 1);
-		isNotABracket(thisModel, 1, 2);
-		isNotABracket(thisModel, 1, 3);
-		isBracket(thisModel, 1, 4, 5, 2, 3, 4);
-		isBracket(thisModel, 1, 5, 4, 2, 3, 4);
-		isBracket(thisModel, 1, 6, 5, 2, 2, 3);
-		isBracket(thisModel, 1, 7, 6, 2, 1, 2);
-
-		isBracket(thisModel, 2, 1, 2, 1, 6, 7);
-		isBracket(thisModel, 2, 2, 1, 1, 6, 7);
-		isBracket(thisModel, 2, 3, 2, 1, 5, 6);
-		isBracket(thisModel, 2, 4, 3, 1, 4, 5);
-		isNotABracket(thisModel, 2, 5);
-		isNotABracket(thisModel, 2, 6);
-		isNotABracket(thisModel, 2, 7);
-	});
-});
-
-
 // --------- Words
 
 suite('Editor Model - Words', () => {
@@ -491,12 +371,12 @@ suite('Editor Model - Words', () => {
 	var thisModel: Model;
 
 	setup(() => {
-		var text = [ 'This text has some  words. ' ];
+		var text = ['This text has some  words. '];
 		thisModel = Model.createFromString(text.join('\n'));
 	});
 
 	teardown(() => {
-		thisModel.destroy();
+		thisModel.dispose();
 	});
 
 	test('Get word at position', () => {
@@ -518,11 +398,11 @@ suite('Editor Model - Words', () => {
 // --------- Find
 suite('Editor Model - Find', () => {
 
-	function toArrRange(r:Range): [number,number,number,number] {
+	function toArrRange(r: Range): [number, number, number, number] {
 		return [r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn];
 	}
 
-	function assertFindMatches(text:string, searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean, expected:[number,number,number,number][]): void {
+	function assertFindMatches(text: string, searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, expected: [number, number, number, number][]): void {
 		let model = Model.createFromString(text);
 
 		let actualRanges = model.findMatches(searchString, false, isRegex, matchCase, wholeWord);
@@ -543,7 +423,7 @@ suite('Editor Model - Find', () => {
 		// test `findPrevMatch`
 		startPos = new Position(model.getLineCount(), model.getLineMaxColumn(model.getLineCount()));
 		match = model.findPreviousMatch(searchString, startPos, isRegex, matchCase, wholeWord);
-		assert.deepEqual(toArrRange(match), expected[expected.length-1], `findPrevMatch ${startPos}`);
+		assert.deepEqual(toArrRange(match), expected[expected.length - 1], `findPrevMatch ${startPos}`);
 		for (let i = 0; i < expected.length; i++) {
 			startPos = new Position(expected[i][2], expected[i][3]);
 			match = model.findPreviousMatch(searchString, startPos, isRegex, matchCase, wholeWord);
@@ -719,6 +599,77 @@ suite('Editor Model - Find', () => {
 		);
 	});
 
+	test('multiline find with line beginning regex', () => {
+		assertFindMatches(
+			[
+				'if',
+				'else',
+				'',
+				'if',
+				'else'
+			].join('\n'),
+			'^if\\nelse', true, false, false,
+			[
+				[1, 1, 2, 5],
+				[4, 1, 5, 5]
+			]
+		);
+	});
+
+	test('matching empty lines using boundary expression', () => {
+		assertFindMatches(
+			[
+				'if',
+				'',
+				'else',
+				'  ',
+				'if',
+				' ',
+				'else'
+			].join('\n'),
+			'^\\s*$\\n', true, false, false,
+			[
+				[2, 1, 3, 1],
+				[4, 1, 5, 1],
+				[6, 1, 7, 1]
+			]
+		);
+	});
+
+	test('matching lines starting with A and ending with B', () => {
+		assertFindMatches(
+			[
+				'a if b',
+				'a',
+				'ab',
+				'eb'
+			].join('\n'),
+			'^a.*b$', true, false, false,
+			[
+				[1, 1, 1, 7],
+				[3, 1, 3, 3]
+			]
+		);
+	});
+
+	test('multiline find with line ending regex', () => {
+		assertFindMatches(
+			[
+				'if',
+				'else',
+				'',
+				'if',
+				'elseif',
+				'else'
+			].join('\n'),
+			'if\\nelse$', true, false, false,
+			[
+				[1, 1, 2, 5],
+				[5, 5, 6, 5]
+			]
+		);
+	});
+
 	test('issue #4836 - ^.*$', () => {
 		assertFindMatches(
 			[
@@ -739,7 +690,114 @@ suite('Editor Model - Find', () => {
 		);
 	});
 
-	function assertParseSearchResult(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean, expected:IParsedSearchRequest): void {
+	test('multiline find for non-regex string', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'some text text',
+				'some text again',
+				'again some text',
+				'but not some'
+			].join('\n'),
+			'text\nsome', false, false, false,
+			[
+				[1, 16, 2, 5],
+				[2, 11, 3, 5],
+			]
+		);
+	});
+
+	test('findNextMatch without regex', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('line', { lineNumber: 1, column: 1 }, false, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', { lineNumber: 1, column: 3 }, false, false, false);
+		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		testObject.dispose();
+	});
+
+	test('findNextMatch with beginning boundary regex', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 3 }, true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		testObject.dispose();
+	});
+
+	test('findNextMatch with beginning boundary regex and line has repetitive beginnings', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 3 }, true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		testObject.dispose();
+	});
+
+	test('findNextMatch with beginning boundary multiline regex and line has repetitive beginnings', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nline three\nline four', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('^line.*\\nline', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line.*\\nline', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(3, 1, 4, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line.*\\nline', { lineNumber: 2, column: 1 }, true, false, false);
+		assert.equal(new Range(2, 1, 3, 5).toString(), actual.toString());
+
+		testObject.dispose();
+	});
+
+	test('findNextMatch with ending boundary regex', () => {
+		var testObject = new TextModel([], TextModel.toRawText('one line line\ntwo line\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('line$', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line$', { lineNumber: 1, column: 4 }, true, false, false);
+		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line$', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(2, 5, 2, 9).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line$', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+
+		testObject.dispose();
+	});
+
+	function assertParseSearchResult(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, expected: RegExp): void {
 		let actual = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
 		assert.deepEqual(actual, expected);
 	}
@@ -751,24 +809,24 @@ suite('Editor Model - Find', () => {
 	});
 
 	test('parseSearchRequest non regex', () => {
-		assertParseSearchResult('foo', false, false, false, { regex: /foo/gi, isMultiline: false });
-		assertParseSearchResult('foo', false, false, true, { regex: /\bfoo\b/gi, isMultiline: false });
-		assertParseSearchResult('foo', false, true, false, { regex: /foo/g, isMultiline: false });
-		assertParseSearchResult('foo', false, true, true, { regex: /\bfoo\b/g, isMultiline: false });
-		assertParseSearchResult('foo\\n', false, false, false, { regex: /foo\\n/gi, isMultiline: false });
-		assertParseSearchResult('foo\\\\n', false, false, false, { regex: /foo\\\\n/gi, isMultiline: false });
-		assertParseSearchResult('foo\\r', false, false, false, { regex: /foo\\r/gi, isMultiline: false });
-		assertParseSearchResult('foo\\\\r', false, false, false, { regex: /foo\\\\r/gi, isMultiline: false });
+		assertParseSearchResult('foo', false, false, false, /foo/gi);
+		assertParseSearchResult('foo', false, false, true, /\bfoo\b/gi);
+		assertParseSearchResult('foo', false, true, false, /foo/g);
+		assertParseSearchResult('foo', false, true, true, /\bfoo\b/g);
+		assertParseSearchResult('foo\\n', false, false, false, /foo\\n/gi);
+		assertParseSearchResult('foo\\\\n', false, false, false, /foo\\\\n/gi);
+		assertParseSearchResult('foo\\r', false, false, false, /foo\\r/gi);
+		assertParseSearchResult('foo\\\\r', false, false, false, /foo\\\\r/gi);
 	});
 
 	test('parseSearchRequest regex', () => {
-		assertParseSearchResult('foo', true, false, false, { regex: /foo/gi, isMultiline: false });
-		assertParseSearchResult('foo', true, false, true, { regex: /\bfoo\b/gi, isMultiline: false });
-		assertParseSearchResult('foo', true, true, false, { regex: /foo/g, isMultiline: false });
-		assertParseSearchResult('foo', true, true, true, { regex: /\bfoo\b/g, isMultiline: false });
-		assertParseSearchResult('foo\\n', true, false, false, { regex: /foo\n/gi, isMultiline: true });
-		assertParseSearchResult('foo\\\\n', true, false, false, { regex: /foo\\n/gi, isMultiline: false });
-		assertParseSearchResult('foo\\r', true, false, false, { regex: /foo\r/gi, isMultiline: true });
-		assertParseSearchResult('foo\\\\r', true, false, false, { regex: /foo\\r/gi, isMultiline: false });
+		assertParseSearchResult('foo', true, false, false, /foo/gi);
+		assertParseSearchResult('foo', true, false, true, /\bfoo\b/gi);
+		assertParseSearchResult('foo', true, true, false, /foo/g);
+		assertParseSearchResult('foo', true, true, true, /\bfoo\b/g);
+		assertParseSearchResult('foo\\n', true, false, false, /foo\n/gim);
+		assertParseSearchResult('foo\\\\n', true, false, false, /foo\\n/gi);
+		assertParseSearchResult('foo\\r', true, false, false, /foo\r/gim);
+		assertParseSearchResult('foo\\\\r', true, false, false, /foo\\r/gi);
 	});
 });

@@ -7,14 +7,14 @@
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import strings = require('vs/base/common/strings');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {EditorModel} from 'vs/workbench/common/editor';
-import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {OUTPUT_EDITOR_INPUT_ID, OUTPUT_PANEL_ID, IOutputEvent, OUTPUT_MIME, IOutputService, MAX_OUTPUT_LENGTH, IOutputChannel} from 'vs/workbench/parts/output/common/output';
-import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { EditorModel } from 'vs/workbench/common/editor';
+import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
+import { OUTPUT_EDITOR_INPUT_ID, OUTPUT_PANEL_ID, IOutputEvent, OUTPUT_MIME, IOutputService, MAX_OUTPUT_LENGTH, IOutputChannel } from 'vs/workbench/parts/output/common/output';
+import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 /**
  * Output Editor Input
@@ -69,6 +69,10 @@ export class OutputEditorInput extends StringEditorInput {
 	}
 
 	private appendOutput(): void {
+		if (this.bufferedOutput.length === 0) {
+			return;
+		}
+
 		if (this.value.length + this.bufferedOutput.length > MAX_OUTPUT_LENGTH) {
 			this.setValue(this.outputChannel.output);
 		} else {
@@ -77,7 +81,7 @@ export class OutputEditorInput extends StringEditorInput {
 		this.bufferedOutput = '';
 
 		const panel = this.panelService.getActivePanel();
-		(<OutputPanel>panel).revealLastLine();
+		(<OutputPanel>panel).revealLastLine(true);
 	}
 
 	private onOutputReceived(e: IOutputEvent): void {
@@ -86,6 +90,7 @@ export class OutputEditorInput extends StringEditorInput {
 				this.bufferedOutput = strings.appendWithLimit(this.bufferedOutput, e.output, MAX_OUTPUT_LENGTH);
 				this.scheduleOutputAppend();
 			} else if (e.output === null) {
+				this.bufferedOutput = '';
 				this.clearValue(); // special output indicates we should clear
 			}
 		}

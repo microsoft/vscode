@@ -5,58 +5,18 @@
 'use strict';
 
 import * as assert from 'assert';
-import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
-import {IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {handleEvent} from 'vs/editor/common/modes/supports';
-import {IEnteringNestedModeData, ILeavingNestedModeData, TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {createMockLineContext} from 'vs/editor/test/common/modesTestUtils';
-import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
-
-export class State extends AbstractState {
-
-	constructor(mode:modes.IMode) {
-		super(mode);
-	}
-
-	public makeClone() : AbstractState {
-		return new State(this.getMode());
-	}
-
-	public tokenize(stream:modes.IStream):modes.ITokenizationResult {
-		return { type: stream.next() === '.' ? '' : 'text' };
-	}
-}
-
-export class Mode extends MockMode {
-
-	public tokenizationSupport: modes.ITokenizationSupport;
-
-	constructor() {
-		super();
-		this.tokenizationSupport = new TokenizationSupport(this, {
-			getInitialState: () => new State(this)
-		}, false);
-	}
-}
-
-
-
-
-function checkTokens(actual, expected) {
-	assert.equal(actual.length, expected.length);
-	for (var i = 0; i < expected.length; i++) {
-		for (var key in expected[i]) {
-			assert.deepEqual(actual[i][key], expected[i][key]);
-		}
-	}
-}
-
-
+import { AbstractState, ITokenizationResult } from 'vs/editor/common/modes/abstractState';
+import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { IModeLocator, ILeavingNestedModeData, TokenizationSupport } from 'vs/editor/common/modes/supports/tokenizationSupport';
+import { createFakeLineTokens } from 'vs/editor/test/common/modesTestUtils';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { ModeTransition } from 'vs/editor/common/core/modeTransition';
+import { Token } from 'vs/editor/common/core/token';
+import { LineStream } from 'vs/editor/common/modes/lineStream';
 
 export interface IModeSwitchingDescriptor {
-	[character:string]:{
+	[character: string]: {
 		endCharacter: string;
 		mode: modes.IMode;
 	};
@@ -64,74 +24,75 @@ export interface IModeSwitchingDescriptor {
 
 export class StateMemorizingLastWord extends AbstractState {
 
-	public lastWord:string;
-	private descriptor:IModeSwitchingDescriptor;
+	public lastWord: string;
+	private descriptor: IModeSwitchingDescriptor;
 
-	constructor(mode:modes.IMode, descriptor:IModeSwitchingDescriptor, lastWord:string) {
-		super(mode);
+	constructor(modeId: string, descriptor: IModeSwitchingDescriptor, lastWord: string) {
+		super(modeId);
 		this.lastWord = lastWord;
 		this.descriptor = descriptor;
 	}
 
-	public makeClone() : AbstractState {
-		return new StateMemorizingLastWord(this.getMode(), this.descriptor, this.lastWord);
+	public makeClone(): AbstractState {
+		return new StateMemorizingLastWord(this.getModeId(), this.descriptor, this.lastWord);
 	}
 
-	public tokenize(stream:modes.IStream):modes.ITokenizationResult {
-		stream.setTokenRules('[]{}()==--', '\t \u00a0');
-		if (stream.skipWhitespace() !== '') {
-			return {
-				type: ''
-			};
+	public tokenize(stream: LineStream): ITokenizationResult {
+		let contents = stream.advanceToEOS();
+		stream.goBack(contents.length);
+
+		let m = contents.match(/^([\t \u00a0]+)/);
+		if (m) {
+			stream.advance(m[0].length);
+			return { type: '' };
 		}
-		var word = stream.nextToken();
+
+		m = contents.match(/^([\[\]\{\}\(\)])/);
+		let word: string;
+		if (m) {
+			stream.advance(m[0].length);
+			word = m[1];
+
+		} else {
+			m = contents.match(/([a-zA-Z]+)/);
+			stream.advance(m[0].length);
+			word = m[1];
+		}
+
 		return {
-			type: this.getMode().getId() + '.' + word,
-			nextState: new StateMemorizingLastWord(this.getMode(), this.descriptor, word)
+			type: this.getModeId() + '.' + word,
+			nextState: new StateMemorizingLastWord(this.getModeId(), this.descriptor, word)
 		};
 	}
 }
 
 export class SwitchingMode extends MockMode {
 
-	private _switchingModeDescriptor:IModeSwitchingDescriptor;
+	private _switchingModeDescriptor: IModeSwitchingDescriptor;
 
-	public tokenizationSupport: modes.ITokenizationSupport;
-
-	constructor(id:string, descriptor:IModeSwitchingDescriptor) {
+	constructor(id: string, descriptor: IModeSwitchingDescriptor) {
 		super(id);
 		this._switchingModeDescriptor = descriptor;
-		this.tokenizationSupport = new TokenizationSupport(this, this, true);
+		modes.TokenizationRegistry.register(this.getId(), new TokenizationSupport(null, this.getId(), this, true));
 	}
 
-	setTokenizationSupport<T>(callback:(mode:modes.IMode)=>T): IDisposable {
-		return EmptyDisposable;
+	public getInitialState(): AbstractState {
+		return new StateMemorizingLastWord(this.getId(), this._switchingModeDescriptor, null);
 	}
 
-	public addSupportChangedListener(callback: (e: IModeSupportChangedEvent) => void): IDisposable {
-		return EmptyDisposable;
-	}
-
-	public getInitialState():modes.IState {
-		return new StateMemorizingLastWord(this, this._switchingModeDescriptor, null);
-	}
-
-	public enterNestedMode(state:modes.IState):boolean {
+	public enterNestedMode(state: modes.IState): boolean {
 		var s = <StateMemorizingLastWord>state;
 		if (this._switchingModeDescriptor.hasOwnProperty(s.lastWord)) {
 			return true;
 		}
 	}
 
-	public getNestedMode(state:modes.IState): IEnteringNestedModeData {
+	public getNestedMode(state: modes.IState, locator: IModeLocator): modes.IMode {
 		var s = <StateMemorizingLastWord>state;
-		return {
-			mode: this._switchingModeDescriptor[s.lastWord].mode,
-			missingModePromise: null
-		};
+		return this._switchingModeDescriptor[s.lastWord].mode;
 	}
 
-	public getLeavingNestedModeData(line:string, state:modes.IState): ILeavingNestedModeData {
+	public getLeavingNestedModeData(line: string, state: modes.IState): ILeavingNestedModeData {
 		var s = <StateMemorizingLastWord>state;
 		var endChar = this._switchingModeDescriptor[s.lastWord].endCharacter;
 		var endCharPosition = line.indexOf(endChar);
@@ -139,7 +100,7 @@ export class SwitchingMode extends MockMode {
 			return {
 				nestedModeBuffer: line.substring(0, endCharPosition),
 				bufferAfterNestedMode: line.substring(endCharPosition),
-				stateAfterNestedMode: new StateMemorizingLastWord(this, this._switchingModeDescriptor, null)
+				stateAfterNestedMode: new StateMemorizingLastWord(this.getId(), this._switchingModeDescriptor, null)
 			};
 		}
 		return null;
@@ -147,10 +108,10 @@ export class SwitchingMode extends MockMode {
 }
 
 interface ITestToken {
-	startIndex:number;
-	type:string;
+	startIndex: number;
+	type: string;
 }
-function assertTokens(actual:modes.IToken[], expected:ITestToken[], message?:string) {
+function assertTokens(actual: Token[], expected: ITestToken[], message?: string) {
 	assert.equal(actual.length, expected.length, 'Lengths mismatch');
 	for (var i = 0; i < expected.length; i++) {
 		assert.equal(actual[i].startIndex, expected[i].startIndex, 'startIndex mismatch');
@@ -159,21 +120,21 @@ function assertTokens(actual:modes.IToken[], expected:ITestToken[], message?:str
 };
 
 interface ITestModeTransition {
-	startIndex:number;
-	id:string;
+	startIndex: number;
+	id: string;
 }
-function assertModeTransitions(actual:modes.IModeTransition[], expected:ITestModeTransition[], message?:string) {
-	var massagedActual:ITestModeTransition[] = [];
+function assertModeTransitions(actual: ModeTransition[], expected: ITestModeTransition[], message?: string) {
+	var massagedActual: ITestModeTransition[] = [];
 	for (var i = 0; i < actual.length; i++) {
 		massagedActual.push({
 			startIndex: actual[i].startIndex,
-			id: actual[i].mode.getId()
+			id: actual[i].modeId
 		});
 	}
 	assert.deepEqual(massagedActual, expected, message);
 };
 
-function createMode():SwitchingMode {
+let switchingMode = (function () {
 	var modeB = new SwitchingMode('B', {});
 	var modeC = new SwitchingMode('C', {});
 	var modeD = new SwitchingMode('D', {
@@ -197,23 +158,43 @@ function createMode():SwitchingMode {
 		}
 	});
 	return modeA;
-}
+})();
 
-function switchingModeTokenize(line:string, mode:modes.IMode = null, state:modes.IState = null) {
-	if (state && mode) {
-		return mode.tokenizationSupport.tokenize(line, state);
+function switchingModeTokenize(line: string, state: modes.IState = null) {
+	let tokenizationSupport = modes.TokenizationRegistry.get(switchingMode.getId());
+	if (state) {
+		return tokenizationSupport.tokenize(line, state);
 	} else {
-		mode = createMode();
-		return mode.tokenizationSupport.tokenize(line, mode.tokenizationSupport.getInitialState());
+		return tokenizationSupport.tokenize(line, tokenizationSupport.getInitialState());
 	}
 }
 
 suite('Editor Modes - Tokenization', () => {
 
 	test('Syntax engine merges sequential untyped tokens', () => {
-		var mode = new Mode();
-		var lineTokens = mode.tokenizationSupport.tokenize('.abc..def...gh', mode.tokenizationSupport.getInitialState());
-		checkTokens(lineTokens.tokens, [
+		class State extends AbstractState {
+
+			constructor(modeId: string) {
+				super(modeId);
+			}
+
+			public makeClone(): AbstractState {
+				return new State(this.getModeId());
+			}
+
+			public tokenize(stream: LineStream): ITokenizationResult {
+				let chr = stream.peek();
+				stream.advance(1);
+				return { type: chr === '.' ? '' : 'text' };
+			}
+		}
+
+		let tokenizationSupport = new TokenizationSupport(null, 'test', {
+			getInitialState: () => new State('test')
+		}, false);
+
+		var lineTokens = tokenizationSupport.tokenize('.abc..def...gh', tokenizationSupport.getInitialState());
+		assertTokens(lineTokens.tokens, [
 			{ startIndex: 0, type: '' },
 			{ startIndex: 1, type: 'text' },
 			{ startIndex: 4, type: '' },
@@ -226,28 +207,28 @@ suite('Editor Modes - Tokenization', () => {
 	test('Warmup', () => {
 		var lineTokens = switchingModeTokenize('abc def ghi');
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'A.abc' },
-			{ startIndex:3, type: '' },
-			{ startIndex:4, type: 'A.def' },
-			{ startIndex:7, type: '' },
-			{ startIndex:8, type: 'A.ghi' }
+			{ startIndex: 0, type: 'A.abc' },
+			{ startIndex: 3, type: '' },
+			{ startIndex: 4, type: 'A.def' },
+			{ startIndex: 7, type: '' },
+			{ startIndex: 8, type: 'A.ghi' }
 		]);
 		assert.equal((<StateMemorizingLastWord>lineTokens.endState).lastWord, 'ghi');
 		assertModeTransitions(lineTokens.modeTransitions, [
-			{ startIndex:0, id: 'A' }
+			{ startIndex: 0, id: 'A' }
 		]);
 	});
 
 	test('One embedded', () => {
 		var lineTokens = switchingModeTokenize('abc (def) ghi');
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'A.abc' },
-			{ startIndex:3, type: '' },
-			{ startIndex:4, type: 'A.(' },
-			{ startIndex:5, type: 'B.def' },
-			{ startIndex:8, type: 'A.)' },
-			{ startIndex:9, type: '' },
-			{ startIndex:10, type: 'A.ghi' }
+			{ startIndex: 0, type: 'A.abc' },
+			{ startIndex: 3, type: '' },
+			{ startIndex: 4, type: 'A.(' },
+			{ startIndex: 5, type: 'B.def' },
+			{ startIndex: 8, type: 'A.)' },
+			{ startIndex: 9, type: '' },
+			{ startIndex: 10, type: 'A.ghi' }
 		]);
 		assert.equal((<StateMemorizingLastWord>lineTokens.endState).lastWord, 'ghi');
 		assertModeTransitions(lineTokens.modeTransitions, [
@@ -260,12 +241,12 @@ suite('Editor Modes - Tokenization', () => {
 	test('Empty one embedded', () => {
 		var lineTokens = switchingModeTokenize('abc () ghi');
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'A.abc' },
-			{ startIndex:3, type: '' },
-			{ startIndex:4, type: 'A.(' },
-			{ startIndex:5, type: 'A.)' },
-			{ startIndex:6, type: '' },
-			{ startIndex:7, type: 'A.ghi' }
+			{ startIndex: 0, type: 'A.abc' },
+			{ startIndex: 3, type: '' },
+			{ startIndex: 4, type: 'A.(' },
+			{ startIndex: 5, type: 'A.)' },
+			{ startIndex: 6, type: '' },
+			{ startIndex: 7, type: 'A.ghi' }
 		]);
 		assert.equal((<StateMemorizingLastWord>lineTokens.endState).lastWord, 'ghi');
 		assertModeTransitions(lineTokens.modeTransitions, [
@@ -276,45 +257,44 @@ suite('Editor Modes - Tokenization', () => {
 	test('Finish in embedded', () => {
 		var lineTokens = switchingModeTokenize('abc (');
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'A.abc' },
-			{ startIndex:3, type: '' },
-			{ startIndex:4, type: 'A.(' }
+			{ startIndex: 0, type: 'A.abc' },
+			{ startIndex: 3, type: '' },
+			{ startIndex: 4, type: 'A.(' }
 		]);
-		assert.equal((<StateMemorizingLastWord>lineTokens.endState).getMode().getId(), 'B');
+		assert.equal((<StateMemorizingLastWord>lineTokens.endState).getModeId(), 'B');
 		assertModeTransitions(lineTokens.modeTransitions, [
 			{ startIndex: 0, id: 'A' }
 		]);
 	});
 
 	test('One embedded over multiple lines 1', () => {
-		var mode = createMode();
-		var lineTokens = switchingModeTokenize('abc (def', mode, mode.getInitialState());
+		var lineTokens = switchingModeTokenize('abc (def');
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'A.abc' },
-			{ startIndex:3, type: '' },
-			{ startIndex:4, type: 'A.(' },
-			{ startIndex:5, type: 'B.def' }
+			{ startIndex: 0, type: 'A.abc' },
+			{ startIndex: 3, type: '' },
+			{ startIndex: 4, type: 'A.(' },
+			{ startIndex: 5, type: 'B.def' }
 		]);
 		assertModeTransitions(lineTokens.modeTransitions, [
 			{ startIndex: 0, id: 'A' },
 			{ startIndex: 5, id: 'B' }
 		]);
 
-		lineTokens = switchingModeTokenize('ghi jkl', mode, lineTokens.endState);
+		lineTokens = switchingModeTokenize('ghi jkl', lineTokens.endState);
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'B.ghi' },
-			{ startIndex:3, type: '' },
-			{ startIndex:4, type: 'B.jkl' }
+			{ startIndex: 0, type: 'B.ghi' },
+			{ startIndex: 3, type: '' },
+			{ startIndex: 4, type: 'B.jkl' }
 		]);
 		assertModeTransitions(lineTokens.modeTransitions, [
 			{ startIndex: 0, id: 'B' }
 		]);
 
-		lineTokens = switchingModeTokenize('mno)pqr', mode, lineTokens.endState);
+		lineTokens = switchingModeTokenize('mno)pqr', lineTokens.endState);
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'B.mno' },
-			{ startIndex:3, type: 'A.)' },
-			{ startIndex:4, type: 'A.pqr' }
+			{ startIndex: 0, type: 'B.mno' },
+			{ startIndex: 3, type: 'A.)' },
+			{ startIndex: 4, type: 'A.pqr' }
 		]);
 		assertModeTransitions(lineTokens.modeTransitions, [
 			{ startIndex: 0, id: 'B' },
@@ -323,55 +303,48 @@ suite('Editor Modes - Tokenization', () => {
 	});
 
 	test('One embedded over multiple lines 2 with handleEvent', () => {
-		var mode = createMode();
-		var lineTokens = switchingModeTokenize('abc (def', mode, mode.getInitialState());
+		var lineTokens = switchingModeTokenize('abc (def');
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'A.abc' },
-			{ startIndex:3, type: '' },
-			{ startIndex:4, type: 'A.(' },
-			{ startIndex:5, type: 'B.def' }
+			{ startIndex: 0, type: 'A.abc' },
+			{ startIndex: 3, type: '' },
+			{ startIndex: 4, type: 'A.(' },
+			{ startIndex: 5, type: 'B.def' }
 		]);
 		assertModeTransitions(lineTokens.modeTransitions, [
 			{ startIndex: 0, id: 'A' },
 			{ startIndex: 5, id: 'B' }
 		]);
 
-		handleEvent(createMockLineContext('abc (def', lineTokens), 0, (modeId:string, context:modes.ILineContext, offset:number) => {
-			assert.deepEqual(modeId, 'A');
-			assert.equal(context.getTokenCount(), 3);
-			assert.equal(context.getTokenStartIndex(0), 0);
-			assert.equal(context.getTokenType(0), 'A.abc');
-			assert.equal(context.getTokenStartIndex(1), 3);
-			assert.equal(context.getTokenType(1), '');
-			assert.equal(context.getTokenStartIndex(2), 4);
-			assert.equal(context.getTokenType(2), 'A.(');
-			assert.deepEqual(offset, 0);
-			assert.equal(context.getLineContent(), 'abc (');
-		});
+		let scopedLineTokens1 = createScopedLineTokens(createFakeLineTokens('abc (def', switchingMode.getId(), lineTokens.tokens, lineTokens.modeTransitions), 0);
+		assert.deepEqual(scopedLineTokens1.modeId, 'A');
+		assert.equal(scopedLineTokens1.getTokenCount(), 3);
+		assert.equal(scopedLineTokens1.getTokenStartOffset(0), 0);
+		assert.equal(scopedLineTokens1.getTokenStartOffset(1), 3);
+		assert.equal(scopedLineTokens1.getTokenStartOffset(2), 4);
+		assert.deepEqual(scopedLineTokens1.firstCharOffset, 0);
+		assert.equal(scopedLineTokens1.getLineContent(), 'abc (');
 
-		handleEvent(createMockLineContext('abc (def', lineTokens), 6, (modeId:string, context:modes.ILineContext, offset:number) => {
-			assert.deepEqual(modeId, 'B');
-			assert.equal(context.getTokenCount(), 1);
-			assert.equal(context.getTokenStartIndex(0), 0);
-			assert.equal(context.getTokenType(0), 'B.def');
-			assert.deepEqual(offset, 1);
-			assert.equal(context.getLineContent(), 'def');
-		});
+		let scopedLineTokens2 = createScopedLineTokens(createFakeLineTokens('abc (def', switchingMode.getId(), lineTokens.tokens, lineTokens.modeTransitions), 6);
+		assert.deepEqual(scopedLineTokens2.modeId, 'B');
+		assert.equal(scopedLineTokens2.getTokenCount(), 1);
+		assert.equal(scopedLineTokens2.getTokenStartOffset(0), 0);
+		assert.deepEqual(scopedLineTokens2.firstCharOffset, 5);
+		assert.equal(scopedLineTokens2.getLineContent(), 'def');
 
-		lineTokens = switchingModeTokenize('ghi jkl', mode, lineTokens.endState);
+		lineTokens = switchingModeTokenize('ghi jkl', lineTokens.endState);
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'B.ghi' },
-			{ startIndex:3, type: '' },
-			{ startIndex:4, type: 'B.jkl' }
+			{ startIndex: 0, type: 'B.ghi' },
+			{ startIndex: 3, type: '' },
+			{ startIndex: 4, type: 'B.jkl' }
 		]);
 		assertModeTransitions(lineTokens.modeTransitions, [
 			{ startIndex: 0, id: 'B' }
 		]);
 
-		lineTokens = switchingModeTokenize(')pqr', mode, lineTokens.endState);
+		lineTokens = switchingModeTokenize(')pqr', lineTokens.endState);
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'A.)' },
-			{ startIndex:1, type: 'A.pqr' }
+			{ startIndex: 0, type: 'A.)' },
+			{ startIndex: 1, type: 'A.pqr' }
 		]);
 		assertModeTransitions(lineTokens.modeTransitions, [
 			{ startIndex: 0, id: 'A' }
@@ -381,17 +354,17 @@ suite('Editor Modes - Tokenization', () => {
 	test('Two embedded in breadth', () => {
 		var lineTokens = switchingModeTokenize('abc (def) [ghi] jkl');
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'A.abc' },
-			{ startIndex:3, type: '' },
-			{ startIndex:4, type: 'A.(' },
-			{ startIndex:5, type: 'B.def' },
-			{ startIndex:8, type: 'A.)' },
-			{ startIndex:9, type: '' },
-			{ startIndex:10, type: 'A.[' },
-			{ startIndex:11, type: 'C.ghi' },
-			{ startIndex:14, type: 'A.]' },
-			{ startIndex:15, type: '' },
-			{ startIndex:16, type: 'A.jkl' }
+			{ startIndex: 0, type: 'A.abc' },
+			{ startIndex: 3, type: '' },
+			{ startIndex: 4, type: 'A.(' },
+			{ startIndex: 5, type: 'B.def' },
+			{ startIndex: 8, type: 'A.)' },
+			{ startIndex: 9, type: '' },
+			{ startIndex: 10, type: 'A.[' },
+			{ startIndex: 11, type: 'C.ghi' },
+			{ startIndex: 14, type: 'A.]' },
+			{ startIndex: 15, type: '' },
+			{ startIndex: 16, type: 'A.jkl' }
 		]);
 		assert.equal((<StateMemorizingLastWord>lineTokens.endState).lastWord, 'jkl');
 		assertModeTransitions(lineTokens.modeTransitions, [
@@ -406,14 +379,14 @@ suite('Editor Modes - Tokenization', () => {
 	test('Two embedded in breadth tightly', () => {
 		var lineTokens = switchingModeTokenize('abc(def)[ghi]jkl');
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'A.abc' },
-			{ startIndex:3, type: 'A.(' },
-			{ startIndex:4, type: 'B.def' },
-			{ startIndex:7, type: 'A.)' },
-			{ startIndex:8, type: 'A.[' },
-			{ startIndex:9, type: 'C.ghi' },
-			{ startIndex:12, type: 'A.]' },
-			{ startIndex:13, type: 'A.jkl' }
+			{ startIndex: 0, type: 'A.abc' },
+			{ startIndex: 3, type: 'A.(' },
+			{ startIndex: 4, type: 'B.def' },
+			{ startIndex: 7, type: 'A.)' },
+			{ startIndex: 8, type: 'A.[' },
+			{ startIndex: 9, type: 'C.ghi' },
+			{ startIndex: 12, type: 'A.]' },
+			{ startIndex: 13, type: 'A.jkl' }
 		]);
 		assert.equal((<StateMemorizingLastWord>lineTokens.endState).lastWord, 'jkl');
 		assertModeTransitions(lineTokens.modeTransitions, [
@@ -428,15 +401,15 @@ suite('Editor Modes - Tokenization', () => {
 	test('Two embedded in depth tightly', () => {
 		var lineTokens = switchingModeTokenize('abc{de(efg)hi}jkl');
 		assertTokens(lineTokens.tokens, [
-			{ startIndex:0, type: 'A.abc' },
-			{ startIndex:3, type: 'A.{' },
-			{ startIndex:4, type: 'D.de' },
-			{ startIndex:6, type: 'D.(' },
-			{ startIndex:7, type: 'B.efg' },
-			{ startIndex:10, type: 'D.)' },
-			{ startIndex:11, type: 'D.hi' },
-			{ startIndex:13, type: 'A.}' },
-			{ startIndex:14, type: 'A.jkl' }
+			{ startIndex: 0, type: 'A.abc' },
+			{ startIndex: 3, type: 'A.{' },
+			{ startIndex: 4, type: 'D.de' },
+			{ startIndex: 6, type: 'D.(' },
+			{ startIndex: 7, type: 'B.efg' },
+			{ startIndex: 10, type: 'D.)' },
+			{ startIndex: 11, type: 'D.hi' },
+			{ startIndex: 13, type: 'A.}' },
+			{ startIndex: 14, type: 'A.jkl' }
 		]);
 		assert.equal((<StateMemorizingLastWord>lineTokens.endState).lastWord, 'jkl');
 		assertModeTransitions(lineTokens.modeTransitions, [

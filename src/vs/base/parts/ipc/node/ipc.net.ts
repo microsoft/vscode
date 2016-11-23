@@ -7,9 +7,9 @@
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
-import { Server as IPCServer, Client as IPCClient, IMessagePassingProtocol, IServer, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import Event, { Emitter, once, mapEvent } from 'vs/base/common/event';
+import { fromEventEmitter } from 'vs/base/node/event';
+import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 
 function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
 	while (start < buffer.length && buffer[start] !== value) {
@@ -22,10 +22,44 @@ function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
 class Protocol implements IMessagePassingProtocol {
 
 	private static Boundary = new Buffer([0]);
-	private buffer: Buffer;
+
+	private _onMessage: Event<any>;
+	get onMessage(): Event<any> { return this._onMessage; }
 
 	constructor(private socket: Socket) {
-		this.buffer = null;
+		let buffer = null;
+		const emitter = new Emitter<any>();
+		const onRawData = fromEventEmitter(socket, 'data', data => data);
+
+		onRawData((data: Buffer) => {
+			let lastIndex = 0;
+			let index = 0;
+
+			while ((index = bufferIndexOf(data, 0, lastIndex)) < data.length) {
+				const dataToParse = data.slice(lastIndex, index);
+
+				if (buffer) {
+					emitter.fire(JSON.parse(Buffer.concat([buffer, dataToParse]).toString('utf8')));
+					buffer = null;
+				} else {
+					emitter.fire(JSON.parse(dataToParse.toString('utf8')));
+				}
+
+				lastIndex = index + 1;
+			}
+
+			if (index - lastIndex > 0) {
+				const dataToBuffer = data.slice(lastIndex, index);
+
+				if (buffer) {
+					buffer = Buffer.concat([buffer, dataToBuffer]);
+				} else {
+					buffer = dataToBuffer;
+				}
+			}
+		});
+
+		this._onMessage = emitter.event;
 	}
 
 	public send(message: any): void {
@@ -36,85 +70,44 @@ class Protocol implements IMessagePassingProtocol {
 			// noop
 		}
 	}
-
-	public onMessage(callback: (message: any) => void): void {
-		this.socket.on('data', (data: Buffer) => {
-			let lastIndex = 0;
-			let index = 0;
-
-			while ((index = bufferIndexOf(data, 0, lastIndex)) < data.length) {
-				const dataToParse = data.slice(lastIndex, index);
-
-				if (this.buffer) {
-					callback(JSON.parse(Buffer.concat([this.buffer, dataToParse]).toString('utf8')));
-					this.buffer = null;
-				} else {
-					callback(JSON.parse(dataToParse.toString('utf8')));
-				}
-
-				lastIndex = index + 1;
-			}
-
-			if (index - lastIndex > 0) {
-				const dataToBuffer = data.slice(lastIndex, index);
-
-				if (this.buffer) {
-					this.buffer = Buffer.concat([this.buffer, dataToBuffer]);
-				} else {
-					this.buffer = dataToBuffer;
-				}
-			}
-		});
-	}
 }
 
-export class Server implements IServer, IDisposable {
+export class Server extends IPCServer {
 
-	private channels: { [name: string]: IChannel };
+	private static toClientConnectionEvent(server: NetServer): Event<ClientConnectionEvent> {
+		const onConnection = fromEventEmitter<Socket>(server, 'connection');
 
-	constructor(private server: NetServer) {
-		this.channels = Object.create(null);
-
-		this.server.on('connection', (socket: Socket) => {
-			const ipcServer = new IPCServer(new Protocol(socket));
-
-			Object.keys(this.channels)
-				.forEach(name => ipcServer.registerChannel(name, this.channels[name]));
-
-			socket.once('close', () => ipcServer.dispose());
-		});
+		return mapEvent(onConnection, socket => ({
+			protocol: new Protocol(socket),
+			onDidClientDisconnect: once(fromEventEmitter<void>(socket, 'close'))
+		}));
 	}
 
-	registerChannel(channelName: string, channel: IChannel): void {
-		this.channels[channelName] = channel;
+	constructor(private server: NetServer) {
+		super(Server.toClientConnectionEvent(server));
 	}
 
 	dispose(): void {
-		this.channels = null;
+		super.dispose();
 		this.server.close();
 		this.server = null;
 	}
 }
 
-export class Client implements IClient, IDisposable {
+export class Client extends IPCClient {
 
-	private ipcClient: IPCClient;
 	private _onClose = new Emitter<void>();
 	get onClose(): Event<void> { return this._onClose.event; }
 
-	constructor(private socket: Socket) {
-		this.ipcClient = new IPCClient(new Protocol(socket));
+	constructor(private socket: Socket, id: string) {
+		super(new Protocol(socket), id);
 		socket.once('close', () => this._onClose.fire());
 	}
 
-	getChannel<T extends IChannel>(channelName: string): T {
-		return this.ipcClient.getChannel(channelName) as T;
-	}
-
 	dispose(): void {
+		super.dispose();
 		this.socket.end();
 		this.socket = null;
-		this.ipcClient = null;
 	}
 }
 
@@ -132,13 +125,13 @@ export function serve(hook: any): TPromise<Server> {
 	});
 }
 
-export function connect(port: number): TPromise<Client>;
-export function connect(namedPipe: string): TPromise<Client>;
-export function connect(hook: any): TPromise<Client> {
+export function connect(port: number, clientId: string): TPromise<Client>;
+export function connect(namedPipe: string, clientId: string): TPromise<Client>;
+export function connect(hook: any, clientId: string): TPromise<Client> {
 	return new TPromise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
-			c(new Client(socket));
+			c(new Client(socket, clientId));
 		});
 
 		socket.once('error', e);

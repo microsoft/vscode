@@ -5,12 +5,12 @@
 
 'use strict';
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 
 import * as PConst from '../protocol.const';
-import { CompletionEntry, CompletionsRequestArgs, CompletionsResponse, CompletionDetailsRequestArgs, CompletionDetailsResponse, CompletionEntryDetails } from '../protocol';
+import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails } from '../protocol';
 import * as Previewer from './previewer';
 
 class MyCompletionItem extends CompletionItem {
@@ -22,6 +22,12 @@ class MyCompletionItem extends CompletionItem {
 		super(entry.name);
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
+		if (entry.replacementSpan) {
+			let span: protocol.TextSpan = entry.replacementSpan;
+			// The indexing for the range returned by the server uses 1-based indexing.
+			// We convert to 0-based indexing.
+			this.textEdit = TextEdit.replace(new Range(span.start.line - 1, span.start.offset - 1, span.end.line - 1, span.end.offset - 1), entry.name);
+		}
 	}
 
 	private static convertKind(kind: string): CompletionItemKind {
@@ -125,8 +131,8 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 
 			return completionItems;
-
-		}, (err: CompletionsResponse) => {
+		}, (err) => {
+			this.client.error(`'completions' request failed with error.`, err);
 			return [];
 		});
 	}
@@ -155,20 +161,21 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 					suggestionArgumentNames = detail.displayParts
 						.filter(part => part.kind === 'parameterName')
-						.map(part => `{{${part.text}}}`);
+						.map((part, i) => `\${${i + 1}:${part.text}}`);
 
 					if (suggestionArgumentNames.length > 0) {
-						codeSnippet += '(' + suggestionArgumentNames.join(', ') + '){{}}';
+						codeSnippet += '(' + suggestionArgumentNames.join(', ') + ')$0';
 					} else {
 						codeSnippet += '()';
 					}
 
-					item.insertText = codeSnippet;
+					item.insertText = new SnippetString(codeSnippet);
 				}
 
 				return item;
 
-			}, (err: CompletionDetailsResponse) => {
+			}, (err) => {
+				this.client.error(`'completionEntryDetails' request failed with error.`, err);
 				return item;
 			});
 

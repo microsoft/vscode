@@ -4,73 +4,109 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {clone} from 'vs/base/common/objects';
-import {illegalState} from 'vs/base/common/errors';
-import Event, {Emitter} from 'vs/base/common/event';
-import {WorkspaceConfiguration} from 'vscode';
-import {ExtHostConfigurationShape} from './extHost.protocol';
+import { mixin } from 'vs/base/common/objects';
+import Event, { Emitter } from 'vs/base/common/event';
+import { WorkspaceConfiguration } from 'vscode';
+import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
+import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IWorkspaceConfiguration } from 'vs/workbench/services/configuration/common/configuration';
+import { toValuesTree } from 'vs/platform/configuration/common/model';
+
+function lookUp(tree: any, key: string) {
+	if (key) {
+		const parts = key.split('.');
+		let node = tree;
+		for (let i = 0; node && i < parts.length; i++) {
+			node = node[parts[i]];
+		}
+		return node;
+	}
+}
+
+interface UsefulConfiguration {
+	data: IWorkspaceConfiguration;
+	valueTree: any;
+}
+
+function createUsefulConfiguration(data: IWorkspaceConfiguration): { data: IWorkspaceConfiguration, valueTree: any } {
+	const valueMap: { [key: string]: any } = Object.create(null);
+	for (let key in data) {
+		if (Object.prototype.hasOwnProperty.call(data, key)) {
+			valueMap[key] = data[key].value;
+		}
+	}
+	const valueTree = toValuesTree(valueMap);
+	return {
+		data,
+		valueTree
+	};
+}
 
 export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
-	private _config: any;
-	private _hasConfig: boolean;
-	private _onDidChangeConfiguration: Emitter<void>;
+	private _onDidChangeConfiguration = new Emitter<void>();
+	private _proxy: MainThreadConfigurationShape;
+	private _configuration: UsefulConfiguration;
 
-	constructor() {
+	constructor(proxy: MainThreadConfigurationShape, data: IWorkspaceConfiguration) {
 		super();
-		this._onDidChangeConfiguration = new Emitter<void>();
+		this._proxy = proxy;
+		this._configuration = createUsefulConfiguration(data);
 	}
 
 	get onDidChangeConfiguration(): Event<void> {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	public $acceptConfigurationChanged(config: any) {
-		this._config = config;
-		this._hasConfig = true;
+	public $acceptConfigurationChanged(data: IWorkspaceConfiguration) {
+		this._configuration = createUsefulConfiguration(data);
 		this._onDidChangeConfiguration.fire(undefined);
 	}
 
 	public getConfiguration(section?: string): WorkspaceConfiguration {
-		if (!this._hasConfig) {
-			throw illegalState('missing config');
-		}
 
 		const config = section
-			? ExtHostConfiguration._lookUp(section, this._config)
-			: this._config;
+			? lookUp(this._configuration.valueTree, section)
+			: this._configuration.valueTree;
 
-		let result: any;
-		if (typeof config !== 'object') {
-			// this catches missing config and accessing values
-			result = {};
-		} else {
-			result = clone(config);
-		}
-
-		result.has = function(key: string): boolean {
-			return typeof ExtHostConfiguration._lookUp(key, config) !== 'undefined';
-		};
-		result.get = function <T>(key: string, defaultValue?: T): T {
-			let result = ExtHostConfiguration._lookUp(key, config);
-			if (typeof result === 'undefined') {
-				result = defaultValue;
+		const result: WorkspaceConfiguration = {
+			has(key: string): boolean {
+				return typeof lookUp(config, key) !== 'undefined';
+			},
+			get<T>(key: string, defaultValue?: T): T {
+				let result = lookUp(config, key);
+				if (typeof result === 'undefined') {
+					result = defaultValue;
+				}
+				return result;
+			},
+			update: (key: string, value: any, global: boolean = false) => {
+				key = section ? `${section}.${key}` : key;
+				const target = global ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE;
+				if (value !== void 0) {
+					return this._proxy.$updateConfigurationOption(target, key, value);
+				} else {
+					return this._proxy.$removeConfigurationOption(target, key);
+				}
+			},
+			inspect: <T>(key: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T } => {
+				key = section ? `${section}.${key}` : key;
+				const config = this._configuration.data[key];
+				if (config) {
+					return {
+						key,
+						defaultValue: config.default,
+						globalValue: config.user,
+						workspaceValue: config.workspace
+					};
+				}
 			}
-			return result;
 		};
-		return result;
-	}
 
-	private static _lookUp(section: string, config: any) {
-		if (!section) {
-			return;
-		}
-		let parts = section.split('.');
-		let node = config;
-		while (node && parts.length) {
-			node = node[parts.shift()];
+		if (typeof config === 'object') {
+			mixin(result, config, false);
 		}
 
-		return node;
+		return Object.freeze(result);
 	}
 }

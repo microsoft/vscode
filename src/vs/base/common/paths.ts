@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {isLinux, isWindows} from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { fill } from 'vs/base/common/arrays';
+import { CharCode } from 'vs/base/common/charCode';
 
 /**
  * The forward slash path separator.
@@ -17,27 +19,31 @@ export var sep = '/';
 export var nativeSep = isWindows ? '\\' : '/';
 
 export function relative(from: string, to: string): string {
+	const originalNormalizedFrom = normalize(from);
+	const originalNormalizedTo = normalize(to);
 
-	from = normalize(from);
-	to = normalize(to);
+	// we're assuming here that any non=linux OS is case insensitive
+	// so we must compare each part in its lowercase form
+	const normalizedFrom = isLinux ? originalNormalizedFrom : originalNormalizedFrom.toLowerCase();
+	const normalizedTo = isLinux ? originalNormalizedTo : originalNormalizedTo.toLowerCase();
 
-	var fromParts = from.split(sep),
-		toParts = to.split(sep);
+	const fromParts = normalizedFrom.split(sep);
+	const toParts = normalizedTo.split(sep);
 
-	while (fromParts.length > 0 && toParts.length > 0) {
-		if (fromParts[0] === toParts[0]) {
-			fromParts.shift();
-			toParts.shift();
-		} else {
+	let i = 0, max = Math.min(fromParts.length, toParts.length);
+
+	for (; i < max; i++) {
+		if (fromParts[i] !== toParts[i]) {
 			break;
 		}
 	}
 
-	for (var i = 0, len = fromParts.length; i < len; i++) {
-		toParts.unshift('..');
-	}
+	const result = [
+		...fill(fromParts.length - i, () => '..'),
+		...originalNormalizedTo.split(sep).slice(i)
+	];
 
-	return toParts.join(sep);
+	return result.join(sep);
 }
 
 /**
@@ -113,7 +119,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 	for (let end = root.length; end <= len; end++) {
 
 		// either at the end or at a path-separator character
-		if (end === len || path.charCodeAt(end) === _slash || path.charCodeAt(end) === _backslash) {
+		if (end === len || path.charCodeAt(end) === CharCode.Slash || path.charCodeAt(end) === CharCode.Backslash) {
 
 			if (streql(path, start, end, '..')) {
 				// skip current and remove parent (if there is already something)
@@ -144,7 +150,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 }
 
 function streql(value: string, start: number, end: number, other: string): boolean {
-	return start + other.length === end &&  value.indexOf(other, start) === start;
+	return start + other.length === end && value.indexOf(other, start) === start;
 }
 
 /**
@@ -160,28 +166,28 @@ export function getRoot(path: string, sep: string = '/'): string {
 
 	let len = path.length;
 	let code = path.charCodeAt(0);
-	if (code === _slash || code === _backslash) {
+	if (code === CharCode.Slash || code === CharCode.Backslash) {
 
 		code = path.charCodeAt(1);
-		if (code === _slash || code === _backslash) {
+		if (code === CharCode.Slash || code === CharCode.Backslash) {
 			// UNC candidate \\localhost\shares\ddd
 			//               ^^^^^^^^^^^^^^^^^^^
 			code = path.charCodeAt(2);
-			if (code !== _slash && code !== _backslash) {
+			if (code !== CharCode.Slash && code !== CharCode.Backslash) {
 				let pos = 3;
 				let start = pos;
 				for (; pos < len; pos++) {
 					code = path.charCodeAt(pos);
-					if (code === _slash || code === _backslash) {
+					if (code === CharCode.Slash || code === CharCode.Backslash) {
 						break;
 					}
 				}
 				code = path.charCodeAt(pos + 1);
-				if (start !== pos && code !== _slash && code !== _backslash) {
+				if (start !== pos && code !== CharCode.Slash && code !== CharCode.Backslash) {
 					pos += 1;
 					for (; pos < len; pos++) {
 						code = path.charCodeAt(pos);
-						if (code === _slash || code === _backslash) {
+						if (code === CharCode.Slash || code === CharCode.Backslash) {
 							return path.slice(0, pos + 1) // consume this separator
 								.replace(/[\\/]/g, sep);
 						}
@@ -194,12 +200,12 @@ export function getRoot(path: string, sep: string = '/'): string {
 		// ^
 		return sep;
 
-	} else if ((code >= _A && code <= _Z) || (code >= _a && code <= _z)) {
+	} else if ((code >= CharCode.A && code <= CharCode.Z) || (code >= CharCode.a && code <= CharCode.z)) {
 		// check for windows drive letter c:\ or c:
 
-		if (path.charCodeAt(1) === _colon) {
+		if (path.charCodeAt(1) === CharCode.Colon) {
 			code = path.charCodeAt(2);
-			if (code === _slash || code === _backslash) {
+			if (code === CharCode.Slash || code === CharCode.Backslash) {
 				// C:\fff
 				// ^^^
 				return path.slice(0, 2) + sep;
@@ -219,7 +225,7 @@ export function getRoot(path: string, sep: string = '/'): string {
 		pos += 3; // 3 -> "://".length
 		for (; pos < len; pos++) {
 			code = path.charCodeAt(pos);
-			if (code === _slash || code === _backslash) {
+			if (code === CharCode.Slash || code === CharCode.Backslash) {
 				return path.slice(0, pos + 1); // consume this separator
 			}
 		}
@@ -240,9 +246,9 @@ export const join: (...parts: string[]) => string = function () {
 			// add the separater between two parts unless
 			// there already is one
 			let last = value.charCodeAt(value.length - 1);
-			if (last !== _slash && last !== _backslash) {
+			if (last !== CharCode.Slash && last !== CharCode.Backslash) {
 				let next = part.charCodeAt(0);
-				if (next !== _slash && next !== _backslash) {
+				if (next !== CharCode.Slash && next !== CharCode.Backslash) {
 
 					value += sep;
 				}
@@ -274,18 +280,18 @@ export function isUNC(path: string): boolean {
 	}
 
 	let code = path.charCodeAt(0);
-	if (code !== _backslash) {
+	if (code !== CharCode.Backslash) {
 		return false;
 	}
 	code = path.charCodeAt(1);
-	if (code !== _backslash) {
+	if (code !== CharCode.Backslash) {
 		return false;
 	}
 	let pos = 2;
 	let start = pos;
 	for (; pos < path.length; pos++) {
 		code = path.charCodeAt(pos);
-		if (code === _backslash) {
+		if (code === CharCode.Backslash) {
 			break;
 		}
 	}
@@ -293,7 +299,7 @@ export function isUNC(path: string): boolean {
 		return false;
 	}
 	code = path.charCodeAt(pos + 1);
-	if (isNaN(code) || code === _backslash) {
+	if (isNaN(code) || code === CharCode.Backslash) {
 		return false;
 	}
 	return true;
@@ -307,15 +313,6 @@ export function makePosixAbsolute(path: string): string {
 	return isPosixAbsolute(normalize(path)) ? path : sep + path;
 }
 
-
-const _slash = '/'.charCodeAt(0);
-const _backslash = '\\'.charCodeAt(0);
-const _colon = ':'.charCodeAt(0);
-const _a = 'a'.charCodeAt(0);
-const _A = 'A'.charCodeAt(0);
-const _z = 'z'.charCodeAt(0);
-const _Z = 'Z'.charCodeAt(0);
-
 export function isEqualOrParent(path: string, candidate: string): boolean {
 
 	if (path === candidate) {
@@ -327,7 +324,7 @@ export function isEqualOrParent(path: string, candidate: string): boolean {
 
 	let candidateLen = candidate.length;
 	let lastCandidateChar = candidate.charCodeAt(candidateLen - 1);
-	if (lastCandidateChar === _slash) {
+	if (lastCandidateChar === CharCode.Slash) {
 		candidate = candidate.substring(0, candidateLen - 1);
 		candidateLen -= 1;
 	}
@@ -351,7 +348,7 @@ export function isEqualOrParent(path: string, candidate: string): boolean {
 	}
 
 	let char = path.charCodeAt(candidateLen);
-	return char === _slash;
+	return char === CharCode.Slash;
 }
 
 // Reference: https://en.wikipedia.org/wiki/Filename

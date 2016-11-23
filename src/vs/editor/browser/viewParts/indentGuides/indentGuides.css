@@ -13,7 +13,10 @@
 	width: 1px;
 }
 
-.monaco-editor.vs-dark .lines-content .cigr,
+.monaco-editor.vs-dark .lines-content .cigr {
+	background: #404040;
+}
+
 .monaco-editor.hc-black .lines-content .cigr {
-	background: #353535;
+	background: #ffffff;
 }

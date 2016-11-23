@@ -1,14 +1,14 @@
 declare module monaco {
 
-    interface Thenable<R> {
+    interface Thenable<T> {
         /**
          * Attaches callbacks for the resolution and/or rejection of the Promise.
          * @param onfulfilled The callback to execute when the Promise is resolved.
          * @param onrejected The callback to execute when the Promise is rejected.
          * @returns A Promise for the completion of which ever callback is executed.
          */
-        then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-        then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
+        then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
+        then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
     }
 
     export interface IDisposable {
@@ -24,7 +24,7 @@ declare module monaco {
      */
     export class Emitter<T> {
         constructor();
-        event: Event<T>;
+        readonly event: Event<T>;
         fire(event?: T): void;
         dispose(): void;
     }
@@ -39,12 +39,11 @@ declare module monaco {
 #include(vs/base/common/winjs.base.d.ts): TValueCallback, ProgressCallback, TPromise
 #include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
 #include(vs/base/common/uri): URI
-#include(vs/base/common/keyCodes): KeyCode, KeyMod
+#include(vs/editor/common/standalone/standaloneBase): KeyCode, KeyMod
 #include(vs/base/common/htmlContent): MarkedString
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent
 #include(vs/base/browser/mouseEvent): IMouseEvent
-#include(vs/editor/common/editorCommon): IScrollEvent
-#include(vs/editor/common/editorCommon): IPosition, IRange, ISelection
+#include(vs/editor/common/editorCommon): IScrollEvent, IPosition, IRange, ISelection
 #include(vs/editor/common/core/position): Position
 #include(vs/editor/common/core/range): Range
 #include(vs/editor/common/core/selection): Selection, SelectionDirection
@@ -53,6 +52,7 @@ declare module monaco {
 declare module monaco.editor {
 
 #includeAll(vs/editor/browser/standalone/standaloneEditor;modes.=>languages.):
+#include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
 #include(vs/editor/browser/standalone/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {
     (...args:any[]): void;
@@ -62,7 +62,6 @@ export interface ICommandHandler {
 #include(vs/platform/markers/common/markers): IMarkerData
 #include(vs/editor/browser/standalone/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/common/scrollable): ScrollbarVisibility
-#include(vs/base/common/actions): IAction
 #includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode): IPosition, IRange, ISelection, SelectionDirection, IScrollEvent
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):
 }
@@ -70,9 +69,7 @@ export interface ICommandHandler {
 declare module monaco.languages {
 
 #includeAll(vs/editor/browser/standalone/standaloneLanguages;modes.=>;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData):
-#include(vs/editor/common/modes/languageConfigurationRegistry): CommentRule, LanguageConfiguration
-#include(vs/editor/common/modes/supports/onEnter): IndentationRule, OnEnterRule
-#include(vs/editor/common/modes/supports/electricCharacter): IBracketElectricCharacterContribution, IDocComment
+#includeAll(vs/editor/common/modes/languageConfiguration):
 #includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IToken2=>IToken;ILineTokens2=>ILineTokens;IState2=>IState):
 #include(vs/editor/common/services/modeService): ILanguageExtensionPoint
 #includeAll(vs/editor/common/modes/monarch/monarchTypes):

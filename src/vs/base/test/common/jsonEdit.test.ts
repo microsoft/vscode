@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import json = require('vs/base/common/json');
-import {FormattingOptions, Edit} from 'vs/base/common/jsonFormatter';
-import {setProperty, removeProperty} from 'vs/base/common/jsonEdit';
+import { FormattingOptions, Edit } from 'vs/base/common/jsonFormatter';
+import { setProperty, removeProperty } from 'vs/base/common/jsonEdit';
 import assert = require('assert');
 
 suite('JSON - edits', () => {
@@ -16,7 +15,7 @@ suite('JSON - edits', () => {
 		let lastEditOffset = content.length;
 		for (let i = edits.length - 1; i >= 0; i--) {
 			let edit = edits[i];
-			assert(edit.offset >= 0 && edit.length >= 0 && edit.offset + edit.length <= content.length)
+			assert(edit.offset >= 0 && edit.length >= 0 && edit.offset + edit.length <= content.length);
 			assert(typeof edit.content === 'string');
 			assert(lastEditOffset >= edit.offset + edit.length); // make sure all edits are ordered
 			lastEditOffset = edit.offset;
@@ -25,11 +24,11 @@ suite('JSON - edits', () => {
 		assert.equal(content, expected);
 	}
 
-	let formatterOptions : FormattingOptions = {
+	let formatterOptions: FormattingOptions = {
 		insertSpaces: true,
 		tabSize: 2,
 		eol: '\n'
-	}
+	};
 
 	test('set property', () => {
 		let content = '{\n  "x": "y"\n}';
@@ -42,18 +41,18 @@ suite('JSON - edits', () => {
 	});
 
 	test('insert property', () => {
-		let content = "{}";
+		let content = '{}';
 		let edits = setProperty(content, ['foo'], 'bar', formatterOptions);
 		assertEdit(content, edits, '{\n  "foo": "bar"\n}');
 
 		edits = setProperty(content, ['foo', 'foo2'], 'bar', formatterOptions);
 		assertEdit(content, edits, '{\n  "foo": {\n    "foo2": "bar"\n  }\n}');
 
-		content = "{\n}";
+		content = '{\n}';
 		edits = setProperty(content, ['foo'], 'bar', formatterOptions);
 		assertEdit(content, edits, '{\n  "foo": "bar"\n}');
 
-		content = "  {\n  }";
+		content = '  {\n  }';
 		edits = setProperty(content, ['foo'], 'bar', formatterOptions);
 		assertEdit(content, edits, '  {\n    "foo": "bar"\n  }');
 

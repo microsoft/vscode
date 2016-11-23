@@ -7,15 +7,31 @@
 import * as assert from 'assert';
 import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Model} from 'vs/editor/common/model/model';
-// import {Handler} from 'vs/editor/common/editorCommon';
-// import {Position} from 'vs/editor/common/core/position';
-import {ISuggestSupport, ISuggestResult, SuggestRegistry} from 'vs/editor/common/modes';
-import {SuggestModel, Context} from 'vs/editor/contrib/suggest/common/suggestModel';
-import {Cursor} from 'vs/editor/common/controller/cursor';
-import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Model } from 'vs/editor/common/model/model';
+import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
+import { ISuggestSupport, ISuggestResult, SuggestRegistry } from 'vs/editor/common/modes';
+import { SuggestModel, Context } from 'vs/editor/contrib/suggest/common/suggestModel';
+import { MockCodeEditor, MockScopeLocation } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+function createMockEditor(model: Model): MockCodeEditor {
+	const contextKeyService = new MockKeybindingService();
+	const telemetryService = NullTelemetryService;
+	const instantiationService = new InstantiationService(new ServiceCollection(
+		[IContextKeyService, contextKeyService],
+		[ITelemetryService, telemetryService]
+	));
+
+	const editor = new MockCodeEditor(new MockScopeLocation(), {}, instantiationService, contextKeyService);
+	editor.setModel(model);
+	return editor;
+}
 
 suite('SuggestModel - Context', function () {
 
@@ -74,9 +90,23 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		triggerCharacters: [],
 		provideCompletionItems(doc, pos) {
 			return <ISuggestResult>{
-				currentWord: '',
 				incomplete: false,
 				suggestions: []
+			};
+		}
+	};
+
+	const alwaysSomethingSupport: ISuggestSupport = {
+		triggerCharacters: [],
+		provideCompletionItems(doc, pos) {
+			return <ISuggestResult>{
+				currentWord: '',
+				incomplete: false,
+				suggestions: [{
+					label: doc.getWordUntilPosition(pos).word,
+					type: 'property',
+					insertText: 'foofoo'
+				}]
 			};
 		}
 	};
@@ -90,22 +120,18 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		disposables.push(model);
 	});
 
-	function withOracle(callback: (model: SuggestModel, cursor: Cursor) => any): TPromise<any> {
+	function withOracle(callback: (model: SuggestModel, editor: ICommonCodeEditor) => any): TPromise<any> {
 
-		let oracle: SuggestModel;
 		return new TPromise((resolve, reject) => {
-			withMockCodeEditor([], {}, (editor, cursor) => {
-				editor.setModel(model);
-				oracle = new SuggestModel(editor);
-				try {
-					resolve(callback(oracle, cursor));
-				} catch (err) {
-					reject(err);
-				}
-			});
-		}).then(r => {
-			oracle.dispose();
-			return r;
+			const editor = createMockEditor(model);
+			const oracle = new SuggestModel(editor);
+			disposables.push(oracle, editor);
+
+			try {
+				resolve(callback(oracle, editor));
+			} catch (err) {
+				reject(err);
+			}
 		});
 	}
 
@@ -195,13 +221,22 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		});
 	});
 
-	// test('trigger - on type', function () {
+	test('trigger - on type', function () {
 
-	// 	return withOracle((model, cursor) => {
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
 
-	// 		cursor.trigger('keyboard', Handler.MoveTo, { position: new Position(1, 4) });
+		return withOracle((model, editor) => {
+			return assertEvent(model.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 4 });
+				editor.trigger('keyboard', Handler.Type, { text: 'd' });
 
-	// 	});
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
 
-	// });
+				assert.equal(first.support, alwaysSomethingSupport);
+			});
+		});
+	});
 });

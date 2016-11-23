@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .part.panel .title {
-	padding-right: 0px;
+.monaco-workbench.nopanel > .panel {
+	display: none !important;
+	visibility: hidden !important;
 }
 
-.monaco-workbench > .part.panel > .title {
+.monaco-workbench > .part.panel .title {
+	padding-right: 0px;
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
+	height: 36px;
 }
 
 .monaco-workbench > .part.panel > .title > .title-label > span {

@@ -7,7 +7,7 @@
 	"derivedDescription": "Hacer coincidir archivos que tienen elementos del mismo nivel con el mismo nombre pero con extensión diferente.",
 	"derivedLabel": "Archivos con elementos del mismo nivel por nombre",
 	"falseDescription": "Deshabilitar el patrón.",
-	"falseLabel": "False",
+	"falseLabel": "false",
 	"fileDescription": "Hacer coincidir todos los archivos que tengan una extensión de archivo determinada.",
 	"fileLabel": "Archivos por extensión",
 	"filesDescription": "Hacer coincidir todos los archivos con cualquiera de las extensiones de archivo.",
@@ -20,5 +20,5 @@
 	"topFoldersDescription": "Hacer coincidir varias carpetas de nivel superior.",
 	"topFoldersLabel": "Carpetas con varios nombres (nivel superior)",
 	"trueDescription": "Habilitar el patrón.",
-	"trueLabel": "True"
+	"trueLabel": "true"
 }

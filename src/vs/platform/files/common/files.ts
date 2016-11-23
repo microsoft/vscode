@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import events = require('vs/base/common/events');
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { isLinux } from 'vs/base/common/platform';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -27,50 +28,50 @@ export interface IFileService {
 	 * the stat service is asked to automatically resolve child folders that only
 	 * contain a single element.
 	 */
-	resolveFile(resource: URI, options?: IResolveFileOptions): winjs.TPromise<IFileStat>;
+	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat>;
 
 	/**
 	 *Finds out if a file identified by the resource exists.
 	 */
-	existsFile(resource: URI): winjs.TPromise<boolean>;
+	existsFile(resource: URI): TPromise<boolean>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the full value as string.
 	 */
-	resolveContent(resource: URI, options?: IResolveContentOptions): winjs.TPromise<IContent>;
+	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the value as a readable stream.
 	 */
-	resolveStreamContent(resource: URI, options?: IResolveContentOptions): winjs.TPromise<IStreamContent>;
+	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent>;
 
 	/**
 	 * Returns the contents of all files by the given array of file resources.
 	 */
-	resolveContents(resources: URI[]): winjs.TPromise<IContent[]>;
+	resolveContents(resources: URI[]): TPromise<IContent[]>;
 
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): winjs.TPromise<IFileStat>;
+	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat>;
 
 	/**
 	 * Moves the file to a new path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	moveFile(source: URI, target: URI, overwrite?: boolean): winjs.TPromise<IFileStat>;
+	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
 
 	/**
 	 * Copies the file to a path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	copyFile(source: URI, target: URI, overwrite?: boolean): winjs.TPromise<IFileStat>;
+	copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
 
 	/**
 	 * Creates a new file with the given path. The returned promise
@@ -78,30 +79,36 @@ export interface IFileService {
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, content?: string): winjs.TPromise<IFileStat>;
+	createFile(resource: URI, content?: string): TPromise<IFileStat>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
 	 * will have the stat model object as a result.
 	 */
-	createFolder(resource: URI): winjs.TPromise<IFileStat>;
+	createFolder(resource: URI): TPromise<IFileStat>;
 
 	/**
 	 * Renames the provided file to use the new name. The returned promise
 	 * will have the stat model object as a result.
 	 */
-	rename(resource: URI, newName: string): winjs.TPromise<IFileStat>;
+	rename(resource: URI, newName: string): TPromise<IFileStat>;
+
+	/**
+	 * Creates a new empty file if the given path does not exist and otherwise
+	 * will set the mtime and atime of the file to the current date.
+	 */
+	touchFile(resource: URI): TPromise<IFileStat>;
 
 	/**
 	 * Deletes the provided file.  The optional useTrash parameter allows to
 	 * move the file to trash.
 	 */
-	del(resource: URI, useTrash?: boolean): winjs.TPromise<void>;
+	del(resource: URI, useTrash?: boolean): TPromise<void>;
 
 	/**
 	 * Imports the file to the parent identified by the resource.
 	 */
-	importFile(source: URI, targetFolder: URI): winjs.TPromise<IImportResult>;
+	importFile(source: URI, targetFolder: URI): TPromise<IImportResult>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
@@ -185,19 +192,6 @@ export class FileChangesEvent extends events.Event {
 			return false;
 		}
 
-		return this.containsAny([resource], type);
-	}
-
-	/**
-	 * Returns true if this change event contains any of the provided files with the given change type. In case of
-	 * type DELETED, this method will also return true if a folder got deleted that is the parent of any of the
-	 * provided file paths.
-	 */
-	public containsAny(resources: URI[], type: FileChangeType): boolean {
-		if (!resources || !resources.length) {
-			return false;
-		}
-
 		return this._changes.some((change) => {
 			if (change.type !== type) {
 				return false;
@@ -205,22 +199,10 @@ export class FileChangesEvent extends events.Event {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return resources.some((a: URI) => {
-					if (!a) {
-						return false;
-					}
-
-					return paths.isEqualOrParent(a.fsPath, change.resource.fsPath);
-				});
+				return isEqual(resource.fsPath, change.resource.fsPath) || isParent(resource.fsPath, change.resource.fsPath);
 			}
 
-			return resources.some((a: URI) => {
-				if (!a) {
-					return false;
-				}
-
-				return a.fsPath === change.resource.fsPath;
-			});
+			return isEqual(resource.fsPath, change.resource.fsPath);
 		});
 	}
 
@@ -277,6 +259,24 @@ export class FileChangesEvent extends events.Event {
 	}
 }
 
+export function isEqual(path1: string, path2: string) {
+	const identityEquals = (path1 === path2);
+	if (isLinux || identityEquals) {
+		return identityEquals;
+	}
+
+	return path1.toLowerCase() === path2.toLowerCase();
+}
+
+export function isParent(path: string, candidate: string): boolean {
+	if (!isLinux) {
+		path = path.toLowerCase();
+		candidate = candidate.toLowerCase();
+	}
+
+	return path.indexOf(candidate + paths.nativeSep) === 0;
+}
+
 export interface IBaseStat {
 
 	/**
@@ -301,12 +301,6 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
-
-	/**
-	 * The mime type string. Applicate for files
-	 * only.
-	 */
-	mime: string;
 }
 
 /**
@@ -316,7 +310,7 @@ export interface IFileStat extends IBaseStat {
 
 	/**
 	 * The resource is a directory. Iff {{true}}
-	 * {{mime}} and {{encoding}} have no meaning.
+	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;
 
@@ -452,7 +446,8 @@ export enum FileOperationResult {
 	FILE_MODIFIED_SINCE,
 	FILE_MOVE_CONFLICT,
 	FILE_READ_ONLY,
-	FILE_TOO_LARGE
+	FILE_TOO_LARGE,
+	FILE_INVALID_PATH
 }
 
 export const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -474,6 +469,7 @@ export interface IFilesConfiguration {
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
+		hotExit: boolean;
 	};
 }
 

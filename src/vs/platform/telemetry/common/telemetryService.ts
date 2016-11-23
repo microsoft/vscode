@@ -5,23 +5,23 @@
 
 'use strict';
 
-import {localize} from 'vs/nls';
-import {escapeRegExpCharacters} from 'vs/base/common/strings';
-import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {optional} from 'vs/platform/instantiation/common/instantiation';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TimeKeeper, ITimerEvent} from 'vs/base/common/timer';
-import {cloneAndChange, mixin} from 'vs/base/common/objects';
-import {Registry} from 'vs/platform/platform';
+import { localize } from 'vs/nls';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { ITelemetryService, ITelemetryAppender, ITelemetryInfo, ITelemetryExperiments, defaultExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { cloneAndChange, mixin } from 'vs/base/common/objects';
+import { Registry } from 'vs/platform/platform';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
 	commonProperties?: TPromise<{ [name: string]: any }>;
 	piiPaths?: string[];
 	userOptIn?: boolean;
+	experiments?: ITelemetryExperiments;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -35,9 +35,9 @@ export class TelemetryService implements ITelemetryService {
 	private _commonProperties: TPromise<{ [name: string]: any; }>;
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
+	private _experiments: ITelemetryExperiments;
 
 	private _disposables: IDisposable[] = [];
-	private _timeKeeper: TimeKeeper;
 	private _cleanupPatterns: [RegExp, string][] = [];
 
 	constructor(
@@ -48,23 +48,21 @@ export class TelemetryService implements ITelemetryService {
 		this._commonProperties = config.commonProperties || TPromise.as({});
 		this._piiPaths = config.piiPaths || [];
 		this._userOptIn = typeof config.userOptIn === 'undefined' ? true : config.userOptIn;
+		this._experiments = config.experiments || defaultExperiments;
 
 		// static cleanup patterns for:
 		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		// #2 // Any other file path that doesn't match the approved form above should be cleaned.
 		// #3 "Error: ENOENT; no such file or directory" is often followed with PII, clean it
-		for (let piiPath of this._piiPaths) {
-			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(piiPath), 'gi'), '']);
-		}
 		this._cleanupPatterns.push(
 			[/file:\/\/\/.*?\/resources\/app\//gi, ''],
 			[/file:\/\/\/.*/gi, ''],
 			[/ENOENT: no such file or directory.*?\'([^\']+)\'/gi, 'ENOENT: no such file or directory']
 		);
 
-		this._timeKeeper = new TimeKeeper();
-		this._disposables.push(this._timeKeeper);
-		this._disposables.push(this._timeKeeper.addListener(events => this._onTelemetryTimerEventStop(events)));
+		for (let piiPath of this._piiPaths) {
+			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(piiPath), 'gi'), '']);
+		}
 
 		if (this._configurationService) {
 			this._updateUserOptIn();
@@ -78,17 +76,12 @@ export class TelemetryService implements ITelemetryService {
 		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
 	}
 
-	private _onTelemetryTimerEventStop(events: ITimerEvent[]): void {
-		for (let i = 0; i < events.length; i++) {
-			let event = events[i];
-			let data = event.data || {};
-			data.duration = event.timeTaken();
-			this.publicLog(event.name, data);
-		}
-	}
-
 	get isOptedIn(): boolean {
 		return this._userOptIn;
+	}
+
+	getExperiments(): ITelemetryExperiments {
+		return this._experiments;
 	}
 
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
@@ -104,15 +97,6 @@ export class TelemetryService implements ITelemetryService {
 
 	dispose(): void {
 		this._disposables = dispose(this._disposables);
-	}
-
-	timedPublicLog(name: string, data?: any): ITimerEvent {
-		let topic = 'public';
-		let event = this._timeKeeper.start(topic, name);
-		if (data) {
-			event.data = data;
-		}
-		return event;
 	}
 
 	publicLog(eventName: string, data?: any): TPromise<any> {

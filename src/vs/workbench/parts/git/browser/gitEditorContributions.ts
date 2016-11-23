@@ -5,6 +5,7 @@
 'use strict';
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { IModel, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane, IEditorContribution, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 import { IGitService, ModelEvents, StatusType } from 'vs/workbench/parts/git/common/git';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -30,7 +31,7 @@ class MergeDecoratorBoundToModel extends Disposable {
 	constructor(
 		private editor: ICodeEditor,
 		private model: IModel,
-		private filePath:string,
+		private filePath: string,
 		private gitService: IGitService
 	) {
 		super();
@@ -50,7 +51,12 @@ class MergeDecoratorBoundToModel extends Disposable {
 	}
 
 	private redecorate(): void {
+		if (this.model.isDisposed()) {
+			return;
+		}
+
 		const gitModel = this.gitService.getModel();
+
 		if (!gitModel) {
 			return;
 		}
@@ -70,11 +76,12 @@ class MergeDecoratorBoundToModel extends Disposable {
 	}
 }
 
+@editorContribution
 export class MergeDecorator extends Disposable implements IEditorContribution {
 
 	static ID = 'vs.git.editor.merge.decorator';
 
-	static DECORATION_OPTIONS:IModelDecorationOptions = {
+	static DECORATION_OPTIONS: IModelDecorationOptions = {
 		className: 'git-merge-control-decoration',
 		isWholeLine: true,
 		overviewRuler: {
@@ -90,7 +97,7 @@ export class MergeDecorator extends Disposable implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@IGitService private gitService: IGitService,
-		@IWorkspaceContextService private contextService : IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super();
 

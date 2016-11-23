@@ -6,7 +6,7 @@
 {
 	"cannotRunGotoLine": "Ouvrir d'abord un fichier texte pour atteindre une ligne",
 	"gotoLine": "Atteindre la ligne...",
-	"gotoLineColumnLabel": "Atteindre la ligne {0} et la colonne {1}",
+	"gotoLineColumnLabel": "Atteindre la ligne {0} et le caractère {1}",
 	"gotoLineHandlerAriaLabel": "Tapez un numéro de ligne à atteindre.",
 	"gotoLineLabel": "Atteindre la ligne {0}",
 	"gotoLineLabelEmpty": "Tapez un numéro de ligne à atteindre.",

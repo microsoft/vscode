@@ -177,7 +177,7 @@ export abstract class FastDomNode {
 		this._domNode.style.visibility = this._visibility;
 	}
 
-	public setTransform(transform:string): void {
+	public setTransform(transform: string): void {
 		if (this._transform === transform) {
 			return;
 		}
@@ -185,9 +185,9 @@ export abstract class FastDomNode {
 		this._setTransform(this._domNode, this._transform);
 	}
 
-	protected abstract _setTransform(domNode:HTMLElement, transform:string): void;
+	protected abstract _setTransform(domNode: HTMLElement, transform: string): void;
 
-	public setLineNumber(lineNumber:string): void {
+	public setLineNumber(lineNumber: string): void {
 		if (this._lineNumber === lineNumber) {
 			return;
 		}
@@ -197,19 +197,19 @@ export abstract class FastDomNode {
 }
 
 class WebKitFastDomNode extends FastDomNode {
-	protected _setTransform(domNode:HTMLElement, transform:string): void {
+	protected _setTransform(domNode: HTMLElement, transform: string): void {
 		(<any>domNode.style).webkitTransform = transform;
 	}
 }
 
 class StandardFastDomNode extends FastDomNode {
-	protected _setTransform(domNode:HTMLElement, transform:string): void {
+	protected _setTransform(domNode: HTMLElement, transform: string): void {
 		domNode.style.transform = transform;
 	}
 }
 
 let useWebKitFastDomNode = false;
-(function() {
+(function () {
 	let testDomNode = document.createElement('div');
 	if (typeof (<any>testDomNode.style).webkitTransform !== 'undefined') {
 		useWebKitFastDomNode = true;
@@ -312,7 +312,7 @@ function setTransform(domNode: HTMLElement, desiredValue: string): boolean {
 	}
 	return false;
 }
-(function() {
+(function () {
 	let testDomNode = document.createElement('div');
 	if (typeof (<any>testDomNode.style).webkitTransform !== 'undefined') {
 		StyleMutator.setTransform = setWebkitTransform;

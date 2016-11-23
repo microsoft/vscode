@@ -7,24 +7,24 @@
 
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {createMockModelService} from 'vs/test/utils/servicesTestUtils';
+import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 
 suite('Workbench - StringEditorModel', () => {
 
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		instantiationService= new TestInstantiationService();
+		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IModeService);
 	});
 
 	test('StringEditorModel', function (done) {
 		instantiationService.stub(IModelService, createMockModelService(instantiationService));
-		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mime', null);
-		m.load().then(function (model) {
+		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
+		m.load().then(model => {
 			assert(model === m);
 
 			let textEditorModel = m.textEditorModel;
@@ -33,7 +33,7 @@ suite('Workbench - StringEditorModel', () => {
 			assert.strictEqual(m.isResolved(), true);
 
 			(<any>m).value = 'something';
-			return m.load().then(function (model) {
+			return m.load().then(model => {
 				assert(textEditorModel === m.textEditorModel);
 				assert.strictEqual(m.getValue(), 'something');
 			});
@@ -45,8 +45,8 @@ suite('Workbench - StringEditorModel', () => {
 
 	test('StringEditorModel - setValue, clearValue, append, trim', function (done) {
 		instantiationService.stub(IModelService, createMockModelService(instantiationService));
-		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mime', null);
-		m.load().then(function (model) {
+		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
+		m.load().then(model => {
 			assert(model === m);
 
 			let textEditorModel = m.textEditorModel;

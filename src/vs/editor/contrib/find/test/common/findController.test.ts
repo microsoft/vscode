@@ -5,33 +5,44 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Position} from 'vs/editor/common/core/position';
-import {Selection} from 'vs/editor/common/core/selection';
-import {Range} from 'vs/editor/common/core/range';
-import {IRange} from 'vs/editor/common/editorCommon';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/editorCommon';
 import {
 	CommonFindController, FindStartFocusAction, IFindStartOptions,
-	NextMatchFindAction, StartFindAction, SelectHighlightsAction
+	NextMatchFindAction, StartFindAction, SelectHighlightsAction,
+	AddSelectionToNextFindMatchAction
 } from 'vs/editor/contrib/find/common/findController';
-import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { HistoryNavigator } from 'vs/base/common/history';
 
 class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
+	public delayUpdateHistory: boolean = false;
 
-	protected _start(opts:IFindStartOptions): void {
+	protected _start(opts: IFindStartOptions): void {
 		super._start(opts);
 
 		if (opts.shouldFocus !== FindStartFocusAction.NoFocusChange) {
 			this.hasFocus = true;
 		}
 	}
+
+	protected _delayedUpdateHistory() {
+		if (this.delayUpdateHistory) {
+			super._delayedUpdateHistory();
+		} else {
+			this._updateHistory();
+		}
+	}
 }
 
 suite('FindController', () => {
 
-	function fromRange(rng:IRange): number[] {
+	function fromRange(rng: IRange): number[] {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 
@@ -196,4 +207,157 @@ suite('FindController', () => {
 			assert.equal(findController.getState().searchScope, null);
 		});
 	});
+
+	test('find term is added to history on state change', () => {
+		withMockCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			findController.getState().change({ searchString: '1' }, false);
+			findController.getState().change({ searchString: '2' }, false);
+			findController.getState().change({ searchString: '3' }, false);
+
+			assert.deepEqual(['1', '2', '3'], toArray(findController.getHistory()));
+		});
+	});
+
+	test('find term is added with delay', (done) => {
+		withMockCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			findController.delayUpdateHistory = true;
+			findController.getState().change({ searchString: '1' }, false);
+			findController.getState().change({ searchString: '2' }, false);
+			findController.getState().change({ searchString: '3' }, false);
+
+			setTimeout(function () {
+				assert.deepEqual(['3'], toArray(findController.getHistory()));
+				done();
+			}, 500);
+		});
+	});
+
+	test('show previous find term', () => {
+		withMockCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			findController.getState().change({ searchString: '1' }, false);
+			findController.getState().change({ searchString: '2' }, false);
+			findController.getState().change({ searchString: '3' }, false);
+
+			findController.showPreviousFindTerm();
+			assert.deepEqual('2', findController.getState().searchString);
+		});
+	});
+
+	test('show previous find term do not update history', () => {
+		withMockCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			findController.getState().change({ searchString: '1' }, false);
+			findController.getState().change({ searchString: '2' }, false);
+			findController.getState().change({ searchString: '3' }, false);
+
+			findController.showPreviousFindTerm();
+			assert.deepEqual(['1', '2', '3'], toArray(findController.getHistory()));
+		});
+	});
+
+	test('show next find term', () => {
+		withMockCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			findController.getState().change({ searchString: '1' }, false);
+			findController.getState().change({ searchString: '2' }, false);
+			findController.getState().change({ searchString: '3' }, false);
+			findController.getState().change({ searchString: '4' }, false);
+
+			findController.showPreviousFindTerm();
+			findController.showPreviousFindTerm();
+			findController.showNextFindTerm();
+			assert.deepEqual('3', findController.getState().searchString);
+		});
+	});
+
+	test('show next find term do not update history', () => {
+		withMockCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			findController.getState().change({ searchString: '1' }, false);
+			findController.getState().change({ searchString: '2' }, false);
+			findController.getState().change({ searchString: '3' }, false);
+			findController.getState().change({ searchString: '4' }, false);
+
+			findController.showPreviousFindTerm();
+			findController.showPreviousFindTerm();
+			findController.showNextFindTerm();
+			assert.deepEqual(['1', '2', '3', '4'], toArray(findController.getHistory()));
+		});
+	});
+
+	test('AddSelectionToNextFindMatchAction can work with multiline', () => {
+		withMockCodeEditor([
+			'',
+			'qwe',
+			'rty',
+			'',
+			'qwe',
+			'',
+			'rty',
+			'qwe',
+			'rty'
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+
+			editor.setSelection(new Selection(2, 1, 3, 4));
+
+			addSelectionToNextFindMatch.run(null, editor);
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[2, 1, 3, 4],
+				[8, 1, 9, 4]
+			]);
+
+			editor.trigger('test', 'removeSecondaryCursors', null);
+
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 3, 4]);
+
+			findController.dispose();
+		});
+	});
+
+	function toArray(historyNavigator: HistoryNavigator<string>): string[] {
+		let result = [];
+		historyNavigator.first();
+		if (historyNavigator.current()) {
+			do {
+				result.push(historyNavigator.current());
+			} while (historyNavigator.next());
+		}
+		return result;
+	}
 });

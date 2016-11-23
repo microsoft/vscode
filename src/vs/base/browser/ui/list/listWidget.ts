@@ -10,7 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, mapEvent, EventBufferer, filterEvent } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
@@ -28,8 +28,8 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 {
 	constructor(
 		private controller: Trait<T>,
-		private renderer: IRenderer<T,D>
-	) {}
+		private renderer: IRenderer<T, D>
+	) { }
 
 	public get templateId(): string {
 		return this.renderer.templateId;
@@ -79,7 +79,7 @@ class Trait<T> implements IDisposable {
 		this._onChange.fire({ indexes });
 	}
 
-	renderElement(element: T, index: number, container:HTMLElement): void {
+	renderElement(element: T, index: number, container: HTMLElement): void {
 		DOM.toggleClass(container, this._trait, this.contains(index));
 	}
 
@@ -110,11 +110,11 @@ class Trait<T> implements IDisposable {
 
 class FocusTrait<T> extends Trait<T> {
 
-	constructor(private getElementId:(number) => string) {
+	constructor(private getElementId: (number) => string) {
 		super('focused');
 	}
 
-	renderElement(element: T, index: number, container:HTMLElement): void {
+	renderElement(element: T, index: number, container: HTMLElement): void {
 		super.renderElement(element, index, container);
 		container.setAttribute('role', 'option');
 		container.setAttribute('id', this.getElementId(index));
@@ -134,13 +134,14 @@ class Controller<T> implements IDisposable {
 		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
 		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 
-		const onRawKeyDown = domEvent(view.domNode, 'keydown');
-		const onKeyDown = mapEvent(onRawKeyDown, e => new StandardKeyboardEvent(e));
-		filterEvent(onKeyDown, e => e.keyCode === KeyCode.Enter)(this.onEnter, this, this.disposables);
-		filterEvent(onKeyDown, e => e.keyCode === KeyCode.UpArrow)(this.onUpArrow, this, this.disposables);
-		filterEvent(onKeyDown, e => e.keyCode === KeyCode.DownArrow)(this.onDownArrow, this, this.disposables);
-		filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageUp)(this.onPageUpArrow, this, this.disposables);
-		filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageDown)(this.onPageDownArrow, this, this.disposables);
+		const onKeyDown = chain(domEvent(view.domNode, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e));
+
+		onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>) {
@@ -207,7 +208,7 @@ const DefaultOptions: IListOptions = {};
 export class List<T> implements IDisposable {
 
 	private static InstanceCount = 0;
-	private idPrefix = `list_id_${ ++List.InstanceCount }`;
+	private idPrefix = `list_id_${++List.InstanceCount}`;
 
 	private focus: Trait<T>;
 	private selection: Trait<T>;
@@ -351,7 +352,7 @@ export class List<T> implements IDisposable {
 	}
 
 	focusPreviousPage(): void {
-		let firstPageIndex:number;
+		let firstPageIndex: number;
 		const scrollTop = this.view.getScrollTop();
 
 		if (scrollTop === 0) {
@@ -408,11 +409,11 @@ export class List<T> implements IDisposable {
 		}
 	}
 
-	getElementId(index:number): string {
-		return `${ this.idPrefix }_${ index }`;
+	getElementId(index: number): string {
+		return `${this.idPrefix}_${index}`;
 	}
 
-	private toListEvent<T>({ indexes }: ITraitChangeEvent) {
+	private toListEvent({ indexes }: ITraitChangeEvent) {
 		return { indexes, elements: indexes.map(i => this.view.element(i)) };
 	}
 

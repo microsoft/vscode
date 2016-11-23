@@ -4,12 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {BoundedLinkedMap} from 'vs/base/common/map';
+import { BoundedLinkedMap } from 'vs/base/common/map';
+import { CharCode } from 'vs/base/common/charCode';
 
 /**
  * The empty string.
  */
 export const empty = '';
+
+export function isFalsyOrWhitespace(str: string): boolean {
+	if (!str || typeof str !== 'string') {
+		return true;
+	}
+	return str.trim().length === 0;
+}
 
 /**
  * @returns the provided number with the given number of preceding zeros.
@@ -37,7 +45,7 @@ export function format(value: string, ...args: any[]): string {
 	if (args.length === 0) {
 		return value;
 	}
-	return value.replace(_formatRegexp, function(match, group) {
+	return value.replace(_formatRegexp, function (match, group) {
 		let idx = parseInt(group, 10);
 		return isNaN(idx) || idx < 0 || idx >= args.length ?
 			match :
@@ -50,7 +58,7 @@ export function format(value: string, ...args: any[]): string {
  * being used e.g. in HTMLElement.innerHTML.
  */
 export function escape(html: string): string {
-	return html.replace(/[<|>|&]/g, function(match) {
+	return html.replace(/[<|>|&]/g, function (match) {
 		switch (match) {
 			case '<': return '&lt;';
 			case '>': return '&gt;';
@@ -166,7 +174,7 @@ export function startsWith(haystack: string, needle: string): boolean {
 export function endsWith(haystack: string, needle: string): boolean {
 	let diff = haystack.length - needle.length;
 	if (diff > 0) {
-		return haystack.lastIndexOf(needle) === diff;
+		return haystack.indexOf(needle, diff) === diff;
 	} else if (diff === 0) {
 		return haystack === needle;
 	} else {
@@ -174,14 +182,33 @@ export function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-export function createRegExp(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, global:boolean): RegExp {
+export function indexOfIgnoreCase(haystack: string, needle: string, position: number = 0): number {
+	let index = haystack.indexOf(needle, position);
+	if (index < 0) {
+		if (position > 0) {
+			haystack = haystack.substr(position);
+		}
+		needle = escapeRegExpCharacters(needle);
+		index = haystack.search(new RegExp(needle, 'i'));
+	}
+	return index;
+}
+
+export interface RegExpOptions {
+	matchCase?: boolean;
+	wholeWord?: boolean;
+	multiline?: boolean;
+	global?: boolean;
+}
+
+export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
 	if (searchString === '') {
 		throw new Error('Cannot create regex from empty string');
 	}
 	if (!isRegex) {
 		searchString = searchString.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
 	}
-	if (wholeWord) {
+	if (options.wholeWord) {
 		if (!/\B/.test(searchString.charAt(0))) {
 			searchString = '\\b' + searchString;
 		}
@@ -190,11 +217,14 @@ export function createRegExp(searchString: string, isRegex: boolean, matchCase: 
 		}
 	}
 	let modifiers = '';
-	if (global) {
+	if (options.global) {
 		modifiers += 'g';
 	}
-	if (!matchCase) {
+	if (!options.matchCase) {
 		modifiers += 'i';
+	}
+	if (options.multiline) {
+		modifiers += 'm';
 	}
 
 	return new RegExp(searchString, modifiers);
@@ -251,7 +281,8 @@ export function normalizeNFC(str: string): string {
  */
 export function firstNonWhitespaceIndex(str: string): number {
 	for (let i = 0, len = str.length; i < len; i++) {
-		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
+		let chCode = str.charCodeAt(i);
+		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return i;
 		}
 	}
@@ -264,7 +295,8 @@ export function firstNonWhitespaceIndex(str: string): number {
  */
 export function getLeadingWhitespace(str: string): string {
 	for (let i = 0, len = str.length; i < len; i++) {
-		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
+		let chCode = str.charCodeAt(i);
+		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return str.substring(0, i);
 		}
 	}
@@ -277,7 +309,8 @@ export function getLeadingWhitespace(str: string): string {
  */
 export function lastNonWhitespaceIndex(str: string, startIndex: number = str.length - 1): number {
 	for (let i = startIndex; i >= 0; i--) {
-		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
+		let chCode = str.charCodeAt(i);
+		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return i;
 		}
 	}
@@ -287,7 +320,7 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
 export function compare(a: string, b: string): number {
 	if (a < b) {
 		return -1;
-	} else if(a > b) {
+	} else if (a > b) {
 		return 1;
 	} else {
 		return 0;
@@ -295,7 +328,7 @@ export function compare(a: string, b: string): number {
 }
 
 function isAsciiChar(code: number): boolean {
-	return (code >= 97 && code <= 122) || (code >= 65 && code <= 90);
+	return (code >= CharCode.a && code <= CharCode.z) || (code >= CharCode.A && code <= CharCode.Z);
 }
 
 export function equalsIgnoreCase(a: string, b: string): boolean {
@@ -382,17 +415,27 @@ export function commonSuffixLength(a: string, b: string): number {
 //	}
 //	return chrCode;
 //}
-//export function isLeadSurrogate(chr:string) {
-//	let chrCode = chr.charCodeAt(0);
-//	return ;
-//}
-//
-//export function isTrailSurrogate(chr:string) {
-//	let chrCode = chr.charCodeAt(0);
-//	return 0xDC00 <= chrCode && chrCode <= 0xDFFF;
-//}
+export function isHighSurrogate(charCode: number): boolean {
+	return (0xD800 <= charCode && charCode <= 0xDBFF);
+}
 
-export function isFullWidthCharacter(charCode:number): boolean {
+export function isLowSurrogate(charCode: number): boolean {
+	return (0xDC00 <= charCode && charCode <= 0xDFFF);
+}
+
+/**
+ * Generated using https://github.com/alexandrudima/unicode-utils/blob/master/generate-rtl-test.js
+ */
+const CONTAINS_RTL = /(?:[\u05BE\u05C0\u05C3\u05C6\u05D0-\u05F4\u0608\u060B\u060D\u061B-\u064A\u066D-\u066F\u0671-\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u0710\u0712-\u072F\u074D-\u07A5\u07B1-\u07EA\u07F4\u07F5\u07FA-\u0815\u081A\u0824\u0828\u0830-\u0858\u085E-\u08BD\u200F\uFB1D\uFB1F-\uFB28\uFB2A-\uFD3D\uFD50-\uFDFC\uFE70-\uFEFC]|\uD802[\uDC00-\uDD1B\uDD20-\uDE00\uDE10-\uDE33\uDE40-\uDEE4\uDEEB-\uDF35\uDF40-\uDFFF]|\uD803[\uDC00-\uDCFF]|\uD83A[\uDC00-\uDCCF\uDD00-\uDD43\uDD50-\uDFFF]|\uD83B[\uDC00-\uDEBB])/;
+
+/**
+ * Returns true if `str` contains any Unicode character that is classified as "R" or "AL".
+ */
+export function containsRTL(str: string): boolean {
+	return CONTAINS_RTL.test(str);
+}
+
+export function isFullWidthCharacter(charCode: number): boolean {
 	// Do a cheap trick to better support wrapping of wide characters, treat them as 2 columns
 	// http://jrgraphix.net/research/unicode_blocks.php
 	//          2E80 — 2EFF   CJK Radicals Supplement
@@ -519,14 +562,12 @@ export function lcut(text: string, n: number): string {
 // Escape codes
 // http://en.wikipedia.org/wiki/ANSI_escape_code
 const EL = /\x1B\x5B[12]?K/g; // Erase in line
-const LF = /\xA/g; // line feed
 const COLOR_START = /\x1b\[\d+m/g; // Color
 const COLOR_END = /\x1b\[0?m/g; // Color
 
 export function removeAnsiEscapeCodes(str: string): string {
 	if (str) {
 		str = str.replace(EL, '');
-		str = str.replace(LF, '\n');
 		str = str.replace(COLOR_START, '');
 		str = str.replace(COLOR_END, '');
 	}
@@ -536,12 +577,10 @@ export function removeAnsiEscapeCodes(str: string): string {
 
 // -- UTF-8 BOM
 
-const __utf8_bom = 65279;
-
-export const UTF8_BOM_CHARACTER = String.fromCharCode(__utf8_bom);
+export const UTF8_BOM_CHARACTER = String.fromCharCode(CharCode.UTF8_BOM);
 
 export function startsWithUTF8BOM(str: string): boolean {
-	return (str && str.length > 0 && str.charCodeAt(0) === __utf8_bom);
+	return (str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
 }
 
 /**
@@ -567,7 +606,7 @@ export function safeBtoa(str: string): string {
 	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
 }
 
-export function repeat(s:string, count: number): string {
+export function repeat(s: string, count: number): string {
 	var result = '';
 	for (var i = 0; i < count; i++) {
 		result += s;

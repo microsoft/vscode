@@ -7,54 +7,53 @@
 
 import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorType} from 'vs/editor/common/editorCommon';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { EditorType } from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
 import { IExpression } from 'vs/base/common/glob';
-import {isFunction} from 'vs/base/common/types';
+import { isFunction } from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import dom = require('vs/base/browser/dom');
-import {IAction, Action} from 'vs/base/common/actions';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
+import { IAction, Action } from 'vs/base/common/actions';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
-import {ITree} from 'vs/base/parts/tree/browser/tree';
-import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {Scope} from 'vs/workbench/common/memento';
-import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
-import {UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
-import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
-import {Viewlet} from 'vs/workbench/browser/viewlet';
-import {Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent} from 'vs/workbench/parts/search/common/searchModel';
-import {getExcludes, QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
-import {VIEWLET_ID, SearchViewletVisible} from 'vs/workbench/parts/search/common/constants';
-import {MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import {ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration} from 'vs/platform/search/common/search';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ISearchService} from 'vs/platform/search/common/search';
-import {IProgressService} from 'vs/platform/progress/common/progress';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { Scope } from 'vs/workbench/common/memento';
+import { IOpenSettingsService } from 'vs/workbench/parts/settings/common/openSettings';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { getOutOfWorkspaceEditorResources } from 'vs/workbench/common/editor';
+import { FileChangeType, FileChangesEvent, EventType as FileEventType } from 'vs/platform/files/common/files';
+import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent } from 'vs/workbench/parts/search/common/searchModel';
+import { getExcludes, QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
+import { MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { SearchRenderer, SearchDataSource, SearchSorter, SearchController, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseAllAction, ClearSearchResultsAction, ConfigureGlobalExclusionsAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import Severity from 'vs/base/common/severity';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import * as Constants from 'vs/workbench/parts/search/common/constants';
 
 export class SearchViewlet extends Viewlet {
 
@@ -70,6 +69,7 @@ export class SearchViewlet extends Viewlet {
 	private callOnModelChange: lifecycle.IDisposable[];
 
 	private viewletVisible: IContextKey<boolean>;
+	private inputBoxFocussed: IContextKey<boolean>;
 	private actionRegistry: { [key: string]: Action; };
 	private tree: ITree;
 	private viewletSettings: any;
@@ -102,20 +102,24 @@ export class SearchViewlet extends Viewlet {
 		@ISearchService private searchService: ISearchService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IReplaceService private replaceService: IReplaceService
+		@IReplaceService private replaceService: IReplaceService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IOpenSettingsService private openSettingsService: IOpenSettingsService
 	) {
-		super(VIEWLET_ID, telemetryService);
+		super(Constants.VIEWLET_ID, telemetryService);
 
 		this.toDispose = [];
-		this.viewletVisible = SearchViewletVisible.bindTo(contextKeyService);
+		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
+		this.inputBoxFocussed = Constants.InputBoxFocussedKey.bindTo(this.contextKeyService);
 		this.callOnModelChange = [];
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e) => this.onFilesChanged(e)));
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e) => this.onUntitledFileSaved(e)));
+		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+
 	}
 
 	private onConfigurationUpdated(configuration: any): void {
@@ -125,7 +129,7 @@ export class SearchViewlet extends Viewlet {
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
-		this.viewModel= this.instantiationService.createInstance(SearchModel);
+		this.viewModel = this.instantiationService.createInstance(SearchModel);
 		let builder: Builder;
 		this.domNode = parent.div({
 			'class': 'search-viewlet'
@@ -133,8 +137,8 @@ export class SearchViewlet extends Viewlet {
 			builder = div;
 		});
 
-		builder.div({'class': ['search-widgets-container']}, (div) => {
-			this.searchWidgetsContainer= div;
+		builder.div({ 'class': ['search-widgets-container'] }, (div) => {
+			this.searchWidgetsContainer = div;
 		});
 		this.createSearchWidget(this.searchWidgetsContainer);
 
@@ -152,7 +156,7 @@ export class SearchViewlet extends Viewlet {
 				}).on(dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 					let event = new StandardKeyboardEvent(e);
 
-					if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 						dom.EventHelper.stop(e);
 						this.toggleFileTypes();
 					}
@@ -171,21 +175,12 @@ export class SearchViewlet extends Viewlet {
 				this.inputPatternIncludes.setValue(patternIncludes);
 
 				this.inputPatternIncludes
-					.on(dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-						let keyboardEvent = new StandardKeyboardEvent(e);
-						if (keyboardEvent.equals(CommonKeybindings.UP_ARROW)) {
-							dom.EventHelper.stop(e);
-							this.searchWidget.focus(true, true);
-						} else if (keyboardEvent.equals(CommonKeybindings.DOWN_ARROW)) {
-							dom.EventHelper.stop(e);
-							this.inputPatternExclusions.focus();
-							this.inputPatternExclusions.select();
-						}
-					}).on(FindInput.OPTION_CHANGE, (e) => {
+					.on(FindInput.OPTION_CHANGE, (e) => {
 						this.onQueryChanged(false);
 					});
 
-					this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true));
+				this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true));
+				this.trackInputBox(this.inputPatternIncludes.inputFocusTracker);
 			});
 
 			//pattern exclusion list
@@ -201,21 +196,12 @@ export class SearchViewlet extends Viewlet {
 				this.inputPatternExclusions.setValue(patternExclusions);
 
 				this.inputPatternExclusions
-					.on(dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-						let keyboardEvent = new StandardKeyboardEvent(e);
-						if (keyboardEvent.equals(CommonKeybindings.UP_ARROW)) {
-							dom.EventHelper.stop(e);
-							this.inputPatternIncludes.focus();
-							this.inputPatternIncludes.select();
-						} else if (keyboardEvent.equals(CommonKeybindings.DOWN_ARROW)) {
-							dom.EventHelper.stop(e);
-							this.selectTreeIfNotSelected();
-						}
-					}).on(FindInput.OPTION_CHANGE, (e) => {
+					.on(FindInput.OPTION_CHANGE, (e) => {
 						this.onQueryChanged(false);
 					});
 
-					this.inputPatternExclusions.onSubmit(() => this.onQueryChanged(true));
+				this.inputPatternExclusions.onSubmit(() => this.onQueryChanged(true));
+				this.trackInputBox(this.inputPatternExclusions.inputFocusTracker);
 			});
 
 			// add hint if we have global exclusion
@@ -254,7 +240,7 @@ export class SearchViewlet extends Viewlet {
 		return TPromise.as(null);
 	}
 
-	public get searchAndReplaceWidget():SearchWidget {
+	public get searchAndReplaceWidget(): SearchWidget {
 		return this.searchWidget;
 	}
 
@@ -264,7 +250,7 @@ export class SearchViewlet extends Viewlet {
 		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
 
-		this.searchWidget= new SearchWidget(builder, this.contextViewService, {
+		this.searchWidget = new SearchWidget(builder, this.contextViewService, {
 			value: contentPattern,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
@@ -283,23 +269,30 @@ export class SearchViewlet extends Viewlet {
 
 		this.toUnbind.push(this.searchWidget.onReplaceToggled(() => this.onReplaceToggled()));
 		this.toUnbind.push(this.searchWidget.onReplaceStateChange((state) => {
-			this.viewModel.replaceActive= state;
+			this.viewModel.replaceActive = state;
 			this.tree.refresh();
 		}));
 		this.toUnbind.push(this.searchWidget.onReplaceValueChanged((value) => {
-			this.viewModel.replaceString= this.searchWidget.getReplaceValue();
+			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 			this.refreshInputs();
 			this.tree.refresh();
 		}));
 
-		this.toUnbind.push(this.searchWidget.onKeyDownArrow(() => {
-			if (this.showsFileTypes()) {
-				this.toggleFileTypes(true, this.showsFileTypes());
-			} else {
-				this.selectTreeIfNotSelected();
-			}
-		}));
 		this.toUnbind.push(this.searchWidget.onReplaceAll(() => this.replaceAll()));
+		this.trackInputBox(this.searchWidget.searchInputFocusTracker);
+		this.trackInputBox(this.searchWidget.replaceInputFocusTracker);
+	}
+
+	private trackInputBox(inputFocusTracker: dom.IFocusTracker): void {
+		this.toUnbind.push(inputFocusTracker.addFocusListener(() => {
+			this.inputBoxFocussed.set(true);
+		}));
+		this.toUnbind.push(inputFocusTracker.addBlurListener(() => {
+			this.inputBoxFocussed.set(this.searchWidget.searchInputHasFocus()
+				|| this.searchWidget.replaceInputHasFocus()
+				|| this.inputPatternIncludes.inputHasFocus()
+				|| this.inputPatternExclusions.inputHasFocus());
+		}));
 	}
 
 	private onReplaceToggled(): void {
@@ -346,18 +339,18 @@ export class SearchViewlet extends Viewlet {
 			return;
 		}
 
-		let progressRunner= this.progressService.show(100);
+		let progressRunner = this.progressService.show(100);
 
-		let occurrences= this.viewModel.searchResult.count();
-		let fileCount= this.viewModel.searchResult.fileCount();
-		let replaceValue= this.searchWidget.getReplaceValue() || '';
-		let afterReplaceAllMessage= replaceValue ? nls.localize('replaceAll.message', "Replaced {0} occurrences across {1} files with {2}.", occurrences, fileCount, replaceValue)
-													: nls.localize('removeAll.message', "Removed {0} occurrences across {1} files.", occurrences, fileCount);
+		let occurrences = this.viewModel.searchResult.count();
+		let fileCount = this.viewModel.searchResult.fileCount();
+		let replaceValue = this.searchWidget.getReplaceValue() || '';
+		let afterReplaceAllMessage = replaceValue ? nls.localize('replaceAll.message', "Replaced {0} occurrences across {1} files with {2}.", occurrences, fileCount, replaceValue)
+			: nls.localize('removeAll.message', "Removed {0} occurrences across {1} files.", occurrences, fileCount);
 
-		let confirmation= {
+		let confirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
 			message: replaceValue ? nls.localize('replaceAll.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, replaceValue)
-									: nls.localize('removeAll.confirmation.message', "Remove {0} occurrences across {1} files?", occurrences, fileCount),
+				: nls.localize('removeAll.confirmation.message', "Remove {0} occurrences across {1} files?", occurrences, fileCount),
 			primaryButton: nls.localize('replaceAll.confirm.button', "Replace")
 		};
 
@@ -381,6 +374,7 @@ export class SearchViewlet extends Viewlet {
 	private createSearchResultsView(builder: Builder): void {
 		builder.div({ 'class': 'results' }, (div) => {
 			this.results = div;
+			this.results.addClass('show-file-icons');
 
 			let dataSource = new SearchDataSource();
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
@@ -419,7 +413,7 @@ export class SearchViewlet extends Viewlet {
 				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick;
 
 				if (element instanceof Match) {
-					let selectedMatch:Match = element;
+					let selectedMatch: Match = element;
 					if (this.currentSelectedFileMatch) {
 						this.currentSelectedFileMatch.setSelectedMatch(null);
 					}
@@ -490,6 +484,63 @@ export class SearchViewlet extends Viewlet {
 			this.searchWidget.searchInput.setValue(selectedText);
 		}
 		this.searchWidget.focus();
+	}
+
+	public focusNextInputBox(): void {
+		if (this.searchWidget.searchInputHasFocus()) {
+			if (this.searchWidget.isReplaceShown()) {
+				this.searchWidget.focus(true, true);
+			} else {
+				this.moveFocusFromSearchOrReplace();
+			}
+			return;
+		}
+
+		if (this.searchWidget.replaceInputHasFocus()) {
+			this.moveFocusFromSearchOrReplace();
+			return;
+		}
+
+		if (this.inputPatternIncludes.inputHasFocus()) {
+			this.inputPatternExclusions.focus();
+			this.inputPatternExclusions.select();
+			return;
+		}
+
+		if (this.inputPatternExclusions.inputHasFocus()) {
+			this.selectTreeIfNotSelected();
+			return;
+		}
+	}
+
+	private moveFocusFromSearchOrReplace() {
+		if (this.showsFileTypes()) {
+			this.toggleFileTypes(true, this.showsFileTypes());
+		} else {
+			this.selectTreeIfNotSelected();
+		}
+	}
+
+	public focusPreviousInputBox(): void {
+		if (this.searchWidget.searchInputHasFocus()) {
+			return;
+		}
+
+		if (this.searchWidget.replaceInputHasFocus()) {
+			this.searchWidget.focus(true);
+			return;
+		}
+
+		if (this.inputPatternIncludes.inputHasFocus()) {
+			this.searchWidget.focus(true, true);
+			return;
+		}
+
+		if (this.inputPatternExclusions.inputHasFocus()) {
+			this.inputPatternIncludes.focus();
+			this.inputPatternIncludes.select();
+			return;
+		}
 	}
 
 	public moveFocusFromResults(): void {
@@ -575,6 +626,21 @@ export class SearchViewlet extends Viewlet {
 		return dom.hasClass(this.queryDetails, 'more');
 	}
 
+	public toggleCaseSensitive(): void {
+		this.searchWidget.searchInput.setCaseSensitive(!this.searchWidget.searchInput.getCaseSensitive());
+		this.onQueryChanged(true, true);
+	}
+
+	public toggleWholeWords(): void {
+		this.searchWidget.searchInput.setWholeWords(!this.searchWidget.searchInput.getWholeWords());
+		this.onQueryChanged(true, true);
+	}
+
+	public toggleRegex(): void {
+		this.searchWidget.searchInput.setRegex(!this.searchWidget.searchInput.getRegex());
+		this.onQueryChanged(true, true);
+	}
+
 	public toggleFileTypes(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
@@ -604,11 +670,21 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public searchInFolder(resource: URI): void {
+		const workspace = this.contextService.getWorkspace();
+		if (!workspace) {
+			return;
+		}
+
+		if (workspace.resource.toString() === resource.toString()) {
+			this.inputPatternIncludes.setValue('');
+			this.searchWidget.focus();
+			return;
+		}
+
 		if (!this.showsFileTypes()) {
 			this.toggleFileTypes(true, true);
 		}
-
-		let workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
+		const workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
 		if (workspaceRelativePath) {
 			this.inputPatternIncludes.setIsGlobPattern(false);
 			this.inputPatternIncludes.setValue(workspaceRelativePath);
@@ -732,7 +808,7 @@ export class SearchViewlet extends Viewlet {
 			}
 
 			this.onSearchResultsChanged().then(() => autoExpand(true));
-			this.viewModel.replaceString= this.searchWidget.getReplaceValue();
+			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 
 			let hasResults = !this.viewModel.searchResult.isEmpty();
 			this.loading = false;
@@ -802,8 +878,7 @@ export class SearchViewlet extends Viewlet {
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
-						let action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
-						action.run().done(() => action.dispose(), errors.onUnexpectedError);
+						this.openSettingsService.openWorkspaceSettings().done(() => null, errors.onUnexpectedError);
 					});
 				}
 			} else {
@@ -862,9 +937,9 @@ export class SearchViewlet extends Viewlet {
 				progressRunner.worked(1);
 			}
 			// Search result tree update
-			let count= this.viewModel.searchResult.fileCount();
+			let count = this.viewModel.searchResult.fileCount();
 			if (visibleMatches !== count) {
-				visibleMatches= count;
+				visibleMatches = count;
 				this.tree.refresh().then(() => {
 					autoExpand(false);
 				}).done(null, errors.onUnexpectedError);
@@ -899,6 +974,7 @@ export class SearchViewlet extends Viewlet {
 
 	private onFocus(lineMatch: any, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		if (!(lineMatch instanceof Match)) {
+			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			return TPromise.as(true);
 		}
 
@@ -908,8 +984,8 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
-		let selection= this.getSelectionFrom(element);
-		let resource= element instanceof Match ? element.parent().resource() : (<FileMatch>element).resource();
+		let selection = this.getSelectionFrom(element);
+		let resource = element instanceof Match ? element.parent().resource() : (<FileMatch>element).resource();
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
@@ -918,24 +994,33 @@ export class SearchViewlet extends Viewlet {
 				selection,
 				revealIfVisible: true
 			}
-		}, sideBySide);
+		}, sideBySide).then((editor) => {
+			if (element instanceof Match && preserveFocus) {
+				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange({
+					resource,
+					range: element.range()
+				}, editor);
+			} else {
+				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
+			}
+		}, errors.onUnexpectedError);
 	}
 
 	private getSelectionFrom(element: FileMatchOrMatch): any {
-		let match: Match= null;
+		let match: Match = null;
 		if (element instanceof Match) {
-			match= element;
+			match = element;
 		}
 		if (element instanceof FileMatch && element.count() > 0) {
-			match= element.matches()[element.matches().length - 1];
+			match = element.matches()[element.matches().length - 1];
 		}
 		if (match) {
-			let range= match.range();
-			if (this.viewModel.isReplaceActive()) {
-				let replaceString= match.replaceString;
+			let range = match.range();
+			if (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) {
+				let replaceString = match.replaceString;
 				return {
 					startLineNumber: range.startLineNumber,
-					startColumn: range.startColumn + replaceString.length,
+					startColumn: range.startColumn,
 					endLineNumber: range.startLineNumber,
 					endColumn: range.startColumn + replaceString.length
 				};
@@ -945,15 +1030,18 @@ export class SearchViewlet extends Viewlet {
 		return void 0;
 	}
 
-	private onUntitledFileSaved(e: UntitledEditorEvent): void {
+	private onUntitledDidChangeDirty(resource: URI): void {
 		if (!this.viewModel) {
 			return;
 		}
 
-		let matches = this.viewModel.searchResult.matches();
-		for (let i = 0, len = matches.length; i < len; i++) {
-			if (e.resource.toString() === matches[i].resource().toString()) {
-				this.viewModel.searchResult.remove(matches[i]);
+		// remove search results from this resource as it got disposed
+		if (!this.untitledEditorService.isDirty(resource)) {
+			let matches = this.viewModel.searchResult.matches();
+			for (let i = 0, len = matches.length; i < len; i++) {
+				if (resource.toString() === matches[i].resource().toString()) {
+					this.viewModel.searchResult.remove(matches[i]);
+				}
 			}
 		}
 	}

@@ -5,6 +5,7 @@
 
 import * as timer from 'vs/base/common/timer';
 import paths = require('vs/base/common/paths');
+import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import errors = require('vs/base/common/errors');
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -13,18 +14,17 @@ import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { LinkedMap } from 'vs/base/common/map';
 import { ArraySet } from 'vs/base/common/set';
-import Event, { Emitter } from 'vs/base/common/event';
-import * as Search from 'vs/platform/search/common/search';
-import { ISearchProgressItem, ISearchComplete, ISearchQuery } from 'vs/platform/search/common/search';
+import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
+import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ISearchService } from 'vs/platform/search/common/search';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
+import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 
 export class Match {
 
@@ -69,7 +69,14 @@ export class Match {
 	}
 
 	public get replaceString(): string {
-		return this.parent().parent().searchModel.replacePattern.getReplaceString(this.getMatchString());
+		let searchModel = this.parent().parent().searchModel;
+		let matchString = this.getMatchString();
+		let replaceString = searchModel.replacePattern.getReplaceString(matchString);
+		// If match string is not matching then regex pattern has a lookahead expression
+		if (replaceString === null) {
+			replaceString = searchModel.replacePattern.getReplaceString(matchString + this._lineText.substring(this._range.endColumn - 1));
+		}
+		return replaceString;
 	}
 
 	public getMatchString(): string {
@@ -107,13 +114,13 @@ export class FileMatch extends Disposable {
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 
-	constructor(private _query: Search.IPatternInfo, private _parent: SearchResult, private rawMatch: Search.IFileMatch,
+	constructor(private _query: IPatternInfo, private _parent: SearchResult, private rawMatch: IFileMatch,
 		@IModelService private modelService: IModelService, @IReplaceService private replaceService: IReplaceService) {
 		super();
 		this._resource = this.rawMatch.resource;
 		this._matches = new LinkedMap<string, Match>();
 		this._removedMatches = new ArraySet<string>();
-		this._updateScheduler = new RunOnceScheduler(this.updateMatches.bind(this), 250);
+		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 
 		this.createMatches();
 		this.registerListeners();
@@ -123,7 +130,7 @@ export class FileMatch extends Disposable {
 		let model = this.modelService.getModel(this._resource);
 		if (model) {
 			this.bindModel(model);
-			this.updateMatches();
+			this.updateMatchesForModel();
 		} else {
 			this.rawMatch.lineMatches.forEach((rawLineMatch) => {
 				rawLineMatch.offsetAndLengths.forEach(offsetAndLength => {
@@ -153,7 +160,7 @@ export class FileMatch extends Disposable {
 
 	private onModelWillDispose(): void {
 		// Update matches because model might have some dirty changes
-		this.updateMatches();
+		this.updateMatchesForModel();
 		this.unbindModel();
 	}
 
@@ -166,7 +173,7 @@ export class FileMatch extends Disposable {
 		}
 	}
 
-	private updateMatches(): void {
+	private updateMatchesForModel(): void {
 		// this is called from a timeout and might fire
 		// after the model has been disposed
 		if (!this._model) {
@@ -176,6 +183,24 @@ export class FileMatch extends Disposable {
 		let matches = this._model
 			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
 
+		this.updateMatches(matches);
+	}
+
+	private updatesMatchesForLine(lineNumber: number): void {
+		const range = {
+			startLineNumber: lineNumber,
+			startColumn: this._model.getLineMinColumn(lineNumber),
+			endLineNumber: lineNumber,
+			endColumn: this._model.getLineMaxColumn(lineNumber)
+		};
+		const oldMatches = this._matches.values().filter(match => match.range().startLineNumber === lineNumber);
+		oldMatches.forEach(match => this._matches.delete(match.id()));
+
+		const matches = this._model.findMatches(this._query.pattern, range, this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
+		this.updateMatches(matches);
+	}
+
+	private updateMatches(matches: Range[]) {
 		matches.forEach(range => {
 			let match = new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn);
 			if (!this._removedMatches.contains(match.id())) {
@@ -223,11 +248,9 @@ export class FileMatch extends Disposable {
 		this._onChange.fire(false);
 	}
 
-	public replace(match: Match): TPromise<any> {
-		return this.replaceService.replace(match).then(() => {
-			this.removeMatch(match);
-			this._onChange.fire(false);
-		});
+	public replace(toReplace: Match): TPromise<void> {
+		return this.replaceService.replace(toReplace)
+			.then(() => this.updatesMatchesForLine(toReplace.range().startLineNumber));
 	}
 
 	public setSelectedMatch(match: Match) {
@@ -300,18 +323,21 @@ export class SearchResult extends Disposable {
 
 	private _fileMatches: LinkedMap<URI, FileMatch>;
 	private _unDisposedFileMatches: LinkedMap<URI, FileMatch>;
-	private _query: Search.IPatternInfo = null;
+	private _query: IPatternInfo = null;
 	private _showHighlights: boolean;
 	private _replacingAll: boolean = false;
+
+	private _rangeHighlightDecorations: RangeHighlightDecorations;
 
 	constructor(private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._fileMatches = new LinkedMap<URI, FileMatch>();
 		this._unDisposedFileMatches = new LinkedMap<URI, FileMatch>();
+		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 	}
 
-	public set query(query: Search.IPatternInfo) {
+	public set query(query: IPatternInfo) {
 		this._query = query;
 	}
 
@@ -319,7 +345,7 @@ export class SearchResult extends Disposable {
 		return this._searchModel;
 	}
 
-	public add(raw: Search.IFileMatch[], silent: boolean = false): void {
+	public add(raw: IFileMatch[], silent: boolean = false): void {
 		let changed: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
 			if (!this._fileMatches.has(rawFileMatch.resource)) {
@@ -353,14 +379,16 @@ export class SearchResult extends Disposable {
 
 	public replaceAll(progressRunner: IProgressRunner): TPromise<any> {
 		this._replacingAll = true;
-		let replaceAllTimer = this.telemetryService.timedPublicLog('replaceAll.started');
-		return this.replaceService.replace(this.matches(), progressRunner).then(() => {
-			replaceAllTimer.stop();
+
+		const promise = this.replaceService.replace(this.matches(), progressRunner);
+		const onDone = stopwatch(fromPromise(promise));
+		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
+
+		return promise.then(() => {
 			this._replacingAll = false;
 			this.clear();
 		}, () => {
 			this._replacingAll = false;
-			replaceAllTimer.stop();
 		});
 	}
 
@@ -389,9 +417,25 @@ export class SearchResult extends Disposable {
 			return;
 		}
 		this._showHighlights = value;
+		let selectedMatch: Match = null;
 		this.matches().forEach((fileMatch: FileMatch) => {
 			fileMatch.updateHighlights();
+			if (!selectedMatch) {
+				selectedMatch = fileMatch.getSelectedMatch();
+			}
 		});
+		if (this._showHighlights && selectedMatch) {
+			this._rangeHighlightDecorations.highlightRange({
+				resource: selectedMatch.parent().resource(),
+				range: selectedMatch.range()
+			});
+		} else {
+			this._rangeHighlightDecorations.removeHighlightRange();
+		}
+	}
+
+	public get rangeHighlightDecorations(): RangeHighlightDecorations {
+		return this._rangeHighlightDecorations;
 	}
 
 	private onFileChange(fileMatch: FileMatch): void {
@@ -436,10 +480,12 @@ export class SearchResult extends Disposable {
 		this._unDisposedFileMatches.values().forEach((fileMatch: FileMatch) => fileMatch.dispose());
 		this._fileMatches.clear();
 		this._unDisposedFileMatches.clear();
+		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
 	public dispose(): void {
 		this.disposeMatches();
+		this._rangeHighlightDecorations.dispose();
 		super.dispose();
 	}
 }
@@ -453,9 +499,6 @@ export class SearchModel extends Disposable {
 	private _replacePattern: ReplacePattern = null;
 
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
-	private progressTimer: timer.ITimerEvent;
-	private doneTimer: timer.ITimerEvent;
-	private timerEvent: timer.ITimerEvent;
 
 	constructor( @ISearchService private searchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
@@ -497,43 +540,58 @@ export class SearchModel extends Disposable {
 		this._searchResult.query = this._searchQuery.contentPattern;
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
-		this.progressTimer = this.telemetryService.timedPublicLog('searchResultsFirstRender');
-		this.doneTimer = this.telemetryService.timedPublicLog('searchResultsFinished');
-		this.timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
-
+		const timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
 		this.currentRequest = this.searchService.search(this._searchQuery);
-		this.currentRequest.then(value => this.onSearchCompleted(value),
-			e => this.onSearchError(e),
-			p => this.onSearchProgress(p));
+
+		const onDone = fromPromise(this.currentRequest);
+		const onDoneStopwatch = stopwatch(onDone);
+		const start = Date.now();
+
+		onDone(() => timerEvent.stop());
+		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
+
+		const progressEmitter = new Emitter<void>();
+		const onFirstRender = any(onDone, progressEmitter.event);
+		const onFirstRenderStopwatch = stopwatch(onFirstRender);
+
+		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
+
+		this.currentRequest.then(
+			value => this.onSearchCompleted(value, Date.now() - start),
+			e => this.onSearchError(e, Date.now() - start),
+			p => {
+				progressEmitter.fire();
+				this.onSearchProgress(p);
+			}
+		);
 
 		return this.currentRequest;
 	}
 
-	private onSearchCompleted(completed: ISearchComplete): ISearchComplete {
-		this.progressTimer.stop();
-		this.timerEvent.stop();
-		this.doneTimer.stop();
+	private onSearchCompleted(completed: ISearchComplete, duration: number): ISearchComplete {
 		if (completed) {
 			this._searchResult.add(completed.results, false);
 		}
-		this.telemetryService.publicLog('searchResultsShown', { count: this._searchResult.count(), fileCount: this._searchResult.fileCount() });
+		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
+		delete options.pattern;
+		this.telemetryService.publicLog('searchResultsShown', {
+			count: this._searchResult.count(),
+			fileCount: this._searchResult.fileCount(),
+			options,
+			duration
+		});
 		return completed;
 	}
 
-	private onSearchError(e: any): void {
+	private onSearchError(e: any, duration: number): void {
 		if (errors.isPromiseCanceledError(e)) {
-			this.onSearchCompleted(null);
-		} else {
-			this.progressTimer.stop();
-			this.doneTimer.stop();
-			this.timerEvent.stop();
+			this.onSearchCompleted(null, duration);
 		}
 	}
 
 	private onSearchProgress(p: ISearchProgressItem): void {
 		if (p.resource) {
 			this._searchResult.add([p], true);
-			this.progressTimer.stop();
 		}
 	}
 

@@ -23,7 +23,7 @@ import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { match } from 'vs/base/common/glob';
 import { setTimeout } from 'vs/base/common/platform';
-import { TerminateResponse } from 'vs/base/common/processes';
+import { TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
 import * as strings from 'vs/base/common/strings';
 
 import { Registry } from 'vs/platform/platform';
@@ -54,13 +54,13 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
-import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
-import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents, checkValidCommand } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents, checkValidCommand, IRegisteredTask } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -81,8 +81,8 @@ class AbstractTaskAction extends Action {
 
 	protected taskService: ITaskService;
 	protected telemetryService: ITelemetryService;
-	private messageService: IMessageService;
-	private contextService: IWorkspaceContextService;
+	protected messageService: IMessageService;
+	protected contextService: IWorkspaceContextService;
 
 	constructor(id:string, label:string, @ITaskService taskService:ITaskService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -173,10 +173,7 @@ class CleanAction extends AbstractTaskAction {
 	}
 }
 
-class ConfigureTaskRunnerAction extends Action {
-
-	public static ID = 'workbench.action.tasks.configureTaskRunner';
-	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
+abstract class OpenTaskConfigurationAction extends Action {
 
 	private configurationService: IConfigurationService;
 	private fileService: IFileService;
@@ -191,7 +188,8 @@ class ConfigureTaskRunnerAction extends Action {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
-		@IEnvironmentService private environmentService: IEnvironmentService) {
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService) {
 
 		super(id, label);
 		this.configurationService = configurationService;
@@ -221,9 +219,9 @@ class ConfigureTaskRunnerAction extends Action {
 				let contentPromise: TPromise<string>;
 				if (selection.autoDetect) {
 					const outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
-					outputChannel.show();
+					outputChannel.show(true);
 					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
-					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new ConfigVariables(this.configurationService, this.editorService, this.contextService, this.environmentService));
+					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService);
 					contentPromise = detector.detect(false, selection.id).then((value) => {
 						let config = value.config;
 						if (value.stderr && value.stderr.length > 0) {
@@ -277,6 +275,37 @@ class ConfigureTaskRunnerAction extends Action {
 	}
 }
 
+class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
+	public static ID = 'workbench.action.tasks.configureTaskRunner';
+	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
+
+	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
+		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService) {
+		super(id, label, configurationService, editorService, fileService, contextService,
+			outputService, messageService, quickOpenService, environmentService, configurationResolverService);
+	}
+
+}
+
+class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
+	public static ID = 'workbench.action.tasks.configureBuildTask';
+	public static TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
+
+	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
+		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService) {
+		super(id, label, configurationService, editorService, fileService, contextService,
+			outputService, messageService, quickOpenService, environmentService, configurationResolverService);
+	}
+}
+
 class CloseMessageAction extends Action {
 
 	public static ID = 'workbench.action.build.closeMessage';
@@ -313,6 +342,8 @@ class TerminateAction extends AbstractTaskAction {
 				return this.taskService.terminate().then((response) => {
 					if (response.success) {
 						return;
+					} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+						this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
 					} else {
 						return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
 					}
@@ -340,7 +371,7 @@ class ShowLogAction extends AbstractTaskAction {
 		if (!this.canRun()) {
 			return TPromise.as(undefined);
 		}
-		return this.outputService.getChannel(TaskService.OutputChannelId).show();
+		return this.outputService.getChannel(TaskService.OutputChannelId).show(true);
 	}
 }
 
@@ -412,6 +443,7 @@ class StatusBarItem implements IStatusbarItem {
 
 		Dom.addClass(label, 'task-statusbar-item-label');
 		element.appendChild(label);
+		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(error, 'task-statusbar-item-label-error');
 		error.innerHTML = '0';
@@ -479,11 +511,17 @@ class StatusBarItem implements IStatusbarItem {
 		}));
 
 		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Inactive, (data:TaskServiceEventData) => {
+			// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
+			// So try to treat them accordingly.
+			if (this.activeCount > 0) {
 			this.activeCount--;
 			if (this.activeCount === 0) {
 				$(progress).hide();
+					if (this.intervalToken) {
 				clearInterval(this.intervalToken);
 				this.intervalToken = null;
+			}
+				}
 			}
 		}));
 
@@ -513,28 +551,33 @@ interface TaskServiceEventData {
 }
 
 class NullTaskSystem extends EventEmitter implements ITaskSystem {
-	public build(): ITaskRunResult {
+	public build(): ITaskExecuteResult {
 		return {
+			kind: TaskExecuteKind.Started,
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
-	public rebuild(): ITaskRunResult {
+	public rebuild(): ITaskExecuteResult {
 		return {
+			kind: TaskExecuteKind.Started,
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
-	public clean(): ITaskRunResult {
+	public clean(): ITaskExecuteResult {
 		return {
+			kind: TaskExecuteKind.Started,
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
-	public runTest(): ITaskRunResult {
+	public runTest(): ITaskExecuteResult {
 		return {
+			kind: TaskExecuteKind.Started,
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
-	public run(taskIdentifier: string): ITaskRunResult {
+	public run(taskIdentifier: string): ITaskExecuteResult {
 		return {
+			kind: TaskExecuteKind.Started,
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
@@ -582,7 +625,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private clearTaskSystemPromise: boolean;
 	private outputChannel: IOutputChannel;
 
-	private _registeredSpecificTasks: string[];
+	private _registeredSpecificTasks: IRegisteredTask[];
 
 	private fileChangesListener: IDisposable;
 
@@ -594,7 +637,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@ILifecycleService lifecycleService: ILifecycleService, @IEventService eventService: IEventService,
 		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IEnvironmentService private environmentService: IEnvironmentService) {
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService) {
 
 		super();
 		this.modeService = modeService;
@@ -648,9 +692,9 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private refreshTaskCommands(tasks: TaskDescription[], taskSystem: ITaskSystem): void {
 		//Remove any existing ones
-		this._registeredSpecificTasks.forEach((id) => {
-			MenuRegistry.removeCommand(id);
-			CommandsRegistry.unregisterCommand(id);
+		this._registeredSpecificTasks.forEach((rt) => {
+			MenuRegistry.removeCommand(rt.id);
+			rt.command.dispose();
 		});
 		this._registeredSpecificTasks = []; //clear existing
 
@@ -687,10 +731,10 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 
 				MenuRegistry.addCommand({ id: id, title, category, iconClass });
-				CommandsRegistry.registerCommand(id, () => {
+				let command = CommandsRegistry.registerCommand(id, () => {
 					taskSystem.run(t.id);
 				});
-				this._registeredSpecificTasks.push(id);
+				this._registeredSpecificTasks.push({ id: id, command: command });
 			}
 		});
 	}
@@ -701,7 +745,6 @@ class TaskService extends EventEmitter implements ITaskService {
 				this._taskSystem = new NullTaskSystem();
 				this._taskSystemPromise = TPromise.as(this._taskSystem);
 			} else {
-				let variables = new ConfigVariables(this.configurationService, this.editorService, this.contextService, this.environmentService);
 				let clearOutput = true;
 				this._taskSystemPromise = TPromise.as(this.configurationService.getConfiguration<TaskConfiguration>('tasks')).then((config: TaskConfiguration) => {
 					let parseErrors: string[] = config ? (<any>config).$parseErrors : null;
@@ -723,7 +766,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (config) {
 						if (this.isRunnerConfig(config) && this.hasDetectorSupport(<FileConfig.ExternalTaskRunnerConfiguration>config)) {
 							let fileConfig = <FileConfig.ExternalTaskRunnerConfiguration>config;
-							configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, variables, fileConfig).detect(true).then((value) => {
+							configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, fileConfig).detect(true).then((value) => {
 								clearOutput = this.printStderr(value.stderr);
 								let detectedConfig = value.config;
 								if (!detectedConfig) {
@@ -749,7 +792,7 @@ class TaskService extends EventEmitter implements ITaskService {
 							configPromise = TPromise.as<TaskConfiguration>(config);
 						}
 					} else {
-						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, variables).detect(true).then((value) => {
+						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
 							clearOutput = this.printStderr(value.stderr);
 							return value.config;
 						});
@@ -764,7 +807,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						if (config.buildSystem === 'service') {
 							result = new LanguageServiceTaskSystem(<LanguageServiceTaskConfiguration>config, this.telemetryService, this.modeService);
 						} else if (this.isRunnerConfig(config)) {
-							result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, variables, this.markerService, this.modelService, this.telemetryService, this.outputService, TaskService.OutputChannelId, clearOutput);
+							result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, this.markerService, this.modelService, this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, clearOutput);
 							refreshShortcuts = true;
 						}
 						if (result === null) {
@@ -819,7 +862,13 @@ class TaskService extends EventEmitter implements ITaskService {
 	public configureAction(): Action {
 		return new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
-			this.outputService, this.messageService, this.quickOpenService, this.environmentService);
+			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService);
+	}
+
+	private configureBuildTask(): Action {
+		return new ConfigureBuildTaskAction(ConfigureBuildTaskAction.ID, ConfigureBuildTaskAction.TEXT,
+			this.configurationService, this.editorService, this.fileService, this.contextService,
+			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService);
 	}
 
 	public build(): TPromise<ITaskSummary> {
@@ -842,22 +891,26 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this.executeTarget(taskSystem => taskSystem.run(taskIdentifier));
 	}
 
-	private executeTarget(fn: (taskSystem: ITaskSystem) => ITaskRunResult): TPromise<ITaskSummary> {
+	private executeTarget(fn: (taskSystem: ITaskSystem) => ITaskExecuteResult): TPromise<ITaskSummary> {
 		return this.textFileService.saveAll().then((value) => { 				// make sure all dirty files are saved
-			return this.configurationService.loadConfiguration().then(() => { 	// make sure configuration is up to date
+			return this.configurationService.reloadConfiguration().then(() => { 	// make sure configuration is up to date
 				return this.taskSystemPromise.
 					then((taskSystem) => {
-						return taskSystem.isActive().then((active) => {
-							if (!active) {
-								return fn(taskSystem);
+						let executeResult = fn(taskSystem);
+						if (executeResult.kind === TaskExecuteKind.Active) {
+							let active = executeResult.active;
+							if (active.same && active.watching) {
+								this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
 							} else {
 								throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 							}
-						});
+						}
+						return executeResult;
 					}).
-					then((runResult: ITaskRunResult) => {
-						if (runResult.restartOnFileChanges) {
-							let pattern = runResult.restartOnFileChanges;
+					then((executeResult: ITaskExecuteResult) => {
+						if (executeResult.kind === TaskExecuteKind.Started) {
+							if (executeResult.started.restartOnFileChanges) {
+								let pattern = executeResult.started.restartOnFileChanges;
 							this.fileChangesListener = this.eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
 								let needsRestart = event.changes.some((change) => {
 									return (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) && !!match(pattern, change.resource.fsPath);
@@ -872,13 +925,16 @@ class TaskService extends EventEmitter implements ITaskService {
 								}
 							});
 						}
-						return runResult.promise.then((value) => {
+							return executeResult.promise.then((value) => {
 							if (this.clearTaskSystemPromise) {
 								this._taskSystemPromise = null;
 								this.clearTaskSystemPromise = false;
 							}
 							return value;
 						});
+						} else {
+							return executeResult.promise;
+						}
 					}, (err: any) => {
 						this.handleError(err);
 					});
@@ -929,6 +985,11 @@ class TaskService extends EventEmitter implements ITaskService {
 						this.disposeFileChangesListener();
 						this.disposeTaskSystemListeners();
 						return false; // no veto
+					} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+						return !this.messageService.confirm({
+							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
+							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways")
+						});
 					}
 					return true; // veto
 				}, (err) => {
@@ -941,6 +1002,14 @@ class TaskService extends EventEmitter implements ITaskService {
 		return false; // Nothing to do here
 	}
 
+	private getConfigureAction(code: TaskErrors): Action {
+		switch (code) {
+			case TaskErrors.NoBuildTask:
+				return this.configureBuildTask();
+			default:
+				return this.configureAction();
+		}
+	}
 	private handleError(err:any):void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
@@ -950,10 +1019,10 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (needsConfig || needsTerminate) {
 				let closeAction = new CloseMessageAction();
 				let action = needsConfig
-					? this.configureAction()
+					? this.getConfigureAction(buildError.code)
 					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService, this.messageService, this.contextService);
 
-				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [closeAction, action ] });
+				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction] });
 			} else {
 				this.messageService.show(buildError.severity, buildError.message);
 			}
@@ -1030,8 +1099,7 @@ let schema : IJSONSchema =
 		'definitions': {
 			'showOutputType': {
 				'type': 'string',
-				'enum': ['always', 'silent', 'never'],
-				'default': 'silent'
+				'enum': ['always', 'silent', 'never']
 			},
 			'patternType': {
 				'anyOf': [
@@ -1069,7 +1137,7 @@ let schema : IJSONSchema =
 					},
 					'location': {
 						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.location', 'The match group index of the problem\'s location. Valid location patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn). If omitted line and column is assumed.')
+						'description': nls.localize('JsonSchema.pattern.location', 'The match group index of the problem\'s location. Valid location patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn). If omitted (line,column) is assumed.')
 					},
 					'line': {
 						'type': 'integer',
@@ -1077,7 +1145,7 @@ let schema : IJSONSchema =
 					},
 					'column': {
 						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.column', 'The match group index of the problem\'s column. Defaults to 3')
+						'description': nls.localize('JsonSchema.pattern.column', 'The match group index of the problem\'s line character. Defaults to 3')
 					},
 					'endLine': {
 						'type': 'integer',
@@ -1085,7 +1153,7 @@ let schema : IJSONSchema =
 					},
 					'endColumn': {
 						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.endColumn', 'The match group index of the problem\'s end column. Defaults to undefined')
+						'description': nls.localize('JsonSchema.pattern.endColumn', 'The match group index of the problem\'s end line character. Defaults to undefined')
 					},
 					'severity': {
 						'type': 'integer',

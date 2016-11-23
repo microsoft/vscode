@@ -5,10 +5,167 @@
 
 'use strict';
 
-import * as collections from 'vs/base/common/collections';
 import * as strings from 'vs/base/common/strings';
-import {Range} from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import * as collections from 'vs/base/common/collections';
+import { Marker, Variable, Placeholder, Text, SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
+
+export interface IIndentationNormalizer {
+	normalizeIndentation(str: string): string;
+}
+
+export interface IPlaceHolder {
+	id: string;
+	value: string;
+	occurences: editorCommon.IRange[];
+}
+
+export interface ICodeSnippet {
+	lines: string[];
+	placeHolders: IPlaceHolder[];
+	finishPlaceHolderIndex: number;
+}
+
+export interface ISnippetVariableResolver {
+	resolve(name: string): string;
+}
+
+export class CodeSnippet implements ICodeSnippet {
+
+	static fromTextmate(template: string, variableResolver?: ISnippetVariableResolver): CodeSnippet {
+		const marker = new SnippetParser(true, false).parse(template);
+		const snippet = new CodeSnippet();
+		_resolveSnippetVariables(marker, variableResolver);
+		_fillCodeSnippetFromMarker(snippet, marker);
+		return snippet;
+	}
+
+	static fromInternal(template: string): CodeSnippet {
+		const marker = new SnippetParser(false, true).parse(template);
+		const snippet = new CodeSnippet();
+		_fillCodeSnippetFromMarker(snippet, marker);
+		return snippet;
+	}
+
+	static none(template: string): CodeSnippet {
+		const snippet = new CodeSnippet();
+		snippet.lines = template.split(/\r\n|\n|\r/);
+		return snippet;
+	}
+
+	static fromEmmet(template: string): CodeSnippet {
+		return EmmetSnippetParser.parse(template);
+	}
+
+	public lines: string[] = [];
+	public placeHolders: IPlaceHolder[] = [];
+	public finishPlaceHolderIndex: number = -1;
+
+	get isInsertOnly(): boolean {
+		return this.placeHolders.length === 0;
+	}
+
+	get isSingleTabstopOnly(): boolean {
+		if (this.placeHolders.length !== 1) {
+			return false;
+		}
+
+		const [placeHolder] = this.placeHolders;
+		if (placeHolder.value !== '' || placeHolder.occurences.length !== 1) {
+			return false;
+		}
+
+		const [placeHolderRange] = placeHolder.occurences;
+		if (!Range.isEmpty(placeHolderRange)) {
+			return false;
+		}
+		return true;
+	}
+
+	private extractLineIndentation(str: string, maxColumn: number = Number.MAX_VALUE): string {
+		var fullIndentation = strings.getLeadingWhitespace(str);
+
+		if (fullIndentation.length > maxColumn - 1) {
+			return fullIndentation.substring(0, maxColumn - 1);
+		}
+
+		return fullIndentation;
+	}
+
+	public bind(referenceLine: string, deltaLine: number, firstLineDeltaColumn: number, config: IIndentationNormalizer): ICodeSnippet {
+		const resultLines: string[] = [];
+		const resultPlaceHolders: IPlaceHolder[] = [];
+
+		const referenceIndentation = this.extractLineIndentation(referenceLine, firstLineDeltaColumn + 1);
+
+		// Compute resultLines & keep deltaColumns as a reference for adjusting placeholders
+		const deltaColumns: number[] = [];
+
+		for (let i = 0, len = this.lines.length; i < len; i++) {
+			let originalLine = this.lines[i];
+			if (i === 0) {
+				deltaColumns[i + 1] = firstLineDeltaColumn;
+				resultLines[i] = originalLine;
+			} else {
+				let originalLineIndentation = this.extractLineIndentation(originalLine);
+				let remainingLine = originalLine.substr(originalLineIndentation.length);
+				let indentation = config.normalizeIndentation(referenceIndentation + originalLineIndentation);
+				deltaColumns[i + 1] = indentation.length - originalLineIndentation.length;
+				resultLines[i] = indentation + remainingLine;
+			}
+		}
+
+		// Compute resultPlaceHolders
+		for (const originalPlaceHolder of this.placeHolders) {
+			let resultOccurences = [];
+
+			for (let {startLineNumber, startColumn, endLineNumber, endColumn} of originalPlaceHolder.occurences) {
+
+				if (startColumn > 1) {
+					// placeholders that aren't at the beginning of the snippet line
+					// will be moved by how many characters the indentation has been
+					// adjusted
+					startColumn = startColumn + deltaColumns[startLineNumber];
+					endColumn = endColumn + deltaColumns[endLineNumber];
+
+				} else {
+					// placeholders at the beginning of the snippet line
+					// will be indented by the reference indentation
+					startColumn += referenceIndentation.length;
+					endColumn += referenceIndentation.length;
+				}
+
+				resultOccurences.push({
+					startLineNumber: startLineNumber + deltaLine,
+					startColumn,
+					endLineNumber: endLineNumber + deltaLine,
+					endColumn
+				});
+			}
+
+			resultPlaceHolders.push({
+				id: originalPlaceHolder.id,
+				value: originalPlaceHolder.value,
+				occurences: resultOccurences
+			});
+		}
+
+		return {
+			lines: resultLines,
+			placeHolders: resultPlaceHolders,
+			finishPlaceHolderIndex: this.finishPlaceHolderIndex
+		};
+	}
+}
+
+
+// --- parsing
+
+
+interface ISnippetParser {
+	parse(input: string): CodeSnippet;
+}
 
 interface IParsedLinePlaceHolderInfo {
 	id: string;
@@ -22,50 +179,25 @@ interface IParsedLine {
 	placeHolders: IParsedLinePlaceHolderInfo[];
 }
 
-export interface IPlaceHolder {
-	id: string;
-	value: string;
-	occurences: editorCommon.IRange[];
-}
-
-export interface IIndentationNormalizer {
-	normalizeIndentation(str:string): string;
-}
-
-export interface ICodeSnippet {
-	lines:string[];
-	placeHolders:IPlaceHolder[];
-	finishPlaceHolderIndex:number;
-}
-
-export enum ExternalSnippetType {
-	TextMateSnippet,
-	EmmetSnippet
-}
-
-export class CodeSnippet implements ICodeSnippet {
+const InternalFormatSnippetParser = new class implements ISnippetParser {
 
 	private _lastGeneratedId: number;
-	public lines:string[];
-	public placeHolders:IPlaceHolder[];
-	public finishPlaceHolderIndex:number;
+	private _snippet: CodeSnippet;
 
-	constructor(snippetTemplate:string) {
-		this.lines = [];
-		this.placeHolders = [];
+	parse(template: string): CodeSnippet {
 		this._lastGeneratedId = 0;
-		this.finishPlaceHolderIndex = -1;
-
-		this.parseTemplate(snippetTemplate);
+		this._snippet = new CodeSnippet();
+		this.parseTemplate(template);
+		return this._snippet;
 	}
 
 	private parseTemplate(template: string): void {
 
-		var placeHoldersMap: collections.IStringDictionary<IPlaceHolder> = {};
+		var placeHoldersMap: collections.IStringDictionary<IPlaceHolder> = Object.create(null);
 		var i: number, len: number, j: number, lenJ: number, templateLines = template.split('\n');
 
 		for (i = 0, len = templateLines.length; i < len; i++) {
-			var parsedLine = this.parseLine(templateLines[i], (id:string) => {
+			var parsedLine = this.parseLine(templateLines[i], (id: string) => {
 				if (collections.contains(placeHoldersMap, id)) {
 					return placeHoldersMap[id].value;
 				}
@@ -84,19 +216,19 @@ export class CodeSnippet implements ICodeSnippet {
 						value: linePlaceHolder.value,
 						occurences: []
 					};
-					this.placeHolders.push(placeHolder);
+					this._snippet.placeHolders.push(placeHolder);
 					placeHoldersMap[linePlaceHolder.id] = placeHolder;
 				}
 
 				placeHolder.occurences.push(occurence);
 			}
 
-			this.lines.push(parsedLine.line);
+			this._snippet.lines.push(parsedLine.line);
 		}
 
 		// Named variables (e.g. {greeting} and {greeting:Hello}) are sorted first, followed by
 		// tab-stops and numeric variables (e.g. $1, $2, ${3:foo}) which are sorted in ascending order
-		this.placeHolders.sort((a, b) => {
+		this._snippet.placeHolders.sort((a, b) => {
 			let nonIntegerId = (v: IPlaceHolder) => !(/^\d+$/).test(v.id);
 			let isFinishPlaceHolder = (v: IPlaceHolder) => v.id === '' && v.value === '';
 
@@ -123,16 +255,29 @@ export class CodeSnippet implements ICodeSnippet {
 			return Number(a.id) < Number(b.id) ? -1 : 1;
 		});
 
-		if (this.placeHolders.length > 0 && this.placeHolders[this.placeHolders.length - 1].value === '') {
-			this.finishPlaceHolderIndex = this.placeHolders.length - 1;
+		if (this._snippet.placeHolders.length > 0 && this._snippet.placeHolders[this._snippet.placeHolders.length - 1].value === '') {
+			this._snippet.finishPlaceHolderIndex = this._snippet.placeHolders.length - 1;
 		}
 	}
 
-	private parseLine(line:string, findDefaultValueForId:(id:string)=>string) : IParsedLine {
+	private parseLine(line: string, findDefaultValueForIdFromPrevLines: (id: string) => string): IParsedLine {
 
 		// Placeholder 0 is the entire line
 		var placeHolderStack: { placeHolderId: string; placeHolderText: string; }[] = [{ placeHolderId: '', placeHolderText: '' }];
 		var placeHolders: IParsedLinePlaceHolderInfo[] = [];
+
+		const findDefaultValueForId = (id) => {
+			const result = findDefaultValueForIdFromPrevLines(id);
+			if (result) {
+				return result;
+			}
+			for (const placeHolder of placeHolders) {
+				if (placeHolder.id === id && placeHolder.value) {
+					return placeHolder.value;
+				}
+			}
+			return '';
+		};
 
 		var i = 0;
 		var len = line.length;
@@ -211,7 +356,7 @@ export class CodeSnippet implements ICodeSnippet {
 		}
 
 		// Sort the placeholder in order of apperance:
-		placeHolders.sort( (a, b) => {
+		placeHolders.sort((a, b) => {
 			if (a.startColumn < b.startColumn) {
 				return -1;
 			}
@@ -232,147 +377,223 @@ export class CodeSnippet implements ICodeSnippet {
 			placeHolders: placeHolders
 		};
 	}
+};
 
-	// This is used for both TextMate and Emmet
-	public static convertExternalSnippet(snippet: string, snippetType: ExternalSnippetType) : string {
-		var openBraces = 0;
-		var convertedSnippet = '';
-		var i = 0;
-		var len = snippet.length;
+const EmmetSnippetParser = new class implements ISnippetParser {
 
-		while (i < len) {
-			var restOfLine = snippet.substr(i);
+	parse(template: string): CodeSnippet {
+		template = _convertExternalSnippet(template, ExternalSnippetType.EmmetSnippet);
+		return InternalFormatSnippetParser.parse(template);
+	}
+};
 
-			// Cursor tab stop
-			if (/^\$0/.test(restOfLine)) {
-				i += 2;
-				convertedSnippet += snippetType === ExternalSnippetType.EmmetSnippet ? '{{_}}' : '{{}}';
-				continue;
-			}
-			if (/^\$\{0\}/.test(restOfLine)) {
-				i += 4;
-				convertedSnippet += snippetType === ExternalSnippetType.EmmetSnippet ? '{{_}}' :'{{}}';
-				continue;
-			}
+export enum ExternalSnippetType {
+	TextMateSnippet,
+	EmmetSnippet
+}
 
-			// Tab stops
-			var matches = restOfLine.match(/^\$(\d+)/);
-			if (Array.isArray(matches) && matches.length === 2) {
-				i += 1 + matches[1].length;
-				convertedSnippet += '{{' + matches[1] + ':}}';
-				continue;
-			}
-			matches = restOfLine.match(/^\$\{(\d+)\}/);
-			if (Array.isArray(matches) && matches.length === 2) {
-				i += 3 + matches[1].length;
-				convertedSnippet += '{{' + matches[1] + ':}}';
-				continue;
-			}
+// This is used for both TextMate and Emmet
+function _convertExternalSnippet(snippet: string, snippetType: ExternalSnippetType): string {
+	var openBraces = 0;
+	var convertedSnippet = '';
+	var i = 0;
+	var len = snippet.length;
 
-			// Open brace patterns placeholder
-			if (/^\${/.test(restOfLine)) {
-				i += 2;
-				++openBraces;
-				convertedSnippet += '{{';
-				continue;
-			}
+	while (i < len) {
+		var restOfLine = snippet.substr(i);
 
-			// Close brace patterns placeholder
-			if (openBraces > 0 && /^}/.test(restOfLine)) {
-				i += 1;
-				--openBraces;
-				convertedSnippet += '}}';
-				continue;
-			}
+		// Cursor tab stop
+		if (/^\$0/.test(restOfLine)) {
+			i += 2;
+			convertedSnippet += snippetType === ExternalSnippetType.EmmetSnippet ? '{{_}}' : '{{}}';
+			continue;
+		}
+		if (/^\$\{0\}/.test(restOfLine)) {
+			i += 4;
+			convertedSnippet += snippetType === ExternalSnippetType.EmmetSnippet ? '{{_}}' : '{{}}';
+			continue;
+		}
 
-			// Escapes
-			if (/^\\./.test(restOfLine)) {
-				i += 2;
-				if (/^\\\$/.test(restOfLine)) {
-					convertedSnippet += '$';
-				} else {
-					convertedSnippet += restOfLine.substr(0, 2);
-				}
-				continue;
-			}
+		// Tab stops
+		var matches = restOfLine.match(/^\$(\d+)/);
+		if (Array.isArray(matches) && matches.length === 2) {
+			i += 1 + matches[1].length;
+			convertedSnippet += '{{' + matches[1] + ':}}';
+			continue;
+		}
+		matches = restOfLine.match(/^\$\{(\d+)\}/);
+		if (Array.isArray(matches) && matches.length === 2) {
+			i += 3 + matches[1].length;
+			convertedSnippet += '{{' + matches[1] + ':}}';
+			continue;
+		}
 
-			// Escape braces that don't belong to a placeholder
-			matches = restOfLine.match(/^({|})/);
-			if (Array.isArray(matches) && matches.length === 2) {
-				i += 1;
-				convertedSnippet += '\\' + matches[1];
-				continue;
-			}
+		// Open brace patterns placeholder
+		if (/^\${/.test(restOfLine)) {
+			i += 2;
+			++openBraces;
+			convertedSnippet += '{{';
+			continue;
+		}
 
+		// Close brace patterns placeholder
+		if (openBraces > 0 && /^}/.test(restOfLine)) {
 			i += 1;
-			convertedSnippet += restOfLine.charAt(0);
+			--openBraces;
+			convertedSnippet += '}}';
+			continue;
 		}
 
-		return convertedSnippet;
-	}
-
-	private extractLineIndentation(str:string, maxColumn:number=Number.MAX_VALUE): string {
-		var fullIndentation = strings.getLeadingWhitespace(str);
-
-		if (fullIndentation.length > maxColumn - 1) {
-			return fullIndentation.substring(0, maxColumn - 1);
-		}
-
-		return fullIndentation;
-	}
-
-	public bind(referenceLine:string, deltaLine:number, firstLineDeltaColumn:number, config:IIndentationNormalizer):ICodeSnippet {
-		var resultLines: string[] = [];
-		var resultPlaceHolders: IPlaceHolder[] = [];
-
-		var referenceIndentation = this.extractLineIndentation(referenceLine, firstLineDeltaColumn + 1);
-		var originalLine: string, originalLineIndentation: string, remainingLine: string, indentation: string;
-		var i:number, len:number, j: number, lenJ: number;
-
-		// Compute resultLines & keep deltaColumns as a reference for adjusting placeholders
-		var deltaColumns: number[] = [];
-		for (i = 0, len = this.lines.length; i < len; i++) {
-			originalLine = this.lines[i];
-			if (i === 0) {
-				deltaColumns[i + 1] = firstLineDeltaColumn;
-				resultLines[i] = originalLine;
+		// Escapes
+		if (/^\\./.test(restOfLine)) {
+			i += 2;
+			if (/^\\\$/.test(restOfLine)) {
+				convertedSnippet += '$';
 			} else {
-				originalLineIndentation = this.extractLineIndentation(originalLine);
-				remainingLine = originalLine.substr(originalLineIndentation.length);
-				indentation = config.normalizeIndentation(referenceIndentation + originalLineIndentation);
-				deltaColumns[i + 1] = indentation.length - originalLineIndentation.length;
-				resultLines[i] = indentation + remainingLine;
+				convertedSnippet += restOfLine.substr(0, 2);
 			}
+			continue;
 		}
 
-		// Compute resultPlaceHolders
-		var originalPlaceHolder: IPlaceHolder, originalOccurence: editorCommon.IRange, resultOccurences: editorCommon.IRange[];
-		for (i = 0, len = this.placeHolders.length; i < len; i++) {
-			originalPlaceHolder = this.placeHolders[i];
+		// Escape braces that don't belong to a placeholder
+		matches = restOfLine.match(/^({|})/);
+		if (Array.isArray(matches) && matches.length === 2) {
+			i += 1;
+			convertedSnippet += '\\' + matches[1];
+			continue;
+		}
 
-			resultOccurences = [];
-			for (j = 0, lenJ = originalPlaceHolder.occurences.length; j < lenJ; j++) {
-				originalOccurence = originalPlaceHolder.occurences[j];
+		i += 1;
+		convertedSnippet += restOfLine.charAt(0);
+	}
 
-				resultOccurences.push({
-					startLineNumber: originalOccurence.startLineNumber + deltaLine,
-					startColumn: originalOccurence.startColumn + deltaColumns[originalOccurence.startLineNumber],
-					endLineNumber: originalOccurence.endLineNumber + deltaLine,
-					endColumn: originalOccurence.endColumn + deltaColumns[originalOccurence.endLineNumber]
-				});
+	return convertedSnippet;
+};
+
+
+function _resolveSnippetVariables(marker: Marker[], resolver: ISnippetVariableResolver) {
+	if (resolver) {
+		const stack = [...marker];
+
+		while (stack.length > 0) {
+			const marker = stack.shift();
+			if (marker instanceof Variable) {
+
+				try {
+					marker.resolvedValue = resolver.resolve(marker.name);
+				} catch (e) {
+					//
+				}
+				if (marker.isDefined) {
+					continue;
+				}
 			}
 
-			resultPlaceHolders.push({
-				id: originalPlaceHolder.id,
-				value: originalPlaceHolder.value,
-				occurences: resultOccurences
+			if (marker instanceof Variable || marker instanceof Placeholder) {
+				// 'recurse'
+				stack.unshift(...marker.defaultValue);
+			}
+		}
+	}
+}
+
+function _isFinishPlaceHolder(v: IPlaceHolder) {
+	return (v.id === '' && v.value === '') || v.id === '0';
+}
+
+function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
+
+	let placeHolders: { [id: string]: IPlaceHolder } = Object.create(null);
+	let hasFinishPlaceHolder = false;
+
+	const stack = [...marker];
+	snippet.lines = [''];
+	while (stack.length > 0) {
+		const marker = stack.shift();
+		if (marker instanceof Text) {
+			// simple text
+			let lines = marker.string.split(/\r\n|\n|\r/);
+			snippet.lines[snippet.lines.length - 1] += lines.shift();
+			snippet.lines.push(...lines);
+
+		} else if (marker instanceof Placeholder) {
+
+			let placeHolder = placeHolders[marker.name];
+			if (!placeHolder) {
+				placeHolders[marker.name] = placeHolder = {
+					id: marker.name,
+					value: Marker.toString(marker.defaultValue),
+					occurences: []
+				};
+				snippet.placeHolders.push(placeHolder);
+			}
+			hasFinishPlaceHolder = hasFinishPlaceHolder || _isFinishPlaceHolder(placeHolder);
+
+			const line = snippet.lines.length;
+			const column = snippet.lines[line - 1].length + 1;
+
+			placeHolder.occurences.push({
+				startLineNumber: line,
+				startColumn: column,
+				endLineNumber: line,
+				endColumn: column + Marker.toString(marker.defaultValue).length // TODO multiline placeholders!
 			});
+
+			stack.unshift(...marker.defaultValue);
+
+		} else if (marker instanceof Variable) {
+
+			if (!marker.isDefined && marker.defaultValue.length === 0) {
+				// contine as placeholder
+				// THIS is because of us having falsy
+				// advertised ${foo} as placeholder syntax
+				stack.unshift(new Placeholder(marker.name, [new Text(marker.name)]));
+
+			} else if (marker.isDefined && marker.resolvedValue) {
+				// contine with the value
+				stack.unshift(new Text(marker.resolvedValue));
+
+			} else {
+				// continue with default values
+				stack.unshift(...marker.defaultValue);
+			}
 		}
 
-		return {
-			lines: resultLines,
-			placeHolders: resultPlaceHolders,
-			finishPlaceHolderIndex: this.finishPlaceHolderIndex
-		};
+		if (stack.length === 0 && !hasFinishPlaceHolder) {
+			stack.push(new Placeholder('0', []));
+		}
+	}
+
+	// Named variables (e.g. {greeting} and {greeting:Hello}) are sorted first, followed by
+	// tab-stops and numeric variables (e.g. $1, $2, ${3:foo}) which are sorted in ascending order
+	snippet.placeHolders.sort((a, b) => {
+		let nonIntegerId = (v: IPlaceHolder) => !(/^\d+$/).test(v.id);
+
+		// Sort finish placeholder last
+		if (_isFinishPlaceHolder(a)) {
+			return 1;
+		} else if (_isFinishPlaceHolder(b)) {
+			return -1;
+		}
+
+		// Sort named placeholders first
+		if (nonIntegerId(a) && nonIntegerId(b)) {
+			return 0;
+		} else if (nonIntegerId(a)) {
+			return -1;
+		} else if (nonIntegerId(b)) {
+			return 1;
+		}
+
+		if (a.id === b.id) {
+			return 0;
+		}
+
+		return Number(a.id) < Number(b.id) ? -1 : 1;
+	});
+
+	if (snippet.placeHolders.length > 0) {
+		snippet.finishPlaceHolderIndex = snippet.placeHolders.length - 1;
+		snippet.placeHolders[snippet.finishPlaceHolderIndex].id = '';
 	}
 }

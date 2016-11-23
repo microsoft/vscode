@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IExtensionIdentity, ILocalExtension, IGalleryExtension, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentity, ILocalExtension, IGalleryExtension, IExtensionManagementService, IExtensionGalleryService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as semver from 'semver';
 
@@ -13,13 +13,13 @@ export function extensionEquals(one: IExtensionIdentity, other: IExtensionIdenti
 	return one.publisher === other.publisher && one.name === other.name;
 }
 
-export function getTelemetryData(extension: ILocalExtension | IGalleryExtension): any {
+export function getTelemetryData(extension: ILocalExtension | IGalleryExtension) {
 	const local = extension as ILocalExtension;
 	const gallery = extension as IGalleryExtension;
 
 	if (local.path) {
 		return {
-			id: `${ local.manifest.publisher }.${ local.manifest.name }`,
+			id: `${local.manifest.publisher}.${local.manifest.name}`,
 			name: local.manifest.name,
 			galleryId: local.metadata ? local.metadata.id : null,
 			publisherId: local.metadata ? local.metadata.publisherId : null,
@@ -28,7 +28,7 @@ export function getTelemetryData(extension: ILocalExtension | IGalleryExtension)
 		};
 	} else {
 		return {
-			id: `${ gallery.publisher }.${ gallery.name }`,
+			id: `${gallery.publisher}.${gallery.name}`,
 			name: gallery.name,
 			galleryId: gallery.id,
 			publisherId: gallery.publisherId,
@@ -43,8 +43,8 @@ export function getOutdatedExtensions(extensionsService: IExtensionManagementSer
 		return TPromise.as([]);
 	}
 
-	return extensionsService.getInstalled().then(installed => {
-		const names = installed.map(({ manifest }) => `${ manifest.publisher }.${ manifest.name }`);
+	return extensionsService.getInstalled(LocalExtensionType.User).then(installed => {
+		const names = installed.map(({ manifest }) => `${manifest.publisher}.${manifest.name}`);
 
 		if (installed.length === 0) {
 			return TPromise.as([]);

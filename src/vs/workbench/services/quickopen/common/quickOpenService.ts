@@ -4,11 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
+import uri from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import {CancellationToken} from 'vs/base/common/cancellation';
-import {IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext} from 'vs/base/parts/quickopen/common/quickOpen';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export interface IFilePickOpenEntry extends IPickOpenEntry {
+	resource: uri;
+	isFolder?: boolean;
+}
 
 export interface IPickOpenEntry {
 	id?: string;
@@ -47,6 +53,9 @@ export interface IPickOptions {
 	 */
 	matchOnDetail?: boolean;
 
+	/**
+	 * an optional flag to not close the picker on focus lost
+	 */
 	ignoreFocusLost?: boolean;
 }
 

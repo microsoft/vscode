@@ -9,6 +9,11 @@ License:  MIT
 URL:      https://code.visualstudio.com/
 Icon:     @@NAME@@.xpm
 Requires: glibc >= 2.15
+%ifarch x86_64
+Requires: libXss.so.1()(64bit)
+%else
+Requires: libXss.so.1
+%endif
 AutoReq:  0
 
 %description
@@ -29,8 +34,7 @@ if [ "@@NAME@@" = "code" ]; then
 fi
 
 # Symlink bin command to /usr/bin
-sudo rm -f /usr/bin/@@NAME@@
-sudo ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@
+ln -sf /usr/share/@@NAME@@/bin/@@NAME@@ %{_bindir}/@@NAME@@
 
 # Register yum repository
 # TODO: #229: Enable once the yum repository is signed

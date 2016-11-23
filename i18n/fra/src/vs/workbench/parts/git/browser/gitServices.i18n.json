@@ -25,6 +25,6 @@
 	"showOutput": "Afficher la sortie",
 	"unmergedChanges": "Vous devez tout d'abord résoudre les modifications non fusionnées avant de valider vos modifications.",
 	"updateGit": "Il semble que git {0} soit installé. Code fonctionne mieux avec git >=2.0.0.",
-	"workingTreeChanges": "{0} (TÊTE) ↔ {1}",
+	"workingTreeChanges": "{0} (HEAD) ↔ {1}",
 	"workingTreeChangesDesc": "{0} - Modifications de l'arborescence de travail"
 }

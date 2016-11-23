@@ -6,7 +6,7 @@
 {
 	"cannotRunGotoLine": "先開啟文字檔以移至某一行",
 	"gotoLine": "移至行...",
-	"gotoLineColumnLabel": "移至行 {0} 和資料行 {1}",
+	"gotoLineColumnLabel": "移至行 {0} 和字元 {1}",
 	"gotoLineHandlerAriaLabel": "輸入要瀏覽的行號。",
 	"gotoLineLabel": "移至第 {0} 行",
 	"gotoLineLabelEmpty": "輸入要瀏覽的行號",

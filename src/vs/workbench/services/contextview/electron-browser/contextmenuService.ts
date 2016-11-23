@@ -5,17 +5,17 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import {IAction} from 'vs/base/common/actions';
-import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
-import {IContextMenuService, IContextMenuDelegate, ContextSubMenu} from 'vs/platform/contextview/browser/contextView';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import { IContextMenuService, IContextMenuDelegate, ContextSubMenu, IEvent } from 'vs/platform/contextview/browser/contextView';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-import {remote, webFrame} from 'electron';
+import { remote, webFrame } from 'electron';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -54,7 +54,7 @@ export class ContextMenuService implements IContextMenuService {
 				x *= zoom;
 				y *= zoom;
 
-				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y), -1 /* no item selected by default */);
+				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
 				if (delegate.onHide) {
 					delegate.onHide(undefined);
 				}
@@ -62,7 +62,7 @@ export class ContextMenuService implements IContextMenuService {
 		});
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: (IAction|ContextSubMenu)[]): Electron.Menu {
+	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[]): Electron.Menu {
 		const menu = new remote.Menu();
 
 		entries.forEach(e => {
@@ -84,8 +84,8 @@ export class ContextMenuService implements IContextMenuService {
 					checked: !!e.checked,
 					accelerator,
 					enabled: !!e.enabled,
-					click: () => {
-						this.runAction(e, delegate);
+					click: (menuItem, win, event) => {
+						this.runAction(e, delegate, event);
 					}
 				});
 
@@ -96,10 +96,10 @@ export class ContextMenuService implements IContextMenuService {
 		return menu;
 	}
 
-	private runAction(actionToRun: IAction, delegate: IContextMenuDelegate): void {
+	private runAction(actionToRun: IAction, delegate: IContextMenuDelegate, event: IEvent): void {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
-		const context = delegate.getActionsContext ? delegate.getActionsContext() : null;
+		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
 		const res = actionToRun.run(context) || TPromise.as(null);
 
 		res.done(null, e => this.messageService.show(severity.Error, e));

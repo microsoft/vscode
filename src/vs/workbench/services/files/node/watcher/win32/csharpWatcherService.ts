@@ -7,12 +7,12 @@
 
 import cp = require('child_process');
 
-import {FileChangeType} from 'vs/platform/files/common/files';
+import { FileChangeType } from 'vs/platform/files/common/files';
 import decoder = require('vs/base/node/decoder');
 import glob = require('vs/base/common/glob');
 import uri from 'vs/base/common/uri';
 
-import {IRawFileChange} from 'vs/workbench/services/files/node/watcher/common';
+import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 
 export class OutOfProcessWin32FolderWatcher {
 
@@ -31,25 +31,25 @@ export class OutOfProcessWin32FolderWatcher {
 	}
 
 	private startWatcher(): void {
-		let args = [this.watchedFolder];
+		const args = [this.watchedFolder];
 		if (this.verboseLogging) {
 			args.push('-verbose');
 		}
 
 		this.handle = cp.spawn(uri.parse(require.toUrl('vs/workbench/services/files/node/watcher/win32/CodeHelper.exe')).fsPath, args);
 
-		let stdoutLineDecoder = new decoder.LineDecoder();
+		const stdoutLineDecoder = new decoder.LineDecoder();
 
 		// Events over stdout
 		this.handle.stdout.on('data', (data: NodeBuffer) => {
 
 			// Collect raw events from output
-			let rawEvents: IRawFileChange[] = [];
+			const rawEvents: IRawFileChange[] = [];
 			stdoutLineDecoder.write(data).forEach((line) => {
-				let eventParts = line.split('|');
+				const eventParts = line.split('|');
 				if (eventParts.length === 2) {
-					let changeType = Number(eventParts[0]);
-					let absolutePath = eventParts[1];
+					const changeType = Number(eventParts[0]);
+					const absolutePath = eventParts[1];
 
 					// File Change Event (0 Changed, 1 Created, 2 Deleted)
 					if (changeType >= 0 && changeType < 3) {

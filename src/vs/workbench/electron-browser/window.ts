@@ -7,38 +7,21 @@
 
 import platform = require('vs/base/common/platform');
 import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { stat } from 'vs/base/node/pfs';
 import DOM = require('vs/base/browser/dom');
-import DND = require('vs/base/browser/dnd');
-import {Builder, $} from 'vs/base/browser/builder';
-import {Identifiers} from 'vs/workbench/common/constants';
-import {asFileEditorInput} from 'vs/workbench/common/editor';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import { extractResources } from 'vs/base/browser/dnd';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 
-import {ipcRenderer as ipc, shell, remote} from 'electron';
-import * as fs from 'fs';
-import * as path from 'path';
+import { remote } from 'electron';
 
 const dialog = remote.dialog;
-
-export interface IWindowConfiguration {
-	window: {
-		openFilesInNewWindow: boolean;
-		reopenFolders: string;
-		restoreFullscreen: boolean;
-		zoomLevel: number;
-	};
-}
-
-enum DraggedFileType {
-	UNKNOWN,
-	FILE,
-	EXTENSION,
-	FOLDER
-}
 
 export class ElectronWindow {
 	private win: Electron.BrowserWindow;
@@ -47,14 +30,16 @@ export class ElectronWindow {
 	constructor(
 		win: Electron.BrowserWindow,
 		shellContainer: HTMLElement,
-		@IEventService private eventService: IEventService,
-		@IStorageService private storageService: IStorageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IViewletService private viewletService: IViewletService
+		@IPartService private partService: IPartService,
+		@IWindowsService private windowsService: IWindowsService,
+		@IWindowService private windowService: IWindowService,
+		@ITitleService private titleService: ITitleService
 	) {
 		this.win = win;
 		this.windowId = win.id;
+
 		this.registerListeners();
 	}
 
@@ -64,12 +49,9 @@ export class ElectronWindow {
 		if (platform.platform === platform.Platform.Mac) {
 			this.editorGroupService.onEditorsChanged(() => {
 				const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
-				let representedFilename = '';
-				if (fileInput) {
-					representedFilename = fileInput.getResource().fsPath;
-				}
+				const fileName = fileInput ? fileInput.getResource().fsPath : '';
 
-				ipc.send('vscode:setRepresentedFilename', this.windowId, representedFilename);
+				this.titleService.setRepresentedFilename(fileName);
 			});
 		}
 
@@ -90,28 +72,38 @@ export class ElectronWindow {
 			DOM.EventHelper.stop(e);
 
 			if (!draggedExternalResources) {
-				draggedExternalResources = DND.extractResources(e, true /* external only */);
+				draggedExternalResources = extractResources(e, true /* external only */).map(d => d.resource);
 
-				// Show Code wide overlay if we detect a Folder or Extension to be dragged
-				if (draggedExternalResources.some(r => {
-					const kind = this.getFileKind(r);
+				// Find out if folders are dragged and show the appropiate feedback then
+				this.includesFolder(draggedExternalResources).done(includesFolder => {
+					if (includesFolder) {
+						dropOverlay = $(window.document.getElementById(this.partService.getWorkbenchElementId()))
+							.div({ id: 'monaco-workbench-drop-overlay' })
+							.on(DOM.EventType.DROP, (e: DragEvent) => {
+								DOM.EventHelper.stop(e, true);
 
-					return kind === DraggedFileType.FOLDER || kind === DraggedFileType.EXTENSION;
-				})) {
-					dropOverlay = $(window.document.getElementById(Identifiers.WORKBENCH_CONTAINER))
-						.div({ id: 'monaco-workbench-drop-overlay' })
-						.on(DOM.EventType.DROP, (e: DragEvent) => {
-							DOM.EventHelper.stop(e, true);
+								this.focus(); // make sure this window has focus so that the open call reaches the right window!
+								this.windowsService.windowOpen(draggedExternalResources.map(r => r.fsPath));
 
-							this.focus(); // make sure this window has focus so that the open call reaches the right window!
-							ipc.send('vscode:windowOpen', draggedExternalResources.map(r => r.fsPath)); // handled from browser process
-
-							cleanUp();
-						})
-						.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
-							cleanUp();
-						});
-				}
+								cleanUp();
+							})
+							.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
+								cleanUp();
+							}).once(DOM.EventType.MOUSE_OVER, () => {
+								// Under some circumstances we have seen reports where the drop overlay is not being
+								// cleaned up and as such the editor area remains under the overlay so that you cannot
+								// type into the editor anymore. This seems related to using VMs and DND via host and
+								// guest OS, though some users also saw it without VMs.
+								// To protect against this issue we always destroy the overlay as soon as we detect a
+								// mouse event over it. The delay is used to guarantee we are not interfering with the
+								// actual DROP event that can also trigger a mouse over event.
+								// See also: https://github.com/Microsoft/vscode/issues/10970
+								setTimeout(() => {
+									cleanUp();
+								}, 300);
+							});
+					}
+				});
 			}
 		});
 
@@ -130,46 +122,21 @@ export class ElectronWindow {
 		});
 
 		// Handle window.open() calls
+		const $this = this;
 		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
-			shell.openExternal(url);
-
+			$this.windowsService.openExternal(url);
 			return null;
 		};
-
-		// Patch focus to also focus the entire window
-		const originalFocus = window.focus;
-		const $this = this;
-		window.focus = function () {
-			originalFocus.call(this, arguments);
-			$this.focus();
-		};
 	}
 
-	private getFileKind(resource: URI): DraggedFileType {
-		if (path.extname(resource.fsPath) === '.vsix') {
-			return DraggedFileType.EXTENSION;
-		}
-
-		let kind = DraggedFileType.UNKNOWN;
-		try {
-			kind = fs.statSync(resource.fsPath).isDirectory() ? DraggedFileType.FOLDER : DraggedFileType.FILE;
-		} catch (error) {
-			// Do not fail in DND handler
-		}
-
-		return kind;
-	}
-
-	public openNew(): void {
-		ipc.send('vscode:openNewWindow'); // handled from browser process
+	private includesFolder(resources: URI[]): TPromise<boolean> {
+		return TPromise.join(resources.map(resource => {
+			return stat(resource.fsPath).then(stats => stats.isDirectory() ? true : false, error => false);
+		})).then(res => res.some(res => !!res));
 	}
 
 	public close(): void {
 		this.win.close();
-	}
-
-	public reload(): void {
-		ipc.send('vscode:reloadWindow', this.windowId);
 	}
 
 	public showMessageBox(options: Electron.ShowMessageBoxOptions): number {
@@ -184,23 +151,7 @@ export class ElectronWindow {
 		return dialog.showSaveDialog(this.win, options); // https://github.com/electron/electron/issues/4936
 	}
 
-	public setFullScreen(fullscreen: boolean): void {
-		ipc.send('vscode:setFullScreen', this.windowId, fullscreen); // handled from browser process
-	}
-
-	public openDevTools(): void {
-		ipc.send('vscode:openDevTools', this.windowId); // handled from browser process
-	}
-
-	public setMenuBarVisibility(visible: boolean): void {
-		ipc.send('vscode:setMenuBarVisibility', this.windowId, visible); // handled from browser process
-	}
-
-	public focus(): void {
-		ipc.send('vscode:focusWindow', this.windowId); // handled from browser process
-	}
-
-	public flashFrame(): void {
-		ipc.send('vscode:flashFrame', this.windowId); // handled from browser process
+	public focus(): TPromise<void> {
+		return this.windowService.focusWindow();
 	}
 }

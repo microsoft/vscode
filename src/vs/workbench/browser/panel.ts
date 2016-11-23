@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import {Registry} from 'vs/platform/platform';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IPanel} from 'vs/workbench/common/panel';
-import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
+import { Registry } from 'vs/platform/platform';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IPanel } from 'vs/workbench/common/panel';
+import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { Action } from 'vs/base/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export abstract class Panel extends Composite implements IPanel { }
@@ -19,8 +18,8 @@ export abstract class Panel extends Composite implements IPanel { }
  * A panel descriptor is a leightweight descriptor of a panel in the workbench.
  */
 export class PanelDescriptor extends CompositeDescriptor<Panel> {
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string) {
-		super(moduleId, ctorName, id, name, cssClass);
+	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number) {
+		super(moduleId, ctorName, id, name, cssClass, order);
 	}
 }
 
@@ -76,9 +75,9 @@ export abstract class TogglePanelAction extends Action {
 		panelId: string,
 		protected panelService: IPanelService,
 		private partService: IPartService,
-		private editorService: IWorkbenchEditorService
+		cssClass?: string
 	) {
-		super(id, name);
+		super(id, label, cssClass);
 		this.panelId = panelId;
 	}
 
@@ -93,7 +92,7 @@ export abstract class TogglePanelAction extends Action {
 	}
 
 	private isPanelShowing(): boolean {
-		let panel= this.panelService.getActivePanel();
+		let panel = this.panelService.getActivePanel();
 		return panel && panel.getId() === this.panelId;
 	}
 

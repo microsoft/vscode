@@ -54,6 +54,7 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 			});
 			return result;
 		}, (err) => {
+			this.client.error(`'rename' request failed with error.`, err);
 			return null;
 		});
 	}

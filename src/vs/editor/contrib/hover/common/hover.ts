@@ -5,14 +5,14 @@
 
 'use strict';
 
-import {coalesce} from 'vs/base/common/arrays';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {Hover, HoverProviderRegistry} from 'vs/editor/common/modes';
-import {asWinJsPromise} from 'vs/base/common/async';
-import {Position} from 'vs/editor/common/core/position';
+import { coalesce } from 'vs/base/common/arrays';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { Hover, HoverProviderRegistry } from 'vs/editor/common/modes';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { Position } from 'vs/editor/common/core/position';
 
 export function getHover(model: IReadOnlyModel, position: Position): TPromise<Hover[]> {
 
@@ -27,7 +27,7 @@ export function getHover(model: IReadOnlyModel, position: Position): TPromise<Ho
 				let hasRange = (typeof result.range !== 'undefined');
 				let hasHtmlContent = (typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0);
 				if (hasRange && hasHtmlContent) {
-					values[idx]  = result;
+					values[idx] = result;
 				}
 			}
 		}, err => {

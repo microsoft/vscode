@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { forEach } from 'vs/base/common/collections';
 import Event, { Emitter } from 'vs/base/common/event';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {startsWith} from 'vs/base/common/strings';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition} from 'vs/editor/common/editorCommon';
-import {ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
-import {ISuggestionItem, provideSuggestionItems} from './suggest';
-import {CompletionModel, LineContext} from './completionModel';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { startsWith } from 'vs/base/common/strings';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition } from 'vs/editor/common/editorCommon';
+import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
+import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
+import { CompletionModel } from './completionModel';
 
 export interface ICancelEvent {
 	retrigger: boolean;
@@ -134,7 +134,7 @@ export class Context {
 	}
 }
 
-enum State {
+const enum State {
 	Idle = 0,
 	Manual = 1,
 	Auto = 2
@@ -152,9 +152,7 @@ export class SuggestModel implements IDisposable {
 	private requestPromise: TPromise<void>;
 	private context: Context;
 
-	private suggestionItems: ISuggestionItem[];
 	private completionModel: CompletionModel;
-	private incomplete: boolean;
 
 	private _onDidCancel: Emitter<ICancelEvent> = new Emitter();
 	get onDidCancel(): Event<ICancelEvent> { return this._onDidCancel.event; }
@@ -169,9 +167,7 @@ export class SuggestModel implements IDisposable {
 		this.state = State.Idle;
 		this.triggerAutoSuggestPromise = null;
 		this.requestPromise = null;
-		this.suggestionItems = null;
 		this.completionModel = null;
-		this.incomplete = false;
 		this.context = null;
 
 		// wire up various listeners
@@ -251,8 +247,7 @@ export class SuggestModel implements IDisposable {
 
 	// --- trigger/retrigger/cancel suggest
 
-	cancel(retrigger: boolean = false): boolean {
-		const actuallyCanceled = this.state !== State.Idle;
+	cancel(retrigger: boolean = false): void {
 
 		if (this.triggerAutoSuggestPromise) {
 			this.triggerAutoSuggestPromise.cancel();
@@ -265,13 +260,10 @@ export class SuggestModel implements IDisposable {
 		}
 
 		this.state = State.Idle;
-		this.suggestionItems = null;
 		this.completionModel = null;
-		this.incomplete = false;
 		this.context = null;
 
 		this._onDidCancel.fire({ retrigger });
-		return actuallyCanceled;
 	}
 
 	private updateActiveSuggestSession(): void {
@@ -324,15 +316,12 @@ export class SuggestModel implements IDisposable {
 					this.trigger(true);
 				});
 			}
-
-		} else if (this.suggestionItems && this.incomplete) {
-			this.trigger(this.state === State.Auto, true);
 		} else {
 			this.onNewContext(ctx);
 		}
 	}
 
-	public trigger(auto: boolean, retrigger: boolean = false, onlyFrom?: ISuggestSupport[]): void {
+	public trigger(auto: boolean, retrigger: boolean = false, onlyFrom?: ISuggestSupport[], existingItems?: ISuggestionItem[]): void {
 
 		const model = this.editor.getModel();
 
@@ -349,39 +338,38 @@ export class SuggestModel implements IDisposable {
 		// Cancel previous requests, change state & update UI
 		this.cancel(retrigger);
 		this.state = auto ? State.Auto : State.Manual;
-		this._onDidTrigger.fire({ auto: this.isAutoSuggest() });
+		this._onDidTrigger.fire({ auto });
 
 		// Capture context when request was sent
 		this.context = ctx;
 
 		this.requestPromise = provideSuggestionItems(model, this.editor.getPosition(),
-			this.editor.getConfiguration().contribInfo.snippetSuggestions, onlyFrom).then(items => {
+			this.editor.getConfiguration().contribInfo.snippetSuggestions,
+			onlyFrom
+		).then(items => {
 
 			this.requestPromise = null;
-
 			if (this.state === State.Idle) {
 				return;
 			}
-
 			const model = this.editor.getModel();
 			if (!model) {
 				return;
 			}
 
-			this.suggestionItems = items;
-			this.incomplete = items.some(result => result.container.incomplete);
-			this.onNewContext(new Context(model, this.editor.getPosition(), auto));
+			if (!isFalsyOrEmpty(existingItems)) {
+				const cmpFn = getSuggestionComparator(this.editor.getConfiguration().contribInfo.snippetSuggestions);
+				items = items.concat(existingItems).sort(cmpFn);
+			}
+
+			const ctx = new Context(model, this.editor.getPosition(), auto);
+			this.completionModel = new CompletionModel(items, this.context.column, {
+				leadingLineContent: ctx.lineContentBefore,
+				characterCountDelta: this.context ? ctx.column - this.context.column : 0
+			});
+			this.onNewContext(ctx);
 
 		}).then(null, onUnexpectedError);
-	}
-
-	private isAutoSuggest(): boolean {
-		return this.state === State.Auto;
-	}
-
-	public getTriggerPosition(): IPosition {
-		const {lineNumber, column} = this.context;
-		return { lineNumber, column };
 	}
 
 	private onNewContext(ctx: Context): void {
@@ -392,34 +380,34 @@ export class SuggestModel implements IDisposable {
 				this.cancel();
 			}
 
-			return;
-		}
+		} else if (this.completionModel) {
 
-		if (this.suggestionItems) {
-			const auto = this.isAutoSuggest();
+			if (this.completionModel.incomplete && ctx.column > this.context.column) {
+				const {complete, incomplete} = this.completionModel.resolveIncompleteInfo();
+				this.trigger(this.state === State.Auto, true, incomplete, complete);
+				return;
+			}
 
-			const lineContext: LineContext = {
+			const auto = this.state === State.Auto;
+			const oldLineContext = this.completionModel.lineContext;
+			let isFrozen = false;
+
+			this.completionModel.lineContext = {
 				leadingLineContent: ctx.lineContentBefore,
 				characterCountDelta: this.context ? ctx.column - this.context.column : 0
 			};
 
-			let isFrozen = false;
-			if (this.completionModel && this.completionModel.raw === this.suggestionItems) {
-				const oldLineContext = this.completionModel.lineContext;
-				this.completionModel.lineContext = lineContext;
-
-				if (!auto && this.completionModel.items.length === 0) {
-					this.completionModel.lineContext = oldLineContext;
-					isFrozen = true;
-				}
-			} else {
-				this.completionModel = new CompletionModel(this.suggestionItems, lineContext);
+			// when explicitly request when the next context goes
+			// from 'results' to 'no results' freeze
+			if (!auto && this.completionModel.items.length === 0) {
+				this.completionModel.lineContext = oldLineContext;
+				isFrozen = this.completionModel.items.length > 0;
 			}
 
 			this._onDidSuggest.fire({
 				completionModel: this.completionModel,
-				isFrozen: isFrozen,
-				auto: this.isAutoSuggest()
+				isFrozen,
+				auto
 			});
 		}
 	}

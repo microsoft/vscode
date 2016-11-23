@@ -5,30 +5,36 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
 export interface IEditorService {
+
 	_serviceBrand: any;
+
 	/**
 	 * Specific overload to open an instance of IResourceInput.
 	 */
 	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
+}
+
+export interface IEditorModel {
+
+	onDispose: Event<void>;
 
 	/**
-	 * Specific overload to resolve a IResourceInput to an editor model with a text representation.
+	 * Loads the model.
 	 */
-	resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
-}
+	load(): TPromise<IEditorModel>;
 
-export interface IEditorModel extends IEventEmitter {
-}
-
-export interface ITextEditorModel extends IEditorModel {
-	textEditorModel: any;
+	/**
+	 * Dispose associated resources
+	 */
+	dispose(): void;
 }
 
 export interface IResourceInput {
@@ -37,11 +43,6 @@ export interface IResourceInput {
 	 * The resource URL of the resource to open.
 	 */
 	resource: URI;
-
-	/**
-	 * The mime type of the text input if known.
-	 */
-	mime?: string;
 
 	/**
 	 * The encoding of the text input if known.
@@ -89,6 +90,11 @@ export interface IEditor {
 	 * Asks the underlying control to focus.
 	 */
 	focus(): void;
+
+	/**
+	 * Finds out if this editor is visible or not.
+	 */
+	isVisible(): boolean;
 }
 
 /**
@@ -96,24 +102,26 @@ export interface IEditor {
  */
 export enum Position {
 
-	/** Opens the editor in the LEFT most position replacing the input currently showing */
-	LEFT = 0,
+	/** Opens the editor in the first position replacing the input currently showing */
+	ONE = 0,
 
-	/** Opens the editor in the CENTER position replacing the input currently showing */
-	CENTER = 1,
+	/** Opens the editor in the second position replacing the input currently showing */
+	TWO = 1,
 
-	/** Opens the editor in the RIGHT most position replacing the input currently showing */
-	RIGHT = 2
+	/** Opens the editor in the third most position replacing the input currently showing */
+	THREE = 2
 }
 
-export const POSITIONS = [Position.LEFT, Position.CENTER, Position.RIGHT];
+export const POSITIONS = [Position.ONE, Position.TWO, Position.THREE];
 
 export enum Direction {
 	LEFT,
 	RIGHT
 }
 
-export interface IEditorInput extends IEventEmitter {
+export interface IEditorInput extends IDisposable {
+
+	onDispose: Event<void>;
 
 	/**
 	 * Returns the display name of this input.

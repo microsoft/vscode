@@ -5,21 +5,21 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Selection} from 'vs/editor/common/core/selection';
-import {ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type} from 'vs/editor/contrib/comment/common/lineCommentCommand';
-import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
-import {CommentMode} from 'vs/editor/test/common/testModes';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/common/lineCommentCommand';
+import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
+import { CommentMode } from 'vs/editor/test/common/testModes';
 
 suite('Editor Contrib - Line Comment Command', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		var mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
 	}
 
 	function testAddLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		var mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd), expectedLines, expectedSelection);
+		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd), expectedLines, expectedSelection);
 	}
 
 	test('comment single line', function () {
@@ -37,15 +37,15 @@ suite('Editor Contrib - Line Comment Command', () => {
 		);
 	});
 
-	function createSimpleModel(lines:string[]): ISimpleModel {
+	function createSimpleModel(lines: string[]): ISimpleModel {
 		return {
-			getLineContent: (lineNumber:number) => {
+			getLineContent: (lineNumber: number) => {
 				return lines[lineNumber - 1];
 			}
 		};
 	}
 
-	function createBasicLinePreflightData(commentTokens:string[]): ILinePreflightData[] {
+	function createBasicLinePreflightData(commentTokens: string[]): ILinePreflightData[] {
 		return commentTokens.map((commentString) => {
 			var r: ILinePreflightData = {
 				ignore: false,
@@ -58,7 +58,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	}
 
 	test('_analyzeLines', function () {
-		var r:IPreflightData;
+		var r: IPreflightData;
 
 		r = LineCommentCommand._analyzeLines(Type.Toggle, createSimpleModel([
 			'\t\t',
@@ -124,7 +124,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 
 	test('_normalizeInsertionPoint', function () {
 
-		var runTest = (mixedArr:any[], tabSize:number, expected:number[], testName:string) => {
+		var runTest = (mixedArr: any[], tabSize: number, expected: number[], testName: string) => {
 			var model = createSimpleModel(mixedArr.filter((item, idx) => idx % 2 === 0));
 			var offsets = mixedArr.filter((item, idx) => idx % 2 === 1).map(offset => {
 				return {
@@ -521,7 +521,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		var mode = new CommentMode({ lineComment: '', blockComment: ['(', ')'] });
-		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
 	}
 
 	test('fall back to block comment command', function () {
@@ -631,7 +631,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		var mode = new CommentMode({ lineComment: null, blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
 	}
 
 	test('no selection => uses indentation', function () {

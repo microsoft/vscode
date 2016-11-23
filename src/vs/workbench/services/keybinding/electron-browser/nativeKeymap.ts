@@ -5,11 +5,13 @@
 'use strict';
 
 import * as nativeKeymap from 'native-keymap';
-import {KeyCode, IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider, AriaKeyLabelProvider} from 'vs/base/common/keyCodes';
-import {lookupKeyCode, setExtractKeyCode} from 'vs/base/browser/keyboardEvent';
+import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { CharCode } from 'vs/base/common/charCode';
+import { IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider, AriaKeyLabelProvider } from 'vs/base/common/keybinding';
+import { lookupKeyCode, setExtractKeyCode } from 'vs/base/browser/keyboardEvent';
 import Platform = require('vs/base/common/platform');
 
-let getNativeKeymap = (function() {
+let getNativeKeymap = (function () {
 	let called = false;
 	let result: nativeKeymap.INativeKeyMap[];
 
@@ -24,7 +26,7 @@ let getNativeKeymap = (function() {
 
 // See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
 // See https://github.com/Microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
-const NATIVE_KEY_CODE_TO_KEY_CODE: {[nativeKeyCode:string]:KeyCode;} = {
+const NATIVE_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode; } = {
 	VKEY_BACK: KeyCode.Backspace,
 	VKEY_TAB: KeyCode.Tab,
 	VKEY_CLEAR: KeyCode.Unknown, // MISSING
@@ -231,46 +233,46 @@ const NATIVE_KEY_CODE_TO_KEY_CODE: {[nativeKeyCode:string]:KeyCode;} = {
 // Double quote              '"'                      222
 
 interface IFixedVirtualKeyCodeElement {
-	char:string;
-	virtualKeyCode:number;
+	char: string;
+	virtualKeyCode: number;
 }
 
 let _b24_fixedVirtualKeyCodes: IFixedVirtualKeyCodeElement[] = [
-	{ char: ';',	virtualKeyCode: 186 },
-	{ char: ':',	virtualKeyCode: 186 },
-	{ char: '=',	virtualKeyCode: 187 },
-	{ char: '+',	virtualKeyCode: 187 },
-	{ char: ',',	virtualKeyCode: 188 },
-	{ char: '<',	virtualKeyCode: 188 },
-	{ char: '-',	virtualKeyCode: 189 },
-	{ char: '_',	virtualKeyCode: 189 },
-	{ char: '.',	virtualKeyCode: 190 },
-	{ char: '>',	virtualKeyCode: 190 },
-	{ char: '/',	virtualKeyCode: 191 },
-	{ char: '?',	virtualKeyCode: 191 },
-	{ char: '`',	virtualKeyCode: 192 },
-	{ char: '~',	virtualKeyCode: 192 },
-	{ char: '[',	virtualKeyCode: 219 },
-	{ char: '{',	virtualKeyCode: 219 },
-	{ char: '\\',	virtualKeyCode: 220 },
-	{ char: '|',	virtualKeyCode: 220 },
-	{ char: ']',	virtualKeyCode: 221 },
-	{ char: '}',	virtualKeyCode: 221 },
-	{ char: '\'',	virtualKeyCode: 222 },
-	{ char: '"',	virtualKeyCode: 222 },
+	{ char: ';', virtualKeyCode: 186 },
+	{ char: ':', virtualKeyCode: 186 },
+	{ char: '=', virtualKeyCode: 187 },
+	{ char: '+', virtualKeyCode: 187 },
+	{ char: ',', virtualKeyCode: 188 },
+	{ char: '<', virtualKeyCode: 188 },
+	{ char: '-', virtualKeyCode: 189 },
+	{ char: '_', virtualKeyCode: 189 },
+	{ char: '.', virtualKeyCode: 190 },
+	{ char: '>', virtualKeyCode: 190 },
+	{ char: '/', virtualKeyCode: 191 },
+	{ char: '?', virtualKeyCode: 191 },
+	{ char: '`', virtualKeyCode: 192 },
+	{ char: '~', virtualKeyCode: 192 },
+	{ char: '[', virtualKeyCode: 219 },
+	{ char: '{', virtualKeyCode: 219 },
+	{ char: '\\', virtualKeyCode: 220 },
+	{ char: '|', virtualKeyCode: 220 },
+	{ char: ']', virtualKeyCode: 221 },
+	{ char: '}', virtualKeyCode: 221 },
+	{ char: '\'', virtualKeyCode: 222 },
+	{ char: '"', virtualKeyCode: 222 },
 ];
-let _b24_interestingChars: {[char:string]:boolean;} = Object.create(null);
+let _b24_interestingChars: { [char: string]: boolean; } = Object.create(null);
 _b24_fixedVirtualKeyCodes.forEach(el => _b24_interestingChars[el.char] = true);
 
-let _b24_interestingVirtualKeyCodes: {[virtualKeyCode:number]:boolean;} = Object.create(null);
+let _b24_interestingVirtualKeyCodes: { [virtualKeyCode: number]: boolean; } = Object.create(null);
 _b24_fixedVirtualKeyCodes.forEach(el => _b24_interestingVirtualKeyCodes[el.virtualKeyCode] = true);
 
 interface IUnfixedVirtualKeyCodeMap {
-	[char:string]: KeyCode;
+	[char: string]: KeyCode;
 }
-let _b24_getActualKeyCodeMap = (function() {
+let _b24_getActualKeyCodeMap = (function () {
 	let result: IUnfixedVirtualKeyCodeMap = null;
-	return function() {
+	return function () {
 		if (!result) {
 			result = Object.create(null);
 
@@ -282,7 +284,7 @@ let _b24_getActualKeyCodeMap = (function() {
 				if (nativeMapping.value && _b24_interestingChars[nativeMapping.value]) {
 					// console.log(nativeMapping.value + " is made by " + nativeMapping.key_code);
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code];
-					if (keyCode && keyCode !== KeyCode.Unknown) {
+					if (keyCode) {
 						if (!result[nativeMapping.value] || result[nativeMapping.value] > keyCode) {
 							result[nativeMapping.value] = keyCode;
 						}
@@ -292,7 +294,7 @@ let _b24_getActualKeyCodeMap = (function() {
 				if (nativeMapping.withShift && _b24_interestingChars[nativeMapping.withShift]) {
 					// console.log(nativeMapping.withShift + " is made by " + nativeMapping.key_code);
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code];
-					if (keyCode && keyCode !== KeyCode.Unknown) {
+					if (keyCode) {
 						if (!result[nativeMapping.withShift] || result[nativeMapping.withShift] > keyCode) {
 							result[nativeMapping.withShift] = keyCode;
 						}
@@ -304,15 +306,15 @@ let _b24_getActualKeyCodeMap = (function() {
 	};
 })();
 
-setExtractKeyCode((e:KeyboardEvent) => {
+setExtractKeyCode((e: KeyboardEvent) => {
 	if (e.charCode) {
 		// "keypress" events mostly
 		let char = String.fromCharCode(e.charCode).toUpperCase();
-		return KeyCode.fromString(char);
+		return KeyCodeUtils.fromString(char);
 	}
 
 	if (Platform.isMacintosh && _b24_interestingVirtualKeyCodes[e.keyCode] && typeof (<any>e).keyIdentifier === 'string') {
-		let keyIdentifier:string = (<any>e).keyIdentifier;
+		let keyIdentifier: string = (<any>e).keyIdentifier;
 		let strCharCode = keyIdentifier.substr(2);
 		try {
 			let charCode = parseInt(strCharCode, 16);
@@ -322,7 +324,7 @@ setExtractKeyCode((e:KeyboardEvent) => {
 				return unfixMap[char];
 			}
 			// console.log(keyIdentifier + ' => ' + char);
-		} catch(err) {
+		} catch (err) {
 		}
 	}
 	// _b24_getActualKeyCodeMap();
@@ -331,7 +333,7 @@ setExtractKeyCode((e:KeyboardEvent) => {
 	return lookupKeyCode(e);
 });
 
-let nativeAriaLabelProvider:IKeyBindingLabelProvider = null;
+let nativeAriaLabelProvider: IKeyBindingLabelProvider = null;
 export function getNativeAriaLabelProvider(): IKeyBindingLabelProvider {
 	if (!nativeAriaLabelProvider) {
 		let remaps = getNativeLabelProviderRemaps();
@@ -340,7 +342,7 @@ export function getNativeAriaLabelProvider(): IKeyBindingLabelProvider {
 	return nativeAriaLabelProvider;
 }
 
-let nativeLabelProvider:IKeyBindingLabelProvider = null;
+let nativeLabelProvider: IKeyBindingLabelProvider = null;
 export function getNativeLabelProvider(): IKeyBindingLabelProvider {
 	if (!nativeLabelProvider) {
 		let remaps = getNativeLabelProviderRemaps();
@@ -354,12 +356,65 @@ export function getNativeLabelProvider(): IKeyBindingLabelProvider {
 	return nativeLabelProvider;
 }
 
-let nativeLabelRemaps: string[] = null;
-function getNativeLabelProviderRemaps(): string[] {
+class NativeLabel {
+
+	public static Empty = new NativeLabel('', '', '', '');
+
+	private readonly _rendered: string;
+
+	constructor(value: string, withShift: string, withAltGr: string, withShiftAltGr: string) {
+		this._rendered = value || withShift;
+		this._rendered = NativeLabel._massageRenderedKey(this._rendered);
+	}
+
+	/**
+	 * Very often, keyboards generate combining diacritical marks
+	 * They reside in the range 0300..036F
+	 * See ftp://ftp.unicode.org/Public/UNIDATA/Blocks.txt
+	 * See https://en.wikipedia.org/wiki/Combining_Diacritical_Marks
+	 */
+	private static _massageRenderedKey(str: string): string {
+		if (str.length !== 1) {
+			return str;
+		}
+
+		return String.fromCharCode(this._combiningToRegular(str.charCodeAt(0)));
+	}
+
+	/**
+	 * Attempt to map a combining character to a regular one that renders the same way.
+	 *
+	 * To the brave person following me: Good Luck!
+	 * https://www.compart.com/en/unicode/bidiclass/NSM
+	 */
+	private static _combiningToRegular(charCode: number): number {
+		switch (charCode) {
+			case CharCode.U_Combining_Grave_Accent: return CharCode.U_GRAVE_ACCENT;
+			case CharCode.U_Combining_Acute_Accent: return CharCode.U_ACUTE_ACCENT;
+			case CharCode.U_Combining_Circumflex_Accent: return CharCode.U_CIRCUMFLEX;
+			case CharCode.U_Combining_Tilde: return CharCode.U_SMALL_TILDE;
+			case CharCode.U_Combining_Macron: return CharCode.U_MACRON;
+			case CharCode.U_Combining_Overline: return CharCode.U_OVERLINE;
+			case CharCode.U_Combining_Breve: return CharCode.U_BREVE;
+			case CharCode.U_Combining_Dot_Above: return CharCode.U_DOT_ABOVE;
+			case CharCode.U_Combining_Diaeresis: return CharCode.U_DIAERESIS;
+			case CharCode.U_Combining_Ring_Above: return CharCode.U_RING_ABOVE;
+			case CharCode.U_Combining_Double_Acute_Accent: return CharCode.U_DOUBLE_ACUTE_ACCENT;
+		}
+		return charCode;
+	}
+
+	public render(): string {
+		return this._rendered;
+	}
+}
+
+let nativeLabelRemaps: NativeLabel[] = null;
+function getNativeLabelProviderRemaps(): NativeLabel[] {
 	if (!nativeLabelRemaps) {
 		// See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
 		// See https://github.com/Microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
-		let interestingKeyCodes:{[vkeyCode:string]:boolean;} = {
+		let interestingKeyCodes: { [vkeyCode: string]: boolean; } = {
 			VKEY_OEM_1: true,
 			VKEY_OEM_PLUS: true,
 			VKEY_OEM_COMMA: true,
@@ -386,12 +441,14 @@ function getNativeLabelProviderRemaps(): string[] {
 			let nativeMapping = nativeMappings[i];
 
 			if (interestingKeyCodes[nativeMapping.key_code]) {
-				let newValue = nativeMapping.value || nativeMapping.withShift;
-				if (newValue.length > 0) {
+				if (nativeMapping.value.length > 0 || nativeMapping.withShift.length > 0) {
 					hadRemap = true;
-					nativeLabelRemaps[NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code]] = newValue;
-				} else {
-					// console.warn('invalid remap for ', nativeMapping);
+					nativeLabelRemaps[NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code]] = new NativeLabel(
+						nativeMapping.value,
+						nativeMapping.withShift,
+						nativeMapping.withAltGr,
+						nativeMapping.withShiftAltGr
+					);
 				}
 			}
 		}
@@ -400,7 +457,7 @@ function getNativeLabelProviderRemaps(): string[] {
 			for (let interestingKeyCode in interestingKeyCodes) {
 				if (interestingKeyCodes.hasOwnProperty(interestingKeyCode)) {
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[interestingKeyCode];
-					nativeLabelRemaps[keyCode] = nativeLabelRemaps[keyCode] || '';
+					nativeLabelRemaps[keyCode] = nativeLabelRemaps[keyCode] || NativeLabel.Empty;
 				}
 			}
 		}
@@ -410,39 +467,39 @@ function getNativeLabelProviderRemaps(): string[] {
 }
 
 class NativeMacUIKeyLabelProvider extends MacUIKeyLabelProvider {
-	constructor(private remaps:string[]) {
+	constructor(private remaps: NativeLabel[]) {
 		super();
 	}
 
-	public getLabelForKey(keyCode:KeyCode): string {
+	public getLabelForKey(keyCode: KeyCode): string {
 		if (this.remaps[keyCode] !== null) {
-			return this.remaps[keyCode];
+			return this.remaps[keyCode].render();
 		}
 		return super.getLabelForKey(keyCode);
 	}
 }
 
 class NativeClassicUIKeyLabelProvider extends ClassicUIKeyLabelProvider {
-	constructor(private remaps:string[]) {
+	constructor(private remaps: NativeLabel[]) {
 		super();
 	}
 
-	public getLabelForKey(keyCode:KeyCode): string {
+	public getLabelForKey(keyCode: KeyCode): string {
 		if (this.remaps[keyCode] !== null) {
-			return this.remaps[keyCode];
+			return this.remaps[keyCode].render();
 		}
 		return super.getLabelForKey(keyCode);
 	}
 }
 
 class NativeAriaKeyLabelProvider extends AriaKeyLabelProvider {
-	constructor(private remaps:string[]) {
+	constructor(private remaps: NativeLabel[]) {
 		super();
 	}
 
-	public getLabelForKey(keyCode:KeyCode): string {
+	public getLabelForKey(keyCode: KeyCode): string {
 		if (this.remaps[keyCode] !== null) {
-			return this.remaps[keyCode];
+			return this.remaps[keyCode].render();
 		}
 		return super.getLabelForKey(keyCode);
 	}

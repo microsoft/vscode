@@ -6,22 +6,25 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
 import { SuggestModel } from '../common/suggestModel';
-import { CompletionItem } from '../common/completionModel';
+import { ICompletionItem } from '../common/completionModel';
 import { SuggestWidget } from './suggestWidget';
 
+@editorContribution
 export class SuggestController implements IEditorContribution {
 	private static ID: string = 'editor.contrib.suggestController';
 
@@ -36,12 +39,22 @@ export class SuggestController implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@ICommandService private commandService: ICommandService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.model = new SuggestModel(this.editor);
 		this.toDispose.push(this.model.onDidTrigger(e => this.widget.showTriggered(e.auto)));
 		this.toDispose.push(this.model.onDidSuggest(e => this.widget.showSuggestions(e.completionModel, e.isFrozen, e.auto)));
 		this.toDispose.push(this.model.onDidCancel(e => !e.retrigger && this.widget.hideWidget()));
+
+		// Manage the acceptSuggestionsOnEnter context key
+		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(contextKeyService);
+		let updateFromConfig = () => {
+			acceptSuggestionsOnEnter.set(this.editor.getConfiguration().contribInfo.acceptSuggestionOnEnter);
+		};
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e) => updateFromConfig()));
+		updateFromConfig();
 
 		this.widget = instantiationService.createInstance(SuggestWidget, this.editor);
 		this.toDispose.push(this.widget.onDidSelect(this.onDidSelectItem, this));
@@ -63,33 +76,33 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	private onDidSelectItem(item: CompletionItem): void {
+	private onDidSelectItem(item: ICompletionItem): void {
 		if (item) {
-			const {insertText, overwriteBefore, overwriteAfter, extraEdits, command} = item.suggestion;
-			const columnDelta = this.editor.getPosition().column - this.model.getTriggerPosition().column;
+			const {suggestion, position} = item;
+			const columnDelta = this.editor.getPosition().column - position.column;
 
-				// todo@joh
-				// * order of stuff command/extraEdit/actual edit
-				// * failure of command?
-				// * wait for command to execute?
-			if (command) {
-				this.commandService.executeCommand(command.id, ...command.arguments).then(undefined, err => {
-					console.error(err);
-				});
-			}
-
-			if (Array.isArray(extraEdits)) {
+			if (Array.isArray(suggestion.additionalTextEdits)) {
 				this.editor.pushUndoStop();
-				this.editor.executeEdits('suggestController.extraEdits', extraEdits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(edit.range, edit.text)));
 				this.editor.pushUndoStop();
 			}
 
-			SnippetController.get(this.editor).run(
-				new CodeSnippet(insertText),
-				overwriteBefore + columnDelta,
-				overwriteAfter,
-				undefined
-			);
+			if (suggestion.snippetType === 'textmate') {
+				SnippetController.get(this.editor).insertSnippet(
+					suggestion.insertText,
+					suggestion.overwriteBefore + columnDelta,
+					suggestion.overwriteAfter);
+			} else {
+				SnippetController.get(this.editor).run(
+					CodeSnippet.fromInternal(suggestion.insertText),
+					suggestion.overwriteBefore + columnDelta,
+					suggestion.overwriteAfter
+				);
+			}
+
+			if (suggestion.command) {
+				this.commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
+			}
 		}
 
 		this.model.cancel();
@@ -97,6 +110,7 @@ export class SuggestController implements IEditorContribution {
 
 	triggerSuggest(): void {
 		this.model.trigger(false, false);
+		this.editor.revealLine(this.editor.getPosition().lineNumber);
 		this.editor.focus();
 	}
 
@@ -161,7 +175,7 @@ export class TriggerSuggestAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		SuggestController.get(editor).triggerSuggest();
 	}
 }
@@ -188,7 +202,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.TextFocus, ContextKeyExpr.has('config.editor.acceptSuggestionOnEnter')),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.TextFocus, SuggestContext.AcceptSuggestionsOnEnter),
 		primary: KeyCode.Enter
 	}
 }));
@@ -266,5 +280,3 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 	}
 }));
-
-EditorBrowserRegistry.registerEditorContribution(SuggestController);

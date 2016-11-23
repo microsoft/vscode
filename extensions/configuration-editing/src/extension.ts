@@ -6,12 +6,31 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import {getLocation} from 'jsonc-parser';
+import { getLocation, visit } from 'jsonc-parser';
+import * as path from 'path';
+
+const decoration = vscode.window.createTextEditorDecorationType({
+	color: '#b1b1b1'
+});
 
 export function activate(context) {
 
 	//keybindings.json command-suggestions
-	const disposable = vscode.languages.registerCompletionItemProvider({ pattern: '**/keybindings.json' }, {
+	context.subscriptions.push(registerKeybindingsCompletions());
+
+	// launch.json decorations
+	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
+	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
+		if (vscode.window.activeTextEditor && event.document === vscode.window.activeTextEditor.document) {
+			updateLaunchJsonDecorations(vscode.window.activeTextEditor);
+		}
+	}, null, context.subscriptions));
+	updateLaunchJsonDecorations(vscode.window.activeTextEditor);
+}
+
+function registerKeybindingsCompletions(): vscode.Disposable {
+
+	return vscode.languages.registerCompletionItemProvider({ pattern: '**/keybindings.json' }, {
 
 		provideCompletionItems(document, position, token) {
 			const commands = vscode.commands.getCommands(true); //This is here so updated commands can be fetched later after startup
@@ -19,19 +38,43 @@ export function activate(context) {
 			if (location.path[1] === 'command') {
 
 				const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+				return commands.then(ids => ids.map(id => newCompletionItem(id, range)));
+			}
+		}
+	});
+}
 
-				return commands.then(ids => ids.map(id => {
-					const item = new vscode.CompletionItem(`"${id}"`);
+function newCompletionItem(text: string, range: vscode.Range) {
+	const item = new vscode.CompletionItem(JSON.stringify(text));
 					item.kind = vscode.CompletionItemKind.Value;
 					item.textEdit = {
 						range,
 						newText: item.label
 					};
 					return item;
-				}));
+			}
+
+function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined) {
+	if (!editor || path.basename(editor.document.fileName) !== 'launch.json') {
+		return;
+		}
+
+	const ranges: vscode.Range[] = [];
+	let addPropertyAndValue = false;
+	visit(editor.document.getText(), {
+		onObjectProperty: (property, offset, length) => {
+			addPropertyAndValue = property === 'version' || property === 'type' || property === 'request' || property === 'configurations';
+			if (addPropertyAndValue) {
+				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
+			}
+		},
+		onLiteralValue: (value, offset, length) => {
+			if (addPropertyAndValue) {
+				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
 			}
 		}
 	});
 
-	context.subscriptions.push(disposable);
+	editor.setDecorations(decoration, ranges);
 }
+

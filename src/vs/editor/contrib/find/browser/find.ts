@@ -4,30 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {FindWidget, IFindController} from 'vs/editor/contrib/find/browser/findWidget';
-import {CommonFindController, FindStartFocusAction, IFindStartOptions, SelectionHighlighter} from 'vs/editor/contrib/find/common/findController';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { FindWidget, IFindController } from 'vs/editor/contrib/find/browser/findWidget';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions } from 'vs/editor/contrib/find/common/findController';
 
+@editorContribution
 class FindController extends CommonFindController implements IFindController {
 
 	private _widget: FindWidget;
 
 	constructor(
-		editor:ICodeEditor,
+		editor: ICodeEditor,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(editor, contextKeyService);
 
-		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService));
+		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService, contextKeyService));
 	}
 
-	protected _start(opts:IFindStartOptions): void {
+	protected _start(opts: IFindStartOptions): void {
 		super._start(opts);
 
 		if (opts.shouldFocus === FindStartFocusAction.FocusReplaceInput) {
@@ -37,6 +38,3 @@ class FindController extends CommonFindController implements IFindController {
 		}
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(FindController);
-EditorBrowserRegistry.registerEditorContribution(SelectionHighlighter);

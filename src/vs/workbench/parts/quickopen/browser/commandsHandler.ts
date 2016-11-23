@@ -6,27 +6,27 @@
 'use strict';
 
 import 'vs/css!./media/commandsHandler';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
-import {language, LANGUAGE_DEFAULT} from 'vs/base/common/platform';
-import {IAction, Action} from 'vs/base/common/actions';
-import {toErrorMessage} from 'vs/base/common/errors';
-import {Mode, IEntryRunContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntryGroup, IHighlight, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {SyncActionDescriptor, ExecuteCommandAction, IMenuService} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {Registry} from 'vs/platform/platform';
-import {QuickOpenHandler, QuickOpenAction} from 'vs/workbench/browser/quickopen';
-import {IEditorAction, IEditor} from 'vs/editor/common/editorCommon';
-import {matchesWords, matchesPrefix, matchesContiguousSubString, or} from 'vs/base/common/filters';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, Severity, IMessageWithAction} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
+import { IAction, Action } from 'vs/base/common/actions';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntryGroup, IHighlight, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { SyncActionDescriptor, ExecuteCommandAction, IMenuService } from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { Registry } from 'vs/platform/platform';
+import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
+import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, Severity, IMessageWithAction } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export const ALL_COMMANDS_PREFIX = '>';
 export const EDITOR_COMMANDS_PREFIX = '$';
@@ -141,7 +141,6 @@ class CommandEntry extends BaseCommandEntry {
 		labelHighlights: IHighlight[],
 		aliasHighlights: IHighlight[],
 		actionDescriptor: SyncActionDescriptor,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
@@ -174,7 +173,6 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		labelHighlights: IHighlight[],
 		aliasHighlights: IHighlight[],
 		action: IEditorAction,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
@@ -242,7 +240,6 @@ export class CommandsHandler extends QuickOpenHandler {
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService
 	) {

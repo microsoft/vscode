@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {RunOnceScheduler} from 'vs/base/common/async';
-import Event, {Emitter} from 'vs/base/common/event';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
-import {Disposable} from 'vs/base/common/lifecycle';
-import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState} from 'vs/editor/common/controller/textAreaState';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import Event, { Emitter } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState } from 'vs/editor/common/controller/textAreaState';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 
-enum ReadFromTextArea {
+const enum ReadFromTextArea {
 	Type,
 	Paste
 }
@@ -21,7 +20,7 @@ enum ReadFromTextArea {
 export interface IBrowser {
 	isIPad: boolean;
 	isChrome: boolean;
-	isIE11orEarlier: boolean;
+	isEdgeOrIE: boolean;
 	isFirefox: boolean;
 	enableEmptySelectionClipboard: boolean;
 }
@@ -62,21 +61,20 @@ export class TextAreaHandler extends Disposable {
 	private _onCompositionEnd = this._register(new Emitter<ICompositionEvent>());
 	public onCompositionEnd: Event<ICompositionEvent> = this._onCompositionEnd.event;
 
-	private Browser:IBrowser;
-	private textArea:ITextAreaWrapper;
-	private model:ISimpleModel;
-	private flushAnyAccumulatedEvents:()=>void;
+	private Browser: IBrowser;
+	private textArea: ITextAreaWrapper;
+	private model: ISimpleModel;
+	private flushAnyAccumulatedEvents: () => void;
 
-	private selection:Range;
-	private selections:Range[];
-	private hasFocus:boolean;
+	private selection: Range;
+	private selections: Range[];
+	private hasFocus: boolean;
 
 	private asyncTriggerCut: RunOnceScheduler;
 
-	private lastCompositionEndTime:number;
-	private cursorPosition:Position;
+	private lastCompositionEndTime: number;
 
-	private textAreaState:TextAreaState;
+	private textAreaState: TextAreaState;
 	private textareaIsShownAtCursor: boolean;
 
 	private lastCopiedValue: string;
@@ -84,7 +82,7 @@ export class TextAreaHandler extends Disposable {
 
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(Browser:IBrowser, strategy:TextAreaStrategy, textArea:ITextAreaWrapper, model:ISimpleModel, flushAnyAccumulatedEvents:()=>void) {
+	constructor(Browser: IBrowser, strategy: TextAreaStrategy, textArea: ITextAreaWrapper, model: ISimpleModel, flushAnyAccumulatedEvents: () => void) {
 		super();
 		this.Browser = Browser;
 		this.textArea = textArea;
@@ -92,7 +90,6 @@ export class TextAreaHandler extends Disposable {
 		this.flushAnyAccumulatedEvents = flushAnyAccumulatedEvents;
 		this.selection = new Range(1, 1, 1, 1);
 		this.selections = [new Range(1, 1, 1, 1)];
-		this.cursorPosition = new Position(1, 1);
 		this._nextCommand = ReadFromTextArea.Type;
 
 		this.asyncTriggerCut = new RunOnceScheduler(() => this._onCut.fire(), 0);
@@ -120,28 +117,13 @@ export class TextAreaHandler extends Disposable {
 			this.textareaIsShownAtCursor = true;
 
 			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			let shouldEmptyTextArea = true;
-			if (shouldEmptyTextArea) {
-				if (!this.Browser.isIE11orEarlier) {
-					this.setTextAreaState('compositionstart', this.textAreaState.toEmpty());
-				}
+			if (!this.Browser.isEdgeOrIE) {
+				this.setTextAreaState('compositionstart', this.textAreaState.toEmpty());
 			}
 
-			let showAtLineNumber: number;
-			let showAtColumn: number;
-
-			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			if (this.Browser.isIE11orEarlier) {
-				// Ensure selection start is in viewport
-				showAtLineNumber = this.selection.startLineNumber;
-				showAtColumn = (this.selection.startColumn - this.textAreaState.getSelectionStart());
-			} else {
-				showAtLineNumber = this.cursorPosition.lineNumber;
-				showAtColumn = this.cursorPosition.column;
-			}
 			this._onCompositionStart.fire({
-				showAtLineNumber: showAtLineNumber,
-				showAtColumn: showAtColumn
+				showAtLineNumber: this.selection.startLineNumber,
+				showAtColumn: this.selection.startColumn
 			});
 		}));
 
@@ -171,6 +153,15 @@ export class TextAreaHandler extends Disposable {
 			this.textAreaState = this.textAreaState.fromText(e.data);
 			let typeInput = this.textAreaState.updateComposition();
 			this._onType.fire(typeInput);
+
+			// Due to isEdgeOrIE (where the textarea was not cleared initially)
+			// we cannot assume the text at the end consists only of the composited text
+			if (Browser.isEdgeOrIE) {
+				// In Chrome v49, the text at the time of the compositionend event is not really the final text
+				// for the mac dead key input method.
+				// N.B: This can be removed in Chrome v53
+				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+			}
 
 			this.lastCompositionEndTime = (new Date()).getTime();
 			if (!this.textareaIsShownAtCursor) {
@@ -228,11 +219,11 @@ export class TextAreaHandler extends Disposable {
 
 	// --- begin event handlers
 
-	public setStrategy(strategy:TextAreaStrategy): void {
+	public setStrategy(strategy: TextAreaStrategy): void {
 		this.textAreaState = this.textAreaState.toStrategy(strategy);
 	}
 
-	public setHasFocus(isFocused:boolean): void {
+	public setHasFocus(isFocused: boolean): void {
 		if (this.hasFocus === isFocused) {
 			// no change
 			return;
@@ -249,13 +240,9 @@ export class TextAreaHandler extends Disposable {
 		this._writePlaceholderAndSelectTextArea('selection changed');
 	}
 
-	public setCursorPosition(primary: Position): void {
-		this.cursorPosition = primary;
-	}
-
 	// --- end event handlers
 
-	private setTextAreaState(reason:string, textAreaState:TextAreaState): void {
+	private setTextAreaState(reason: string, textAreaState: TextAreaState): void {
 		if (!this.hasFocus) {
 			textAreaState = textAreaState.resetSelection();
 		}
@@ -264,8 +251,8 @@ export class TextAreaHandler extends Disposable {
 		this.textAreaState = textAreaState;
 	}
 
-	private _onKeyDownHandler(e:IKeyboardEventWrapper): void {
-		if (e.equals(CommonKeybindings.ESCAPE)) {
+	private _onKeyDownHandler(e: IKeyboardEventWrapper): void {
+		if (e.equals(KeyCode.Escape)) {
 			// Prevent default always for `Esc`, otherwise it will generate a keypress
 			// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
 			e.preventDefault();
@@ -273,7 +260,7 @@ export class TextAreaHandler extends Disposable {
 		this._onKeyDown.fire(e);
 	}
 
-	private _onKeyPressHandler(e:IKeyboardEventWrapper): void {
+	private _onKeyPressHandler(e: IKeyboardEventWrapper): void {
 		if (!this.hasFocus) {
 			// Sometimes, when doing Alt-Tab, in FF, a 'keypress' is sent before a 'focus'
 			return;
@@ -282,8 +269,8 @@ export class TextAreaHandler extends Disposable {
 
 	// ------------- Operations that are always executed asynchronously
 
-	private executePaste(txt:string): void {
-		if(txt === '') {
+	private executePaste(txt: string): void {
+		if (txt === '') {
 			return;
 		}
 
@@ -301,7 +288,7 @@ export class TextAreaHandler extends Disposable {
 		this._writePlaceholderAndSelectTextArea('focusTextArea');
 	}
 
-	private _writePlaceholderAndSelectTextArea(reason:string): void {
+	private _writePlaceholderAndSelectTextArea(reason: string): void {
 		if (!this.textareaIsShownAtCursor) {
 			// Do not write to the textarea if it is visible.
 			if (this.Browser.isIPad) {
@@ -315,7 +302,7 @@ export class TextAreaHandler extends Disposable {
 
 	// ------------- Clipboard operations
 
-	private _ensureClipboardGetsEditorSelection(e:IClipboardEvent): void {
+	private _ensureClipboardGetsEditorSelection(e: IClipboardEvent): void {
 		let whatToCopy = this._getPlainTextToCopy();
 		if (e.canUseTextData()) {
 			e.setTextData(whatToCopy);
@@ -342,7 +329,7 @@ export class TextAreaHandler extends Disposable {
 		let selections = this.selections;
 
 		if (selections.length === 1) {
-			let range:Range = selections[0];
+			let range: Range = selections[0];
 			if (range.isEmpty()) {
 				if (this.Browser.enableEmptySelectionClipboard) {
 					let modelLineNumber = this.model.convertViewPositionToModelPosition(range.startLineNumber, 1).lineNumber;

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {PPromise, TPromise} from 'vs/base/common/winjs.base';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
-import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ID = 'searchService';
 
@@ -19,6 +19,7 @@ export const ISearchService = createDecorator<ISearchService>(ID);
 export interface ISearchService {
 	_serviceBrand: any;
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
+	extendQuery(query: ISearchQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
 }
 
@@ -48,6 +49,7 @@ export interface IPatternInfo {
 	pattern: string;
 	isRegExp?: boolean;
 	isWordMatch?: boolean;
+	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
 }
 
@@ -86,15 +88,22 @@ export interface ISearchStats {
 
 export interface ICachedSearchStats extends ISearchStats {
 	cacheLookupStartTime: number;
+	cacheFilterStartTime: number;
 	cacheLookupResultTime: number;
 	cacheEntryCount: number;
+	joined?: ISearchStats;
 }
 
 export interface IUncachedSearchStats extends ISearchStats {
+	traversal: string;
+	errors: string[];
 	fileWalkStartTime: number;
 	fileWalkResultTime: number;
 	directoriesWalked: number;
 	filesWalked: number;
+	cmdForkStartTime?: number;
+	cmdForkResultTime?: number;
+	cmdResultCount?: number;
 }
 
 

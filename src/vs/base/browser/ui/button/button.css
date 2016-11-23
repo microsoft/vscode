@@ -26,23 +26,26 @@
 }
 
 /*Theming support*/
-.vs .monaco-button:not(.disabled):hover {
+
+.monaco-button:not(.disabled):hover {
 	background-color: #DDD
-}
-
-.monaco-text-button:not(.disabled):hover {
-	background: #006BB3;
-}
-
-.monaco-text-button:not(.disabled):active {
-	background: #005F9E;
-}
-
-.vs-dark .monaco-text-button {
-	background: #0E639C;
 }
 
 .vs-dark .monaco-button:not(.disabled):hover,
 .hc-black .monaco-button:not(.disabled):hover {
 	background-color: #2f3334;
+}
+
+.monaco-button.monaco-text-button:not(.disabled):hover,
+.vs-dark .monaco-button.monaco-text-button:not(.disabled):hover,
+.hc-black .monaco-button.monaco-text-button:not(.disabled):hover {
+	background: #006BB3;
+}
+
+.monaco-button.monaco-text-button:not(.disabled):active {
+	background: #005F9E;
+}
+
+.vs-dark .monaco-button.monaco-text-button {
+	background: #0E639C;
 }

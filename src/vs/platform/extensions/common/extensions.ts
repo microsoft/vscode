@@ -5,31 +5,25 @@
 'use strict';
 
 import Severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 
 export interface IExtensionDescription {
-	id: string;
-	name: string;
-	version: string;
-	publisher: string;
-	isBuiltin: boolean;
-	extensionFolderPath: string;
-	extensionDependencies?: string[];
-	activationEvents?: string[];
-	engines: {
+	readonly id: string;
+	readonly name: string;
+	readonly version: string;
+	readonly publisher: string;
+	readonly isBuiltin: boolean;
+	readonly extensionFolderPath: string;
+	readonly extensionDependencies?: string[];
+	readonly activationEvents?: string[];
+	readonly engines: {
 		vscode: string;
 	};
-	main?: string;
-	contributes?: { [point: string]: any; };
-}
-
-export interface IActivationEventListener {
-	(): void;
-}
-
-export interface IPointListener {
-	(desc: IExtensionDescription[]): void;
+	readonly main?: string;
+	readonly contributes?: { [point: string]: any; };
+	enableProposedApi?: boolean;
 }
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
@@ -44,6 +38,16 @@ export interface IExtensionsStatus {
 	messages: IMessage[];
 }
 
+export class ExtensionPointContribution<T> {
+	readonly description: IExtensionDescription;
+	readonly value: T;
+
+	constructor(description: IExtensionDescription, value: T) {
+		this.description = description;
+		this.value = value;
+	}
+}
+
 export interface IExtensionService {
 	_serviceBrand: any;
 
@@ -56,6 +60,16 @@ export interface IExtensionService {
 	 * Block on this signal any interactions with extensions.
 	 */
 	onReady(): TPromise<boolean>;
+
+	/**
+	 * Return all registered extensions
+	 */
+	getExtensions(): TPromise<IExtensionDescription[]>;
+
+	/**
+	 * Read all contributions to an extension point.
+	 */
+	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]>;
 
 	/**
 	 * Get information about extensions status.

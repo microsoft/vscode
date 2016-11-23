@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
-import {Registry} from 'vs/platform/platform';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {IAction, IActionRunner, Action} from 'vs/base/common/actions';
-import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
-import {ITree, IFocusEvent, ISelectionEvent} from 'vs/base/parts/tree/browser/tree';
-import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
-import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
-import {DelayedDragHandler} from 'vs/base/browser/dnd';
-import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {CollapsibleView, CollapsibleState, FixedCollapsibleView, IView} from 'vs/base/browser/ui/splitview/splitview';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IViewlet} from 'vs/workbench/common/viewlet';
-import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import { Registry } from 'vs/platform/platform';
+import { Dimension, Builder, $ } from 'vs/base/browser/builder';
+import { IAction, IActionRunner, Action } from 'vs/base/common/actions';
+import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ITree, IFocusEvent, ISelectionEvent } from 'vs/base/parts/tree/browser/tree';
+import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { DelayedDragHandler } from 'vs/base/browser/dnd';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { CollapsibleView, CollapsibleState, FixedCollapsibleView, IView } from 'vs/base/browser/ui/splitview/splitview';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -152,11 +152,13 @@ export abstract class ViewerViewlet extends Viewlet {
  * A viewlet descriptor is a leightweight descriptor of a viewlet in the workbench.
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
-	public isGlobal: boolean;
 
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number, isGlobal?: boolean) {
+	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number, public isExternal: boolean = false) {
 		super(moduleId, ctorName, id, name, cssClass, order);
-		this.isGlobal = isGlobal || false;
+		if (isExternal) {
+			// Pass viewletId to external viewlet, which doesn't know its id until runtime.
+			this.appendStaticArguments([id]);
+		}
 	}
 }
 
@@ -304,7 +306,6 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 		initialBodySize: number,
 		collapsed: boolean,
 		private viewName: string,
-		private messageService: IMessageService,
 		private keybindingService: IKeybindingService,
 		protected contextMenuService: IContextMenuService
 	) {
@@ -337,7 +338,8 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 				}
 
 				return null;
-			}
+			},
+			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
@@ -473,7 +475,8 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 				}
 
 				return null;
-			}
+			},
+			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();

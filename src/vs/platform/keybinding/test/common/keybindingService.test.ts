@@ -5,14 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import {BinaryKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IOSupport, KeybindingResolver, NormalizedKeybindingItem} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
-import {ContextKeyAndExpr, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { BinaryKeybindings, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { IOSupport, KeybindingResolver, NormalizedKeybindingItem } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IKeybindingItem } from 'vs/platform/keybinding/common/keybinding';
+import { ContextKeyAndExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 suite('Keybinding Service', () => {
 
-	test('resolve key', function() {
+	test('resolve key', function () {
 		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
 		let contextRules = ContextKeyExpr.equals('bar', 'baz');
 		let keybindingItem: IKeybindingItem = {
@@ -31,7 +31,24 @@ suite('Keybinding Service', () => {
 		assert.equal(resolver.resolve({ bar: 'bz' }, 0, keybinding), null);
 	});
 
-	test('KbAndExpression.equals', function() {
+	test('resolve key with arguments', function () {
+		let commandArgs = { text: 'no' };
+		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
+		let contextRules = ContextKeyExpr.equals('bar', 'baz');
+		let keybindingItem: IKeybindingItem = {
+			command: 'yes',
+			commandArgs: commandArgs,
+			when: contextRules,
+			keybinding: keybinding,
+			weight1: 0,
+			weight2: 0
+		};
+
+		let resolver = new KeybindingResolver([keybindingItem], []);
+		assert.equal(resolver.resolve({ bar: 'baz' }, 0, keybinding).commandArgs, commandArgs);
+	});
+
+	test('KbAndExpression.equals', function () {
 		let a = ContextKeyExpr.and(
 			ContextKeyExpr.has('a1'),
 			ContextKeyExpr.and(ContextKeyExpr.has('and.a')),
@@ -57,15 +74,15 @@ suite('Keybinding Service', () => {
 		assert(a.equals(b), 'expressions should be equal');
 	});
 
-	test('KeybindingResolver.combine simple 1', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine simple 1', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: 'yes2',
 			when: ContextKeyExpr.equals('2', 'b'),
 			keybinding: KeyCode.KEY_B,
@@ -74,13 +91,13 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', ContextKeyExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), false),
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), false),
 		]);
 	});
 
-	test('KeybindingResolver.combine simple 2', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine simple 2', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -93,7 +110,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: 'yes3',
 			when: ContextKeyExpr.equals('3', 'c'),
 			keybinding: KeyCode.KEY_C,
@@ -102,14 +119,14 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', ContextKeyExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_C, 'yes3', ContextKeyExpr.equals('3', 'c'), false),
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_C, 'yes3', null, ContextKeyExpr.equals('3', 'c'), false),
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with not matching when', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with not matching when', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -122,7 +139,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: ContextKeyExpr.equals('1', 'b'),
 			keybinding: KeyCode.KEY_A,
@@ -131,13 +148,13 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', ContextKeyExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with not matching keybinding', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with not matching keybinding', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -150,7 +167,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_B,
@@ -159,13 +176,13 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', ContextKeyExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with matching keybinding and when', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with matching keybinding and when', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -178,7 +195,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -187,12 +204,12 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with unspecified keybinding', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with unspecified keybinding', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -205,7 +222,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: 0,
@@ -214,12 +231,12 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with unspecified when', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with unspecified when', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -232,7 +249,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: null,
 			keybinding: KeyCode.KEY_A,
@@ -241,12 +258,12 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with unspecified when and unspecified keybinding', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with unspecified when and unspecified keybinding', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -259,7 +276,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: null,
 			keybinding: 0,
@@ -268,12 +285,12 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
-	test('issue #612#issuecomment-222109084 cannot remove keybindings for commands with ^', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('issue #612#issuecomment-222109084 cannot remove keybindings for commands with ^', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: '^yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -286,7 +303,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: null,
 			keybinding: KeyCode.KEY_A,
@@ -295,11 +312,11 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
-	test('normalizeRule', function() {
+	test('normalizeRule', function () {
 		let key1IsTrue = ContextKeyExpr.equals('key1', true);
 		let key1IsNotFalse = ContextKeyExpr.notEquals('key1', false);
 		let key1IsFalse = ContextKeyExpr.equals('key1', false);
@@ -311,7 +328,7 @@ suite('Keybinding Service', () => {
 		assert.ok(key1IsNotTrue.normalize().equals(ContextKeyExpr.not('key1')));
 	});
 
-	test('contextIsEntirelyIncluded', function() {
+	test('contextIsEntirelyIncluded', function () {
 		let assertIsIncluded = (a: ContextKeyExpr[], b: ContextKeyExpr[]) => {
 			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new ContextKeyAndExpr(a), new ContextKeyAndExpr(b)), true);
 		};
@@ -363,7 +380,7 @@ suite('Keybinding Service', () => {
 		assertIsNotIncluded(null, [key2IsTrue]);
 	});
 
-	test('resolve command', function() {
+	test('resolve command', function () {
 
 		let items: IKeybindingItem[] = [
 			// This one will never match because its "when" is always overwritten by another one
@@ -411,7 +428,7 @@ suite('Keybinding Service', () => {
 			},
 			// This one overwrites with a chord the previous one
 			{
-				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z),
+				keybinding: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z),
 				when: null,
 				command: 'fifth',
 				weight1: 5,
@@ -426,35 +443,35 @@ suite('Keybinding Service', () => {
 				weight2: 0
 			},
 			{
-				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
+				keybinding: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
 				when: null,
 				command: 'seventh',
 				weight1: 6.5,
 				weight2: 0
 			},
 			{
-				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
+				keybinding: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
 				when: null,
 				command: 'seventh',
 				weight1: 6.5,
 				weight2: 0
 			},
 			{
-				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
+				keybinding: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
 				when: null,
 				command: 'uncomment lines',
 				weight1: 7,
 				weight2: 0
 			},
 			{
-				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				keybinding: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
 				when: null,
 				command: 'comment lines',
 				weight1: 8,
 				weight2: 0
 			},
 			{
-				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_G, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				keybinding: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_G, KeyMod.CtrlCmd | KeyCode.KEY_C),
 				when: null,
 				command: 'unreachablechord',
 				weight1: 10,
@@ -470,8 +487,6 @@ suite('Keybinding Service', () => {
 		];
 
 		let resolver = new KeybindingResolver(items, [], false);
-
-
 
 		let testKey = (commandId: string, expectedKeys: number[]) => {
 			// Test lookup
@@ -516,17 +531,17 @@ suite('Keybinding Service', () => {
 
 		testKey('fourth', []);
 
-		testKey('fifth', [KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)]);
-		testResolve({}, KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z), 'fifth');
+		testKey('fifth', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)]);
+		testResolve({}, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z), 'fifth');
 
-		testKey('seventh', [KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)]);
-		testResolve({}, KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K), 'seventh');
+		testKey('seventh', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)]);
+		testResolve({}, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K), 'seventh');
 
-		testKey('uncomment lines', [KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)]);
-		testResolve({}, KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U), 'uncomment lines');
+		testKey('uncomment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)]);
+		testResolve({}, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U), 'uncomment lines');
 
-		testKey('comment lines', [KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)]);
-		testResolve({}, KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C), 'comment lines');
+		testKey('comment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)]);
+		testResolve({}, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C), 'comment lines');
 
 		testKey('unreachablechord', []);
 
@@ -536,7 +551,7 @@ suite('Keybinding Service', () => {
 		testKey('sixth', []);
 	});
 
-	test('contextMatchesRules', function() {
+	test('contextMatchesRules', function () {
 		/* tslint:disable:triple-equals */
 		let context = {
 			'a': true,

@@ -19,7 +19,7 @@ export function tail<T>(array: T[], n: number = 0): T {
  */
 export function forEach<T>(array: T[], callback: (element: T, remove: Function) => void): void {
 	for (var i = 0, len = array.length; i < len; i++) {
-		callback(array[i], function() {
+		callback(array[i], function () {
 			array.splice(i, 1);
 			i--; len--;
 		});
@@ -89,7 +89,10 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
  * @param n The number of elements to return.
  * @return The first n elemnts from array when sorted with compare.
  */
-export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number) {
+export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): T[] {
+	if (n === 0) {
+		return [];
+	}
 	const result = array.slice(0, n).sort(compare);
 	for (let i = n, m = array.length; i < m; i++) {
 		const element = array[i];
@@ -258,11 +261,26 @@ export function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
 }
 
 export function index<T>(array: T[], indexer: (t: T) => string): { [key: string]: T; };
-export function index<T,R>(array: T[], indexer: (t: T) => string, merger?: (t: T, r: R) => R): { [key: string]: R; };
-export function index<T,R>(array: T[], indexer: (t: T) => string, merger: (t: T, r: R) => R = t => t as any): { [key: string]: R; } {
+export function index<T, R>(array: T[], indexer: (t: T) => string, merger?: (t: T, r: R) => R): { [key: string]: R; };
+export function index<T, R>(array: T[], indexer: (t: T) => string, merger: (t: T, r: R) => R = t => t as any): { [key: string]: R; } {
 	return array.reduce((r, t) => {
 		const key = indexer(t);
 		r[key] = merger(t, r[key]);
 		return r;
 	}, Object.create(null));
+}
+
+/**
+ * Inserts an element into an array. Returns a function which, when
+ * called, will remove that element from the array.
+ */
+export function insert<T>(array: T[], element: T): () => void {
+	array.push(element);
+
+	return () => {
+		const index = array.indexOf(element);
+		if (index > -1) {
+			array.splice(index, 1);
+		}
+	};
 }

@@ -13,9 +13,9 @@ import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
 import numbers = require('vs/base/common/numbers');
 import sash = require('vs/base/browser/ui/sash/sash');
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
-import Event, {Emitter} from 'vs/base/common/event';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export enum Orientation {
 	VERTICAL,
@@ -113,7 +113,7 @@ export abstract class HeaderView extends View {
 
 	constructor(opts: IHeaderViewOptions) {
 		super(opts);
-		
+
 		this.headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
 	}
 
@@ -214,16 +214,16 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 		this.headerKeyListener = dom.addDisposableListener(this.header, dom.EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e);
 			let eventHandled = false;
-			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE) || (event.equals(CommonKeybindings.LEFT_ARROW) && this.state === CollapsibleState.EXPANDED) || (event.equals(CommonKeybindings.RIGHT_ARROW) && this.state === CollapsibleState.COLLAPSED)) {
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space) || (event.equals(KeyCode.LeftArrow) && this.state === CollapsibleState.EXPANDED) || (event.equals(KeyCode.RightArrow) && this.state === CollapsibleState.COLLAPSED)) {
 				this.toggleExpansion();
 				eventHandled = true;
-			} else if (event.equals(CommonKeybindings.ESCAPE)) {
+			} else if (event.equals(KeyCode.Escape)) {
 				this.header.blur();
 				eventHandled = true;
-			} else if (event.equals(CommonKeybindings.UP_ARROW)) {
+			} else if (event.equals(KeyCode.UpArrow)) {
 				this.emit('focusPrevious');
 				eventHandled = true;
-			} else if (event.equals(CommonKeybindings.DOWN_ARROW)) {
+			} else if (event.equals(KeyCode.DownArrow)) {
 				this.emit('focusNext');
 				eventHandled = true;
 			}
@@ -379,9 +379,9 @@ export abstract class FixedCollapsibleView extends AbstractCollapsibleView {
 }
 
 class PlainView extends View {
-	render() {}
-	focus() {}
-	layout() {}
+	render() { }
+	focus() { }
+	layout() { }
 }
 
 class DeadView extends PlainView {
@@ -413,8 +413,7 @@ function sum(arr: number[]): number {
 
 export class SplitView implements
 	sash.IHorizontalSashLayoutProvider,
-	sash.IVerticalSashLayoutProvider
-{
+	sash.IVerticalSashLayoutProvider {
 	private orientation: Orientation;
 	private el: HTMLElement;
 	private size: number;

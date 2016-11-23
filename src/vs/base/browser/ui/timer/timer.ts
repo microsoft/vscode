@@ -6,14 +6,9 @@
 'use strict';
 
 import 'vs/css!./timer';
-import {TimeKeeper, ITimerEvent, getTimeKeeper} from 'vs/base/common/timer';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { TimeKeeper, ITimerEvent, getTimeKeeper } from 'vs/base/common/timer';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import DomUtils = require('vs/base/browser/dom');
-
-interface IUnmatchedStartTimerEvent {
-	event: ITimerEvent;
-	domNode: HTMLElement;
-}
 
 export class TimeKeeperRenderer {
 

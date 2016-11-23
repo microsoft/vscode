@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {Builder, $} from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import types = require('vs/base/common/types');
-import {Registry} from 'vs/platform/platform';
-import {Mode, IEntryRunContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntryItem, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
-import {IQuickOpenRegistry, Extensions, QuickOpenHandler} from 'vs/workbench/browser/quickopen';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { Registry } from 'vs/platform/platform';
+import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntryItem, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { ITree, IElementCallback } from 'vs/base/parts/tree/browser/tree';
+import { IQuickOpenRegistry, Extensions, QuickOpenHandler } from 'vs/workbench/browser/quickopen';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export const HELP_PREFIX = '?';
 
@@ -127,9 +127,9 @@ export class HelpHandler extends QuickOpenHandler {
 		let registry = (<IQuickOpenRegistry>Registry.as(Extensions.Quickopen));
 		let handlerDescriptors = registry.getQuickOpenHandlers();
 
-		let defaultHandlers = registry.getDefaultQuickOpenHandlers();
-		if (defaultHandlers.length > 0) {
-			handlerDescriptors.push(...defaultHandlers);
+		let defaultHandler = registry.getDefaultQuickOpenHandler();
+		if (defaultHandler) {
+			handlerDescriptors.push(defaultHandler);
 		}
 
 		let workbenchScoped: HelpEntry[] = [];

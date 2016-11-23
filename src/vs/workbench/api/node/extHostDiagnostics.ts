@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {localize} from 'vs/nls';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IMarkerData} from 'vs/platform/markers/common/markers';
+import { localize } from 'vs/nls';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
-import {MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape} from './extHost.protocol';
-import {DiagnosticSeverity} from './extHostTypes';
+import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape } from './extHost.protocol';
+import { DiagnosticSeverity } from './extHostTypes';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -21,7 +21,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	private _proxy: MainThreadDiagnosticsShape;
 
 	private _isDisposed = false;
-	private _data: {[uri:string]: vscode.Diagnostic[]} = Object.create(null);
+	private _data: { [uri: string]: vscode.Diagnostic[] } = Object.create(null);
 
 	constructor(name: string, proxy: MainThreadDiagnosticsShape) {
 		this._name = name;
@@ -72,20 +72,30 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		} else if (Array.isArray(first)) {
 			// update many rows
 			toSync = [];
-			for (let entry of first) {
-				let [uri, diagnostics] = entry;
-				toSync.push(uri);
+			let lastUri: vscode.Uri;
+
+			// ensure stable-sort: keep the original
+			// index for otherwise equal items
+			const sortedTuples = first
+				.map((tuple, idx) => ({ tuple, idx }))
+				.sort(DiagnosticCollection._compareIndexedTuplesByUri);
+
+			for (const {tuple} of sortedTuples) {
+				const [uri, diagnostics] = tuple;
+				if (!lastUri || uri.toString() !== lastUri.toString()) {
+					if (lastUri && this._data[lastUri.toString()].length === 0) {
+						delete this._data[lastUri.toString()];
+					}
+					lastUri = uri;
+					toSync.push(uri);
+					this._data[uri.toString()] = [];
+				}
+
 				if (!diagnostics) {
 					// [Uri, undefined] means clear this
-					delete this._data[uri.toString()];
+					this._data[uri.toString()].length = 0;
 				} else {
-					// set or merge diagnostics
-					let existing = this._data[uri.toString()];
-					if (existing) {
-						existing.push(...diagnostics);
-					} else {
-						this._data[uri.toString()] = diagnostics;
-					}
+					this._data[uri.toString()].push(...diagnostics);
 				}
 			}
 		}
@@ -115,7 +125,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					// add 'signal' marker for showing omitted errors/warnings
 					marker.push({
 						severity: Severity.Error,
-						message: localize('limitHit', "Not showing {0} further errors and warnings.", diagnostics.length - DiagnosticCollection._maxDiagnosticsPerFile),
+						message: localize({ key: 'limitHit', comment: ['amount of errors/warning skipped due to limits'] }, "Not showing {0} further errors and warnings.", diagnostics.length - DiagnosticCollection._maxDiagnosticsPerFile),
 						startLineNumber: marker[marker.length - 1].startLineNumber,
 						startColumn: marker[marker.length - 1].startColumn,
 						endLineNumber: marker[marker.length - 1].endLineNumber,
@@ -126,7 +136,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 				}
 			}
 
-			entries.push([<URI> uri, marker]);
+			entries.push([<URI>uri, marker]);
 		}
 
 		this._proxy.$changeMany(this.name, entries);
@@ -135,7 +145,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	delete(uri: vscode.Uri): void {
 		this._checkDisposed();
 		delete this._data[uri.toString()];
-		this._proxy.$changeMany(this.name, [[<URI> uri, undefined]]);
+		this._proxy.$changeMany(this.name, [[<URI>uri, undefined]]);
 	}
 
 	clear(): void {
@@ -194,6 +204,20 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			case 2: return Severity.Info;
 			case 3: return Severity.Ignore;
 			default: return Severity.Error;
+		}
+	}
+
+	private static _compareIndexedTuplesByUri(a: { tuple: [vscode.Uri, vscode.Diagnostic[]]; idx: number }, b: { tuple: [vscode.Uri, vscode.Diagnostic[]]; idx: number }): number {
+		if (a.tuple[0].toString() < b.tuple[0].toString()) {
+			return -1;
+		} else if (a.tuple[0].toString() > b.tuple[0].toString()) {
+			return 1;
+		} else if (a.idx < b.idx) {
+			return -1;
+		} else if (a.idx > b.idx) {
+			return 1;
+		} else {
+			return 0;
 		}
 	}
 }

@@ -6,9 +6,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, window, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind} from 'vscode';
-import {join} from 'path';
-import {cleanUp, pathEquals} from './utils';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
+import { join } from 'path';
+import { cleanUp, pathEquals } from './utils';
 
 suite('window namespace tests', () => {
 
@@ -19,7 +19,7 @@ suite('window namespace tests', () => {
 			return window.showTextDocument(doc).then((editor) => {
 				const active = window.activeTextEditor;
 				assert.ok(active);
-				assert.ok(pathEquals(active.document.uri.fsPath, doc.uri.fsPath));
+				assert.ok(pathEquals(active!.document.uri.fsPath, doc.uri.fsPath));
 			});
 		});
 	});
@@ -42,6 +42,33 @@ suite('window namespace tests', () => {
 				assert.equal(editor.viewColumn, ViewColumn.Three);
 			});
 			return Promise.all([p1, p2, p3]);
+		});
+	});
+
+	test('editor, onDidChangeVisibleTextEditors', () => {
+
+		let eventCounter = 0;
+		let reg = window.onDidChangeVisibleTextEditors(editor => {
+			eventCounter += 1;
+		});
+
+		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+			return window.showTextDocument(doc, ViewColumn.One).then(editor => {
+				assert.equal(eventCounter, 1);
+				return doc;
+			});
+		}).then(doc => {
+			return window.showTextDocument(doc, ViewColumn.Two).then(editor => {
+				assert.equal(eventCounter, 2);
+				return doc;
+			});
+		}).then(doc => {
+			return window.showTextDocument(doc, ViewColumn.Three).then(editor => {
+				assert.equal(eventCounter, 3);
+				return doc;
+			});
+		}).then(doc => {
+			reg.dispose();
 		});
 	});
 
@@ -88,7 +115,7 @@ suite('window namespace tests', () => {
 		const file30Path = join(workspace.rootPath, './30linefile.ts');
 
 		let finished = false;
-		let failOncePlease = (err:Error) => {
+		let failOncePlease = (err: Error) => {
 			if (finished) {
 				return;
 			}
@@ -127,13 +154,13 @@ suite('window namespace tests', () => {
 		workspace.openTextDocument(file10Path).then((doc) => {
 			return window.showTextDocument(doc, ViewColumn.One);
 		}).then((editor10line) => {
-			editor10line.selection = new Selection(new Position(9,0), new Position(9, 0));
+			editor10line.selection = new Selection(new Position(9, 0), new Position(9, 0));
 		}).then(() => {
 			return workspace.openTextDocument(file30Path);
 		}).then((doc) => {
 			return window.showTextDocument(doc, ViewColumn.One);
 		}).then((editor30line) => {
-			editor30line.selection = new Selection(new Position(29,0), new Position(29, 0));
+			editor30line.selection = new Selection(new Position(29, 0), new Position(29, 0));
 		}).then(() => {
 			return workspace.openTextDocument(file10Path);
 		}).then((doc) => {
@@ -172,6 +199,39 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('showInputBox - \'\' on Enter', function () {
+		const p = window.showInputBox();
+		return Promise.all<any>([
+			commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem'),
+			p.then(value => assert.equal(value, ''))
+		]);
+	});
+
+	test('showInputBox - default value on Enter', function () {
+		const p = window.showInputBox({ value: 'farboo' });
+		return Promise.all<any>([
+			p.then(value => assert.equal(value, 'farboo')),
+			commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem'),
+		]);
+	});
+
+	test('showInputBox - `undefined` on Esc', function () {
+		const p = window.showInputBox();
+		return Promise.all<any>([
+			commands.executeCommand('workbench.action.closeQuickOpen'),
+			p.then(value => assert.equal(value, undefined))
+		]);
+	});
+
+	test('showInputBox - `undefined` on Esc (despite default)', function () {
+		const p = window.showInputBox({ value: 'farboo' });
+		return Promise.all<any>([
+			commands.executeCommand('workbench.action.closeQuickOpen'),
+			p.then(value => assert.equal(value, undefined))
+		]);
+	});
+
+
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
 		const p = window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
@@ -186,6 +246,46 @@ suite('window namespace tests', () => {
 		source.cancel();
 		const p = window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
 		return p.then(value => {
+			assert.equal(value, undefined);
+		});
+	});
+
+	test('showQuickPick, canceled by another picker', function () {
+
+		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
+			assert.equal(result, undefined);
+		});
+
+		const source = new CancellationTokenSource();
+		source.cancel();
+		window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
+
+		return result;
+	});
+
+	test('showQuickPick, canceled by input', function () {
+
+		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
+			assert.equal(result, undefined);
+		});
+
+		const source = new CancellationTokenSource();
+		source.cancel();
+		window.showInputBox(undefined, source.token);
+
+		return result;
+	});
+
+	test('showQuickPick, native promise - #11754', function () {
+
+		const data = new Promise<string[]>(resolve => {
+			resolve(['a', 'b', 'c']);
+		});
+
+		const source = new CancellationTokenSource();
+		const result = window.showQuickPick(data, undefined, source.token);
+		source.cancel();
+		return result.then(value => {
 			assert.equal(value, undefined);
 		});
 	});
@@ -208,5 +308,39 @@ suite('window namespace tests', () => {
 			});
 
 		});
+	});
+
+	test('createTerminal, Terminal.name', () => {
+		var terminal = window.createTerminal('foo');
+		assert.equal(terminal.name, 'foo');
+
+		assert.throws(() => {
+			terminal.name = 'bar';
+		}, 'Terminal.name should be readonly');
+	});
+
+	test('terminal, sendText immediately after createTerminal should not throw', () => {
+		const terminal = window.createTerminal();
+		assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
+	});
+
+	test('terminal, onDidCloseTerminal event fires when terminal is disposed', (done) => {
+		const terminal = window.createTerminal();
+		window.onDidCloseTerminal((eventTerminal) => {
+			assert.equal(terminal, eventTerminal);
+			done();
+		});
+		terminal.dispose();
+	});
+
+	test('terminal, processId immediately after createTerminal should fetch the pid', (done) => {
+		window.createTerminal().processId.then(id => {
+			assert.ok(id > 0);
+			done();
+		});
+	});
+
+	test('terminal, name should set terminal.name', () => {
+		assert.equal(window.createTerminal('foo').name, 'foo');
 	});
 });

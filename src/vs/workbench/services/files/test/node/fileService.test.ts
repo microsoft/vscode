@@ -10,14 +10,16 @@ import path = require('path');
 import os = require('os');
 import assert = require('assert');
 
-import {FileService, IEncodingOverride} from 'vs/workbench/services/files/node/fileService';
-import {EventType, FileChangesEvent, FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
-import {nfcall} from 'vs/base/common/async';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { FileService, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
+import { EventType, FileChangesEvent, FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
+import { nfcall } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import extfs = require('vs/base/node/extfs');
 import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
+import { onError } from 'vs/test/utils/servicesTestUtils';
 
 suite('FileService', () => {
 	let events: utils.TestEventService;
@@ -30,7 +32,11 @@ suite('FileService', () => {
 		testDir = path.join(parentDir, id);
 		let sourceDir = require.toUrl('./fixtures/service');
 
-		extfs.copy(sourceDir, testDir, () => {
+		extfs.copy(sourceDir, testDir, (error) => {
+			if (error) {
+				return onError(error, done);
+			}
+
 			events = new utils.TestEventService();
 			service = new FileService(testDir, { disableWatcher: true }, events);
 			done();
@@ -65,7 +71,7 @@ suite('FileService', () => {
 			assert.equal(fs.readFileSync(s.resource.fsPath), contents);
 
 			done();
-		});
+		}, error => onError(error, done));
 	});
 
 	test('createFolder', function (done: () => void) {
@@ -76,7 +82,27 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
+	});
+
+	test('touchFile', function (done: () => void) {
+		service.touchFile(uri.file(path.join(testDir, 'test.txt'))).done(s => {
+			assert.equal(s.name, 'test.txt');
+			assert.equal(fs.existsSync(s.resource.fsPath), true);
+			assert.equal(fs.readFileSync(s.resource.fsPath).length, 0);
+
+			const stat = fs.statSync(s.resource.fsPath);
+
+			return TPromise.timeout(10).then(() => {
+				return service.touchFile(s.resource).done(s => {
+					const statNow = fs.statSync(s.resource.fsPath);
+					assert.ok(statNow.mtime.getTime() >= stat.mtime.getTime()); // one some OS the resolution seems to be 1s, so we use >= here
+					assert.equal(statNow.size, stat.size);
+
+					done();
+				});
+			});
+		}, error => onError(error, done));
 	});
 
 	test('renameFile', function (done: () => void) {
@@ -87,7 +113,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('renameFolder', function (done: () => void) {
@@ -109,7 +135,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('moveFile', function (done: () => void) {
@@ -120,7 +146,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('move - FILE_MOVE_CONFLICT', function (done: () => void) {
@@ -130,7 +156,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('moveFile - MIX CASE', function (done: () => void) {
@@ -141,7 +167,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('moveFile - overwrite folder with file', function (done: () => void) {
@@ -154,7 +180,7 @@ suite('FileService', () => {
 					done();
 				});
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('copyFile', function (done: () => void) {
@@ -165,7 +191,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('copyFile - overwrite folder with file', function (done: () => void) {
@@ -178,7 +204,7 @@ suite('FileService', () => {
 					done();
 				});
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('importFile', function (done: () => void) {
@@ -189,7 +215,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('importFile - MIX CASE', function (done: () => void) {
@@ -207,7 +233,7 @@ suite('FileService', () => {
 					});
 				});
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('importFile - overwrite folder with file', function (done: () => void) {
@@ -221,7 +247,7 @@ suite('FileService', () => {
 					done();
 				});
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('importFile - same file', function (done: () => void) {
@@ -231,7 +257,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('deleteFile', function (done: () => void) {
@@ -241,7 +267,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('deleteFolder', function (done: () => void) {
@@ -251,7 +277,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('resolveFile', function (done: () => void) {
@@ -262,7 +288,7 @@ suite('FileService', () => {
 			assert.equal(deep.children.length, 4);
 
 			done();
-		});
+		}, error => onError(error, done));
 	});
 
 	test('existsFile', function (done: () => void) {
@@ -274,7 +300,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('updateContent', function (done: () => void) {
@@ -290,7 +316,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('updateContent - use encoding (UTF 16 BE)', function (done: () => void) {
@@ -311,7 +337,7 @@ suite('FileService', () => {
 					});
 				});
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('updateContent - encoding preserved (UTF 16 LE)', function (done: () => void) {
@@ -334,7 +360,7 @@ suite('FileService', () => {
 					});
 				});
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('resolveContent - FILE_IS_BINARY', function (done: () => void) {
@@ -348,7 +374,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('resolveContent - FILE_IS_DIRECTORY', function (done: () => void) {
@@ -358,7 +384,7 @@ suite('FileService', () => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
 
 			done();
-		});
+		}, error => onError(error, done));
 	});
 
 	test('resolveContent - FILE_NOT_FOUND', function (done: () => void) {
@@ -368,7 +394,7 @@ suite('FileService', () => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 
 			done();
-		});
+		}, error => onError(error, done));
 	});
 
 	test('resolveContent - FILE_NOT_MODIFIED_SINCE', function (done: () => void) {
@@ -380,7 +406,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('resolveContent - FILE_MODIFIED_SINCE', function (done: () => void) {
@@ -394,7 +420,7 @@ suite('FileService', () => {
 
 				done();
 			});
-		});
+		}, error => onError(error, done));
 	});
 
 	test('resolveContent - encoding picked up', function (done: () => void) {
@@ -405,7 +431,7 @@ suite('FileService', () => {
 			assert.equal(c.encoding, encoding);
 
 			done();
-		});
+		}, error => onError(error, done));
 	});
 
 	test('resolveContent - user overrides BOM', function (done: () => void) {
@@ -415,7 +441,7 @@ suite('FileService', () => {
 			assert.equal(c.encoding, 'windows1252');
 
 			done();
-		});
+		}, error => onError(error, done));
 	});
 
 	test('resolveContent - BOM removed', function (done: () => void) {
@@ -425,7 +451,7 @@ suite('FileService', () => {
 			assert.equal(encodingLib.detectEncodingByBOMFromBuffer(new Buffer(c.value), 512), null);
 
 			done();
-		});
+		}, error => onError(error, done));
 	});
 
 	test('resolveContent - invalid encoding', function (done: () => void) {
@@ -435,7 +461,7 @@ suite('FileService', () => {
 			assert.equal(c.encoding, 'utf8');
 
 			done();
-		});
+		}, error => onError(error, done));
 	});
 
 	test('watchFileChanges', function (done: () => void) {
@@ -452,6 +478,28 @@ suite('FileService', () => {
 
 		setTimeout(() => {
 			fs.writeFileSync(toWatch.fsPath, 'Changes');
+		}, 100);
+	});
+
+	test('watchFileChanges - support atomic save', function (done: () => void) {
+		let toWatch = uri.file(path.join(testDir, 'index.html'));
+
+		service.watchFileChanges(toWatch);
+
+		events.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
+			assert.ok(e);
+
+			service.unwatchFileChanges(toWatch);
+			done();
+		});
+
+		setTimeout(() => {
+			// Simulate atomic save by deleting the file, creating it under different name
+			// and then replacing the previously deleted file with those contents
+			const renamed = `${toWatch.fsPath}.bak`;
+			fs.unlinkSync(toWatch.fsPath);
+			fs.writeFileSync(renamed, 'Changes');
+			fs.renameSync(renamed, toWatch.fsPath);
 		}, 100);
 	});
 

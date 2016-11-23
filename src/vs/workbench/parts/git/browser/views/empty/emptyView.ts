@@ -10,19 +10,17 @@ import nls = require('vs/nls');
 import Lifecycle = require('vs/base/common/lifecycle');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import DOM = require('vs/base/browser/dom');
-import {Button} from 'vs/base/browser/ui/button/button';
+import { Button } from 'vs/base/browser/ui/button/button';
 import WinJS = require('vs/base/common/winjs.base');
 import Builder = require('vs/base/browser/builder');
 import Actions = require('vs/base/common/actions');
 import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
-import git = require('vs/workbench/parts/git/common/git');
 import GitView = require('vs/workbench/parts/git/browser/views/view');
 import GitActions = require('vs/workbench/parts/git/browser/gitActions');
-import {IFileService} from 'vs/platform/files/common/files';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
-
-import IGitService = git.IGitService;
+import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IGitService } from 'vs/workbench/parts/git/common/git';
 
 var $ = Builder.$;
 
@@ -81,7 +79,7 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 
 	// IView
 
-	public get element():HTMLElement {
+	public get element(): HTMLElement {
 		this.render();
 		return this.$el.getHTMLElement();
 	}
@@ -102,13 +100,8 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 			DOM.EventHelper.stop(e);
 
 			this.disableUI();
-
-			this.actionRunner.run(this.initAction).done(() => {
-				this.enableUI();
-			});
+			this.actionRunner.run(this.initAction).done(() => this.enableUI());
 		});
-
-		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.OPERATION, () => this.onGitOperation()));
 	}
 
 	private disableUI(): void {
@@ -124,7 +117,7 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 	}
 
 	private enableUI(): void {
-		if (this.gitService.getRunningOperations().length > 0){
+		if (this.gitService.getRunningOperations().length > 0) {
 			return;
 		}
 
@@ -136,15 +129,15 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 		this.initButton.enabled = true;
 	}
 
-	public focus():void {
+	public focus(): void {
 		this.initButton.focus();
 	}
 
-	public layout(dimension:Builder.Dimension):void {
+	public layout(dimension: Builder.Dimension): void {
 		// no-op
 	}
 
-	public setVisible(visible:boolean): WinJS.TPromise<void> {
+	public setVisible(visible: boolean): WinJS.TPromise<void> {
 		this.isVisible = visible;
 
 		return WinJS.TPromise.as(null);
@@ -155,7 +148,7 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 	}
 
 	public getActions(): Actions.IAction[] {
-		return this.refreshAction ? [ this.refreshAction ] : [];
+		return this.refreshAction ? [this.refreshAction] : [];
 	}
 
 	public getSecondaryActions(): Actions.IAction[] {
@@ -163,14 +156,6 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 	}
 
 	// Events
-
-	private onGitOperation(): void {
-		if (this.gitService.getRunningOperations().length > 0) {
-			this.disableUI();
-		} else {
-			this.enableUI();
-		}
-	}
 
 	public dispose(): void {
 		if (this.$el) {

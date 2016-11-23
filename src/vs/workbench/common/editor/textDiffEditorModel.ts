@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IDiffEditorModel} from 'vs/editor/common/editorCommon';
-import {EditorModel} from 'vs/workbench/common/editor';
-import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDiffEditorModel } from 'vs/editor/common/editorCommon';
+import { EditorModel } from 'vs/workbench/common/editor';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 
 /**
  * The base text editor model for the diff editor. It is made up of two text editor models, the original version
@@ -21,6 +21,14 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		super(originalModel, modifiedModel);
 
 		this.updateTextDiffEditorModel();
+	}
+
+	get originalModel(): BaseTextEditorModel {
+		return this._originalModel as BaseTextEditorModel;
+	}
+
+	get modifiedModel(): BaseTextEditorModel {
+		return this._modifiedModel as BaseTextEditorModel;
 	}
 
 	public load(): TPromise<EditorModel> {
@@ -37,15 +45,15 @@ export class TextDiffEditorModel extends DiffEditorModel {
 			// Create new
 			if (!this._textDiffEditorModel) {
 				this._textDiffEditorModel = {
-					original: (<BaseTextEditorModel>this.originalModel).textEditorModel,
-					modified: (<BaseTextEditorModel>this.modifiedModel).textEditorModel
+					original: this.originalModel.textEditorModel,
+					modified: this.modifiedModel.textEditorModel
 				};
 			}
 
 			// Update existing
 			else {
-				this._textDiffEditorModel.original = (<BaseTextEditorModel>this.originalModel).textEditorModel;
-				this._textDiffEditorModel.modified = (<BaseTextEditorModel>this.modifiedModel).textEditorModel;
+				this._textDiffEditorModel.original = this.originalModel.textEditorModel;
+				this._textDiffEditorModel.modified = this.modifiedModel.textEditorModel;
 			}
 		}
 	}

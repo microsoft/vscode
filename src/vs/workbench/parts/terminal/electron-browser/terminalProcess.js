@@ -51,6 +51,7 @@ process.on('message', function (message) {
 	}
 });
 
+sendProcessId();
 setupTitlePolling();
 
 function getArgs() {
@@ -65,7 +66,7 @@ function getArgs() {
 
 function cleanEnv() {
 	var keys = [
-		'ATOM_SHELL_INTERNAL_RUN_AS_NODE',
+		'ELECTRON_RUN_AS_NODE',
 		'PTYCWD',
 		'PTYPID',
 		'PTYSHELL'
@@ -89,6 +90,13 @@ function setupPlanB(parentPid) {
 			process.exit();
 		}
 	}, 5000);
+}
+
+function sendProcessId() {
+	process.send({
+		type: 'pid',
+		content: ptyProcess.pid
+	});
 }
 
 function setupTitlePolling() {

@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import {IEntryRunContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {KeyMod} from 'vs/base/common/keyCodes';
-import {QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
-import {TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel} from 'vs/editor/common/editorCommon';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { KeyMod } from 'vs/base/common/keyCodes';
+import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel } from 'vs/editor/common/editorCommon';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -62,7 +61,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		}
 
 		// Input valid, indicate action
-		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and column {1}", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}", this.line);
+		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and character {1}", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}", this.line);
 	}
 
 	private invalidRange(maxLineNumber: number = this.getMaxLineNumber()): boolean {
@@ -92,12 +91,10 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return this.editorService.getActiveEditorInput();
 	}
 
-	public getOptions(): EditorOptions {
-		let range = this.toSelection();
-		let options = new TextEditorOptions();
-		options.selection(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn);
-
-		return options;
+	public getOptions(): ITextEditorOptions {
+		return {
+			selection: this.toSelection()
+		};
 	}
 
 	public runOpen(context: IEntryRunContext): boolean {
@@ -161,13 +158,13 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 }
 
 interface IEditorLineDecoration {
-	lineHighlightId: string;
+	rangeHighlightId: string;
 	lineDecorationId: string;
 	position: Position;
 }
 
 export class GotoLineHandler extends QuickOpenHandler {
-	private lineHighlightDecorationId: IEditorLineDecoration;
+	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 
 	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
@@ -200,18 +197,18 @@ export class GotoLineHandler extends QuickOpenHandler {
 		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			let deleteDecorations: string[] = [];
 
-			if (this.lineHighlightDecorationId) {
-				deleteDecorations.push(this.lineHighlightDecorationId.lineDecorationId);
-				deleteDecorations.push(this.lineHighlightDecorationId.lineHighlightId);
-				this.lineHighlightDecorationId = null;
+			if (this.rangeHighlightDecorationId) {
+				deleteDecorations.push(this.rangeHighlightDecorationId.lineDecorationId);
+				deleteDecorations.push(this.rangeHighlightDecorationId.rangeHighlightId);
+				this.rangeHighlightDecorationId = null;
 			}
 
 			let newDecorations: IModelDeltaDecoration[] = [
-				// lineHighlight at index 0
+				// rangeHighlight at index 0
 				{
 					range: range,
 					options: {
-						className: 'lineHighlight',
+						className: 'rangeHighlight',
 						isWholeLine: true
 					}
 				},
@@ -230,11 +227,11 @@ export class GotoLineHandler extends QuickOpenHandler {
 			];
 
 			let decorations = changeAccessor.deltaDecorations(deleteDecorations, newDecorations);
-			let lineHighlightId = decorations[0];
+			let rangeHighlightId = decorations[0];
 			let lineDecorationId = decorations[1];
 
-			this.lineHighlightDecorationId = {
-				lineHighlightId: lineHighlightId,
+			this.rangeHighlightDecorationId = {
+				rangeHighlightId: rangeHighlightId,
 				lineDecorationId: lineDecorationId,
 				position: position
 			};
@@ -242,20 +239,20 @@ export class GotoLineHandler extends QuickOpenHandler {
 	}
 
 	public clearDecorations(): void {
-		if (this.lineHighlightDecorationId) {
+		if (this.rangeHighlightDecorationId) {
 			this.editorService.getVisibleEditors().forEach((editor) => {
-				if (editor.position === this.lineHighlightDecorationId.position) {
+				if (editor.position === this.rangeHighlightDecorationId.position) {
 					let editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 						changeAccessor.deltaDecorations([
-							this.lineHighlightDecorationId.lineDecorationId,
-							this.lineHighlightDecorationId.lineHighlightId
+							this.rangeHighlightDecorationId.lineDecorationId,
+							this.rangeHighlightDecorationId.rangeHighlightId
 						], []);
 					});
 				}
 			});
 
-			this.lineHighlightDecorationId = null;
+			this.rangeHighlightDecorationId = null;
 		}
 	}
 

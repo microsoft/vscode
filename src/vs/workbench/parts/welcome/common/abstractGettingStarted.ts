@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product';
 
 /**
@@ -26,7 +26,7 @@ export abstract class AbstractGettingStarted implements IWorkbenchContribution {
 	) {
 		this.appName = product.nameLong;
 
-		if (product.welcomePage && !environmentService.extensionDevelopmentPath /* do not open a browser when we run an extension */) {
+		if (product.welcomePage && !environmentService.isExtensionDevelopment /* do not open a browser when we run an extension */) {
 			this.welcomePageURL = product.welcomePage;
 			this.handleWelcome();
 		}

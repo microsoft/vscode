@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { CharCode } from 'vs/base/common/charCode';
+import { LineParts } from 'vs/editor/common/core/lineParts';
 
 export class RenderLineInput {
 	_renderLineInputBrand: void;
@@ -13,18 +15,18 @@ export class RenderLineInput {
 	tabSize: number;
 	spaceWidth: number;
 	stopRenderingLineAfter: number;
-	renderWhitespace: boolean;
+	renderWhitespace: 'none' | 'boundary' | 'all';
 	renderControlCharacters: boolean;
-	parts: ViewLineToken[];
+	lineParts: LineParts;
 
 	constructor(
 		lineContent: string,
 		tabSize: number,
 		spaceWidth: number,
 		stopRenderingLineAfter: number,
-		renderWhitespace: boolean,
+		renderWhitespace: 'none' | 'boundary' | 'all',
 		renderControlCharacters: boolean,
-		parts: ViewLineToken[]
+		lineParts: LineParts
 	) {
 		this.lineContent = lineContent;
 		this.tabSize = tabSize;
@@ -32,39 +34,44 @@ export class RenderLineInput {
 		this.stopRenderingLineAfter = stopRenderingLineAfter;
 		this.renderWhitespace = renderWhitespace;
 		this.renderControlCharacters = renderControlCharacters;
-		this.parts = parts;
+		this.lineParts = lineParts;
+	}
+
+	public equals(other: RenderLineInput): boolean {
+		return (
+			this.lineContent === other.lineContent
+			&& this.tabSize === other.tabSize
+			&& this.spaceWidth === other.spaceWidth
+			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
+			&& this.renderWhitespace === other.renderWhitespace
+			&& this.renderControlCharacters === other.renderControlCharacters
+			&& this.lineParts.equals(other.lineParts)
+		);
 	}
 }
 
 export class RenderLineOutput {
 	_renderLineOutputBrand: void;
-	charOffsetInPart: number[];
-	lastRenderedPartIndex: number;
-	output: string;
 
-	constructor(charOffsetInPart: number[], lastRenderedPartIndex: number, output: string) {
+	readonly charOffsetInPart: number[];
+	readonly lastRenderedPartIndex: number;
+	readonly output: string;
+	readonly isWhitespaceOnly: boolean;
+
+	constructor(charOffsetInPart: number[], lastRenderedPartIndex: number, output: string, isWhitespaceOnly: boolean) {
 		this.charOffsetInPart = charOffsetInPart;
 		this.lastRenderedPartIndex = lastRenderedPartIndex;
 		this.output = output;
+		this.isWhitespaceOnly = isWhitespaceOnly;
 	}
 }
 
-const _space = ' '.charCodeAt(0);
-const _tab = '\t'.charCodeAt(0);
-const _lowerThan = '<'.charCodeAt(0);
-const _greaterThan = '>'.charCodeAt(0);
-const _ampersand = '&'.charCodeAt(0);
-const _carriageReturn = '\r'.charCodeAt(0);
-const _controlCharacterSequenceConversionStart = 9216;
-const _lineSeparator = '\u2028'.charCodeAt(0); //http://www.fileformat.info/info/unicode/char/2028/index.htm
-const _bom = 65279;
-
-export function renderLine(input:RenderLineInput): RenderLineOutput {
+export function renderLine(input: RenderLineInput): RenderLineOutput {
 	const lineText = input.lineContent;
 	const lineTextLength = lineText.length;
 	const tabSize = input.tabSize;
 	const spaceWidth = input.spaceWidth;
-	const actualLineParts = input.parts;
+	const actualLineParts = input.lineParts.parts;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
 	const charBreakIndex = (input.stopRenderingLineAfter === -1 ? lineTextLength : input.stopRenderingLineAfter - 1);
@@ -74,7 +81,8 @@ export function renderLine(input:RenderLineInput): RenderLineOutput {
 			[],
 			0,
 			// This is basically for IE's hit test to work
-			'<span><span>&nbsp;</span></span>'
+			'<span><span>&nbsp;</span></span>',
+			true
 		);
 	}
 
@@ -82,21 +90,23 @@ export function renderLine(input:RenderLineInput): RenderLineOutput {
 		throw new Error('Cannot render non empty line without line parts!');
 	}
 
-	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts.slice(0), renderWhitespace, renderControlCharacters, charBreakIndex);
+	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts, renderWhitespace, renderControlCharacters, charBreakIndex);
 }
 
-function isWhitespace(type:string): boolean {
-	return (type.indexOf('whitespace') >= 0);
+function isWhitespace(type: string): boolean {
+	return (type.indexOf('vs-whitespace') >= 0);
 }
 
 function isControlCharacter(characterCode: number): boolean {
 	return characterCode < 32;
 }
+
+const _controlCharacterSequenceConversionStart = 9216;
 function controlCharacterToPrintable(characterCode: number): string {
 	return String.fromCharCode(_controlCharacterSequenceConversionStart + characterCode);
 }
 
-function renderLineActual(lineText: string, lineTextLength: number, tabSize: number, spaceWidth: number, actualLineParts: ViewLineToken[], renderWhitespace: boolean, renderControlCharacters: boolean, charBreakIndex: number): RenderLineOutput {
+function renderLineActual(lineText: string, lineTextLength: number, tabSize: number, spaceWidth: number, actualLineParts: ViewLineToken[], renderWhitespace: 'none' | 'boundary' | 'all', renderControlCharacters: boolean, charBreakIndex: number): RenderLineOutput {
 	lineTextLength = +lineTextLength;
 	tabSize = +tabSize;
 	charBreakIndex = +charBreakIndex;
@@ -106,12 +116,13 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 	let charOffsetInPartArr: number[] = [];
 	let charOffsetInPart = 0;
 	let tabsCharDelta = 0;
+	let isWhitespaceOnly = /^\s*$/.test(lineText);
 
 	out += '<span>';
 	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
 		let part = actualLineParts[partIndex];
 
-		let parsRendersWhitespace = (renderWhitespace && isWhitespace(part.type));
+		let parsRendersWhitespace = (renderWhitespace !== 'none' && isWhitespace(part.type));
 
 		let toCharIndex = lineTextLength;
 		if (partIndex + 1 < partIndexLen) {
@@ -128,7 +139,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 				charOffsetInPartArr[charIndex] = charOffsetInPart;
 				let charCode = lineText.charCodeAt(charIndex);
 
-				if (charCode === _tab) {
+				if (charCode === CharCode.Tab) {
 					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
@@ -143,26 +154,27 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 						insertSpacesCount--;
 					}
 				} else {
-					// must be _space
+					// must be CharCode.Space
 					partContent += '&middot;';
 					partContentCnt++;
 				}
 
-				charOffsetInPart ++;
+				charOffsetInPart++;
 
 				if (charIndex >= charBreakIndex) {
-					out += '<span class="token '+part.type+'" style="width:'+(spaceWidth * partContentCnt)+'px">';
+					out += '<span class="token ' + part.type + '" style="width:' + (spaceWidth * partContentCnt) + 'px">';
 					out += partContent;
 					out += '&hellip;</span></span>';
 					charOffsetInPartArr[charIndex] = charOffsetInPart;
 					return new RenderLineOutput(
 						charOffsetInPartArr,
 						partIndex,
-						out
+						out,
+						isWhitespaceOnly
 					);
 				}
 			}
-			out += '<span class="token '+part.type+'" style="width:'+(spaceWidth * partContentCnt)+'px">';
+			out += '<span class="token ' + part.type + '" style="width:' + (spaceWidth * partContentCnt) + 'px">';
 			out += partContent;
 			out += '</span>';
 		} else {
@@ -175,7 +187,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 				let charCode = lineText.charCodeAt(charIndex);
 
 				switch (charCode) {
-					case _tab:
+					case CharCode.Tab:
 						let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 						tabsCharDelta += insertSpacesCount - 1;
 						charOffsetInPart += insertSpacesCount - 1;
@@ -185,46 +197,45 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 						}
 						break;
 
-					case _space:
+					case CharCode.Space:
 						out += '&nbsp;';
 						break;
 
-					case _lowerThan:
+					case CharCode.LessThan:
 						out += '&lt;';
 						break;
 
-					case _greaterThan:
+					case CharCode.GreaterThan:
 						out += '&gt;';
 						break;
 
-					case _ampersand:
+					case CharCode.Ampersand:
 						out += '&amp;';
 						break;
 
-					case 0:
+					case CharCode.Null:
 						out += '&#00;';
 						break;
 
-					case _bom:
-					case _lineSeparator:
+					case CharCode.UTF8_BOM:
+					case CharCode.LINE_SEPARATOR_2028:
 						out += '\ufffd';
 						break;
 
-					case _carriageReturn:
+					case CharCode.CarriageReturn:
 						// zero width space, because carriage return would introduce a line break
 						out += '&#8203';
 						break;
 
 					default:
-						let characterCode = lineText.charCodeAt(charIndex);
-						if (renderControlCharacters && isControlCharacter(characterCode)) {
-							out += controlCharacterToPrintable(characterCode);
+						if (renderControlCharacters && isControlCharacter(charCode)) {
+							out += controlCharacterToPrintable(charCode);
 						} else {
 							out += lineText.charAt(charIndex);
 						}
 				}
 
-				charOffsetInPart ++;
+				charOffsetInPart++;
 
 				if (charIndex >= charBreakIndex) {
 					out += '&hellip;</span></span>';
@@ -232,7 +243,8 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 					return new RenderLineOutput(
 						charOffsetInPartArr,
 						partIndex,
-						out
+						out,
+						isWhitespaceOnly
 					);
 				}
 			}
@@ -250,6 +262,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 	return new RenderLineOutput(
 		charOffsetInPartArr,
 		actualLineParts.length - 1,
-		out
+		out,
+		isWhitespaceOnly
 	);
 }

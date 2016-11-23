@@ -5,7 +5,8 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {illegalArgument} from 'vs/base/common/errors';
+import { illegalArgument } from 'vs/base/common/errors';
+import * as vscode from 'vscode';
 
 export class Disposable {
 
@@ -149,7 +150,7 @@ export class Position {
 		}
 	}
 
-	translate(change: { lineDelta?: number; characterDelta?: number;}): Position;
+	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
 	translate(lineDelta?: number, characterDelta?: number): Position;
 	translate(lineDeltaOrChange: number | { lineDelta?: number; characterDelta?: number; }, characterDelta: number = 0): Position {
 
@@ -230,7 +231,7 @@ export class Range {
 
 	constructor(start: Position, end: Position);
 	constructor(startLine: number, startColumn: number, endLine: number, endColumn: number);
-	constructor(startLineOrStart: number|Position, startColumnOrEnd: number|Position, endLine?: number, endColumn?: number) {
+	constructor(startLineOrStart: number | Position, startColumnOrEnd: number | Position, endLine?: number, endColumn?: number) {
 		let start: Position;
 		let end: Position;
 
@@ -367,7 +368,7 @@ export class Selection extends Range {
 
 	constructor(anchor: Position, active: Position);
 	constructor(anchorLine: number, anchorColumn: number, activeLine: number, activeColumn: number);
-	constructor(anchorLineOrAnchor: number|Position, anchorColumnOrActive: number|Position, activeLine?: number, activeColumn?: number) {
+	constructor(anchorLineOrAnchor: number | Position, anchorColumnOrActive: number | Position, activeLine?: number, activeColumn?: number) {
 		let anchor: Position;
 		let active: Position;
 
@@ -521,6 +522,74 @@ export class WorkspaceEdit {
 	}
 }
 
+export class SnippetString {
+
+	private _tabstop: number = 1;
+
+	value: string;
+
+	constructor(value?: string) {
+		this.value = value || '';
+	}
+
+	appendText(string: string): SnippetString {
+		this.value += string.replace(/\$/g, '\\$');
+		return this;
+	}
+
+	appendTabstop(number: number = this._tabstop++): SnippetString {
+		this.value += '$';
+		this.value += number;
+		return this;
+	}
+
+	appendPlaceholder(value: string | ((snippet: SnippetString) => any), number: number = this._tabstop++): SnippetString {
+
+		if (typeof value === 'function') {
+			const nested = new SnippetString();
+			nested._tabstop = this._tabstop;
+			value(nested);
+			this._tabstop = nested._tabstop;
+			value = nested.value;
+		} else {
+			value = value.replace(/\$|}/g, '\\$&');
+		}
+
+		this.value += '${';
+		this.value += number;
+		this.value += ':';
+		this.value += value;
+		this.value += '}';
+
+		return this;
+	}
+
+	appendVariable(name: string, defaultValue?: string | ((snippet: SnippetString) => any)): SnippetString {
+
+		if (typeof defaultValue === 'function') {
+			const nested = new SnippetString();
+			nested._tabstop = this._tabstop;
+			defaultValue(nested);
+			this._tabstop = nested._tabstop;
+			defaultValue = nested.value;
+
+		} else if (typeof defaultValue === 'string') {
+			defaultValue = defaultValue.replace(/\$|}/g, '\\$&');
+		}
+
+		this.value += '${';
+		this.value += name;
+		if (defaultValue) {
+			this.value += ':';
+			this.value += defaultValue;
+		}
+		this.value += '}';
+
+
+		return this;
+	}
+}
+
 export enum DiagnosticSeverity {
 	Hint = 3,
 	Information = 2,
@@ -598,7 +667,7 @@ export class Hover {
 
 	constructor(contents: vscode.MarkedString | vscode.MarkedString[], range?: Range) {
 		if (!contents) {
-			throw new Error('Illegal argument');
+			throw new Error('Illegal argument, contents must be defined');
 		}
 
 		if (Array.isArray(contents)) {
@@ -611,9 +680,9 @@ export class Hover {
 }
 
 export enum DocumentHighlightKind {
-	Text,
-	Read,
-	Write
+	Text = 0,
+	Read = 1,
+	Write = 2
 }
 
 export class DocumentHighlight {
@@ -679,7 +748,7 @@ export class SymbolInformation {
 		if (locationOrUri instanceof Location) {
 			this.location = locationOrUri;
 		} else if (rangeOrContainer instanceof Range) {
-			this.location = new Location(<URI> locationOrUri, rangeOrContainer);
+			this.location = new Location(<URI>locationOrUri, rangeOrContainer);
 		}
 	}
 
@@ -712,7 +781,7 @@ export class CodeLens {
 export class ParameterInformation {
 
 	label: string;
-	documentation: string;
+	documentation?: string;
 
 	constructor(label: string, documentation?: string) {
 		this.label = label;
@@ -723,7 +792,7 @@ export class ParameterInformation {
 export class SignatureInformation {
 
 	label: string;
-	documentation: string;
+	documentation?: string;
 	parameters: ParameterInformation[];
 
 	constructor(label: string, documentation?: string) {
@@ -745,24 +814,24 @@ export class SignatureHelp {
 }
 
 export enum CompletionItemKind {
-	Text,
-	Method,
-	Function,
-	Constructor,
-	Field,
-	Variable,
-	Class,
-	Interface,
-	Module,
-	Property,
-	Unit,
-	Value,
-	Enum,
-	Keyword,
-	Snippet,
-	Color,
-	File,
-	Reference
+	Text = 0,
+	Method = 1,
+	Function = 2,
+	Constructor = 3,
+	Field = 4,
+	Variable = 5,
+	Class = 6,
+	Interface = 7,
+	Module = 8,
+	Property = 9,
+	Unit = 10,
+	Value = 11,
+	Enum = 12,
+	Keyword = 13,
+	Snippet = 14,
+	Color = 15,
+	File = 16,
+	Reference = 17
 }
 
 export class CompletionItem {
@@ -773,8 +842,11 @@ export class CompletionItem {
 	documentation: string;
 	sortText: string;
 	filterText: string;
-	insertText: string;
+	insertText: string | SnippetString;
+	range: Range;
 	textEdit: TextEdit;
+	additionalTextEdits: TextEdit[];
+	command: vscode.Command;
 
 	constructor(label: string, kind?: CompletionItemKind) {
 		this.label = label;
@@ -797,7 +869,7 @@ export class CompletionItem {
 
 export class CompletionList {
 
-	isIncomplete: boolean;
+	isIncomplete?: boolean;
 
 	items: vscode.CompletionItem[];
 
@@ -821,6 +893,18 @@ export enum StatusBarAlignment {
 export enum EndOfLine {
 	LF = 1,
 	CRLF = 2
+}
+
+export enum TextEditorLineNumbersStyle {
+	Off = 0,
+	On = 1,
+	Relative = 2
+}
+
+export enum TextDocumentSaveReason {
+	Manual = 1,
+	AfterDelay = 2,
+	FocusOut = 3
 }
 
 export enum TextEditorRevealType {

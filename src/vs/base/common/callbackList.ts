@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {onUnexpectedError} from 'vs/base/common/errors';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export default class CallbackList {
 
@@ -70,6 +70,13 @@ export default class CallbackList {
 
 	public isEmpty(): boolean {
 		return !this._callbacks || this._callbacks.length === 0;
+	}
+
+	public entries(): [Function, any][] {
+		if (!this._callbacks) {
+			return [];
+		}
+		return this._callbacks.map((fn, index) => <[Function, any]>[fn, this._contexts[index]]);
 	}
 
 	public dispose(): void {

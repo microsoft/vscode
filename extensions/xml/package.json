@@ -7,6 +7,8 @@
 		"languages": [{
 			"id": "xml",
 			"extensions": [
+				".xml",
+				".xsd",
 				".ascx",
 				".atom",
 				".axml",
@@ -43,6 +45,7 @@
 				".svg",
 				".targets",
 				".tld",
+				".tmx",
 				".vbproj",
 				".vbproj.user",
 				".vcxproj",
@@ -56,9 +59,7 @@
 				".xib",
 				".xlf",
 				".xliff",
-				".xml",
 				".xpdl",
-				".xsd",
 				".xul",
 				".xoml"
 			],
@@ -77,11 +78,14 @@
 		"grammars": [{
 			"language": "xml",
 			"scopeName": "text.xml",
-			"path": "./syntaxes/XML.plist"
+			"path": "./syntaxes/xml.json"
 		}, {
 			"language": "xsl",
 			"scopeName": "text.xml.xsl",
-			"path": "./syntaxes/XSL.plist"
+			"path": "./syntaxes/xsl.json"
 		}]
+	},
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-xml grammars/xml.cson ./syntaxes/xml.json grammars/xsl.cson ./syntaxes/xsl.json"
 	}
 }

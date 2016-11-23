@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Keybinding} from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
 
 export interface IQuickNavigateConfiguration {
 	keybindings: Keybinding[];
@@ -43,7 +43,8 @@ export interface IAutoFocus {
 
 export enum Mode {
 	PREVIEW,
-	OPEN
+	OPEN,
+	OPEN_IN_BACKGROUND
 }
 
 export interface IEntryRunContext {

@@ -17,7 +17,7 @@
 var _nlsPluginGlobal = this;
 var NLSLoaderPlugin;
 (function (NLSLoaderPlugin) {
-    var global = _nlsPluginGlobal;
+    var global = _nlsPluginGlobal || {};
     var Resources = global.Plugin && global.Plugin.Resources ? global.Plugin.Resources : undefined;
     var DEFAULT_TAG = 'i-default';
     var IS_PSEUDO = (global && global.document && global.document.location && global.document.location.hash.indexOf('pseudo=true') >= 0);

@@ -7,6 +7,7 @@
 	"defaultKeybindings": "Métodos abreviados de teclado predeterminados",
 	"defaultKeybindingsHeader": "Coloque los enlaces de teclado en el archivo de enlaces de teclado para sobrescribirlos.",
 	"defaultName": "Configuración predeterminada",
+	"defaultSettingsEditor": "Editor de configuración predeterminada",
 	"defaultSettingsHeader": "Coloque la configuración en el archivo de configuración para sobrescribirla.",
 	"defaultSettingsHeader2": "Consulte http://go.microsoft.com/fwlink/?LinkId=808995 para obtener la configuración de uso más frecuente.",
 	"emptyKeybindingsHeader": "Coloque sus enlaces de teclado en este archivo para sobrescribir los valores predeterminados.",

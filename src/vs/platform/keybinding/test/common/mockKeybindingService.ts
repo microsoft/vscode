@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {Keybinding} from 'vs/base/common/keyCodes';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { Keybinding } from 'vs/base/common/keybinding';
 import Event from 'vs/base/common/event';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKey, IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 class MockKeybindingContextKey<T> implements IContextKey<T> {
 	private _key: string;
@@ -61,6 +61,10 @@ export class MockKeybindingService implements IContextKeyService {
 
 export class MockKeybindingService2 implements IKeybindingService {
 	public _serviceBrand: any;
+
+	public get onDidUpdateKeybindings(): Event<void> {
+		return Event.None;
+	}
 
 	public getLabelFor(keybinding: Keybinding): string {
 		return keybinding._toUSLabel();

@@ -4,17 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {ReplacePattern} from 'vs/platform/search/common/replace';
-import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ReplacePattern } from 'vs/platform/search/common/replace';
+import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {FindDecorations} from './findDecorations';
-import {FindReplaceState, FindReplaceStateChangedEvent} from './findState';
-import {ReplaceAllCommand} from './replaceAllCommand';
-import {Selection} from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { FindDecorations } from './findDecorations';
+import { FindReplaceState, FindReplaceStateChangedEvent } from './findState';
+import { ReplaceAllCommand } from './replaceAllCommand';
+import { Selection } from 'vs/editor/common/core/selection';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+
+export const ToggleCaseSensitiveKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.KEY_C,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+};
+export const ToggleWholeWordKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.KEY_W,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+};
+export const ToggleRegexKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.KEY_R,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+};
+export const ShowPreviousFindTermKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.UpArrow
+};
+export const ShowNextFindTermKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.DownArrow
+};
 
 export const FIND_IDS = {
 	StartFindAction: 'actions.find',
@@ -33,23 +55,25 @@ export const FIND_IDS = {
 	ToggleRegexCommand: 'toggleFindRegex',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
-	SelectAllMatchesAction: 'editor.action.selectAllMatches'
+	SelectAllMatchesAction: 'editor.action.selectAllMatches',
+	ShowPreviousFindTermAction: 'find.history.showPrevious',
+	ShowNextFindTermAction: 'find.history.showNext'
 };
 
 export const MATCHES_LIMIT = 999;
 
 export class FindModelBoundToEditorModel {
 
-	private _editor:editorCommon.ICommonCodeEditor;
-	private _state:FindReplaceState;
-	private _toDispose:IDisposable[];
+	private _editor: editorCommon.ICommonCodeEditor;
+	private _state: FindReplaceState;
+	private _toDispose: IDisposable[];
 	private _decorations: FindDecorations;
-	private _ignoreModelContentChanged:boolean;
+	private _ignoreModelContentChanged: boolean;
 
-	private _updateDecorationsScheduler:RunOnceScheduler;
+	private _updateDecorationsScheduler: RunOnceScheduler;
 	private _isDisposed: boolean;
 
-	constructor(editor:editorCommon.ICommonCodeEditor, state:FindReplaceState) {
+	constructor(editor: editorCommon.ICommonCodeEditor, state: FindReplaceState) {
 		this._editor = editor;
 		this._state = state;
 		this._toDispose = [];
@@ -61,7 +85,7 @@ export class FindModelBoundToEditorModel {
 		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
 		this._toDispose.push(this._updateDecorationsScheduler);
 
-		this._toDispose.push(this._editor.onDidChangeCursorPosition((e:editorCommon.ICursorPositionChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
 			if (
 				e.reason === editorCommon.CursorChangeReason.Explicit
 				|| e.reason === editorCommon.CursorChangeReason.Undo
@@ -72,7 +96,7 @@ export class FindModelBoundToEditorModel {
 		}));
 
 		this._ignoreModelContentChanged = false;
-		this._toDispose.push(this._editor.onDidChangeModelRawContent((e:editorCommon.IModelContentChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
 			if (this._ignoreModelContentChanged) {
 				return;
 			}
@@ -94,7 +118,7 @@ export class FindModelBoundToEditorModel {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	private _onStateChanged(e:FindReplaceStateChangedEvent): void {
+	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
 		if (this._isDisposed) {
 			// The find model is disposed during a find state changed event
 			return;
@@ -108,8 +132,8 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private static _getSearchRange(model:editorCommon.IModel, searchOnlyEditableRange:boolean, findScope:Range): Range {
-		let searchRange:Range;
+	private static _getSearchRange(model: editorCommon.IModel, searchOnlyEditableRange: boolean, findScope: Range): Range {
+		let searchRange: Range;
 
 		if (searchOnlyEditableRange) {
 			searchRange = model.getEditableRange();
@@ -125,7 +149,7 @@ export class FindModelBoundToEditorModel {
 		return searchRange;
 	}
 
-	private research(moveCursor:boolean, newFindScope?:Range): void {
+	private research(moveCursor: boolean, newFindScope?: Range): void {
 		let findScope: Range = null;
 		if (typeof newFindScope !== 'undefined') {
 			findScope = newFindScope;
@@ -166,7 +190,7 @@ export class FindModelBoundToEditorModel {
 		return false;
 	}
 
-	private _setCurrentFindMatch(match:Range): void {
+	private _setCurrentFindMatch(match: Range): void {
 		let matchesPosition = this._decorations.setCurrentFindMatch(match);
 		this._state.changeMatchInfo(
 			matchesPosition,
@@ -178,7 +202,7 @@ export class FindModelBoundToEditorModel {
 		this._editor.revealRangeInCenterIfOutsideViewport(match);
 	}
 
-	private _moveToPrevMatch(before:Position, isRecursed:boolean = false): void {
+	private _moveToPrevMatch(before: Position, isRecursed: boolean = false): void {
 		if (this._cannotFind()) {
 			return;
 		}
@@ -196,7 +220,7 @@ export class FindModelBoundToEditorModel {
 			before = searchRange.getEndPosition();
 		}
 
-		let {lineNumber,column} = before;
+		let {lineNumber, column} = before;
 		let model = this._editor.getModel();
 
 		let position = new Position(lineNumber, column);
@@ -242,16 +266,18 @@ export class FindModelBoundToEditorModel {
 		this._moveToPrevMatch(this._editor.getSelection().getStartPosition());
 	}
 
-	private _moveToNextMatch(nextMatch:Range): void
-	private _moveToNextMatch(after:Position): void
+	private _moveToNextMatch(nextMatch: Range): void
+	private _moveToNextMatch(after: Position): void
 	private _moveToNextMatch(arg: any): void {
-		let nextMatch = Range.isIRange(arg) ? arg : Position.isIPosition(arg) ? this._getNextMatch(arg) : null;
+		// @sandeep TS(2.0.2) - Adding cast to keep semantic. Necessary since the test are for interface but the code expects
+		// implemations.
+		let nextMatch = Range.isIRange(arg) ? arg : Position.isIPosition(arg) ? this._getNextMatch(arg as Position) : null;
 		if (nextMatch) {
-			this._setCurrentFindMatch(nextMatch);
+			this._setCurrentFindMatch(nextMatch as Range);
 		}
 	}
 
-	private _getNextMatch(after:Position, isRecursed:boolean = false): Range {
+	private _getNextMatch(after: Position, isRecursed: boolean = false): Range {
 		if (this._cannotFind()) {
 			return null;
 		}
@@ -269,7 +295,7 @@ export class FindModelBoundToEditorModel {
 			after = searchRange.getStartPosition();
 		}
 
-		let {lineNumber,column} = after;
+		let {lineNumber, column} = after;
 		let model = this._editor.getModel();
 
 		let position = new Position(lineNumber, column);
@@ -315,9 +341,31 @@ export class FindModelBoundToEditorModel {
 		this._moveToNextMatch(this._editor.getSelection().getEndPosition());
 	}
 
-	private getReplaceString(matchedString:string): string {
-		let replacePattern= new ReplacePattern(this._state.replaceString, {pattern: this._state.searchString, isRegExp: this._state.isRegex, isCaseSensitive: this._state.matchCase, isWordMatch: this._state.wholeWord});
-		return replacePattern.getReplaceString(matchedString);
+	private getReplaceString(matchRange: Range): string {
+		if (this._state.isRegex) {
+			let regExp = TextModel.parseSearchRequest(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+			let replacePattern = new ReplacePattern(this._state.replaceString, true, regExp);
+			let model = this._editor.getModel();
+			let matchedString = model.getValueInRange(matchRange);
+			let replacedString = replacePattern.getReplaceString(matchedString);
+			// If matched string is not matching then regex pattern has a lookahead expression
+			if (replacedString === null) {
+				replacedString = replacePattern.getReplaceString(this._getTextToMatch(matchRange, regExp));
+			}
+			return replacedString;
+		}
+		return this._state.replaceString;
+	}
+
+	private _getTextToMatch(matchRange: Range, regExp: RegExp): string {
+		let model = this._editor.getModel();
+		// If regex is multiline, then return the text from starting of the matching range till end of the model.
+		if (regExp.multiline) {
+			let lineCount = model.getLineCount();
+			return model.getValueInRange(new Range(matchRange.startLineNumber, matchRange.startColumn, lineCount, model.getLineMaxColumn(lineCount)));
+		}
+		// If regex is not multiline, then return the text from starting of the matching range till end of the line.
+		return model.getValueInRange(new Range(matchRange.startLineNumber, matchRange.startColumn, matchRange.endLineNumber, model.getLineMaxColumn(matchRange.endLineNumber)));
 	}
 
 	public replace(): void {
@@ -326,12 +374,11 @@ export class FindModelBoundToEditorModel {
 		}
 
 		let selection = this._editor.getSelection();
-		let selectionText = this._editor.getModel().getValueInRange(selection);
 		let nextMatch = this._getNextMatch(selection.getStartPosition());
 		if (nextMatch) {
 			if (selection.equalsRange(nextMatch)) {
 				// selection sits on a find match => replace it!
-				let replaceString = this.getReplaceString(selectionText);
+				let replaceString = this.getReplaceString(selection);
 
 				let command = new ReplaceCommand(selection, replaceString);
 
@@ -346,7 +393,7 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private _findMatches(findScope: Range, limitResultCount:number): Range[] {
+	private _findMatches(findScope: Range, limitResultCount: number): Range[] {
 		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
 		return this._editor.getModel().findMatches(this._state.searchString, searchRange, this._state.isRegex, this._state.matchCase, this._state.wholeWord, limitResultCount);
 	}
@@ -356,15 +403,14 @@ export class FindModelBoundToEditorModel {
 			return;
 		}
 
-		let model = this._editor.getModel();
 		let findScope = this._decorations.getFindScope();
 
 		// Get all the ranges (even more than the highlighted ones)
 		let ranges = this._findMatches(findScope, Number.MAX_VALUE);
 
-		let replaceStrings:string[] = [];
+		let replaceStrings: string[] = [];
 		for (let i = 0, len = ranges.length; i < len; i++) {
-			replaceStrings.push(this.getReplaceString(model.getValueInRange(ranges[i])));
+			replaceStrings.push(this.getReplaceString(ranges[i]));
 		}
 
 		let command = new ReplaceAllCommand(this._editor.getSelection(), ranges, replaceStrings);
@@ -382,11 +428,22 @@ export class FindModelBoundToEditorModel {
 
 		// Get all the ranges (even more than the highlighted ones)
 		let ranges = this._findMatches(findScope, Number.MAX_VALUE);
+		let selections = ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn));
 
-		this._editor.setSelections(ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn)));
+		// If one of the ranges is the editor selection, then maintain it as primary
+		let editorSelection = this._editor.getSelection();
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let sel = selections[i];
+			if (sel.equalsRange(editorSelection)) {
+				selections = [editorSelection].concat(selections.slice(0, i)).concat(selections.slice(i + 1));
+				break;
+			}
+		}
+
+		this._editor.setSelections(selections);
 	}
 
-	private _executeEditorCommand(source:string, command:editorCommon.ICommand): void {
+	private _executeEditorCommand(source: string, command: editorCommon.ICommand): void {
 		try {
 			this._ignoreModelContentChanged = true;
 			this._editor.executeCommand(source, command);

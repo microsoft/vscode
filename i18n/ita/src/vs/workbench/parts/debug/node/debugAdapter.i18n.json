@@ -9,6 +9,7 @@
 	"debugOSXConfiguration": "Attributi della configurazione di avvio specifici di OS X.",
 	"debugPrelaunchTask": "Attività da eseguire prima dell'avvio della sessione di debug.",
 	"debugRequest": "Tipo della richiesta di configurazione. Può essere \"launch\" o \"attach\".",
+	"debugServer": "Solo per lo sviluppo dell'estensione di debug: se si specifica una porta, Visual Studio Code prova a connettersi a un adattatore di debug in esecuzione in modalità server",
 	"debugType": "Tipo di configurazione.",
 	"debugWindowsConfiguration": "Attributi della configurazione di avvio specifici di Windows.",
 	"internalConsoleOptions": "Controlla il comportamento della console di debug interna.",

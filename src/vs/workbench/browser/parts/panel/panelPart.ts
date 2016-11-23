@@ -5,29 +5,27 @@
 
 import 'vs/css!./media/panelpart';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {KeyMod, KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
-import {Action, IAction} from 'vs/base/common/actions';
-import Event, {Emitter} from 'vs/base/common/event';
-import {IComposite} from 'vs/workbench/common/composite';
-import {Builder} from 'vs/base/browser/builder';
-import dom = require('vs/base/browser/dom');
-import {Registry} from 'vs/platform/platform';
-import {Scope} from 'vs/workbench/browser/actionBarRegistry';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/actionRegistry';
-import {IPanel} from 'vs/workbench/common/panel';
-import {CompositePart} from 'vs/workbench/browser/parts/compositePart';
-import {Panel, PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser/panel';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Action, IAction } from 'vs/base/common/actions';
+import Event from 'vs/base/common/event';
+import { Builder } from 'vs/base/browser/builder';
+import { Registry } from 'vs/platform/platform';
+import { ActivityAction } from 'vs/workbench/browser/parts/activitybar/activityAction';
+import { Scope } from 'vs/workbench/browser/actionBarRegistry';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actionRegistry';
+import { IPanel } from 'vs/workbench/common/panel';
+import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
+import { Panel, PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -35,8 +33,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public _serviceBrand: any;
 
-	private _onDidPanelOpen = new Emitter<IPanel>();
-	private _onDidPanelClose = new Emitter<IPanel>();
 	private blockOpeningPanel: boolean;
 
 	constructor(
@@ -67,22 +63,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	public get onDidPanelOpen(): Event<IPanel> {
-		return this._onDidPanelOpen.event;
+		return this._onDidCompositeOpen.event;
 	}
 
 	public get onDidPanelClose(): Event<IPanel> {
-		return this._onDidPanelClose.event;
+		return this._onDidCompositeClose.event;
 	}
 
 	public create(parent: Builder): void {
 		super.create(parent);
-
-		dom.addStandardDisposableListener(this.getContainer().getHTMLElement(), 'keyup', (e: IKeyboardEvent) => {
-			if (e.equals(CommonKeybindings.ESCAPE)) {
-				this.partService.setPanelHidden(true);
-				e.preventDefault();
-			}
-		});
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {
@@ -91,7 +80,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		// First check if panel is hidden and show if so
-		if (this.partService.isPanelHidden()) {
+		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			try {
 				this.blockOpeningPanel = true;
 				this.partService.setPanelHidden(false);
@@ -100,10 +89,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return this.openComposite(id, focus).then(composite => {
-			this._onDidPanelOpen.fire(composite as IComposite as IPanel);
-			return composite;
-		});
+		return this.openComposite(id, focus);
 	}
 
 	protected getActions(): IAction[] {
@@ -119,14 +105,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	public hideActivePanel(): TPromise<void> {
-		return this.hideActiveComposite().then(composite => this._onDidPanelClose.fire(composite as IComposite as IPanel));
+		return this.hideActiveComposite().then(composite => void 0);
 	}
 }
 
 
 class ClosePanelAction extends Action {
 	static ID = 'workbench.action.closePanel';
-	static LABEL = nls.localize('closePanel', "Close");
+	static LABEL = nls.localize('closePanel', "Close Panel");
 
 	constructor(
 		id: string,
@@ -142,20 +128,20 @@ class ClosePanelAction extends Action {
 	}
 }
 
-class TogglePanelAction extends Action {
+export class TogglePanelAction extends ActivityAction {
 	static ID = 'workbench.action.togglePanel';
-	static LABEL = nls.localize('togglePanel', "Toggle Panel Visibility");
+	static LABEL = nls.localize('togglePanel', "Toggle Panel");
 
 	constructor(
 		id: string,
 		name: string,
 		@IPartService private partService: IPartService
 	) {
-		super(id, name, null);
+		super(id, name, partService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
 	}
 
 	public run(): TPromise<boolean> {
-		this.partService.setPanelHidden(!this.partService.isPanelHidden());
+		this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
 		return TPromise.as(true);
 	}
 }
@@ -177,7 +163,7 @@ class FocusPanelAction extends Action {
 	public run(): TPromise<boolean> {
 
 		// Show panel
-		if (this.partService.isPanelHidden()) {
+		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			this.partService.setPanelHidden(false);
 		}
 
@@ -193,6 +179,30 @@ class FocusPanelAction extends Action {
 	}
 }
 
+class ToggleMaximizedPanelAction extends Action {
+
+	public static ID = 'workbench.action.toggleMaximizedPanel';
+	public static LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private partService: IPartService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		// Show panel
+		this.partService.setPanelHidden(false);
+		this.partService.toggleMaximizedPanel();
+
+		return TPromise.as(true);
+	}
+}
+
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel Visibility', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPanelAction, FocusPanelAction.ID, FocusPanelAction.LABEL), 'View: Focus into Panel', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL), 'View: Toggle Maximized Panel', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL), 'View: Close Panel', nls.localize('view', "View"));

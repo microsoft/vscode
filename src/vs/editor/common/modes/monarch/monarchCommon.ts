@@ -15,7 +15,7 @@
  * Inside monarch we use fully typed definitions and compiled versions of the more abstract JSON descriptions.
  */
 
-export enum MonarchBracket {
+export const enum MonarchBracket {
 	None = 0,
 	Open = 1,
 	Close = -1
@@ -133,7 +133,7 @@ export function throwError(lexer: ILexerMin, msg: string) {
 export function substituteMatches(lexer: ILexerMin, str: string, id: string, matches: string[], state: string) {
 	var re = /\$((\$)|(#)|(\d\d?)|[sS](\d\d?)|@(\w+))/g;
 	var stateMatches: string[] = null;
-	return str.replace(re, function(full, sub?, dollar?, hash?, n?, s?, attr?, ofs?, total?) {
+	return str.replace(re, function (full, sub?, dollar?, hash?, n?, s?, attr?, ofs?, total?) {
 		if (!empty(dollar)) {
 			return '$'; // $$
 		}

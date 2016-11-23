@@ -46,6 +46,9 @@ export interface IEntryPoint {
 	name: string;
 	include: string[];
 	exclude: string[];
+	prepend: string[];
+	append: string[];
+	dest: string;
 }
 
 interface IEntryPointMap {
@@ -120,6 +123,25 @@ export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback
 	config.isBuild = true;
 	loader.config(config);
 
+	loader(['require'], (localRequire) => {
+		let resolvePath = (path:string) => {
+			let r = localRequire.toUrl(path);
+			if (!/\.js/.test(r)) {
+				return r + '.js';
+			}
+			return r;
+		};
+		for (let moduleId in entryPointsMap) {
+			let entryPoint = entryPointsMap[moduleId];
+			if (entryPoint.append) {
+				entryPoint.append = entryPoint.append.map(resolvePath);
+			}
+			if (entryPoint.prepend) {
+				entryPoint.prepend = entryPoint.prepend.map(resolvePath);
+			}
+		}
+	});
+
 	loader(Object.keys(allMentionedModulesMap), () => {
 		let modules = <IBuildModuleInfo[]>loader.getBuildInfo();
 		let partialResult = emitEntryPoints(modules, entryPointsMap);
@@ -171,7 +193,15 @@ function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap)
 
 		bundleData.bundles[moduleToBundle] = includedModules;
 
-		let res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules);
+		let res = emitEntryPoint(
+			modulesMap,
+			modulesGraph,
+			moduleToBundle,
+			includedModules,
+			info.prepend,
+			info.append,
+			info.dest
+		);
 
 		result = result.concat(res.files);
 		for (let pluginName in res.usedPlugins) {
@@ -268,7 +298,7 @@ function extractStrings(destFiles:IConcatFile[]):IConcatFile[] {
 		destFile.sources.forEach((source) => {
 			source.contents = source.contents.replace(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/, (_, moduleMatch, depsMatch) => {
 				let defineCall = parseDefineCall(moduleMatch, depsMatch);
-				return `define(__m[${replacementMap[defineCall.module]}], __M([${defineCall.deps.map(dep => replacementMap[dep]).join(',')}])`;
+				return `define(__m[${replacementMap[defineCall.module]}/*${defineCall.module}*/], __M([${defineCall.deps.map(dep => replacementMap[dep] + '/*' + dep + '*/').join(',')}])`;
 			});
 		});
 
@@ -355,10 +385,21 @@ interface IEmitEntryPointResult {
 	usedPlugins: IPluginMap;
 }
 
-function emitEntryPoint(modulesMap:IBuildModuleInfoMap, deps:IGraph, entryPoint:string, includedModules:string[]): IEmitEntryPointResult {
+function emitEntryPoint(
+	modulesMap:IBuildModuleInfoMap,
+	deps:IGraph,
+	entryPoint:string,
+	includedModules:string[],
+	prepend: string[],
+	append: string[],
+	dest: string
+): IEmitEntryPointResult {
+	if (!dest) {
+		dest = entryPoint + '.js';
+	}
 	let mainResult: IConcatFile = {
 			sources: [],
-			dest: entryPoint + '.js'
+			dest: dest
 		},
 		results: IConcatFile[] = [mainResult];
 
@@ -415,6 +456,19 @@ function emitEntryPoint(modulesMap:IBuildModuleInfoMap, deps:IGraph, entryPoint:
 			plugin.writeFile(pluginName, entryPoint, req, write, {});
 		}
 	});
+
+	let toIFile = (path):IFile => {
+		let contents = readFileAndRemoveBOM(path);
+		return {
+			path: path,
+			contents: contents
+		};
+	};
+
+	let toPrepend = (prepend||[]).map(toIFile);
+	let toAppend = (append||[]).map(toIFile);
+
+	mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
 
 	return {
 		files: results,

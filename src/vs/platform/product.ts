@@ -25,7 +25,8 @@ export interface IProductConfiguration {
 		itemUrl: string;
 	};
 	extensionTips: { [id: string]: string; };
-	extensionImportantTips: { [id: string]: string; };
+	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
+	keymapExtensionTips: string[];
 	crashReporter: Electron.CrashReporterStartOptions;
 	welcomePage: string;
 	enableTelemetry: boolean;
@@ -39,12 +40,18 @@ export interface IProductConfiguration {
 	};
 	documentationUrl: string;
 	releaseNotesUrl: string;
+	keyboardShortcutsUrlMac: string;
+	keyboardShortcutsUrlLinux: string;
+	keyboardShortcutsUrlWin: string;
+	introductoryVideosUrl: string;
 	twitterUrl: string;
 	requestFeatureUrl: string;
 	reportIssueUrl: string;
 	licenseUrl: string;
 	privacyStatementUrl: string;
 	npsSurveyUrl: string;
+	checksums: { [path: string]: string; };
+	checksumFailMoreInfoUrl: string;
 }
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);

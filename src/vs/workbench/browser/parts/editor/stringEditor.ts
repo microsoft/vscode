@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {IEditorOptions, IEditorViewState} from 'vs/editor/common/editorCommon';
-import {TextEditorOptions, EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
-import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {UntitledEditorEvent, EventType} from 'vs/workbench/common/events';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorOptions, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { TextEditorOptions, EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import URI from 'vs/base/common/uri';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 /**
  * An editor implementation that is capable of showing string inputs or promise inputs that resolve to a string.
@@ -44,18 +44,20 @@ export class StringEditor extends BaseTextEditor {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IModeService modeService: IModeService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
-		super(StringEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, modeService, themeService);
+		super(StringEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
 
 		this.mapResourceToEditorViewState = Object.create(null);
 
-		this.toUnbind.push(this.eventService.addListener2(EventType.UNTITLED_FILE_SAVED, (e: UntitledEditorEvent) => this.onUntitledSavedEvent(e)));
+		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDirtyChange(e)));
 	}
 
-	private onUntitledSavedEvent(e: UntitledEditorEvent): void {
-		delete this.mapResourceToEditorViewState[e.resource.toString()];
+	private onUntitledDirtyChange(resource: URI): void {
+		if (!this.untitledEditorService.isDirty(resource)) {
+			delete this.mapResourceToEditorViewState[resource.toString()]; // untitled file got reverted, so remove view state
+		}
 	}
 
 	public getTitle(): string {
@@ -67,17 +69,17 @@ export class StringEditor extends BaseTextEditor {
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
-		let oldInput = this.getInput();
+		const oldInput = this.getInput();
 		super.setInput(input, options);
 
 		// Detect options
-		let forceOpen = options && options.forceOpen;
+		const forceOpen = options && options.forceOpen;
 
 		// Same Input
 		if (!forceOpen && input.matches(oldInput)) {
 
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
-			let textOptions = <TextEditorOptions>options;
+			const textOptions = <TextEditorOptions>options;
 			if (textOptions && types.isFunction(textOptions.apply)) {
 				textOptions.apply(this.getControl());
 			}
@@ -91,7 +93,7 @@ export class StringEditor extends BaseTextEditor {
 		}
 
 		// Different Input (Reload)
-		return this.editorService.resolveEditorModel(input, true /* Reload */).then((resolvedModel: EditorModel) => {
+		return input.resolve(true).then((resolvedModel: EditorModel) => {
 
 			// Assert Model instance
 			if (!(resolvedModel instanceof BaseTextEditorModel)) {
@@ -104,23 +106,20 @@ export class StringEditor extends BaseTextEditor {
 			}
 
 			// Set Editor Model
-			let textEditor = this.getControl();
-			let textEditorModel = (<BaseTextEditorModel>resolvedModel).textEditorModel;
+			const textEditor = this.getControl();
+			const textEditorModel = resolvedModel.textEditorModel;
 			textEditor.setModel(textEditorModel);
 
 			// Apply Options from TextOptions
 			let optionsGotApplied = false;
-			let textOptions = <TextEditorOptions>options;
+			const textOptions = <TextEditorOptions>options;
 			if (textOptions && types.isFunction(textOptions.apply)) {
 				optionsGotApplied = textOptions.apply(textEditor);
 			}
 
 			// Otherwise restore View State
-			if (!optionsGotApplied && input instanceof UntitledEditorInput) {
-				let viewState = this.mapResourceToEditorViewState[input.getResource().toString()];
-				if (viewState) {
-					textEditor.restoreViewState(viewState);
-				}
+			if (!optionsGotApplied) {
+				this.restoreViewState(input);
 			}
 
 			// Apply options again because input has changed
@@ -128,17 +127,26 @@ export class StringEditor extends BaseTextEditor {
 		});
 	}
 
-	protected getCodeEditorOptions(): IEditorOptions {
-		let options = super.getCodeEditorOptions();
+	protected restoreViewState(input: EditorInput) {
+		if (input instanceof UntitledEditorInput) {
+			const viewState = this.mapResourceToEditorViewState[input.getResource().toString()];
+			if (viewState) {
+				this.getControl().restoreViewState(viewState);
+			}
+		}
+	}
 
-		let input = this.getInput();
-		let isUntitled = input instanceof UntitledEditorInput;
-		let isReadonly = !isUntitled; // all string editors are readonly except for the untitled one
+	protected getCodeEditorOptions(): IEditorOptions {
+		const options = super.getCodeEditorOptions();
+
+		const input = this.getInput();
+		const isUntitled = input instanceof UntitledEditorInput;
+		const isReadonly = !isUntitled; // all string editors are readonly except for the untitled one
 
 		options.readOnly = isReadonly;
 
 		let ariaLabel: string;
-		let inputName = input && input.getName();
+		const inputName = input && input.getName();
 		if (isReadonly) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
 		} else {
@@ -152,12 +160,15 @@ export class StringEditor extends BaseTextEditor {
 
 	/**
 	 * Reveals the last line of this editor if it has a model set.
+	 * If smart reveal is true will only reveal the last line if the line before last is visible #3351
 	 */
-	public revealLastLine(): void {
-		let codeEditor = <ICodeEditor>this.getControl();
-		let model = codeEditor.getModel();
-		if (model) {
-			let lastLine = model.getLineCount();
+	public revealLastLine(smartReveal = false): void {
+		const codeEditor = <ICodeEditor>this.getControl();
+		const model = codeEditor.getModel();
+		const lineBeforeLastRevealed = codeEditor.getScrollTop() + codeEditor.getLayoutInfo().height >= codeEditor.getScrollHeight();
+
+		if (model && (!smartReveal || lineBeforeLastRevealed)) {
+			const lastLine = model.getLineCount();
 			codeEditor.revealLine(lastLine);
 		}
 	}

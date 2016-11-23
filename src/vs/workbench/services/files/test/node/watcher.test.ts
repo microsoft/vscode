@@ -8,11 +8,11 @@
 import assert = require('assert');
 
 import platform = require('vs/base/common/platform');
-import {FileChangeType, EventType, FileChangesEvent} from 'vs/platform/files/common/files';
+import { FileChangeType, EventType, FileChangesEvent } from 'vs/platform/files/common/files';
 import uri from 'vs/base/common/uri';
 import utils = require('vs/workbench/services/files/test/node/utils');
-import {IRawFileChange, toFileChangesEvent, normalize} from 'vs/workbench/services/files/node/watcher/common';
-import {IEventService} from 'vs/platform/event/common/event';
+import { IRawFileChange, toFileChangesEvent, normalize } from 'vs/workbench/services/files/node/watcher/common';
+import { IEventService } from 'vs/platform/event/common/event';
 
 class TestFileWatcher {
 	private eventEmitter: IEventService;

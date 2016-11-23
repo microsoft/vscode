@@ -5,19 +5,20 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
-import {Range} from 'vs/editor/common/core/range';
-import {IMode, IndentAction} from 'vs/editor/common/modes';
-import {TokenSelectionSupport} from 'vs/editor/contrib/smartSelect/common/tokenSelectionSupport';
-import {createMockModelService} from 'vs/test/utils/servicesTestUtils';
-import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { Range } from 'vs/editor/common/core/range';
+import { IMode } from 'vs/editor/common/modes';
+import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
+import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/common/tokenSelectionSupport';
+import { MockTokenizingMode } from 'vs/editor/test/common/mocks/mockMode';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 class MockJSMode extends MockTokenizingMode {
 
 	constructor() {
-		super('js-tokenSelectionSupport', 'mock-js');
+		super('mock-js');
 
 		LanguageConfigurationRegistry.register(this.getId(), {
 			brackets: [
@@ -60,16 +61,17 @@ class MockJSMode extends MockTokenizingMode {
 
 suite('TokenSelectionSupport', () => {
 
-	let modelService;
-	let tokenSelectionSupport;
+	let modelService: ModelServiceImpl;
+	let tokenSelectionSupport: TokenSelectionSupport;
 	let _mode: IMode = new MockJSMode();
 
 	setup(() => {
-		modelService= createMockModelService(new TestInstantiationService());
+
+		modelService = new ModelServiceImpl(null, new TestConfigurationService(), null);
 		tokenSelectionSupport = new TokenSelectionSupport(modelService);
 	});
 
-	function assertGetRangesToPosition(text:string[], lineNumber:number, column:number, ranges:Range[]): void {
+	function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[]): void {
 		let uri = URI.file('test.js');
 		modelService.createModel(text.join('\n'), _mode, uri);
 
@@ -95,17 +97,17 @@ suite('TokenSelectionSupport', () => {
 			'\t}',
 			'}'
 		], 3, 20, [
-			new Range(1, 1, 5, 2),
-			new Range(1, 21, 5, 2),
-			new Range(2, 1, 4, 3),
-			new Range(2, 11, 4, 3),
-			new Range(3, 1, 4, 2),
-			new Range(3, 1, 3, 27),
-			new Range(3, 10, 3, 27),
-			new Range(3, 11, 3, 26),
-			new Range(3, 17, 3, 26),
-			new Range(3, 18, 3, 25),
-			// new Range(3, 19, 3, 20)
-		]);
+				new Range(1, 1, 5, 2),
+				new Range(1, 21, 5, 2),
+				new Range(2, 1, 4, 3),
+				new Range(2, 11, 4, 3),
+				new Range(3, 1, 4, 2),
+				new Range(3, 1, 3, 27),
+				new Range(3, 10, 3, 27),
+				new Range(3, 11, 3, 26),
+				new Range(3, 17, 3, 26),
+				new Range(3, 18, 3, 25),
+				// new Range(3, 19, 3, 20)
+			]);
 	});
 });

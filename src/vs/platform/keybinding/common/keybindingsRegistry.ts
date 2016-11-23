@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {BinaryKeybindings, KeyCode} from 'vs/base/common/keyCodes';
+import { BinaryKeybindings, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import {IKeybindingItem, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-import {Registry} from 'vs/platform/platform';
+import { IKeybindingItem, IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { Registry } from 'vs/platform/platform';
 
 export interface IKeybindingRule extends IKeybindings {
 	id: string;
@@ -105,7 +105,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
 		if (platform.isWindows) {
 			if (BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
-				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCode.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
+				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCodeUtils.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
 					console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
 				}
 			}
@@ -113,6 +113,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		this._keybindings.push({
 			keybinding: keybinding,
 			command: commandId,
+			commandArgs: null,
 			when: when,
 			weight1: weight1,
 			weight2: weight2

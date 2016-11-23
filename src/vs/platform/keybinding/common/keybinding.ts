@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {Keybinding} from 'vs/base/common/keyCodes';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { Keybinding } from 'vs/base/common/keybinding';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import Event from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
 	command: string;
+	args?: any;
 	when?: string;
 }
 
@@ -35,6 +37,7 @@ export interface IKeybindings {
 export interface IKeybindingItem {
 	keybinding: number;
 	command: string;
+	commandArgs?: any;
 	when: ContextKeyExpr;
 	weight1: number;
 	weight2: number;
@@ -44,6 +47,8 @@ export let IKeybindingService = createDecorator<IKeybindingService>('keybindingS
 
 export interface IKeybindingService {
 	_serviceBrand: any;
+
+	onDidUpdateKeybindings: Event<void>;
 
 	getLabelFor(keybinding: Keybinding): string;
 	getAriaLabelFor(keybinding: Keybinding): string;

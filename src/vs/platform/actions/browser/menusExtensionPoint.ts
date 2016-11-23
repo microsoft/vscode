@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createCSSRule} from 'vs/base/browser/dom';
-import {localize} from 'vs/nls';
-import {join} from 'vs/base/common/paths';
-import {IdGenerator} from 'vs/base/common/idGenerator';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {forEach} from 'vs/base/common/collections';
-import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
+import { createCSSRule } from 'vs/base/browser/dom';
+import { localize } from 'vs/nls';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { join } from 'vs/base/common/paths';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { forEach } from 'vs/base/common/collections';
+import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 
 namespace schema {
 
@@ -30,10 +31,11 @@ namespace schema {
 			case 'editor/title': return MenuId.EditorTitle;
 			case 'editor/context': return MenuId.EditorContext;
 			case 'explorer/context': return MenuId.ExplorerContext;
+			case 'editor/title/context': return MenuId.EditorTitleContext;
 		}
 	}
 
-	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: IExtensionMessageCollector): boolean {
+	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
 		if (!Array.isArray(menu)) {
 			collector.error(localize('requirearry', "menu items must be an arry"));
 			return false;
@@ -97,6 +99,11 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'editor/title/context': {
+				description: localize('menus.editorTabContext', "The editor tabs context menu"),
+				type: 'array',
+				items: menuItem
+			},
 			'explorer/context': {
 				description: localize('menus.explorerContext', "The file explorer context menu"),
 				type: 'array',
@@ -116,16 +123,16 @@ namespace schema {
 
 	export type IUserFriendlyIcon = string | { light: string; dark: string; };
 
-	export function isValidCommand(command: IUserFriendlyCommand, collector: IExtensionMessageCollector): boolean {
+	export function isValidCommand(command: IUserFriendlyCommand, collector: ExtensionMessageCollector): boolean {
 		if (!command) {
 			collector.error(localize('nonempty', "expected non-empty value."));
 			return false;
 		}
-		if (typeof command.command !== 'string') {
+		if (isFalsyOrWhitespace(command.command)) {
 			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
 			return false;
 		}
-		if (typeof command.title !== 'string') {
+		if (isFalsyOrWhitespace(command.title)) {
 			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'title'));
 			return false;
 		}
@@ -139,7 +146,7 @@ namespace schema {
 		return true;
 	}
 
-	function isValidIcon(icon: IUserFriendlyIcon, collector: IExtensionMessageCollector): boolean {
+	function isValidIcon(icon: IUserFriendlyIcon, collector: ExtensionMessageCollector): boolean {
 		if (typeof icon === 'undefined') {
 			return true;
 		}
@@ -201,11 +208,11 @@ namespace schema {
 	};
 }
 
-ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>('commands', schema.commandsContribution).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>('commands', [], schema.commandsContribution).setHandler(extensions => {
 
 	const ids = new IdGenerator('contrib-cmd-icon-');
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand , extension: IExtensionPointUser<any>) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;
@@ -244,7 +251,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 });
 
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>('menus', schema.menusContribtion).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>('menus', [], schema.menusContribtion).setHandler(extensions => {
 	for (let extension of extensions) {
 		const {value, collector} = extension;
 

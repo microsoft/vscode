@@ -51,50 +51,6 @@
       {
         "fileMatch": "*.schema.json",
         "url": "http://json-schema.org/draft-04/schema#"
-      },
-      {
-        "fileMatch": "package.json",
-        "url": "vscode://schemas/vscode-extensions"
-      },
-      {
-        "fileMatch": "*language-configuration.json",
-        "url": "vscode://schemas/language-configuration"
-      },
-      {
-        "fileMatch": "vscode://defaultsettings/keybindings.json",
-        "url": "vscode://schemas/keybindings"
-      },
-      {
-        "fileMatch": "%APP_SETTINGS_HOME%/keybindings.json",
-        "url": "vscode://schemas/keybindings"
-      },
-      {
-        "fileMatch": "vscode://defaultsettings/settings.json",
-        "url": "vscode://schemas/settings"
-      },
-      {
-        "fileMatch": "%APP_SETTINGS_HOME%/settings.json",
-        "url": "vscode://schemas/settings"
-      },
-      {
-        "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
-        "url": "vscode://schemas/locale"
-      },
-      {
-        "fileMatch": "/.vscode/settings.json",
-        "url": "vscode://schemas/settings"
-      },
-      {
-        "fileMatch": "/.vscode/launch.json",
-        "url": "vscode://schemas/launch"
-      },
-      {
-        "fileMatch": "/.vscode/tasks.json",
-        "url": "vscode://schemas/tasks"
-      },
-      {
-        "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
-        "url": "vscode://schemas/snippets"
       }
     ],
     "configuration": {
@@ -136,13 +92,18 @@
               }
             }
           }
+        },
+        "json.format.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable default JSON formatter (requires restart)"
         }
       }
     }
   },
   "dependencies": {
     "vscode-extension-telemetry": "^0.0.5",
-    "vscode-languageclient": "^2.4.2-next.3",
+    "vscode-languageclient": "^2.4.2-next.22",
     "vscode-nls": "^1.0.7"
   }
 }

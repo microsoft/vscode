@@ -115,7 +115,6 @@
 	display: inline-block;
 	margin: 0 1px 0 3px;
 	padding: 2px 2px 0 2px;
-	min-width: 69px;
 	height: 25px;
 	vertical-align: middle;
 	box-sizing: border-box;
@@ -246,6 +245,35 @@
 
 .monaco-editor .find-widget > .replace-part > .replace-input > .monaco-inputbox {
 	width: 100%;
+}
+
+/* REDUCED */
+.monaco-editor .find-widget.reduced-find-widget .matchesCount,
+.monaco-editor .find-widget.reduced-find-widget .monaco-checkbox {
+	display:none;
+}
+
+/* NARROW (SMALLER THAN REDUCED) */
+.monaco-editor .find-widget.narrow-find-widget > .find-part .monaco-findInput,
+.monaco-editor .find-widget.narrow-find-widget > .replace-part .replace-input {
+	width: 171px !important;
+}
+.monaco-editor .find-widget.narrow-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
+	width: 105px !important;
+}
+
+/* COLLAPSED (SMALLER THAN NARROW) */
+.monaco-editor .find-widget.collapsed-find-widget .button.previous,
+.monaco-editor .find-widget.collapsed-find-widget .button.next,
+.monaco-editor .find-widget.collapsed-find-widget .button.replace,
+.monaco-editor .find-widget.collapsed-find-widget .button.replace-all,
+.monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput .controls {
+	display:none;
+}
+.monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput,
+.monaco-editor .find-widget.collapsed-find-widget > .replace-part .replace-input,
+.monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
+	width: 71px !important;
 }
 
 .monaco-editor .findMatch {

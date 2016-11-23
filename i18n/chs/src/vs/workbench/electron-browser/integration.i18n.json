@@ -6,6 +6,8 @@
 {
 	"copy": "复制",
 	"cut": "剪切",
+	"developer": "开发人员",
+	"file": "文件",
 	"paste": "粘贴",
 	"redo": "恢复",
 	"selectAll": "全选",

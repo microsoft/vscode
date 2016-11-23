@@ -5,21 +5,21 @@
 
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IWorkbenchEditorConfiguration, ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands} from 'vs/workbench/common/editor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditor, Position, POSITIONS} from 'vs/platform/editor/common/editor';
-import {EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {TextCompareEditorVisible, TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
-import {Action} from 'vs/base/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IWorkbenchEditorConfiguration, ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
+import { EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { TextCompareEditorVisible, TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
+import { Action } from 'vs/base/common/actions';
 
-export function setup() {
+export function setup(): void {
 	registerActiveEditorMoveCommand();
 	registerDiffEditorCommands();
 	handleCommandDeprecations();
@@ -47,7 +47,7 @@ const isActiveEditorMoveArg = function (arg): boolean {
 	return true;
 };
 
-function registerActiveEditorMoveCommand() {
+function registerActiveEditorMoveCommand(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: EditorCommands.MoveActiveEditor,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -59,11 +59,10 @@ function registerActiveEditorMoveCommand() {
 			args: [
 				{
 					name: nls.localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
-					description: nls.localize('editorCommand.activeEditorMove.arg.description', `
-						Argument Properties:
-						'to': String value providing where to move.
-						'by': String value providing the unit for move. By tab or by group.
-						'value': Number value providing how many positions or an absolute position to move.
+					description: nls.localize('editorCommand.activeEditorMove.arg.description', `Argument Properties:
+						* 'to': String value providing where to move.
+						* 'by': String value providing the unit for move. By tab or by group.
+						* 'value': Number value providing how many positions or an absolute position to move.
 					`),
 					constraint: isActiveEditorMoveArg
 				}
@@ -72,23 +71,25 @@ function registerActiveEditorMoveCommand() {
 	});
 }
 
-function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: ServicesAccessor) {
-	const tabsShown = !!(<IWorkbenchEditorConfiguration>accessor.get(IConfigurationService).getConfiguration()).workbench.editor.showTabs;
+function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: ServicesAccessor): void {
+	const config = <IWorkbenchEditorConfiguration>accessor.get(IConfigurationService).getConfiguration();
+	const tabsShown = config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
 	args.to = args.to || ActiveEditorMovePositioning.RIGHT;
 	args.by = tabsShown ? args.by || ActiveEditorMovePositioningBy.TAB : ActiveEditorMovePositioningBy.GROUP;
 	args.value = types.isUndefined(args.value) ? 1 : args.value;
 
 	const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor();
-
-	switch (args.by) {
-		case ActiveEditorMovePositioningBy.TAB:
-			return moveActiveTab(args, activeEditor, accessor);
-		case ActiveEditorMovePositioningBy.GROUP:
-			return moveActiveEditorToGroup(args, activeEditor, accessor);
+	if (activeEditor) {
+		switch (args.by) {
+			case ActiveEditorMovePositioningBy.TAB:
+				return moveActiveTab(args, activeEditor, accessor);
+			case ActiveEditorMovePositioningBy.GROUP:
+				return moveActiveEditorToGroup(args, activeEditor, accessor);
+		}
 	}
 }
 
-function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor) {
+function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
 	const editorGroupsService: IEditorGroupService = accessor.get(IEditorGroupService);
 	const editorGroup = editorGroupsService.getStacksModel().groupAt(activeEditor.position);
 	let index = editorGroup.indexOf(activeEditor.input);
@@ -117,7 +118,7 @@ function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, a
 	editorGroupsService.moveEditor(activeEditor.input, editorGroup, editorGroup, index);
 }
 
-function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor) {
+function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
 	let newPosition = activeEditor.position;
 	switch (args.to) {
 		case ActiveEditorMovePositioning.LEFT:
@@ -127,13 +128,13 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: 
 			newPosition = newPosition + 1;
 			break;
 		case ActiveEditorMovePositioning.FIRST:
-			newPosition = Position.LEFT;
+			newPosition = Position.ONE;
 			break;
 		case ActiveEditorMovePositioning.LAST:
-			newPosition = Position.RIGHT;
+			newPosition = Position.THREE;
 			break;
 		case ActiveEditorMovePositioning.CENTER:
-			newPosition = Position.CENTER;
+			newPosition = Position.TWO;
 			break;
 		case ActiveEditorMovePositioning.POSITION:
 			newPosition = args.value - 1;
@@ -191,7 +192,6 @@ function registerDiffEditorCommands(): void {
 	});
 }
 
-// TODO@Ben remove eventually
 function handleCommandDeprecations(): void {
 	const mapDeprecatedCommands = {
 		'workbench.action.focusFirstEditor': 'workbench.action.focusFirstEditorGroup',
@@ -212,7 +212,12 @@ function handleCommandDeprecations(): void {
 		'workbench.files.action.reopenClosedFile': 'workbench.action.reopenClosedEditor',
 		'workbench.files.action.workingFilesPicker': 'workbench.action.showAllEditors',
 		'workbench.action.cycleEditor': 'workbench.action.navigateEditorGroups',
-		'workbench.action.terminal.focus': 'workbench.action.focusPanel'
+		'workbench.action.terminal.focus': 'workbench.action.focusPanel',
+		'workbench.action.showEditorsInLeftGroup': 'workbench.action.showEditorsInFirstGroup',
+		'workbench.action.showEditorsInCenterGroup': 'workbench.action.showEditorsInSecondGroup',
+		'workbench.action.showEditorsInRightGroup': 'workbench.action.showEditorsInThirdGroup',
+		'workbench.action.moveEditorToLeftGroup': 'workbench.action.moveEditorToPreviousGroup',
+		'workbench.action.moveEditorToRightGroup': 'workbench.action.moveEditorToNextGroup'
 	};
 
 	Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {
@@ -228,10 +233,10 @@ function handleCommandDeprecations(): void {
 				messageService.show(Severity.Warning, {
 					message: nls.localize('commandDeprecated', "Command **{0}** has been removed. You can use **{1}** instead", deprecatedCommandId, newCommandId),
 					actions: [
-						CloseAction,
 						new Action('openKeybindings', nls.localize('openKeybindings', "Configure Keyboard Shortcuts"), null, true, () => {
 							return commandService.executeCommand('workbench.action.openGlobalKeybindings');
-						})
+						}),
+						CloseAction
 					]
 				});
 			},

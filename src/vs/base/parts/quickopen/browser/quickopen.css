@@ -6,7 +6,7 @@
 .quick-open-widget {
 	position: absolute;
 	width: 600px;
-	z-index: 2050;
+	z-index: 2000;
 	padding-bottom: 6px;
 	left: 50%;
 	margin-left: -300px;
@@ -37,16 +37,10 @@
 
 .quick-open-widget .quick-open-tree {
 	line-height: 1.8em;
-	height: 0; /* need an initial height to trigger transition on first open */
 }
 
-.quick-open-widget .quick-open-tree.transition {
-	-webkit-transition:	height 100ms ease-in;
-	-ms-transition:		height 100ms ease-in;
-	-moz-transition:	height 100ms ease-in;
-	-khtml-transition:	height 100ms ease-in;
-	-o-transition:		height 100ms ease-in;
-	transition:			height 100ms ease-in;
+.quick-open-widget.content-changing .quick-open-tree .monaco-scrollable-element .slider {
+	display: none; /* scrollbar slider causes some hectic updates when input changes quickly, so hide it while quick open changes */
 }
 
 .quick-open-widget .quick-open-tree .quick-open-entry {
@@ -106,7 +100,7 @@
 
 .quick-open-widget {
 	background-color: #F6F6F6;
-	box-shadow: 0 2px 8px #A8A8A8;
+	box-shadow: 0 5px 8px #A8A8A8;
 }
 
 .quick-open-widget.no-shadow {
@@ -116,7 +110,7 @@
 
 .vs-dark .quick-open-widget {
 	background-color: #252526;
-	box-shadow: 0 2px 8px #000;
+	box-shadow: 0 5px 8px #000;
 }
 
 .vs-dark .quick-open-widget.no-shadow {

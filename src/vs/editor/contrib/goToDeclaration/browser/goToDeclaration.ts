@@ -7,30 +7,32 @@
 
 import 'vs/css!./goToDeclaration';
 import * as nls from 'vs/nls';
-import {Throttler} from 'vs/base/common/async';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import { Throttler } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { MarkedString } from 'vs/base/common/htmlContent';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as browser from 'vs/base/browser/browser';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {Range} from 'vs/editor/common/core/range';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IEditorService } from 'vs/platform/editor/common/editor';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {editorAction, IActionOptions, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {Location, DefinitionProviderRegistry} from 'vs/editor/common/modes';
-import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import {ReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referencesController';
-import {ReferencesModel} from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {PeekContext} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { editorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
+import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { getDeclarationsAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/referencesController';
+import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { PeekContext } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -50,12 +52,12 @@ export class DefinitionAction extends EditorAction {
 
 	private _configuration: DefinitionActionConfig;
 
-	constructor(configuration: DefinitionActionConfig, opts:IActionOptions) {
+	constructor(configuration: DefinitionActionConfig, opts: IActionOptions) {
 		super(opts);
 		this._configuration = configuration;
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 		const messageService = accessor.get(IMessageService);
 		const editorService = accessor.get(IEditorService);
 
@@ -102,7 +104,7 @@ export class DefinitionAction extends EditorAction {
 		});
 	}
 
-	private _onResult(editorService:IEditorService, editor:editorCommon.ICommonCodeEditor, model: ReferencesModel) {
+	private _onResult(editorService: IEditorService, editor: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
 		if (this._configuration.openInPeek) {
 			this._openInPeek(editorService, editor, model);
 		} else {
@@ -110,12 +112,14 @@ export class DefinitionAction extends EditorAction {
 			this._openReference(editorService, next, this._configuration.openToSide).then(editor => {
 				if (model.references.length > 1) {
 					this._openInPeek(editorService, editor, model);
+				} else {
+					model.dispose();
 				}
 			});
 		}
 	}
 
-	private _openReference(editorService:IEditorService, reference: Location, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor>{
+	private _openReference(editorService: IEditorService, reference: Location, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor> {
 		let {uri, range} = reference;
 		return editorService.openEditor({
 			resource: uri,
@@ -124,21 +128,25 @@ export class DefinitionAction extends EditorAction {
 				revealIfVisible: !sideBySide
 			}
 		}, sideBySide).then(editor => {
-			return <editorCommon.IEditor> editor.getControl();
+			return <editorCommon.IEditor>editor.getControl();
 		});
 	}
 
-	private _openInPeek(editorService:IEditorService, target: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
-		let controller = ReferencesController.getController(target);
-		controller.toggleWidget(target.getSelection(), TPromise.as(model), {
-			getMetaTitle: (model) => {
-				return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
-			},
-			onGoto: (reference) => {
-				controller.closeWidget();
-				return this._openReference(editorService, reference, false);
-			}
-		});
+	private _openInPeek(editorService: IEditorService, target: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
+		let controller = ReferencesController.get(target);
+		if (controller) {
+			controller.toggleWidget(target.getSelection(), TPromise.as(model), {
+				getMetaTitle: (model) => {
+					return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
+				},
+				onGoto: (reference) => {
+					controller.closeWidget();
+					return this._openReference(editorService, reference, false);
+				}
+			});
+		} else {
+			model.dispose();
+		}
 	}
 }
 
@@ -182,7 +190,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 			precondition: ModeContextKeys.hasDefinitionProvider,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
 			}
 		});
 	}
@@ -211,6 +219,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 
 // --- Editor Contribution to goto definition using the mouse and a modifier key
 
+@editorContribution
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.gotodefinitionwithmouse';
@@ -229,7 +238,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	constructor(
 		editor: ICodeEditor,
-		@IEditorService private editorService: IEditorService
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@IModeService private modeService: IModeService
 	) {
 		this.toUnhook = [];
 		this.decorations = [];
@@ -307,30 +317,29 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					startColumn: word.startColumn,
 					endLineNumber: position.lineNumber,
 					endColumn: word.endColumn
-				}, nls.localize('multipleResults', "Click to show the {0} definitions found.", results.length), false);
+				}, nls.localize('multipleResults', "Click to show {0} definitions.", results.length));
 			}
 
 			// Single result
 			else {
 				let result = results[0];
-				this.editorService.resolveEditorModel({ resource: result.uri }).then(model => {
-					let source: string;
+
+				this.textModelResolverService.createModelReference(result.uri).then(ref => {
+					const model = ref.object;
+					let hoverMessage: MarkedString;
 					if (model && model.textEditorModel) {
-
-						let from = Math.max(1, result.range.startLineNumber),
-							to: number,
-							editorModel: editorCommon.IModel;
-
-						editorModel = <editorCommon.IModel>model.textEditorModel;
+						const editorModel = model.textEditorModel;
+						let from = Math.max(1, result.range.startLineNumber);
+						let to: number;
 
 						// if we have a range, take that into consideration for the "to" position, otherwise fallback to MAX_SOURCE_PREVIEW_LINES
-						if (result.range.startLineNumber !== result.range.endLineNumber || result.range.startColumn !== result.range.endColumn) {
+						if (!Range.isEmpty(result.range)) {
 							to = Math.min(result.range.endLineNumber, result.range.startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES, editorModel.getLineCount());
 						} else {
 							to = Math.min(from + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES, editorModel.getLineCount());
 						}
 
-						source = editorModel.getValueInRange({
+						let source = editorModel.getValueInRange({
 							startLineNumber: from,
 							startColumn: 1,
 							endLineNumber: to,
@@ -355,41 +364,33 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 						source = source.replace(new RegExp(`^([ \\t]{${min}})`, 'gm'), strings.empty);
 
-						if (result.range.endLineNumber - result.range.startLineNumber > GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
+						if (to < editorModel.getLineCount()) {
 							source += '\n\u2026';
 						}
+
+						const language = this.modeService.getModeIdByFilenameOrFirstLine(editorModel.uri.fsPath);
+						hoverMessage = {
+							language,
+							value: source
+						};
 					}
+
+					ref.dispose();
 
 					this.addDecoration({
 						startLineNumber: position.lineNumber,
 						startColumn: word.startColumn,
 						endLineNumber: position.lineNumber,
 						endColumn: word.endColumn
-					}, source, true);
+					}, hoverMessage);
 				});
 			}
 		}).done(undefined, onUnexpectedError);
 	}
 
-	private addDecoration(range: editorCommon.IRange, text: string, isCode: boolean): void {
-		let model = this.editor.getModel();
-		if (!model) {
-			return;
-		}
+	private addDecoration(range: editorCommon.IRange, hoverMessage: MarkedString): void {
 
-		let hoverMessage: MarkedString = void 0;
-		if (text && text.trim().length > 0) {
-			if (isCode) {
-				hoverMessage = {
-					language: model.getMode().getId(),
-					value: text
-				};
-			} else {
-				hoverMessage = textToMarkedString(text);
-			}
-		}
-
-		let newDecorations : editorCommon.IModelDeltaDecoration = {
+		const newDecorations: editorCommon.IModelDeltaDecoration = {
 			range: range,
 			options: {
 				inlineClassName: 'goto-definition-link',
@@ -487,5 +488,3 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook = dispose(this.toUnhook);
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(GotoDefinitionWithMouseEditorContribution);

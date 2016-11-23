@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { toErrorMessage } from 'vs/base/common/errors';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 suite('Errors', () => {
 	test('Get Error Message', function () {

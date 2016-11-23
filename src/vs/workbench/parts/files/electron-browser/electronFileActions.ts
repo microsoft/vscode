@@ -5,25 +5,28 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Action} from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Action } from 'vs/base/common/actions';
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {asFileEditorInput} from 'vs/workbench/common/editor';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-
-import {ipcRenderer as ipc, shell, clipboard} from 'electron';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { clipboard } from 'electron';
 
 export class RevealInOSAction extends Action {
 	private resource: uri;
 
-	constructor(resource: uri) {
+	constructor(
+		resource: uri,
+		@IWindowsService private windowsService: IWindowsService
+	) {
 		super('workbench.action.files.revealInWindows', platform.isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : (platform.isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")));
 
 		this.resource = resource;
@@ -32,7 +35,7 @@ export class RevealInOSAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		shell.showItemInFolder(paths.normalize(this.resource.fsPath, true));
+		this.windowsService.showItemInFolder(paths.normalize(this.resource.fsPath, true));
 
 		return TPromise.as(true);
 	}
@@ -47,15 +50,16 @@ export class GlobalRevealInOSAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWindowsService private windowsService: IWindowsService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
-			shell.showItemInFolder(paths.normalize(fileInput.getResource().fsPath, true));
+			this.windowsService.showItemInFolder(paths.normalize(fileInput.getResource().fsPath, true));
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
 		}
@@ -99,7 +103,7 @@ export class GlobalCopyPathAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		let fileInput = activeEditor ? asFileEditorInput(activeEditor.input, true) : void 0;
+		const fileInput = activeEditor ? asFileEditorInput(activeEditor.input, true) : void 0;
 		if (fileInput) {
 			clipboard.writeText(labels.getPathLabel(fileInput.getResource()));
 			this.editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
@@ -111,63 +115,65 @@ export class GlobalCopyPathAction extends Action {
 	}
 }
 
-export class BaseOpenAction extends Action {
-
-	private ipcMsg: string;
-
-	constructor(id: string, label: string, ipcMsg: string) {
-		super(id, label);
-
-		this.ipcMsg = ipcMsg;
-	}
-
-	public run(): TPromise<any> {
-		ipc.send(this.ipcMsg); // Handle in browser process
-
-		return TPromise.as(true);
-	}
-}
-
-export const OPEN_FILE_ID = 'workbench.action.files.openFile';
-export const OPEN_FILE_LABEL = nls.localize('openFile', "Open File...");
-
 export class OpenFileAction extends Action {
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	static ID = 'workbench.action.files.openFile';
+	static LABEL = nls.localize('openFile', "Open File...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWindowService private windowService: IWindowService
+	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 
 		// Handle in browser process
 		if (fileInput) {
-			ipc.send('vscode:openFilePicker', false, paths.dirname(fileInput.getResource().fsPath));
-		} else {
-			ipc.send('vscode:openFilePicker');
+			return this.windowService.openFilePicker(false, paths.dirname(fileInput.getResource().fsPath));
 		}
 
-		return TPromise.as(true);
+		return this.windowService.openFilePicker();
 	}
 }
 
-export const OPEN_FOLDER_ID = 'workbench.action.files.openFolder';
-export const OPEN_FOLDER_LABEL = nls.localize('openFolder', "Open Folder...");
+export class OpenFolderAction extends Action {
 
-export class OpenFolderAction extends BaseOpenAction {
+	static ID = 'workbench.action.files.openFolder';
+	static LABEL = nls.localize('openFolder', "Open Folder...");
 
-	constructor(id: string, label: string) {
-		super(id, label, 'vscode:openFolderPicker');
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		return this.windowService.openFolderPicker();
 	}
 }
 
-export const OPEN_FILE_FOLDER_ID = 'workbench.action.files.openFileFolder';
-export const OPEN_FILE_FOLDER_LABEL = nls.localize('openFileFolder', "Open...");
+export class OpenFileFolderAction extends Action {
 
-export class OpenFileFolderAction extends BaseOpenAction {
+	static ID = 'workbench.action.files.openFileFolder';
+	static LABEL = nls.localize('openFileFolder', "Open...");
 
-	constructor(id: string, label: string) {
-		super(id, label, 'vscode:openFileFolderPicker');
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		return this.windowService.openFileFolderPicker();
 	}
 }
 
@@ -179,6 +185,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
+		@IWindowsService private windowsService: IWindowsService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService
 	) {
@@ -186,9 +193,9 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
-			ipc.send('vscode:windowOpen', [fileInput.getResource().fsPath], true /* force new window */); // handled from browser process
+			this.windowsService.windowOpen([fileInput.getResource().fsPath], true);
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to open in new window"));
 		}

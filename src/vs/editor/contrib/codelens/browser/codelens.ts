@@ -6,22 +6,22 @@
 'use strict';
 
 import 'vs/css!./codelens';
-import {RunOnceScheduler, asWinJsPromise} from 'vs/base/common/async';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { RunOnceScheduler, asWinJsPromise } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import {format} from 'vs/base/common/strings';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { format, escape } from 'vs/base/common/strings';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {Range} from 'vs/editor/common/core/range';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CodeLensProviderRegistry, ICodeLensSymbol, Command} from 'vs/editor/common/modes';
-import {IModelService} from 'vs/editor/common/services/modelService';
+import { CodeLensProviderRegistry, ICodeLensSymbol, Command } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {ICodeLensData, getCodeLensData} from '../common/codelens';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { ICodeLensData, getCodeLensData } from '../common/codelens';
 
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
@@ -114,12 +114,13 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		let html: string[] = [];
 		for (let i = 0; i < symbols.length; i++) {
 			let command = symbols[i].command;
+			let title = escape(command.title);
 			let part: string;
 			if (command.id) {
-				part = format('<a id={0}>{1}</a>', i, command.title);
+				part = format('<a id={0}>{1}</a>', i, title);
 				this._commands[i] = command;
 			} else {
-				part = format('<span>{0}</span>', command.title);
+				part = format('<span>{0}</span>', title);
 			}
 			html.push(part);
 		}
@@ -339,6 +340,7 @@ class CodeLens {
 	}
 }
 
+@editorContribution
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 	private static ID: string = 'css.editor.codeLens';
@@ -519,7 +521,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 		for (let symbol of symbols) {
 			let line = symbol.symbol.range.startLineNumber;
-			if (line < 1 || line >= maxLineNumber) {
+			if (line < 1 || line > maxLineNumber) {
 				// invalid code lens
 				continue;
 			} else if (lastGroup && lastGroup[lastGroup.length - 1].symbol.range.startLineNumber === line) {
@@ -626,5 +628,3 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		});
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(CodeLensContribution);

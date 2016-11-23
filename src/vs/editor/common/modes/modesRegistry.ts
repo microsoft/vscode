@@ -5,22 +5,10 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import Event, {Emitter} from 'vs/base/common/event';
-import {Registry} from 'vs/platform/platform';
-import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
-
-export interface ILegacyLanguageDefinition {
-	id: string;
-	extensions: string[];
-	filenames?: string[];
-	firstLine?: string;
-	aliases: string[];
-	mimetypes: string[];
-	moduleId: string;
-	ctorName: string;
-	deps?: string[];
-}
-
+import Event, { Emitter } from 'vs/base/common/event';
+import { Registry } from 'vs/platform/platform';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 // Define extension point ids
 export var Extensions = {
 	ModesRegistry: 'editor.modesRegistry'
@@ -28,42 +16,22 @@ export var Extensions = {
 
 export class EditorModesRegistry {
 
-	private _compatModes: ILegacyLanguageDefinition[];
 	private _languages: ILanguageExtensionPoint[];
-
-	private _onDidAddCompatModes: Emitter<ILegacyLanguageDefinition[]> = new Emitter<ILegacyLanguageDefinition[]>();
-	public onDidAddCompatModes: Event<ILegacyLanguageDefinition[]> = this._onDidAddCompatModes.event;
 
 	private _onDidAddLanguages: Emitter<ILanguageExtensionPoint[]> = new Emitter<ILanguageExtensionPoint[]>();
 	public onDidAddLanguages: Event<ILanguageExtensionPoint[]> = this._onDidAddLanguages.event;
 
 	constructor() {
-		this._compatModes = [];
 		this._languages = [];
-	}
-
-	// --- compat modes
-
-
-	public registerCompatModes(def:ILegacyLanguageDefinition[]): void {
-		this._compatModes = this._compatModes.concat(def);
-		this._onDidAddCompatModes.fire(def);
-	}
-	public registerCompatMode(def:ILegacyLanguageDefinition): void {
-		this._compatModes.push(def);
-		this._onDidAddCompatModes.fire([def]);
-	}
-	public getCompatModes(): ILegacyLanguageDefinition[] {
-		return this._compatModes.slice(0);
 	}
 
 	// --- languages
 
-	public registerLanguage(def:ILanguageExtensionPoint): void {
+	public registerLanguage(def: ILanguageExtensionPoint): void {
 		this._languages.push(def);
 		this._onDidAddLanguages.fire([def]);
 	}
-	public registerLanguages(def:ILanguageExtensionPoint[]): void {
+	public registerLanguages(def: ILanguageExtensionPoint[]): void {
 		this._languages = this._languages.concat(def);
 		this._onDidAddLanguages.fire(def);
 	}
@@ -75,9 +43,18 @@ export class EditorModesRegistry {
 export var ModesRegistry = new EditorModesRegistry();
 Registry.add(Extensions.ModesRegistry, ModesRegistry);
 
+export const PLAINTEXT_MODE_ID = 'plaintext';
+
 ModesRegistry.registerLanguage({
-	id: 'plaintext',
+	id: PLAINTEXT_MODE_ID,
 	extensions: ['.txt', '.gitignore'],
 	aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
 	mimetypes: ['text/plain']
+});
+LanguageConfigurationRegistry.register(PLAINTEXT_MODE_ID, {
+	brackets: [
+		['(', ')'],
+		['[', ']'],
+		['{', '}'],
+	]
 });

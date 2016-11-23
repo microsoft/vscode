@@ -7,8 +7,8 @@
 
 import nls = require('vs/nls');
 
-import {Registry} from 'vs/platform/platform';
-import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 import './actions/expandAbbreviation';
 import './actions/balance';
@@ -49,6 +49,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'object',
 			'default': {},
 			'description': nls.localize('emmetSyntaxProfiles', "Define profile for specified syntax or use your own profile with specific rules.")
-		}
+		},
+		'emmet.excludeLanguages': {
+			'type': 'array',
+			'default': [],
+			'description': nls.localize('emmetExclude', "An array of languages where emmet abbreviations should not be expanded.")
+		},
 	}
 });

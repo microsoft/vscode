@@ -59,33 +59,33 @@
 @keyframes cursor-smooth {
 	0%,
 	20% {
-		opacity: 0;
+		opacity: 1;
 	}
 	60%,
 	100% {
-		opacity: 1;
+		opacity: 0;
 	}
 }
 
 @keyframes cursor-phase {
 	0%,
 	20% {
-		opacity: 0;
+		opacity: 1;
 	}
 	90%,
 	100% {
-		opacity: 1;
+		opacity: 0;
 	}
 }
 
 @keyframes cursor-expand {
 	0%,
 	20% {
-		transform: scaleY(0);
+		transform: scaleY(1);
 	}
 	80%,
 	100% {
-		transform: scaleY(1);
+		transform: scaleY(0);
 	}
 }
 

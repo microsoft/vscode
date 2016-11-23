@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-less grammars/less.cson ./syntaxes/less.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "less",
@@ -14,7 +17,7 @@
 		"grammars": [{
 			"language": "less",
 			"scopeName": "source.css.less",
-			"path": "./syntaxes/LESS.tmLanguage"
+			"path": "./syntaxes/less.tmLanguage.json"
 		}]
 	}
 }

@@ -11,14 +11,33 @@
 .explorer-viewlet .explorer-item,
 .explorer-viewlet .open-editor,
 .explorer-viewlet .editor-group {
+	height: 22px;
 	line-height: 22px;
 }
 
-.explorer-viewlet .explorer-item-label,
+.explorer-viewlet .explorer-item {
+	display: flex; /* this helps showing the overflow ellipsis (...) even though we use display:inline-block for the labels */
+	flex-wrap: nowrap;
+}
+
+.explorer-viewlet .explorer-item > a,
 .explorer-viewlet .open-editor,
 .explorer-viewlet .editor-group {
 	text-overflow: ellipsis;
 	overflow: hidden;
+}
+
+.explorer-viewlet .explorer-item,
+.explorer-viewlet .explorer-item .monaco-inputbox {
+	flex: 1;
+}
+
+.explorer-viewlet .explorer-item::before {
+	flex-shrink: 0; /* fix for https://github.com/Microsoft/vscode/issues/13787 */
+}
+
+.explorer-viewlet .explorer-item.explorer-item-edited .label-name {
+	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content {
@@ -52,7 +71,6 @@
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .open-editor {
 	flex: 1;
-	margin-left: 1px;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .editor-group {
@@ -74,6 +92,11 @@
 	line-height: normal;
 }
 
+.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
+.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
+	height: 22px;
+}
+
 .explorer-viewlet .explorer-item .monaco-inputbox.idle {
 	border: 1px solid rgba(128, 128, 128, 0.5);
 }
@@ -82,8 +105,10 @@
 	padding: 1px 2px;
 }
 
-.explorer-viewlet-label > .badge-content {
-	background-color: #007ACC;
+.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input,
+.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+	padding: 0;
+	height: 20px;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group {
@@ -100,19 +125,8 @@
 .explorer-viewlet:lang(ko) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group { font-weight: normal; }
 
 /* Disable tree twistie */
-.explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:after,
 .explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:before {
-	border: none;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor > .description {
-	opacity: .7;
-	margin-left: .5em;
-	font-size: .9em;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
-	font-style: italic;
+	display: none;
 }
 
 /* High Contrast Theming */
@@ -120,4 +134,15 @@
 .hc-black .monaco-workbench .explorer-viewlet .open-editor,
 .hc-black .monaco-workbench .explorer-viewlet .editor-group {
 	line-height: 20px;
+}
+
+.hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input:focus {
+	outline-offset: -2px !important;
+	outline: 1px solid #f38518 !important;
+	padding-left: 2px; /* push text by the width of the outline offset to prevent overlaying */
+}
+
+.hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox.synthetic-focus {
+	outline: none !important;
+	border: none;
 }

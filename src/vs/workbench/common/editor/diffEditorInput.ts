@@ -5,17 +5,15 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
+import { TPromise } from 'vs/base/common/winjs.base';
+import { once } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
-import {getPathLabel, IWorkspaceProvider} from 'vs/base/common/labels';
-import {isBinaryMime} from 'vs/base/common/mime';
-import {EventType} from 'vs/base/common/events';
-import {EditorModel, IFileEditorInput, EditorInput, BaseDiffEditorInput} from 'vs/workbench/common/editor';
-import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
-import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { getPathLabel, IWorkspaceProvider } from 'vs/base/common/labels';
+import { EditorModel, EditorInput, BaseDiffEditorInput, TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
+import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -46,20 +44,23 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	private registerListeners(): void {
 
 		// When the original or modified input gets disposed, dispose this diff editor input
-		this._toUnbind.push(this.originalInput.addListener2(EventType.DISPOSE, () => {
+		const onceOriginalDisposed = once(this.originalInput.onDispose);
+		this._toUnbind.push(onceOriginalDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		this._toUnbind.push(this.modifiedInput.addListener2(EventType.DISPOSE, () => {
+		const onceModifiedDisposed = once(this.modifiedInput.onDispose);
+		this._toUnbind.push(onceModifiedDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		// When the modified model gets dirty, re-emit this to the outside
+		// Reemit some events from the modified side to the outside
 		this._toUnbind.push(this.modifiedInput.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this._toUnbind.push(this.modifiedInput.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
 	public get toUnbind() {
@@ -76,14 +77,6 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 
 	public getDescription(): string {
 		return this.description;
-	}
-
-	public setOriginalInput(input: EditorInput): void {
-		this.originalInput = input;
-	}
-
-	public setModifiedInput(input: EditorInput): void {
-		this.modifiedInput = input;
 	}
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
@@ -114,23 +107,7 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	}
 
 	public getPreferredEditorId(candidates: string[]): string {
-
-		// Find the right diff editor for the given isBinary/isText state
-		let useBinaryEditor = this.forceOpenAsBinary || this.isBinary(this.originalInput) || this.isBinary(this.modifiedInput);
-
-		return !useBinaryEditor ? 'workbench.editors.textDiffEditor' : 'workbench.editors.binaryResourceDiffEditor';
-	}
-
-	private isBinary(input: EditorInput): boolean {
-		let mime: string;
-
-		// Find mime by checking for IFileEditorInput implementors
-		let fileInput = <IFileEditorInput>(<any>input);
-		if (types.isFunction(fileInput.getMime)) {
-			mime = fileInput.getMime();
-		}
-
-		return mime && isBinaryMime(mime);
+		return this.forceOpenAsBinary ? BINARY_DIFF_EDITOR_ID : TEXT_DIFF_EDITOR_ID;
 	}
 
 	private createModel(refresh?: boolean): TPromise<DiffEditorModel> {
@@ -140,8 +117,8 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 			this.originalInput.resolve(refresh),
 			this.modifiedInput.resolve(refresh)
 		]).then((models) => {
-			let originalEditorModel = models[0];
-			let modifiedEditorModel = models[1];
+			const originalEditorModel = models[0];
+			const modifiedEditorModel = models[1];
 
 			// If both are text models, return textdiffeditor model
 			if (modifiedEditorModel instanceof BaseTextEditorModel && originalEditorModel instanceof BaseTextEditorModel) {
@@ -167,7 +144,7 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 				return false;
 			}
 
-			let otherDiffInput = <DiffEditorInput>otherInput;
+			const otherDiffInput = <DiffEditorInput>otherInput;
 			return this.originalInput.matches(otherDiffInput.originalInput) && this.modifiedInput.matches(otherDiffInput.modifiedInput);
 		}
 
@@ -177,19 +154,22 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	public dispose(): void {
 		this._toUnbind = dispose(this._toUnbind);
 
-		// Dispose Model
+		// Free the diff editor model but do not propagate the dispose() call to the two inputs
+		// We never created the two inputs (original and modified) so we can not dispose
+		// them without sideeffects.
 		if (this.cachedModel) {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
+
 
 		super.dispose();
 	}
 }
 
 export function toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider): string {
-	let leftName = getPathLabel(res1.fsPath, context);
-	let rightName = getPathLabel(res2.fsPath, context);
+	const leftName = getPathLabel(res1.fsPath, context);
+	const rightName = getPathLabel(res2.fsPath, context);
 
 	return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
 }

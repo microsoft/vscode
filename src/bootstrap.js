@@ -98,9 +98,9 @@ if (!process.env['VSCODE_ALLOW_IO']) {
 		write: function () { /* No OP */ }
 	});
 
-	process.__defineGetter__('stdout', function() { return writable; });
-	process.__defineGetter__('stderr', function() { return writable; });
-	process.__defineGetter__('stdin', function() { return writable; });
+	process.__defineGetter__('stdout', function () { return writable; });
+	process.__defineGetter__('stderr', function () { return writable; });
+	process.__defineGetter__('stdin', function () { return writable; });
 }
 
 // Handle uncaught exceptions

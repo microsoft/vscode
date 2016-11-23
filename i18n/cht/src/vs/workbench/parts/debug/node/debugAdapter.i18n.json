@@ -9,6 +9,7 @@
 	"debugOSXConfiguration": "OS X 特定的啟動設定屬性。",
 	"debugPrelaunchTask": "偵錯工作階段啟動前要執行的工作。",
 	"debugRequest": "要求組態的類型。可以是 [啟動] 或 [附加]。",
+	"debugServer": "僅限偵錯延伸模組開發: 如果指定了連接埠，VS Code 會嘗試連線至以伺服器模式執行的偵錯配接器",
 	"debugType": "組態的類型。",
 	"debugWindowsConfiguration": "Windows 特定的啟動設定屬性。",
 	"internalConsoleOptions": "內部偵錯主控台的控制項行為。",

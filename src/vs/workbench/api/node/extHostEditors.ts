@@ -5,33 +5,35 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {readonly, illegalArgument} from 'vs/base/common/errors';
-import {IdGenerator} from 'vs/base/common/idGenerator';
-import Event, {Emitter} from 'vs/base/common/event';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {ExtHostDocuments, ExtHostDocumentData} from 'vs/workbench/api/node/extHostDocuments';
-import {Selection, Range, Position, EditorOptions, EndOfLine, TextEditorRevealType, TextEditorSelectionChangeKind} from './extHostTypes';
-import {ISingleEditOperation} from 'vs/editor/common/editorCommon';
-import {IResolvedTextEditorConfiguration, ISelectionChangeEvent} from 'vs/workbench/api/node/mainThreadEditorsTracker';
+import { readonly, illegalArgument } from 'vs/base/common/errors';
+import { equals as arrayEquals } from 'vs/base/common/arrays';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import Event, { Emitter } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostDocuments, ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocuments';
+import { Selection, Range, Position, EditorOptions, EndOfLine, TextEditorRevealType, TextEditorSelectionChangeKind } from './extHostTypes';
+import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IResolvedTextEditorConfiguration, ISelectionChangeEvent } from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import * as TypeConverters from './extHostTypeConverters';
-import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, TextEditorViewColumnChangeEvent, ViewColumn} from 'vscode';
-import {MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorAddData, ITextEditorPositionData} from './extHost.protocol';
+import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorAddData, ITextEditorPositionData } from './extHost.protocol';
+import * as vscode from 'vscode';
 
 export class ExtHostEditors extends ExtHostEditorsShape {
 
-	public onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
-	private _onDidChangeTextEditorSelection: Emitter<TextEditorSelectionChangeEvent>;
+	public onDidChangeTextEditorSelection: Event<vscode.TextEditorSelectionChangeEvent>;
+	private _onDidChangeTextEditorSelection: Emitter<vscode.TextEditorSelectionChangeEvent>;
 
-	public onDidChangeTextEditorOptions: Event<TextEditorOptionsChangeEvent>;
-	private _onDidChangeTextEditorOptions: Emitter<TextEditorOptionsChangeEvent>;
+	public onDidChangeTextEditorOptions: Event<vscode.TextEditorOptionsChangeEvent>;
+	private _onDidChangeTextEditorOptions: Emitter<vscode.TextEditorOptionsChangeEvent>;
 
-	public onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
-	private _onDidChangeTextEditorViewColumn: Emitter<TextEditorViewColumnChangeEvent>;
+	public onDidChangeTextEditorViewColumn: Event<vscode.TextEditorViewColumnChangeEvent>;
+	private _onDidChangeTextEditorViewColumn: Emitter<vscode.TextEditorViewColumnChangeEvent>;
 
 	private _editors: { [id: string]: ExtHostTextEditor };
 	private _proxy: MainThreadEditorsShape;
 	private _onDidChangeActiveTextEditor: Emitter<vscode.TextEditor>;
+	private _onDidChangeVisibleTextEditors: Emitter<vscode.TextEditor[]>;
 	private _extHostDocuments: ExtHostDocuments;
 	private _activeEditorId: string;
 	private _visibleEditorIds: string[];
@@ -41,18 +43,19 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		extHostDocuments: ExtHostDocuments
 	) {
 		super();
-		this._onDidChangeTextEditorSelection = new Emitter<TextEditorSelectionChangeEvent>();
+		this._onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>();
 		this.onDidChangeTextEditorSelection = this._onDidChangeTextEditorSelection.event;
 
-		this._onDidChangeTextEditorOptions = new Emitter<TextEditorOptionsChangeEvent>();
+		this._onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>();
 		this.onDidChangeTextEditorOptions = this._onDidChangeTextEditorOptions.event;
 
-		this._onDidChangeTextEditorViewColumn = new Emitter<TextEditorViewColumnChangeEvent>();
+		this._onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>();
 		this.onDidChangeTextEditorViewColumn = this._onDidChangeTextEditorViewColumn.event;
 
 		this._extHostDocuments = extHostDocuments;
 		this._proxy = threadService.get(MainContext.MainThreadEditors);
 		this._onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor>();
+		this._onDidChangeVisibleTextEditors = new Emitter<vscode.TextEditor[]>();
 		this._editors = Object.create(null);
 
 		this._visibleEditorIds = [];
@@ -70,8 +73,12 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		return this._onDidChangeActiveTextEditor && this._onDidChangeActiveTextEditor.event;
 	}
 
-	showTextDocument(document: TextDocument, column: ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor> {
-		return this._proxy.$tryShowTextDocument(<URI> document.uri, TypeConverters.fromViewColumn(column), preserveFocus).then(id => {
+	get onDidChangeVisibleTextEditors(): Event<vscode.TextEditor[]> {
+		return this._onDidChangeVisibleTextEditors && this._onDidChangeVisibleTextEditors.event;
+	}
+
+	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor> {
+		return this._proxy.$tryShowTextDocument(<URI>document.uri, TypeConverters.fromViewColumn(column), preserveFocus).then(id => {
 			let editor = this._editors[id];
 			if (editor) {
 				return editor;
@@ -115,14 +122,25 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 	}
 
 	$acceptActiveEditorAndVisibleEditors(id: string, visibleIds: string[]): void {
-		this._visibleEditorIds = visibleIds;
+		let visibleChanged = false;
+		let activeChanged = false;
 
-		if (this._activeEditorId === id) {
-			// nothing to do
-			return;
+		if (!arrayEquals(this._visibleEditorIds, visibleIds)) {
+			this._visibleEditorIds = visibleIds;
+			visibleChanged = true;
 		}
-		this._activeEditorId = id;
-		this._onDidChangeActiveTextEditor.fire(this.getActiveTextEditor());
+
+		if (this._activeEditorId !== id) {
+			this._activeEditorId = id;
+			activeChanged = true;
+		}
+
+		if (visibleChanged) {
+			this._onDidChangeVisibleTextEditors.fire(this.getVisibleTextEditors());
+		}
+		if (activeChanged) {
+			this._onDidChangeActiveTextEditor.fire(this.getActiveTextEditor());
+		}
 	}
 
 	$acceptEditorPositionData(data: ITextEditorPositionData): void {
@@ -163,7 +181,7 @@ class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 	constructor(proxy: MainThreadEditorsShape, options: vscode.DecorationRenderOptions) {
 		this.key = TextEditorDecorationType._Keys.nextId();
 		this._proxy = proxy;
-		this._proxy.$registerTextEditorDecorationType(this.key, <any>options);
+		this._proxy.$registerTextEditorDecorationType(this.key, <any>/* URI vs Uri */ options);
 	}
 
 	public dispose(): void {
@@ -181,6 +199,8 @@ export interface IEditData {
 	documentVersionId: number;
 	edits: ITextEditOperation[];
 	setEndOfLine: EndOfLine;
+	undoStopBefore: boolean;
+	undoStopAfter: boolean;
 }
 
 export class TextEditorEdit {
@@ -188,18 +208,24 @@ export class TextEditorEdit {
 	private _documentVersionId: number;
 	private _collectedEdits: ITextEditOperation[];
 	private _setEndOfLine: EndOfLine;
+	private _undoStopBefore: boolean;
+	private _undoStopAfter: boolean;
 
-	constructor(document: vscode.TextDocument) {
+	constructor(document: vscode.TextDocument, options: { undoStopBefore: boolean; undoStopAfter: boolean; }) {
 		this._documentVersionId = document.version;
 		this._collectedEdits = [];
 		this._setEndOfLine = 0;
+		this._undoStopBefore = options.undoStopBefore;
+		this._undoStopAfter = options.undoStopAfter;
 	}
 
 	finalize(): IEditData {
 		return {
 			documentVersionId: this._documentVersionId,
 			edits: this._collectedEdits,
-			setEndOfLine: this._setEndOfLine
+			setEndOfLine: this._setEndOfLine,
+			undoStopBefore: this._undoStopBefore,
+			undoStopAfter: this._undoStopAfter
 		};
 	}
 
@@ -210,8 +236,6 @@ export class TextEditorEdit {
 			range = new Range(location, location);
 		} else if (location instanceof Range) {
 			range = location;
-		} else if (location instanceof Selection) {
-			range = new Range(location.start, location.end);
 		} else {
 			throw new Error('Unrecognized location');
 		}
@@ -236,8 +260,6 @@ export class TextEditorEdit {
 
 		if (location instanceof Range) {
 			range = location;
-		} else if (location instanceof Selection) {
-			range = new Range(location.start, location.end);
 		} else {
 			throw new Error('Unrecognized location');
 		}
@@ -249,7 +271,7 @@ export class TextEditorEdit {
 		});
 	}
 
-	setEndOfLine(endOfLine:EndOfLine): void {
+	setEndOfLine(endOfLine: EndOfLine): void {
 		if (endOfLine !== EndOfLine.LF && endOfLine !== EndOfLine.CRLF) {
 			throw illegalArgument('endOfLine');
 		}
@@ -262,7 +284,7 @@ export class TextEditorEdit {
 function deprecated(name: string, message: string = 'Refer to the documentation for further details.') {
 	return (target: Object, key: string, descriptor: TypedPropertyDescriptor<any>) => {
 		const originalMethod = descriptor.value;
-		descriptor.value = function(...args: any[]) {
+		descriptor.value = function (...args: any[]) {
 			console.warn(`[Deprecation Warning] method '${name}' is deprecated and should no longer be used. ${message}`);
 			return originalMethod.apply(this, args);
 		};
@@ -278,7 +300,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	private _documentData: ExtHostDocumentData;
 	private _selections: Selection[];
-	private _options: TextEditorOptions;
+	private _options: vscode.TextEditorOptions;
 	private _viewColumn: vscode.ViewColumn;
 
 	constructor(proxy: MainThreadEditorsShape, id: string, document: ExtHostDocumentData, selections: Selection[], options: EditorOptions, viewColumn: vscode.ViewColumn) {
@@ -314,11 +336,11 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- options
 
-	get options(): TextEditorOptions {
+	get options(): vscode.TextEditorOptions {
 		return this._options;
 	}
 
-	set options(value: TextEditorOptions) {
+	set options(value: vscode.TextEditorOptions) {
 		this._options = value;
 		this._runOnProxy(() => {
 			return this._proxy.$trySetOptions(this._id, this._options);
@@ -385,7 +407,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 			() => this._proxy.$tryRevealRange(
 				this._id,
 				TypeConverters.fromRange(range),
-				revealType || TextEditorRevealType.Default
+				(revealType || TextEditorRevealType.Default)
 			),
 			true
 		);
@@ -402,8 +424,8 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- editing
 
-	edit(callback: (edit: TextEditorEdit) => void): Thenable<boolean> {
-		let edit = new TextEditorEdit(this._documentData.document);
+	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+		let edit = new TextEditorEdit(this._documentData.document, options);
 		callback(edit);
 		return this._applyEdit(edit);
 	}
@@ -420,7 +442,11 @@ class ExtHostTextEditor implements vscode.TextEditor {
 			};
 		});
 
-		return this._proxy.$tryApplyEdits(this._id, editData.documentVersionId, edits, editData.setEndOfLine);
+		return this._proxy.$tryApplyEdits(this._id, editData.documentVersionId, edits, {
+			setEndOfLine: editData.setEndOfLine,
+			undoStopBefore: editData.undoStopBefore,
+			undoStopAfter: editData.undoStopAfter
+		});
 	}
 
 	// ---- util

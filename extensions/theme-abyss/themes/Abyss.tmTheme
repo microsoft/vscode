@@ -21,6 +21,8 @@
 				<string>#082050</string>
 				<key>selection</key>
 				<string>#770811</string>
+				<key>guide</key>
+				<string>#002952</string>
 			</dict>
 		</dict>
 		<dict>
@@ -130,7 +132,7 @@
 			<key>name</key>
 			<string>Class name</string>
 			<key>scope</key>
-			<string>entity.name.class</string>
+			<string>entity.name.type.class</string>
 			<key>settings</key>
 			<dict>
 				<key>fontStyle</key>

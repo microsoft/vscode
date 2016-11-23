@@ -14,16 +14,16 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
+import { FileLabel } from 'vs/workbench/browser/labels';
 import { LeftRightWidget, IRenderer } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import { ITree, IElementCallback, IDataSource, ISorter, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
-import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
+import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CommonKeybindings }  from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -91,13 +91,13 @@ class SearchActionProvider extends ContributableActionProvider {
 	}
 
 	public hasActions(tree: ITree, element: any): boolean {
-		let input= <SearchResult>tree.getInput();
+		let input = <SearchResult>tree.getInput();
 		return element instanceof FileMatch || (input.searchModel.isReplaceActive() || element instanceof Match) || super.hasActions(tree, element);
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
 		return super.getActions(tree, element).then(actions => {
-			let input= <SearchResult>tree.getInput();
+			let input = <SearchResult>tree.getInput();
 			if (element instanceof FileMatch) {
 				actions.unshift(new RemoveAction(tree, element));
 				if (input.searchModel.isReplaceActive() && element.count() > 0) {
@@ -118,7 +118,7 @@ class SearchActionProvider extends ContributableActionProvider {
 export class SearchRenderer extends ActionsRenderer {
 
 	constructor(actionRunner: IActionRunner, viewlet: SearchViewlet, @IWorkspaceContextService private contextService: IWorkspaceContextService,
-											@IInstantiationService private instantiationService: IInstantiationService) {
+		@IInstantiationService private instantiationService: IInstantiationService) {
 		super({
 			actionProvider: instantiationService.createInstance(SearchActionProvider, viewlet),
 			actionRunner: actionRunner
@@ -140,9 +140,10 @@ export class SearchRenderer extends ActionsRenderer {
 			let widget: LeftRightWidget;
 
 			leftRenderer = (left: HTMLElement): any => {
-				new FileLabel(left, fileMatch.resource(), this.contextService);
+				const label = this.instantiationService.createInstance(FileLabel, left, void 0);
+				label.setFile(fileMatch.resource());
 
-				return null;
+				return () => label.dispose();
 			};
 
 			rightRenderer = (right: HTMLElement) => {
@@ -161,15 +162,15 @@ export class SearchRenderer extends ActionsRenderer {
 		// Match
 		else if (element instanceof Match) {
 			dom.addClass(domElement, 'linematch');
-			let match= <Match>element;
+			let match = <Match>element;
 			let elements: string[] = [];
 			let preview = match.preview();
 
 			elements.push('<span>');
 			elements.push(strings.escape(preview.before));
-			let searchModel: SearchModel= (<SearchResult>tree.getInput()).searchModel;
+			let searchModel: SearchModel = (<SearchResult>tree.getInput()).searchModel;
 
-			let showReplaceText= searchModel.isReplaceActive() && !!searchModel.replaceString;
+			let showReplaceText = searchModel.isReplaceActive() && !!searchModel.replaceString;
 			elements.push('</span><span class="' + (showReplaceText ? 'replace ' : '') + 'findInFileMatch">');
 			elements.push(strings.escape(preview.inside));
 			if (showReplaceText) {
@@ -203,8 +204,8 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		if (element instanceof Match) {
-			let match= <Match> element;
-			let input= <SearchResult>tree.getInput();
+			let match = <Match>element;
+			let input = <SearchResult>tree.getInput();
 			if (input.searchModel.isReplaceActive()) {
 				let preview = match.preview();
 				return nls.localize('replacePreviewResultAria', "Replace preview result, {0}", preview.before + match.replaceString + preview.after);
@@ -220,16 +221,16 @@ export class SearchController extends DefaultController {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
 		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onEnter.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, this.onEnter.bind(this));
 		} else {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onEnter.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
 		}
 
 		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
 		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
-		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (tree: ITree, event: any) => { this.onEscape(tree, event); });
+		this.downKeyBindingDispatcher.set(KeyCode.Escape, (tree: ITree, event: any) => { this.onEscape(tree, event); });
 	}
 
 	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {
@@ -241,11 +242,11 @@ export class SearchController extends DefaultController {
 	}
 
 	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		let input= <SearchResult>tree.getInput();
+		let input = <SearchResult>tree.getInput();
 		let result = false;
 		let element = tree.getFocus();
 		if (element instanceof FileMatch ||
-				(element instanceof Match && input.searchModel.isReplaceActive())) {
+			(element instanceof Match && input.searchModel.isReplaceActive())) {
 			new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
 			result = true;
 		}
@@ -254,7 +255,7 @@ export class SearchController extends DefaultController {
 	}
 
 	private onReplace(tree: ITree, event: IKeyboardEvent): boolean {
-		let input= <SearchResult>tree.getInput();
+		let input = <SearchResult>tree.getInput();
 		let result = false;
 		let element = tree.getFocus();
 		if (element instanceof Match && input.searchModel.isReplaceActive()) {
@@ -284,7 +285,7 @@ export class SearchController extends DefaultController {
 		return super.onUp(tree, event);
 	}
 
-	protected onSpace(tree:ITree, event:IKeyboardEvent):boolean {
+	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
 		let element = tree.getFocus();
 		if (element instanceof Match) {
 			return this.onEnter(tree, event);

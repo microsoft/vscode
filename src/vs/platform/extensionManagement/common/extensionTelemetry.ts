@@ -9,22 +9,24 @@ import { ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagem
 
 export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
 	return {
-		id: `${ extension.manifest.publisher }.${ extension.manifest.name }`,
+		id: `${extension.manifest.publisher}.${extension.manifest.name}`,
 		name: extension.manifest.name,
 		galleryId: extension.metadata ? extension.metadata.id : null,
 		publisherId: extension.metadata ? extension.metadata.publisherId : null,
 		publisherName: extension.manifest.publisher,
-		publisherDisplayName: extension.metadata ? extension.metadata.publisherDisplayName : null
+		publisherDisplayName: extension.metadata ? extension.metadata.publisherDisplayName : null,
+		dependencies: extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length > 0
 	};
 }
 
 export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
 	return {
-		id: `${ extension.publisher }.${ extension.name }`,
+		id: `${extension.publisher}.${extension.name}`,
 		name: extension.name,
 		galleryId: extension.id,
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
-		publisherDisplayName: extension.publisherDisplayName
+		publisherDisplayName: extension.publisherDisplayName,
+		dependencies: extension.properties.dependencies.length > 0
 	};
 }

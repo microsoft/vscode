@@ -10,9 +10,10 @@ import nls = require('vs/nls');
 import mimes = require('vs/base/common/mime');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {Builder, $} from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { BoundedLinkedMap } from 'vs/base/common/map';
 
 // Known media mimes that we can handle
 const mapExtToMediaMimes = {
@@ -67,6 +68,29 @@ export interface IResourceDescriptor {
 	resource: URI;
 	name: string;
 	size: number;
+	etag: string;
+}
+
+// Chrome is caching images very aggressively and so we use the ETag information to find out if
+// we need to bypass the cache or not. We could always bypass the cache everytime we show the image
+// however that has very bad impact on memory consumption because each time the image gets shown,
+// memory grows (see also https://github.com/electron/electron/issues/6275)
+const IMAGE_RESOURCE_ETAG_CACHE = new BoundedLinkedMap<{ etag: string, src: string }>(100);
+function imageSrc(descriptor: IResourceDescriptor): string {
+	const src = descriptor.resource.toString();
+
+	let cached = IMAGE_RESOURCE_ETAG_CACHE.get(src);
+	if (!cached) {
+		cached = { etag: descriptor.etag, src };
+		IMAGE_RESOURCE_ETAG_CACHE.set(src, cached);
+	}
+
+	if (cached.etag !== descriptor.etag) {
+		cached.etag = descriptor.etag;
+		cached.src = `${src}?${Date.now()}`; // bypass cache with this trick
+	}
+
+	return cached.src;
 }
 
 /**
@@ -75,9 +99,14 @@ export interface IResourceDescriptor {
  */
 export class ResourceViewer {
 
-	private static MAX_IMAGE_SIZE = 1024 * 1024; // showing images inline is memory intense, so we have a limit
+	private static KB = 1024;
+	private static MB = ResourceViewer.KB * ResourceViewer.KB;
+	private static GB = ResourceViewer.MB * ResourceViewer.KB;
+	private static TB = ResourceViewer.GB * ResourceViewer.KB;
 
-	public static show(descriptor: IResourceDescriptor, container: Builder, scrollbar: DomScrollableElement): void {
+	private static MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
+
+	public static show(descriptor: IResourceDescriptor, container: Builder, scrollbar: DomScrollableElement, metadataClb?: (meta: string) => void): void {
 
 		// Ensure CSS class
 		$(container).setClass('monaco-resource-viewer');
@@ -98,9 +127,8 @@ export class ResourceViewer {
 			$(container)
 				.empty()
 				.addClass('image')
-				.img({
-					src: descriptor.resource.toString() // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-				}).on(DOM.EventType.LOAD, (e, img) => {
+				.img({ src: imageSrc(descriptor) })
+				.on(DOM.EventType.LOAD, (e, img) => {
 					const imgElement = <HTMLImageElement>img.getHTMLElement();
 					if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
 						$(container).addClass('oversized');
@@ -112,50 +140,10 @@ export class ResourceViewer {
 						});
 					}
 
-					// Update title when we know the image bounds
-					img.title(nls.localize('imgTitle', "{0} ({1}x{2})", paths.basename(descriptor.resource.fsPath), imgElement.naturalWidth, imgElement.naturalHeight));
+					if (metadataClb) {
+						metadataClb(nls.localize('imgMeta', "{0}x{1} {2}", imgElement.naturalWidth, imgElement.naturalHeight, ResourceViewer.formatSize(descriptor.size)));
+					}
 
-					scrollbar.scanDomNode();
-				});
-		}
-
-		// Embed Object (only PDF for now)
-		else if (false /* PDF is currently not supported in Electron it seems */ && mime.indexOf('pdf') >= 0) {
-			$(container)
-				.empty()
-				.element('object')
-				.attr({
-					data: descriptor.resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-					width: '100%',
-					height: '100%',
-					type: mime
-				});
-		}
-
-		// Embed Audio (if supported in browser)
-		else if (false /* disabled due to unknown impact on memory usage */ && mime.indexOf('audio/') >= 0) {
-			$(container)
-				.empty()
-				.element('audio')
-				.attr({
-					src: descriptor.resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-					text: nls.localize('missingAudioSupport', "Sorry but playback of audio files is not supported."),
-					controls: 'controls'
-				}).on(DOM.EventType.LOAD, () => {
-					scrollbar.scanDomNode();
-				});
-		}
-
-		// Embed Video (if supported in browser)
-		else if (false /* disabled due to unknown impact on memory usage */ && mime.indexOf('video/') >= 0) {
-			$(container)
-				.empty()
-				.element('video')
-				.attr({
-					src: descriptor.resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275 + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-					text: nls.localize('missingVideoSupport', "Sorry but playback of video files is not supported."),
-					controls: 'controls'
-				}).on(DOM.EventType.LOAD, () => {
 					scrollbar.scanDomNode();
 				});
 		}
@@ -168,7 +156,31 @@ export class ResourceViewer {
 					text: nls.localize('nativeBinaryError', "The file will not be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
 				});
 
+			if (metadataClb) {
+				metadataClb(ResourceViewer.formatSize(descriptor.size));
+			}
+
 			scrollbar.scanDomNode();
 		}
+	}
+
+	private static formatSize(size: number): string {
+		if (size < ResourceViewer.KB) {
+			return nls.localize('sizeB', "{0}B", size);
+		}
+
+		if (size < ResourceViewer.MB) {
+			return nls.localize('sizeKB', "{0}KB", (size / ResourceViewer.KB).toFixed(2));
+		}
+
+		if (size < ResourceViewer.GB) {
+			return nls.localize('sizeMB', "{0}MB", (size / ResourceViewer.MB).toFixed(2));
+		}
+
+		if (size < ResourceViewer.TB) {
+			return nls.localize('sizeGB', "{0}GB", (size / ResourceViewer.GB).toFixed(2));
+		}
+
+		return nls.localize('sizeTB', "{0}TB", (size / ResourceViewer.TB).toFixed(2));
 	}
 }

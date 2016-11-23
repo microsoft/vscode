@@ -5,11 +5,12 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {CursorMoveHelper} from 'vs/editor/common/controller/cursorMoveHelper';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
-import {ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel} from 'vs/editor/common/editorCommon';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { CharCode } from 'vs/base/common/charCode';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
@@ -19,21 +20,21 @@ export interface IShiftCommandOpts {
 
 export class ShiftCommand implements ICommand {
 
-	public static unshiftIndentCount(line:string, column:number, tabSize:number): number {
+	public static unshiftIndentCount(line: string, column: number, tabSize: number): number {
 		// Determine the visible column where the content starts
-		var contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(line, column, tabSize);
+		let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
 
-		var desiredTabStop = CursorMoveHelper.prevTabColumn(contentStartVisibleColumn, tabSize);
+		let desiredTabStop = CursorColumns.prevTabStop(contentStartVisibleColumn, tabSize);
 
 		// The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
 		return desiredTabStop / tabSize;
 	}
 
-	public static shiftIndentCount(line:string, column:number, tabSize:number): number {
+	public static shiftIndentCount(line: string, column: number, tabSize: number): number {
 		// Determine the visible column where the content starts
-		var contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(line, column, tabSize);
+		let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
 
-		var desiredTabStop = CursorMoveHelper.nextTabColumn(contentStartVisibleColumn, tabSize);
+		let desiredTabStop = CursorColumns.nextTabStop(contentStartVisibleColumn, tabSize);
 
 		// The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
 		return desiredTabStop / tabSize;
@@ -44,22 +45,21 @@ export class ShiftCommand implements ICommand {
 	private _selectionId: string;
 	private _useLastEditRangeForCursorEndPosition: boolean;
 
-	constructor(range: Selection, opts:IShiftCommandOpts) {
+	constructor(range: Selection, opts: IShiftCommandOpts) {
 		this._opts = opts;
 		this._selection = range;
 		this._useLastEditRangeForCursorEndPosition = false;
 	}
 
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
-		let startLine = this._selection.startLineNumber,
-			endLine = this._selection.endLineNumber,
-			_SPACE = ' '.charCodeAt(0);
+		let startLine = this._selection.startLineNumber;
+		let endLine = this._selection.endLineNumber;
 
 		if (this._selection.endColumn === 1 && startLine !== endLine) {
 			endLine = endLine - 1;
 		}
 
-		let lineNumber:number,
+		let lineNumber: number,
 			tabSize = this._opts.tabSize,
 			oneIndent = this._opts.oneIndent,
 			shouldIndentEmptyLines = (startLine === endLine);
@@ -76,7 +76,7 @@ export class ShiftCommand implements ICommand {
 
 		// keep track of previous line's "miss-alignment"
 		let previousLineExtraSpaces = 0, extraSpaces = 0;
-		for (lineNumber = startLine; lineNumber <= endLine; lineNumber++, previousLineExtraSpaces = extraSpaces) {
+		for (lineNumber = startLine; lineNumber <= endLine; lineNumber++ , previousLineExtraSpaces = extraSpaces) {
 			extraSpaces = 0;
 			let lineText = model.getLineContent(lineNumber);
 			let indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);
@@ -97,7 +97,7 @@ export class ShiftCommand implements ICommand {
 			}
 
 			if (lineNumber > 1) {
-				let contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(lineText, indentationEndIndex + 1, tabSize);
+				let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(lineText, indentationEndIndex + 1, tabSize);
 				if (contentStartVisibleColumn % tabSize !== 0) {
 					// The current line is "miss-aligned", so let's see if this is expected...
 					// This can only happen when it has trailing commas in the indent
@@ -106,7 +106,7 @@ export class ShiftCommand implements ICommand {
 						extraSpaces = previousLineExtraSpaces;
 						if (enterAction.appendText) {
 							for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
-								if (enterAction.appendText.charCodeAt(j) === _SPACE) {
+								if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
 									extraSpaces++;
 								} else {
 									break;
@@ -119,7 +119,7 @@ export class ShiftCommand implements ICommand {
 
 						// Act as if `prefixSpaces` is not part of the indentation
 						for (let j = 0; j < extraSpaces; j++) {
-							if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== _SPACE) {
+							if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== CharCode.Space) {
 								break;
 							}
 							indentationEndIndex--;
@@ -143,7 +143,7 @@ export class ShiftCommand implements ICommand {
 
 			// Fill `indents`, as needed
 			for (let j = indents.length; j <= desiredIndentCount; j++) {
-				indents[j] = indents[j-1] + oneIndent;
+				indents[j] = indents[j - 1] + oneIndent;
 			}
 
 			builder.addEditOperation(new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);
@@ -154,7 +154,7 @@ export class ShiftCommand implements ICommand {
 
 	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
 		if (this._useLastEditRangeForCursorEndPosition) {
-			var lastOp = helper.getInverseEditOperations()[0];
+			let lastOp = helper.getInverseEditOperations()[0];
 			return new Selection(lastOp.range.endLineNumber, lastOp.range.endColumn, lastOp.range.endLineNumber, lastOp.range.endColumn);
 		}
 		return helper.getTrackedSelection(this._selectionId);

@@ -5,22 +5,22 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {ICommand, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {editorAction, IActionOptions, EditorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
-import {BlockCommentCommand} from './blockCommentCommand';
-import {LineCommentCommand, Type} from './lineCommentCommand';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { ICommand, ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { editorAction, IActionOptions, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { BlockCommentCommand } from './blockCommentCommand';
+import { LineCommentCommand, Type } from './lineCommentCommand';
 
 abstract class CommentLineAction extends EditorAction {
 
 	private _type: Type;
 
-	constructor(type:Type, opts:IActionOptions) {
+	constructor(type: Type, opts: IActionOptions) {
 		super(opts);
 		this._type = type;
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let model = editor.getModel();
 		if (!model) {
 			return;
@@ -65,7 +65,7 @@ class AddLineCommentAction extends CommentLineAction {
 			precondition: EditorContextKeys.Writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
 			}
 		});
 	}
@@ -81,7 +81,7 @@ class RemoveLineCommentAction extends CommentLineAction {
 			precondition: EditorContextKeys.Writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
 			}
 		});
 	}
@@ -104,7 +104,7 @@ class BlockCommentAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		var commands: ICommand[] = [];
 		var selections = editor.getSelections();
 

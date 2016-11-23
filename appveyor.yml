@@ -1,10 +1,11 @@
 environment:
-  ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1
+  ELECTRON_RUN_AS_NODE: 1
   VSCODE_BUILD_VERBOSE: true
 
 install:
-  - ps: Install-Product node 5.10.1 x64
-  - npm install -g gulp mocha
+  - ps: Install-Product node 6.6.0 x64
+  - npm install -g npm --silent
+  - npm install -g gulp mocha --silent
 
 build_script:
   - .\scripts\npm.bat install --force
@@ -12,5 +13,7 @@ build_script:
   - gulp compile
 
 test_script:
+  - node --version
+  - npm --version
   - .\scripts\test.bat
   - .\scripts\test-integration.bat

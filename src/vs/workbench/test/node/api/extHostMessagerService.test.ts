@@ -6,8 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Action} from 'vs/base/common/actions';
-import {MainThreadMessageService} from 'vs/workbench/api/node/mainThreadMessageService';
+import { Action } from 'vs/base/common/actions';
+import { MainThreadMessageService } from 'vs/workbench/api/node/mainThreadMessageService';
 
 suite('ExtHostMessageService', function () {
 
@@ -39,8 +39,8 @@ suite('ExtHostMessageService', function () {
 		service.$showMessage(1, '', [{ title: 'a thing', isCloseAffordance: false, handle: 0 }]);
 		assert.equal(actions.length, 2);
 		let [first, second] = actions;
-		assert.equal(first.label, 'Close');
-		assert.equal(second.label, 'a thing');
+		assert.equal(first.label, 'a thing');
+		assert.equal(second.label, 'Close');
 
 		// override close action
 		service.$showMessage(1, '', [{ title: 'a thing', isCloseAffordance: true, handle: 0 }]);

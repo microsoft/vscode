@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ModelBuilder, computeHash} from 'vs/editor/node/model/modelBuilder';
-import {ITextModelCreationOptions, IRawText} from 'vs/editor/common/editorCommon';
-import {TextModel} from 'vs/editor/common/model/textModel';
+import { ModelBuilder, computeHash } from 'vs/editor/node/model/modelBuilder';
+import { ITextModelCreationOptions, IRawText } from 'vs/editor/common/editorCommon';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import * as strings from 'vs/base/common/strings';
 
-export function testModelBuilder(chunks:string[], opts:ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): string {
+export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): string {
 	let expectedRawText = TextModel.toRawText(chunks.join(''), opts);
 	let expectedHash = computeHash(expectedRawText);
 
@@ -28,17 +28,18 @@ export function testModelBuilder(chunks:string[], opts:ITextModelCreationOptions
 	return expectedHash;
 }
 
-function toRawText(lines:string[]): IRawText {
+function toRawText(lines: string[]): IRawText {
 	return {
 		BOM: '',
 		lines: lines,
 		EOL: '\n',
 		length: 0,
+		containsRTL: false,
 		options: null
 	};
 }
 
-export function testDifferentHash(lines1:string[], lines2:string[]): void {
+export function testDifferentHash(lines1: string[], lines2: string[]): void {
 	let hash1 = computeHash(toRawText(lines1));
 	let hash2 = computeHash(toRawText(lines2));
 	assert.notEqual(hash1, hash2);
@@ -77,11 +78,11 @@ suite('ModelBuilder', () => {
 	});
 
 	test('two lines in multiple chunks 2', () => {
-		testModelBuilder(['Hello worl', 'd' , '\n', 'H', 'ow are you?']);
+		testModelBuilder(['Hello worl', 'd', '\n', 'H', 'ow are you?']);
 	});
 
 	test('two lines in multiple chunks 3', () => {
-		testModelBuilder(['Hello worl', 'd' , '\nHow are you?']);
+		testModelBuilder(['Hello worl', 'd', '\nHow are you?']);
 	});
 
 	test('multiple lines in single chunks', () => {
@@ -100,23 +101,39 @@ suite('ModelBuilder', () => {
 		testModelBuilder(['Hello world\n', 'How are you', '?\nIs everything good today?', '\nDo you enjoy the weather?']);
 	});
 
-	test('carriage return detection (1 \r\n 2 \n)', () => {
+	test('carriage return detection (1 \\r\\n 2 \\n)', () => {
 		testModelBuilder(['Hello world\r\n', 'How are you', '?\nIs everything good today?', '\nDo you enjoy the weather?']);
 	});
 
-	test('carriage return detection (2 \r\n 1 \n)', () => {
+	test('carriage return detection (2 \\r\\n 1 \\n)', () => {
 		testModelBuilder(['Hello world\r\n', 'How are you', '?\r\nIs everything good today?', '\nDo you enjoy the weather?']);
 	});
 
-	test('carriage return detection (3 \r\n 0 \n)', () => {
+	test('carriage return detection (3 \\r\\n 0 \\n)', () => {
 		testModelBuilder(['Hello world\r\n', 'How are you', '?\r\nIs everything good today?', '\r\nDo you enjoy the weather?']);
 	});
 
-	test('carriage return detection (isolated \r)', () => {
+	test('carriage return detection (isolated \\r)', () => {
 		testModelBuilder(['Hello world', '\r', '\n', 'How are you', '?', '\r', '\n', 'Is everything good today?', '\r', '\n', 'Do you enjoy the weather?']);
 	});
 
 	test('BOM handling', () => {
 		testModelBuilder([strings.UTF8_BOM_CHARACTER + 'Hello world!']);
+	});
+
+	test('BOM handling', () => {
+		testModelBuilder([strings.UTF8_BOM_CHARACTER, 'Hello world!']);
+	});
+
+	test('RTL handling 1', () => {
+		testModelBuilder(['Hello world!', 'זוהי עובדה מבוססת שדעתו']);
+	});
+
+	test('RTL handling 2', () => {
+		testModelBuilder(['Hello world!זוהי עובדה מבוססת שדעתו']);
+	});
+
+	test('RTL handling 3', () => {
+		testModelBuilder(['Hello world!זוהי \nעובדה מבוססת שדעתו']);
 	});
 });

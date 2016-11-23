@@ -7,58 +7,63 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import * as path from 'path';
-import { parseArgs, ParsedArgs } from 'vs/code/node/argv';
+
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
-import * as objects from 'vs/base/common/objects';
 import { IPager } from 'vs/base/common/paging';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import {mkdirp} from 'vs/base/node/pfs';
+import { mkdirp } from 'vs/base/node/pfs';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 
 const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
 const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, eg: {0}", 'ms-vscode.csharp');
 
-function getId(manifest: IExtensionManifest): string {
-	return `${ manifest.publisher }.${ manifest.name }`;
+function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
+	if (withVersion) {
+		return `${manifest.publisher}.${manifest.name}@${manifest.version}`;
+	} else {
+		return `${manifest.publisher}.${manifest.name}`;
+	}
 }
 
-type Task = { ():TPromise<void> };
+type Task = { (): TPromise<void> };
 
 class Main {
 
 	constructor(
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
-	) {}
+	) { }
 
 	run(argv: ParsedArgs): TPromise<any> {
 		// TODO@joao - make this contributable
 
 		if (argv['list-extensions']) {
-			return this.listExtensions();
+			return this.listExtensions(argv['show-versions']);
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
-			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			return this.installExtension(ids);
+			const args: string[] = typeof arg === 'string' ? [arg] : arg;
+			return this.installExtension(args);
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
@@ -66,9 +71,9 @@ class Main {
 		}
 	}
 
-	private listExtensions(): TPromise<any> {
-		return this.extensionManagementService.getInstalled().then(extensions => {
-			extensions.forEach(e => console.log(getId(e.manifest)));
+	private listExtensions(showVersions: boolean): TPromise<any> {
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+			extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 		});
 	}
 
@@ -86,7 +91,7 @@ class Main {
 		const galleryTasks: Task[] = extensions
 			.filter(e => !/\.vsix$/i.test(e))
 			.map(id => () => {
-				return this.extensionManagementService.getInstalled().then(installed => {
+				return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
 					const isInstalled = installed.some(e => getId(e.manifest) === id);
 
 					if (isInstalled) {
@@ -101,15 +106,17 @@ class Main {
 									const response = JSON.parse(err.responseText);
 									return TPromise.wrapError(response.message);
 								} catch (e) {
-									return TPromise.wrapError(err);
+									// noop
 								}
 							}
+
+							return TPromise.wrapError(err);
 						})
 						.then(result => {
 							const [extension] = result.firstPage;
 
 							if (!extension) {
-								return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
+								return TPromise.wrapError(`${notFound(id)}\n${useId}`);
 							}
 
 							console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
@@ -126,11 +133,11 @@ class Main {
 
 	private uninstallExtension(ids: string[]): TPromise<any> {
 		return sequence(ids.map(id => () => {
-			return this.extensionManagementService.getInstalled().then(installed => {
+			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
 				const [extension] = installed.filter(e => getId(e.manifest) === id);
 
 				if (!extension) {
-					return TPromise.wrapError(`${ notInstalled(id) }\n${ useId }`);
+					return TPromise.wrapError(`${notInstalled(id)}\n${useId}`);
 				}
 
 				console.log(localize('uninstalling', "Uninstalling {0}...", id));
@@ -146,22 +153,23 @@ const eventPrefix = 'monacoworkbench';
 
 export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, objects.assign(parseArgs(process.argv), { execPath: process.execPath })));
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, argv, process.execPath));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
 	return instantiationService.invokeFunction(accessor => {
 		const envService = accessor.get(IEnvironmentService);
 
-		return TPromise.join([envService.userHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
+		return TPromise.join([envService.appSettingsHome, envService.userProductHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
 			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = envService;
 
 			const services = new ServiceCollection();
 			services.set(IEventService, new SyncDescriptor(EventService));
-			services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
+			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+			services.set(IChoiceService, new SyncDescriptor(ChoiceCliService));
 
 			if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
 				const appenders: AppInsightsAppender[] = [];

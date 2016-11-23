@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
-import {StatusBarAlignment as ExtHostStatusBarAlignment, Disposable} from './extHostTypes';
-import {StatusBarItem, StatusBarAlignment} from 'vscode';
-import {MainContext, MainThreadStatusBarShape} from './extHost.protocol';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable } from './extHostTypes';
+import { StatusBarItem, StatusBarAlignment } from 'vscode';
+import { MainContext, MainThreadStatusBarShape } from './extHost.protocol';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
@@ -88,6 +88,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 	}
 
 	public hide(): void {
+		clearTimeout(this._timeoutHandle);
 		this._visible = false;
 		this._proxy.$dispose(this.id);
 	}
@@ -97,13 +98,11 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 			return;
 		}
 
-		if (this._timeoutHandle) {
-			clearTimeout(this._timeoutHandle);
-		}
+		clearTimeout(this._timeoutHandle);
 
 		// Defer the update so that multiple changes to setters dont cause a redraw each
 		this._timeoutHandle = setTimeout(() => {
-			this._timeoutHandle = null;
+			this._timeoutHandle = undefined;
 
 			// Set to status bar
 			this._proxy.$setEntry(this.id, this.text, this.tooltip, this.command, this.color,

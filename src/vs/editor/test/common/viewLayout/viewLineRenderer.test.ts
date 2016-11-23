@@ -5,24 +5,26 @@
 'use strict';
 
 import * as assert from 'assert';
-import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
-import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
+import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { CharCode } from 'vs/base/common/charCode';
+import { LineParts } from 'vs/editor/common/core/lineParts';
 
 suite('viewLineRenderer.renderLine', () => {
 
-	function createPart(startIndex: number, type:string): ViewLineToken {
+	function createPart(startIndex: number, type: string): ViewLineToken {
 		return new ViewLineToken(startIndex, type);
 	}
 
-	function assertCharacterReplacement(lineContent:string, tabSize:number, expected:string, expectedCharOffsetInPart: number[]): void {
+	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[]): void {
 		let _actual = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
 			0,
 			-1,
+			'none',
 			false,
-			false,
-			[createPart(0, '')]
+			new LineParts([createPart(0, '')], lineContent.length + 1)
 		));
 
 		assert.equal(_actual.output, '<span><span class="token ">' + expected + '</span></span>');
@@ -43,7 +45,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 	test('replaces some bad characters', () => {
 		assertCharacterReplacement('a\0b', 4, 'a&#00;b', [0, 1, 2, 3]);
-		assertCharacterReplacement('a' + String.fromCharCode(65279) + 'b', 4, 'a\ufffdb', [0, 1, 2, 3]);
+		assertCharacterReplacement('a' + String.fromCharCode(CharCode.UTF8_BOM) + 'b', 4, 'a\ufffdb', [0, 1, 2, 3]);
 		assertCharacterReplacement('a\u2028b', 4, 'a\ufffdb', [0, 1, 2, 3]);
 		assertCharacterReplacement('a\rb', 4, 'a&#8203b', [0, 1, 2, 3]);
 	});
@@ -56,15 +58,15 @@ suite('viewLineRenderer.renderLine', () => {
 		assertCharacterReplacement('xxxx\t', 4, 'xxxx&nbsp;&nbsp;&nbsp;&nbsp;', [0, 1, 2, 3, 4, 8]);
 	});
 
-	function assertParts(lineContent:string, tabSize:number, parts: ViewLineToken[], expected:string, expectedCharOffsetInPart:number[]): void {
+	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken[], expected: string, expectedCharOffsetInPart: number[]): void {
 		let _actual = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
 			0,
 			-1,
+			'none',
 			false,
-			false,
-			parts
+			new LineParts(parts, lineContent.length + 1)
 		));
 
 		assert.equal(_actual.output, '<span>' + expected + '</span>');
@@ -93,22 +95,25 @@ suite('viewLineRenderer.renderLine', () => {
 			4,
 			10,
 			6,
-			true,
+			'boundary',
 			false,
-			[
-				createPart( 0,  '0'),
-				createPart( 1,  '1'),
-				createPart( 2,  '2'),
-				createPart( 3,  '3'),
-				createPart( 4,  '4'),
-				createPart( 5,  '5'),
-				createPart( 6,  '6'),
-				createPart( 7,  '7'),
-				createPart( 8,  '8'),
-				createPart( 9,  '9'),
-				createPart(10, '10'),
-				createPart(11, '11'),
-			]
+			new LineParts(
+				[
+					createPart(0, '0'),
+					createPart(1, '1'),
+					createPart(2, '2'),
+					createPart(3, '3'),
+					createPart(4, '4'),
+					createPart(5, '5'),
+					createPart(6, '6'),
+					createPart(7, '7'),
+					createPart(8, '8'),
+					createPart(9, '9'),
+					createPart(10, '10'),
+					createPart(11, '11'),
+				],
+				'Hello world!'.length + 1
+			)
 		));
 
 		let expectedOutput = [
@@ -134,8 +139,8 @@ suite('viewLineRenderer.renderLine', () => {
 	test('typical line', () => {
 		let lineText = '\t    export class Game { // http://test.com     ';
 		let lineParts = [
-			createPart( 0, 'block meta ts leading whitespace'),
-			createPart( 5, 'block declaration meta modifier object storage ts'),
+			createPart(0, 'block meta ts vs-whitespace'),
+			createPart(5, 'block declaration meta modifier object storage ts'),
 			createPart(11, 'block declaration meta object ts'),
 			createPart(12, 'block declaration meta object storage type ts'),
 			createPart(17, 'block declaration meta object ts'),
@@ -145,10 +150,10 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(24, 'block body declaration meta object ts'),
 			createPart(25, 'block body comment declaration line meta object ts'),
 			createPart(28, 'block body comment declaration line meta object ts detected-link'),
-			createPart(43, 'block body comment declaration line meta object ts trailing whitespace'),
+			createPart(43, 'block body comment declaration line meta object ts vs-whitespace'),
 		];
 		let expectedOutput = [
-			'<span class="token block meta ts leading whitespace" style="width:80px">&rarr;&nbsp;&nbsp;&nbsp;&middot;&middot;&middot;&middot;</span>',
+			'<span class="token block meta ts vs-whitespace" style="width:80px">&rarr;&nbsp;&nbsp;&nbsp;&middot;&middot;&middot;&middot;</span>',
 			'<span class="token block declaration meta modifier object storage ts">export</span>',
 			'<span class="token block declaration meta object ts">&nbsp;</span>',
 			'<span class="token block declaration meta object storage type ts">class</span>',
@@ -159,7 +164,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="token block body declaration meta object ts">&nbsp;</span>',
 			'<span class="token block body comment declaration line meta object ts">//&nbsp;</span>',
 			'<span class="token block body comment declaration line meta object ts detected-link">http://test.com</span>',
-			'<span class="token block body comment declaration line meta object ts trailing whitespace" style="width:50px">&middot;&middot;&middot;&middot;&middot;</span>'
+			'<span class="token block body comment declaration line meta object ts vs-whitespace" style="width:50px">&middot;&middot;&middot;&middot;&middot;</span>'
 		].join('');
 		let expectedOffsetsArr = [
 			[0, 4, 5, 6, 7],
@@ -182,9 +187,9 @@ suite('viewLineRenderer.renderLine', () => {
 			4,
 			10,
 			-1,
-			true,
+			'boundary',
 			false,
-			lineParts
+			new LineParts(lineParts, lineText.length + 1)
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
@@ -195,8 +200,8 @@ suite('viewLineRenderer.renderLine', () => {
 		let lineText = '\t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
 
 		let lineParts = [
-			createPart( 0, 'block body decl declaration meta method object ts'), // 3 chars
-			createPart( 3, 'block body decl declaration member meta method object ts'), // 12 chars
+			createPart(0, 'block body decl declaration meta method object ts'), // 3 chars
+			createPart(3, 'block body decl declaration member meta method object ts'), // 12 chars
 			createPart(15, 'block body decl declaration member meta method object ts'), // 6 chars
 			createPart(21, 'delimiter paren typescript'), // 1 char
 			createPart(22, 'block body decl declaration member meta method object ts'), // 21 chars
@@ -237,9 +242,9 @@ suite('viewLineRenderer.renderLine', () => {
 			4,
 			10,
 			-1,
+			'none',
 			false,
-			false,
-			lineParts
+			new LineParts(lineParts, lineText.length + 1)
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
@@ -250,8 +255,8 @@ suite('viewLineRenderer.renderLine', () => {
 		let lineText = ' \t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
 
 		let lineParts = [
-			createPart( 0, 'block body decl declaration meta method object ts'), // 4 chars
-			createPart( 4, 'block body decl declaration member meta method object ts'), // 12 chars
+			createPart(0, 'block body decl declaration meta method object ts'), // 4 chars
+			createPart(4, 'block body decl declaration member meta method object ts'), // 12 chars
 			createPart(16, 'block body decl declaration member meta method object ts'), // 6 chars
 			createPart(22, 'delimiter paren typescript'), // 1 char
 			createPart(23, 'block body decl declaration member meta method object ts'), // 21 chars
@@ -292,9 +297,9 @@ suite('viewLineRenderer.renderLine', () => {
 			4,
 			10,
 			-1,
+			'none',
 			false,
-			false,
-			lineParts
+			new LineParts(lineParts, lineText.length + 1)
 		));
 
 		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');

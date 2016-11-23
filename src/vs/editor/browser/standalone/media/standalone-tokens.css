@@ -5,6 +5,31 @@
 
 /* -------------------------------- Begin vs tokens -------------------------------- */
 
+/* Default standalone editor font */
+.monaco-editor {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-item [tabindex="0"]:focus {
+	color: deepskyblue;
+}
+
+.monaco-editor-hover p {
+	margin: 0;
+}
+
+/*.monaco-editor.vs [tabindex="0"]:focus {
+	outline: 1px solid rgba(0, 122, 204, 0.4);
+	outline-offset: -1px;
+	opacity: 1 !important;
+}
+
+.monaco-editor.vs-dark [tabindex="0"]:focus {
+	outline: 1px solid rgba(14, 99, 156, 0.6);
+	outline-offset: -1px;
+	opacity: 1 !important;
+}*/
+
 .monaco-editor.vs .token.terminal					{ color: #e00000; }
 .monaco-editor.vs .token.terminal.code1				{ font-weight: bold; }
 .monaco-editor.vs .token.variable					{ color: #001188; }
@@ -343,7 +368,7 @@
 .monaco-editor.vs .token.entity.name							{ color: #800000; }
 .monaco-editor.vs .token.entity.name.tag						{ color: #800000; }
 .monaco-editor.vs .token.entity.name.function					{ color: #444444; }
-.monaco-editor.vs .token.entity.name.class						{ color: #2B91AF; }
+.monaco-editor.vs .token.entity.name.type						{ color: #2B91AF; }
 .monaco-editor.vs .token.entity.name.selector					{ color: #800000; }
 .monaco-editor.vs .token.entity.other.selector					{ color: #800000; }
 .monaco-editor.vs .token.entity.other.attribute-name			{ color: red; }
@@ -435,7 +460,7 @@
 /* -------------------------------- Begin vs-dark tokens -------------------------------- */
 
 .monaco-editor.vs-dark .token									{ color: #D4D4D4; }
-.monaco-editor.vs-dark .token.whitespace						{ color: rgba(227, 228, 226, 0.16) !important; }
+.monaco-editor.vs-dark .token.vs-whitespace						{ color: rgba(227, 228, 226, 0.16) !important; }
 
 .monaco-editor.vs-dark .token.builtin.function					{ color: #569CD6; }
 
@@ -472,7 +497,7 @@
 .monaco-editor.vs-dark .token.entity.name						{ color: #569CD6; }
 .monaco-editor.vs-dark .token.entity.name.tag					{ color: #569CD6; }
 .monaco-editor.vs-dark .token.entity.name.function				{ color: #DCDCAA; }
-.monaco-editor.vs-dark .token.entity.name.class					{ color: #4EC9B0; }
+.monaco-editor.vs-dark .token.entity.name.type					{ color: #4EC9B0; }
 .monaco-editor.vs-dark .token.entity.name.selector				{ color: #569CD6; }
 
 .monaco-editor.vs-dark .token.entity.other.selector				{ color: #569CD6; }
@@ -601,7 +626,7 @@
 .monaco-editor.hc-black .token.entity.name						{ color: #569CD6; }
 .monaco-editor.hc-black .token.entity.name.tag					{ color: #569CD6; }
 .monaco-editor.hc-black .token.entity.name.function				{ color: #DCDCAA; }
-.monaco-editor.hc-black .token.entity.name.class				{ color: #4EC9B0; }
+.monaco-editor.hc-black .token.entity.name.type					{ color: #4EC9B0; }
 .monaco-editor.hc-black .token.entity.name.selector				{ color: #569CD6; }
 .monaco-editor.hc-black .token.entity.other.selector			{ color: #569CD6; }
 .monaco-editor.hc-black .token.entity.other.attribute-name		{ color: #9CDCFE; }

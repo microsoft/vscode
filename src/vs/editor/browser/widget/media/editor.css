@@ -22,6 +22,8 @@
 	overflow: visible;
 	-webkit-text-size-adjust: 100%;
 	-ms-high-contrast-adjust: none;
+	-webkit-font-feature-settings: "liga" off, "calt" off;
+	font-feature-settings: "liga" off, "calt" off;
 }
 .monaco-editor.enable-ligatures {
 	-webkit-font-feature-settings: "liga" on, "calt" on;
@@ -112,11 +114,11 @@
 	top: 0;
 }
 
-/* -------------------- Highlight a line -------------------- */
+/* -------------------- Highlight a range -------------------- */
 
-.monaco-editor.vs		.lineHighlight { background: rgba(253, 255, 0, 0.2); }
-.monaco-editor.vs-dark	.lineHighlight { background: rgba(243, 240, 245, 0.2); }
-.monaco-editor.hc-black	.lineHighlight { background: rgba(243, 240, 245, 0.2); }
+.monaco-editor.vs		.rangeHighlight { background: rgba(253, 255, 0, 0.2); }
+.monaco-editor.vs-dark	.rangeHighlight { background: rgba(255, 255, 255, 0.044); }
+.monaco-editor.hc-black	.rangeHighlight { border: 1px dotted #f38518; }
 
 /* -------------------- Squigglies -------------------- */
 

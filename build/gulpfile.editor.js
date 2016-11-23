@@ -5,12 +5,9 @@
 
 var gulp = require('gulp');
 var path = require('path');
-var _ = require('underscore');
-var buildfile = require('../src/buildfile');
 var util = require('./lib/util');
-var common = require('./gulpfile.common');
+var common = require('./lib/optimize');
 var es = require('event-stream');
-var fs = require('fs');
 var File = require('vinyl');
 
 var root = path.dirname(__dirname);
@@ -20,27 +17,33 @@ var headerVersion = semver + '(' + sha1 + ')';
 
 // Build
 
-var editorEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/editor/editor.main'),
-	buildfile.base,
-	buildfile.editor,
-	buildfile.languages
-]);
+var editorEntryPoints = [
+	{
+		name: 'vs/editor/editor.main',
+		include: [],
+		exclude: [],
+		prepend: [ 'vs/css.js', 'vs/nls.js' ],
+	},
+	{
+		name: 'vs/base/common/worker/simpleWorker',
+		include: [ 'vs/editor/common/services/editorSimpleWorker' ],
+		prepend: [ 'vs/loader.js' ],
+		append: [ 'vs/base/worker/workerMain' ],
+		dest: 'vs/base/worker/workerMain.js'
+	}
+];
 
 var editorResources = [
 	'out-build/vs/{base,editor}/**/*.{svg,png}',
 	'!out-build/vs/base/browser/ui/splitview/**/*',
 	'!out-build/vs/base/browser/ui/toolbar/**/*',
 	'!out-build/vs/base/browser/ui/octiconLabel/**/*',
-	'out-build/vs/base/worker/workerMainCompatibility.html',
-	'out-build/vs/base/worker/workerMain.{js,js.map}',
+	'!out-build/vs/editor/contrib/defineKeybinding/**/*',
 	'!out-build/vs/workbench/**',
 	'!**/test/**'
 ];
 
 var editorOtherSources = [
-	'out-build/vs/css.js',
-	'out-build/vs/nls.js'
 ];
 
 var BUNDLED_FILE_HEADER = [
@@ -59,24 +62,26 @@ function editorLoaderConfig() {
 	// never ship octicons in editor
 	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
 
-	result['vs/css'] = { inlineResources: true };
+	// force css inlining to use base64 -- see https://github.com/Microsoft/monaco-editor/issues/148
+	result['vs/css'] = { inlineResources: 'base64' };
 
 	return result;
 }
 
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
-gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common.optimizeTask({
+gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'], common.optimizeTask({
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,
 	loaderConfig: editorLoaderConfig(),
+	bundleLoader: false,
 	header: BUNDLED_FILE_HEADER,
 	bundleInfo: true,
 	out: 'out-editor'
 }));
 
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
-gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor', true));
+gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
 
 gulp.task('clean-editor-distro', util.rimraf('out-monaco-editor-core'));
 gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-editor'], function() {
@@ -84,7 +89,6 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 		// other assets
 		es.merge(
 			gulp.src('build/monaco/LICENSE'),
-			gulp.src('build/monaco/CHANGELOG.md'),
 			gulp.src('build/monaco/ThirdPartyNotices.txt'),
 			gulp.src('src/vs/monaco.d.ts')
 		).pipe(gulp.dest('out-monaco-editor-core')),

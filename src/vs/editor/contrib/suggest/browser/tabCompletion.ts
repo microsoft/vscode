@@ -5,27 +5,28 @@
 
 'use strict';
 
-import {KeyCode} from 'vs/base/common/keyCodes';
-import {RawContextKey, IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
-import {Registry} from 'vs/platform/platform';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
+import { Registry } from 'vs/platform/platform';
+import { endsWith } from 'vs/base/common/strings';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
-import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
-import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
+import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { SnippetController, CONTEXT_SNIPPET_MODE } from 'vs/editor/contrib/snippet/common/snippetController';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
 let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 
-class TabCompletionController implements editorCommon.IEditorContribution {
+@commonEditorContribution
+export class TabCompletionController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.tabCompletionController';
 	static ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
 
-	public static get(editor:editorCommon.ICommonCodeEditor): TabCompletionController {
+	public static get(editor: editorCommon.ICommonCodeEditor): TabCompletionController {
 		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
 	}
 
@@ -42,19 +43,28 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 		this._cursorChangeSubscription = editor.onDidChangeCursorSelection(e => {
 
 			this._currentSnippets.length = 0;
+			let selectFn: (snippet: ISnippet) => boolean;
 
-			const prefix = e.selection.isEmpty()
-				? getNonWhitespacePrefix(editor.getModel(), editor.getPosition())
-				: editor.getModel().getValueInRange(e.selection);
+			if (e.selection.isEmpty()) {
+				// empty selection -> real text (no whitespace) left of cursor
+				const prefix = getNonWhitespacePrefix(editor.getModel(), editor.getPosition());
+				selectFn = prefix && (snippet => endsWith(prefix, snippet.prefix));
 
-			if (prefix) {
+			} else {
+				// actual selection -> snippet must be a full match
+				const selected = editor.getModel().getValueInRange(e.selection);
+				selectFn = snippet => selected === snippet.prefix;
+			}
+
+			if (selectFn) {
 				snippetsRegistry.visitSnippets(editor.getModel().getModeId(), s => {
-					if (prefix === s.prefix) {
+					if (selectFn(s)) {
 						this._currentSnippets.push(s);
 					}
 					return true;
 				});
 			}
+
 			hasSnippets.set(this._currentSnippets.length === 1); //todo@joh make it work with N
 		});
 	}
@@ -66,9 +76,8 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 	performSnippetCompletions(): void {
 		if (this._currentSnippets.length === 1) {
 			const snippet = this._currentSnippets[0];
-			const codeSnippet = new CodeSnippet(snippet.codeSnippet);
-			this._snippetController.run(codeSnippet, snippet.prefix.length, 0);
-		// } else {
+			this._snippetController.insertSnippet(snippet.codeSnippet, snippet.prefix.length, 0);
+			// } else {
 			// todo@joh - show suggest widget with proposals
 		}
 	}
@@ -77,8 +86,6 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 		return TabCompletionController.ID;
 	}
 }
-
-CommonEditorRegistry.registerEditorContribution(TabCompletionController);
 
 const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(TabCompletionController.get);
 
@@ -91,6 +98,7 @@ CommonEditorRegistry.registerEditorCommand(new TabCompletionCommand({
 		kbExpr: ContextKeyExpr.and(
 			EditorContextKeys.TextFocus,
 			EditorContextKeys.TabDoesNotMoveFocus,
+			CONTEXT_SNIPPET_MODE.toNegated(),
 			ContextKeyExpr.has('config.editor.tabCompletion')
 		),
 		primary: KeyCode.Tab

@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {normalize} from 'vs/base/common/paths';
+import { normalize } from 'vs/base/common/paths';
 
 suite('URI', () => {
 	test('file#toString', () => {
@@ -26,6 +26,13 @@ suite('URI', () => {
 		assert.equal(URI.file('./c/win/path').fsPath.replace(/\\/g, '/'), '/./c/win/path');
 		assert.equal(URI.file('c:\\win\\path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
 		assert.equal(URI.file('c:\\win/path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
+	});
+
+	test('URI#fsPath - no `fsPath` when no `path`', () => {
+		const value = URI.parse('file://%2Fhome%2Fticino%2Fdesktop%2Fcpluscplus%2Ftest.cpp');
+		assert.equal(value.authority, '/home/ticino/desktop/cpluscplus/test.cpp');
+		assert.equal(value.path, '');
+		assert.equal(value.fsPath, '');
 	});
 
 	test('http#toString', () => {
@@ -361,7 +368,7 @@ suite('URI', () => {
 		test('file://monacotools1/certificates/SSL/', '\\\\monacotools1\\certificates\\SSL\\');
 	});
 
-	test('URI - http, query & toString', function() {
+	test('URI - http, query & toString', function () {
 
 		let uri = URI.parse('https://go.microsoft.com/fwlink/?LinkId=518008');
 		assert.equal(uri.query, 'LinkId=518008');
@@ -397,7 +404,7 @@ suite('URI', () => {
 		// console.profile();
 		// let c = 100000;
 		// while (c-- > 0) {
-		for(let value of values) {
+		for (let value of values) {
 			let data = value.toJSON();
 			let clone = URI.revive(data);
 

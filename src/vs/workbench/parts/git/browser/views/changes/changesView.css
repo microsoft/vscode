@@ -57,9 +57,8 @@
 	display: none;
 }
 
-.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:after,
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:before {
-	border: none;
+	background: none;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .status-group {

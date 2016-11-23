@@ -9,11 +9,16 @@ import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import { IStorageService } from 'vs/code/electron-main/storage';
-import { shell, screen, BrowserWindow } from 'electron';
+import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/code/electron-main/env';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
-import { parseArgs } from 'vs/code/node/argv';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { parseArgs } from 'vs/platform/environment/node/argv';
+import product from 'vs/platform/product';
+import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
+import { IWindowSettings } from 'vs/platform/windows/common/windows';
+import { ReadyState, IVSCodeWindow } from 'vs/code/common/window';
 
 export interface IWindowState {
 	width?: number;
@@ -27,6 +32,7 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	allowFullscreen?: boolean;
+	titleBarStyle?: 'native' | 'custom';
 }
 
 export enum WindowMode {
@@ -44,29 +50,6 @@ export const defaultWindowState = function (mode = WindowMode.Normal): IWindowSt
 	};
 };
 
-export enum ReadyState {
-
-	/**
-	 * This window has not loaded any HTML yet
-	 */
-	NONE,
-
-	/**
-	 * This window is loading HTML
-	 */
-	LOADING,
-
-	/**
-	 * This window is navigating to another HTML
-	 */
-	NAVIGATING,
-
-	/**
-	 * This window is done loading HTML
-	 */
-	READY
-}
-
 export interface IPath {
 
 	// the workspace spath for a VSCode instance which can be null
@@ -83,35 +66,41 @@ export interface IPath {
 
 	// indicator to create the file path in the VSCode instance
 	createFilePath?: boolean;
-
-	// indicator to install the extension (path to .vsix) in the VSCode instance
-	installExtensionPath?: boolean;
 }
 
-export interface IWindowConfiguration extends ICommandLineArguments {
+export interface IWindowConfiguration extends ParsedArgs {
 	appRoot: string;
 	execPath: string;
 
-	userEnv: IProcessEnvironment;
+	userEnv: platform.IProcessEnvironment;
+
+	zoomLevel?: number;
+	fullscreen?: boolean;
+	highContrast?: boolean;
+	accessibilitySupport?: boolean;
+
+	isInitialStartup?: boolean;
+
+	perfStartTime?: number;
+	perfWindowLoadTime?: number;
 
 	workspacePath?: string;
 
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
-
-	extensionsToInstall: string[];
 }
 
-export class VSCodeWindow {
+export class VSCodeWindow implements IVSCodeWindow {
 
 	public static menuBarHiddenKey = 'menuBarHidden';
-	public static themeStorageKey = 'theme';
+	public static colorThemeStorageKey = 'theme';
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
 
 	private options: IWindowCreationOptions;
+	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;
 	private _id: number;
 	private _win: Electron.BrowserWindow;
@@ -129,7 +118,8 @@ export class VSCodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
-		@IEnvService private envService: IEnvService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IStorageService private storageService: IStorageService
 	) {
 		this.options = config;
@@ -142,36 +132,58 @@ export class VSCodeWindow {
 		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
-		const usesLightTheme = /vs($| )/.test(this.storageService.getItem<string>(VSCodeWindow.themeStorageKey));
-		if (!global.windowShow) {
-			global.windowShow = Date.now();
-		}
+		const themeId = this.storageService.getItem<string>(VSCodeWindow.colorThemeStorageKey);
+		const usesLightTheme = /vs($| )/.test(themeId);
+		const usesHighContrastTheme = /hc-black($| )/.test(themeId) || (platform.isWindows && systemPreferences.isInvertedColorScheme());
 
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
 
-		let options: Electron.BrowserWindowOptions = {
+		const options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#131313' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
+			backgroundColor: usesHighContrastTheme ? '#000000' : usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
-			title: this.envService.product.nameLong,
+			title: product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
 			}
 		};
 
 		if (platform.isLinux) {
-			options.icon = path.join(this.envService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
+			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
+		}
+
+		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom')) {
+			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
+			if (!isDev) {
+				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+				this.hiddenTitleBarStyle = true;
+			}
 		}
 
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
+
+		// TODO@joao: hook this up to some initialization routine
+		// this causes a race between setting the headers and doing
+		// a request that needs them. chances are low
+		getCommonHTTPHeaders().done(headers => {
+			if (!this._win) {
+				return;
+			}
+
+			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+
+			this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
+			});
+		});
 
 		if (isFullscreenOrMaximized) {
 			this.win.maximize();
@@ -192,6 +204,10 @@ export class VSCodeWindow {
 		}
 
 		this.registerListeners();
+	}
+
+	public hasHiddenTitleBarStyle(): boolean {
+		return this.hiddenTitleBarStyle;
 	}
 
 	public get isPluginDevelopmentHost(): boolean {
@@ -277,10 +293,6 @@ export class VSCodeWindow {
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded
 			if (!this.win.isVisible()) {
-				if (!global.windowShow) {
-					global.windowShow = Date.now();
-				}
-
 				if (this.currentWindowMode === WindowMode.Maximized) {
 					this.win.maximize();
 				}
@@ -317,6 +329,26 @@ export class VSCodeWindow {
 			this._lastFocusTime = Date.now();
 		});
 
+		// Window Fullscreen
+		this._win.on('enter-full-screen', () => {
+			this.sendWhenReady('vscode:enterFullScreen');
+		});
+
+		this._win.on('leave-full-screen', () => {
+			this.sendWhenReady('vscode:leaveFullScreen');
+		});
+
+		// React to HC color scheme changes (Windows)
+		if (platform.isWindows) {
+			systemPreferences.on('inverted-color-scheme-changed', () => {
+				if (systemPreferences.isInvertedColorScheme()) {
+					this.sendWhenReady('vscode:enterHighContrast');
+				} else {
+					this.sendWhenReady('vscode:leaveHighContrast');
+				}
+			});
+		}
+
 		// Window Failed to load
 		this._win.webContents.on('did-fail-load', (event: Event, errorCode: string, errorDescription: string) => {
 			console.warn('[electron event]: fail to load, ', errorDescription);
@@ -324,7 +356,7 @@ export class VSCodeWindow {
 
 		// Prevent any kind of navigation triggered by the user!
 		// But do not touch this in dev version because it will prevent "Reload" from dev tools
-		if (this.envService.isBuilt) {
+		if (this.environmentService.isBuilt) {
 			this._win.webContents.on('will-navigate', (event: Event) => {
 				if (event) {
 					event.preventDefault();
@@ -350,11 +382,16 @@ export class VSCodeWindow {
 			this._readyState = ReadyState.NAVIGATING;
 		}
 
+		// Make sure to clear any previous edited state
+		if (platform.isMacintosh && this._win.isDocumentEdited()) {
+			this._win.setDocumentEdited(false);
+		}
+
 		// Load URL
 		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
-		if (!this.envService.isBuilt) {
+		if (!this.environmentService.isBuilt) {
 			this.showTimeoutHandle = setTimeout(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
@@ -365,14 +402,13 @@ export class VSCodeWindow {
 		}
 	}
 
-	public reload(cli?: ICommandLineArguments): void {
+	public reload(cli?: ParsedArgs): void {
 
 		// Inherit current properties but overwrite some
-		let configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
+		const configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.filesToDiff;
-		delete configuration.extensionsToInstall;
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in plugin development mode. These options are all development related.
@@ -380,8 +416,10 @@ export class VSCodeWindow {
 			configuration.verbose = cli.verbose;
 			configuration.debugPluginHost = cli.debugPluginHost;
 			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
-			configuration.extensionHomePath = cli.extensionHomePath;
+			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
+
+		configuration.isInitialStartup = false; // since this is a reload
 
 		// Load config
 		this.load(configuration);
@@ -389,6 +427,24 @@ export class VSCodeWindow {
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
 		let url = require.toUrl('vs/workbench/electron-browser/bootstrap/index.html');
+
+		// Set zoomlevel
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const zoomLevel = windowConfig && windowConfig.zoomLevel;
+		if (typeof zoomLevel === 'number') {
+			windowConfiguration.zoomLevel = zoomLevel;
+		}
+
+		// Set fullscreen state
+		windowConfiguration.fullscreen = this._win.isFullScreen();
+
+		// Set Accessibility Config
+		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme();
+		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
+
+		// Perf Counters
+		windowConfiguration.perfStartTime = global.perfStartTime;
+		windowConfiguration.perfWindowLoadTime = Date.now();
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);
@@ -407,11 +463,16 @@ export class VSCodeWindow {
 	public serializeWindowState(): IWindowState {
 		if (this.win.isFullScreen()) {
 			return {
-				mode: WindowMode.Fullscreen
+				mode: WindowMode.Fullscreen,
+				// still carry over window dimensions from previous sessions!
+				width: this.windowState.width,
+				height: this.windowState.height,
+				x: this.windowState.x,
+				y: this.windowState.y
 			};
 		}
 
-		let state: IWindowState = Object.create(null);
+		const state: IWindowState = Object.create(null);
 		let mode: WindowMode;
 
 		// get window mode
@@ -432,8 +493,8 @@ export class VSCodeWindow {
 
 		// only consider non-minimized window states
 		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
-			let pos = this.win.getPosition();
-			let size = this.win.getSize();
+			const pos = this.win.getPosition();
+			const size = this.win.getSize();
 
 			state.x = pos[0];
 			state.y = pos[1];
@@ -471,7 +532,7 @@ export class VSCodeWindow {
 				return state;
 			}
 
-			return null;
+			state.mode = WindowMode.Normal; // if we do not allow fullscreen, treat this state as normal window state
 		}
 
 		if ([state.x, state.y, state.width, state.height].some(n => typeof n !== 'number')) {
@@ -482,11 +543,11 @@ export class VSCodeWindow {
 			return null;
 		}
 
-		let displays = screen.getAllDisplays();
+		const displays = screen.getAllDisplays();
 
 		// Single Monitor: be strict about x/y positioning
 		if (displays.length === 1) {
-			let displayBounds = displays[0].bounds;
+			const displayBounds = displays[0].bounds;
 
 			// Careful with maximized: in that mode x/y can well be negative!
 			if (state.mode !== WindowMode.Maximized && displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
@@ -523,11 +584,11 @@ export class VSCodeWindow {
 		}
 
 		// Multi Monitor: be less strict because metrics can be crazy
-		let bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
-		let display = screen.getDisplayMatching(bounds);
+		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
+		const display = screen.getDisplayMatching(bounds);
 		if (display && display.bounds.x + display.bounds.width > bounds.x && display.bounds.y + display.bounds.height > bounds.y) {
 			if (state.mode === WindowMode.Maximized) {
-				let defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
+				const defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
 				defaults.x = state.x; // carefull to keep x/y position so that the window ends up on the correct monitor
 				defaults.y = state.y;
 
@@ -540,15 +601,15 @@ export class VSCodeWindow {
 		return null;
 	}
 
-	public getBounds(): Electron.Bounds {
-		let pos = this.win.getPosition();
-		let dimension = this.win.getSize();
+	public getBounds(): Electron.Rectangle {
+		const pos = this.win.getPosition();
+		const dimension = this.win.getSize();
 
 		return { x: pos[0], y: pos[1], width: dimension[0], height: dimension[1] };
 	}
 
 	public toggleFullScreen(): void {
-		let willBeFullScreen = !this.win.isFullScreen();
+		const willBeFullScreen = !this.win.isFullScreen();
 
 		this.win.setFullScreen(willBeFullScreen);
 

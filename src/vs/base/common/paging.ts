@@ -111,7 +111,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 			page.promiseIndexes.unset(index);
 
-			if (page.promiseIndexes.elements.length === 0) {
+			if (page.promiseIndexes.size === 0) {
 				page.promise.cancel();
 			}
 		});
@@ -122,7 +122,7 @@ export class PagedModel<T> implements IPagedModel<T> {
  * Similar to array.map, `mapPager` lets you map the elements of an
  * abstract paged collection to another type.
  */
-export function mapPager<T,R>(pager: IPager<T>, fn: (t: T) => R): IPager<R> {
+export function mapPager<T, R>(pager: IPager<T>, fn: (t: T) => R): IPager<R> {
 	return {
 		firstPage: pager.firstPage.map(fn),
 		total: pager.total,

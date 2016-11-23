@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import * as dom from 'vs/base/browser/dom';
 import strings = require('vs/base/common/strings');
 import { $ } from 'vs/base/browser/builder';
 import { Widget } from 'vs/base/browser/ui/widget';
-import {IExpression, splitGlobAware} from 'vs/base/common/glob';
+import { IExpression, splitGlobAware } from 'vs/base/common/glob';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { MessageType, InputBox, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -25,6 +26,8 @@ export interface IOptions {
 export class PatternInputWidget extends Widget {
 
 	static OPTION_CHANGE: string = 'optionChange';
+
+	public inputFocusTracker: dom.IFocusTracker;
 
 	private onOptionChange: (event: Event) => void;
 	private width: number;
@@ -65,6 +68,9 @@ export class PatternInputWidget extends Widget {
 		this.toDispose.forEach((element) => {
 			element();
 		});
+		if (this.inputFocusTracker) {
+			this.inputFocusTracker.dispose();
+		}
 		this.toDispose = [];
 	}
 
@@ -132,6 +138,10 @@ export class PatternInputWidget extends Widget {
 		this.inputBox.focus();
 	}
 
+	public inputHasFocus(): boolean {
+		return this.inputBox.hasFocus();
+	}
+
 	public isGlobPattern(): boolean {
 		return this.pattern.checked;
 	}
@@ -159,7 +169,7 @@ export class PatternInputWidget extends Widget {
 				showMessage: true
 			}
 		});
-
+		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
 
 		this.pattern = new Checkbox({

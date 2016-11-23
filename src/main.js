@@ -3,14 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 // Perf measurements
-global.vscodeStart = Date.now();
+global.perfStartTime = Date.now();
 
 var app = require('electron').app;
 var fs = require('fs');
 var path = require('path');
 var minimist = require('minimist');
 var paths = require('./paths');
+
+var args = minimist(process.argv, {
+	string: ['user-data-dir', 'locale']
+});
 
 function stripComments(content) {
 	var regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
@@ -39,16 +45,7 @@ function stripComments(content) {
 }
 
 function getNLSConfiguration() {
-	var locale = undefined;
-	var localeOpts = '--locale';
-	for (var i = 0; i < process.argv.length; i++) {
-		var arg = process.argv[i];
-		if (arg.slice(0, localeOpts.length) == localeOpts) {
-			var segments = arg.split('=');
-			locale = segments[1];
-			break;
-		}
-	}
+	var locale = args['locale'];
 
 	if (!locale) {
 		var userData = app.getPath('userData');
@@ -74,7 +71,7 @@ function getNLSConfiguration() {
 	// the locale we receive from the user or OS.
 	locale = locale ? locale.toLowerCase() : locale;
 	if (locale === 'pseudo') {
-		return { locale: locale, availableLanguages: {}, pseudo: true }
+		return { locale: locale, availableLanguages: {}, pseudo: true };
 	}
 	var initialLocale = locale;
 	if (process.env['VSCODE_DEV']) {
@@ -114,6 +111,10 @@ function getNLSConfiguration() {
 	return resolvedLocale ? resolvedLocale : { locale: initialLocale, availableLanguages: {} };
 }
 
+// Set userData path before app 'ready' event and call to process.chdir
+var userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
+app.setPath('userData', userData);
+
 // Update cwd based on environment and platform
 try {
 	if (process.platform === 'win32') {
@@ -126,17 +127,27 @@ try {
 	console.error(err);
 }
 
-// Set userData path before app 'ready' event
-var argv = minimist(process.argv, { string: ['user-data-dir'] });
-var userData = argv['user-data-dir'] || paths.getDefaultUserDataPath(process.platform);
-app.setPath('userData', userData);
-
 // Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
 // the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
 global.macOpenFiles = [];
 app.on('open-file', function (event, path) {
 	global.macOpenFiles.push(path);
 });
+
+var openUrls = [];
+var onOpenUrl = function (event, url) {
+	event.preventDefault();
+	openUrls.push(url);
+};
+
+app.on('will-finish-launching', function () {
+	app.on('open-url', onOpenUrl);
+});
+
+global.getOpenUrls = function () {
+	app.removeListener('open-url', onOpenUrl);
+	return openUrls;
+};
 
 // Load our code once ready
 app.once('ready', function () {

@@ -11,12 +11,12 @@ import stream = require('stream');
 /**
  * Reads up to total bytes from the provided stream.
  */
-export function readExactlyByStream(stream:stream.Readable, totalBytes:number, callback:(err:Error, buffer:NodeBuffer, bytesRead:number) => void):void {
+export function readExactlyByStream(stream: stream.Readable, totalBytes: number, callback: (err: Error, buffer: NodeBuffer, bytesRead: number) => void): void {
 	let done = false;
 	let buffer = new Buffer(totalBytes);
 	let bytesRead = 0;
 
-	stream.on('data', (data:NodeBuffer) => {
+	stream.on('data', (data: NodeBuffer) => {
 		let bytesToRead = Math.min(totalBytes - bytesRead, data.length);
 		data.copy(buffer, bytesRead, 0, bytesToRead);
 		bytesRead += bytesToRead;
@@ -26,7 +26,7 @@ export function readExactlyByStream(stream:stream.Readable, totalBytes:number, c
 		}
 	});
 
-	stream.on('error', (e:Error) => {
+	stream.on('error', (e: Error) => {
 		if (!done) {
 			done = true;
 			callback(e, null, null);
@@ -46,14 +46,14 @@ export function readExactlyByStream(stream:stream.Readable, totalBytes:number, c
 /**
  * Reads totalBytes from the provided file.
  */
-export function readExactlyByFile(file:string, totalBytes:number, callback:(error:Error, buffer:NodeBuffer, bytesRead:number)=>void):void {
-	fs.open(file, 'r', null, (err, fd)=>{
+export function readExactlyByFile(file: string, totalBytes: number, callback: (error: Error, buffer: NodeBuffer, bytesRead: number) => void): void {
+	fs.open(file, 'r', null, (err, fd) => {
 		if (err) {
 			return callback(err, null, 0);
 		}
 
-		function end(err:Error, resultBuffer:NodeBuffer, bytesRead:number):void {
-			fs.close(fd, (closeError:Error)=>{
+		function end(err: Error, resultBuffer: NodeBuffer, bytesRead: number): void {
+			fs.close(fd, (closeError: Error) => {
 				if (closeError) {
 					return callback(closeError, null, bytesRead);
 				}
@@ -69,8 +69,8 @@ export function readExactlyByFile(file:string, totalBytes:number, callback:(erro
 		let buffer = new Buffer(totalBytes);
 		let bytesRead = 0;
 		let zeroAttempts = 0;
-		function loop():void {
-			fs.read(fd, buffer, bytesRead, totalBytes - bytesRead, null, (err, moreBytesRead)=>{
+		function loop(): void {
+			fs.read(fd, buffer, bytesRead, totalBytes - bytesRead, null, (err, moreBytesRead) => {
 				if (err) {
 					return end(err, null, 0);
 				}

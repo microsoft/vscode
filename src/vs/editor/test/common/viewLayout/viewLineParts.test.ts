@@ -5,15 +5,16 @@
 'use strict';
 
 import * as assert from 'assert';
-import {DecorationSegment, LineDecorationsNormalizer, getColumnOfLinePartOffset, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
-import {Range} from 'vs/editor/common/core/range';
-import {RenderLineInput, renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
-import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
-import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
+import { DecorationSegment, LineDecorationsNormalizer, getColumnOfLinePartOffset, createLineParts } from 'vs/editor/common/viewLayout/viewLineParts';
+import { Range } from 'vs/editor/common/core/range';
+import { RenderLineInput, renderLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { LineParts } from 'vs/editor/common/core/lineParts';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 
-	function newDecoration(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number, inlineClassName:string): InlineDecoration {
+	function newDecoration(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, inlineClassName: string): InlineDecoration {
 		return new InlineDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), inlineClassName);
 	}
 
@@ -34,13 +35,13 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('issue #3462: no whitespace shown at the end of a decorated line', () => {
 
 		var result = LineDecorationsNormalizer.normalize(3, 1, [
-			newDecoration(3, 15, 3, 21, 'trailing whitespace'),
+			newDecoration(3, 15, 3, 21, 'vs-whitespace'),
 			newDecoration(3, 20, 3, 21, 'inline-folded'),
 		]);
 
 		assert.deepEqual(result, [
-			new DecorationSegment(14, 18, 'trailing whitespace'),
-			new DecorationSegment(19, 19, 'trailing whitespace inline-folded')
+			new DecorationSegment(14, 18, 'vs-whitespace'),
+			new DecorationSegment(19, 19, 'vs-whitespace inline-folded')
 		]);
 	});
 
@@ -55,9 +56,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
-	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace:boolean, expected:ViewLineToken[]): void {
+	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: ViewLineToken[]): void {
 		let lineParts = createLineParts(1, 1, lineContent, 4, new ViewLineTokens(tokens, fauxIndentLength, lineContent.length), [], renderWhitespace);
-		let actual = lineParts.getParts();
+		let actual = lineParts.parts;
 
 		assert.deepEqual(actual, expected);
 	}
@@ -69,7 +70,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(0, '')
 			],
 			0,
-			false,
+			'none',
 			[
 				new ViewLineToken(0, '')
 			]
@@ -83,7 +84,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(6, 'b')
 			],
 			0,
-			false,
+			'none',
 			[
 				new ViewLineToken(0, 'a'),
 				new ViewLineToken(6, 'b')
@@ -99,12 +100,12 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(6, 'b')
 			],
 			0,
-			true,
+			'boundary',
 			[
-				new ViewLineToken(0, ' leading whitespace'),
+				new ViewLineToken(0, ' vs-whitespace'),
 				new ViewLineToken(4, 'a'),
 				new ViewLineToken(6, 'b'),
-				new ViewLineToken(16, 'b trailing whitespace')
+				new ViewLineToken(16, 'b vs-whitespace')
 			]
 		);
 	});
@@ -117,14 +118,14 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(10, 'b')
 			],
 			0,
-			true,
+			'boundary',
 			[
-				new ViewLineToken(0, ' leading whitespace'),
-				new ViewLineToken(4, ' leading whitespace'),
+				new ViewLineToken(0, ' vs-whitespace'),
+				new ViewLineToken(4, ' vs-whitespace'),
 				new ViewLineToken(8, 'a'),
 				new ViewLineToken(10, 'b'),
-				new ViewLineToken(20, 'b trailing whitespace'),
-				new ViewLineToken(24, 'b trailing whitespace'),
+				new ViewLineToken(20, 'b vs-whitespace'),
+				new ViewLineToken(24, 'b vs-whitespace'),
 			]
 		);
 	});
@@ -137,13 +138,13 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(4, 'b')
 			],
 			0,
-			true,
+			'boundary',
 			[
-				new ViewLineToken(0, ' leading whitespace'),
-				new ViewLineToken(1, ' leading whitespace'),
+				new ViewLineToken(0, ' vs-whitespace'),
+				new ViewLineToken(1, ' vs-whitespace'),
 				new ViewLineToken(2, 'a'),
 				new ViewLineToken(4, 'b'),
-				new ViewLineToken(14, 'b trailing whitespace'),
+				new ViewLineToken(14, 'b vs-whitespace'),
 			]
 		);
 	});
@@ -156,17 +157,17 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(8, 'b')
 			],
 			0,
-			true,
+			'boundary',
 			[
-				new ViewLineToken(0, ' leading whitespace'),
-				new ViewLineToken(3, ' leading whitespace'),
-				new ViewLineToken(4, ' leading whitespace'),
+				new ViewLineToken(0, ' vs-whitespace'),
+				new ViewLineToken(3, ' vs-whitespace'),
+				new ViewLineToken(4, ' vs-whitespace'),
 				new ViewLineToken(6, 'a'),
 				new ViewLineToken(8, 'b'),
-				new ViewLineToken(18, 'b trailing whitespace'),
-				new ViewLineToken(20, 'b trailing whitespace'),
-				new ViewLineToken(23, 'b trailing whitespace'),
-				new ViewLineToken(27, 'b trailing whitespace'),
+				new ViewLineToken(18, 'b vs-whitespace'),
+				new ViewLineToken(20, 'b vs-whitespace'),
+				new ViewLineToken(23, 'b vs-whitespace'),
+				new ViewLineToken(27, 'b vs-whitespace'),
 			]
 		);
 	});
@@ -179,17 +180,17 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(8, 'b')
 			],
 			0,
-			true,
+			'boundary',
 			[
-				new ViewLineToken(0, ' leading whitespace'),
-				new ViewLineToken(3, ' leading whitespace'),
-				new ViewLineToken(4, ' leading whitespace'),
+				new ViewLineToken(0, ' vs-whitespace'),
+				new ViewLineToken(3, ' vs-whitespace'),
+				new ViewLineToken(4, ' vs-whitespace'),
 				new ViewLineToken(6, 'a'),
 				new ViewLineToken(8, 'b'),
-				new ViewLineToken(18, 'b trailing whitespace'),
-				new ViewLineToken(20, 'b trailing whitespace'),
-				new ViewLineToken(23, 'b trailing whitespace'),
-				new ViewLineToken(27, 'b trailing whitespace'),
+				new ViewLineToken(18, 'b vs-whitespace'),
+				new ViewLineToken(20, 'b vs-whitespace'),
+				new ViewLineToken(23, 'b vs-whitespace'),
+				new ViewLineToken(27, 'b vs-whitespace'),
 			]
 		);
 	});
@@ -203,16 +204,59 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(6, 'b')
 			],
 			2,
-			true,
+			'boundary',
 			[
 				new ViewLineToken(0, ''),
-				new ViewLineToken(2, ' leading whitespace'),
+				new ViewLineToken(2, ' vs-whitespace'),
 				new ViewLineToken(4, 'a'),
 				new ViewLineToken(6, 'b'),
-				new ViewLineToken(16, 'b trailing whitespace'),
-				new ViewLineToken(18, 'b trailing whitespace'),
-				new ViewLineToken(21, 'b trailing whitespace'),
-				new ViewLineToken(25, 'b trailing whitespace'),
+				new ViewLineToken(16, 'b vs-whitespace'),
+				new ViewLineToken(18, 'b vs-whitespace'),
+				new ViewLineToken(21, 'b vs-whitespace'),
+				new ViewLineToken(25, 'b vs-whitespace'),
+			]
+		);
+	});
+
+	test('createLineParts render whitespace in middle but not for one space', () => {
+		testCreateLineParts(
+			'it  it it  it',
+			[
+				new ViewLineToken(0, ''),
+				new ViewLineToken(6, 'a'),
+				new ViewLineToken(7, 'b')
+			],
+			0,
+			'boundary',
+			[
+				new ViewLineToken(0, ''),
+				new ViewLineToken(2, ' vs-whitespace'),
+				new ViewLineToken(4, ''),
+				new ViewLineToken(6, 'a'),
+				new ViewLineToken(7, 'b'),
+				new ViewLineToken(9, 'b vs-whitespace'),
+				new ViewLineToken(11, 'b'),
+			]
+		);
+	});
+
+	test('createLineParts render whitespace for all in middle', () => {
+		testCreateLineParts(
+			' Hello world!\t',
+			[
+				new ViewLineToken(0, ''),
+				new ViewLineToken(4, 'a'),
+				new ViewLineToken(6, 'b')
+			],
+			0,
+			'all',
+			[
+				new ViewLineToken(0, ' vs-whitespace'),
+				new ViewLineToken(1, ''),
+				new ViewLineToken(4, 'a'),
+				new ViewLineToken(6, 'b vs-whitespace'),
+				new ViewLineToken(7, 'b'),
+				new ViewLineToken(13, 'b vs-whitespace'),
 			]
 		);
 	});
@@ -223,34 +267,34 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			newDecoration(1, 1, 1, 2, 'c1'),
 			newDecoration(1, 3, 1, 4, 'c2')
 		]), [
-			new DecorationSegment(0, 0, 'c1'),
-			new DecorationSegment(2, 2, 'c2')
-		]);
+				new DecorationSegment(0, 0, 'c1'),
+				new DecorationSegment(2, 2, 'c2')
+			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 3, 'c1'),
 			newDecoration(1, 3, 1, 4, 'c2')
 		]), [
-			new DecorationSegment(0, 1, 'c1'),
-			new DecorationSegment(2, 2, 'c2')
-		]);
+				new DecorationSegment(0, 1, 'c1'),
+				new DecorationSegment(2, 2, 'c2')
+			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 4, 'c1'),
 			newDecoration(1, 3, 1, 4, 'c2')
 		]), [
-			new DecorationSegment(0, 1, 'c1'),
-			new DecorationSegment(2, 2, 'c1 c2')
-		]);
+				new DecorationSegment(0, 1, 'c1'),
+				new DecorationSegment(2, 2, 'c1 c2')
+			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 4, 'c1'),
 			newDecoration(1, 1, 1, 4, 'c1*'),
 			newDecoration(1, 3, 1, 4, 'c2')
 		]), [
-			new DecorationSegment(0, 1, 'c1 c1*'),
-			new DecorationSegment(2, 2, 'c1 c1* c2')
-		]);
+				new DecorationSegment(0, 1, 'c1 c1*'),
+				new DecorationSegment(2, 2, 'c1 c1* c2')
+			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 4, 'c1'),
@@ -258,9 +302,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			newDecoration(1, 1, 1, 4, 'c1**'),
 			newDecoration(1, 3, 1, 4, 'c2')
 		]), [
-			new DecorationSegment(0, 1, 'c1 c1* c1**'),
-			new DecorationSegment(2, 2, 'c1 c1* c1** c2')
-		]);
+				new DecorationSegment(0, 1, 'c1 c1* c1**'),
+				new DecorationSegment(2, 2, 'c1 c1* c1** c2')
+			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 4, 'c1'),
@@ -269,9 +313,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			newDecoration(1, 3, 1, 4, 'c2'),
 			newDecoration(1, 3, 1, 4, 'c2*')
 		]), [
-			new DecorationSegment(0, 1, 'c1 c1* c1**'),
-			new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*')
-		]);
+				new DecorationSegment(0, 1, 'c1 c1* c1**'),
+				new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*')
+			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 4, 'c1'),
@@ -280,16 +324,16 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			newDecoration(1, 3, 1, 4, 'c2'),
 			newDecoration(1, 3, 1, 5, 'c2*')
 		]), [
-			new DecorationSegment(0, 1, 'c1 c1* c1**'),
-			new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*'),
-			new DecorationSegment(3, 3, 'c2*')
-		]);
+				new DecorationSegment(0, 1, 'c1 c1* c1**'),
+				new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*'),
+				new DecorationSegment(3, 3, 'c2*')
+			]);
 	});
 
-	function createTestGetColumnOfLinePartOffset(lineContent:string, tabSize:number, parts:ViewLineToken[]): (partIndex:number, partLength:number, offset:number, expected:number)=>void {
-		let renderLineOutput = renderLine(new RenderLineInput(lineContent, tabSize, 10, -1, false, false, parts));
+	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
+		let renderLineOutput = renderLine(new RenderLineInput(lineContent, tabSize, 10, -1, 'none', false, new LineParts(parts, lineContent.length + 1)));
 
-		return (partIndex:number, partLength:number, offset:number, expected:number) => {
+		return (partIndex: number, partLength: number, offset: number, expected: number) => {
 			let actual = getColumnOfLinePartOffset(-1, parts, lineContent.length + 1, renderLineOutput.charOffsetInPart, partIndex, partLength, offset);
 			assert.equal(actual, expected, 'getColumnOfLinePartOffset for ' + partIndex + ' @ ' + offset);
 		};
@@ -303,16 +347,16 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(0, 'aToken')
 			]
 		);
-		testGetColumnOfLinePartOffset(0, 11,  0,  1);
-		testGetColumnOfLinePartOffset(0, 11,  1,  2);
-		testGetColumnOfLinePartOffset(0, 11,  2,  3);
-		testGetColumnOfLinePartOffset(0, 11,  3,  4);
-		testGetColumnOfLinePartOffset(0, 11,  4,  5);
-		testGetColumnOfLinePartOffset(0, 11,  5,  6);
-		testGetColumnOfLinePartOffset(0, 11,  6,  7);
-		testGetColumnOfLinePartOffset(0, 11,  7,  8);
-		testGetColumnOfLinePartOffset(0, 11,  8,  9);
-		testGetColumnOfLinePartOffset(0, 11,  9, 10);
+		testGetColumnOfLinePartOffset(0, 11, 0, 1);
+		testGetColumnOfLinePartOffset(0, 11, 1, 2);
+		testGetColumnOfLinePartOffset(0, 11, 2, 3);
+		testGetColumnOfLinePartOffset(0, 11, 3, 4);
+		testGetColumnOfLinePartOffset(0, 11, 4, 5);
+		testGetColumnOfLinePartOffset(0, 11, 5, 6);
+		testGetColumnOfLinePartOffset(0, 11, 6, 7);
+		testGetColumnOfLinePartOffset(0, 11, 7, 8);
+		testGetColumnOfLinePartOffset(0, 11, 8, 9);
+		testGetColumnOfLinePartOffset(0, 11, 9, 10);
 		testGetColumnOfLinePartOffset(0, 11, 10, 11);
 		testGetColumnOfLinePartOffset(0, 11, 11, 12);
 	});
@@ -330,19 +374,19 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(9, ''),
 			]
 		);
-		testGetColumnOfLinePartOffset(0, 3, 0,  1);
-		testGetColumnOfLinePartOffset(0, 3, 1,  2);
-		testGetColumnOfLinePartOffset(0, 3, 2,  3);
-		testGetColumnOfLinePartOffset(0, 3, 3,  4);
-		testGetColumnOfLinePartOffset(1, 1, 0,  4);
-		testGetColumnOfLinePartOffset(1, 1, 1,  5);
-		testGetColumnOfLinePartOffset(2, 1, 0,  5);
-		testGetColumnOfLinePartOffset(2, 1, 1,  6);
-		testGetColumnOfLinePartOffset(3, 3, 0,  6);
-		testGetColumnOfLinePartOffset(3, 3, 1,  7);
-		testGetColumnOfLinePartOffset(3, 3, 2,  8);
-		testGetColumnOfLinePartOffset(3, 3, 3,  9);
-		testGetColumnOfLinePartOffset(4, 1, 0,  9);
+		testGetColumnOfLinePartOffset(0, 3, 0, 1);
+		testGetColumnOfLinePartOffset(0, 3, 1, 2);
+		testGetColumnOfLinePartOffset(0, 3, 2, 3);
+		testGetColumnOfLinePartOffset(0, 3, 3, 4);
+		testGetColumnOfLinePartOffset(1, 1, 0, 4);
+		testGetColumnOfLinePartOffset(1, 1, 1, 5);
+		testGetColumnOfLinePartOffset(2, 1, 0, 5);
+		testGetColumnOfLinePartOffset(2, 1, 1, 6);
+		testGetColumnOfLinePartOffset(3, 3, 0, 6);
+		testGetColumnOfLinePartOffset(3, 3, 1, 7);
+		testGetColumnOfLinePartOffset(3, 3, 2, 8);
+		testGetColumnOfLinePartOffset(3, 3, 3, 9);
+		testGetColumnOfLinePartOffset(4, 1, 0, 9);
 		testGetColumnOfLinePartOffset(4, 1, 1, 10);
 		testGetColumnOfLinePartOffset(5, 1, 0, 10);
 		testGetColumnOfLinePartOffset(5, 1, 1, 11);
@@ -353,16 +397,16 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'\t',
 			6,
 			[
-				new ViewLineToken(0, 'leading whitespace')
+				new ViewLineToken(0, 'vs-whitespace')
 			]
 		);
-		testGetColumnOfLinePartOffset(0, 6, 0,  1);
-		testGetColumnOfLinePartOffset(0, 6, 1,  1);
-		testGetColumnOfLinePartOffset(0, 6, 2,  1);
-		testGetColumnOfLinePartOffset(0, 6, 3,  1);
-		testGetColumnOfLinePartOffset(0, 6, 4,  2);
-		testGetColumnOfLinePartOffset(0, 6, 5,  2);
-		testGetColumnOfLinePartOffset(0, 6, 6,  2);
+		testGetColumnOfLinePartOffset(0, 6, 0, 1);
+		testGetColumnOfLinePartOffset(0, 6, 1, 1);
+		testGetColumnOfLinePartOffset(0, 6, 2, 1);
+		testGetColumnOfLinePartOffset(0, 6, 3, 1);
+		testGetColumnOfLinePartOffset(0, 6, 4, 2);
+		testGetColumnOfLinePartOffset(0, 6, 5, 2);
+		testGetColumnOfLinePartOffset(0, 6, 6, 2);
 	});
 
 	test('getColumnOfLinePartOffset 4 - once indented line, tab size 4', () => {
@@ -374,19 +418,19 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(1, 'meta type js function storage'),
 			]
 		);
-		testGetColumnOfLinePartOffset(0, 4, 0,  1);
-		testGetColumnOfLinePartOffset(0, 4, 1,  1);
-		testGetColumnOfLinePartOffset(0, 4, 2,  1);
-		testGetColumnOfLinePartOffset(0, 4, 3,  2);
-		testGetColumnOfLinePartOffset(0, 4, 4,  2);
-		testGetColumnOfLinePartOffset(1, 8, 0,  2);
-		testGetColumnOfLinePartOffset(1, 8, 1,  3);
-		testGetColumnOfLinePartOffset(1, 8, 2,  4);
-		testGetColumnOfLinePartOffset(1, 8, 3,  5);
-		testGetColumnOfLinePartOffset(1, 8, 4,  6);
-		testGetColumnOfLinePartOffset(1, 8, 5,  7);
-		testGetColumnOfLinePartOffset(1, 8, 6,  8);
-		testGetColumnOfLinePartOffset(1, 8, 7,  9);
+		testGetColumnOfLinePartOffset(0, 4, 0, 1);
+		testGetColumnOfLinePartOffset(0, 4, 1, 1);
+		testGetColumnOfLinePartOffset(0, 4, 2, 1);
+		testGetColumnOfLinePartOffset(0, 4, 3, 2);
+		testGetColumnOfLinePartOffset(0, 4, 4, 2);
+		testGetColumnOfLinePartOffset(1, 8, 0, 2);
+		testGetColumnOfLinePartOffset(1, 8, 1, 3);
+		testGetColumnOfLinePartOffset(1, 8, 2, 4);
+		testGetColumnOfLinePartOffset(1, 8, 3, 5);
+		testGetColumnOfLinePartOffset(1, 8, 4, 6);
+		testGetColumnOfLinePartOffset(1, 8, 5, 7);
+		testGetColumnOfLinePartOffset(1, 8, 6, 8);
+		testGetColumnOfLinePartOffset(1, 8, 7, 9);
 		testGetColumnOfLinePartOffset(1, 8, 8, 10);
 	});
 
@@ -399,22 +443,22 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(2, 'meta type js function storage'),
 			]
 		);
-		testGetColumnOfLinePartOffset(0, 8, 0,  1);
-		testGetColumnOfLinePartOffset(0, 8, 1,  1);
-		testGetColumnOfLinePartOffset(0, 8, 2,  1);
-		testGetColumnOfLinePartOffset(0, 8, 3,  2);
-		testGetColumnOfLinePartOffset(0, 8, 4,  2);
-		testGetColumnOfLinePartOffset(0, 8, 5,  2);
-		testGetColumnOfLinePartOffset(0, 8, 6,  2);
-		testGetColumnOfLinePartOffset(0, 8, 7,  3);
-		testGetColumnOfLinePartOffset(0, 8, 8,  3);
-		testGetColumnOfLinePartOffset(1, 8, 0,  3);
-		testGetColumnOfLinePartOffset(1, 8, 1,  4);
-		testGetColumnOfLinePartOffset(1, 8, 2,  5);
-		testGetColumnOfLinePartOffset(1, 8, 3,  6);
-		testGetColumnOfLinePartOffset(1, 8, 4,  7);
-		testGetColumnOfLinePartOffset(1, 8, 5,  8);
-		testGetColumnOfLinePartOffset(1, 8, 6,  9);
+		testGetColumnOfLinePartOffset(0, 8, 0, 1);
+		testGetColumnOfLinePartOffset(0, 8, 1, 1);
+		testGetColumnOfLinePartOffset(0, 8, 2, 1);
+		testGetColumnOfLinePartOffset(0, 8, 3, 2);
+		testGetColumnOfLinePartOffset(0, 8, 4, 2);
+		testGetColumnOfLinePartOffset(0, 8, 5, 2);
+		testGetColumnOfLinePartOffset(0, 8, 6, 2);
+		testGetColumnOfLinePartOffset(0, 8, 7, 3);
+		testGetColumnOfLinePartOffset(0, 8, 8, 3);
+		testGetColumnOfLinePartOffset(1, 8, 0, 3);
+		testGetColumnOfLinePartOffset(1, 8, 1, 4);
+		testGetColumnOfLinePartOffset(1, 8, 2, 5);
+		testGetColumnOfLinePartOffset(1, 8, 3, 6);
+		testGetColumnOfLinePartOffset(1, 8, 4, 7);
+		testGetColumnOfLinePartOffset(1, 8, 5, 8);
+		testGetColumnOfLinePartOffset(1, 8, 6, 9);
 		testGetColumnOfLinePartOffset(1, 8, 7, 10);
 		testGetColumnOfLinePartOffset(1, 8, 8, 11);
 	});

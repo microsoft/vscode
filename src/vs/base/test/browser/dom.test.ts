@@ -5,7 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import dom = require('vs/base/browser/dom');
+import * as dom from 'vs/base/browser/dom';
+const $ = dom.$;
 
 suite('dom', () => {
 	test('hasClass', () => {
@@ -82,7 +83,7 @@ suite('dom', () => {
 	//	}
 	//});
 
-	test('safeStringify', function() {
+	test('safeStringify', function () {
 		var obj1 = {
 			friend: null
 		};
@@ -94,7 +95,7 @@ suite('dom', () => {
 		obj1.friend = obj2;
 		obj2.friend = obj1;
 
-		var arr:any = [1];
+		var arr: any = [1];
 		arr.push(arr);
 
 		var circular = {
@@ -116,17 +117,19 @@ suite('dom', () => {
 			a: 42,
 			b: '[Circular]',
 			c: [
-				{friend: {
-					friend: '[Circular]'
-				}},
+				{
+					friend: {
+						friend: '[Circular]'
+					}
+				},
 				'[Circular]'
 			],
 			d: [1, '[Circular]', '[Circular]']
 		});
 	});
 
-	test('safeStringify2', function() {
-		var obj:any = {
+	test('safeStringify2', function () {
+		var obj: any = {
 			a: null,
 			b: document.createElement('div'),
 			c: null,
@@ -149,4 +152,31 @@ suite('dom', () => {
 		});
 	});
 
+	suite('$', () => {
+		test('should build simple nodes', () => {
+			const div = $('div');
+			assert(div);
+			assert(div instanceof HTMLElement);
+			assert.equal(div.tagName, 'DIV');
+			assert(!div.firstChild);
+		});
+
+		test('should build nodes with attributes', () => {
+			let div = $('div', { class: 'test' });
+			assert.equal(div.className, 'test');
+
+			div = $('div', null);
+			assert.equal(div.className, '');
+		});
+
+		test('should build nodes with children', () => {
+			let div = $('div', null, $('span', { id: 'demospan' }));
+			let firstChild = div.firstChild as HTMLElement;
+			assert.equal(firstChild.tagName, 'SPAN');
+			assert.equal(firstChild.id, 'demospan');
+
+			div = $('div', null, 'hello');
+			assert.equal(div.firstChild.textContent, 'hello');
+		});
+	});
 });
