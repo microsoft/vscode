@@ -85,7 +85,7 @@ export function renderVariable(tree: ITree, variable: Variable, data: IVariableT
 	}
 
 	if (variable.value) {
-		data.name.textContent += ':';
+		data.name.textContent += variable.name ? ':' : '';
 		renderExpressionValue(variable, data.value, {
 			showChanged,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
