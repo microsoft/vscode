@@ -67,8 +67,8 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<html><style>foo { }</style>Hello<style>foo { }</style></html>', 'css', '             foo { }                    foo { }               ');
 		assertEmbeddedLanguageContent('<html>\n  <style>\n    foo { }  \n  </style>\n</html>\n', 'css', '\n         \n    foo { }  \n  \n\n');
 
-		assertEmbeddedLanguageContent('<div style="color: red"></div>', 'css', '          x{color: red}       ');
-		assertEmbeddedLanguageContent('<div style=color:red></div>', 'css', '         x{color:red}      ');
+		assertEmbeddedLanguageContent('<div style="color: red"></div>', 'css', '         __{color: red}       ');
+		assertEmbeddedLanguageContent('<div style=color:red></div>', 'css', '        __{color:red}      ');
 	});
 
 	test('Scripts', function (): any {
