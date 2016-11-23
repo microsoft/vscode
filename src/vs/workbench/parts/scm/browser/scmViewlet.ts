@@ -15,41 +15,69 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
-import { ISCMService } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
 	immediate?: boolean;
 }
 
-type RendererType = any;
-type RendererTemplateType = any;
+interface ResourceGroupTemplate {
+	container: HTMLElement;
+}
 
-class Renderer implements IRenderer<RendererType, RendererTemplateType> {
+class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGroupTemplate> {
 
-	templateId: string;
+	static TEMPLATE_ID = 'resource group';
+	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
 
-	renderTemplate(container: HTMLElement): RendererTemplateType {
-
+	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
+		return { container };
 	}
 
-	renderElement(element: RendererType, index: number, templateData: RendererTemplateType): void {
-
+	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
+		template.container.textContent = group.label;
 	}
 
-	disposeTemplate(templateData: RendererTemplateType): void {
-
+	disposeTemplate(templateData: ResourceGroupTemplate): void {
+		// noop
 	}
 }
 
-class Delegate implements IDelegate<RendererType> {
-	getHeight() { return 62; }
-	getTemplateId() { return 'extension'; }
+interface ResourceTemplate {
+	container: HTMLElement;
+}
+
+class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
+
+	static TEMPLATE_ID = 'resource';
+	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
+
+	renderTemplate(container: HTMLElement): ResourceTemplate {
+		return { container };
+	}
+
+	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
+		template.container.textContent = resource.uri.fsPath;
+	}
+
+	disposeTemplate(templateData: ResourceTemplate): void {
+		// noop
+	}
+}
+
+class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
+
+	getHeight() { return 22; }
+
+	getTemplateId(element: ISCMResourceGroup | ISCMResource) {
+		return (element as ISCMResource).uri ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
+	}
 }
 
 export class SCMViewlet extends Viewlet {
 
-	private list: List<RendererType>;
+	private list: List<ISCMResourceGroup | ISCMResource>;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -57,8 +85,6 @@ export class SCMViewlet extends Viewlet {
 		@ISCMService private scmService: ISCMService
 	) {
 		super(VIEWLET_ID, telemetryService);
-
-		console.log(scmService.activeProvider);
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -69,15 +95,29 @@ export class SCMViewlet extends Viewlet {
 		const list = append(root, $('.scm-status'));
 
 		const delegate = new Delegate();
-		const renderer = new Renderer();
-		this.list = new List(list, delegate, [renderer]);
+
+		this.list = new List(list, delegate, [
+			new ResourceGroupRenderer(),
+			new ResourceRenderer()
+		]);
+
 
 		// chain(this.list.onSelectionChange)
 		// 	.map(e => e.elements[0])
 		// 	.filter(e => !!e)
 		// 	.on(this.openExtension, this, this.disposables);
 
+		this.update();
+
 		return TPromise.as(null);
+	}
+
+	private update(): void {
+		const provider = this.scmService.activeProvider;
+		const groups = provider.resourceGroups;
+		const elements = groups.reduce<(ISCMResourceGroup | ISCMResource)[]>((result, group) => [...result, group, ...group.get()], []);
+
+		this.list.splice(0, this.list.length, ...elements);
 	}
 
 	layout({ height }: Dimension): void {

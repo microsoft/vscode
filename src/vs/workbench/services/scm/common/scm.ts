@@ -22,6 +22,7 @@ export interface ISCMResource {
 }
 
 export interface ISCMResourceGroup {
+	label: string;
 	onChange: Event<void>;
 	set(...resources: ISCMResource[]): void;
 	get(): ISCMResource[];
