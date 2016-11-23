@@ -97,7 +97,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	when: void 0,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
-	win: { primary: KeyMod.Alt | KeyCode.F4 }
+	win: { primary: void 0 }
 });
 
 // Configuration: Workbench
