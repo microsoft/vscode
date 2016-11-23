@@ -36,7 +36,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
-import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, OutputElement, OutputNameValueElement, ExpressionContainer, Process } from 'vs/workbench/parts/debug/common/debugModel';
+import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, OutputNameValueElement, ExpressionContainer, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { DebugStringEditorInput, DebugErrorEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
@@ -195,12 +195,12 @@ export class DebugService implements debug.IDebugService {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
-						this.model.appendReplOutput(new OutputElement(simpleVals.join(' '), sev));
+						this.model.appendToRepl(simpleVals.join(' '), sev);
 						simpleVals = [];
 					}
 
 					// show object
-					this.model.appendReplOutput(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
+					this.model.appendToRepl(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev);
 				}
 
 				// string: watch out for % replacement directive
@@ -229,7 +229,7 @@ export class DebugService implements debug.IDebugService {
 
 			// flush simple values
 			if (simpleVals.length) {
-				this.model.appendReplOutput(new OutputElement(simpleVals.join(' '), sev));
+				this.model.appendToRepl(simpleVals.join(' '), sev);
 			}
 		}
 	}
@@ -328,12 +328,12 @@ export class DebugService implements debug.IDebugService {
 						children.forEach(child => {
 							// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 							child.name = null;
-							this.model.appendReplOutput(child);
+							this.model.appendToRepl(child, null);
 						});
 					});
 				} else {
 					const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
-					this.model.appendReplOutput(new OutputElement(event.body.output, outputSeverity));
+					this.model.appendToRepl(event.body.output, outputSeverity);
 				}
 			}
 		}));
