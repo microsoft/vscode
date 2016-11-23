@@ -73,7 +73,7 @@ export class BackupService implements IBackupService {
 	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: Uri[]): TPromise<void> {
 		// Handle file resources first
 		return TPromise.join(dirtyFileModels.map(model => {
-			return this.backupFileService.backupResource(model.getResource(), model.getValue());
+			return this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId());
 		})).then(results => {
 			// Handle untitled resources
 			const untitledModelPromises = untitledResources.map(untitledResource => this.untitledEditorService.get(untitledResource))
@@ -82,7 +82,7 @@ export class BackupService implements IBackupService {
 
 			return TPromise.join(untitledModelPromises).then(untitledModels => {
 				const untitledBackupPromises = untitledModels.map(model => {
-					return this.backupFileService.backupResource(model.getResource(), model.getValue());
+					return this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId());
 				});
 				return TPromise.join(untitledBackupPromises).then(() => void 0);
 			});
