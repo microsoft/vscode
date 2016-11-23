@@ -219,7 +219,6 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private renderExpression(tree: ITree, expression: IExpression, templateData: IExpressionTemplateData): void {
 		templateData.input.textContent = expression.name;
 		renderExpressionValue(expression, templateData.value, {
-			showChanged: false,
 			preserveWhitespace: true
 		});
 		if (expression.hasChildren) {
@@ -243,12 +242,14 @@ export class ReplExpressionsRenderer implements IRenderer {
 		dom.clearNode(templateData.value);
 		let result = this.handleANSIOutput(output.value);
 		if (typeof result === 'string') {
-			templateData.value.textContent = result;
+			renderExpressionValue(result, templateData.value, {
+				preserveWhitespace: true
+			});
 		} else {
 			templateData.value.appendChild(result);
 		}
 
-		templateData.value.className = (output.severity === severity.Warning) ? 'warn' : (output.severity === severity.Error) ? 'error' : 'info';
+		dom.addClass(templateData.value, (output.severity === severity.Warning) ? 'warn' : (output.severity === severity.Error) ? 'error' : 'info');
 	}
 
 	private renderOutputNameValue(tree: ITree, output: OutputNameValueElement, templateData: IKeyValueOutputTemplateData): void {
@@ -261,7 +262,6 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		// value
 		renderExpressionValue(output.value, templateData.value, {
-			showChanged: false,
 			preserveWhitespace: true
 		});
 

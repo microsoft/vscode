@@ -38,8 +38,8 @@ const stringRegex = /^(['"]).*\1$/;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
 export interface IRenderValueOptions {
-	preserveWhitespace: boolean;
-	showChanged: boolean;
+	preserveWhitespace?: boolean;
+	showChanged?: boolean;
 	maxValueLength?: number;
 }
 
