@@ -80,6 +80,7 @@ export class TerminalService implements ITerminalService {
 			this.setActiveInstanceByIndex(0);
 		}
 		this._onInstancesChanged.fire();
+		terminalInstance.setCommandsToSkipShell(this.configHelper.getCommandsToSkipShell());
 		return terminalInstance;
 	}
 
