@@ -404,7 +404,7 @@ export class DeleteAllLeftAction extends EditorAction {
 }
 
 @editorAction
-class JoinLinesAction extends EditorAction {
+export class JoinLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.joinLines',
@@ -421,28 +421,24 @@ class JoinLinesAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let selection = editor.getSelection();
 		let model = editor.getModel();
-		let startLineNumber: number,
-			startColumn: number,
-			endLineNumber: number,
+		let startLineNumber = selection.startLineNumber;
+		let startColumn = 1;
+		let endLineNumber: number,
 			endColumn: number,
-			columnDeltaOffset;
+			columnDeltaOffset: number;
+
+		let selectionEndPositionOffset = model.getLineContent(selection.endLineNumber).length - selection.endColumn;
 
 		if (selection.isEmpty() || selection.startLineNumber === selection.endLineNumber) {
 			let position = selection.getStartPosition();
 			if (position.lineNumber < model.getLineCount()) {
-				startLineNumber = position.lineNumber;
-				startColumn = 1;
 				endLineNumber = startLineNumber + 1;
 				endColumn = model.getLineMaxColumn(endLineNumber);
 			} else {
-				startLineNumber = position.lineNumber;
-				startColumn = 1;
 				endLineNumber = position.lineNumber;
 				endColumn = model.getLineMaxColumn(position.lineNumber);
 			}
 		} else {
-			startLineNumber = selection.startLineNumber;
-			startColumn = 1;
 			endLineNumber = selection.endLineNumber;
 			endColumn = model.getLineMaxColumn(endLineNumber);
 		}
@@ -455,9 +451,14 @@ class JoinLinesAction extends EditorAction {
 
 			if (firstNonWhitespaceIdx >= 1) {
 				let insertSpace = true;
-
-				if (trimmedLinesContent === '' || trimmedLinesContent.charAt(trimmedLinesContent.length - 1) === ' ') {
+				if (trimmedLinesContent === '') {
 					insertSpace = false;
+				}
+
+				if (trimmedLinesContent.charAt(trimmedLinesContent.length - 1) === ' ' ||
+					trimmedLinesContent.charAt(trimmedLinesContent.length - 1) === '\t') {
+					insertSpace = false;
+					trimmedLinesContent = trimmedLinesContent.replace(/[\s\uFEFF\xA0]+$/g, ' ');
 				}
 
 				let lineTextWithoutIndent = lineText.substr(firstNonWhitespaceIdx - 1);
@@ -486,14 +487,20 @@ class JoinLinesAction extends EditorAction {
 		);
 
 		if (!deleteSelection.isEmpty()) {
-			if (!selection.isEmpty() && selection.startLineNumber === selection.endLineNumber) {
-				editor.executeCommand(this.id,
-					new ReplaceCommandThatPreservesSelection(deleteSelection, trimmedLinesContent, selection)
-				);
-			} else {
+			if (selection.isEmpty()) {
 				editor.executeCommand(this.id,
 					new ReplaceCommandWithOffsetCursorState(deleteSelection, trimmedLinesContent, 0, -columnDeltaOffset)
 				);
+			} else {
+				if (selection.startLineNumber === selection.endLineNumber) {
+					editor.executeCommand(this.id,
+						new ReplaceCommandThatPreservesSelection(deleteSelection, trimmedLinesContent, selection)
+					);
+				} else {
+					editor.executeCommand(this.id, new ReplaceCommand(deleteSelection, trimmedLinesContent));
+					editor.setSelection(new Selection(selection.startLineNumber, selection.startColumn,
+						selection.startLineNumber, trimmedLinesContent.length - selectionEndPositionOffset));
+				}
 			}
 		}
 	}
