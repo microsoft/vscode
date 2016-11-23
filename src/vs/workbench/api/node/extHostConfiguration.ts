@@ -10,6 +10,7 @@ import { WorkspaceConfiguration } from 'vscode';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceConfiguration } from 'vs/workbench/services/configuration/common/configuration';
+import { toValuesTree } from 'vs/platform/configuration/common/model';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -22,37 +23,19 @@ function lookUp(tree: any, key: string) {
 	}
 }
 
-function insert(tree: any, key: string, value: any) {
-	const parts = key.split('.');
-	let node = tree;
-	let i: number;
-	let to = parts.length - 1;
-	for (i = 0; i < to; i++) {
-		let child = node[parts[i]];
-		if (child) {
-			node = child;
-		} else {
-			break;
-		}
-	}
-	for (; i < to; i++) {
-		node = node[parts[i]] = Object.create(null);
-	}
-	node[parts[to]] = value;
-}
-
 interface UsefulConfiguration {
 	data: IWorkspaceConfiguration;
 	valueTree: any;
 }
 
 function createUsefulConfiguration(data: IWorkspaceConfiguration): { data: IWorkspaceConfiguration, valueTree: any } {
-	const valueTree = Object.create(null);
+	const valueMap: { [key: string]: any } = Object.create(null);
 	for (let key in data) {
 		if (Object.prototype.hasOwnProperty.call(data, key)) {
-			insert(valueTree, key, data[key].value);
+			valueMap[key] = data[key].value;
 		}
 	}
+	const valueTree = toValuesTree(valueMap);
 	return {
 		data,
 		valueTree
