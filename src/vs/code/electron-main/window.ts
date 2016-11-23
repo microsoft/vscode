@@ -18,7 +18,6 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { ReadyState, IVSCodeWindow } from 'vs/code/common/window';
 
 export interface IWindowState {
 	width?: number;
@@ -89,6 +88,37 @@ export interface IWindowConfiguration extends ParsedArgs {
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
+}
+
+export enum ReadyState {
+
+	/**
+	 * This window has not loaded any HTML yet
+	 */
+	NONE,
+
+	/**
+	 * This window is loading HTML
+	 */
+	LOADING,
+
+	/**
+	 * This window is navigating to another HTML
+	 */
+	NAVIGATING,
+
+	/**
+	 * This window is done loading HTML
+	 */
+	READY
+}
+
+export interface IVSCodeWindow {
+	id: number;
+	readyState: ReadyState;
+	win: Electron.BrowserWindow;
+
+	send(channel: string, ...args: any[]): void;
 }
 
 export class VSCodeWindow implements IVSCodeWindow {

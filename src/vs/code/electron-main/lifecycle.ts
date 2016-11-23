@@ -7,14 +7,37 @@
 
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { ReadyState, IVSCodeWindow } from 'vs/code/common/window';
+import { ReadyState, IVSCodeWindow } from 'vs/code/electron-main/window';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/common/mainLifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export class LifecycleService implements ILifecycleMainService {
+export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
+
+export interface ILifecycleService {
+	_serviceBrand: any;
+
+	/**
+	 * Will be true if an update was applied. Will only be true for each update once.
+	 */
+	wasUpdated: boolean;
+
+	/**
+	 * Due to the way we handle lifecycle with eventing, the general app.on('before-quit')
+	 * event cannot be used because it can be called twice on shutdown. Instead the onBeforeQuit
+	 * handler in this module can be used and it is only called once on a shutdown sequence.
+	 */
+	onBeforeQuit: Event<void>;
+
+	ready(): void;
+	registerWindow(vscodeWindow: IVSCodeWindow): void;
+	unload(vscodeWindow: IVSCodeWindow): TPromise<boolean /* veto */>;
+	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
+}
+
+export class LifecycleService implements ILifecycleService {
 
 	_serviceBrand: any;
 
