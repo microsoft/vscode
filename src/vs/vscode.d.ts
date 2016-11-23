@@ -1399,7 +1399,7 @@ declare module 'vscode' {
 		/**
 		 * An optional function that is invoked whenever an item is selected.
 		 */
-		onDidSelectItem?: <T extends QuickPickItem>(item: T | string) => any;
+		onDidSelectItem?<T extends QuickPickItem>(item: T | string): any;
 	}
 
 	/**
