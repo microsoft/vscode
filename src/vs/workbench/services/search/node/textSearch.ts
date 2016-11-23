@@ -12,6 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as cp from 'child_process';
 
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import * as baseMime from 'vs/base/common/mime';
 import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
@@ -40,8 +41,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	private limitReached: boolean;
 
 	// private worker: cp.ChildProcess;
-	private client: Client;
-	private channel: any;
+	private channels: any[] = [];
 
 	private onResult: any;
 
@@ -51,7 +51,6 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		this.walker = walker;
 		this.contentPattern = config.contentPattern.pattern;
 		const pattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, { matchCase: config.contentPattern.isCaseSensitive, wholeWord: config.contentPattern.isWordMatch, multiline: false, global: true });
-		console.log('pattern: ' + pattern.toString());
 		this.isCanceled = false;
 		this.limitReached = false;
 		this.maxResults = config.maxResults;
@@ -69,21 +68,24 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		// });
 
 		// this.worker.send({ initialize: { contentPattern: config.contentPattern.pattern }});
-		this.client = new Client(
-			uri.parse(require.toUrl('bootstrap')).fsPath,
-			{
-				serverName: 'Search Worker',
-				timeout: 60 * 60 * 1000,
-				args: ['--type=searchWorker'],
-				env: {
-					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/worker/searchWorkerApp',
-					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: 'true'
-				},
-				// debugBrk: 5878
-			}
-		);
-		this.channel = this.client.getChannel('searchWorker');
+
+		for (let i=0; i<4; i++) {
+			let client = new Client(
+				uri.parse(require.toUrl('bootstrap')).fsPath,
+				{
+					serverName: 'Search Worker',
+					timeout: 60 * 60 * 1000,
+					args: ['--type=searchWorker'],
+					env: {
+						AMD_ENTRYPOINT: 'vs/workbench/services/search/node/worker/searchWorkerApp',
+						PIPE_LOGGING: 'true',
+						VERBOSE_LOGGING: 'true'
+					},
+					// debugBrk: 5878
+				}
+			);
+			this.channels.push(client.getChannel('searchWorker'));
+		}
 
 		// process.on('exit', () => this.worker.kill());
 	}
@@ -94,7 +96,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	}
 
 	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		this.channel.call('initialize', { contentPattern: this.contentPattern });
+		this.channels.forEach(channel => channel.call('initialize', { contentPattern: this.contentPattern }));
 
 		let resultCounter = 0;
 		this.onResult = onResult;
@@ -125,8 +127,10 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		};
 
 		// Walk over the file system
+		const files = [];
+		let size;
 		this.walker.walk(this.rootFolders, this.extraFiles, result => {
-			const size = result.size || 1;
+			size = result.size || 1;
 			this.total += size;
 
 			// If the result is empty or we have reached the limit or we are canceled, ignore it
@@ -138,15 +142,25 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			progress();
 
 			const absolutePath = result.base ? [result.base, result.relativePath].join(path.sep) : result.relativePath;
-			this.channel.call('search', absolutePath).then(fileMatch => {
-				// console.log('got result: ' + fileMatch);
-				if (fileMatch && fileMatch.lineMatches.length) {
-					onResult(fileMatch);
-				}
-
-				unwind(size);
-			});
+			files.push(absolutePath);
 		}, (error, isLimitHit) => {
+			const portionSize = Math.ceil(files.length/this.channels.length);
+			TPromise.join(this.channels.map((c, i) => {
+				const subsetFiles = files.slice(portionSize*i, portionSize*i + portionSize);
+				return c.call('search', subsetFiles).then(matches => {
+					// console.log('got result: ' + fileMatch);
+					matches.forEach(m => {
+						if (m && m.lineMatches.length) {
+							onResult(m);
+						}
+					})
+
+				});
+			})).then(() => {
+				unwind(this.total);
+			})
+
+
 			this.walkerIsDone = true;
 			this.walkerError = error;
 			unwind(0 /* walker is done, indicate this back to our handler to be able to unwind */);

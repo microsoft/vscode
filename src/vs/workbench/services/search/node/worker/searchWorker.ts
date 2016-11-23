@@ -39,13 +39,46 @@ export class SearchWorker {
 
 	private nResults = 0;
 
+	private running = true;
+
+	private results = [];
+
+	private paths;
+
+	private finalCallback;
+
 	constructor(args: any) {
 		this.contentPattern = strings.createRegExp(args.contentPattern, false, { multiline: false, global: true, matchCase: false });
-		profiler.startProfiling('p1');
+		console.log('worker started: ' + Date.now());
 	}
 
-	public search(absolutePath: string): TPromise<FileMatch> {
+	private start(p: string) {
+		return this.doSearch(p).then(fileMatch => {
+			this.results.push(fileMatch);
 
+			if (this.paths.length) {
+				this.start(this.paths.pop());
+			} else if (this.running) {
+				this.running = false;
+				this.finalCallback(this.results.filter(r => !!r));
+			}
+		})
+	}
+
+	public search(absolutePaths: string[]): TPromise<FileMatch[]> {
+		// profiler.startProfiling('p1');
+		console.log('starting search: ' + Date.now());
+		this.paths = absolutePaths;
+		for (let i=0; i<50; i++) {
+			this.start(absolutePaths[i]);
+		}
+
+		return new TPromise(resolve => {
+			this.finalCallback = resolve;
+		});
+	}
+
+	public doSearch(absolutePath: string): TPromise<FileMatch> {
 		let fileMatch: FileMatch = null;
 		// console.log('doing search: ' + absolutePath);
 
@@ -74,12 +107,13 @@ export class SearchWorker {
 			// Read lines buffered to support large files
 			this.readlinesAsync(absolutePath, perLineCallback, { bufferLength: 8096, encoding: 'utf8' }, resolve);
 		}).then(() => {
-			if (this.nResults++ === 100) {
-				const p1 = profiler.stopProfiling('p1');
-				p1.export()
-					.pipe(fs.createWriteStream('/Users/roblou/code/vscode/p1.cpuprofile'))
-					.on('finish', () => p1.delete());
-			}
+			// if (this.nResults++ === 200) {
+			// 	const profile = profiler.stopProfiling('p1');
+			// 	profile.export(function(error, result) {
+			// 		fs.writeFileSync('p1.cpuprofile', result);
+			// 		profile.delete();
+			// 	});
+			// }
 			return fileMatch;
 		});
 	}
