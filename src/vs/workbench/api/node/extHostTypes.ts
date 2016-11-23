@@ -781,7 +781,7 @@ export class CodeLens {
 export class ParameterInformation {
 
 	label: string;
-	documentation: string;
+	documentation?: string;
 
 	constructor(label: string, documentation?: string) {
 		this.label = label;
@@ -792,7 +792,7 @@ export class ParameterInformation {
 export class SignatureInformation {
 
 	label: string;
-	documentation: string;
+	documentation?: string;
 	parameters: ParameterInformation[];
 
 	constructor(label: string, documentation?: string) {
@@ -869,7 +869,7 @@ export class CompletionItem {
 
 export class CompletionList {
 
-	isIncomplete: boolean;
+	isIncomplete?: boolean;
 
 	items: vscode.CompletionItem[];
 

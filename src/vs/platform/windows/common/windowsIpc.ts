@@ -30,6 +30,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'unmaximizeWindow', arg: number): TPromise<void>;
 	call(command: 'setDocumentEdited', arg: [number, boolean]): TPromise<void>;
 	call(command: 'toggleMenuBar', arg: number): TPromise<void>;
+	call(command: 'quit'): TPromise<void>;
 	call(command: 'windowOpen', arg: [string[], boolean]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: 'showWindow', arg: number): TPromise<void>;
@@ -80,6 +81,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();
 			case 'getWindowCount': return this.service.getWindowCount();
+			case 'quit': return this.service.quit();
 			case 'log': return this.service.log(arg[0], arg[1]);
 			case 'closeExtensionHostWindow': return this.service.closeExtensionHostWindow(arg);
 			case 'showItemInFolder': return this.service.showItemInFolder(arg);
@@ -171,6 +173,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	toggleMenuBar(windowId: number): TPromise<void> {
 		return this.channel.call('toggleMenuBar', windowId);
+	}
+
+	quit(): TPromise<void> {
+		return this.channel.call('quit');
 	}
 
 	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void> {

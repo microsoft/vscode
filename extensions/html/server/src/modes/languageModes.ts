@@ -7,7 +7,7 @@
 import { getLanguageService as getHTMLLanguageService, DocumentContext } from 'vscode-html-languageservice';
 import {
 	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
-	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions
+	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation
 } from 'vscode-languageserver-types';
 
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
@@ -25,6 +25,7 @@ export interface LanguageMode {
 	doHover?: (document: TextDocument, position: Position) => Hover;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => DocumentHighlight[];
+	findDocumentSymbols?: (document: TextDocument) => SymbolInformation[];
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => DocumentLink[];
 	findDefinition?: (document: TextDocument, position: Position) => Definition;
 	findReferences?: (document: TextDocument, position: Position) => Location[];
@@ -60,14 +61,10 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	let modes = {};
 	modes['html'] = getHTMLMode(htmlLanguageService);
 	if (supportedLanguages['css']) {
-		let embeddedCSSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('css'));
-		modelCaches.push(embeddedCSSDocuments);
-		modes['css'] = getCSSMode(embeddedCSSDocuments);
+		modes['css'] = getCSSMode(documentRegions);
 	}
 	if (supportedLanguages['javascript']) {
-		let embeddedJSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('javascript'));
-		modelCaches.push(embeddedJSDocuments);
-		modes['javascript'] = getJavascriptMode(embeddedJSDocuments);
+		modes['javascript'] = getJavascriptMode(documentRegions);
 	}
 	return {
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode {
