@@ -31,7 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
 import {
-	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
+	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
@@ -170,6 +170,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, ShowWorkspaceRecommendedExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowRecommendedKeymapExtensionsAction, ShowRecommendedKeymapExtensionsAction.ID, ShowRecommendedKeymapExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
 				new Separator(),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs', undefined),
@@ -263,6 +264,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		if (/@recommended:workspace/i.test(query.value)) {
 			return this.getWorkspaceRecommendationsModel(query, options);
+		} else if (/@recommended:keymaps/i.test(query.value)) {
+			return this.getKeymapRecommendationsModel(query, options);
 		} else if (/@recommended/i.test(query.value)) {
 			return this.getRecommendationsModel(query, options);
 		}
@@ -314,6 +317,20 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 					.then(result => new PagedModel(result));
 			});
+	}
+
+	private getKeymapRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
+		const value = query.value.replace(/@recommended:keymaps/g, '').trim().toLowerCase();
+		const names = this.tipsService.getKeymapRecommendations()
+			.filter(name => name.toLowerCase().indexOf(value) > -1);
+		this.telemetryService.publicLog('extensionKeymapRecommendations:open', { count: names.length });
+
+		if (!names.length) {
+			return TPromise.as(new PagedModel([]));
+		}
+
+		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+			.then(result => new PagedModel(result));
 	}
 
 	private openExtension(extension: IExtension): void {

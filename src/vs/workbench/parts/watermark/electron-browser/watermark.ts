@@ -11,13 +11,24 @@ import { assign } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
-import { KeybindingsReferenceAction } from 'vs/workbench/electron-browser/actions';
-import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { Registry } from 'vs/platform/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
+import { KeybindingsReferenceAction, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
+import { ShowRecommendedKeymapExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { GlobalNewUntitledFileAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
+import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
+import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
+import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
+import { OpenGlobalKeybindingsAction } from 'vs/workbench/parts/settings/browser/openSettingsActions';
+import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { SelectColorThemeAction } from 'vs/workbench/parts/themes/electron-browser/themes.contribution';
 
 interface WatermarkEntry {
 	text: string;
@@ -27,69 +38,65 @@ interface WatermarkEntry {
 
 const showCommands: WatermarkEntry = {
 	text: nls.localize('watermark.showCommands', "Show All Commands"),
-	ids: ['workbench.action.showCommands']
+	ids: [ShowAllCommandsAction.ID]
 };
 const quickOpen: WatermarkEntry = {
 	text: nls.localize('watermark.quickOpen', "Go to File"),
-	ids: ['workbench.action.quickOpen']
+	ids: [GlobalQuickOpenAction.ID]
 };
 const openFileNonMacOnly: WatermarkEntry = {
 	text: nls.localize('watermark.openFile', "Open File"),
-	ids: ['workbench.action.files.openFile'],
+	ids: [OpenFileAction.ID],
 	mac: false
 };
 const openFolderNonMacOnly: WatermarkEntry = {
 	text: nls.localize('watermark.openFolder', "Open Folder"),
-	ids: ['workbench.action.files.openFolder'],
+	ids: [OpenFolderAction.ID],
 	mac: false
 };
 const openFileOrFolderMacOnly: WatermarkEntry = {
 	text: nls.localize('watermark.openFileFolder', "Open File or Folder"),
-	ids: ['workbench.action.files.openFileFolder'],
+	ids: [OpenFileFolderAction.ID],
 	mac: true
 };
 const openRecent: WatermarkEntry = {
 	text: nls.localize('watermark.openRecent', "Open Recent"),
-	ids: ['workbench.action.openRecent']
+	ids: [OpenRecentAction.ID]
 };
 const newUntitledFile: WatermarkEntry = {
 	text: nls.localize('watermark.newUntitledFile', "New Untitled File"),
-	ids: ['workbench.action.files.newUntitledFile']
+	ids: [GlobalNewUntitledFileAction.ID]
 };
 const newUntitledFileMacOnly: WatermarkEntry = assign({ mac: true }, newUntitledFile);
 const toggleTerminal: WatermarkEntry = {
 	text: nls.localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"),
-	ids: ['workbench.action.terminal.toggleTerminal']
+	ids: [ToggleTerminalAction.ID]
 };
 
 const findInFiles: WatermarkEntry = {
 	text: nls.localize('watermark.findInFiles', "Find in Files"),
-	ids: ['workbench.action.findInFiles']
+	ids: [FindInFilesActionId]
 };
 const startDebugging: WatermarkEntry = {
 	text: nls.localize('watermark.startDebugging', "Start Debugging"),
-	ids: ['workbench.action.debug.start']
+	ids: [StartAction.ID]
 };
 
-// TODO: default keybinding
 const selectTheme: WatermarkEntry = {
-	text: nls.localize('watermark.selectTheme', "Change Color Theme"),
-	ids: ['workbench.action.selectTheme']
+	text: nls.localize('watermark.selectTheme', "Change Theme"),
+	ids: [SelectColorThemeAction.ID]
 };
-// TODO: requires #15159
 const selectKeymap: WatermarkEntry = {
 	text: nls.localize('watermark.selectKeymap', "Change Keymap"),
-	ids: ['workbench.action.openGlobalKeybindings']
+	ids: [ShowRecommendedKeymapExtensionsAction.ID]
 };
-// TODO: default keybinding
 const keybindingsReference: WatermarkEntry = {
 	text: nls.localize('watermark.keybindingsReference', "Keyboard Reference"),
-	ids: ['workbench.action.keybindingsReference']
+	ids: [KeybindingsReferenceAction.ID]
 };
-// TODO: default keybinding
 const openGlobalKeybindings: WatermarkEntry = {
 	text: nls.localize('watermark.openGlobalKeybindings', "Keyboard Shortcuts"),
-	ids: ['workbench.action.openGlobalKeybindings']
+	ids: [OpenGlobalKeybindingsAction.ID]
 };
 
 const firstSessionEntries = [
@@ -119,8 +126,6 @@ const folderEntries = [
 	toggleTerminal
 ];
 
-const firstSession = false; // TODO: fix above TODOs first
-
 const UNBOUND = nls.localize('watermark.unboundCommand', "unbound");
 
 export class WatermarkContribution implements IWorkbenchContribution {
@@ -132,14 +137,13 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		@IPartService private partService: IPartService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@IStorageService private storageService: IStorageService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		if (telemetryService.getExperiments().showCommandsWatermark) {
-			lifecycleService.onShutdown(this.dispose, this);
-			this.partService.joinCreation().then(() => {
-				this.create();
-			});
-		}
+		lifecycleService.onShutdown(this.dispose, this);
+		this.partService.joinCreation().then(() => {
+			this.create();
+		});
 	}
 
 	public getId() {
@@ -154,6 +158,8 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		const box = $(watermark)
 			.div({ 'class': 'watermark-box' });
 		const folder = !!this.contextService.getWorkspace();
+		const firstSession = this.telemetryService.getExperiments().showFirstSessionWatermark &&
+			!this.storageService.get('telemetry.lastSessionDate');
 		const selected = (folder ? folderEntries : firstSession ? firstSessionEntries : noFolderEntries)
 			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);
 		const update = () => {

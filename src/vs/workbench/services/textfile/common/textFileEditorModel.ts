@@ -289,13 +289,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			else {
 				diag('load() - created text editor model', this.resource, new Date());
 
-				return this.backupFileService.hasBackup(this.resource).then(backupExists => {
+				return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
 					let resolveBackupPromise: TPromise<IRawText>;
 
 					// Try get restore content, if there is an issue fallback silently to the original file's content
-					if (backupExists) {
-						const restoreResource = this.backupFileService.getBackupResource(this.resource);
-						resolveBackupPromise = this.textFileService.resolveTextContent(restoreResource, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => backup.value, error => content.value);
+					if (backupResource) {
+						resolveBackupPromise = this.textFileService.resolveTextContent(backupResource, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => backup.value, error => content.value);
 					} else {
 						resolveBackupPromise = TPromise.as(content.value);
 					}
@@ -304,7 +303,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						return this.createTextEditorModel(fileContent, content.resource).then(() => {
 							this.createTextEditorModelPromise = null;
 
-							if (backupExists) {
+							if (backupResource) {
 								this.makeDirty();
 							} else {
 								this.setDirty(false); // Ensure we are not tracking a stale state
