@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
-import { isFullWidthCharacter, removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -118,6 +118,10 @@ export class ReplExpressionsRenderer implements IRenderer {
 			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
+		// Last new line should be ignored since the repl elements are by design split by rows
+		if (endsWith(s, '\n')) {
+			s = s.substr(0, s.length - 1);
+		}
 		const lines = removeAnsiEscapeCodes(s).split('\n');
 		const numLines = lines.reduce((lineCount: number, line: string) => {
 			let lineLength = 0;
