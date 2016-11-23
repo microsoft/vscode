@@ -4365,7 +4365,7 @@ declare module monaco.languages {
          * The human-readable doc-comment of this signature. Will be shown
          * in the UI but can be omitted.
          */
-        documentation: string;
+        documentation?: string;
     }
 
     /**
@@ -4383,7 +4383,7 @@ declare module monaco.languages {
          * The human-readable doc-comment of this signature. Will be shown
          * in the UI but can be omitted.
          */
-        documentation: string;
+        documentation?: string;
         /**
          * The parameters of this signature.
          */

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 
 suite('Debug - Repl History', () => {
-	var history: ReplHistory;
+	let history: ReplHistory;
 
 	setup(() => {
 		history = new ReplHistory(['one', 'two', 'three', 'four', 'five']);

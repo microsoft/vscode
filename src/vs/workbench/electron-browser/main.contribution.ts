@@ -22,6 +22,7 @@ import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser
 import { CloseEditorAction, KeybindingsReferenceAction, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext, NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 const closeEditorOrWindowKeybindings: IKeybindings = { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } };
 
@@ -85,6 +86,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	when: InZenModeContext,
 	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.quit',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	handler(accessor: ServicesAccessor) {
+		const windowsService = accessor.get(IWindowsService);
+		windowsService.quit();
+	},
+	when: void 0,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
+	win: { primary: void 0 }
 });
 
 // Configuration: Workbench

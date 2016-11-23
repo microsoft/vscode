@@ -36,7 +36,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
-import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, OutputElement, OutputExpressionContainer, OutputNameValueElement } from 'vs/workbench/parts/debug/common/debugModel';
+import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, OutputNameValueElement, ExpressionContainer, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { DebugStringEditorInput, DebugErrorEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
@@ -195,12 +195,12 @@ export class DebugService implements debug.IDebugService {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
-						this.model.appendReplOutput(new OutputElement(simpleVals.join(' '), sev));
+						this.model.appendToRepl(simpleVals.join(' '), sev);
 						simpleVals = [];
 					}
 
 					// show object
-					this.model.appendReplOutput(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
+					this.model.appendToRepl(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev);
 				}
 
 				// string: watch out for % replacement directive
@@ -229,12 +229,12 @@ export class DebugService implements debug.IDebugService {
 
 			// flush simple values
 			if (simpleVals.length) {
-				this.model.appendReplOutput(new OutputElement(simpleVals.join(' '), sev));
+				this.model.appendToRepl(simpleVals.join(' '), sev);
 			}
 		}
 	}
 
-	private registerSessionListeners(session: RawDebugSession): void {
+	private registerSessionListeners(process: Process, session: RawDebugSession): void {
 		this.toDisposeOnSessionEnd[session.getId()].push(session);
 		this.toDisposeOnSessionEnd[session.getId()].push(session.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
@@ -250,7 +250,6 @@ export class DebugService implements debug.IDebugService {
 				}
 			};
 
-			const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 			this.sendAllBreakpoints(process).then(sendConfigurationDone, sendConfigurationDone)
 				.done(() => this.fetchThreads(session), errors.onUnexpectedError);
 		}));
@@ -273,7 +272,6 @@ export class DebugService implements debug.IDebugService {
 					allThreadsStopped: event.body.allThreadsStopped
 				});
 
-				const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 				const thread = process && process.getThread(threadId);
 				if (thread) {
 					thread.fetchCallStack().then(callStack => {
@@ -305,7 +303,6 @@ export class DebugService implements debug.IDebugService {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (session && session.getId() === event.body.sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
-					const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 					this.restartProcess(process).done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
 					session.disconnect().done(null, errors.onUnexpectedError);
@@ -325,10 +322,19 @@ export class DebugService implements debug.IDebugService {
 					this.customTelemetryService.publicLog(event.body.output, event.body.data);
 				}
 			} else if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
-				const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
-				const value = event.body.variablesReference ? new OutputExpressionContainer(event.body.output, this.viewModel.focusedStackFrame, event.body.variablesReference)
-					: new OutputElement(event.body.output, outputSeverity);
-				this.model.appendReplOutput(value);
+				if (event.body.variablesReference) {
+					const container = new ExpressionContainer(process, event.body.variablesReference, generateUuid());
+					container.getChildren().then(children => {
+						children.forEach(child => {
+							// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
+							child.name = null;
+							this.model.appendToRepl(child, null);
+						});
+					});
+				} else {
+					const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
+					this.model.appendToRepl(event.body.output, outputSeverity);
+				}
 			}
 		}));
 
@@ -638,7 +644,7 @@ export class DebugService implements debug.IDebugService {
 			if (client) {
 				this.toDisposeOnSessionEnd[session.getId()].push(client);
 			}
-			this.registerSessionListeners(session);
+			this.registerSessionListeners(process, session);
 
 			return session.initialize({
 				adapterID: configuration.type,

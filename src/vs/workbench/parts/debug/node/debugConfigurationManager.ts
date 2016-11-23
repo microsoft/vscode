@@ -252,21 +252,16 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		if (result) {
 			// Set operating system specific properties #1873
-			if (isWindows && result.windows) {
-				Object.keys(result.windows).forEach(key => {
-					result[key] = result.windows[key];
-				});
-			}
-			if (isMacintosh && result.osx) {
-				Object.keys(result.osx).forEach(key => {
-					result[key] = result.osx[key];
-				});
-			}
-			if (isLinux && result.linux) {
-				Object.keys(result.linux).forEach(key => {
-					result[key] = result.linux[key];
-				});
-			}
+			const setOSProperties = (flag: boolean, osConfig: debug.IEnvConfig) => {
+				if (flag && osConfig) {
+					Object.keys(osConfig).forEach(key => {
+						result[key] = osConfig[key];
+					});
+				}
+			};
+			setOSProperties(isWindows, result.windows);
+			setOSProperties(isMacintosh, result.osx);
+			setOSProperties(isLinux, result.linux);
 
 			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 			Object.keys(result).forEach(key => {
@@ -285,7 +280,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
 			this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Environment") })
-				.then(adapter => adapter ? adapter.getInitialConfigFileContent() : null)
+				.then(adapter => adapter ? adapter.getInitialConfigurationContent() : null)
 				.then(content => {
 					if (!content) {
 						return false;

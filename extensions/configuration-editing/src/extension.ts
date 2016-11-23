@@ -44,12 +44,22 @@ function registerKeybindingsCompletions(): vscode.Disposable {
 	});
 }
 
-function updateLaunchJsonDecorations(editor: vscode.TextEditor) {
+function newCompletionItem(text: string, range: vscode.Range) {
+	const item = new vscode.CompletionItem(JSON.stringify(text));
+	item.kind = vscode.CompletionItemKind.Value;
+	item.textEdit = {
+		range,
+		newText: item.label
+	};
+	return item;
+}
+
+function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined) {
 	if (!editor || path.basename(editor.document.fileName) !== 'launch.json') {
 		return;
 	}
 
-	const ranges = [];
+	const ranges: vscode.Range[] = [];
 	let addPropertyAndValue = false;
 	visit(editor.document.getText(), {
 		onObjectProperty: (property, offset, length) => {
@@ -68,13 +78,3 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor) {
 	editor.setDecorations(decoration, ranges);
 }
 
-function newCompletionItem(text: string, range: vscode.Range, documentation?: string) {
-	const item = new vscode.CompletionItem(JSON.stringify(text));
-	item.kind = vscode.CompletionItemKind.Value;
-	item.documentation = documentation;
-	item.textEdit = {
-		range,
-		newText: item.label
-	};
-	return item;
-}
