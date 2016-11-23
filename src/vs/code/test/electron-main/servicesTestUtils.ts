@@ -11,9 +11,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 export class TestLifecycleService implements ILifecycleMainService {
 	public _serviceBrand: any;
 
-	private _onBeforeUnload = new Emitter<IVSCodeWindow>();
-	onBeforeUnload: Event<IVSCodeWindow> = this._onBeforeUnload.event;
-
 	private _onBeforeQuit = new Emitter<void>();
 	onBeforeQuit: Event<void> = this._onBeforeQuit.event;
 
