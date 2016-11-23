@@ -22,10 +22,11 @@ export interface ISCMResourceGroup {
 
 export interface ISCMProvider extends IDisposable {
 	onChange: Event<void>;
-	commitCommand: string;
-	clickCommand: string;
-	dragCommand: string;
 	resourceGroups: ISCMResourceGroup[];
+
+	commit(message: string): TPromise<void>;
+	click(uri: URI): TPromise<void>;
+	drag(from: URI, to: URI): TPromise<void>;
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 
@@ -81,11 +82,6 @@ export abstract class SCMProvider implements ISCMProvider {
 
 	}
 
-	abstract commitCommand: string;
-	abstract clickCommand: string;
-	abstract dragCommand: string;
-	abstract getOriginalResource(uri: URI): TPromise<URI>;
-
 	createResourceGroup(id: string, label: string): ISCMResourceGroup {
 		const resourceGroup = new ResourceGroup(id, label);
 		this._resourceGroups.push(resourceGroup);
@@ -103,6 +99,11 @@ export abstract class SCMProvider implements ISCMProvider {
 		this.onResourceGroupsChange.fire();
 		return resourceGroup;
 	}
+
+	abstract commit(message: string): TPromise<void>;
+	abstract click(uri: URI): TPromise<void>;
+	abstract drag(from: URI, to: URI): TPromise<void>;
+	abstract getOriginalResource(uri: URI): TPromise<URI>;
 
 	dispose(): void {
 		this._onChange.dispose();
