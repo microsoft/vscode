@@ -75,6 +75,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		return Object.keys(this._recommendations);
 	}
 
+	getKeymapRecommendations(): string[] {
+		return product.keymapExtensionTips || [];
+	}
+
 	private _suggestTips() {
 		const extensionTips = product.extensionTips;
 		if (!extensionTips) {

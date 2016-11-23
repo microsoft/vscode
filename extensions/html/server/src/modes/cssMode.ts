@@ -11,7 +11,7 @@ import { LanguageMode } from './languageModes';
 
 export function getCSSMode(embeddedCSSDocuments: LanguageModelCache<TextDocument>): LanguageMode {
 	let cssLanguageService = getCSSLanguageService();
-	let cssStylesheets = getLanguageModelCache<Stylesheet>(10, 60, document => cssStylesheets.get(document));
+	let cssStylesheets = getLanguageModelCache<Stylesheet>(10, 60, document => cssLanguageService.parseStylesheet(document));
 
 	return {
 		getId() {

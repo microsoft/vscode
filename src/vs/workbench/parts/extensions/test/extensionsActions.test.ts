@@ -13,10 +13,11 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/commo
 import * as ExtensionsActions from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
-	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, ILocalExtension, LocalExtensionType, IGalleryExtension,
+	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionTipsService } from 'vs/workbench/parts/extensions/browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -55,6 +56,9 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+
+		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
+		instantiationService.stub(IExtensionTipsService, 'getKeymapRecommendations', () => []);
 	});
 
 	setup(() => {

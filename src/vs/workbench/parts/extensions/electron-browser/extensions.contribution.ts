@@ -5,11 +5,11 @@
 
 import 'vs/css!./media/extensions';
 import { localize } from 'vs/nls';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionGalleryService, IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId, PreferencesLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/browser/extensionTipsService';
@@ -21,7 +21,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from '../common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
-	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction,
+	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction,
 	ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, UpdateAllAction, ConfigureWorkspaceRecommendedExtensionsAction,
 	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
@@ -105,6 +105,9 @@ actionRegistry.registerWorkbenchAction(listOutdatedActionDescriptor, 'Extensions
 
 const recommendationsActionDescriptor = new SyncActionDescriptor(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(recommendationsActionDescriptor, 'Extensions: Show Recommended Extensions', ExtensionsLabel);
+
+const keymapRecommendationsActionDescriptor = new SyncActionDescriptor(ShowRecommendedKeymapExtensionsAction, ShowRecommendedKeymapExtensionsAction.ID, ShowRecommendedKeymapExtensionsAction.SHORT_LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_M) });
+actionRegistry.registerWorkbenchAction(keymapRecommendationsActionDescriptor, 'Preferences: Keymaps', PreferencesLabel);
 
 const workspaceRecommendationsActionDescriptor = new SyncActionDescriptor(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, ShowWorkspaceRecommendedExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(workspaceRecommendationsActionDescriptor, 'Extensions: Show Workspace Recommended Extensions', ExtensionsLabel);

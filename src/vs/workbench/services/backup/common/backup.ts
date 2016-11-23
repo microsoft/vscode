@@ -40,28 +40,21 @@ export interface IBackupFileService {
 	_serviceBrand: any;
 
 	/**
-	 * Gets whether a text file has a backup to restore.
-	 *
-	 * @param resource The resource to check.
-	 * @returns Whether the file has a backup.
-	 */
-	hasBackup(resource: Uri): TPromise<boolean>;
-
-	/**
-	 * Gets the backup resource for a particular resource within the current workspace.
+	 * Loads the backup resource for a particular resource within the current workspace.
 	 *
 	 * @param resource The resource that is backed up.
-	 * @return The backup resource.
+	 * @return The backup resource if any.
 	 */
-	getBackupResource(resource: Uri): Uri;
+	loadBackupResource(resource: Uri): TPromise<Uri>;
 
 	/**
 	 * Backs up a resource.
 	 *
 	 * @param resource The resource to back up.
-	 * @param content THe content of the resource.
+	 * @param content The content of the resource.
+	 * @param versionId The version id of the resource to backup.
 	 */
-	backupResource(resource: Uri, content: string): TPromise<void>;
+	backupResource(resource: Uri, content: string, versionId?: number): TPromise<void>;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..

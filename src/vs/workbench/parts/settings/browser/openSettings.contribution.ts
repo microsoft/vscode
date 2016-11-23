@@ -11,7 +11,7 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/co
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { DefaultSettingsEditor, DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/settings/browser/defaultSettingsEditors';
 import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenWorkspaceSettingsAction } from 'vs/workbench/parts/settings/browser/openSettingsActions';
@@ -40,5 +40,5 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsActi
 	primary: null,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }
 }), 'Preferences: Open User Settings', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL), 'Preferences: Open Keyboard Shortcuts', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S) }), 'Preferences: Open Keyboard Shortcuts', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL), 'Preferences: Open Workspace Settings', category);
