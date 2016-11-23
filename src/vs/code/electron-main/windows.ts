@@ -119,6 +119,7 @@ export interface IWindowsMainService {
 	removeFromRecentPathsList(paths: string[]): void;
 	clearRecentPathsList(): void;
 	toggleMenuBar(windowId: number): void;
+	quit(): void;
 }
 
 export class WindowsManager implements IWindowsMainService {
@@ -1217,6 +1218,23 @@ export class WindowsManager implements IWindowsMainService {
 			app.setJumpList(jumpList);
 		} catch (error) {
 			this.logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
+		}
+	}
+
+	public quit(): void {
+
+		// If the user selected to exit from an extension development host window, do not quit, but just
+		// close the window unless this is the last window that is opened.
+		const vscodeWindow = this.getFocusedWindow();
+		if (vscodeWindow && vscodeWindow.isPluginDevelopmentHost && this.getWindowCount() > 1) {
+			vscodeWindow.win.close();
+		}
+
+		// Otherwise: normal quit
+		else {
+			setTimeout(() => {
+				app.quit();
+			}, 10 /* delay to unwind callback stack (IPC) */);
 		}
 	}
 }

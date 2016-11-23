@@ -298,7 +298,7 @@ export class VSCodeMenu {
 		const hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", product.nameLong), role: 'hide', accelerator: 'Command+H' });
 		const hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Alt+H' });
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
-		const quit = new MenuItem({ label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => this.quit(), accelerator: 'Command+Q' });
+		const quit = new MenuItem({ label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => this.windowsService.quit(), accelerator: this.getAccelerator('workbench.action.quit', 'Command+Q') });
 
 		const actions = [about];
 		actions.push(...checkForUpdates);
@@ -356,7 +356,7 @@ export class VSCodeMenu {
 		const closeFolder = this.createMenuItem(nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"), 'workbench.action.closeFolder');
 		const closeEditor = this.createMenuItem(nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "Close &&Editor"), 'workbench.action.closeActiveEditor');
 
-		const exit = this.createMenuItem(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit"), () => this.quit());
+		const exit = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")), accelerator: this.getAccelerator('workbench.action.quit'), click: () => this.windowsService.quit() });
 
 		arrays.coalesce([
 			newFile,
@@ -406,25 +406,6 @@ export class VSCodeMenu {
 		preferencesMenu.append(iconThemeSelection);
 
 		return new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
-	}
-
-	private quit(): void {
-
-		// If the user selected to exit from an extension development host window, do not quit, but just
-		// close the window unless this is the last window that is opened.
-		const vscodeWindow = this.windowsService.getFocusedWindow();
-		if (vscodeWindow && vscodeWindow.isPluginDevelopmentHost && this.windowsService.getWindowCount() > 1) {
-			vscodeWindow.win.close();
-		}
-
-		// Otherwise: normal quit
-		else {
-			setTimeout(() => {
-				this.isQuitting = true;
-
-				app.quit();
-			}, 10 /* delay this because there is an issue with quitting while the menu is open */);
-		}
 	}
 
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
@@ -869,7 +850,7 @@ export class VSCodeMenu {
 		});
 	}
 
-	private getAccelerator(actionId: string): string {
+	private getAccelerator(actionId: string, fallback?: string): string {
 		if (actionId) {
 			const resolvedKeybinding = this.mapResolvedKeybindingToActionId[actionId];
 			if (resolvedKeybinding) {
@@ -881,11 +862,12 @@ export class VSCodeMenu {
 			}
 
 			const lastKnownKeybinding = this.mapLastKnownKeybindingToActionId[actionId];
-
-			return lastKnownKeybinding; // return the last known keybining (chance of mismatch is very low unless it changed)
+			if (lastKnownKeybinding) {
+				return lastKnownKeybinding; // return the last known keybining (chance of mismatch is very low unless it changed)
+			}
 		}
 
-		return void (0);
+		return fallback;
 	}
 
 	private openAboutDialog(): void {
