@@ -5,10 +5,10 @@
 
 'use strict';
 
-import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { IConfigurationService, getConfigurationValue, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { getConfigurationKeys } from 'vs/platform/configuration/common/model';
+import { IConfigurationService, getConfigurationValue, IConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 
 export class TestConfigurationService extends EventEmitter implements IConfigurationService {
 	public _serviceBrand: any;
@@ -37,6 +37,13 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 			value: getConfigurationValue<C>(this.getConfiguration(), key),
 			default: getConfigurationValue<C>(this.getConfiguration(), key),
 			user: getConfigurationValue<C>(this.getConfiguration(), key)
+		};
+	}
+
+	public keys(): IConfigurationKeys {
+		return {
+			default: getConfigurationKeys(),
+			user: Object.keys(this.configuration)
 		};
 	}
 }

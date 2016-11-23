@@ -119,7 +119,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
-			theme: this.themeService.getColorTheme()
+			theme: this.themeService.getColorTheme(),
+			fixedOverflowWidgets: true
 		};
 	}
 
@@ -138,7 +139,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 * provide their own editor control that should be used (e.g. a DiffEditor).
 	 */
 	public createEditorControl(parent: Builder): IEditor {
-		return this._instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), this.getCodeEditorOptions());
+		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
+		return this.instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {

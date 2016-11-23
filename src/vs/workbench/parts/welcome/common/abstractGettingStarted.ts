@@ -26,7 +26,7 @@ export abstract class AbstractGettingStarted implements IWorkbenchContribution {
 	) {
 		this.appName = product.nameLong;
 
-		if (product.welcomePage && !environmentService.extensionDevelopmentPath /* do not open a browser when we run an extension */) {
+		if (product.welcomePage && !environmentService.isExtensionDevelopment /* do not open a browser when we run an extension */) {
 			this.welcomePageURL = product.welcomePage;
 			this.handleWelcome();
 		}

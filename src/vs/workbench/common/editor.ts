@@ -6,15 +6,16 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
+import * as objects from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/editorCommon';
+import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions, IModel } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
 
 export enum ConfirmResult {
 	SAVE,
@@ -200,12 +201,21 @@ export abstract class EditorInput implements IEditorInput {
 	}
 
 	/**
+	 * Returns a descriptor suitable for telemetry events or null if none is available.
+	 *
+	 * Subclasses should extend if they can contribute.
+	 */
+	public getTelemetryDescriptor(): { [key: string]: any; } {
+		return { typeId: this.getTypeId() };
+	}
+
+	/**
 	 * Returns a type of EditorModel that represents the resolved input. Subclasses should
 	 * override to provide a meaningful model. The optional second argument allows to specify
 	 * if the EditorModel should be refreshed before returning it. Depending on the implementation
 	 * this could mean to refresh the editor model contents with the version from disk.
 	 */
-	public abstract resolve(refresh?: boolean): TPromise<EditorModel>;
+	public abstract resolve(refresh?: boolean): TPromise<IEditorModel>;
 
 	/**
 	 * An editor that is dirty will be asked to be saved once it closes.
@@ -339,6 +349,12 @@ export abstract class UntitledEditorInput extends EditorInput implements IEncodi
 	abstract getEncoding(): string;
 
 	abstract setEncoding(encoding: string, mode: EncodingMode): void;
+
+	public getTelemetryDescriptor(): { [key: string]: any; } {
+		const descriptor = super.getTelemetryDescriptor();
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
+		return descriptor;
+	}
 }
 
 /**
@@ -377,6 +393,11 @@ export abstract class BaseDiffEditorInput extends EditorInput {
 
 	public revert(): TPromise<boolean> {
 		return this._modifiedInput.revert();
+	}
+
+	public getTelemetryDescriptor(): { [key: string]: any; } {
+		const descriptor = this._modifiedInput.getTelemetryDescriptor();
+		return objects.assign(descriptor, super.getTelemetryDescriptor());
 	}
 }
 
@@ -799,8 +820,8 @@ export interface IEditorStacksModel {
 	positionOfGroup(group: IEditorGroup): Position;
 	groupAt(position: Position): IEditorGroup;
 
-	next(): IEditorIdentifier;
-	previous(): IEditorIdentifier;
+	next(jumpGroups: boolean): IEditorIdentifier;
+	previous(jumpGroups: boolean): IEditorIdentifier;
 
 	isOpen(editor: IEditorInput): boolean;
 	isOpen(resource: URI): boolean;
@@ -857,11 +878,11 @@ export interface IWorkbenchEditorConfiguration {
 	workbench: {
 		editor: {
 			showTabs: boolean;
+			showTabCloseButton: boolean;
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
-			sideBySideLayout: 'vertical' | 'horizontal';
 		}
 	};
 }

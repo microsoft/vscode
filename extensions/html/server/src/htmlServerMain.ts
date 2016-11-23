@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, FormattingOptions, RequestType, CompletionList, Position, Hover } from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType } from 'vscode-languageserver';
+import { DocumentContext, TextDocument, Diagnostic, DocumentLink, Range, TextEdit } from 'vscode-html-languageservice';
+import { getLanguageModes, LanguageModes } from './modes/languageModes';
 
-import { HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration, DocumentContext } from 'vscode-html-languageservice';
-import { getLanguageModelCache } from './languageModelCache';
-import { getEmbeddedContent, getEmbeddedLanguageAtPosition } from './embeddedSupport';
 import * as url from 'url';
 import * as path from 'path';
 import uri from 'vscode-uri';
@@ -16,40 +15,8 @@ import uri from 'vscode-uri';
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
 
-interface EmbeddedCompletionParams {
-	uri: string;
-	version: number;
-	embeddedLanguageId: string;
-	position: Position;
-}
-
-namespace EmbeddedCompletionRequest {
-	export const type: RequestType<EmbeddedCompletionParams, CompletionList, any> = { get method() { return 'embedded/completion'; } };
-}
-
-interface EmbeddedHoverParams {
-	uri: string;
-	version: number;
-	embeddedLanguageId: string;
-	position: Position;
-}
-
-namespace EmbeddedHoverRequest {
-	export const type: RequestType<EmbeddedCompletionParams, Hover, any> = { get method() { return 'embedded/hover'; } };
-}
-
-interface EmbeddedContentParams {
-	uri: string;
-	embeddedLanguageId: string;
-}
-
-interface EmbeddedContent {
-	content: string;
-	version: number;
-}
-
-namespace EmbeddedContentRequest {
-	export const type: RequestType<EmbeddedContentParams, EmbeddedContent, any> = { get method() { return 'embedded/content'; } };
+namespace ColorSymbolRequest {
+	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
 }
 
 // Create a connection for the server
@@ -65,133 +32,211 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
-let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => getLanguageService().parseHTMLDocument(document));
-documents.onDidClose(e => {
-	htmlDocuments.onDocumentRemoved(e.document);
-});
-connection.onShutdown(() => {
-	htmlDocuments.dispose();
-});
-
 let workspacePath: string;
-let embeddedLanguages: { [languageId: string]: boolean };
+var languageModes: LanguageModes;
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
 connection.onInitialize((params: InitializeParams): InitializeResult => {
+	let initializationOptions = params.initializationOptions;
+
 	workspacePath = params.rootPath;
-	embeddedLanguages = params.initializationOptions.embeddedLanguages;
+
+	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true });
+	documents.onDidClose(e => {
+		languageModes.onDocumentRemoved(e.document);
+	});
+	connection.onShutdown(() => {
+		languageModes.dispose();
+	});
+
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: false, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
+			completionProvider: { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
 			hoverProvider: true,
 			documentHighlightProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions['format.enable'],
-			documentLinkProvider: true
+			documentRangeFormattingProvider: initializationOptions && initializationOptions['format.enable'],
+			documentLinkProvider: true,
+			definitionProvider: true,
+			signatureHelpProvider: { triggerCharacters: ['('] },
+			referencesProvider: true
 		}
 	};
 });
 
-// create the JSON language service
-var languageService = getLanguageService();
-
-// The settings interface describes the server relevant settings part
-interface Settings {
-	html: LanguageSettings;
-}
-
-interface LanguageSettings {
-	suggest: CompletionConfiguration;
-	format: HTMLFormatConfiguration;
-}
-
-let languageSettings: LanguageSettings;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	var settings = <Settings>change.settings;
-	languageSettings = settings.html;
+	languageModes.getAllModes().forEach(m => {
+		if (m.configure) {
+			m.configure(change.settings);
+		}
+	});
+	documents.all().forEach(triggerValidation);
 });
+
+let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
+const validationDelayMs = 200;
+
+// The content of a text document has changed. This event is emitted
+// when the text document first opened or when its content has changed.
+documents.onDidChangeContent(change => {
+	triggerValidation(change.document);
+});
+
+// a document has closed: clear all diagnostics
+documents.onDidClose(event => {
+	cleanPendingValidation(event.document);
+	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+});
+
+function cleanPendingValidation(textDocument: TextDocument): void {
+	let request = pendingValidationRequests[textDocument.uri];
+	if (request) {
+		clearTimeout(request);
+		delete pendingValidationRequests[textDocument.uri];
+	}
+}
+
+function triggerValidation(textDocument: TextDocument): void {
+	cleanPendingValidation(textDocument);
+	pendingValidationRequests[textDocument.uri] = setTimeout(() => {
+		delete pendingValidationRequests[textDocument.uri];
+		validateTextDocument(textDocument);
+	}, validationDelayMs);
+}
+
+function validateTextDocument(textDocument: TextDocument): void {
+	let diagnostics: Diagnostic[] = [];
+	languageModes.getAllModesInDocument(textDocument).forEach(mode => {
+		if (mode.doValidation) {
+			pushAll(diagnostics, mode.doValidation(textDocument));
+		}
+	});
+	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+}
+
+function pushAll<T>(to: T[], from: T[]) {
+	if (from) {
+		for (var i = 0; i < from.length; i++) {
+			to.push(from[i]);
+		}
+	}
+}
 
 connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
-	let htmlDocument = htmlDocuments.get(document);
-	let options = languageSettings && languageSettings.suggest;
-	let list = languageService.doComplete(document, textDocumentPosition.position, htmlDocument, options);
-	if (list.items.length === 0 && embeddedLanguages) {
-		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
-		if (embeddedLanguageId && embeddedLanguages[embeddedLanguageId]) {
-			return connection.sendRequest(EmbeddedCompletionRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
+	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
+	if (mode && mode.doComplete) {
+		return mode.doComplete(document, textDocumentPosition.position);
+	}
+	return { isIncomplete: true, items: [] };
+});
+
+connection.onCompletionResolve(item => {
+	let data = item.data;
+	if (data && data.languageId && data.uri) {
+		let mode = languageModes.getMode(data.languageId);
+		let document = documents.get(data.uri);
+		if (mode && mode.doResolve && document) {
+			return mode.doResolve(document, item);
 		}
 	}
-	return list;
+	return item;
 });
 
 connection.onHover(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
-	let htmlDocument = htmlDocuments.get(document);
-	let hover = languageService.doHover(document, textDocumentPosition.position, htmlDocument);
-	if (!hover && embeddedLanguages) {
-		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
-		if (embeddedLanguageId && embeddedLanguages[embeddedLanguageId]) {
-			return connection.sendRequest(EmbeddedHoverRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
-		}
+	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
+	if (mode && mode.doHover) {
+		return mode.doHover(document, textDocumentPosition.position);
 	}
-	return hover;
-});
-
-connection.onRequest(EmbeddedContentRequest.type, parms => {
-	let document = documents.get(parms.uri);
-	if (document) {
-		let htmlDocument = htmlDocuments.get(document);
-		return { content: getEmbeddedContent(languageService, document, htmlDocument, parms.embeddedLanguageId), version: document.version };
-	}
-	return void 0;
+	return null;
 });
 
 connection.onDocumentHighlight(documentHighlightParams => {
 	let document = documents.get(documentHighlightParams.textDocument.uri);
-	let htmlDocument = htmlDocuments.get(document);
-	return languageService.findDocumentHighlights(document, documentHighlightParams.position, htmlDocument);
+	let mode = languageModes.getModeAtPosition(document, documentHighlightParams.position);
+	if (mode && mode.findDocumentHighlight) {
+		return mode.findDocumentHighlight(document, documentHighlightParams.position);
+	}
+	return [];
 });
 
-function merge(src: any, dst: any): any {
-	for (var key in src) {
-		if (src.hasOwnProperty(key)) {
-			dst[key] = src[key];
-		}
+connection.onDefinition(definitionParams => {
+	let document = documents.get(definitionParams.textDocument.uri);
+	let mode = languageModes.getModeAtPosition(document, definitionParams.position);
+	if (mode && mode.findDefinition) {
+		return mode.findDefinition(document, definitionParams.position);
 	}
-	return dst;
-}
+	return [];
+});
 
-function getFormattingOptions(formatParams: FormattingOptions) {
-	let formatSettings = languageSettings && languageSettings.format;
-	if (!formatSettings) {
-		return formatParams;
+connection.onReferences(referenceParams => {
+	let document = documents.get(referenceParams.textDocument.uri);
+	let mode = languageModes.getModeAtPosition(document, referenceParams.position);
+	if (mode && mode.findReferences) {
+		return mode.findReferences(document, referenceParams.position);
 	}
-	return merge(formatParams, merge(formatSettings, {}));
-}
+	return [];
+});
+
+connection.onSignatureHelp(signatureHelpParms => {
+	let document = documents.get(signatureHelpParms.textDocument.uri);
+	let mode = languageModes.getModeAtPosition(document, signatureHelpParms.position);
+	if (mode && mode.doSignatureHelp) {
+		return mode.doSignatureHelp(document, signatureHelpParms.position);
+	}
+	return null;
+});
 
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, formatParams.range, getFormattingOptions(formatParams.options));
+	let ranges = languageModes.getModesInRange(document, formatParams.range);
+	let result: TextEdit[] = [];
+	ranges.forEach(r => {
+		let mode = r.mode;
+		if (mode && mode.format && !r.attributeValue) {
+			let edits = mode.format(document, r, formatParams.options);
+			pushAll(result, edits);
+		}
+	});
+	return result;
 });
 
 connection.onDocumentLinks(documentLinkParam => {
 	let document = documents.get(documentLinkParam.textDocument.uri);
 	let documentContext: DocumentContext = {
 		resolveReference: ref => {
-			if (ref[0] === '/') {
+			if (workspacePath && ref[0] === '/') {
 				return uri.file(path.join(workspacePath, ref)).toString();
 			}
 			return url.resolve(document.uri, ref);
 		}
 	};
-	return languageService.findDocumentLinks(document, documentContext);
+	let links: DocumentLink[] = [];
+	languageModes.getAllModesInDocument(document).forEach(m => {
+		if (m.findDocumentLinks) {
+			pushAll(links, m.findDocumentLinks(document, documentContext));
+		}
+	});
+	return links;
 });
 
+connection.onRequest(ColorSymbolRequest.type, uri => {
+	let ranges: Range[] = [];
+	let document = documents.get(uri);
+	if (document) {
+		languageModes.getAllModesInDocument(document).forEach(m => {
+			if (m.findColorSymbols) {
+				pushAll(ranges, m.findColorSymbols(document));
+			}
+		});
+	}
+	return ranges;
+});
 
 // Listen on the connection
 connection.listen();

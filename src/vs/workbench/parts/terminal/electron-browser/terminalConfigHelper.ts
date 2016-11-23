@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Builder } from 'vs/base/browser/builder';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { IConfiguration } from 'vs/editor/common/config/defaultConfig';
+import { IConfiguration, DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfiguration } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShell } from 'vs/workbench/parts/terminal/common/terminal';
 import { Platform } from 'vs/base/common/platform';
 
 const DEFAULT_LINE_HEIGHT = 1.2;
@@ -69,25 +67,12 @@ const DEFAULT_ANSI_COLORS = {
 	]
 };
 
-export interface ITerminalFont {
-	fontFamily: string;
-	fontSize: string;
-	lineHeight: number;
-	charWidth: number;
-	charHeight: number;
-}
-
-export interface IShell {
-	executable: string;
-	args: string[];
-}
-
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
  */
-export class TerminalConfigHelper {
-	public panelContainer: Builder;
+export class TerminalConfigHelper implements ITerminalConfigHelper {
+	public panelContainer: HTMLElement;
 
 	private _charMeasureElement: HTMLElement;
 
@@ -103,7 +88,8 @@ export class TerminalConfigHelper {
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
-			this._charMeasureElement = this.panelContainer.div().getHTMLElement();
+			this._charMeasureElement = document.createElement('div');
+			this.panelContainer.appendChild(this._charMeasureElement);
 		}
 		let style = this._charMeasureElement.style;
 		style.display = 'block';
@@ -172,6 +158,11 @@ export class TerminalConfigHelper {
 			}
 		}
 		return shell;
+	}
+
+	public getScrollback(): number {
+		let config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return config.terminal.integrated.scrollback;
 	}
 
 	public isSetLocaleVariables(): boolean {

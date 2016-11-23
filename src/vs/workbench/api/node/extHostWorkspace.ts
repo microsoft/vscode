@@ -10,7 +10,6 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { fromRange } from 'vs/workbench/api/node/extHostTypeConverters';
-import { Uri, CancellationToken } from 'vscode';
 import { MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 
@@ -30,7 +29,7 @@ export class ExtHostWorkspace {
 		return this._workspacePath;
 	}
 
-	getRelativePath(pathOrUri: string | Uri): string {
+	getRelativePath(pathOrUri: string | vscode.Uri): string {
 
 		let path: string;
 		if (typeof pathOrUri === 'string') {
@@ -46,7 +45,7 @@ export class ExtHostWorkspace {
 		return path;
 	}
 
-	findFiles(include: string, exclude: string, maxResults?: number, token?: CancellationToken): Thenable<Uri[]> {
+	findFiles(include: string, exclude: string, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const requestId = ExtHostWorkspace._requestIdPool++;
 		const result = this._proxy.$startSearch(include, exclude, maxResults, requestId);
 		if (token) {

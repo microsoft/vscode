@@ -41,6 +41,15 @@
 	background: url('repl-inverse.svg') center center no-repeat;
 }
 
+.monaco-workbench .debug-action.start {
+	background: url('continue.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-action.start,
+.hc-black .monaco-workbench .debug-action.start {
+	background: url('continue-inverse.svg') center center no-repeat;
+}
+
 /* Debug viewlet trees */
 
 .debug-viewlet .monaco-tree .monaco-tree-row > .content {
@@ -60,15 +69,15 @@
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
-.debug-viewlet .monaco-tree .monaco-tree-row.selected .thread > .state > .label {
+.debug-viewlet .monaco-tree .monaco-tree-row.selected .thread > .state > .label,
+.debug-viewlet .monaco-tree .monaco-tree-row.selected .process > .state > .label {
 	background-color: #ffffff;
 	color: #666;
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row .content .monaco-action-bar {
-	float: right;
-	display: none;
-	margin-right: 12px;
+	visibility: hidden;
+	flex-shrink: 0;
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row .content .monaco-action-bar .action-label {
@@ -79,7 +88,7 @@
 
 .debug-viewlet .monaco-tree .monaco-tree-row:hover .content .monaco-action-bar,
 .debug-viewlet .monaco-tree.focused .monaco-tree-row.focused .content .monaco-action-bar {
-	display: block;
+	visibility: visible;
 }
 
 .debug-viewlet .disabled {
@@ -123,11 +132,13 @@
 	color: inherit;
 }
 
-.debug-viewlet .debug-call-stack .thread {
+.debug-viewlet .debug-call-stack .thread,
+.debug-viewlet .debug-call-stack .process {
 	display: flex;
 }
 
-.debug-viewlet .debug-call-stack .thread > .state {
+.debug-viewlet .debug-call-stack .thread > .state,
+.debug-viewlet .debug-call-stack .process > .state {
 	flex: 1;
 	text-align: right;
 	overflow: hidden;
@@ -136,7 +147,8 @@
 	text-transform: uppercase;
 }
 
-.debug-viewlet .debug-call-stack .thread > .state > .label {
+.debug-viewlet .debug-call-stack .thread > .state > .label,
+.debug-viewlet .debug-call-stack .process > .state > .label {
 	background: rgba(136, 136, 136, 0.3);
 	border-radius: 2px;
 	font-size: 0.8em;
@@ -147,7 +159,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	padding-right: 0.8em;
-	margin-right: 0.2em;
 }
 
 .debug-viewlet .debug-call-stack .stack-frame > .file {
@@ -173,6 +184,10 @@
 .debug-viewlet .debug-call-stack .load-more {
 	font-style: italic;
 	text-align: center;
+}
+
+.monaco-workbench .debug-viewlet .monaco-tree-row .expression {
+	white-space: pre;
 }
 
 .debug-viewlet .debug-call-stack .error {
@@ -218,6 +233,7 @@
 
 .debug-viewlet .inputBoxContainer {
 	box-sizing: border-box;
+	flex-grow: 1;
 }
 
 .debug-viewlet .debug-watch .monaco-inputbox {
@@ -231,6 +247,14 @@
 .debug-viewlet .monaco-inputbox > .wrapper > .input {
 	padding: 0px;
 	color: initial;
+}
+
+.debug-viewlet .watch-expression {
+	display: flex;
+}
+
+.debug-viewlet .watch-expression .expression {
+	flex : 1;
 }
 
 .debug-viewlet .debug-action.add-watch-expression,
@@ -260,20 +284,25 @@
 /* Breakpoints */
 
 .debug-viewlet .debug-breakpoints .breakpoint {
-	overflow: hidden;
-	text-overflow: ellipsis;
+	display: flex;
+	padding-right: 0.8em;
+	flex: 1;
+	align-items: center;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint input {
+	flex-shrink: 0;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {
 	opacity: 0.7;
 	font-size: 0.9em;
 	margin-left: 0.8em;
+	flex: 1;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
-.monaco-workbench.windows debug-viewlet .debug-breakpoints .breakpoint > .checkbox,
-.monaco-workbench.linux debug-viewlet .debug-breakpoints .breakpoint > .checkbox {
-	vertical-align: middle;
-}
 
 .debug-viewlet .debug-action.remove {
 	background: url('remove.svg') center center no-repeat;

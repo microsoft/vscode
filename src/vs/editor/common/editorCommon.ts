@@ -10,14 +10,13 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { ILineContext, IMode } from 'vs/editor/common/modes';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IMode } from 'vs/editor/common/modes';
+import { LineTokens, StandardTokenType } from 'vs/editor/common/core/lineTokens';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { IndentRange } from 'vs/editor/common/model/indentRanges';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -221,15 +220,16 @@ export interface IEditorOptions {
 	lineNumbersMinChars?: number;
 	/**
 	 * Enable the rendering of the glyph margin.
-	 * Defaults to true.
+	 * Defaults to true in vscode and to false in monaco-editor.
 	 */
 	glyphMargin?: boolean;
 	/**
 	 * The width reserved for line decorations (in px).
 	 * Line decorations are placed between line numbers and the editor content.
+	 * You can pass in a string in the format floating point followed by "ch". e.g. 1.3ch.
 	 * Defaults to 10.
 	 */
-	lineDecorationsWidth?: number;
+	lineDecorationsWidth?: number | string;
 	/**
 	 * When revealing the cursor, a virtual padding (px) is added to the cursor, turning it into a rectangle.
 	 * This virtual padding ensures that the cursor gets revealed before hitting the edge of the viewport.
@@ -257,6 +257,11 @@ export interface IEditorOptions {
 	 * Control the behavior and rendering of the scrollbars.
 	 */
 	scrollbar?: IEditorScrollbarOptions;
+	/**
+	 * Display overflow widgets as `fixed`.
+	 * Defaults to `false`.
+	 */
+	fixedOverflowWidgets?: boolean;
 	/**
 	 * The number of vertical lanes the overview ruler should render.
 	 * Defaults to 2.
@@ -319,7 +324,7 @@ export interface IEditorOptions {
 	wordWrap?: boolean;
 	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
-	 * Defaults to 'none'.
+	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 	 */
 	wrappingIndent?: string;
 	/**
@@ -403,6 +408,10 @@ export interface IEditorOptions {
 	 */
 	snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
 	/**
+	 * Copying without a selection copies the current line.
+	 */
+	emptySelectionClipboard?: boolean;
+	/**
 	 * Enable tab completion. Defaults to 'false'
 	 */
 	tabCompletion?: boolean;
@@ -437,7 +446,7 @@ export interface IEditorOptions {
 	referenceInfos?: boolean;
 	/**
 	 * Enable code folding
-	 * Defaults to true.
+	 * Defaults to true in vscode and to false in monaco-editor.
 	 */
 	folding?: boolean;
 	/**
@@ -457,9 +466,9 @@ export interface IEditorOptions {
 	renderIndentGuides?: boolean;
 	/**
 	 * Enable rendering of current line highlight.
-	 * Defaults to true.
+	 * Defaults to all.
 	 */
-	renderLineHighlight?: boolean;
+	renderLineHighlight?: 'none' | 'gutter' | 'line' | 'all';
 	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
@@ -660,8 +669,9 @@ export class InternalEditorViewOptions {
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	readonly renderControlCharacters: boolean;
 	readonly renderIndentGuides: boolean;
-	readonly renderLineHighlight: boolean;
+	readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	readonly scrollbar: InternalEditorScrollbarOptions;
+	readonly fixedOverflowWidgets: boolean;
 
 	/**
 	 * @internal
@@ -690,8 +700,9 @@ export class InternalEditorViewOptions {
 		renderWhitespace: 'none' | 'boundary' | 'all';
 		renderControlCharacters: boolean;
 		renderIndentGuides: boolean;
-		renderLineHighlight: boolean;
+		renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 		scrollbar: InternalEditorScrollbarOptions;
+		fixedOverflowWidgets: boolean;
 	}) {
 		this.theme = String(source.theme);
 		this.canUseTranslate3d = Boolean(source.canUseTranslate3d);
@@ -716,8 +727,9 @@ export class InternalEditorViewOptions {
 		this.renderWhitespace = source.renderWhitespace;
 		this.renderControlCharacters = Boolean(source.renderControlCharacters);
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
-		this.renderLineHighlight = Boolean(source.renderLineHighlight);
+		this.renderLineHighlight = source.renderLineHighlight;
 		this.scrollbar = source.scrollbar.clone();
+		this.fixedOverflowWidgets = Boolean(source.fixedOverflowWidgets);
 	}
 
 	private static _toSortedIntegerArray(source: any): number[] {
@@ -778,6 +790,7 @@ export class InternalEditorViewOptions {
 			&& this.renderIndentGuides === other.renderIndentGuides
 			&& this.renderLineHighlight === other.renderLineHighlight
 			&& this.scrollbar.equals(other.scrollbar)
+			&& this.fixedOverflowWidgets === other.fixedOverflowWidgets
 		);
 	}
 
@@ -811,6 +824,7 @@ export class InternalEditorViewOptions {
 			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
 			renderLineHighlight: this.renderLineHighlight !== newOpts.renderLineHighlight,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
+			fixedOverflowWidgets: this.fixedOverflowWidgets !== newOpts.fixedOverflowWidgets
 		};
 	}
 
@@ -848,6 +862,7 @@ export interface IViewConfigurationChangedEvent {
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: boolean;
 	readonly scrollbar: boolean;
+	readonly fixedOverflowWidgets: boolean;
 }
 
 export class EditorContribOptions {
@@ -862,6 +877,7 @@ export class EditorContribOptions {
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+	readonly emptySelectionClipboard: boolean;
 	readonly tabCompletion: boolean;
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestFontSize: number;
@@ -885,6 +901,7 @@ export class EditorContribOptions {
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+		emptySelectionClipboard: boolean;
 		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
 		suggestFontSize: number;
@@ -904,6 +921,7 @@ export class EditorContribOptions {
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.snippetSuggestions = source.snippetSuggestions;
+		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.suggestFontSize = source.suggestFontSize;
@@ -929,6 +947,7 @@ export class EditorContribOptions {
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.snippetSuggestions === other.snippetSuggestions
+			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.suggestFontSize === other.suggestFontSize
@@ -1133,6 +1152,10 @@ export interface IModelDecorationOptions {
 	 */
 	linesDecorationsClassName?: string;
 	/**
+	 * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
+	 */
+	marginClassName?: string;
+	/**
 	 * If set, the decoration will be rendered inline with the text with this CSS class name.
 	 * Please use this only for CSS rules that must impact the text. For example, use `className`
 	 * to have a background color decoration.
@@ -1277,7 +1300,7 @@ export interface IWordRange {
  * @internal
  */
 export interface ITokenInfo {
-	readonly type: string;
+	readonly standardType: StandardTokenType;
 	readonly lineNumber: number;
 	readonly startColumn: number;
 	readonly endColumn: number;
@@ -1552,6 +1575,11 @@ export interface IModelOptionsChangedEvent {
  * A textual read-only model.
  */
 export interface ITextModel {
+
+	/**
+	 * @internal
+	 */
+	mightContainRTL(): boolean;
 
 	getOptions(): TextModelResolvedOptions;
 
@@ -1828,17 +1856,6 @@ export interface IReadOnlyModel extends ITextModel {
 /**
  * @internal
  */
-export interface IRichEditBracket {
-	modeId: string;
-	open: string;
-	close: string;
-	forwardRegex: RegExp;
-	reversedRegex: RegExp;
-}
-
-/**
- * @internal
- */
 export interface IFoundBracket {
 	range: Range;
 	open: string;
@@ -1858,17 +1875,6 @@ export interface ITokenizedModel extends ITextModel {
 	 * @internal
 	 */
 	getLineTokens(lineNumber: number, inaccurateTokensAcceptable?: boolean): LineTokens;
-
-	/**
-	 * Tokenize if necessary and get the tokenization result for the line `lineNumber`, as returned by the language mode.
-	 * @internal
-	 */
-	getLineContext(lineNumber: number): ILineContext;
-
-	/**
-	 * @internal
-	 */
-	_getLineModeTransitions(lineNumber: number): ModeTransition[];
 
 	/**
 	 * Get the current language mode associated with the model.
@@ -2389,6 +2395,10 @@ export interface IRawText {
 	 */
 	readonly EOL: string;
 	/**
+	 * The text contains Unicode characters classified as "R" or "AL".
+	 */
+	readonly containsRTL: boolean;
+	/**
 	 * The options associated with this text.
 	 */
 	readonly options: {
@@ -2506,17 +2516,19 @@ export interface IModelDecorationsChangedEvent {
 	readonly oldRanges: { [decorationId: string]: IRange; };
 }
 /**
- * An event describing that a range of lines has been tokenized
+ * An event describing that some ranges of lines have been tokenized (their tokens have changed).
  */
 export interface IModelTokensChangedEvent {
-	/**
-	 * The start of the range (inclusive)
-	 */
-	readonly fromLineNumber: number;
-	/**
-	 * The end of the range (inclusive)
-	 */
-	readonly toLineNumber: number;
+	readonly ranges: {
+		/**
+		 * The start of the range (inclusive)
+		 */
+		readonly fromLineNumber: number;
+		/**
+		 * The end of the range (inclusive)
+		 */
+		readonly toLineNumber: number;
+	}[];
 }
 
 /**
@@ -3344,14 +3356,16 @@ export interface IViewLineChangedEvent {
  * @internal
  */
 export interface IViewTokensChangedEvent {
-	/**
-	 * Start line number of range
-	 */
-	readonly fromLineNumber: number;
-	/**
-	 * End line number of range
-	 */
-	readonly toLineNumber: number;
+	readonly ranges: {
+		/**
+		 * Start line number of range
+		 */
+		readonly fromLineNumber: number;
+		/**
+		 * End line number of range
+		 */
+		readonly toLineNumber: number;
+	}[];
 }
 
 /**

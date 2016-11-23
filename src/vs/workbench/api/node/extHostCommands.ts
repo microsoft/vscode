@@ -207,8 +207,8 @@ export class CommandsConverter {
 		}
 	}
 
-	private _executeConvertedCommand([id]: number[]) {
-		const actualCmd = this._heap.get<vscode.Command>(id);
+	private _executeConvertedCommand(...args: any[]) {
+		const actualCmd = this._heap.get<vscode.Command>(args[0]);
 		return this._commands.executeCommand(actualCmd.command, ...actualCmd.arguments);
 	}
 

@@ -12,7 +12,7 @@ import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export function validatePaths(args: ParsedArgs): ParsedArgs {
 

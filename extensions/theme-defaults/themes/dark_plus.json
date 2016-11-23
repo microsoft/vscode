@@ -20,7 +20,8 @@
 				"support.type",
 				"entity.name.type",
 				"storage.type.cs",
-				"storage.type.java"
+				"storage.type.java",
+				"entity.other.inherited-class"
 			],
 			"settings": {
 				"foreground": "#4EC9B0"
@@ -76,6 +77,13 @@
 			],
 			"settings": {
 				"foreground": "#CE9178"
+			}
+		},
+		{
+			"name": "JSX Tag names, workaround for flattening match with function",
+			"scope": "entity.name.function.tag",
+			"settings": {
+				"foreground": "#569cd6"
 			}
 		}
 	]

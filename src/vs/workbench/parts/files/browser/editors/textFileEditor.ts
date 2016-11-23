@@ -10,10 +10,9 @@ import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, IEditorOptions } from 'vs/editor/common/editorCommon';
 import { Action } from 'vs/base/common/actions';
 import { Scope } from 'vs/workbench/common/memento';
-import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -21,7 +20,7 @@ import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileOperationResult, FileOperationResult, FileChangesEvent, EventType, IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -118,7 +117,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 
 		// Different Input (Reload)
-		return this.editorService.resolveEditorModel(input, true /* Reload */).then(resolvedModel => {
+		return input.resolve(true).then(resolvedModel => {
 
 			// There is a special case where the text editor has to handle binary file editor input: if a binary file
 			// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
@@ -145,18 +144,15 @@ export class TextFileEditor extends BaseTextEditor {
 			const textEditor = this.getControl();
 			textEditor.setModel(textFileModel.textEditorModel);
 
-			// TextOptions (avoiding instanceof here for a reason, do not change!)
-			let optionsGotApplied = false;
-			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-				optionsGotApplied = (<TextEditorOptions>options).apply(textEditor);
+			// Always restore View State if any associated
+			const editorViewState = this.loadTextEditorViewState(this.storageService, this.getInput().getResource().toString());
+			if (editorViewState) {
+				textEditor.restoreViewState(editorViewState);
 			}
 
-			// Otherwise restore View State
-			if (!optionsGotApplied) {
-				const editorViewState = this.loadTextEditorViewState(this.storageService, this.getInput().getResource().toString());
-				if (editorViewState) {
-					textEditor.restoreViewState(editorViewState);
-				}
+			// TextOptions (avoiding instanceof here for a reason, do not change!)
+			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+				(<TextEditorOptions>options).apply(textEditor);
 			}
 		}, (error) => {
 

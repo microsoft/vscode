@@ -12,7 +12,7 @@ import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
 import * as mime from 'vs/base/common/mime';
 import * as paths from 'vs/base/common/paths';
-import { once } from 'vs/base/common/event';
+import Event, { once } from 'vs/base/common/event';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { EditorInput } from 'vs/workbench/common/editor';
 import {
@@ -35,10 +35,7 @@ import { IMessageService, CloseAction } from 'vs/platform/message/common/message
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import * as semver from 'semver';
-import { shell } from 'electron';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import Event from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
@@ -351,7 +348,8 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 	private loop(): void {
 		this._state = AutoFetcherState.Fetching;
 
-		const remotes = this.gitService.getModel().getRemotes();
+		const model = this.gitService.getModel();
+		const remotes = model ? model.getRemotes() : [];
 
 		if (remotes.length === 0) {
 			this.timeout = AutoFetcher.MIN_TIMEOUT;
@@ -410,7 +408,6 @@ export class GitService extends EventEmitter
 	private reactiveStatusDelayer: PeriodThrottledDelayer<IModel>;
 	private autoFetcher: AutoFetcher;
 	private isStatusPending = false;
-	private isFocused = true;
 
 	private _allowHugeRepositories: boolean;
 	get allowHugeRepositories(): boolean { return this._allowHugeRepositories; }
@@ -473,16 +470,15 @@ export class GitService extends EventEmitter
 				}
 
 				return this.raw.getVersion().then(version => {
-					version = version || '';
-					version = version.replace(/^(\d+\.\d+\.\d+).*$/, '$1');
-					version = semver.valid(version);
+					const match = /^(\d+)\.\d+\.\d+/.exec(version || '');
+					const major = match && parseInt(match[1]);
 
-					if (version && semver.satisfies(version, '<2.0.0')) {
+					if (major && major < 2) {
 						messageService.show(severity.Warning, {
 							message: localize('updateGit', "You seem to have git {0} installed. Code works best with git >=2.0.0.", version),
 							actions: [
 								new Action('downloadLatest', localize('download', "Download"), '', true, () => {
-									shell.openExternal('https://git-scm.com/');
+									window.open('https://git-scm.com/');
 									return null;
 								}),
 								new Action('neverShowAgain', localize('neverShowAgain', "Don't show again"), null, true, () => {
@@ -518,15 +514,10 @@ export class GitService extends EventEmitter
 
 		const focusEvent = domEvent(window, 'focus');
 		this.toDispose.push(focusEvent(() => {
-			this.isFocused = true;
-
 			if (this.isStatusPending) {
 				this.triggerAutoStatus();
 			}
 		}));
-
-		const blurEvent = domEvent(window, 'blur');
-		this.toDispose.push(blurEvent(() => this.isFocused = false));
 	}
 
 	private onTextFileChange(e: TextFileModelChangeEvent): void {
@@ -615,7 +606,7 @@ export class GitService extends EventEmitter
 	private triggerAutoStatus(force = false): void {
 		this.isStatusPending = true;
 
-		if (!this.isFocused && !force) {
+		if (!document.hasFocus() && !force) {
 			return;
 		}
 
@@ -711,6 +702,11 @@ export class GitService extends EventEmitter
 		return this.raw.detectMimetypes(path, treeish);
 	}
 
+	clone(url: string, parentPath: string): TPromise<string> {
+		return this.raw.clone(url, parentPath)
+			.then(null, e => this.wrapGitError(e));
+	}
+
 	private run(operationId: string, fn: () => TPromise<IRawStatus>): TPromise<IModel> {
 		return this.raw.serviceState().then(state => {
 			if (state === RawServiceState.GitNotFound) {
@@ -788,18 +784,24 @@ export class GitService extends EventEmitter
 				return TPromise.as(null);
 			}
 
-			var error: Error;
-			var showOutputAction = new Action('show.gitOutput', localize('showOutput', "Show Output"), null, true, () => this.outputService.getChannel('Git').show());
-			var cancelAction = new Action('close.message', localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
-
-			error = createError(
-				localize('checkNativeConsole', "There was an issue running a git operation. Please review the output or use a console to check the state of your repository."),
-				{ actions: [cancelAction, showOutputAction] }
-			);
-
-			(<any>error).gitErrorCode = gitErrorCode;
-			return TPromise.wrapError(error);
+			return this.wrapGitError(e);
 		});
+	}
+
+	private wrapGitError<T>(e: any): TPromise<T> {
+		const gitErrorCode: string = e.gitErrorCode || null;
+		const showOutputAction = new Action('show.gitOutput', localize('showOutput', "Show Output"), null, true, () => this.outputService.getChannel('Git').show());
+		const cancelAction = new Action('close.message', localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
+		const error = createError(
+			localize('checkNativeConsole', "There was an issue running a git operation. Please review the output or use a console to check the state of your repository."),
+			{ actions: [cancelAction, showOutputAction] }
+		);
+
+		(<any>error).gitErrorCode = gitErrorCode;
+		(<any>error).stdout = e.stdout;
+		(<any>error).stderr = e.stderr;
+
+		return TPromise.wrapError(error);
 	}
 
 	private transition(state: ServiceState): void {

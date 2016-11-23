@@ -1082,15 +1082,16 @@ declare module monaco.editor {
         lineNumbersMinChars?: number;
         /**
          * Enable the rendering of the glyph margin.
-         * Defaults to true.
+         * Defaults to true in vscode and to false in monaco-editor.
          */
         glyphMargin?: boolean;
         /**
          * The width reserved for line decorations (in px).
          * Line decorations are placed between line numbers and the editor content.
+         * You can pass in a string in the format floating point followed by "ch". e.g. 1.3ch.
          * Defaults to 10.
          */
-        lineDecorationsWidth?: number;
+        lineDecorationsWidth?: number | string;
         /**
          * When revealing the cursor, a virtual padding (px) is added to the cursor, turning it into a rectangle.
          * This virtual padding ensures that the cursor gets revealed before hitting the edge of the viewport.
@@ -1118,6 +1119,11 @@ declare module monaco.editor {
          * Control the behavior and rendering of the scrollbars.
          */
         scrollbar?: IEditorScrollbarOptions;
+        /**
+         * Display overflow widgets as `fixed`.
+         * Defaults to `false`.
+         */
+        fixedOverflowWidgets?: boolean;
         /**
          * The number of vertical lanes the overview ruler should render.
          * Defaults to 2.
@@ -1180,7 +1186,7 @@ declare module monaco.editor {
         wordWrap?: boolean;
         /**
          * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
-         * Defaults to 'none'.
+         * Defaults to 'same' in vscode and to 'none' in monaco-editor.
          */
         wrappingIndent?: string;
         /**
@@ -1263,6 +1269,10 @@ declare module monaco.editor {
          */
         snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
         /**
+         * Copying without a selection copies the current line.
+         */
+        emptySelectionClipboard?: boolean;
+        /**
          * Enable tab completion. Defaults to 'false'
          */
         tabCompletion?: boolean;
@@ -1292,7 +1302,7 @@ declare module monaco.editor {
         codeLens?: boolean;
         /**
          * Enable code folding
-         * Defaults to true.
+         * Defaults to true in vscode and to false in monaco-editor.
          */
         folding?: boolean;
         /**
@@ -1312,9 +1322,9 @@ declare module monaco.editor {
         renderIndentGuides?: boolean;
         /**
          * Enable rendering of current line highlight.
-         * Defaults to true.
+         * Defaults to all.
          */
-        renderLineHighlight?: boolean;
+        renderLineHighlight?: 'none' | 'gutter' | 'line' | 'all';
         /**
          * Inserting and deleting whitespace follows tab stops.
          */
@@ -1414,8 +1424,9 @@ declare module monaco.editor {
         readonly renderWhitespace: 'none' | 'boundary' | 'all';
         readonly renderControlCharacters: boolean;
         readonly renderIndentGuides: boolean;
-        readonly renderLineHighlight: boolean;
+        readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
         readonly scrollbar: InternalEditorScrollbarOptions;
+        readonly fixedOverflowWidgets: boolean;
     }
 
     export interface IViewConfigurationChangedEvent {
@@ -1444,6 +1455,7 @@ declare module monaco.editor {
         readonly renderIndentGuides: boolean;
         readonly renderLineHighlight: boolean;
         readonly scrollbar: boolean;
+        readonly fixedOverflowWidgets: boolean;
     }
 
     export class EditorContribOptions {
@@ -1458,6 +1470,7 @@ declare module monaco.editor {
         readonly suggestOnTriggerCharacters: boolean;
         readonly acceptSuggestionOnEnter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+        readonly emptySelectionClipboard: boolean;
         readonly tabCompletion: boolean;
         readonly wordBasedSuggestions: boolean;
         readonly suggestFontSize: number;
@@ -1569,6 +1582,10 @@ declare module monaco.editor {
          * If set, the decoration will be rendered in the lines decorations with this CSS class name.
          */
         linesDecorationsClassName?: string;
+        /**
+         * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
+         */
+        marginClassName?: string;
         /**
          * If set, the decoration will be rendered inline with the text with this CSS class name.
          * Please use this only for CSS rules that must impact the text. For example, use `className`
@@ -2306,6 +2323,10 @@ declare module monaco.editor {
          */
         readonly EOL: string;
         /**
+         * The text contains Unicode characters classified as "R" or "AL".
+         */
+        readonly containsRTL: boolean;
+        /**
          * The options associated with this text.
          */
         readonly options: {
@@ -2373,17 +2394,19 @@ declare module monaco.editor {
     }
 
     /**
-     * An event describing that a range of lines has been tokenized
+     * An event describing that some ranges of lines have been tokenized (their tokens have changed).
      */
     export interface IModelTokensChangedEvent {
-        /**
-         * The start of the range (inclusive)
-         */
-        readonly fromLineNumber: number;
-        /**
-         * The end of the range (inclusive)
-         */
-        readonly toLineNumber: number;
+        readonly ranges: {
+            /**
+             * The start of the range (inclusive)
+             */
+            readonly fromLineNumber: number;
+            /**
+             * The end of the range (inclusive)
+             */
+            readonly toLineNumber: number;
+        }[];
     }
 
     /**
@@ -3495,6 +3518,10 @@ declare module monaco.editor {
          */
         domNode: HTMLElement;
         /**
+         * An optional dom node for the view zone that will be placed in the margin area.
+         */
+        marginDomNode?: HTMLElement;
+        /**
          * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
          */
         onDomNodeTop?: (top: number) => void;
@@ -4155,17 +4182,77 @@ declare module monaco.languages {
 
     export interface IBracketElectricCharacterContribution {
         docComment?: IDocComment;
-        embeddedElectricCharacters?: string[];
     }
 
     /**
      * Definition of documentation comments (e.g. Javadoc/JSdoc)
      */
     export interface IDocComment {
-        scope: string;
+        /**
+         * The string that starts a doc comment (e.g. '/**')
+         */
         open: string;
-        lineStart: string;
-        close?: string;
+        /**
+         * The string that appears on the last line and closes the doc comment (e.g. ' * /').
+         */
+        close: string;
+    }
+
+    /**
+     * A tuple of two characters, like a pair of
+     * opening and closing brackets.
+     */
+    export type CharacterPair = [string, string];
+
+    export interface IAutoClosingPair {
+        open: string;
+        close: string;
+    }
+
+    export interface IAutoClosingPairConditional extends IAutoClosingPair {
+        notIn?: string[];
+    }
+
+    /**
+     * Describes what to do with the indentation when pressing Enter.
+     */
+    export enum IndentAction {
+        /**
+         * Insert new line and copy the previous line's indentation.
+         */
+        None = 0,
+        /**
+         * Insert new line and indent once (relative to the previous line's indentation).
+         */
+        Indent = 1,
+        /**
+         * Insert two new lines:
+         *  - the first one indented which will hold the cursor
+         *  - the second one at the same indentation level
+         */
+        IndentOutdent = 2,
+        /**
+         * Insert new line and outdent once (relative to the previous line's indentation).
+         */
+        Outdent = 3,
+    }
+
+    /**
+     * Describes what to do when pressing Enter.
+     */
+    export interface EnterAction {
+        /**
+         * Describe what to do with the indentation.
+         */
+        indentAction: IndentAction;
+        /**
+         * Describes text to be appended after the new line and after the indentation.
+         */
+        appendText?: string;
+        /**
+         * Describes the number of characters to remove from the new line's indentation.
+         */
+        removeText?: number;
     }
 
     /**
@@ -4600,63 +4687,6 @@ declare module monaco.languages {
     export interface CodeLensProvider {
         provideCodeLenses(model: editor.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
         resolveCodeLens?(model: editor.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
-    }
-
-    /**
-     * A tuple of two characters, like a pair of
-     * opening and closing brackets.
-     */
-    export type CharacterPair = [string, string];
-
-    export interface IAutoClosingPairConditional extends IAutoClosingPair {
-        notIn?: string[];
-    }
-
-    /**
-     * Describes what to do with the indentation when pressing Enter.
-     */
-    export enum IndentAction {
-        /**
-         * Insert new line and copy the previous line's indentation.
-         */
-        None = 0,
-        /**
-         * Insert new line and indent once (relative to the previous line's indentation).
-         */
-        Indent = 1,
-        /**
-         * Insert two new lines:
-         *  - the first one indented which will hold the cursor
-         *  - the second one at the same indentation level
-         */
-        IndentOutdent = 2,
-        /**
-         * Insert new line and outdent once (relative to the previous line's indentation).
-         */
-        Outdent = 3,
-    }
-
-    /**
-     * Describes what to do when pressing Enter.
-     */
-    export interface EnterAction {
-        /**
-         * Describe what to do with the indentation.
-         */
-        indentAction: IndentAction;
-        /**
-         * Describes text to be appended after the new line and after the indentation.
-         */
-        appendText?: string;
-        /**
-         * Describes the number of characters to remove from the new line's indentation.
-         */
-        removeText?: number;
-    }
-
-    export interface IAutoClosingPair {
-        open: string;
-        close: string;
     }
 
     export interface ILanguageExtensionPoint {

@@ -65,14 +65,84 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	// In any case there is no guarantee if the local event is fired first or the disk one. Thus, code must handle the case
 	// that the event ordering is random as well as might not carry all information needed.
 	private onLocalFileChange(e: LocalFileChangeEvent): void {
+		const movedTo = e.gotMoved() && e.getAfter() && e.getAfter().resource;
 
 		// Handle moves specially when file is opened
-		if (e.gotMoved()) {
+		if (movedTo) {
 			const before = e.getBefore();
 			const after = e.getAfter();
 
 			this.handleMovedFileInOpenedEditors(before ? before.resource : null, after ? after.resource : null);
 		}
+
+		// Handle deletes
+		if (e.gotDeleted() || movedTo) {
+			this.handleDeletes(e.getBefore().resource, movedTo);
+		}
+	}
+
+	private onFileChanges(e: FileChangesEvent): void {
+
+		// Handle updates to visible editors
+		this.handleUpdatesToVisibleEditors(e);
+
+		// Handle deletes
+		if (e.gotDeleted()) {
+			this.handleDeletes(e);
+		}
+	}
+
+	private handleDeletes(arg1: URI | FileChangesEvent, movedTo?: URI): void {
+		const fileInputs = this.getOpenedFileInputs();
+		fileInputs.forEach(input => {
+			if (input.isDirty()) {
+				return; // we never dispose dirty files
+			}
+
+			// Special case: a resource was renamed to the same path with different casing. Since our paths
+			// API is treating the paths as equal (they are on disk), we end up disposing the input we just
+			// renamed. The workaround is to detect that we do not dispose any input we are moving the file to
+			if (movedTo && movedTo.fsPath === input.getResource().fsPath) {
+				return;
+			}
+
+			let matches = false;
+			if (arg1 instanceof FileChangesEvent) {
+				matches = arg1.contains(input.getResource(), FileChangeType.DELETED);
+			} else {
+				matches = paths.isEqualOrParent(input.getResource().toString(), arg1.toString());
+			}
+
+			if (matches) {
+				input.dispose();
+			}
+		});
+	}
+
+	private getOpenedFileInputs(): FileEditorInput[] {
+		const inputs: FileEditorInput[] = [];
+
+		const stacks = this.editorGroupService.getStacksModel();
+		stacks.groups.forEach(group => {
+			group.getEditors().forEach(input => {
+				if (input instanceof FileEditorInput) {
+					inputs.push(input);
+				} else if (input instanceof DiffEditorInput) {
+					const originalInput = input.originalInput;
+					const modifiedInput = input.modifiedInput;
+
+					if (originalInput instanceof FileEditorInput) {
+						inputs.push(originalInput);
+					}
+
+					if (modifiedInput instanceof FileEditorInput) {
+						inputs.push(modifiedInput);
+					}
+				}
+			});
+		});
+
+		return inputs;
 	}
 
 	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
@@ -98,12 +168,6 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				}
 			});
 		});
-	}
-
-	private onFileChanges(e: FileChangesEvent): void {
-
-		// Handle updates to visible editors
-		this.handleUpdatesToVisibleEditors(e);
 	}
 
 	private handleUpdatesToVisibleEditors(e: FileChangesEvent) {
@@ -175,53 +239,25 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		return input instanceof FileEditorInput && input.getResource().toString() === resource.toString();
 	}
 
-	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, deletedResource: URI): FileEditorInput;
-	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, updatedFiles: FileChangesEvent): FileEditorInput;
-	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, arg: any): FileEditorInput {
+	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, e: FileChangesEvent): FileEditorInput {
 
 		// First try modifiedInput
 		const modifiedInput = input.modifiedInput;
-		const res = this.getMatchingFileEditorInputFromInput(modifiedInput, arg);
+		const res = this.getMatchingFileEditorInputFromInput(modifiedInput, e);
 		if (res) {
 			return res;
 		}
 
 		// Second try originalInput
-		return this.getMatchingFileEditorInputFromInput(input.originalInput, arg);
+		return this.getMatchingFileEditorInputFromInput(input.originalInput, e);
 	}
 
-	private getMatchingFileEditorInputFromInput(input: EditorInput, deletedResource: URI): FileEditorInput;
-	private getMatchingFileEditorInputFromInput(input: EditorInput, updatedFiles: FileChangesEvent): FileEditorInput;
-	private getMatchingFileEditorInputFromInput(input: EditorInput, arg: any): FileEditorInput {
-		if (input instanceof FileEditorInput) {
-			if (arg instanceof URI) {
-				const deletedResource = <URI>arg;
-				if (this.containsResource(input, deletedResource)) {
-					return input;
-				}
-			} else {
-				const updatedFiles = <FileChangesEvent>arg;
-				if (updatedFiles.contains(input.getResource(), FileChangeType.UPDATED)) {
-					return input;
-				}
-			}
+	private getMatchingFileEditorInputFromInput(input: EditorInput, e: FileChangesEvent): FileEditorInput {
+		if (input instanceof FileEditorInput && e.contains(input.getResource(), FileChangeType.UPDATED)) {
+			return input;
 		}
 
 		return null;
-	}
-
-	private containsResource(input: FileEditorInput, resource: URI): boolean;
-	private containsResource(input: EditorInput, resource: URI): boolean {
-		let fileResource: URI;
-		if (input instanceof FileEditorInput) {
-			fileResource = input.getResource();
-		}
-
-		if (paths.isEqualOrParent(fileResource.fsPath, resource.fsPath)) {
-			return true;
-		}
-
-		return false;
 	}
 
 	public dispose(): void {

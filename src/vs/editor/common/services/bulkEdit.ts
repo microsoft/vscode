@@ -7,16 +7,16 @@
 import * as nls from 'vs/nls';
 import { merge } from 'vs/base/common/arrays';
 import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventType as FileEventType, FileChangesEvent, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection } from 'vs/editor/common/editorCommon';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export interface IResourceEdit {
@@ -41,13 +41,13 @@ class ChangeRecorder {
 
 	public start(): IRecording {
 
-		var changes: IStringDictionary<IFileChange[]> = Object.create(null);
+		const changes: IStringDictionary<IFileChange[]> = Object.create(null);
 
-		var stop = this._eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
+		const stop = this._eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
 			event.changes.forEach(change => {
 
-				var key = String(change.resource),
-					array = changes[key];
+				const key = String(change.resource);
+				let array = changes[key];
 
 				if (!array) {
 					changes[key] = array = [];
@@ -65,21 +65,22 @@ class ChangeRecorder {
 	}
 }
 
-class EditTask {
+class EditTask implements IDisposable {
 
 	private _initialSelections: Selection[];
 	private _endCursorSelection: Selection;
-	private _model: IModel;
+	private get _model(): IModel { return this._modelReference.object.textEditorModel; }
+	private _modelReference: IReference<ITextEditorModel>;
 	private _edits: IIdentifiedSingleEditOperation[];
 
-	constructor(model: IModel) {
+	constructor(modelReference: IReference<ITextEditorModel>) {
 		this._endCursorSelection = null;
-		this._model = model;
+		this._modelReference = modelReference;
 		this._edits = [];
 	}
 
 	public addEdit(edit: IResourceEdit): void {
-		var range: IRange;
+		let range: IRange;
 		if (!edit.range) {
 			range = this._model.getFullModelRange();
 		} else {
@@ -99,8 +100,8 @@ class EditTask {
 	}
 
 	protected _getInitialSelections(): Selection[] {
-		var firstRange = this._edits[0].range;
-		var initialSelection = new Selection(
+		const firstRange = this._edits[0].range;
+		const initialSelection = new Selection(
 			firstRange.startLineNumber,
 			firstRange.startColumn,
 			firstRange.endLineNumber,
@@ -110,11 +111,11 @@ class EditTask {
 	}
 
 	private _getEndCursorSelections(inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] {
-		var relevantEditIndex = 0;
-		for (var i = 0; i < inverseEditOperations.length; i++) {
-			var editRange = inverseEditOperations[i].range;
-			for (var j = 0; j < this._initialSelections.length; j++) {
-				var selectionRange = this._initialSelections[j];
+		let relevantEditIndex = 0;
+		for (let i = 0; i < inverseEditOperations.length; i++) {
+			const editRange = inverseEditOperations[i].range;
+			for (let j = 0; j < this._initialSelections.length; j++) {
+				const selectionRange = this._initialSelections[j];
 				if (Range.areIntersectingOrTouching(editRange, selectionRange)) {
 					relevantEditIndex = i;
 					break;
@@ -122,7 +123,7 @@ class EditTask {
 			}
 		}
 
-		var srcRange = inverseEditOperations[relevantEditIndex].range;
+		const srcRange = inverseEditOperations[relevantEditIndex].range;
 		this._endCursorSelection = new Selection(
 			srcRange.endLineNumber,
 			srcRange.endColumn,
@@ -139,14 +140,21 @@ class EditTask {
 	private static _editCompare(a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation): number {
 		return Range.compareRangesUsingStarts(a.range, b.range);
 	}
+
+	dispose() {
+		if (this._model) {
+			this._modelReference.dispose();
+			this._modelReference = null;
+		}
+	}
 }
 
 class SourceModelEditTask extends EditTask {
 
 	private _knownInitialSelections: Selection[];
 
-	constructor(model: IModel, initialSelections: Selection[]) {
-		super(model);
+	constructor(modelReference: IReference<ITextEditorModel>, initialSelections: Selection[]) {
+		super(modelReference);
 		this._knownInitialSelections = initialSelections;
 	}
 
@@ -155,9 +163,9 @@ class SourceModelEditTask extends EditTask {
 	}
 }
 
-class BulkEditModel {
+class BulkEditModel implements IDisposable {
 
-	private _editorService: IEditorService;
+	private _textModelResolverService: ITextModelResolverService;
 	private _numberOfResourcesToModify: number = 0;
 	private _numberOfChanges: number = 0;
 	private _edits: IStringDictionary<IResourceEdit[]> = Object.create(null);
@@ -166,8 +174,8 @@ class BulkEditModel {
 	private _sourceSelections: Selection[];
 	private _sourceModelTask: SourceModelEditTask;
 
-	constructor(editorService: IEditorService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[], private progress: IProgressRunner = null) {
-		this._editorService = editorService;
+	constructor(textModelResolverService: ITextModelResolverService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[], private progress: IProgressRunner = null) {
+		this._textModelResolverService = textModelResolverService;
 		this._sourceModel = sourceModel;
 		this._sourceSelections = sourceSelections;
 		this._sourceModelTask = null;
@@ -186,7 +194,7 @@ class BulkEditModel {
 	}
 
 	private _addEdit(edit: IResourceEdit): void {
-		var array = this._edits[edit.resource.toString()];
+		let array = this._edits[edit.resource.toString()];
 		if (!array) {
 			this._edits[edit.resource.toString()] = array = [];
 			this._numberOfResourcesToModify += 1;
@@ -202,26 +210,28 @@ class BulkEditModel {
 		}
 
 		this._tasks = [];
-		var promises: TPromise<any>[] = [];
+		const promises: TPromise<any>[] = [];
 
 		if (this.progress) {
 			this.progress.total(this._numberOfResourcesToModify * 2);
 		}
 
 		forEach(this._edits, entry => {
-			var promise = this._editorService.resolveEditorModel({ resource: URI.parse(entry.key) }).then(model => {
+			const promise = this._textModelResolverService.createModelReference(URI.parse(entry.key)).then(ref => {
+				const model = ref.object;
+
 				if (!model || !model.textEditorModel) {
 					throw new Error(`Cannot load file ${entry.key}`);
 				}
 
-				var textEditorModel = <IModel>model.textEditorModel,
-					task: EditTask;
+				const textEditorModel = model.textEditorModel;
+				let task: EditTask;
 
 				if (this._sourceModel && textEditorModel.uri.toString() === this._sourceModel.toString()) {
-					this._sourceModelTask = new SourceModelEditTask(textEditorModel, this._sourceSelections);
+					this._sourceModelTask = new SourceModelEditTask(ref, this._sourceSelections);
 					task = this._sourceModelTask;
 				} else {
-					task = new EditTask(textEditorModel);
+					task = new EditTask(ref);
 				}
 
 				entry.value.forEach(edit => task.addEdit(edit));
@@ -239,7 +249,7 @@ class BulkEditModel {
 
 	public apply(): Selection {
 		this._tasks.forEach(task => this.applyTask(task));
-		var r: Selection = null;
+		let r: Selection = null;
 		if (this._sourceModelTask) {
 			r = this._sourceModelTask.getEndCursorSelection();
 		}
@@ -252,6 +262,10 @@ class BulkEditModel {
 			this.progress.worked(1);
 		}
 	}
+
+	dispose(): void {
+		this._tasks = dispose(this._tasks);
+	}
 }
 
 export interface BulkEdit {
@@ -260,14 +274,14 @@ export interface BulkEdit {
 	finish(): TPromise<ISelection>;
 }
 
-export function bulkEdit(eventService: IEventService, editorService: IEditorService, editor: ICommonCodeEditor, edits: IResourceEdit[], progress: IProgressRunner = null): TPromise<any> {
-	let bulk = createBulkEdit(eventService, editorService, editor);
+export function bulkEdit(eventService: IEventService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor, edits: IResourceEdit[], progress: IProgressRunner = null): TPromise<any> {
+	let bulk = createBulkEdit(eventService, textModelResolverService, editor);
 	bulk.add(edits);
 	bulk.progress(progress);
 	return bulk.finish();
 }
 
-export function createBulkEdit(eventService: IEventService, editorService: IEditorService, editor: ICommonCodeEditor): BulkEdit {
+export function createBulkEdit(eventService: IEventService, textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor): BulkEdit {
 
 	let all: IResourceEdit[] = [];
 	let recording = new ChangeRecorder(eventService).start();
@@ -315,7 +329,7 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 			selections = editor.getSelections();
 		}
 
-		let model = new BulkEditModel(editorService, uri, selections, all, progressRunner);
+		const model = new BulkEditModel(textModelResolverService, uri, selections, all, progressRunner);
 
 		return model.prepare().then(_ => {
 
@@ -325,7 +339,10 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 			}
 
 			recording.stop();
-			return model.apply();
+
+			const result = model.apply();
+			model.dispose();
+			return result;
 		});
 	}
 

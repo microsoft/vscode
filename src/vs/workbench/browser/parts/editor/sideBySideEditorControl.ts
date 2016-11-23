@@ -15,13 +15,12 @@ import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutPro
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
-import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
-import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -31,11 +30,11 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
-import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { TitleControl, ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { extractResources } from 'vs/base/browser/dnd';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export enum Rochade {
 	NONE,
@@ -77,6 +76,9 @@ export interface ISideBySideEditorControl {
 
 	arrangeGroups(arrangement: GroupArrangement): void;
 
+	setGroupOrientation(orientation: GroupOrientation): void;
+	getGroupOrientation(): GroupOrientation;
+
 	getRatio(): number[];
 	dispose(): void;
 }
@@ -105,7 +107,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private dragging: boolean;
 
 	private layoutVertically: boolean;
+
 	private showTabs: boolean;
+	private showTabCloseButton: boolean;
 	private showIcons: boolean;
 
 	private silos: Builder[];
@@ -135,13 +139,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	constructor(
 		parent: Builder,
+		groupOrientation: GroupOrientation,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWindowService private windowService: IWindowService
 	) {
 		this.stacks = editorGroupService.getStacksModel();
 		this.toDispose = [];
@@ -164,6 +170,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
+		const editorGroupOrientation = groupOrientation || 'vertical';
+		this.layoutVertically = (editorGroupOrientation !== 'horizontal');
+
 		this.create();
 
 		this.registerListeners();
@@ -185,8 +194,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		return this.silosSize[position] === this.minSize && this.silosMinimized[position];
 	}
 
-	private updateMinimizedState(): void {
+	private enableMinimizedState(): void {
 		POSITIONS.forEach(p => this.silosMinimized[p] = this.silosSize[p] === this.minSize);
+	}
+
+	private updateMinimizedState(): void {
+		POSITIONS.forEach(p => {
+			if (this.silosSize[p] !== this.minSize) {
+				this.silosMinimized[p] = false; // release silo from minimized state if it was sized large enough
+			}
+		});
 	}
 
 	private get snapToMinimizeThresholdSize(): number {
@@ -200,31 +217,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration, refresh?: boolean): void {
+		const showTabCloseButton = this.showTabCloseButton;
+
 		if (config.workbench && config.workbench.editor) {
 			this.showTabs = config.workbench.editor.showTabs;
+			this.showTabCloseButton = config.workbench.editor.showTabCloseButton;
 			this.showIcons = config.workbench.editor.showIcons;
-			this.layoutVertically = (config.workbench.editor.sideBySideLayout !== 'horizontal');
 		} else {
 			this.showTabs = true;
+			this.showTabCloseButton = true;
 			this.showIcons = false;
-			this.layoutVertically = true;
 		}
 
 		if (!refresh) {
 			return; // return early if no refresh is needed
-		}
-
-		// Editor Layout
-		const verticalLayouting = this.parent.hasClass('vertical-layout');
-		if (verticalLayouting !== this.layoutVertically) {
-			this.parent.removeClass('vertical-layout', 'horizontal-layout');
-			this.parent.addClass(this.layoutVertically ? 'vertical-layout' : 'horizontal-layout');
-
-			this.sashOne.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
-			this.sashTwo.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
-
-			// Trigger layout
-			this.arrangeGroups(GroupArrangement.EVEN);
 		}
 
 		// Editor Containers
@@ -258,7 +264,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				}
 
 				// Refresh title when icons change
-				else if (showingIcons !== this.showIcons) {
+				else if (showingIcons !== this.showIcons || showTabCloseButton !== this.showTabCloseButton) {
 					titleControl.refresh(true);
 				}
 			}
@@ -468,7 +474,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 				// Since we triggered a change in minimized/maximized editors, we need
 				// to update our stored state of minimized silos accordingly
-				this.updateMinimizedState();
+				this.enableMinimizedState();
 
 				if (layout) {
 					this.layoutContainers();
@@ -656,6 +662,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.visibleEditorFocusTrackers[to] = listeners;
 		this.visibleEditorFocusTrackers[from] = null;
 
+		const minimizedState = this.silosMinimized[from];
+		this.silosMinimized[to] = minimizedState;
+		this.silosMinimized[from] = null;
+
 		this.visibleEditors[to] = editor;
 		this.visibleEditors[from] = null;
 
@@ -736,6 +746,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		arrays.move(this.visibleEditors, from, to);
 		arrays.move(this.visibleEditorFocusTrackers, from, to);
 		arrays.move(this.silosSize, from, to);
+		arrays.move(this.silosMinimized, from, to);
 
 		// Layout
 		if (!this.sashOne.isHidden()) {
@@ -747,6 +758,27 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		this.layoutContainers();
+	}
+
+	public setGroupOrientation(orientation: GroupOrientation): void {
+		this.layoutVertically = (orientation !== 'horizontal');
+
+		// Editor Layout
+		const verticalLayouting = this.parent.hasClass('vertical-layout');
+		if (verticalLayouting !== this.layoutVertically) {
+			this.parent.removeClass('vertical-layout', 'horizontal-layout');
+			this.parent.addClass(this.layoutVertically ? 'vertical-layout' : 'horizontal-layout');
+
+			this.sashOne.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
+			this.sashTwo.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
+
+			// Trigger layout
+			this.arrangeGroups(GroupArrangement.EVEN);
+		}
+	}
+
+	public getGroupOrientation(): GroupOrientation {
+		return this.layoutVertically ? 'vertical' : 'horizontal';
 	}
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
@@ -786,7 +818,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Since we triggered a change in minimized/maximized editors, we need
 		// to update our stored state of minimized silos accordingly
-		this.updateMinimizedState();
+		this.enableMinimizedState();
 
 		// Layout silos
 		this.layoutControl(this.dimension);
@@ -889,11 +921,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const stacks = this.editorGroupService.getStacksModel();
 
 		let overlay: Builder;
-		let draggedResources: URI[];
 
 		function cleanUp(): void {
-			draggedResources = void 0;
-
 			if (overlay) {
 				overlay.destroy();
 				overlay = void 0;
@@ -919,7 +948,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
-			const droppedResources = draggedResources;
 			DOM.removeClass(node, 'dropfeedback');
 			cleanUp();
 
@@ -970,11 +998,23 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Check for URI transfer
 			else {
+				const droppedResources = extractResources(e).filter(r => r.resource.scheme === 'file' || r.resource.scheme === 'untitled');
 				if (droppedResources.length) {
-					window.focus(); // make sure this window has focus so that the open call reaches the right window!
 
-					// Open all
-					editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; }))
+					// Add external ones to recently open list
+					const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
+					if (externalResources.length) {
+						$this.windowService.addToRecentlyOpen(externalResources.map(resource => {
+							return {
+								path: resource.fsPath,
+								isFile: true
+							};
+						}));
+					}
+
+					// Open in Editor
+					$this.windowService.focusWindow()
+						.then(() => editorService.openEditors(droppedResources.map(d => { return { input: { resource: d.resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; })))
 						.then(() => {
 							if (splitEditor && splitTo !== freeGroup) {
 								groupService.moveGroup(freeGroup, splitTo);
@@ -1123,16 +1163,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Drag over
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-
-			// Upon first drag, detect the dragged resources and only take valid ones
-			if (!draggedResources) {
-				draggedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
-			}
-
-			if (!draggedResources.length && !TitleControl.getDraggedEditor()) {
-				return; // do not show drop feedback if we drag invalid resources or no tab around
-			}
-
 			if (e.target === node) {
 				DOM.addClass(node, 'dropfeedback');
 			}
@@ -1571,7 +1601,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// We allow silos to turn into minimized state from user dragging the sash,
 		// so we need to update our stored state of minimized silos accordingly
-		this.updateMinimizedState();
+		this.enableMinimizedState();
 
 		// Pass on to containers
 		this.layoutContainers();
@@ -1639,7 +1669,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// We allow silos to turn into minimized state from user dragging the sash,
 		// so we need to update our stored state of minimized silos accordingly
-		this.updateMinimizedState();
+		this.enableMinimizedState();
 
 		// Pass on to containers
 		this.layoutContainers();
@@ -1738,7 +1768,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// When restoring from an initial ratio state, we treat editors of min-size as
 		// minimized, so we need to update our stored state of minimized silos accordingly
 		if (wasInitialRatioRestored) {
-			this.updateMinimizedState();
+			this.enableMinimizedState();
 		}
 
 		// Compensate for overflow either through rounding error or min editor size
@@ -1773,9 +1803,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						this.silosSize[position] -= overflow;
 						overflow = 0;
 					} else if (maxCompensation > 0) {
-						const compensation = overflow - maxCompensation;
-						this.silosSize[position] -= compensation;
-						overflow -= compensation;
+						this.silosSize[position] -= maxCompensation;
+						overflow -= maxCompensation;
 					}
 				});
 			}
@@ -1823,6 +1852,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		POSITIONS.forEach(position => {
 			this.getTitleAreaControl(position).layout();
 		});
+
+		// Update minimized state
+		this.updateMinimizedState();
 	}
 
 	private layoutEditor(position: Position): void {

@@ -6,9 +6,9 @@
 {
 	"allEditorsPicker": "開いているエディターをすべて表示する",
 	"binaryDiffEditor": "バイナリ差分エディター",
-	"centerEditorGroupPicker": "エディターを中央のグループに表示する",
-	"leftEditorGroupPicker": "エディターを左のグループに表示する",
-	"rightEditorGroupPicker": "エディターを右のグループに表示する",
+	"groupOnePicker": "最初のグループのエディターを表示する",
+	"groupThreePicker": "3 番目のグループのエディターを表示する",
+	"groupTwoPicker": "2 番目のグループでエディターを表示する",
 	"textDiffEditor": "テキスト差分エディター",
 	"textEditor": "テキスト エディター",
 	"view": "表示"

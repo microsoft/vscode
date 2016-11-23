@@ -5,9 +5,8 @@
 
 'use strict';
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, InstanceCollection } from './extHost.protocol';
@@ -20,6 +19,7 @@ import { MainThreadDiagnostics } from './mainThreadDiagnostics';
 import { MainThreadDocuments } from './mainThreadDocuments';
 import { MainThreadEditors } from './mainThreadEditors';
 import { MainThreadErrors } from './mainThreadErrors';
+import { MainThreadTreeExplorers } from './mainThreadTreeExplorers';
 import { MainThreadLanguageFeatures } from './mainThreadLanguageFeatures';
 import { MainThreadLanguages } from './mainThreadLanguages';
 import { MainThreadMessageService } from './mainThreadMessageService';
@@ -37,7 +37,7 @@ import { MainThreadFileSystemEventService } from './mainThreadFileSystemEventSer
 import { MainProcessTextMateSyntax } from 'vs/editor/node/textMate/TMSyntax';
 import { MainProcessTextMateSnippet } from 'vs/editor/node/textMate/TMSnippets';
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
-import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfiguration';
+import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfigurationExtensionPoint';
 import { SaveParticipant } from './mainThreadSaveParticipant';
 
 // --- registers itself as service
@@ -70,6 +70,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadDocuments).set(create(MainThreadDocuments));
 		col.define(MainContext.MainThreadEditors).set(create(MainThreadEditors));
 		col.define(MainContext.MainThreadErrors).set(create(MainThreadErrors));
+		col.define(MainContext.MainThreadExplorers).set(create(MainThreadTreeExplorers));
 		col.define(MainContext.MainThreadLanguageFeatures).set(create(MainThreadLanguageFeatures));
 		col.define(MainContext.MainThreadLanguages).set(create(MainThreadLanguages));
 		col.define(MainContext.MainThreadMessageService).set(create(MainThreadMessageService));
@@ -86,10 +87,10 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.finish(true, this.threadService);
 
 		// Other interested parties
-		create(MainProcessTextMateSyntax);
+		let tmSyntax = create(MainProcessTextMateSyntax);
 		create(MainProcessTextMateSnippet);
 		create(JSONValidationExtensionPoint);
-		create(LanguageConfigurationFileHandler);
+		this.instantiationService.createInstance(LanguageConfigurationFileHandler, tmSyntax);
 		create(MainThreadFileSystemEventService);
 		create(SaveParticipant);
 	}

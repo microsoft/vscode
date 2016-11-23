@@ -38,6 +38,7 @@
 	"selectEOL": "Seleziona sequenza di fine riga",
 	"selectEncoding": "Seleziona codifica",
 	"selectLanguageMode": "Seleziona modalità linguaggio",
+	"showLanguageExtensions": "Cerca '{0}' nelle estensioni del Marketplace...",
 	"singleSelection": "Ri {0}, col {1}",
 	"singleSelectionRange": "Ri {0}, col {1} ({2} selezionate)",
 	"spacesSize": "Spazi: {0}",

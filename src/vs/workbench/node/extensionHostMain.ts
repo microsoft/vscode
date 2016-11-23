@@ -11,33 +11,14 @@ import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { createApiFactory, defineAPI } from 'vs/workbench/api/node/extHost.api.impl';
 import { IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IInitData, IEnvironment, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
-
-export interface IEnvironment {
-	appSettingsHome: string;
-	disableExtensions: boolean;
-	userExtensionsHome: string;
-	extensionDevelopmentPath: string;
-	extensionTestsPath: string;
-}
-
-export interface IInitData {
-	environment: IEnvironment;
-	threadService: any;
-	contextService: {
-		workspace: any;
-		options: any;
-	};
-	extensions: IExtensionDescription[];
-}
 
 const nativeExit = process.exit.bind(process);
 process.exit = function () {
@@ -58,13 +39,11 @@ export class ExtensionHostMain {
 	private _contextService: IWorkspaceContextService;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
-	private _extensions: IExtensionDescription[];
 
 	constructor(remoteCom: IMainProcessExtHostIPC, initData: IInitData) {
 		this._isTerminating = false;
 
 		this._environment = initData.environment;
-		this._extensions = initData.extensions;
 
 		this._contextService = new WorkspaceContextService(initData.contextService.workspace);
 		const workspaceStoragePath = this._getOrCreateWorkspaceStoragePath();
@@ -73,11 +52,15 @@ export class ExtensionHostMain {
 
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
 
-		this._extensionService = new ExtHostExtensionService(threadService, telemetryService, { _serviceBrand: 'optionalArgs', workspaceStoragePath });
+		this._extensionService = new ExtHostExtensionService(initData.extensions, threadService, telemetryService, { _serviceBrand: 'optionalArgs', workspaceStoragePath });
+
+		// Error forwarding
+		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
+		errors.setUnexpectedErrorHandler(err => mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err)));
 
 		// Create the ext host API
-		const factory = createApiFactory(threadService, this._extensionService, this._contextService, telemetryService);
-		defineAPI(factory, this._extensions);
+		const factory = createApiFactory(initData, threadService, this._extensionService, this._contextService);
+		defineAPI(factory, this._extensionService);
 	}
 
 	private _getOrCreateWorkspaceStoragePath(): string {
@@ -128,7 +111,7 @@ export class ExtensionHostMain {
 	}
 
 	public start(): TPromise<void> {
-		return this.registerExtensions();
+		return this.handleEagerExtensions().then(() => this.handleExtensionTests());
 	}
 
 	public terminate(): void {
@@ -144,7 +127,7 @@ export class ExtensionHostMain {
 
 		let allPromises: TPromise<void>[] = [];
 		try {
-			let allExtensions = ExtensionsRegistry.getAllExtensionDescriptions();
+			let allExtensions = this._extensionService.getAllExtensionDescriptions();
 			let allExtensionsIds = allExtensions.map(ext => ext.id);
 			let activatedExtensions = allExtensionsIds.filter(id => this._extensionService.isActivated(id));
 
@@ -161,12 +144,6 @@ export class ExtensionHostMain {
 		setTimeout(() => {
 			TPromise.any<void>([TPromise.timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
 		}, 1000);
-	}
-
-	private registerExtensions(): TPromise<void> {
-		ExtensionsRegistry.registerExtensions(this._extensions);
-		this._extensionService.registrationDone([]);
-		return this.handleEagerExtensions().then(() => this.handleExtensionTests());
 	}
 
 	// Handle "eager" activation extensions
@@ -189,7 +166,7 @@ export class ExtensionHostMain {
 			[filename: string]: boolean;
 		} = {};
 
-		ExtensionsRegistry.getAllExtensionDescriptions().forEach((desc) => {
+		this._extensionService.getAllExtensionDescriptions().forEach((desc) => {
 			let activationEvents = desc.activationEvents;
 			if (!activationEvents) {
 				return;

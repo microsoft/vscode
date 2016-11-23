@@ -11,7 +11,6 @@ import URI from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
 import strings = require('vs/base/common/strings');
-import { getConfigurationKeys } from 'vs/platform/configuration/common/model';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Queue } from 'vs/base/common/async';
 import { applyEdits } from 'vs/base/common/jsonFormatter';
@@ -19,14 +18,9 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
+import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
-
-export const WORKSPACE_STANDALONE_CONFIGURATIONS = {
-	'tasks': '.vscode/tasks.json',
-	'launch': '.vscode/launch.json'
-};
 
 interface IConfigurationEditOperation extends IConfigurationValue {
 	target: URI;
@@ -150,7 +144,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 		// Any key must be a known setting from the registry (unless this is a standalone config)
 		if (!operation.isWorkspaceStandalone) {
-			const validKeys = getConfigurationKeys();
+			const validKeys = this.configurationService.keys().default;
 			if (validKeys.indexOf(operation.key) < 0) {
 				return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY });
 			}

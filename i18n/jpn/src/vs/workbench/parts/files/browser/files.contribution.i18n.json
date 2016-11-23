@@ -20,6 +20,7 @@
 	"files.exclude.when": "一致するファイルの兄弟をさらにチェックします。一致するファイル名の変数として $(basename) を使用します。",
 	"filesConfigurationTitle": "ファイル",
 	"formatOnSave": "ファイルを保存するときにフォーマットしてください。フォーマッタを使用可能にして、ファイルを自動保存せず、エディターをシャットダウンしないでください。",
+	"insertFinalNewline": "有効にすると、ファイルの保存時に最新の行を末尾に挿入します。",
 	"openEditorsVisible": "[開いているエディター] ウィンドウに表示されているエディターの数。0 に設定するとウィンドウが非表示になります。",
 	"showExplorerViewlet": "エクスプローラーを表示",
 	"textFileEditor": "テキスト ファイル エディター",

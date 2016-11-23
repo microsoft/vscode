@@ -10,11 +10,11 @@ import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
 import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoint';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry, IExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IThemeService, IThemeData, IThemeSetting, IThemeDocument } from 'vs/workbench/services/themes/common/themeService';
+import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IThemeService, IThemeData, IThemeSetting, IThemeDocument, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/themeService';
 import { TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import { getBaseThemeId } from 'vs/platform/theme/common/themes';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/platform';
@@ -44,21 +44,21 @@ const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 function validateThemeId(theme: string): string {
 	// migrations
 	switch (theme) {
-		case 'vs': return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
-		case 'vs-dark': return `vs-dark ${defaultThemeExtensionId}-themes-dark_vs-json`;
-		case 'hc-black': return `hc-black ${defaultThemeExtensionId}-themes-hc_black-json`;
+		case VS_LIGHT_THEME: return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
+		case VS_DARK_THEME: return `vs-dark ${defaultThemeExtensionId}-themes-dark_vs-json`;
+		case VS_HC_THEME: return `hc-black ${defaultThemeExtensionId}-themes-hc_black-json`;
 		case `vs ${oldDefaultThemeExtensionId}-themes-light_plus-tmTheme`: return `vs ${defaultThemeExtensionId}-themes-light_plus-json`;
 		case `vs-dark ${oldDefaultThemeExtensionId}-themes-dark_plus-tmTheme`: return `vs-dark ${defaultThemeExtensionId}-themes-dark_plus-json`;
 	}
 	return theme;
 }
 
-let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', {
+let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', [], {
 	description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
 	type: 'array',
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.' } }],
+		defaultSnippets: [{ body: { label: '{{label}}', uiTheme: VS_DARK_THEME, path: './themes/{{id}}.tmTheme.' } }],
 		properties: {
 			label: {
 				description: nls.localize('vscode.extension.contributes.themes.label', 'Label of the color theme as shown in the UI.'),
@@ -66,7 +66,7 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 			},
 			uiTheme: {
 				description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme.'),
-				enum: ['vs', 'vs-dark', 'hc-black']
+				enum: [VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME]
 			},
 			path: {
 				description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./themes/themeFile.tmTheme\'.'),
@@ -77,7 +77,7 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 	}
 });
 
-let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('iconThemes', {
+let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('iconThemes', [], {
 	description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
 	type: 'array',
 	items: {
@@ -104,6 +104,9 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 interface IInternalThemeData extends IThemeData {
 	styleSheetContent?: string;
 	extensionId: string;
+	extensionPublisher: string;
+	extensionName: string;
+	extensionIsBuiltin: boolean;
 }
 
 interface IconDefinition {
@@ -140,6 +143,13 @@ interface IconThemeDocument extends IconsAssociation {
 	highContrast?: IconsAssociation;
 }
 
+interface ExtensionData {
+	extensionId: string;
+	extensionPublisher: string;
+	extensionName: string;
+	extensionIsBuiltin: boolean;
+}
+
 export class ThemeService implements IThemeService {
 	_serviceBrand: any;
 
@@ -153,7 +163,7 @@ export class ThemeService implements IThemeService {
 
 	constructor(
 		@IExtensionService private extensionService: IExtensionService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@IStorageService private storageService: IStorageService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 
@@ -164,7 +174,13 @@ export class ThemeService implements IThemeService {
 
 		themesExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
-				this.onThemes(ext.description.extensionFolderPath, ext.description.id, ext.value, ext.collector);
+				let extensionData = {
+					extensionId: ext.description.id,
+					extensionPublisher: ext.description.publisher,
+					extensionName: ext.description.name,
+					extensionIsBuiltin: ext.description.isBuiltin
+				};
+				this.onThemes(ext.description.extensionFolderPath, extensionData, ext.value, ext.collector);
 			}
 		});
 
@@ -176,7 +192,13 @@ export class ThemeService implements IThemeService {
 
 		iconThemeExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
-				this.onIconThemes(ext.description.extensionFolderPath, ext.description.id, ext.value, ext.collector);
+				let extensionData = {
+					extensionId: ext.description.id,
+					extensionPublisher: ext.description.publisher,
+					extensionName: ext.description.name,
+					extensionIsBuiltin: ext.description.isBuiltin
+				};
+				this.onIconThemes(ext.description.extensionFolderPath, extensionData, ext.value, ext.collector);
 			}
 		});
 
@@ -277,7 +299,7 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	private onThemes(extensionFolderPath: string, extensionId: string, themes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
+	private onThemes(extensionFolderPath: string, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(themes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -302,18 +324,21 @@ export class ThemeService implements IThemeService {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
 
-			let themeSelector = toCSSSelector(extensionId + '-' + Paths.normalize(theme.path));
+			let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
 			this.knownColorThemes.push({
 				id: `${theme.uiTheme || defaultBaseTheme} ${themeSelector}`,
 				label: theme.label || Paths.basename(theme.path),
 				description: theme.description,
 				path: normalizedAbsolutePath,
-				extensionId: extensionId
+				extensionId: extensionData.extensionId,
+				extensionPublisher: extensionData.extensionPublisher,
+				extensionName: extensionData.extensionName,
+				extensionIsBuiltin: extensionData.extensionIsBuiltin
 			});
 		});
 	}
 
-	private onIconThemes(extensionFolderPath: string, extensionId: string, iconThemes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
+	private onIconThemes(extensionFolderPath: string, extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(iconThemes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -348,11 +373,14 @@ export class ThemeService implements IThemeService {
 			}
 
 			this.knownIconThemes.push({
-				id: extensionId + '-' + iconTheme.id,
+				id: extensionData.extensionId + '-' + iconTheme.id,
 				label: iconTheme.label || Paths.basename(iconTheme.path),
 				description: iconTheme.description,
 				path: normalizedAbsolutePath,
-				extensionId: extensionId
+				extensionId: extensionData.extensionId,
+				extensionPublisher: extensionData.extensionPublisher,
+				extensionName: extensionData.extensionName,
+				extensionIsBuiltin: extensionData.extensionIsBuiltin
 			});
 		});
 	}
@@ -360,17 +388,14 @@ export class ThemeService implements IThemeService {
 	private themeExtensionsActivated = {};
 	private sendTelemetry(themeData: IInternalThemeData) {
 		if (!this.themeExtensionsActivated[themeData.extensionId]) {
-			let description = ExtensionsRegistry.getExtensionDescription(themeData.extensionId);
-			if (description) {
-				this.telemetryService.publicLog('activatePlugin', {
-					id: description.id,
-					name: description.name,
-					isBuiltin: description.isBuiltin,
-					publisherDisplayName: description.publisher,
-					themeId: themeData.id
-				});
-				this.themeExtensionsActivated[themeData.extensionId] = true;
-			}
+			this.telemetryService.publicLog('activatePlugin', {
+				id: themeData.extensionId,
+				name: themeData.extensionName,
+				isBuiltin: themeData.extensionIsBuiltin,
+				publisherDisplayName: themeData.extensionPublisher,
+				themeId: themeData.id
+			});
+			this.themeExtensionsActivated[themeData.extensionId] = true;
 		}
 	}
 
@@ -534,7 +559,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 	}
 	collectSelectors(iconThemeDocument);
 	collectSelectors(iconThemeDocument.light, '.vs');
-	collectSelectors(iconThemeDocument.highContrast, '.hc_black');
+	collectSelectors(iconThemeDocument.highContrast, '.hc-black');
 
 	let cssRules: string[] = [];
 

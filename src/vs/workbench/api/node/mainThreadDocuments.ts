@@ -19,12 +19,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from './extHost.protocol';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _modelService: IModelService;
 	private _modeService: IModeService;
+	private _textModelResolverService: ITextModelResolverService;
 	private _textFileService: ITextFileService;
 	private _editorService: IWorkbenchEditorService;
 	private _fileService: IFileService;
@@ -44,11 +45,13 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		@ITextFileService textFileService: ITextFileService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IFileService fileService: IFileService,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
 		super();
 		this._modelService = modelService;
 		this._modeService = modeService;
+		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
 		this._editorService = editorService;
 		this._fileService = fileService;
@@ -147,7 +150,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			}
 		}
 		if (changedEvents.length > 0) {
-			this._proxy.$acceptModelChanged(modelUrl.toString(), changedEvents);
+			this._proxy.$acceptModelChanged(modelUrl.toString(), changedEvents, this._textFileService.isDirty(modelUrl));
 		}
 	}
 
@@ -184,8 +187,11 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	}
 
 	private _handleAsResourceInput(uri: URI): TPromise<boolean> {
-		return this._editorService.resolveEditorModel({ resource: uri }).then(model => {
-			return !!model;
+		return this._textModelResolverService.createModelReference(uri).then(ref => {
+			const result = !!ref.object;
+			ref.dispose();
+
+			return result;
 		});
 	}
 
@@ -213,7 +219,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	// --- virtual document logic
 
 	$registerTextContentProvider(handle: number, scheme: string): void {
-		this._resourceContentProvider[handle] = ResourceEditorInput.registerResourceContentProvider(scheme, {
+		this._resourceContentProvider[handle] = this._textModelResolverService.registerTextModelContentProvider(scheme, {
 			provideTextContent: (uri: URI): TPromise<editorCommon.IModel> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {

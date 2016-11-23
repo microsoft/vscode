@@ -9,6 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/platform';
 import objects = require('vs/base/common/objects');
+import types = require('vs/base/common/types');
 import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
@@ -24,15 +25,26 @@ export interface IConfigurationRegistry {
 	registerConfiguration(configuration: IConfigurationNode): void;
 
 	/**
+	 * Register multiple configurations to the registry.
+	 */
+	registerConfigurations(configurations: IConfigurationNode[]): void;
+
+	/**
 	 * Event that fires whenver a configuratio has been
 	 * registered.
 	 */
 	onDidRegisterConfiguration: Event<IConfigurationRegistry>;
 
 	/**
-	 * Returns all configurations contributed to this registry.
+	 * Returns all configuration nodes contributed to this registry.
 	 */
 	getConfigurations(): IConfigurationNode[];
+
+	/**
+	 * Returns all configurations settings of all configuration nodes contributed to this registry.
+	 */
+	getConfigurationProperties(): { [qualifiedKey: string]: IJSONSchema };
+
 }
 
 export interface IConfigurationNode {
@@ -41,10 +53,8 @@ export interface IConfigurationNode {
 	type?: string | string[];
 	title?: string;
 	description?: string;
-	default?: any;
 	properties?: { [path: string]: IJSONSchema; };
-	allOf?: IJSONSchema[];
-	definitions?: { [path: string]: IJSONSchema; };
+	allOf?: IConfigurationNode[];
 }
 
 const schemaId = 'vscode://schemas/settings';
@@ -52,6 +62,7 @@ const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensio
 
 class ConfigurationRegistry implements IConfigurationRegistry {
 	private configurationContributors: IConfigurationNode[];
+	private configurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private configurationSchema: IJSONSchema;
 	private _onDidRegisterConfiguration: Emitter<IConfigurationRegistry>;
 
@@ -59,6 +70,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.configurationContributors = [];
 		this.configurationSchema = { allOf: [] };
 		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
+		this.configurationProperties = {};
 
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 	}
@@ -68,14 +80,47 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public registerConfiguration(configuration: IConfigurationNode): void {
-		this.configurationContributors.push(configuration);
+		this.registerConfigurations([configuration]);
+	}
 
-		this.registerJSONConfiguration(configuration);
+	public registerConfigurations(configurations: IConfigurationNode[]): void {
+		configurations.forEach(configuration => {
+			this.registerProperties(configuration); // fills in defaults
+			this.configurationContributors.push(configuration);
+			this.registerJSONConfiguration(configuration);
+		});
+
 		this._onDidRegisterConfiguration.fire(this);
 	}
 
-	public getConfigurations(): IConfigurationNode[] {
-		return this.configurationContributors.slice(0);
+	private registerProperties(configuration: IConfigurationNode) {
+		let properties = configuration.properties;
+		if (properties) {
+			for (let key in properties) {
+				// fill in default values
+				let property = properties[key];
+				let defaultValue = property.default;
+				if (types.isUndefined(defaultValue)) {
+					property.default = getDefaultValue(property.type);
+				}
+				// add to properties map
+				this.configurationProperties[key] = properties[key];
+			}
+		}
+		let subNodes = configuration.allOf;
+		if (subNodes) {
+			for (let node of subNodes) {
+				this.registerProperties(node);
+			}
+		}
+	}
+
+	getConfigurations(): IConfigurationNode[] {
+		return this.configurationContributors;
+	}
+
+	getConfigurationProperties(): { [qualifiedKey: string]: IJSONSchema } {
+		return this.configurationProperties;
 	}
 
 	private registerJSONConfiguration(configuration: IConfigurationNode) {
@@ -85,10 +130,30 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 }
 
+function getDefaultValue(type: string | string[]): any {
+	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;
+	switch (t) {
+		case 'boolean':
+			return false;
+		case 'integer':
+		case 'number':
+			return 0;
+		case 'string':
+			return '';
+		case 'array':
+			return [];
+		case 'object':
+			return {};
+		default:
+			return null;
+	}
+}
+
+
 const configurationRegistry = new ConfigurationRegistry();
 Registry.add(Extensions.Configuration, configurationRegistry);
 
-const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', {
+const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [], {
 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
 	type: 'object',
 	defaultSnippets: [{ body: { title: '', properties: {} } }],
@@ -107,7 +172,9 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 	}
 });
 
-configurationExtPoint.setHandler((extensions) => {
+configurationExtPoint.setHandler(extensions => {
+	const configurations: IConfigurationNode[] = [];
+
 	for (let i = 0; i < extensions.length; i++) {
 		const configuration = <IConfigurationNode>extensions[i].value;
 		const collector = extensions[i].collector;
@@ -126,8 +193,11 @@ configurationExtPoint.setHandler((extensions) => {
 			collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
 			return;
 		}
+
 		const clonedConfiguration = objects.clone(configuration);
 		clonedConfiguration.id = extensions[i].description.id;
-		configurationRegistry.registerConfiguration(clonedConfiguration);
+		configurations.push(clonedConfiguration);
 	}
+
+	configurationRegistry.registerConfigurations(configurations);
 });

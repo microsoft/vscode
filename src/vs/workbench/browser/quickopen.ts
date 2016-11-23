@@ -223,7 +223,7 @@ export interface IEditorQuickOpenEntry {
 	/**
 	 * The editor options used for this entry when opening.
 	 */
-	getOptions(): EditorOptions;
+	getOptions(): IEditorOptions;
 }
 
 /**
@@ -243,7 +243,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		return null;
 	}
 
-	public getOptions(): EditorOptions {
+	public getOptions(): IEditorOptions {
 		return null;
 	}
 
@@ -262,7 +262,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 			if (input instanceof EditorInput) {
 				let opts = this.getOptions();
 				if (opts) {
-					opts.mixin(openInBackgroundOptions);
+					opts = objects.mixin(opts, openInBackgroundOptions, true);
 				} else if (openInBackgroundOptions) {
 					opts = EditorOptions.create(openInBackgroundOptions);
 				}
@@ -292,7 +292,7 @@ export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IE
 		return null;
 	}
 
-	public getOptions(): EditorOptions {
+	public getOptions(): IEditorOptions {
 		return null;
 	}
 }

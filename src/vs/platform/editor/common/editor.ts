@@ -20,11 +20,6 @@ export interface IEditorService {
 	 * Specific overload to open an instance of IResourceInput.
 	 */
 	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
-
-	/**
-	 * Specific overload to resolve a IResourceInput to an editor model with a text representation.
-	 */
-	resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
 }
 
 export interface IEditorModel {
@@ -40,10 +35,6 @@ export interface IEditorModel {
 	 * Dispose associated resources
 	 */
 	dispose(): void;
-}
-
-export interface ITextEditorModel extends IEditorModel {
-	textEditorModel: any;
 }
 
 export interface IResourceInput {

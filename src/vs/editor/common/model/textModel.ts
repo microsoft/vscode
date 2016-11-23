@@ -45,12 +45,13 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	 */
 	private _alternativeVersionId: number;
 	private _BOM: string;
+	protected _mightContainRTL: boolean;
 
 	private _shouldSimplifyMode: boolean;
 	private _shouldDenyMode: boolean;
 
 	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText) {
-		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged, editorCommon.EventType.ModelOptionsChanged);
+		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged, editorCommon.EventType.ModelOptionsChanged, editorCommon.EventType.ModelContentChanged2);
 		super(allowedEventTypes);
 
 		this._shouldSimplifyMode = (rawText.length > TextModel.MODEL_SYNC_LIMIT);
@@ -124,10 +125,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		});
 	}
 
-	private _normalizeIndentationFromWhitespace(str: string): string {
-		let tabSize = this._options.tabSize;
-		let insertSpaces = this._options.insertSpaces;
-
+	private static _normalizeIndentationFromWhitespace(str: string, tabSize: number, insertSpaces: boolean): string {
 		let spacesCnt = 0;
 		for (let i = 0; i < str.length; i++) {
 			if (str.charAt(i) === '\t') {
@@ -153,13 +151,17 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return result;
 	}
 
-	public normalizeIndentation(str: string): string {
-		this._assertNotDisposed();
+	public static normalizeIndentation(str: string, tabSize: number, insertSpaces: boolean): string {
 		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(str);
 		if (firstNonWhitespaceIndex === -1) {
 			firstNonWhitespaceIndex = str.length;
 		}
-		return this._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex)) + str.substring(firstNonWhitespaceIndex);
+		return TextModel._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), tabSize, insertSpaces) + str.substring(firstNonWhitespaceIndex);
+	}
+
+	public normalizeIndentation(str: string): string {
+		this._assertNotDisposed();
+		return TextModel.normalizeIndentation(str, this._options.tabSize, this._options.insertSpaces);
 	}
 
 	public getOneIndent(): string {
@@ -181,6 +183,10 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	public getVersionId(): number {
 		this._assertNotDisposed();
 		return this._versionId;
+	}
+
+	public mightContainRTL(): boolean {
+		return this._mightContainRTL;
 	}
 
 	public getAlternativeVersionId(): number {
@@ -285,6 +291,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			EOL: this._EOL,
 			lines: this.getLinesContent(),
 			length: this.getValueLength(),
+			containsRTL: this._mightContainRTL,
 			options: this._options
 		};
 	}
@@ -737,24 +744,26 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 	public static toRawText(rawText: string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		// Count the number of lines that end with \r\n
-		var carriageReturnCnt = 0,
-			lastCarriageReturnIndex = -1;
+		let carriageReturnCnt = 0;
+		let lastCarriageReturnIndex = -1;
 		while ((lastCarriageReturnIndex = rawText.indexOf('\r', lastCarriageReturnIndex + 1)) !== -1) {
 			carriageReturnCnt++;
 		}
 
+		const containsRTL = strings.containsRTL(rawText);
+
 		// Split the text into lines
-		var lines = rawText.split(/\r\n|\r|\n/);
+		const lines = rawText.split(/\r\n|\r|\n/);
 
 		// Remove the BOM (if present)
-		var BOM = '';
+		let BOM = '';
 		if (strings.startsWithUTF8BOM(lines[0])) {
 			BOM = strings.UTF8_BOM_CHARACTER;
 			lines[0] = lines[0].substr(1);
 		}
 
-		var lineFeedCnt = lines.length - 1;
-		var EOL = '';
+		const lineFeedCnt = lines.length - 1;
+		let EOL = '';
 		if (lineFeedCnt === 0) {
 			// This is an empty file or a file with precisely one line
 			EOL = (opts.defaultEOL === editorCommon.DefaultEndOfLine.LF ? '\n' : '\r\n');
@@ -789,6 +798,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			EOL: EOL,
 			lines: lines,
 			length: rawText.length,
+			containsRTL: containsRTL,
 			options: resolvedOpts
 		};
 	}
@@ -802,6 +812,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			modelLines[i] = new ModelLine(i + 1, rawLines[i], tabSize);
 		}
 		this._BOM = rawText.BOM;
+		this._mightContainRTL = rawText.containsRTL;
 		this._EOL = rawText.EOL;
 		this._lines = modelLines;
 		this._lineStarts = null;
@@ -820,7 +831,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		throw new Error('Unknown EOL preference');
 	}
 
-	private static _isMultiline(searchString: string): boolean {
+	private static _isMultilineRegexSource(searchString: string): boolean {
 		if (!searchString || searchString.length === 0) {
 			return false;
 		}
@@ -854,8 +865,14 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 
 		// Try to create a RegExp out of the params
-		var regex: RegExp = null;
-		var multiline = isRegex && TextModel._isMultiline(searchString);
+		let multiline: boolean;
+		if (isRegex) {
+			multiline = TextModel._isMultilineRegexSource(searchString);
+		} else {
+			multiline = (searchString.indexOf('\n') >= 0);
+		}
+
+		let regex: RegExp = null;
 		try {
 			regex = strings.createRegExp(searchString, isRegex, { matchCase, wholeWord, multiline, global: true });
 		} catch (err) {

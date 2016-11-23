@@ -169,4 +169,37 @@ suite('Editor Side Editing - collapsed selection', () => {
 		);
 	});
 
+	test('issue #15267: Suggestion that adds a line - cursor goes to the wrong line ', () => {
+		testCommand(
+			[
+				'package main',
+				'',
+				'import (',
+				'	"fmt"',
+				')',
+				'',
+				'func main(',
+				'	fmt.Println(strings.Con)',
+				'}'
+			],
+			new Selection(8, 25, 8, 25),
+			[
+				EditOperation.replaceMove(new Range(5, 1, 5, 1), '\t\"strings\"\n')
+			],
+			[
+				'package main',
+				'',
+				'import (',
+				'	"fmt"',
+				'	"strings"',
+				')',
+				'',
+				'func main(',
+				'	fmt.Println(strings.Con)',
+				'}'
+			],
+			new Selection(9, 25, 9, 25)
+		);
+	});
+
 });

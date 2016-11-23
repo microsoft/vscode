@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 
@@ -23,8 +23,10 @@ class MyCompletionItem extends CompletionItem {
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		if (entry.replacementSpan) {
-			let span = entry.replacementSpan;
-			this.textEdit = TextEdit.replace(new Range(span.start.line, span.start.offset, span.end.line, span.end.offset), entry.name);
+			let span: protocol.TextSpan = entry.replacementSpan;
+			// The indexing for the range returned by the server uses 1-based indexing.
+			// We convert to 0-based indexing.
+			this.textEdit = TextEdit.replace(new Range(span.start.line - 1, span.start.offset - 1, span.end.line - 1, span.end.offset - 1), entry.name);
 		}
 	}
 
@@ -159,15 +161,15 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 					suggestionArgumentNames = detail.displayParts
 						.filter(part => part.kind === 'parameterName')
-						.map(part => `{{${part.text}}}`);
+						.map((part, i) => `\${${i + 1}:${part.text}}`);
 
 					if (suggestionArgumentNames.length > 0) {
-						codeSnippet += '(' + suggestionArgumentNames.join(', ') + '){{}}';
+						codeSnippet += '(' + suggestionArgumentNames.join(', ') + ')$0';
 					} else {
 						codeSnippet += '()';
 					}
 
-					item.insertText = codeSnippet;
+					item.insertText = new SnippetString(codeSnippet);
 				}
 
 				return item;

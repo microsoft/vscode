@@ -83,8 +83,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.onFocusStackFrame()));
-		this.toDispose.push(this.debugService.onDidChangeState(state => {
-			if (state === State.Inactive) {
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
+			if (this.debugService.state === State.Inactive) {
 				Object.keys(this.modelData).forEach(key => this.modelData[key].dirty = false);
 			}
 		}));
@@ -92,7 +92,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private onModelAdded(model: editorcommon.IModel): void {
 		const modelUrlStr = model.uri.toString();
-		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr);
+		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.uri.toString() === modelUrlStr);
 
 		const currentStackDecorations = model.deltaDecorations([], this.createCallStackDecorations(modelUrlStr));
 		const breakPointDecorations = model.deltaDecorations([], this.createBreakpointDecorations(breakpoints));
@@ -132,27 +132,24 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private createCallStackDecorations(modelUrlStr: string): editorcommon.IModelDeltaDecoration[] {
 		const result: editorcommon.IModelDeltaDecoration[] = [];
-		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		const focusedThreadId = this.debugService.getViewModel().getFocusedThreadId();
-		const allThreads = this.debugService.getModel().getThreads();
-		if (!focusedStackFrame || !allThreads[focusedThreadId] || !allThreads[focusedThreadId].getCachedCallStack()) {
+		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+		if (!focusedStackFrame || !focusedStackFrame.thread.getCallStack()) {
 			return result;
 		}
 
 		// only show decorations for the currently focussed thread.
-		const thread = allThreads[focusedThreadId];
-		thread.getCachedCallStack().filter(sf => sf.source.uri.toString() === modelUrlStr).forEach(sf => {
+		focusedStackFrame.thread.getCallStack().filter(sf => sf.source.uri.toString() === modelUrlStr).forEach(sf => {
 			const wholeLineRange = createRange(sf.lineNumber, sf.column, sf.lineNumber, Number.MAX_VALUE);
 
 			// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
 			// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
-			if (sf === thread.getCachedCallStack()[0]) {
+			if (sf === focusedStackFrame.thread.getCallStack()[0]) {
 				result.push({
 					options: DebugEditorModelManager.TOP_STACK_FRAME_MARGIN,
 					range: createRange(sf.lineNumber, sf.column, sf.lineNumber, sf.column + 1)
 				});
 
-				if (thread.stoppedDetails.reason === 'exception') {
+				if (focusedStackFrame.thread.stoppedDetails.reason === 'exception') {
 					result.push({
 						options: DebugEditorModelManager.TOP_STACK_FRAME_EXCEPTION_DECORATION,
 						range: wholeLineRange
@@ -201,7 +198,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const data: IRawBreakpoint[] = [];
 
 		const lineToBreakpointDataMap: { [key: number]: { enabled: boolean, condition: string, hitCondition: string } } = {};
-		this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr).forEach(bp => {
+		this.debugService.getModel().getBreakpoints().filter(bp => bp.uri.toString() === modelUrlStr).forEach(bp => {
 			lineToBreakpointDataMap[bp.lineNumber] = {
 				enabled: bp.enabled,
 				condition: bp.condition,
@@ -209,14 +206,13 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			};
 		});
 
-		const modelUrl = modelData.model.uri;
+		const modelUri = modelData.model.uri;
 		for (let i = 0, len = modelData.breakpointDecorationIds.length; i < len; i++) {
 			const decorationRange = modelData.model.getDecorationRange(modelData.breakpointDecorationIds[i]);
 			// check if the line got deleted.
 			if (decorationRange.endColumn - decorationRange.startColumn > 0) {
 				// since we know it is collapsed, it cannot grow to multiple lines
 				data.push({
-					uri: modelUrl,
 					lineNumber: decorationRange.startLineNumber,
 					enabled: lineToBreakpointDataMap[modelData.breakpointLines[i]].enabled,
 					condition: lineToBreakpointDataMap[modelData.breakpointLines[i]].condition,
@@ -224,20 +220,20 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				});
 			}
 		}
-		modelData.dirty = !!this.debugService.activeSession;
+		modelData.dirty = this.debugService.state !== State.Inactive && this.debugService.state !== State.Disabled;
 
 		const toRemove = this.debugService.getModel().getBreakpoints()
-			.filter(bp => bp.source.uri.toString() === modelUrl.toString());
+			.filter(bp => bp.uri.toString() === modelUri.toString());
 
 		TPromise.join(toRemove.map(bp => this.debugService.removeBreakpoints(bp.getId()))).then(() => {
-			this.debugService.addBreakpoints(data);
+			this.debugService.addBreakpoints(modelUri, data);
 		});
 	}
 
 	private onBreakpointsChange(): void {
 		const breakpointsMap: { [key: string]: IBreakpoint[] } = {};
 		this.debugService.getModel().getBreakpoints().forEach(bp => {
-			const uriStr = bp.source.uri.toString();
+			const uriStr = bp.uri.toString();
 			if (breakpointsMap[uriStr]) {
 				breakpointsMap[uriStr].push(bp);
 			} else {
@@ -267,7 +263,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		return breakpoints.map((breakpoint) => {
 			return {
 				options: this.getBreakpointDecorationOptions(breakpoint),
-				range: createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, 2)
+				range: createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, Number.MAX_VALUE)
 			};
 		});
 	}
@@ -276,8 +272,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const activated = this.debugService.getModel().areBreakpointsActivated();
 		const state = this.debugService.state;
 		const debugActive = state === State.Running || state === State.Stopped || state === State.Initializing;
-		const modelData = this.modelData[breakpoint.source.uri.toString()];
-		const session = this.debugService.activeSession;
+		const modelData = this.modelData[breakpoint.uri.toString()];
 
 		let result = (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
 			debugActive && modelData && modelData.dirty && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_DIRTY_DECORATION :
@@ -293,13 +288,19 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return result;
 		}
 
-		if (session && !session.configuration.capabilities.supportsConditionalBreakpoints) {
+		const process = this.debugService.getViewModel().focusedProcess;
+		if (process && !process.session.configuration.capabilities.supportsConditionalBreakpoints) {
 			return DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
 		}
 
 		const mode = modelData ? modelData.model.getMode() : null;
 		const modeId = mode ? mode.getId() : '';
-		const condition = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
+		let condition: string;
+		if (breakpoint.condition && breakpoint.hitCondition) {
+			condition = `Expression: ${breakpoint.condition}\nHitCount: ${breakpoint.hitCondition}`;
+		} else {
+			condition = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
+		}
 		const glyphMarginHoverMessage = `\`\`\`${modeId}\n${condition}\`\`\``;
 
 		return {

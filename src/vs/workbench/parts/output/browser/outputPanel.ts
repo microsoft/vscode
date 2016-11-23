@@ -16,6 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
@@ -31,6 +32,7 @@ export class OutputPanel extends StringEditor {
 
 	private toDispose: lifecycle.IDisposable[];
 	private actions: IAction[];
+	private scopedInstantiationService: IInstantiationService;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -48,6 +50,7 @@ export class OutputPanel extends StringEditor {
 	) {
 		super(telemetryService, instantiationService, contextService, storageService,
 			messageService, configurationService, eventService, editorService, themeService, untitledEditorService);
+		this.scopedInstantiationService = instantiationService;
 		this.toDispose = [];
 	}
 
@@ -87,6 +90,7 @@ export class OutputPanel extends StringEditor {
 		options.rulers = [];
 		options.folding = false;
 		options.scrollBeyondLastLine = false;
+		options.renderLineHighlight = 'none';
 
 		const channel = this.outputService.getActiveChannel();
 		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
@@ -99,12 +103,18 @@ export class OutputPanel extends StringEditor {
 	}
 
 	public createEditor(parent: Builder): void {
-		super.createEditor(parent);
-		const scopedContextKeyService = this.contextKeyService.createScoped(this.getContainer().getHTMLElement());
+		// First create the scoped instantation service and only then construct the editor using the scoped service
+		const scopedContextKeyService = this.contextKeyService.createScoped(parent.getHTMLElement());
 		this.toDispose.push(scopedContextKeyService);
-		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
+		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
+		super.createEditor(parent);
 
+		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
 		this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null);
+	}
+
+	public get instantiationService(): IInstantiationService {
+		return this.scopedInstantiationService;
 	}
 
 	public dispose(): void {

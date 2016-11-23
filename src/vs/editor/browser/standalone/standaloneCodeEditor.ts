@@ -8,10 +8,9 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -135,7 +134,7 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 			return null;
 		}
 		if (Array.isArray(descriptor.keybindings)) {
-			var handler: ICommandHandler = (accessor) => {
+			let handler: ICommandHandler = (accessor) => {
 				return this.trigger('keyboard', descriptor.id, null);
 			};
 			descriptor.keybindings.forEach((kb) => {
@@ -221,7 +220,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			return null;
 		}
 		if (Array.isArray(descriptor.keybindings)) {
-			var handler: ICommandHandler = (ctx) => {
+			let handler: ICommandHandler = (ctx) => {
 				return this.trigger('keyboard', descriptor.id, null);
 			};
 			descriptor.keybindings.forEach((kb) => {

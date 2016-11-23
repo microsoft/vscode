@@ -209,14 +209,16 @@ declare module 'vscode' {
 		/**
 		 * Get a word-range at the given position. By default words are defined by
 		 * common separators, like space, -, _, etc. In addition, per languge custom
-		 * [word definitions](#LanguageConfiguration.wordPattern) can be defined.
+		 * [word definitions](#LanguageConfiguration.wordPattern) can be defined. It
+		 * is also possible to provide a custom regular expression.
 		 *
 		 * The position will be [adjusted](#TextDocument.validatePosition).
 		 *
 		 * @param position A position.
+		 * @param regex Optional regular expression that describes what a word is.
 		 * @return A range spanning a word, or `undefined`.
 		 */
-		getWordRangeAtPosition(position: Position): Range;
+		getWordRangeAtPosition(position: Position, regex?: RegExp): Range;
 
 		/**
 		 * Ensure a range is completely contained in this document.
@@ -1240,7 +1242,7 @@ declare module 'vscode' {
 		 *
 		 * @param listener The listener function will be called when the event happens.
 		 * @param thisArgs The `this`-argument which will be used when calling the event listener.
-		 * @param disposables An array to which a [disposeable](#Disposable) will be added.
+		 * @param disposables An array to which a [disposable](#Disposable) will be added.
 		 * @return A disposable which unsubscribes the event listener.
 		 */
 		(listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]): Disposable;
@@ -2024,6 +2026,76 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A snippet string is a template which allows to insert text
+	 * and to control the editor cursor when insertion happens.
+	 *
+	 * A snippet can define tab stops and placeholders with `$1`, `$2`
+	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
+	 * the end of the snippet. Placeholders with equal identifiers are linked,
+	 * that is typing in one will update others too.
+	 */
+	export class SnippetString {
+
+		/**
+		 * The snippet string.
+		 */
+		value: string;
+
+		constructor(value?: string);
+
+		/**
+		 * Builder-function that appends the given string to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param string A value to append 'as given'. The string will be escaped.
+		 * @return This snippet string.
+		 */
+		appendText(string: string): SnippetString;
+
+		/**
+		 * Builder-function that appends a tabstop (`$1`, `$2` etc) to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param number The number of this tabstop, defaults to an auto-incremet
+		 * value starting at 1.
+		 * @return This snippet string.
+		 */
+		appendTabstop(number?: number): SnippetString;
+
+		/**
+		 * Builder-function that appends a placeholder (`${1:value}`) to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param value The value of this placeholder - either a string or a function
+		 * with which a nested snippet can be created.
+		 * @param number The number of this tabstop, defaults to an auto-incremet
+		 * value starting at 1.
+		 * @return This snippet string.
+		 */
+		appendPlaceholder(value: string | ((snippet: SnippetString) => any), number?: number): SnippetString;
+
+		/**
+		 * Builder-function that appends a variable (`$VAR`) to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param name The name of the variable - excluding the `$`.
+		 * @return This snippet string.
+		 */
+		appendVariable(name: string): SnippetString;
+
+		/**
+		 * Builder-function that appends a variable and default value (`${VAR:fallback}`) to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param name The name of the variable (excluding the `$`)
+		 * @param defaultValue The default value which is used when the variable name cannot
+		 * be resolved - either a string or a function with which a nested snippet can be created.
+		 * @return This snippet string.
+		 */
+		appendVariable(name: string, defaultValue: string | ((snippet: SnippetString) => any)): SnippetString;
+	}
+
+	/**
 	 * The rename provider interface defines the contract between extensions and
 	 * the [rename](https://code.visualstudio.com/docs/editor/editingevolved#_rename-symbol)-feature.
 	 */
@@ -2310,19 +2382,32 @@ declare module 'vscode' {
 		filterText: string;
 
 		/**
-		 * A string that should be inserted in a document when selecting
+		 * A string or snippet that should be inserted in a document when selecting
 		 * this completion. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
 		 */
-		insertText: string;
+		insertText: string | SnippetString;
 
 		/**
-		 * An [edit](#TextEdit) which is applied to a document when selecting
-		 * this completion. When an edit is provided the value of
-		 * [insertText](#CompletionItem.insertText) is ignored.
+		 * A range of text that should be replaced by this completion item.
 		 *
-		 * The [range](#Range) of the edit must be single-line and on the same
-		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.
+		 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+		 * current position.
+		 *
+		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
+		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+		 */
+		range: Range;
+
+		/**
+		 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
+		 *
+		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
+		 * this completion. When an edit is provided the value of
+		 * [insertText](#CompletionItem.insertText) is ignored.~~
+		 *
+		 * ~~The [range](#Range) of the edit must be single-line and on the same
+		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
 		 */
 		textEdit: TextEdit;
 
@@ -2687,6 +2772,21 @@ declare module 'vscode' {
 		 * @return `true` iff the section doesn't resolve to `undefined`.
 		 */
 		has(section: string): boolean;
+
+		/**
+		 * Retrieve all information about a configuration setting. A configuration value
+		 * often consists of a *default* value, a global or installation-wide value, and
+		 * a workspace-specific value. The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
+		 * is computed like this: `defaultValue` overwritten by `globalValue`,
+		 * `globalValue` overwritten by `workspaceValue`.
+		 *
+		 * *Note:* The configuration name must denote a leaf in the configuration tree
+		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @return Information about a configuration setting or `undefined`.
+		 */
+		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T };
 
 		/**
 		 * Update a configuration value. A value can be changed for the current
@@ -4107,8 +4207,8 @@ declare module 'vscode' {
 		 * Register a signature help provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * by their [score](#languages.match) and called sequentially until a provider returns a
+		 * valid result.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A signature help provider.

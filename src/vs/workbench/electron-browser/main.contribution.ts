@@ -13,40 +13,50 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { CloseEditorAction, ReloadWindowAction, ShowStartupPerformance, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleDevToolsAction, ToggleFullScreenAction, ToggleMenuBarAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
-import { MessagesVisibleContext, NoEditorsVisibleContext } from 'vs/workbench/electron-browser/workbench';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { CloseEditorAction, KeybindingsReferenceAction, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
+import { MessagesVisibleContext, NoEditorsVisibleContext, InFocusModeContext } from 'vs/workbench/electron-browser/workbench';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 const closeEditorOrWindowKeybindings: IKeybindings = { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } };
 
 // Contribute Global Actions
 const viewCategory = nls.localize('view', "View");
 const helpCategory = nls.localize('help', "Help");
-const developerCategory = nls.localize('developer', "Developer");
 const fileCategory = nls.localize('file', "File");
-const workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
+const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWindowAction, NewWindowAction.ID, NewWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWindowAction, CloseWindowAction.ID, CloseWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL), 'Switch Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseFolderAction, CloseFolderAction.ID, CloseFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Folder', fileCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent', fileCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL), 'Developer: Toggle Developer Tools', developerCategory);
 if (!!product.reportIssueUrl) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportIssueAction, ReportIssueAction.ID, ReportIssueAction.LABEL), 'Help: Report Issues', helpCategory);
 }
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ZoomInAction, ZoomInAction.ID, ZoomInAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL] }), 'View: Zoom In', viewCategory);
+if (KeybindingsReferenceAction.AVAILABLE) {
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(KeybindingsReferenceAction, KeybindingsReferenceAction.ID, KeybindingsReferenceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_R) }), 'Help: Keyboard Shortcuts Reference', helpCategory);
+}
+workbenchActionsRegistry.registerWorkbenchAction(
+	new SyncActionDescriptor(ZoomInAction, ZoomInAction.ID, ZoomInAction.LABEL, {
+		primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL, KeyMod.CtrlCmd | KeyCode.NUMPAD_ADD]
+	}), 'View: Zoom In', viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(ZoomOutAction, ZoomOutAction.ID, ZoomOutAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyCode.US_MINUS,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS],
-		linux: { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [] }
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS, KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT],
+		linux: { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT] }
 	}), 'View: Zoom Out', viewCategory
 );
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ZoomResetAction, ZoomResetAction.ID, ZoomResetAction.LABEL), 'View: Reset Zoom', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL), 'Reload Window');
+workbenchActionsRegistry.registerWorkbenchAction(
+	new SyncActionDescriptor(ZoomResetAction, ZoomResetAction.ID, ZoomResetAction.LABEL, {
+		primary: KeyMod.CtrlCmd | KeyCode.NUMPAD_0
+	}), 'View: Reset Zoom', viewCategory
+);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseMessagesAction, CloseMessagesAction.ID, CloseMessagesAction.LABEL, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, MessagesVisibleContext), 'Close Notification Messages');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL, closeEditorOrWindowKeybindings), 'View: Close Editor', viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', viewCategory);
@@ -61,28 +71,38 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: NoEditorsVisibleContext,
 	primary: closeEditorOrWindowKeybindings.primary,
 	handler: accessor => {
-		const windowService = accessor.get(IWindowService);
+		const windowService = accessor.get(IWindowIPCService);
 		windowService.getWindow().close();
 	}
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.exitFocusMode',
+	weight: CommonEditorRegistry.commandWeight(-1000),
+	handler(accessor: ServicesAccessor, configurationOrName: any) {
+		const partService = accessor.get(IPartService);
+		partService.toggleFocusMode();
+	},
+	when: InFocusModeContext,
+	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
+});
+
 // Configuration: Workbench
-const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'workbench',
 	'order': 7,
 	'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
 	'type': 'object',
 	'properties': {
-		'workbench.editor.sideBySideLayout': {
-			'type': 'string',
-			'enum': ['vertical', 'horizontal'],
-			'default': 'vertical',
-			'description': nls.localize('sideBySideLayout', "Controls if side by side editors should layout horizontally or vertically.")
-		},
 		'workbench.editor.showTabs': {
 			'type': 'boolean',
 			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
+			'default': true
+		},
+		'workbench.editor.showTabCloseButton': {
+			'type': 'boolean',
+			'description': nls.localize('showEditorTabCloseButton', "Controls if editor tabs should have a visible close button or not."),
 			'default': true
 		},
 		'workbench.editor.showIcons': {
@@ -126,53 +146,63 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
+		},
+		'workbench.activityBar.visible': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
 		}
 	}
 });
 
 // Configuration: Window
+let properties: { [path: string]: IJSONSchema; } = {
+	'window.openFilesInNewWindow': {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('openFilesInNewWindow', "When enabled, will open files in a new window instead of reusing an existing instance.")
+	},
+	'window.reopenFolders': {
+		'type': 'string',
+		'enum': ['none', 'one', 'all'],
+		'default': 'one',
+		'description': nls.localize('reopenFolders', "Controls how folders are being reopened after a restart. Select 'none' to never reopen a folder, 'one' to reopen the last folder you worked on or 'all' to reopen all folders of your last session.")
+	},
+	'window.restoreFullscreen': {
+		'type': 'boolean',
+		'default': false,
+		'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
+	},
+	'window.fullScreenFocusMode': {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('fullScreenFocusMode', "Controls if focus mode should transition the workbench to full screen mode automatically.")
+	},
+	'window.zoomLevel': {
+		'type': 'number',
+		'default': 0,
+		'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
+	},
+	'window.showFullPath': {
+		'type': 'boolean',
+		'default': false,
+		'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
+	}
+};
+
+if (platform.isMacintosh) {
+	properties['window.titleBarStyle'] = {
+		'type': 'string',
+		'enum': ['native', 'custom'],
+		'default': 'custom',
+		'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
+	};
+}
+
 configurationRegistry.registerConfiguration({
 	'id': 'window',
 	'order': 8,
 	'title': nls.localize('windowConfigurationTitle', "Window"),
 	'type': 'object',
-	'properties': {
-		'window.openFilesInNewWindow': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('openFilesInNewWindow', "When enabled, will open files in a new window instead of reusing an existing instance.")
-		},
-		'window.reopenFolders': {
-			'type': 'string',
-			'enum': ['none', 'one', 'all'],
-			'default': 'one',
-			'description': nls.localize('reopenFolders', "Controls how folders are being reopened after a restart. Select 'none' to never reopen a folder, 'one' to reopen the last folder you worked on or 'all' to reopen all folders of your last session.")
-		},
-		'window.restoreFullscreen': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
-		},
-		'window.zoomLevel': {
-			'type': 'number',
-			'default': 0,
-			'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
-		}
-	}
-});
-
-// Configuration: Update
-configurationRegistry.registerConfiguration({
-	'id': 'update',
-	'order': 15,
-	'title': nls.localize('updateConfigurationTitle', "Update"),
-	'type': 'object',
-	'properties': {
-		'update.channel': {
-			'type': 'string',
-			'enum': ['none', 'default'],
-			'default': 'default',
-			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change.")
-		}
-	}
+	'properties': properties
 });

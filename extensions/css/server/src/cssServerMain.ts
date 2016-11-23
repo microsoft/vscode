@@ -172,8 +172,11 @@ connection.onCodeAction(codeActionParams => {
 
 connection.onRequest(ColorSymbolRequest.type, uri => {
 	let document = documents.get(uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).findColorSymbols(document, stylesheet);
+	if (document) {
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).findColorSymbols(document, stylesheet);
+	}
+	return [];
 });
 
 connection.onRenameRequest(renameParameters => {

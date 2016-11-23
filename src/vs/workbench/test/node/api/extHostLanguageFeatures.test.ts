@@ -91,6 +91,7 @@ suite('ExtHostLanguageFeatures', function () {
 				lines: model.getValue().split(model.getEOL()),
 				BOM: '',
 				length: -1,
+				containsRTL: false,
 				options: {
 					tabSize: 4,
 					insertSpaces: true,
@@ -742,6 +743,27 @@ suite('ExtHostLanguageFeatures', function () {
 
 	// --- parameter hints
 
+	test('Parameter Hints, order', function () {
+
+		disposables.push(extHost.registerSignatureHelpProvider(defaultSelector, <vscode.SignatureHelpProvider>{
+			provideSignatureHelp(): any {
+				return undefined;
+			}
+		}, []));
+
+		disposables.push(extHost.registerSignatureHelpProvider(defaultSelector, <vscode.SignatureHelpProvider>{
+			provideSignatureHelp(): vscode.SignatureHelp {
+				return new types.SignatureHelp();
+			}
+		}, []));
+
+		return threadService.sync().then(() => {
+
+			return provideSignatureHelp(model, new EditorPosition(1, 1)).then(value => {
+				assert.ok(value);
+			});
+		});
+	});
 	test('Parameter Hints, evil provider', function () {
 
 		disposables.push(extHost.registerSignatureHelpProvider(defaultSelector, <vscode.SignatureHelpProvider>{
@@ -753,9 +775,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return threadService.sync().then(() => {
 
 			return provideSignatureHelp(model, new EditorPosition(1, 1)).then(value => {
-				throw new Error('error expeted');
-			}, err => {
-				assert.equal(err.message, 'evil');
+				assert.equal(value, undefined);
 			});
 		});
 	});

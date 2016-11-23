@@ -9,6 +9,7 @@
 	"debugOSXConfiguration": "OS X 固有の起動構成の属性。",
 	"debugPrelaunchTask": "デバッグ セッションの開始前に実行するタスク。",
 	"debugRequest": "構成の要求の種類。\"launch\" または \"attach\" です。",
+	"debugServer": "デバッグ拡張機能の開発のみ。ポートが指定の VS Code の場合、サーバー モードで実行中のデバッグ アダプターへの接続が試行されます。",
 	"debugType": "構成の種類。",
 	"debugWindowsConfiguration": "Windows 固有の起動構成の属性。",
 	"internalConsoleOptions": "内部デバッグ コンソールの動作を制御します。",

@@ -13,14 +13,14 @@ import platform = require('vs/platform/platform');
 import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');
+import * as pfs from 'vs/base/node/pfs';
 import errors = require('vs/base/common/errors');
 import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IModeService } from 'vs/editor/common/services/modeService';
-
-import { ipcRenderer as ipc } from 'electron';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import fs = require('fs');
 
 class OpenSnippetsAction extends actions.Action {
@@ -33,13 +33,14 @@ class OpenSnippetsAction extends actions.Action {
 		label: string,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(id, label);
 	}
 
-	private openFile(filePath: string): void {
-		ipc.send('vscode:windowOpen', [filePath]); // handled from browser process
+	private openFile(filePath: string): winjs.TPromise<void> {
+		return this.windowsService.windowOpen([filePath]);
 	}
 
 	public run(): winjs.Promise {
@@ -60,15 +61,15 @@ class OpenSnippetsAction extends actions.Action {
 				var snippetPath = paths.join(this.environmentService.appSettingsHome, 'snippets', language.id + '.json');
 				return fileExists(snippetPath).then((success) => {
 					if (success) {
-						this.openFile(snippetPath);
-						return winjs.TPromise.as(null);
+						return this.openFile(snippetPath);
 					}
 					var defaultContent = [
 						'{',
 						'/*',
 						'\t // Place your snippets for ' + language.label + ' here. Each snippet is defined under a snippet name and has a prefix, body and ',
 						'\t // description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:',
-						'\t // $1, $2 for tab stops, ${id} and ${id:label} and ${1:label} for variables. Variables with the same id are connected.',
+						'\t // $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. Placeholders with the ',
+						'\t // same ids are connected.',
 						'\t // Example:',
 						'\t "Print to console": {',
 						'\t\t"prefix": "log",',
@@ -81,8 +82,8 @@ class OpenSnippetsAction extends actions.Action {
 						'*/',
 						'}'
 					].join('\n');
-					return createFile(snippetPath, defaultContent).then(() => {
-						this.openFile(snippetPath);
+					return pfs.writeFile(snippetPath, defaultContent).then(() => {
+						return this.openFile(snippetPath);
 					}, (err) => {
 						errors.onUnexpectedError(nls.localize('openSnippet.errorOnCreate', 'Unable to create {0}', snippetPath));
 					});
@@ -105,17 +106,6 @@ function fileExists(path: string): winjs.TPromise<boolean> {
 			}
 
 			c(false);
-		});
-	});
-}
-
-function createFile(path: string, content: string): winjs.Promise {
-	return new winjs.Promise((c, e, p) => {
-		fs.writeFile(path, content, function (err) {
-			if (err) {
-				e(err);
-			}
-			c(true);
 		});
 	});
 }

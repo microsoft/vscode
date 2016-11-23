@@ -5,97 +5,62 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { assign, clone } from 'vs/base/common/objects';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/platform';
-
-import { ipcRenderer as ipc, crashReporter } from 'electron';
+import { crashReporter } from 'electron';
+import product from 'vs/platform/product';
+import pkg from 'vs/platform/package';
 
 const TELEMETRY_SECTION_ID = 'telemetry';
+
+interface ICrashReporterConfig {
+	enableCrashReporter: boolean;
+}
 
 const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
-	'order': 110.5,
+	'order': 110,
+	title: nls.localize('telemetryConfigurationTitle', "Telemetry"),
 	'type': 'object',
 	'properties': {
 		'telemetry.enableCrashReporter': {
 			'type': 'boolean',
-			'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to Microsoft.\n\t// This option requires restart to take effect."),
+			'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to Microsoft.\nThis option requires restart to take effect."),
 			'default': true
 		}
 	}
 });
 
 export class CrashReporter {
-	private isStarted: boolean;
-	private config: any;
-	private version: string;
-	private commit: string;
-	private sessionId: string;
 
-	constructor(version: string, commit: string,
-		@ITelemetryService private telemetryService: ITelemetryService = NullTelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService
+	constructor(
+		configuration: Electron.CrashReporterStartOptions,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWindowsService windowsService: IWindowsService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		this.configurationService = configurationService;
-		this.telemetryService = telemetryService;
-		this.version = version;
-		this.commit = commit;
+		const config = configurationService.getConfiguration<ICrashReporterConfig>(TELEMETRY_SECTION_ID);
 
-		this.isStarted = false;
-		this.config = null;
-	}
-
-	public start(rawConfiguration: Electron.CrashReporterStartOptions): void {
-		if (!this.isStarted) {
-
-			const sessionId = !this.sessionId
-				? this.telemetryService.getTelemetryInfo().then(info => this.sessionId = info.sessionId)
-				: TPromise.as(undefined);
-
-			sessionId.then(() => {
-				if (!this.config) {
-					this.config = this.configurationService.getConfiguration(TELEMETRY_SECTION_ID);
-					if (this.config && this.config.enableCrashReporter) {
-						this.doStart(rawConfiguration);
-					}
-				} else {
-					if (this.config.enableCrashReporter) {
-						this.doStart(rawConfiguration);
-					}
-				}
-			}, onUnexpectedError);
+		if (!config.enableCrashReporter) {
+			return;
 		}
-	}
 
-	private doStart(rawConfiguration: Electron.CrashReporterStartOptions): void {
-		const config = this.toConfiguration(rawConfiguration);
+		telemetryService.getTelemetryInfo()
+			.then(info => ({ vscode_sessionId: info.sessionId, vscode_version: pkg.version, vscode_commit: product.commit }))
+			.then(extra => assign(configuration, { extra }))
+			.then(configuration => {
+				// start crash reporter right here
+				crashReporter.start(clone(configuration));
 
-		crashReporter.start(config);
-
-		//notify the main process to start the crash reporter
-		ipc.send('vscode:startCrashReporter', config);
-	}
-
-	private toConfiguration(rawConfiguration: Electron.CrashReporterStartOptions): Electron.CrashReporterStartOptions {
-		return JSON.parse(JSON.stringify(rawConfiguration, (key, value) => {
-			if (value === '$(sessionId)') {
-				return this.sessionId;
-			}
-
-			if (value === '$(version)') {
-				return this.version;
-			}
-
-			if (value === '$(commit)') {
-				return this.commit;
-			}
-
-			return value;
-		}));
+				// TODO: start crash reporter in the main process
+				return windowsService.startCrashReporter(configuration);
+			})
+			.done(null, onUnexpectedError);
 	}
 }

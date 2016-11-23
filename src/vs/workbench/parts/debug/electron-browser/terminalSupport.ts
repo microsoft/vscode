@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITerminalService, ITerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalService, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import { IModel, DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
+import * as paths from 'vs/base/common/paths';
+import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 
 export class Source {
 
@@ -35,26 +35,7 @@ export class Source {
 		return Source.isInMemory(this.uri);
 	}
 
-	public static toRawSource(uri: uri, model: IModel): DebugProtocol.Source {
-		if (model) {
-			// first try to find the raw source amongst the stack frames - since that represenation has more data (source reference),
-			const threads = model.getThreads();
-			for (let threadId in threads) {
-				if (threads.hasOwnProperty(threadId) && threads[threadId].getCachedCallStack()) {
-					const found = threads[threadId].getCachedCallStack().filter(sf => sf.source.uri.toString() === uri.toString()).pop();
-					if (found) {
-						return found.source.raw;
-					}
-				}
-			}
-		}
-
-		// did not find the raw source amongst the stack frames, construct the raw stack frame from the limited data you have.
-		return Source.isInMemory(uri) ? { name: paths.basename(uri.toString()) } :
-			{ path: paths.normalize(uri.fsPath, true), name: paths.basename(uri.fsPath) };
-	}
-
-	private static isInMemory(uri: uri): boolean {
+	public static isInMemory(uri: uri): boolean {
 		return uri.toString().indexOf(Source.INTERNAL_URI_PREFIX) === 0;
 	}
 }

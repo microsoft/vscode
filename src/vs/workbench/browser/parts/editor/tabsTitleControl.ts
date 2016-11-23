@@ -28,6 +28,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -65,7 +66,8 @@ export class TabsTitleControl extends TitleControl {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IMenuService menuService: IMenuService,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
@@ -337,6 +339,12 @@ export class TabsTitleControl extends TitleControl {
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
 
+			if (!this.showTabCloseButton) {
+				DOM.addClass(tabContainer, 'no-close-button');
+			} else {
+				DOM.removeClass(tabContainer, 'no-close-button');
+			}
+
 			// Tab Editor Label
 			const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
 			this.editorLabels.push(editorLabel);
@@ -496,18 +504,29 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
+		// We need to keep track of DRAG_ENTER and DRAG_LEAVE events because a tab is not just a div without children,
+		// it contains a label and a close button. HTML gives us DRAG_ENTER and DRAG_LEAVE events when hovering over
+		// these children and this can cause flicker of the drop feedback. The workaround is to count the events and only
+		// remove the drop feedback when the counter is 0 (see https://github.com/Microsoft/vscode/issues/14470)
+		let counter = 0;
+
 		// Drag over
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
+			counter++;
 			DOM.addClass(tab, 'dropfeedback');
 		}));
 
 		// Drag leave
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
-			DOM.removeClass(tab, 'dropfeedback');
+			counter--;
+			if (counter === 0) {
+				DOM.removeClass(tab, 'dropfeedback');
+			}
 		}));
 
 		// Drag end
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
+			counter = 0;
 			DOM.removeClass(tab, 'dropfeedback');
 
 			this.onEditorDragEnd();
@@ -515,6 +534,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Drop
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
+			counter = 0;
 			DOM.removeClass(tab, 'dropfeedback');
 
 			const targetPosition = this.stacks.positionOfGroup(group);
@@ -525,6 +545,8 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private onDrop(e: DragEvent, group: IEditorGroup, targetPosition: Position, targetIndex: number): void {
+		DOM.removeClass(this.tabsContainer, 'dropfeedback');
+		DOM.removeClass(this.tabsContainer, 'scroll');
 
 		// Local DND
 		const draggedEditor = TabsTitleControl.getDraggedEditor();
@@ -551,21 +573,33 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {
-		const resources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
+		const resources = extractResources(e).filter(d => d.resource.scheme === 'file' || d.resource.scheme === 'untitled');
 
-		// Open resources if found
+		// Handle resources
 		if (resources.length) {
 			DOM.EventHelper.stop(e, true);
 
-			this.editorService.openEditors(resources.map(resource => {
+			// Add external ones to recently open list
+			const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
+			if (externalResources.length) {
+				this.windowService.addToRecentlyOpen(externalResources.map(resource => {
+					return {
+						path: resource.fsPath,
+						isFile: true
+					};
+				}));
+			}
+
+			// Open in Editor
+			this.editorService.openEditors(resources.map(d => {
 				return {
-					input: { resource, options: { pinned: true, index: targetIndex } },
+					input: { resource: d.resource, options: { pinned: true, index: targetIndex } },
 					position: targetPosition
 				};
-			})).done(() => {
+			})).then(() => {
 				this.editorGroupService.focusGroup(targetPosition);
-				window.focus();
-			}, errors.onUnexpectedError);
+				return this.windowService.focusWindow();
+			}).done(null, errors.onUnexpectedError);
 		}
 	}
 

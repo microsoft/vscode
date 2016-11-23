@@ -6,6 +6,7 @@
 
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
+import { LineParts } from 'vs/editor/common/core/lineParts';
 
 export class RenderLineInput {
 	_renderLineInputBrand: void;
@@ -16,7 +17,7 @@ export class RenderLineInput {
 	stopRenderingLineAfter: number;
 	renderWhitespace: 'none' | 'boundary' | 'all';
 	renderControlCharacters: boolean;
-	parts: ViewLineToken[];
+	lineParts: LineParts;
 
 	constructor(
 		lineContent: string,
@@ -25,7 +26,7 @@ export class RenderLineInput {
 		stopRenderingLineAfter: number,
 		renderWhitespace: 'none' | 'boundary' | 'all',
 		renderControlCharacters: boolean,
-		parts: ViewLineToken[]
+		lineParts: LineParts
 	) {
 		this.lineContent = lineContent;
 		this.tabSize = tabSize;
@@ -33,16 +34,29 @@ export class RenderLineInput {
 		this.stopRenderingLineAfter = stopRenderingLineAfter;
 		this.renderWhitespace = renderWhitespace;
 		this.renderControlCharacters = renderControlCharacters;
-		this.parts = parts;
+		this.lineParts = lineParts;
+	}
+
+	public equals(other: RenderLineInput): boolean {
+		return (
+			this.lineContent === other.lineContent
+			&& this.tabSize === other.tabSize
+			&& this.spaceWidth === other.spaceWidth
+			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
+			&& this.renderWhitespace === other.renderWhitespace
+			&& this.renderControlCharacters === other.renderControlCharacters
+			&& this.lineParts.equals(other.lineParts)
+		);
 	}
 }
 
 export class RenderLineOutput {
 	_renderLineOutputBrand: void;
-	charOffsetInPart: number[];
-	lastRenderedPartIndex: number;
-	output: string;
-	isWhitespaceOnly: boolean;
+
+	readonly charOffsetInPart: number[];
+	readonly lastRenderedPartIndex: number;
+	readonly output: string;
+	readonly isWhitespaceOnly: boolean;
 
 	constructor(charOffsetInPart: number[], lastRenderedPartIndex: number, output: string, isWhitespaceOnly: boolean) {
 		this.charOffsetInPart = charOffsetInPart;
@@ -57,7 +71,7 @@ export function renderLine(input: RenderLineInput): RenderLineOutput {
 	const lineTextLength = lineText.length;
 	const tabSize = input.tabSize;
 	const spaceWidth = input.spaceWidth;
-	const actualLineParts = input.parts;
+	const actualLineParts = input.lineParts.parts;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
 	const charBreakIndex = (input.stopRenderingLineAfter === -1 ? lineTextLength : input.stopRenderingLineAfter - 1);
@@ -76,11 +90,11 @@ export function renderLine(input: RenderLineInput): RenderLineOutput {
 		throw new Error('Cannot render non empty line without line parts!');
 	}
 
-	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts.slice(0), renderWhitespace, renderControlCharacters, charBreakIndex);
+	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts, renderWhitespace, renderControlCharacters, charBreakIndex);
 }
 
 function isWhitespace(type: string): boolean {
-	return (type.indexOf('whitespace') >= 0);
+	return (type.indexOf('vs-whitespace') >= 0);
 }
 
 function isControlCharacter(characterCode: number): boolean {

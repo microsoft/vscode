@@ -5,6 +5,7 @@
 
 import * as timer from 'vs/base/common/timer';
 import paths = require('vs/base/common/paths');
+import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import errors = require('vs/base/common/errors');
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -14,15 +15,13 @@ import URI from 'vs/base/common/uri';
 import { LinkedMap } from 'vs/base/common/map';
 import { ArraySet } from 'vs/base/common/set';
 import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
-import * as Search from 'vs/platform/search/common/search';
-import { ISearchProgressItem, ISearchComplete, ISearchQuery } from 'vs/platform/search/common/search';
+import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ISearchService } from 'vs/platform/search/common/search';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
@@ -115,13 +114,13 @@ export class FileMatch extends Disposable {
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 
-	constructor(private _query: Search.IPatternInfo, private _parent: SearchResult, private rawMatch: Search.IFileMatch,
+	constructor(private _query: IPatternInfo, private _parent: SearchResult, private rawMatch: IFileMatch,
 		@IModelService private modelService: IModelService, @IReplaceService private replaceService: IReplaceService) {
 		super();
 		this._resource = this.rawMatch.resource;
 		this._matches = new LinkedMap<string, Match>();
 		this._removedMatches = new ArraySet<string>();
-		this._updateScheduler = new RunOnceScheduler(this.updateMatches.bind(this), 250);
+		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 
 		this.createMatches();
 		this.registerListeners();
@@ -131,7 +130,7 @@ export class FileMatch extends Disposable {
 		let model = this.modelService.getModel(this._resource);
 		if (model) {
 			this.bindModel(model);
-			this.updateMatches();
+			this.updateMatchesForModel();
 		} else {
 			this.rawMatch.lineMatches.forEach((rawLineMatch) => {
 				rawLineMatch.offsetAndLengths.forEach(offsetAndLength => {
@@ -161,7 +160,7 @@ export class FileMatch extends Disposable {
 
 	private onModelWillDispose(): void {
 		// Update matches because model might have some dirty changes
-		this.updateMatches();
+		this.updateMatchesForModel();
 		this.unbindModel();
 	}
 
@@ -174,7 +173,7 @@ export class FileMatch extends Disposable {
 		}
 	}
 
-	private updateMatches(): void {
+	private updateMatchesForModel(): void {
 		// this is called from a timeout and might fire
 		// after the model has been disposed
 		if (!this._model) {
@@ -184,6 +183,24 @@ export class FileMatch extends Disposable {
 		let matches = this._model
 			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
 
+		this.updateMatches(matches);
+	}
+
+	private updatesMatchesForLine(lineNumber: number): void {
+		const range = {
+			startLineNumber: lineNumber,
+			startColumn: this._model.getLineMinColumn(lineNumber),
+			endLineNumber: lineNumber,
+			endColumn: this._model.getLineMaxColumn(lineNumber)
+		};
+		const oldMatches = this._matches.values().filter(match => match.range().startLineNumber === lineNumber);
+		oldMatches.forEach(match => this._matches.delete(match.id()));
+
+		const matches = this._model.findMatches(this._query.pattern, range, this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
+		this.updateMatches(matches);
+	}
+
+	private updateMatches(matches: Range[]) {
 		matches.forEach(range => {
 			let match = new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn);
 			if (!this._removedMatches.contains(match.id())) {
@@ -231,11 +248,9 @@ export class FileMatch extends Disposable {
 		this._onChange.fire(false);
 	}
 
-	public replace(match: Match): TPromise<any> {
-		return this.replaceService.replace(match).then(() => {
-			this.removeMatch(match);
-			this._onChange.fire(false);
-		});
+	public replace(toReplace: Match): TPromise<void> {
+		return this.replaceService.replace(toReplace)
+			.then(() => this.updatesMatchesForLine(toReplace.range().startLineNumber));
 	}
 
 	public setSelectedMatch(match: Match) {
@@ -308,7 +323,7 @@ export class SearchResult extends Disposable {
 
 	private _fileMatches: LinkedMap<URI, FileMatch>;
 	private _unDisposedFileMatches: LinkedMap<URI, FileMatch>;
-	private _query: Search.IPatternInfo = null;
+	private _query: IPatternInfo = null;
 	private _showHighlights: boolean;
 	private _replacingAll: boolean = false;
 
@@ -322,7 +337,7 @@ export class SearchResult extends Disposable {
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 	}
 
-	public set query(query: Search.IPatternInfo) {
+	public set query(query: IPatternInfo) {
 		this._query = query;
 	}
 
@@ -330,7 +345,7 @@ export class SearchResult extends Disposable {
 		return this._searchModel;
 	}
 
-	public add(raw: Search.IFileMatch[], silent: boolean = false): void {
+	public add(raw: IFileMatch[], silent: boolean = false): void {
 		let changed: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
 			if (!this._fileMatches.has(rawFileMatch.resource)) {
@@ -530,6 +545,7 @@ export class SearchModel extends Disposable {
 
 		const onDone = fromPromise(this.currentRequest);
 		const onDoneStopwatch = stopwatch(onDone);
+		const start = Date.now();
 
 		onDone(() => timerEvent.stop());
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
@@ -541,8 +557,8 @@ export class SearchModel extends Disposable {
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
 		this.currentRequest.then(
-			value => this.onSearchCompleted(value),
-			e => this.onSearchError(e),
+			value => this.onSearchCompleted(value, Date.now() - start),
+			e => this.onSearchError(e, Date.now() - start),
 			p => {
 				progressEmitter.fire();
 				this.onSearchProgress(p);
@@ -552,17 +568,24 @@ export class SearchModel extends Disposable {
 		return this.currentRequest;
 	}
 
-	private onSearchCompleted(completed: ISearchComplete): ISearchComplete {
+	private onSearchCompleted(completed: ISearchComplete, duration: number): ISearchComplete {
 		if (completed) {
 			this._searchResult.add(completed.results, false);
 		}
-		this.telemetryService.publicLog('searchResultsShown', { count: this._searchResult.count(), fileCount: this._searchResult.fileCount() });
+		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
+		delete options.pattern;
+		this.telemetryService.publicLog('searchResultsShown', {
+			count: this._searchResult.count(),
+			fileCount: this._searchResult.fileCount(),
+			options,
+			duration
+		});
 		return completed;
 	}
 
-	private onSearchError(e: any): void {
+	private onSearchError(e: any, duration: number): void {
 		if (errors.isPromiseCanceledError(e)) {
-			this.onSearchCompleted(null);
+			this.onSearchCompleted(null, duration);
 		}
 	}
 

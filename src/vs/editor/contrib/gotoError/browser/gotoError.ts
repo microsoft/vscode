@@ -84,14 +84,14 @@ class MarkerModel {
 		}
 	}
 
-	private initIdx(fwd: boolean): void {
-		var found = false;
-		var position = this._editor.getPosition();
-		for (var i = 0, len = this._markers.length; i < len && !found; i++) {
-			var pos = { lineNumber: this._markers[i].startLineNumber, column: this._markers[i].startColumn };
-			if (position.isBeforeOrEqual(pos)) {
+	private _initIdx(fwd: boolean): void {
+		let found = false;
+		const position = this._editor.getPosition();
+		for (let i = 0; i < this._markers.length; i++) {
+			if (Range.containsPosition(this._markers[i], position)) {
 				this._nextIdx = i + (fwd ? 0 : -1);
 				found = true;
+				break;
 			}
 		}
 		if (!found) {
@@ -110,7 +110,7 @@ class MarkerModel {
 		}
 
 		if (this._nextIdx === -1) {
-			this.initIdx(fwd);
+			this._initIdx(fwd);
 
 		} else if (fwd) {
 			this._nextIdx += 1;
@@ -123,7 +123,7 @@ class MarkerModel {
 				this._nextIdx = this._markers.length - 1;
 			}
 		}
-		var marker = this._markers[this._nextIdx];
+		const marker = this._markers[this._nextIdx];
 		this._onCurrentMarkerChanged.fire(marker);
 	}
 
@@ -147,20 +147,6 @@ class MarkerModel {
 		}
 	}
 
-	public get stats(): { errors: number; others: number; } {
-		let errors = 0;
-		let others = 0;
-
-		for (let marker of this._markers) {
-			if (marker.severity === Severity.Error) {
-				errors += 1;
-			} else {
-				others += 1;
-			}
-		}
-		return { errors, others };
-	}
-
 	public get total() {
 		return this._markers.length;
 	}
@@ -176,7 +162,7 @@ class MarkerModel {
 		}
 
 		this.withoutWatchingEditorPosition(() => {
-			var pos = new Position(this._markers[this._nextIdx].startLineNumber, this._markers[this._nextIdx].startColumn);
+			const pos = new Position(this._markers[this._nextIdx].startLineNumber, this._markers[this._nextIdx].startColumn);
 			this._editor.setPosition(pos);
 			this._editor.revealPositionInCenter(pos);
 		});
@@ -329,7 +315,7 @@ class MarkerNavigationAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		const telemetryService = accessor.get(ITelemetryService);
 
-		let controller = MarkerController.get(editor);
+		const controller = MarkerController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -393,7 +379,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 			return this._model;
 		}
 
-		var markers = this._getMarkers();
+		const markers = this._getMarkers();
 		this._model = new MarkerModel(this._editor, markers);
 		this._zone = new MarkerNavigationWidget(this._editor, this._model, this._commandService);
 		this._markersNavigationVisible.set(true);
@@ -420,10 +406,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 	}
 
 	private _getMarkers(): IMarker[] {
-		var resource = this._editor.getModel().uri,
-			markers = this._markerService.read({ resource: resource });
-
-		return markers;
+		return this._markerService.read({ resource: this._editor.getModel().uri });
 	}
 }
 
@@ -459,7 +442,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 	}
 }
 
-var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new RawContextKey<boolean>('markersNavigationVisible', false);
+const CONTEXT_MARKERS_NAVIGATION_VISIBLE = new RawContextKey<boolean>('markersNavigationVisible', false);
 
 const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(MarkerController.get);
 

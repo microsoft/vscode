@@ -98,15 +98,15 @@ function skipDirectories() {
 }
 exports.skipDirectories = skipDirectories;
 function cleanNodeModule(name, excludes, includes) {
-    var glob = function (path) { return '**/node_modules/' + name + (path ? '/' + path : ''); };
+    var toGlob = function (path) { return '**/node_modules/' + name + (path ? '/' + path : ''); };
     var negate = function (str) { return '!' + str; };
-    var allFilter = _filter(glob('**'), { restore: true });
-    var globs = [glob('**')].concat(excludes.map(_.compose(negate, glob)));
+    var allFilter = _filter(toGlob('**'), { restore: true });
+    var globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob)));
     var input = es.through();
     var nodeModuleInput = input.pipe(allFilter);
     var output = nodeModuleInput.pipe(_filter(globs));
     if (includes) {
-        var includeGlobs = includes.map(glob);
+        var includeGlobs = includes.map(toGlob);
         output = es.merge(output, nodeModuleInput.pipe(_filter(includeGlobs)));
     }
     output = output.pipe(allFilter.restore);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
@@ -19,13 +20,13 @@ import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperati
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
-import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -53,10 +54,11 @@ export abstract class TextFileService implements ITextFileService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService protected fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IBackupService private backupService: IBackupService,
+		@IMessageService private messageService: IMessageService
 	) {
 		this.toUnbind = [];
 
@@ -99,39 +101,63 @@ export abstract class TextFileService implements ITextFileService {
 	private registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
+		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown(event.quitRequested)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration changes
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 
 		// Application & Editor focus change
-		this.toUnbind.push(DOM.addDisposableListener(window, 'blur', () => this.onWindowFocusLost()));
-		this.toUnbind.push(DOM.addDisposableListener(window, 'blur', () => this.onEditorFocusChanged(), true));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onEditorFocusChanged(), true));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
 	}
 
-	private beforeShutdown(): boolean | TPromise<boolean> {
+	private beforeShutdown(quitRequested: boolean): boolean | TPromise<boolean> {
 
 		// Dirty files need treatment on shutdown
-		if (this.getDirty().length) {
+		const dirty = this.getDirty();
+		if (dirty.length) {
 
 			// If auto save is enabled, save all files and then check again for dirty files
+			let handleAutoSave: TPromise<URI[] /* remaining dirty resources */>;
 			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
-				return this.saveAll(false /* files only */).then(() => {
-					if (this.getDirty().length) {
-						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
-					}
-
-					return false; // all good, no veto
-				});
+				handleAutoSave = this.saveAll(false /* files only */).then(() => this.getDirty());
+			} else {
+				handleAutoSave = TPromise.as(dirty);
 			}
 
-			// Otherwise just confirm what to do
-			return this.confirmBeforeShutdown();
+			return handleAutoSave.then(dirty => {
+
+				// If we still have dirty files, we either have untitled ones or files that cannot be saved
+				// or auto save was not enabled and as such we did not save any dirty files to disk automatically
+				if (dirty.length) {
+
+					// If hot exit is enabled, backup dirty files and allow to exit without confirmation
+					if (this.backupService.isHotExitEnabled) {
+						return this.backupService.backupBeforeShutdown(dirty, this.models, quitRequested).then(result => {
+							if (result.didBackup) {
+								return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
+							}
+
+							// since a backup did not happen, we have to confirm for the dirty files now
+							return this.confirmBeforeShutdown();
+						}, errors => {
+							const firstError = errors[0];
+							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files could not be backed up (Error: {0}), try saving your files to exit.", firstError.message));
+
+							return true; // veto, the backups failed
+						});
+					}
+
+					// Otherwise just confirm from the user what to do with the dirty files
+					return this.confirmBeforeShutdown();
+				}
+			});
 		}
 
-		return false; // no veto
+		// No dirty files: no veto
+		return this.noVeto({ cleanUpBackups: true });
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
@@ -144,19 +170,27 @@ export abstract class TextFileService implements ITextFileService {
 					return true; // veto if some saves failed
 				}
 
-				return false; // no veto
+				return this.noVeto({ cleanUpBackups: true });
 			});
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-			return false; // no veto
+			return this.noVeto({ cleanUpBackups: true });
 		}
 
 		// Cancel
 		else if (confirm === ConfirmResult.CANCEL) {
 			return true; // veto
 		}
+	}
+
+	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
+		if (!options.cleanUpBackups) {
+			return false;
+		}
+
+		return this.backupService.cleanupBackupsBeforeShutdown().then(() => false, () => false);
 	}
 
 	private onWindowFocusLost(): void {
@@ -441,21 +475,27 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
+
 		// create the target file empty if it does not exist already
 		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.createFile(target)).then(stat => {
-			// resolve a model for the file (which can be binary if the file is not a text file)
-			return this.editorService.resolveEditorModel({ resource: target }).then((targetModel: ITextFileEditorModel) => {
-				// binary model: delete the file and run the operation again
-				if (targetModel instanceof BinaryEditorModel) {
-					return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
-				}
 
-				// text model: take over encoding and model value from source model
+			// resolve a model for the file (which can be binary if the file is not a text file)
+			return this.models.loadOrCreate(target).then((targetModel: ITextFileEditorModel) => {
+
+				// take over encoding and model value from source model
 				targetModel.updatePreferredEncoding(sourceModel.getEncoding());
 				targetModel.textEditorModel.setValue(sourceModel.getValue());
 
 				// save model
 				return targetModel.save();
+			}, error => {
+
+				// binary model: delete the file and run the operation again
+				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+					return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
+				}
+
+				return TPromise.wrapError(error);
 			});
 		});
 	}

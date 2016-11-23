@@ -6,35 +6,16 @@
 
 import * as path from 'path';
 
-import { languages, workspace, ExtensionContext, IndentAction, commands, CompletionList, Hover } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Position, RequestType, Protocol2Code, Code2Protocol } from 'vscode-languageclient';
-import { CompletionList as LSCompletionList, Hover as LSHover } from 'vscode-languageserver-types';
+import { languages, workspace, ExtensionContext, IndentAction } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range, RequestType, Protocol2Code } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
-import { initializeEmbeddedContentDocuments } from './embeddedContentDocuments';
+import { activateColorDecorations } from './colorDecorators';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
-interface EmbeddedCompletionParams {
-	uri: string;
-	version: number;
-	embeddedLanguageId: string;
-	position: Position;
-}
-
-namespace EmbeddedCompletionRequest {
-	export const type: RequestType<EmbeddedCompletionParams, LSCompletionList, any> = { get method() { return 'embedded/completion'; } };
-}
-
-interface EmbeddedHoverParams {
-	uri: string;
-	version: number;
-	embeddedLanguageId: string;
-	position: Position;
-}
-
-namespace EmbeddedHoverRequest {
-	export const type: RequestType<EmbeddedHoverParams, LSHover, any> = { get method() { return 'embedded/hover'; } };
+namespace ColorSymbolRequest {
+	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
 }
 
 export function activate(context: ExtensionContext) {
@@ -51,71 +32,35 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
+	let documentSelector = ['html', 'handlebars', 'razor'];
+	let embeddedLanguages = { css: true, javascript: true };
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
-		// Register the server for json documents
-		documentSelector: ['html', 'handlebars', 'razor'],
+		documentSelector,
 		synchronize: {
-			// Synchronize the setting section 'html' to the server
-			configurationSection: ['html'],
+			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
 		},
-
 		initializationOptions: {
-			embeddedLanguages: { 'css': true },
+			embeddedLanguages,
 			['format.enable']: workspace.getConfiguration('html').get('format.enable')
 		}
 	};
 
 	// Create the language client and start the client.
-	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
-
-	let embeddedDocuments = initializeEmbeddedContentDocuments('html-embedded', client);
-	context.subscriptions.push(embeddedDocuments);
-
-	client.onRequest(EmbeddedCompletionRequest.type, params => {
-		let position = Protocol2Code.asPosition(params.position);
-		let virtualDocumentURI = embeddedDocuments.getVirtualDocumentUri(params.uri, params.embeddedLanguageId);
-
-		return embeddedDocuments.openVirtualDocument(virtualDocumentURI, params.version).then(document => {
-			if (document) {
-				return commands.executeCommand<CompletionList>('vscode.executeCompletionItemProvider', virtualDocumentURI, position).then(completionList => {
-					if (completionList) {
-						return {
-							isIncomplete: completionList.isIncomplete,
-							items: completionList.items.map(Code2Protocol.asCompletionItem)
-						};
-					}
-					return { isIncomplete: true, items: [] };
-				});
-			}
-			return { isIncomplete: true, items: [] };
-		});
-	});
-
-	client.onRequest(EmbeddedHoverRequest.type, params => {
-		let position = Protocol2Code.asPosition(params.position);
-		let virtualDocumentURI = embeddedDocuments.getVirtualDocumentUri(params.uri, params.embeddedLanguageId);
-		return embeddedDocuments.openVirtualDocument(virtualDocumentURI, params.version).then(document => {
-			if (document) {
-				return commands.executeCommand<Hover[]>('vscode.executeHoverProvider', virtualDocumentURI, position).then(hover => {
-					if (hover && hover.length > 0) {
-						return <LSHover>{
-							contents: hover[0].contents,
-							range: Code2Protocol.asRange(hover[0].range)
-						};
-					}
-					return void 0;
-				});
-			}
-			return void 0;
-		});
-	});
-
+	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions, true);
 	let disposable = client.start();
 
 	// Push the disposable to the context's subscriptions so that the
 	// client can be deactivated on extension deactivation
 	context.subscriptions.push(disposable);
+
+	let colorRequestor = (uri: string) => {
+		return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(Protocol2Code.asRange));
+	};
+	disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true });
+	context.subscriptions.push(disposable);
+
 
 	languages.setLanguageConfiguration('html', {
 		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,

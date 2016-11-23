@@ -18,9 +18,10 @@
 			"scopeName": "source.coffee",
 			"path": "./syntaxes/coffeescript.json"
 		}],
-		"debuggers": [{
-			"type": "node",
-			"enableBreakpointsFor": { "languageIds": ["coffeescript"] }
-		}]
+		"breakpoints": [
+			{
+				"language": "coffeescript"
+			}
+		]
 	}
 }

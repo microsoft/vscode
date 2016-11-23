@@ -73,7 +73,9 @@ class ExecCommandCutAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		if (!browser.enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+
+		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
 
@@ -103,7 +105,9 @@ class ExecCommandCopyAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		if (!browser.enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+
+		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
 

@@ -93,7 +93,7 @@ export class StringEditor extends BaseTextEditor {
 		}
 
 		// Different Input (Reload)
-		return this.editorService.resolveEditorModel(input, true /* Reload */).then((resolvedModel: EditorModel) => {
+		return input.resolve(true).then((resolvedModel: EditorModel) => {
 
 			// Assert Model instance
 			if (!(resolvedModel instanceof BaseTextEditorModel)) {
@@ -107,7 +107,7 @@ export class StringEditor extends BaseTextEditor {
 
 			// Set Editor Model
 			const textEditor = this.getControl();
-			const textEditorModel = (<BaseTextEditorModel>resolvedModel).textEditorModel;
+			const textEditorModel = resolvedModel.textEditorModel;
 			textEditor.setModel(textEditorModel);
 
 			// Apply Options from TextOptions
