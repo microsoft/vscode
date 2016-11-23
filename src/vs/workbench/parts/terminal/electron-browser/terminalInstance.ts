@@ -41,7 +41,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _onTitleChanged: Emitter<string>;
 	private _process: cp.ChildProcess;
 	private _processId: number;
-	private _skipTerminalKeybindings: Keybinding[];
+	private _skipTerminalCommands: string[];
 	private _title: string;
 	private _toDispose: lifecycle.IDisposable[];
 	private _wrapperElement: HTMLDivElement;
@@ -68,7 +68,7 @@ export class TerminalInstance implements ITerminalInstance {
 		@IMessageService private _messageService: IMessageService
 	) {
 		this._toDispose = [];
-		this._skipTerminalKeybindings = [];
+		this._skipTerminalCommands = [];
 		this._isExiting = false;
 		this._isLaunching = true;
 		this._isVisible = false;
@@ -119,15 +119,11 @@ export class TerminalInstance implements ITerminalInstance {
 			return false;
 		});
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
-			// Allow the toggle tab mode keybinding to pass through the terminal so that focus can
-			// be escaped
-			let standardKeyboardEvent = new StandardKeyboardEvent(event);
-
-			// TODO: Use this._contextKeyService.contextMatchesRules(rules); to check the context as
-			// well to ensure that only commands that are relevant given the context are skipped
-			// (eg. ctrl+c to copy when text selected or kill the process (don't skip) when not)
-
-			if (this._skipTerminalKeybindings.some(k => standardKeyboardEvent.equals(k.value))) {
+			// Skip processing by xterm.js of commands within commandsToSkipShell
+			const standardKeyboardEvent = new StandardKeyboardEvent(event);
+			const keybinding = new Keybinding(standardKeyboardEvent.asKeybinding());
+			const resolveResult = this._keybindingService.resolve(keybinding, standardKeyboardEvent.target);
+			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 				event.preventDefault();
 				return false;
 			}
@@ -369,11 +365,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public setCommandsToSkipShell(commands: string[]): void {
-		this._skipTerminalKeybindings = commands.map((c) => {
-			return this._keybindingService.lookupKeybindings(c);
-		}).reduce((prev, curr) => {
-			return prev.concat(curr);
-		}, []);
+		this._skipTerminalCommands = commands;
 	}
 
 	public setScrollback(lineCount: number): void {
