@@ -27,9 +27,6 @@ export class LifecycleService implements ILifecycleMainService {
 	private oneTimeListenerTokenGenerator: number;
 	private _wasUpdated: boolean;
 
-	private _onBeforeUnload = new Emitter<IVSCodeWindow>();
-	onBeforeUnload: Event<IVSCodeWindow> = this._onBeforeUnload.event;
-
 	private _onBeforeQuit = new Emitter<void>();
 	onBeforeQuit: Event<void> = this._onBeforeQuit.event;
 
@@ -133,8 +130,6 @@ export class LifecycleService implements ILifecycleMainService {
 			const oneTimeCancelEvent = 'vscode:cancel' + oneTimeEventToken;
 
 			ipc.once(oneTimeOkEvent, () => {
-				this._onBeforeUnload.fire(vscodeWindow);
-
 				c(false); // no veto
 			});
 

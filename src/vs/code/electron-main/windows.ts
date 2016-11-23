@@ -357,11 +357,6 @@ export class WindowsManager implements IWindowsMainService {
 		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) {
 			const workspacesWithBackups = this.backupService.getWorkspaceBackupPaths();
 			workspacesWithBackups.forEach(workspacePath => {
-				if (!fs.existsSync(workspacePath)) {
-					this.backupService.removeWorkspaceBackupPathSync(Uri.file(workspacePath));
-					return;
-				}
-
 				const configuration = this.toConfiguration(openConfig, workspacePath);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);

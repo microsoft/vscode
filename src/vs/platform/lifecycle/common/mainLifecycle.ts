@@ -20,12 +20,6 @@ export interface ILifecycleMainService {
 	wasUpdated: boolean;
 
 	/**
-	 * Fired before the window unloads. This can either happen as a matter of closing the
-	 * window or when the window is being reloaded.
-	 */
-	onBeforeUnload: Event<IVSCodeWindow>;
-
-	/**
 	 * Due to the way we handle lifecycle with eventing, the general app.on('before-quit')
 	 * event cannot be used because it can be called twice on shutdown. Instead the onBeforeQuit
 	 * handler in this module can be used and it is only called once on a shutdown sequence.
