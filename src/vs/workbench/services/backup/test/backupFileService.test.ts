@@ -14,7 +14,7 @@ import path = require('path');
 import extfs = require('vs/base/node/extfs');
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
-import { BackupFileService, BackupsFileModel } from 'vs/workbench/services/backup/node/backupFileService';
+import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
@@ -37,6 +37,10 @@ class TestBackupFileService extends BackupFileService {
 
 		super(workspace, testEnvironmentService, fileService);
 	}
+
+	public getBackupResource(resource: Uri): Uri {
+		return super.getBackupResource(resource);
+	}
 }
 
 suite('BackupFileService', () => {
@@ -53,7 +57,7 @@ suite('BackupFileService', () => {
 	const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
 	const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', untitledFile.fsPath);
 
-	let service: BackupFileService;
+	let service: TestBackupFileService;
 
 	setup(done => {
 		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
@@ -166,8 +170,8 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('BackupsFileModel - simple', () => {
-		const model = new BackupsFileModel();
+	test('BackupFilesModel - simple', () => {
+		const model = new BackupFilesModel();
 
 		const resource1 = Uri.file('test.html');
 
@@ -213,11 +217,11 @@ suite('BackupFileService', () => {
 		assert.equal(model.has(resource4), true);
 	});
 
-	test('BackupsFileModel - resolve', (done) => {
+	test('BackupFilesModel - resolve', (done) => {
 		pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
 			fs.writeFileSync(fooBackupPath, 'foo');
 
-			const model = new BackupsFileModel();
+			const model = new BackupFilesModel();
 
 			model.resolve(workspaceBackupPath).then(model => {
 				assert.equal(model.has(Uri.file(fooBackupPath)), true);
