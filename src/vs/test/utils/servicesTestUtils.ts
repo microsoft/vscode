@@ -668,6 +668,16 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as(false);
 	}
 
+	public loadBackupResource(resource: URI): TPromise<URI> {
+		return this.hasBackup(resource).then(hasBackup => {
+			if (hasBackup) {
+				return this.getBackupResource(resource);
+			}
+
+			return void 0;
+		});
+	}
+
 	public registerResourceForBackup(resource: URI): TPromise<void> {
 		return TPromise.as(void 0);
 	}
