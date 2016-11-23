@@ -15,6 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
+import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -52,9 +53,12 @@ export class SCMViewlet extends Viewlet {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ISCMService private scmService: ISCMService
 	) {
 		super(VIEWLET_ID, telemetryService);
+
+		console.log(scmService.activeProvider);
 	}
 
 	create(parent: Builder): TPromise<void> {
