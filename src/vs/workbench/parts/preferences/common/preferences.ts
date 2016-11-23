@@ -33,8 +33,6 @@ export interface IDefaultSettings {
 	uri: URI;
 	content: string;
 	settingsGroups: ISettingsGroup[];
-
-	// filterSettings(filter: string): ISettingsGroup[];
 }
 
 export interface IDefaultKeybindings {
@@ -42,9 +40,9 @@ export interface IDefaultKeybindings {
 	content: string;
 }
 
-export const IOpenSettingsService = createDecorator<IOpenSettingsService>('openSettingsService');
+export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
 
-export interface IOpenSettingsService {
+export interface IPreferencesService {
 	_serviceBrand: any;
 
 	defaultSettings: IDefaultSettings;

@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDefaultSettings, IDefaultKeybindings, ISettingsGroup, ISetting } from 'vs/workbench/parts/settings/common/openSettings';
+import { IDefaultSettings, IDefaultKeybindings, ISettingsGroup, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 

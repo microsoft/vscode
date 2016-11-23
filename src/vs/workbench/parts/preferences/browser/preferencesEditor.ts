@@ -21,7 +21,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFoldingController, ID as FoldingContributionId } from 'vs/editor/contrib/folding/common/folding';
-import { IOpenSettingsService, ISettingsGroup, ISetting } from 'vs/workbench/parts/settings/common/openSettings';
+import { IPreferencesService, ISettingsGroup, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -57,9 +57,9 @@ export class AbstractSettingsInput extends StringEditorInput {
 export class DefaultSettingsInput extends AbstractSettingsInput {
 	private static INSTANCE: DefaultSettingsInput;
 
-	public static getInstance(instantiationService: IInstantiationService, openSettingsService: IOpenSettingsService): DefaultSettingsInput {
+	public static getInstance(instantiationService: IInstantiationService, preferencesService: IPreferencesService): DefaultSettingsInput {
 		if (!DefaultSettingsInput.INSTANCE) {
-			const defaultSettings = openSettingsService.defaultSettings;
+			const defaultSettings = preferencesService.defaultSettings;
 			DefaultSettingsInput.INSTANCE = instantiationService.createInstance(DefaultSettingsInput, nls.localize('defaultName', "Default Settings"), null, defaultSettings.content, defaultSettings.uri, 'application/json', false);
 		}
 		return DefaultSettingsInput.INSTANCE;
@@ -69,9 +69,9 @@ export class DefaultSettingsInput extends AbstractSettingsInput {
 export class DefaultKeybindingsInput extends AbstractSettingsInput {
 	private static INSTANCE: DefaultKeybindingsInput;
 
-	public static getInstance(instantiationService: IInstantiationService, openSettingsService: IOpenSettingsService): DefaultKeybindingsInput {
+	public static getInstance(instantiationService: IInstantiationService, preferencesService: IPreferencesService): DefaultKeybindingsInput {
 		if (!DefaultKeybindingsInput.INSTANCE) {
-			const defaultKeybindings = openSettingsService.defaultKeybindings;
+			const defaultKeybindings = preferencesService.defaultKeybindings;
 			DefaultKeybindingsInput.INSTANCE = instantiationService.createInstance(DefaultKeybindingsInput, nls.localize('defaultKeybindings', "Default Keyboard Shortcuts"), null, defaultKeybindings.content, defaultKeybindings.uri, 'application/json', false);
 		}
 
@@ -146,7 +146,7 @@ export class DefaultSettingsContribution extends Disposable implements editorCom
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenSettingsService private openSettingsService: IOpenSettingsService
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super();
 		this._register(editor.onDidChangeModel(() => this.onModelChanged()));
@@ -167,14 +167,14 @@ export class DefaultSettingsContribution extends Disposable implements editorCom
 			return;
 		}
 
-		if (model.uri.fsPath === this.openSettingsService.defaultSettings.uri.fsPath) {
+		if (model.uri.fsPath === this.preferencesService.defaultSettings.uri.fsPath) {
 			this.styleDefaultSettings(model);
 		}
 	}
 
 	private canHandle(model: editorCommon.IModel) {
 		if (model) {
-			if (model.uri.fsPath === this.openSettingsService.defaultSettings.uri.fsPath) {
+			if (model.uri.fsPath === this.preferencesService.defaultSettings.uri.fsPath) {
 				return true;
 			}
 		}
@@ -187,7 +187,7 @@ export class DefaultSettingsContribution extends Disposable implements editorCom
 
 	private renderDecorations(model: editorCommon.IModel) {
 		this.settingsActions = this.instantiationService.createInstance(SettingsActionsDecorators, this.editor);
-		this.settingsActions.render(this.openSettingsService.defaultSettings.settingsGroups);
+		this.settingsActions.render(this.preferencesService.defaultSettings.settingsGroups);
 	}
 }
 
@@ -196,7 +196,7 @@ export class SettingsActionsDecorators extends Disposable {
 	private decorationIds: string[] = [];
 
 	constructor(private editor: ICodeEditor,
-		@IOpenSettingsService private settingsService: IOpenSettingsService,
+		@IPreferencesService private settingsService: IPreferencesService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super();

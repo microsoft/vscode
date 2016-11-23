@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'vs/css!./media/openSettings';
+import 'vs/css!./media/preferences';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
@@ -25,13 +25,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IOpenSettingsService, IDefaultSettings, IDefaultKeybindings } from 'vs/workbench/parts/settings/common/openSettings';
-import { DefaultSettings, DefaultKeybindings } from 'vs/workbench/parts/settings/common/defaultSettings';
+import { IPreferencesService, IDefaultSettings, IDefaultKeybindings } from 'vs/workbench/parts/preferences/common/preferences';
+import { DefaultSettings, DefaultKeybindings } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/settings/browser/defaultSettingsEditors';
+import { DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 
 
 const SETTINGS_INFO_IGNORE_KEY = 'settings.workspace.info.ignore';
@@ -44,7 +44,7 @@ interface IWorkbenchSettingsConfiguration {
 	};
 }
 
-export class OpenSettingsService extends Disposable implements IOpenSettingsService {
+export class PreferencesService extends Disposable implements IPreferencesService {
 
 	_serviceBrand: any;
 
@@ -257,7 +257,7 @@ export class OpenSettingsService extends Disposable implements IOpenSettingsServ
 export class SettingsContentProvider implements ITextModelContentProvider {
 
 	constructor(
-		@IOpenSettingsService private openSettingsService: IOpenSettingsService,
+		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService
 	) {
@@ -267,12 +267,12 @@ export class SettingsContentProvider implements ITextModelContentProvider {
 		if (uri.scheme !== 'vscode') {
 			return null;
 		}
-		const defaultSettings = this.openSettingsService.defaultSettings;
+		const defaultSettings = this.preferencesService.defaultSettings;
 		if (defaultSettings.uri.fsPath === uri.fsPath) {
 			let mode = this.modeService.getOrCreateMode('application/json');
 			return TPromise.as(this.modelService.createModel(defaultSettings.content, mode, uri));
 		}
-		const defaultKeybindings = this.openSettingsService.defaultKeybindings;
+		const defaultKeybindings = this.preferencesService.defaultKeybindings;
 		if (defaultKeybindings.uri.fsPath === uri.fsPath) {
 			let mode = this.modeService.getOrCreateMode('application/json');
 			return TPromise.as(this.modelService.createModel(defaultKeybindings.content, mode, uri));
