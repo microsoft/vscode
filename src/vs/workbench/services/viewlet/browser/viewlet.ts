@@ -17,7 +17,7 @@ export interface IViewletService {
 
 	onDidViewletOpen: Event<IViewlet>;
 	onDidViewletClose: Event<IViewlet>;
-	onDidExtViewletsLoad: Event<void>;
+	onDidExtensionViewletsLoad: Event<void>;
 	onDidViewletToggle: Event<void>;
 
 	/**

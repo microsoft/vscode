@@ -31,13 +31,13 @@ export class ToggleExternalViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const extViewlets = this.viewletService.getAllViewlets().filter(viewlet => viewlet.isExternal);
+		const extViewlets = this.viewletService.getAllViewlets().filter(viewlet => viewlet.fromExtension);
 
 		const picks: IPickOpenEntry[] = [];
 
 		extViewlets.forEach(viewlet => {
 			const isEnabled = this.viewletService.isViewletEnabled(viewlet.id);
-			const actionLabel = isEnabled ? localize('disable', 'Disable') : localize('enable', 'Enable');
+			const actionLabel = isEnabled ? localize('disable', "Disable") : localize('enable', "Enable");
 			picks.push({
 				id: viewlet.id,
 				label: `${actionLabel} ${viewlet.name}`,

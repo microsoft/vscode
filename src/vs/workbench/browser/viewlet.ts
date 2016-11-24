@@ -153,12 +153,24 @@ export abstract class ViewerViewlet extends Viewlet {
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number, public isExternal: boolean = false) {
+	constructor(
+		moduleId: string,
+		ctorName: string,
+		id: string,
+		name: string,
+		cssClass?: string,
+		order?: number,
+		private _fromExtension = false
+	) {
 		super(moduleId, ctorName, id, name, cssClass, order);
-		if (isExternal) {
-			// Pass viewletId to external viewlet, which doesn't know its id until runtime.
-			this.appendStaticArguments([id]);
+
+		if (_fromExtension) {
+			this.appendStaticArguments([id]); // Pass viewletId to external viewlet, which doesn't know its id until runtime.
 		}
+	}
+
+	public get fromExtension(): boolean {
+		return this._fromExtension;
 	}
 }
 
