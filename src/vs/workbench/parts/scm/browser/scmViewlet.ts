@@ -16,6 +16,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
+import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -28,7 +29,8 @@ interface SearchInputEvent extends Event {
 }
 
 interface ResourceGroupTemplate {
-	container: HTMLElement;
+	name: HTMLElement;
+	count: CountBadge;
 }
 
 class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGroupTemplate> {
@@ -37,15 +39,21 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
-		return { container };
+		const element = append(container, $('.resource-group'));
+		const name = append(element, $('.name'));
+		const countContainer = append(element, $('div'));
+		const count = new CountBadge(countContainer);
+
+		return { name, count };
 	}
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
-		template.container.textContent = group.label;
+		template.name.textContent = group.label;
+		template.count.setCount(group.get().length);
 	}
 
-	disposeTemplate(templateData: ResourceGroupTemplate): void {
-		// noop
+	disposeTemplate(template: ResourceGroupTemplate): void {
+
 	}
 }
 
@@ -65,7 +73,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
-		const fileLabel = this.instantiationService.createInstance(FileLabel, container);
+		const fileLabel = this.instantiationService.createInstance(FileLabel, container, void 0);
 
 		return { fileLabel };
 	}
@@ -74,7 +82,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		template.fileLabel.setFile(resource.uri);
 	}
 
-	disposeTemplate(templateData: ResourceTemplate): void {
+	disposeTemplate(template: ResourceTemplate): void {
 		// noop
 	}
 }
