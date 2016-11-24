@@ -20,10 +20,11 @@
 	"files.exclude.when": "在相符檔案同層級上額外的檢查。請使用 $(basename) 作為相符檔案名稱的變數。",
 	"filesConfigurationTitle": "檔案",
 	"formatOnSave": "在儲存時設定檔案格式。格式器必須處於可用狀態、檔案不得自動儲存，且編輯器不得關機。",
+	"insertFinalNewline": "啟用時，請在儲存檔案時在其結尾插入最後一個新行。",
 	"openEditorsVisible": "[開放式編輯器] 窗格中顯示的編輯器數目。將其設定為 0 以隱藏窗格。",
 	"showExplorerViewlet": "顯示檔案總管",
 	"textFileEditor": "文字檔編輯器",
-	"trimTrailingWhitespace": "若啟用，將在您儲存檔案時修剪尾端空白。",
+	"trimTrailingWhitespace": "若啟用，將在儲存檔案時修剪尾端空白。",
 	"view": "檢視",
 	"watcherExclude": "將檔案路徑的 Glob 模式設定為從檔案監控排除。需要重新啟動才能變更此設定。當您發現 Code 在啟動時使用大量 CPU 時間時，可以排除較大的資料夾以降低初始負載。"
 }

@@ -17,7 +17,7 @@ import severity from 'vs/base/common/severity';
 import stdfork = require('vs/base/node/stdFork');
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
@@ -269,13 +269,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		});
 	}
 
-	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
-		return this.send('stepBack', args).then(response => {
-			this.fireFakeContinued(args.threadId);
-			return response;
-		});
-	}
-
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
 		return this.send('continue', args).then(response => {
 			this.fireFakeContinued(args.threadId);
@@ -361,6 +354,20 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		return this.send('evaluate', args);
 	}
 
+	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
+		return this.send('stepBack', args).then(response => {
+			this.fireFakeContinued(args.threadId);
+			return response;
+		});
+	}
+
+	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
+		return this.send('reverseContinue', args).then(response => {
+			this.fireFakeContinued(args.threadId);
+			return response;
+		});
+	}
+
 	public getLengthInSeconds(): number {
 		return (new Date().getTime() - this.startTime) / 1000;
 	}
@@ -376,6 +383,20 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 				response.message = e.message;
 				this.sendResponse(response);
 			});
+		} else if (request.command === 'handshake') {
+			try {
+				const vsda = <any>require.__$__nodeRequire('vsda');
+				const obj = new vsda.signer();
+				const sig = obj.sign(request.arguments.value);
+				response.body = {
+					signature: sig
+				};
+				this.sendResponse(response);
+			} catch (e) {
+				response.success = false;
+				response.message = e.message;
+				this.sendResponse(response);
+			}
 		} else {
 			response.success = false;
 			response.message = `unknown request '${request.command}'`;

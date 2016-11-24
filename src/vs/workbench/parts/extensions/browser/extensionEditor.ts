@@ -21,7 +21,7 @@ import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -319,7 +319,8 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const webview = new WebView(
 					this.content,
-					document.querySelector('.monaco-editor-background')
+					document.querySelector('.monaco-editor-background'),
+					{ nodeintegration: false }
 				);
 
 				webview.style(this.themeService.getColorTheme());

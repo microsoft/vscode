@@ -172,6 +172,11 @@ export type SuggestionType = 'method'
 /**
  * @internal
  */
+export type SnippetType = 'internal' | 'textmate';
+
+/**
+ * @internal
+ */
 export interface ISuggestion {
 	label: string;
 	insertText: string;
@@ -185,8 +190,7 @@ export interface ISuggestion {
 	overwriteAfter?: number;
 	additionalTextEdits?: editorCommon.ISingleEditOperation[];
 	command?: Command;
-	isTMSnippet?: boolean;
-	_extensionId?: string;
+	snippetType?: SnippetType;
 }
 
 /**
@@ -244,7 +248,7 @@ export interface ParameterInformation {
 	 * The human-readable doc-comment of this signature. Will be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation: string;
+	documentation?: string;
 }
 /**
  * Represents the signature of something callable. A signature
@@ -261,7 +265,7 @@ export interface SignatureInformation {
 	 * The human-readable doc-comment of this signature. Will be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation: string;
+	documentation?: string;
 	/**
 	 * The parameters of this signature.
 	 */

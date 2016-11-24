@@ -397,7 +397,8 @@ class SuggestAdapter {
 			detail: item.detail,
 			documentation: item.documentation,
 			sortText: item.sortText,
-			filterText: item.filterText
+			filterText: item.filterText,
+			snippetType: 'internal'
 		};
 	}
 

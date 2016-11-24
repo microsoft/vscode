@@ -7,9 +7,9 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { EditorModel } from 'vs/workbench/common/editor';
 import { join, basename } from 'vs/base/common/paths';
 import { workbenchInstantiationService, TestEditorGroupService, createFileInput, onError } from 'vs/test/utils/servicesTestUtils';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -56,9 +56,9 @@ suite('Files - TextFileEditorModelManager', () => {
 	test('add, remove, clear, get, getAll', function () {
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
-		const model1 = new EditorModel();
-		const model2 = new EditorModel();
-		const model3 = new EditorModel();
+		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random1.txt'), 'utf8');
+		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random2.txt'), 'utf8');
+		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random3.txt'), 'utf8');
 
 		manager.add(URI.file('/test.html'), <any>model1);
 		manager.add(URI.file('/some/other.html'), <any>model2);
@@ -92,6 +92,10 @@ suite('Files - TextFileEditorModelManager', () => {
 		manager.clear();
 		result = manager.getAll();
 		assert.strictEqual(0, result.length);
+
+		model1.dispose();
+		model2.dispose();
+		model3.dispose();
 	});
 
 	test('loadOrCreate', function (done) {
@@ -124,9 +128,9 @@ suite('Files - TextFileEditorModelManager', () => {
 	test('removed from cache when model disposed', function () {
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
-		const model1 = new EditorModel();
-		const model2 = new EditorModel();
-		const model3 = new EditorModel();
+		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random1.txt'), 'utf8');
+		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random2.txt'), 'utf8');
+		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random3.txt'), 'utf8');
 
 		manager.add(URI.file('/test.html'), <any>model1);
 		manager.add(URI.file('/some/other.html'), <any>model2);
@@ -136,6 +140,9 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		model1.dispose();
 		assert(!manager.get(URI.file('/test.html')));
+
+		model2.dispose();
+		model3.dispose();
 	});
 
 	test('disposes model when not open anymore', function () {
@@ -282,6 +289,10 @@ suite('Files - TextFileEditorModelManager', () => {
 		let revertedCounter = 0;
 		let savedCounter = 0;
 		let encodingCounter = 0;
+		let disposeCounter = 0;
+		let contentCounter = 0;
+
+		TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
 
 		manager.onModelDirty(e => {
 			dirtyCounter++;
@@ -303,6 +314,15 @@ suite('Files - TextFileEditorModelManager', () => {
 			assert.equal(e.resource.toString(), resource1.toString());
 		});
 
+		manager.onModelContentChanged(e => {
+			contentCounter++;
+			assert.equal(e.resource.toString(), resource1.toString());
+		});
+
+		manager.onModelDisposed(e => {
+			disposeCounter++;
+		});
+
 		manager.loadOrCreate(resource1, 'utf8').done(model1 => {
 			return manager.loadOrCreate(resource2, 'utf8').then(model2 => {
 				model1.textEditorModel.setValue('changed');
@@ -314,6 +334,7 @@ suite('Files - TextFileEditorModelManager', () => {
 					return model1.save().then(() => {
 						model1.dispose();
 						model2.dispose();
+						assert.equal(disposeCounter, 2);
 
 						return model1.revert().then(() => { // should not trigger another event if disposed
 							assert.equal(dirtyCounter, 2);
@@ -321,13 +342,18 @@ suite('Files - TextFileEditorModelManager', () => {
 							assert.equal(savedCounter, 1);
 							assert.equal(encodingCounter, 2);
 
-							model1.dispose();
-							model2.dispose();
+							// content change event if done async
+							TPromise.timeout(0).then(() => {
+								assert.equal(contentCounter, 2);
 
-							assert.ok(!accessor.modelService.getModel(resource1));
-							assert.ok(!accessor.modelService.getModel(resource2));
+								model1.dispose();
+								model2.dispose();
 
-							done();
+								assert.ok(!accessor.modelService.getModel(resource1));
+								assert.ok(!accessor.modelService.getModel(resource2));
+
+								done();
+							});
 						});
 					});
 				});

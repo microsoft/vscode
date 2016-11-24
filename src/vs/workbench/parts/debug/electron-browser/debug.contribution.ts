@@ -27,7 +27,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
 import {
-	StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, StepBackAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
+	StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
 	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction
 } from 'vs/workbench/parts/debug/browser/debugActions';
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
@@ -35,7 +35,7 @@ import service = require('vs/workbench/parts/debug/electron-browser/debugService
 import { DebugErrorEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import { DebugErrorEditor } from 'vs/workbench/parts/debug/browser/debugErrorEditor';
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -117,7 +117,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepOverAction, StepOverAction.ID, StepOverAction.LABEL, { primary: KeyCode.F10 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Step Over', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepIntoAction, StepIntoAction.ID, StepIntoAction.LABEL, { primary: KeyCode.F11 }, debug.CONTEXT_IN_DEBUG_MODE, KeybindingsRegistry.WEIGHT.workbenchContrib(1)), 'Debug: Step Into', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepOutAction, StepOutAction.ID, StepOutAction.LABEL, { primary: KeyMod.Shift | KeyCode.F11 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Step Out', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(StepBackAction, StepBackAction.ID, StepBackAction.LABEL, { primary: KeyMod.Shift | KeyCode.F10 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Step Back', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(RestartAction, RestartAction.ID, RestartAction.LABEL, { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F5 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Restart', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StopAction, StopAction.ID, StopAction.LABEL, { primary: KeyMod.Shift | KeyCode.F5 }, debug.CONTEXT_IN_DEBUG_MODE), 'Debug: Stop', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisconnectAction, DisconnectAction.ID, DisconnectAction.LABEL), 'Debug: Disconnect', debugCategory);

@@ -45,19 +45,6 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 				description: nls.localize('vscode.extension.contributes.debuggers.label', "Display name for this debug adapter."),
 				type: 'string'
 			},
-			enableBreakpointsFor: {
-				description: nls.localize('vscode.extension.contributes.debuggers.enableBreakpointsFor', "Allow breakpoints for these languages."),
-				type: 'object',
-				properties: {
-					languageIds: {
-						description: nls.localize('vscode.extension.contributes.debuggers.enableBreakpointsFor.languageIds', "List of languages."),
-						type: 'array',
-						items: {
-							type: 'string'
-						}
-					}
-				}
-			},
 			program: {
 				description: nls.localize('vscode.extension.contributes.debuggers.program', "Path to the debug adapter program. Path is either absolute or relative to the extension folder."),
 				type: 'string'
@@ -81,6 +68,10 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 			initialConfigurations: {
 				description: nls.localize('vscode.extension.contributes.debuggers.initialConfigurations', "Configurations for generating the initial \'launch.json\'."),
 				type: ['array', 'string'],
+			},
+			configurationSnippets: {
+				description: nls.localize('vscode.extension.contributes.debuggers.configurationSnippets', "Snippets for adding new configurations in \'launch.json\'."),
+				type: 'object'
 			},
 			configurationAttributes: {
 				description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.json\'."),
@@ -156,6 +147,7 @@ const schema: IJSONSchema = {
 			type: 'array',
 			description: nls.localize('app.launch.json.configurations', "List of configurations. Add new configurations or edit existing ones by using IntelliSense."),
 			items: {
+				defaultSnippets: [],
 				'type': 'object',
 				oneOf: []
 			}
@@ -218,46 +210,36 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 	private registerListeners(): void {
 		debuggersExtPoint.setHandler((extensions) => {
-
 			extensions.forEach(extension => {
 				extension.value.forEach(rawAdapter => {
-					const adapter = this.instantiationService.createInstance(Adapter, rawAdapter, extension.description);
-					const duplicate = this.adapters.filter(a => a.type === adapter.type)[0];
 					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
 						extension.collector.error(nls.localize('debugNoType', "Debug adapter 'type' can not be omitted and must be of type 'string'."));
 					}
-
-					if (duplicate) {
-						Object.keys(rawAdapter).forEach(attribute => {
-							if (rawAdapter[attribute]) {
-								if (attribute === 'enableBreakpointsFor' && duplicate[attribute]) {
-									Object.keys(adapter.enableBreakpointsFor).forEach(languageId => duplicate.enableBreakpointsFor[languageId] = true);
-								} else if (duplicate[attribute] && attribute !== 'type' && attribute !== 'label') {
-									// give priority to the later registered extension.
-									duplicate[attribute] = adapter[attribute];
-									extension.collector.error(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
-								} else {
-									duplicate[attribute] = adapter[attribute];
-								}
-							}
-						});
-					} else {
-						this.adapters.push(adapter);
-					}
-
-					if (adapter.enableBreakpointsFor) {
-						adapter.enableBreakpointsFor.languageIds.forEach(modeId => {
+					if (rawAdapter.enableBreakpointsFor) {
+						rawAdapter.enableBreakpointsFor.languageIds.forEach(modeId => {
 							this.allModeIdsForBreakpoints[modeId] = true;
 						});
+					}
+
+					const duplicate = this.adapters.filter(a => a.type === rawAdapter.type).pop();
+					if (duplicate) {
+						duplicate.merge(rawAdapter, extension.description);
+					} else {
+						this.adapters.push(this.instantiationService.createInstance(Adapter, rawAdapter, extension.description));
 					}
 				});
 			});
 
-			// update the schema to include all attributes and types from extensions.
+			// update the schema to include all attributes, snippets and types from extensions.
 			this.adapters.forEach(adapter => {
+				const items = (<IJSONSchema>schema.properties['configurations'].items);
 				const schemaAttributes = adapter.getSchemaAttributes();
 				if (schemaAttributes) {
-					(<IJSONSchema>schema.properties['configurations'].items).oneOf.push(...schemaAttributes);
+					items.oneOf.push(...schemaAttributes);
+				}
+				const configurationSnippets = adapter.configurationSnippets;
+				if (configurationSnippets) {
+					items.defaultSnippets.push(...configurationSnippets);
 				}
 			});
 		});
@@ -306,21 +288,16 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		if (result) {
 			// Set operating system specific properties #1873
-			if (isWindows && result.windows) {
-				Object.keys(result.windows).forEach(key => {
-					result[key] = result.windows[key];
-				});
-			}
-			if (isMacintosh && result.osx) {
-				Object.keys(result.osx).forEach(key => {
-					result[key] = result.osx[key];
-				});
-			}
-			if (isLinux && result.linux) {
-				Object.keys(result.linux).forEach(key => {
-					result[key] = result.linux[key];
-				});
-			}
+			const setOSProperties = (flag: boolean, osConfig: debug.IEnvConfig) => {
+				if (flag && osConfig) {
+					Object.keys(osConfig).forEach(key => {
+						result[key] = osConfig[key];
+					});
+				}
+			};
+			setOSProperties(isWindows, result.windows);
+			setOSProperties(isMacintosh, result.osx);
+			setOSProperties(isLinux, result.linux);
 
 			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 			Object.keys(result).forEach(key => {
@@ -330,6 +307,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			const adapter = this.getAdapter(result.type);
 			return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 		}
+		return TPromise.as(null);
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
@@ -338,7 +316,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
 			this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Environment") })
-				.then(adapter => adapter ? adapter.getInitialConfigFileContent() : null)
+				.then(adapter => adapter ? adapter.getInitialConfigurationContent() : null)
 				.then(content => {
 					if (!content) {
 						return false;

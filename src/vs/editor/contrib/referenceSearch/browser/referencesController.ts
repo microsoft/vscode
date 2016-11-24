@@ -25,7 +25,7 @@ import { IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewW
 import { ReferencesModel, OneReference } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -147,6 +147,11 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			if (requestId !== this._requestIdPool || !this._widget) {
 				return;
 			}
+
+			if (this._model) {
+				this._model.dispose();
+			}
+
 			this._model = model;
 
 			// measure time it stays open
@@ -194,7 +199,10 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}
 		this._referenceSearchVisible.reset();
 		this._disposables = dispose(this._disposables);
-		this._model = null;
+		if (this._model) {
+			this._model.dispose();
+			this._model = null;
+		}
 		this._editor.focus();
 		this._requestIdPool += 1; // Cancel pending requests
 	}

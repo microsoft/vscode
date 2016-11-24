@@ -36,7 +36,7 @@ export function viewModelHelper(model): IViewModelHelper {
 		validateViewPosition: (viewPosition: Position, modelPosition: Position): Position => {
 			return modelPosition;
 		},
-		validateViewRange: (viewRange:Range, modelRange: Range): Range => {
+		validateViewRange: (viewRange: Range, modelRange: Range): Range => {
 			return modelRange;
 		}
 	};

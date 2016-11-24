@@ -190,7 +190,22 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 				return;
 			}
 
-			return new TPromise<void>(c => {
+			const findEditor = (): string => {
+				// find the editor we have just opened and return the
+				// id we have assigned to it.
+				for (let id in this._textEditorsMap) {
+					if (this._textEditorsMap[id].matches(editor)) {
+						return id;
+					}
+				}
+			};
+
+			const syncEditorId = findEditor();
+			if (syncEditorId) {
+				return TPromise.as(syncEditorId);
+			}
+
+			return new TPromise<void>(resolve => {
 				// not very nice but the way it is: changes to the editor state aren't
 				// send to the ext host as they happen but stuff is delayed a little. in
 				// order to provide the real editor on #openTextEditor we need to sync on
@@ -200,7 +215,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 				function contd() {
 					subscription.dispose();
 					clearTimeout(handle);
-					c(undefined);
+					resolve(undefined);
 				}
 				subscription = this._editorTracker.onDidUpdateTextEditors(() => {
 					contd();
@@ -209,15 +224,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 					contd();
 				}, 1000);
 
-			}).then(() => {
-				// find the editor we have just opened and return the
-				// id we have assigned to it.
-				for (let id in this._textEditorsMap) {
-					if (this._textEditorsMap[id].matches(editor)) {
-						return id;
-					}
-				}
-			});
+			}).then(findEditor);
 		});
 	}
 

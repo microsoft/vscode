@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./../browser/media/repl';
+import 'vs/css!vs/workbench/parts/debug/browser/media/repl';
 import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { wireCancellationToken } from 'vs/base/common/async';
@@ -140,7 +140,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
 		this.tree = new Tree(this.treeContainer, {
-			dataSource: new ReplExpressionsDataSource(this.debugService),
+			dataSource: new ReplExpressionsDataSource(),
 			renderer: this.renderer,
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
 			controller: new ReplExpressionsController(this.debugService, this.contextMenuService, new ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
@@ -182,9 +182,7 @@ export class Repl extends Panel implements IPrivateReplService {
 					suggestions: suggestions
 				})));
 			}
-		},
-			true
-		);
+		});
 
 		this.toDispose.push(this.replInput.onDidScrollChange(e => {
 			if (!e.scrollHeightChanged) {
@@ -271,7 +269,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
 			theme: this.themeService.getColorTheme(),
-			renderLineHighlight: false,
+			renderLineHighlight: 'none',
 			fixedOverflowWidgets: true,
 			acceptSuggestionOnEnter: false
 		};

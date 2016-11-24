@@ -30,7 +30,7 @@ import { WatchDog } from 'vs/base/common/watchDog';
 import { createQueuedSender, IQueuedSender } from 'vs/base/node/processes';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
-import { IWorkspaceConfigurationService, getWorkspaceConfigurationTree } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationService, getEntries } from 'vs/workbench/services/configuration/common/configuration';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -78,7 +78,7 @@ export class ExtensionHostProcessWorker {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
+		this.isExtensionDevelopmentHost = environmentService.isExtensionDevelopment;
 		this.isExtensionDevelopmentDebugging = !!environmentService.debugExtensionHost.break;
 		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break;
 
@@ -95,7 +95,8 @@ export class ExtensionHostProcessWorker {
 				AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 				PIPE_LOGGING: 'true',
 				VERBOSE_LOGGING: true,
-				VSCODE_WINDOW_ID: String(this.windowService.getWindowId())
+				VSCODE_WINDOW_ID: String(this.windowService.getWindowId()),
+				ELECTRON_NO_ASAR: '1'
 			}),
 			// We only detach the extension host on windows. Linux and Mac orphan by default
 			// and detach under Linux and Mac create another process group.
@@ -122,18 +123,18 @@ export class ExtensionHostProcessWorker {
 				this.extHostWatchDog.start();
 				this.extHostWatchDog.onAlert(() => {
 
-					this.extHostWatchDog.stop();
+					this.extHostWatchDog.reset();
 
 					// log the identifiers of those extensions that
 					// have code and are loaded in the extension host
 					this.extensionService.getExtensions().then(extensions => {
 						const ids: string[] = [];
 						for (const ext of extensions) {
-							if (ext.main) {
+							if (ext.main && this.extensionService.isActivated(ext.id)) {
 								ids.push(ext.id);
 							}
 						}
-						this.telemetryService.publicLog('extHostUnresponsive', { extensionIds: ids });
+						this.telemetryService.publicLog('extHostUnresponsive2', { extensionIds: ids });
 					});
 				});
 			});
@@ -248,6 +249,7 @@ export class ExtensionHostProcessWorker {
 			let initData: IInitData = {
 				parentPid: process.pid,
 				environment: {
+					isBuilt: this.environmentService.isBuilt,
 					appSettingsHome: this.environmentService.appSettingsHome,
 					disableExtensions: this.environmentService.disableExtensions,
 					userExtensionsHome: this.environmentService.extensionsPath,
@@ -258,7 +260,7 @@ export class ExtensionHostProcessWorker {
 					workspace: this.contextService.getWorkspace()
 				},
 				extensions: extensionDescriptions,
-				configuration: getWorkspaceConfigurationTree(this.configurationService),
+				configuration: getEntries(this.configurationService),
 				telemetryInfo
 			};
 			this.extensionHostProcessQueuedSender.send(stringify(initData));

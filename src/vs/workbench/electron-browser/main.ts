@@ -19,10 +19,9 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { EventService } from 'vs/platform/event/common/eventService';
-import { WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { realpath } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
@@ -77,11 +76,15 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	});
 }
 
-function toInputs(paths: IPath[]): IResourceInput[] {
+function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 	return paths.map(p => {
-		const input = <IResourceInput>{
-			resource: uri.file(p.filePath)
-		};
+		const input = <IResourceInput>{};
+
+		if (isUntitledFile) {
+			input.resource = uri.from({ scheme: 'untitled', path: p.filePath });
+		} else {
+			input.resource = uri.file(p.filePath);
+		}
 
 		if (p.lineNumber) {
 			input.options = {
@@ -136,13 +139,13 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return configurationService.initialize().then(() => {
-		timers.beforeReady = new Date();
+		timers.perfBeforeDOMContentLoaded = new Date();
 
 		return domContentLoaded().then(() => {
-			timers.afterReady = new Date();
+			timers.perfAfterDOMContentLoaded = new Date();
 
 			// Open Shell
-			const beforeOpen = new Date();
+			timers.perfBeforeWorkbenchOpen = new Date();
 			const shell = new WorkbenchShell(document.body, workspace, {
 				configurationService,
 				eventService,
@@ -150,10 +153,6 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 				environmentService
 			}, options);
 			shell.open();
-
-			shell.joinCreation().then(() => {
-				timer.start(timer.Topic.STARTUP, 'Open Shell, Viewlet & Editor', beforeOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
-			});
 
 			// Inform user about loading issues from the loader
 			(<any>self).require.config({

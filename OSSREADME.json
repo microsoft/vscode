@@ -68,7 +68,7 @@
 },
 {
 	"name": "chromium",
-	"version": "52.0.2743.82",
+	"version": "53.0.2785.143",
 	"repositoryURL": "http://www.chromium.org/Home",
 	"licenseDetail": [
 		"BSD License",
@@ -104,7 +104,7 @@
 },
 {
 	"name": "libchromiumcontent",
-	"version": "52.0.2743.82",
+	"version": "53.0.2785.143",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/electron/libchromiumcontent",
 	"isProd": true
@@ -117,7 +117,7 @@
 },
 {
 	"name": "electron",
-	"version": "1.3.8",
+	"version": "1.4.6",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/electron/electron",
 	"isProd": true

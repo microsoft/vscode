@@ -5,7 +5,6 @@
 
 .monaco-workbench > .part.titlebar {
 	box-sizing: border-box;
-	z-index: 80;
 	width: 100%;
 	font-size: 12px;
 	padding: 0 70px;
@@ -38,9 +37,17 @@
 	color: #333333;
 }
 
+.vs .monaco-workbench > .part.titlebar.blurred {
+	opacity: 0.6;
+}
+
 .vs-dark .monaco-workbench > .part.titlebar {
 	background: #3c3c3c;
 	color: #ccc;
+}
+
+.vs-dark .monaco-workbench > .part.titlebar.blurred > .window-title {
+	opacity: 0.6;
 }
 
 .hc-black .monaco-workbench > .part.titlebar {

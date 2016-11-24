@@ -30,17 +30,16 @@ import { CollapseAction, CollapsibleViewletView } from 'vs/workbench/browser/vie
 import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ResourceContextKey } from 'vs/platform/actions/common/resourceContextKey';
+import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 
 export class ExplorerView extends CollapsibleViewletView {
 

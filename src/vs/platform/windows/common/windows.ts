@@ -7,12 +7,16 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
 export interface IWindowsService {
 
 	_serviceBrand: any;
+
+	onWindowOpen: Event<number>;
+	onWindowFocus: Event<number>;
 
 	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
 	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void>;
@@ -24,6 +28,8 @@ export interface IWindowsService {
 	closeFolder(windowId: number): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
+	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
+	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(windowId: number): TPromise<void>;
 	isMaximized(windowId: number): TPromise<boolean>;
@@ -31,6 +37,7 @@ export interface IWindowsService {
 	unmaximizeWindow(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
 	toggleMenuBar(windowId: number): TPromise<void>;
+	quit(): TPromise<void>;
 
 	// Global methods
 	// TODO@joao: rename, shouldn't this be openWindow?
@@ -38,6 +45,7 @@ export interface IWindowsService {
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
 	getWindows(): TPromise<{ id: number; path: string; title: string; }[]>;
+	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
 	// TODO@joao: what?
 	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void>;
@@ -67,6 +75,8 @@ export interface IWindowService {
 	closeFolder(): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
+	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
+	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
@@ -74,4 +84,13 @@ export interface IWindowService {
 	isMaximized(): TPromise<boolean>;
 	maximizeWindow(): TPromise<void>;
 	unmaximizeWindow(): TPromise<void>;
+}
+
+export interface IWindowSettings {
+	openFilesInNewWindow: boolean;
+	reopenFolders: 'all' | 'one' | 'none';
+	restoreFullscreen: boolean;
+	fullScreenZenMode: boolean;
+	zoomLevel: number;
+	titleBarStyle: 'native' | 'custom';
 }

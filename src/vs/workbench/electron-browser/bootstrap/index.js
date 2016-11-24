@@ -135,6 +135,16 @@ function main() {
 		webFrame.setZoomLevel(zoomLevel);
 	}
 
+	// Handle high contrast mode
+	if (configuration.highContrast) {
+		var themeStorageKey = 'storage://global/workbench.theme';
+		var hcTheme = 'hc-black vscode-theme-defaults-themes-hc_black-json';
+		if (window.localStorage.getItem(themeStorageKey) !== hcTheme) {
+			window.localStorage.setItem(themeStorageKey, hcTheme);
+			window.document.body.className = 'monaco-shell ' + hcTheme;
+		}
+	}
+
 	// Load the loader and start loading the workbench
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
 
@@ -155,26 +165,23 @@ function main() {
 			});
 		}
 
+		// Perf Counters
 		window.MonacoEnvironment = {};
-
 		const timers = window.MonacoEnvironment.timers = {
-			start: new Date()
+			start: new Date(configuration.isInitialStartup ? configuration.perfStartTime : configuration.perfWindowLoadTime),
+			isInitialStartup: !!configuration.isInitialStartup,
+			hasAccessibilitySupport: !!configuration.accessibilitySupport,
+			perfStartTime: new Date(configuration.perfStartTime),
+			perfWindowLoadTime: new Date(configuration.perfWindowLoadTime),
+			perfBeforeLoadWorkbenchMain: new Date()
 		};
 
-		if (configuration.performance) {
-			const vscodeStart = remote.getGlobal('vscodeStart');
-			timers.vscodeStart = new Date(vscodeStart);
-			timers.start = new Date(vscodeStart);
-		}
-
-		timers.beforeLoad = new Date();
-
 		require([
-			'vs/workbench/workbench.main',
-			'vs/nls!vs/workbench/workbench.main',
-			'vs/css!vs/workbench/workbench.main'
+			'vs/workbench/electron-browser/workbench.main',
+			'vs/nls!vs/workbench/electron-browser/workbench.main',
+			'vs/css!vs/workbench/electron-browser/workbench.main'
 		], function () {
-			timers.afterLoad = new Date();
+			timers.perfAfterLoadWorkbenchMain = new Date();
 
 			require('vs/workbench/electron-browser/main')
 				.startup(configuration)

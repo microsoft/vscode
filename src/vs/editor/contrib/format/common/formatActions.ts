@@ -17,6 +17,7 @@ import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeF
 import { EditOperationsCommand } from './formatCommand';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -27,11 +28,13 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	private static ID = 'editor.contrib.autoFormat';
 
 	private editor: editorCommon.ICommonCodeEditor;
+	private workerService: IEditorWorkerService;
 	private callOnDispose: IDisposable[];
 	private callOnModel: IDisposable[];
 
-	constructor(editor: editorCommon.ICommonCodeEditor) {
+	constructor(editor: editorCommon.ICommonCodeEditor, @IEditorWorkerService workerService: IEditorWorkerService) {
 		this.editor = editor;
+		this.workerService = workerService;
 		this.callOnDispose = [];
 		this.callOnModel = [];
 
@@ -112,6 +115,8 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			tabSize: modelOpts.tabSize,
 			insertSpaces: modelOpts.insertSpaces
 		}).then(edits => {
+			return this.workerService.computeMoreMinimalEdits(model.uri, edits, []);
+		}).then(edits => {
 
 			unbind.dispose();
 
@@ -141,6 +146,8 @@ export abstract class AbstractFormatAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 
+		const workerService = accessor.get(IEditorWorkerService);
+
 		const formattingPromise = this._getFormattingEdits(editor);
 		if (!formattingPromise) {
 			return TPromise.as(void 0);
@@ -150,12 +157,10 @@ export abstract class AbstractFormatAction extends EditorAction {
 		const state = editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
 
 		// Receive formatted value from worker
-		return formattingPromise.then(edits => {
-
+		return formattingPromise.then(edits => workerService.computeMoreMinimalEdits(editor.getModel().uri, edits, editor.getSelections())).then(edits => {
 			if (!state.validate(editor) || isFalsyOrEmpty(edits)) {
 				return;
 			}
-
 			const command = new EditOperationsCommand(edits, editor.getSelection());
 			editor.executeCommand(this.id, command);
 			editor.focus();
@@ -227,13 +232,19 @@ export class FormatSelectionAction extends AbstractFormatAction {
 CommandsRegistry.registerCommand('editor.action.format', accessor => {
 	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor) {
-		const model = editor.getModel();
-		const editorSelection = editor.getSelection();
-		const {tabSize, insertSpaces } = model.getOptions();
-		if (editorSelection.isEmpty()) {
-			return getDocumentFormattingEdits(model, { tabSize, insertSpaces });
-		} else {
-			return getDocumentRangeFormattingEdits(model, editorSelection, { tabSize, insertSpaces });
-		}
+		return new class extends AbstractFormatAction {
+			constructor() {
+				super(<any>{});
+			}
+			_getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+				const model = editor.getModel();
+				const editorSelection = editor.getSelection();
+				const {tabSize, insertSpaces } = model.getOptions();
+
+				return editorSelection.isEmpty()
+					? getDocumentFormattingEdits(model, { tabSize, insertSpaces })
+					: getDocumentRangeFormattingEdits(model, editorSelection, { tabSize, insertSpaces });
+			}
+		}().run(accessor, editor);
 	}
 });

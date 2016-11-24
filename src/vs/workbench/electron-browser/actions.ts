@@ -7,7 +7,6 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import timer = require('vs/base/common/timer');
 import { Action } from 'vs/base/common/actions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -27,15 +26,16 @@ import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
+import { IStartupFingerprint } from 'vs/workbench/electron-browser/common';
 
 import * as os from 'os';
-import { webFrame, remote } from 'electron';
+import { webFrame } from 'electron';
 
 // --- actions
 
@@ -213,6 +213,8 @@ export abstract class BaseZoomAction extends Action {
 			target = ConfigurationTarget.WORKSPACE;
 		}
 
+		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
+
 		const applyZoom = () => {
 			webFrame.setZoomLevel(level);
 			browser.setZoomFactor(webFrame.getZoomFactor());
@@ -306,11 +308,15 @@ enum LoaderEventType {
 	NodeBeginNativeRequire = 33,
 	NodeEndNativeRequire = 34
 }
+
 interface ILoaderEvent {
 	type: LoaderEventType;
 	timestamp: number;
 	detail: string;
 }
+
+const timers = (<any>window).MonacoEnvironment.timers;
+
 export class ShowStartupPerformance extends Action {
 
 	public static ID = 'workbench.action.appPerf';
@@ -320,14 +326,75 @@ export class ShowStartupPerformance extends Action {
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
-
-		this.enabled = environmentService.performance;
 	}
 
-	private _analyzeLoaderTimes(): any[] {
+	public run(): TPromise<boolean> {
+
+		// Show dev tools
+		this.windowService.openDevTools();
+
+		// Print to console
+		setTimeout(() => {
+			(<any>console).group('Startup Performance Measurement');
+			const fingerprint: IStartupFingerprint = timers.fingerprint;
+			console.log(`OS: ${fingerprint.platform} (${fingerprint.release})`);
+			console.log(`CPUs: ${fingerprint.cpus.model} (${fingerprint.cpus.count} x ${fingerprint.cpus.speed})`);
+			console.log(`Memory: ${(fingerprint.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(fingerprint.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
+			console.log(`Initial Startup: ${fingerprint.initialStartup}`);
+			console.log(`Screen Reader Active: ${fingerprint.hasAccessibilitySupport}`);
+			console.log(`Empty Workspace: ${fingerprint.emptyWorkbench}`);
+
+			let nodeModuleLoadTime: number;
+			let nodeModuleLoadDetails: any[];
+			if (this.environmentService.performance) {
+				const nodeModuleTimes = this.analyzeNodeModulesLoadTimes();
+				nodeModuleLoadTime = nodeModuleTimes.duration;
+				nodeModuleLoadDetails = nodeModuleTimes.table;
+			}
+
+			(<any>console).table(this.getFingerprintTable(nodeModuleLoadTime));
+
+			if (nodeModuleLoadDetails) {
+				(<any>console).groupCollapsed('node_modules Load Details');
+				(<any>console).table(nodeModuleLoadDetails);
+				(<any>console).groupEnd();
+			}
+			(<any>console).groupEnd();
+		}, 1000);
+
+		return TPromise.as(true);
+	}
+
+	private getFingerprintTable(nodeModuleLoadTime?: number): any[] {
+		const table: any[] = [];
+		const fingerprint: IStartupFingerprint = timers.fingerprint;
+
+		if (fingerprint.initialStartup) {
+			table.push({ Topic: '[main] start => window.loadUrl()', 'Took (ms)': fingerprint.timers.ellapsedWindowLoad });
+		}
+
+		table.push({ Topic: '[renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': fingerprint.timers.ellapsedWindowLoadToRequire });
+		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': fingerprint.timers.ellapsedRequire });
+
+		if (nodeModuleLoadTime) {
+			table.push({ Topic: '[renderer] -> of which require() node_modules', 'Took (ms)': nodeModuleLoadTime });
+		}
+
+		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': fingerprint.timers.ellapsedExtensions });
+		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': fingerprint.timers.ellapsedViewletRestore });
+		table.push({ Topic: '[renderer] restore editor view state', 'Took (ms)': fingerprint.timers.ellapsedEditorRestore });
+		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': fingerprint.timers.ellapsedWorkbench });
+		table.push({ Topic: '------------------------------------------------------' });
+		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': fingerprint.timers.ellapsedExtensionsReady });
+		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': fingerprint.ellapsed });
+
+		return table;
+	}
+
+	private analyzeNodeModulesLoadTimes(): { table: any[], duration: number } {
 		const stats = <ILoaderEvent[]>(<any>require).getStats();
 		const result = [];
 
@@ -337,73 +404,29 @@ export class ShowStartupPerformance extends Action {
 			if (stats[i].type === LoaderEventType.NodeEndNativeRequire) {
 				if (stats[i - 1].type === LoaderEventType.NodeBeginNativeRequire && stats[i - 1].detail === stats[i].detail) {
 					const entry: any = {};
+					const dur = (stats[i].timestamp - stats[i - 1].timestamp);
 					entry['Event'] = 'nodeRequire ' + stats[i].detail;
-					entry['Took (ms)'] = (stats[i].timestamp - stats[i - 1].timestamp);
-					total += (stats[i].timestamp - stats[i - 1].timestamp);
-					entry['Start (ms)'] = '**' + stats[i - 1].timestamp;
-					entry['End (ms)'] = '**' + stats[i - 1].timestamp;
+					entry['Took (ms)'] = dur.toFixed(2);
+					total += dur;
+					entry['Start (ms)'] = '**' + stats[i - 1].timestamp.toFixed(2);
+					entry['End (ms)'] = '**' + stats[i - 1].timestamp.toFixed(2);
 					result.push(entry);
 				}
 			}
 		}
 
 		if (total > 0) {
+			result.push({ Event: '------------------------------------------------------' });
+
 			const entry: any = {};
-			entry['Event'] = '===nodeRequire TOTAL';
-			entry['Took (ms)'] = total;
+			entry['Event'] = '[renderer] total require() node_modules';
+			entry['Took (ms)'] = total.toFixed(2);
 			entry['Start (ms)'] = '**';
 			entry['End (ms)'] = '**';
 			result.push(entry);
 		}
 
-		return result;
-	}
-
-	public run(): TPromise<boolean> {
-		const table: any[] = [];
-		table.push(...this._analyzeLoaderTimes());
-
-		const start = Math.round(remote.getGlobal('vscodeStart'));
-		const windowShowTime = Math.round(remote.getGlobal('windowShow'));
-
-		let lastEvent: timer.ITimerEvent;
-		const events = timer.getTimeKeeper().getCollectedEvents();
-		events.forEach((e) => {
-			if (e.topic === 'Startup') {
-				lastEvent = e;
-				const entry: any = {};
-
-				entry['Event'] = e.name;
-				entry['Took (ms)'] = e.stopTime.getTime() - e.startTime.getTime();
-				entry['Start (ms)'] = Math.max(e.startTime.getTime() - start, 0);
-				entry['End (ms)'] = e.stopTime.getTime() - start;
-
-				table.push(entry);
-			}
-		});
-
-		table.push({ Event: '---------------------------' });
-
-		const windowShowEvent: any = {};
-		windowShowEvent['Event'] = 'Show Window at';
-		windowShowEvent['Start (ms)'] = windowShowTime - start;
-		table.push(windowShowEvent);
-
-		const sum: any = {};
-		sum['Event'] = 'Total';
-		sum['Took (ms)'] = lastEvent.stopTime.getTime() - start;
-		table.push(sum);
-
-		// Show dev tools
-		this.windowService.openDevTools();
-
-		// Print to console
-		setTimeout(() => {
-			console.warn('Run the action again if you do not see the numbers!');
-			(<any>console).table(table);
-		}, 1000);
-
-		return TPromise.as(true);
+		return { table: result, duration: Math.round(total) };
 	}
 }
 
@@ -565,6 +588,27 @@ Steps to Reproduce:
 		}).join('\n');
 
 		return tableHeader + '\n' + table;
+	}
+}
+
+export class KeybindingsReferenceAction extends Action {
+
+	public static ID = 'workbench.action.keybindingsReference';
+	public static LABEL = nls.localize('keybindingsReference', "Keyboard Shortcuts Reference");
+
+	private static URL = isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
+	public static AVAILABLE = !!KeybindingsReferenceAction.URL;
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		window.open(KeybindingsReferenceAction.URL);
+		return null;
 	}
 }
 

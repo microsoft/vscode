@@ -393,7 +393,7 @@ suite('SnippetController', () => {
 
 			codeSnippet = CodeSnippet.fromTextmate([
 				'afterEach((done) => {',
-				'\t${1}test',
+				'\t${0}test',
 				'});'
 			].join('\n'));
 

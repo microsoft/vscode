@@ -28,9 +28,12 @@
 }
 
 .explorer-viewlet .explorer-item,
-.explorer-viewlet .explorer-item .label-name,
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	flex: 1;
+}
+
+.explorer-viewlet .explorer-item::before {
+	flex-shrink: 0; /* fix for https://github.com/Microsoft/vscode/issues/13787 */
 }
 
 .explorer-viewlet .explorer-item.explorer-item-edited .label-name {

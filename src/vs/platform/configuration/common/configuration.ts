@@ -42,8 +42,25 @@ export interface IConfigurationService {
 	onDidUpdateConfiguration: Event<IConfigurationServiceEvent>;
 }
 
+export enum ConfigurationSource {
+	Default = 1,
+	User,
+	Workspace
+}
+
 export interface IConfigurationServiceEvent {
+	/**
+	 * The full configuration.
+	 */
 	config: any;
+	/**
+	 * The type of source that triggered this event.
+	 */
+	source: ConfigurationSource;
+	/**
+	 * The part of the configuration contributed by the source of this event.
+	 */
+	sourceConfig: any;
 }
 
 export interface IConfigurationValue<T> {

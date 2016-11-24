@@ -1088,9 +1088,10 @@ declare module monaco.editor {
         /**
          * The width reserved for line decorations (in px).
          * Line decorations are placed between line numbers and the editor content.
+         * You can pass in a string in the format floating point followed by "ch". e.g. 1.3ch.
          * Defaults to 10.
          */
-        lineDecorationsWidth?: number;
+        lineDecorationsWidth?: number | string;
         /**
          * When revealing the cursor, a virtual padding (px) is added to the cursor, turning it into a rectangle.
          * This virtual padding ensures that the cursor gets revealed before hitting the edge of the viewport.
@@ -1321,9 +1322,9 @@ declare module monaco.editor {
         renderIndentGuides?: boolean;
         /**
          * Enable rendering of current line highlight.
-         * Defaults to true.
+         * Defaults to all.
          */
-        renderLineHighlight?: boolean;
+        renderLineHighlight?: 'none' | 'gutter' | 'line' | 'all';
         /**
          * Inserting and deleting whitespace follows tab stops.
          */
@@ -1423,7 +1424,7 @@ declare module monaco.editor {
         readonly renderWhitespace: 'none' | 'boundary' | 'all';
         readonly renderControlCharacters: boolean;
         readonly renderIndentGuides: boolean;
-        readonly renderLineHighlight: boolean;
+        readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
         readonly scrollbar: InternalEditorScrollbarOptions;
         readonly fixedOverflowWidgets: boolean;
     }
@@ -1581,6 +1582,10 @@ declare module monaco.editor {
          * If set, the decoration will be rendered in the lines decorations with this CSS class name.
          */
         linesDecorationsClassName?: string;
+        /**
+         * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
+         */
+        marginClassName?: string;
         /**
          * If set, the decoration will be rendered inline with the text with this CSS class name.
          * Please use this only for CSS rules that must impact the text. For example, use `className`
@@ -3401,7 +3406,6 @@ declare module monaco.editor {
         DeleteWordRight: string;
         DeleteWordStartRight: string;
         DeleteWordEndRight: string;
-        DeleteAllLeft: string;
         DeleteAllRight: string;
         RemoveSecondaryCursors: string;
         CancelSelection: string;
@@ -3512,6 +3516,10 @@ declare module monaco.editor {
          * The dom node of the view zone
          */
         domNode: HTMLElement;
+        /**
+         * An optional dom node for the view zone that will be placed in the margin area.
+         */
+        marginDomNode?: HTMLElement;
         /**
          * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
          */
@@ -4356,7 +4364,7 @@ declare module monaco.languages {
          * The human-readable doc-comment of this signature. Will be shown
          * in the UI but can be omitted.
          */
-        documentation: string;
+        documentation?: string;
     }
 
     /**
@@ -4374,7 +4382,7 @@ declare module monaco.languages {
          * The human-readable doc-comment of this signature. Will be shown
          * in the UI but can be omitted.
          */
-        documentation: string;
+        documentation?: string;
         /**
          * The parameters of this signature.
          */

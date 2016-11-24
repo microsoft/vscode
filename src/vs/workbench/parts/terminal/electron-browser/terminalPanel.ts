@@ -8,18 +8,16 @@ import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
 import { Action, IAction } from 'vs/base/common/actions';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalFont } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId } from 'vs/platform/theme/common/themes';
@@ -62,7 +60,7 @@ export class TerminalPanel extends Panel {
 
 		this._attachEventListeners();
 
-		this._terminalService.setContainers(this.getContainer(), this._terminalContainer);
+		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
 
 		this._register(this._themeService.onDidColorThemeChange(this._updateTheme.bind(this)));
 		this._register(this._configurationService.onDidUpdateConfiguration(this._updateConfig.bind(this)));
@@ -228,6 +226,7 @@ export class TerminalPanel extends Panel {
 		this._updateFont();
 		this._updateCursorBlink();
 		this._updateCommandsToSkipShell();
+		this._updateScrollback();
 	}
 
 	private _updateFont(): void {
@@ -264,6 +263,12 @@ export class TerminalPanel extends Panel {
 	private _updateCommandsToSkipShell(): void {
 		this._terminalService.terminalInstances.forEach((instance) => {
 			instance.setCommandsToSkipShell(this._terminalService.configHelper.getCommandsToSkipShell());
+		});
+	}
+
+	private _updateScrollback(): void {
+		this._terminalService.terminalInstances.forEach((instance) => {
+			instance.setScrollback(this._terminalService.configHelper.getScrollback());
 		});
 	}
 }

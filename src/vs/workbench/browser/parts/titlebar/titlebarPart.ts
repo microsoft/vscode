@@ -36,6 +36,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(id);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => { if (this.titleContainer) { this.titleContainer.addClass('blurred'); } }));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => { if (this.titleContainer) { this.titleContainer.removeClass('blurred'); } }));
 	}
 
 	public createContentArea(parent: Builder): Builder {
@@ -99,8 +106,21 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (this.representedFileName) {
 			const segments = this.representedFileName.split(paths.sep);
 			for (let i = segments.length; i > 0; i--) {
-				const path = segments.slice(0, i).join(paths.sep);
-				actions.push(new ShowItemInFolderAction(path, this.windowsService));
+				const isFile = (i === segments.length);
+
+				let pathOffset = i;
+				if (!isFile) {
+					pathOffset++; // for segments which are not the file name we want to open the folder
+				}
+
+				const path = segments.slice(0, pathOffset).join(paths.sep);
+
+				let label = paths.basename(path);
+				if (!isFile) {
+					label = paths.basename(paths.dirname(path));
+				}
+
+				actions.push(new ShowItemInFolderAction(path, label || paths.sep, this.windowsService));
 			}
 		}
 
@@ -143,8 +163,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 class ShowItemInFolderAction extends Action {
 
-	constructor(private path: string, private windowsService: IWindowsService) {
-		super('showItemInFolder.action.id', paths.basename(path) || paths.sep);
+	constructor(private path: string, label: string, private windowsService: IWindowsService) {
+		super('showItemInFolder.action.id', label);
 	}
 
 	public run(): TPromise<void> {

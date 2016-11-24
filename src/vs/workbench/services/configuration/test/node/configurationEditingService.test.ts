@@ -12,7 +12,8 @@ import fs = require('fs');
 import * as json from 'vs/base/common/json';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
-import { ParsedArgs, parseArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
@@ -34,6 +35,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -56,9 +59,11 @@ class TestDirtyTextFileService extends TestTextFileService {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IBackupService backupService: IBackupService,
+		@IMessageService messageService: IMessageService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
 	}
 
 	public isDirty(resource?: URI): boolean {
@@ -357,7 +362,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 			if (error) {
 				return cleanUp(done, error);
 			}
-			
+
 			createServices(workspaceDir, globalSettingsFile).done(services => {
 				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
 

@@ -7,9 +7,11 @@
 
 import winjs = require('vs/base/common/winjs.base');
 import errors = require('vs/base/common/errors');
+import URI from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IOptions } from 'vs/workbench/common/options';
 
 export class WorkspaceStats {
 	constructor(
@@ -20,18 +22,24 @@ export class WorkspaceStats {
 	}
 
 	private searchArray(arr: string[], regEx: RegExp): boolean {
-		return arr.some(v => v.search(regEx) > -1);
+		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
-	private getWorkspaceTags(): winjs.TPromise<{ [index: string]: boolean }> {
-		let tags: { [index: string]: boolean } = Object.create(null);
-		let workspace = this.contextService.getWorkspace();
+	private getWorkspaceTags(workbenchOptions: IOptions): winjs.TPromise<{ [index: string]: boolean }> {
+		const tags: { [index: string]: boolean | number } = Object.create(null);
 
-		if (workspace && this.fileService) {
-			return this.fileService.resolveFile(workspace.resource).then(stats => {
+		const { filesToOpen, filesToCreate, filesToDiff } = workbenchOptions;
+		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || undefined;
+		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || undefined;
+		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || undefined;
+
+		const workspace = this.contextService.getWorkspace();
+		tags['workspace.empty'] = !workspace;
+
+		const folder = workspace ? workspace.resource : this.findFolder(workbenchOptions);
+		if (folder && this.fileService) {
+			return this.fileService.resolveFile(folder).then(stats => {
 				let names = stats.children.map(c => c.name);
-
-				tags['workspace.empty'] = false;
 
 				tags['workspace.language.cs'] = this.searchArray(names, /^.+\.cs$/i);
 				tags['workspace.language.js'] = this.searchArray(names, /^.+\.js$/i);
@@ -97,13 +105,28 @@ export class WorkspaceStats {
 				return tags;
 			}, error => { errors.onUnexpectedError(error); return null; });
 		} else {
-			tags['workspace.empty'] = true;
 			return winjs.TPromise.as(tags);
 		}
 	}
 
-	public reportWorkspaceTags(): void {
-		this.getWorkspaceTags().then((tags) => {
+	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IOptions): URI {
+		if (filesToOpen && filesToOpen.length) {
+			return this.parentURI(filesToOpen[0].resource);
+		} else if (filesToCreate && filesToCreate.length) {
+			return this.parentURI(filesToCreate[0].resource);
+		} else if (filesToDiff && filesToDiff.length) {
+			return this.parentURI(filesToDiff[0].resource);
+		}
+	}
+
+	private parentURI(uri: URI): URI {
+		const path = uri.path;
+		const i = path.lastIndexOf('/');
+		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
+	}
+
+	public reportWorkspaceTags(workbenchOptions: IOptions): void {
+		this.getWorkspaceTags(workbenchOptions).then((tags) => {
 			this.telemetryService.publicLog('workspce.tags', tags);
 		}, error => errors.onUnexpectedError(error));
 	}

@@ -14,16 +14,16 @@ import { ArraySet } from 'vs/base/common/set';
 import { IGalleryExtension, IExtensionGalleryService, IQueryOptions, SortBy, SortOrder, IExtensionManifest, EXTENSION_IDENTIFIER_REGEX } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { assign, getOrDefault } from 'vs/base/common/objects';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { IRequestOptions, IRequestContext, download, asJson } from 'vs/base/node/request';
+import { IRequestOptions, IRequestContext, download, asJson, asText } from 'vs/base/node/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
 import * as url from 'url';
-import { getCommonHTTPHeaders } from 'vs/platform/environment/common/http';
+import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -371,15 +371,30 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			const startTime = new Date().getTime();
 			const log = duration => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
 
-			return this._getAsset({ url })
+			return this.getAsset({ url })
 				.then(context => download(zipPath, context))
 				.then(() => log(new Date().getTime() - startTime))
 				.then(() => zipPath);
 		});
 	}
 
-	getAsset(url: string): TPromise<IRequestContext> {
-		return this._getAsset({ url });
+	getReadme(extension: IGalleryExtension): TPromise<string> {
+		const url = extension.assets.readme;
+
+		if (!url) {
+			return TPromise.wrapError('not available');
+		}
+
+		return this.getAsset({ url })
+			.then(asText);
+	}
+
+	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest> {
+		const url = extension.assets.manifest;
+
+		return this.getAsset({ url })
+			.then(asText)
+			.then(JSON.parse);
 	}
 
 	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
@@ -469,7 +484,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	 * Always try with the `redirect=true` query string.
 	 * If that does not return 200, try without it.
 	 */
-	private _getAsset(options: IRequestOptions): TPromise<IRequestContext> {
+	private getAsset(options: IRequestOptions): TPromise<IRequestContext> {
 		const parsedUrl = url.parse(options.url, true);
 		parsedUrl.search = undefined;
 		parsedUrl.query['redirect'] = 'true';
@@ -525,7 +540,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		const url = getAssetSource(version.files, AssetType.Manifest);
 		const headers = { 'Accept-Encoding': 'gzip' };
 
-		return this._getAsset({ url, headers })
+		return this.getAsset({ url, headers })
 			.then(context => asJson<IExtensionManifest>(context))
 			.then(manifest => {
 				const engine = manifest.engines.vscode;

@@ -27,7 +27,7 @@ import { BinaryFileEditor } from 'vs/workbench/parts/files/browser/editors/binar
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
@@ -218,6 +218,21 @@ configurationRegistry.registerConfiguration({
 			'default': (platform.isLinux || platform.isMacintosh) ? { '**/.git/objects/**': true, '**/node_modules/**': true } : { '**/.git/objects/**': true },
 			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
 		},
+		'files.hotExit': {
+			'type': 'boolean',
+			// TODO: Switch to true once sufficiently stable
+			'default': false,
+			'description': nls.localize('hotExit', "Controls whether unsaved files are restored after relaunching. If this is enabled there will be no prompt to save when exiting the editor.")
+		}
+	}
+});
+
+configurationRegistry.registerConfiguration({
+	id: 'editor',
+	order: 5,
+	title: nls.localize('editorConfigurationTitle', "Editor"),
+	type: 'object',
+	properties: {
 		'editor.formatOnSave': {
 			'type': 'boolean',
 			'default': false,

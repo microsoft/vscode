@@ -18,12 +18,12 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalInstance, IShell } from 'vs/workbench/parts/terminal/common/terminal';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
-import { TerminalConfigHelper, IShell } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export class TerminalInstance implements ITerminalInstance {
 	/** The amount of time to consider terminal errors to be related to the launch */
@@ -360,7 +360,13 @@ export class TerminalInstance implements ITerminalInstance {
 		}, []);
 	}
 
-	public layout(dimension: Dimension): void {
+	public setScrollback(lineCount: number): void {
+		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
+			this._xterm.setOption('scrollback', lineCount);
+		}
+	}
+
+	public layout(dimension: { width: number, height: number }): void {
 		let font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
 			return;

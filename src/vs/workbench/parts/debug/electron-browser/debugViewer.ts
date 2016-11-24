@@ -37,7 +37,13 @@ const booleanRegex = /^true|false$/i;
 const stringRegex = /^(['"]).*\1$/;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
-export function renderExpressionValue(expressionOrValue: debug.IExpression | string, container: HTMLElement, showChanged: boolean, maxValueRenderLength?: number): void {
+export interface IRenderValueOptions {
+	preserveWhitespace?: boolean;
+	showChanged?: boolean;
+	maxValueLength?: number;
+}
+
+export function renderExpressionValue(expressionOrValue: debug.IExpression | string, container: HTMLElement, options: IRenderValueOptions): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
 	// remove stale classes
@@ -56,15 +62,19 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		dom.addClass(container, 'string');
 	}
 
-	if (showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
+	if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
 		// value changed color has priority over other colors.
 		container.className = 'value changed';
 	}
 
-	if (maxValueRenderLength && value.length > maxValueRenderLength) {
-		value = value.substr(0, maxValueRenderLength) + '...';
+	if (options.maxValueLength && value.length > options.maxValueLength) {
+		value = value.substr(0, options.maxValueLength) + '...';
 	}
-	container.textContent = value;
+	if (value && !options.preserveWhitespace) {
+		container.textContent = value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+	} else {
+		container.textContent = value;
+	}
 	container.title = value;
 }
 
@@ -75,8 +85,12 @@ export function renderVariable(tree: ITree, variable: Variable, data: IVariableT
 	}
 
 	if (variable.value) {
-		data.name.textContent += ':';
-		renderExpressionValue(variable, data.value, showChanged, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
+		data.name.textContent += variable.name ? ':' : '';
+		renderExpressionValue(variable, data.value, {
+			showChanged,
+			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+			preserveWhitespace: false
+		});
 		data.value.title = variable.value;
 	} else {
 		data.value.textContent = '';
@@ -121,7 +135,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				element.errorMessage = null;
 				if (renamed && element.value !== inputBox.value) {
 					element.setVariable(inputBox.value)
-						// if everything went fine we need to refresh that tree element since his value updated
+						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
 						.done(() => tree.refresh(element, false), errors.onUnexpectedError);
 				}
 			}
@@ -274,7 +288,7 @@ export class CallStackController extends BaseDebugController {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === threadAndProcessIds.processId).pop();
 		const thread = process && process.getThread(threadAndProcessIds.threadId);
 		if (thread) {
-			thread.getCallStack(true)
+			(<Thread>thread).fetchCallStack(true)
 				.done(() => tree.refresh(), errors.onUnexpectedError);
 		}
 
@@ -295,11 +309,11 @@ export class CallStackController extends BaseDebugController {
 			process = element;
 		}
 
-		this.debugService.setFocusedStackFrameAndEvaluate(stackFrame, process).done(null, errors.onUnexpectedError);
+		this.debugService.focusStackFrameAndEvaluate(stackFrame, process).done(null, errors.onUnexpectedError);
 
 		if (stackFrame) {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			this.debugService.openOrRevealSource(stackFrame.source.uri, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+			this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 		}
 	}
 }
@@ -376,8 +390,8 @@ export class CallStackDataSource implements IDataSource {
 		return TPromise.as(process.getAllThreads());
 	}
 
-	private getThreadChildren(thread: debug.IThread): TPromise<any> {
-		return thread.getCallStack().then((callStack: any[]) => {
+	private getThreadChildren(thread: Thread): TPromise<any> {
+		return thread.fetchCallStack().then((callStack: any[]) => {
 			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
 				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 			}
@@ -859,8 +873,12 @@ export class WatchExpressionsDataSource implements IDataSource {
 	}
 }
 
-interface IWatchExpressionTemplateData extends IVariableTemplateData {
+interface IWatchExpressionTemplateData {
+	watchExpression: HTMLElement;
 	actionBar: ActionBar;
+	expression: HTMLElement;
+	name: HTMLSpanElement;
+	value: HTMLSpanElement;
 }
 
 export class WatchExpressionsRenderer implements IRenderer {
@@ -893,15 +911,24 @@ export class WatchExpressionsRenderer implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
-		let data: IWatchExpressionTemplateData = Object.create(null);
+		const createVariableTemplate = ((data: IVariableTemplateData, container: HTMLElement) => {
+			data.expression = dom.append(container, $('.expression'));
+			data.name = dom.append(data.expression, $('span.name'));
+			data.value = dom.append(data.expression, $('span.value'));
+		});
+
 		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
-			data.actionBar = new ActionBar(container, { actionRunner: this.actionRunner });
+			const data: IWatchExpressionTemplateData = Object.create(null);
+			data.watchExpression = dom.append(container, $('.watch-expression'));
+			createVariableTemplate(data, data.watchExpression);
+			data.actionBar = new ActionBar(data.watchExpression, { actionRunner: this.actionRunner });
 			data.actionBar.push(this.actionProvider.getExpressionActions(), { icon: true, label: false });
+
+			return data;
 		}
 
-		data.expression = dom.append(container, $('.expression'));
-		data.name = dom.append(data.expression, $('span.name'));
-		data.value = dom.append(data.expression, $('span.value'));
+		const data: IVariableTemplateData = Object.create(null);
+		createVariableTemplate(data, container);
 
 		return data;
 	}
@@ -928,7 +955,11 @@ export class WatchExpressionsRenderer implements IRenderer {
 		data.name.textContent = watchExpression.name;
 		if (watchExpression.value) {
 			data.name.textContent += ':';
-			renderExpressionValue(watchExpression, data.value, true, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
+			renderExpressionValue(watchExpression, data.value, {
+				showChanged: true,
+				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+				preserveWhitespace: false
+			});
 			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
 	}
@@ -1129,21 +1160,17 @@ export class BreakpointsDataSource implements IDataSource {
 	}
 }
 
-interface IExceptionBreakpointTemplateData {
+interface IBaseBreakpointTemplateData {
 	breakpoint: HTMLElement;
 	name: HTMLElement;
 	checkbox: HTMLInputElement;
-	toDisposeBeforeRender: lifecycle.IDisposable[];
+	context: debug.IEnablement;
+	toDispose: lifecycle.IDisposable[];
 }
 
-interface IBreakpointTemplateData extends IExceptionBreakpointTemplateData {
-	actionBar: ActionBar;
+interface IBreakpointTemplateData extends IBaseBreakpointTemplateData {
 	lineNumber: HTMLElement;
 	filePath: HTMLElement;
-}
-
-interface IFunctionBreakpointTemplateData extends IExceptionBreakpointTemplateData {
-	actionBar: ActionBar;
 }
 
 export class BreakpointsRenderer implements IRenderer {
@@ -1182,35 +1209,33 @@ export class BreakpointsRenderer implements IRenderer {
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
 		const data: IBreakpointTemplateData = Object.create(null);
-		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
-			data.actionBar = new ActionBar(container, { actionRunner: this.actionRunner });
-			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
-		}
-
 		data.breakpoint = dom.append(container, $('.breakpoint'));
-		data.toDisposeBeforeRender = [];
 
 		data.checkbox = <HTMLInputElement>$('input');
 		data.checkbox.type = 'checkbox';
+		data.toDispose = [];
+		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
+			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
+		}));
 
 		dom.append(data.breakpoint, data.checkbox);
 
 		data.name = dom.append(data.breakpoint, $('span.name'));
 
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID) {
-			data.lineNumber = dom.append(data.breakpoint, $('span.line-number'));
 			data.filePath = dom.append(data.breakpoint, $('span.file-path'));
+			const lineNumberContainer = dom.append(data.breakpoint, $('.line-number-container'));
+			data.lineNumber = dom.append(lineNumberContainer, $('span.line-number'));
+		}
+		if (templateId === BreakpointsRenderer.EXCEPTION_BREAKPOINT_TEMPLATE_ID) {
+			dom.addClass(data.breakpoint, 'exception');
 		}
 
 		return data;
 	}
 
 	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
-		templateData.toDisposeBeforeRender = lifecycle.dispose(templateData.toDisposeBeforeRender);
-		templateData.toDisposeBeforeRender.push(dom.addStandardDisposableListener(templateData.checkbox, 'change', (e) => {
-			this.debugService.enableOrDisableBreakpoints(!element.enabled, element);
-		}));
-
+		templateData.context = element;
 		if (templateId === BreakpointsRenderer.EXCEPTION_BREAKPOINT_TEMPLATE_ID) {
 			this.renderExceptionBreakpoint(element, templateData);
 		} else if (templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
@@ -1220,13 +1245,13 @@ export class BreakpointsRenderer implements IRenderer {
 		}
 	}
 
-	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IExceptionBreakpointTemplateData): void {
+	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IBaseBreakpointTemplateData): void {
 		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;;
 		data.breakpoint.title = data.name.textContent;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 	}
 
-	private renderFunctionBreakpoint(tree: ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IFunctionBreakpointTemplateData): void {
+	private renderFunctionBreakpoint(tree: ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IBaseBreakpointTemplateData): void {
 		const selected = this.debugService.getViewModel().getSelectedFunctionBreakpoint();
 		if (!functionBreakpoint.name || (selected && selected.getId() === functionBreakpoint.getId())) {
 			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, {
@@ -1250,17 +1275,15 @@ export class BreakpointsRenderer implements IRenderer {
 				tree.removeTraits('disabled', [functionBreakpoint]);
 			}
 		}
-		data.actionBar.context = functionBreakpoint;
 	}
 
 	private renderBreakpoint(tree: ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
 		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
-		data.lineNumber.textContent = breakpoint.desiredLineNumber !== breakpoint.lineNumber ? breakpoint.desiredLineNumber + ' \u2192 ' + breakpoint.lineNumber : '' + breakpoint.lineNumber;
+		data.lineNumber.textContent = breakpoint.lineNumber.toString();
 		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
-		data.actionBar.context = breakpoint;
 
 		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped || this.debugService.state === debug.State.Initializing;
 		if (debugActive && !breakpoint.verified) {
@@ -1274,9 +1297,7 @@ export class BreakpointsRenderer implements IRenderer {
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
-		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
-			templateData.actionBar.dispose();
-		}
+		lifecycle.dispose(templateData.toDispose);
 	}
 }
 
