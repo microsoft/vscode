@@ -12,7 +12,10 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
+import * as strings from 'vs/base/common/strings';
 import { distinct } from 'vs/base/common/arrays';
+import { IRange } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
@@ -21,14 +24,10 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 const MAX_REPL_LENGTH = 10000;
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
-function massageValue(value: string): string {
-	return value ? value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') : value;
-}
-
-export class OutputElement implements debug.ITreeElement {
+export abstract class AbstractOutputElement implements debug.ITreeElement {
 	private static ID_COUNTER = 0;
 
-	constructor(private id = OutputElement.ID_COUNTER++) {
+	constructor(private id = AbstractOutputElement.ID_COUNTER++) {
 		// noop
 	}
 
@@ -37,69 +36,60 @@ export class OutputElement implements debug.ITreeElement {
 	}
 }
 
-export class ValueOutputElement extends OutputElement {
+export class OutputElement extends AbstractOutputElement {
+
+	public counter: number;
 
 	constructor(
 		public value: string,
 		public severity: severity,
-		public category?: string,
-		public counter: number = 1
 	) {
 		super();
+		this.counter = 1;
 	}
 }
 
-export class KeyValueOutputElement extends OutputElement {
+export class OutputNameValueElement extends AbstractOutputElement implements debug.IExpression {
 
 	private static MAX_CHILDREN = 1000; // upper bound of children per value
 
-	private children: debug.ITreeElement[];
-	private _valueName: string;
-
-	constructor(public key: string, public valueObj: any, public annotation?: string) {
+	constructor(public name: string, public valueObj: any, public annotation?: string) {
 		super();
-
-		this._valueName = null;
 	}
 
 	public get value(): string {
-		if (this._valueName === null) {
-			if (this.valueObj === null) {
-				this._valueName = 'null';
-			} else if (Array.isArray(this.valueObj)) {
-				this._valueName = `Array[${this.valueObj.length}]`;
-			} else if (isObject(this.valueObj)) {
-				this._valueName = 'Object';
-			} else if (isString(this.valueObj)) {
-				this._valueName = `"${massageValue(this.valueObj)}"`;
-			} else {
-				this._valueName = String(this.valueObj);
-			}
-
-			if (!this._valueName) {
-				this._valueName = '';
-			}
+		if (this.valueObj === null) {
+			return 'null';
+		} else if (Array.isArray(this.valueObj)) {
+			return `Array[${this.valueObj.length}]`;
+		} else if (isObject(this.valueObj)) {
+			return 'Object';
+		} else if (isString(this.valueObj)) {
+			return this.valueObj;
 		}
 
-		return this._valueName;
+		return String(this.valueObj) || '';
 	}
 
-	public getChildren(): debug.ITreeElement[] {
-		if (!this.children) {
-			if (Array.isArray(this.valueObj)) {
-				this.children = (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map((v, index) => new KeyValueOutputElement(String(index), v, null));
-			} else if (isObject(this.valueObj)) {
-				this.children = Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map(key => new KeyValueOutputElement(key, this.valueObj[key], null));
-			} else {
-				this.children = [];
-			}
+	public get hasChildren(): boolean {
+		return Array.isArray(this.valueObj) || isObject(this.valueObj);
+	}
+
+	public getChildren(): TPromise<debug.IExpression[]> {
+		let result: debug.IExpression[] = [];
+		if (Array.isArray(this.valueObj)) {
+			result = (<any[]>this.valueObj).slice(0, OutputNameValueElement.MAX_CHILDREN)
+				.map((v, index) => new OutputNameValueElement(String(index), v));
+		} else if (isObject(this.valueObj)) {
+			result = Object.getOwnPropertyNames(this.valueObj).slice(0, OutputNameValueElement.MAX_CHILDREN)
+				.map(key => new OutputNameValueElement(key, this.valueObj[key]));
 		}
 
-		return this.children;
+		return TPromise.as(result);
 	}
 }
 
-export abstract class ExpressionContainer implements debug.IExpressionContainer {
+export class ExpressionContainer implements debug.IExpressionContainer {
 
 	public static allValues: { [id: string]: string } = {};
 	// Use chunks to support variable paging #9537
@@ -109,17 +99,16 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	private _value: string;
 
 	constructor(
-		public stackFrame: debug.IStackFrame,
+		protected process: debug.IProcess,
 		public reference: number,
 		private id: string,
-		public namedVariables: number,
-		public indexedVariables: number,
+		public namedVariables = 0,
+		public indexedVariables = 0,
 		private startOfVariables = 0
 	) { }
 
 	public getChildren(): TPromise<debug.IExpression[]> {
-		// only variables with reference > 0 have children.
-		if (this.reference <= 0) {
+		if (!this.hasChildren) {
 			return TPromise.as([]);
 		}
 
@@ -141,7 +130,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 				for (let i = 0; i < numberOfChunks; i++) {
 					const start = this.startOfVariables + i * chunkSize;
 					const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
-					childrenArray.push(new Variable(this.stackFrame, this, this.reference, `[${start}..${start + count - 1}]`, '', '', null, count, null, true, start));
+					childrenArray.push(new Variable(this.process, this, this.reference, `[${start}..${start + count - 1}]`, '', '', null, count, null, true, start));
 				}
 
 				return childrenArray;
@@ -161,20 +150,21 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	}
 
 	public get hasChildren(): boolean {
+		// only variables with reference > 0 have children.
 		return this.reference > 0;
 	}
 
 	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
-		return this.stackFrame.thread.process.session.variables({
+		return this.process.session.variables({
 			variablesReference: this.reference,
 			start,
 			count,
 			filter
 		}).then(response => {
 			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v), v => v.name).map(
-				v => new Variable(this.stackFrame, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.type)
+				v => new Variable(this.process, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.type)
 			) : [];
-		}, (e: Error) => [new Variable(this.stackFrame, this, 0, null, e.message, '', 0, 0, null, false)]);
+		}, (e: Error) => [new Variable(this.process, this, 0, null, e.message, '', 0, 0, null, false)]);
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
@@ -183,7 +173,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	}
 
 	public set value(value: string) {
-		this._value = massageValue(value);
+		this._value = value;
 		this.valueChanged = ExpressionContainer.allValues[this.getId()] &&
 			ExpressionContainer.allValues[this.getId()] !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues[this.getId()] !== value;
 		ExpressionContainer.allValues[this.getId()] = value;
@@ -191,13 +181,13 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 }
 
 export class Expression extends ExpressionContainer implements debug.IExpression {
-	static DEFAULT_VALUE = 'not available';
+	static DEFAULT_VALUE = nls.localize('notAvailable', "not available");
 
 	public available: boolean;
 	public type: string;
 
 	constructor(public name: string, id = generateUuid()) {
-		super(null, 0, id, 0, 0);
+		super(null, 0, id);
 		this.available = false;
 		// name is not set if the expression is just being added
 		// in that case do not set default value to prevent flashing #14499
@@ -215,10 +205,7 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 			return TPromise.as(null);
 		}
 
-		// Create a fake stack frame which is just used as a container for the process.
-		// TODO@Isidor revisit if variables should have a reference to the StackFrame or a process after all
-		this.stackFrame = stackFrame || new StackFrame(new Thread(process, undefined, undefined), undefined, undefined, undefined, undefined, undefined);
-
+		this.process = process;
 		return process.session.evaluate({
 			expression: this.name,
 			frameId: stackFrame ? stackFrame.frameId : undefined,
@@ -248,7 +235,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 	private static ARRAY_ELEMENT_SYNTAX = /\[.*\]$/;
 
 	constructor(
-		stackFrame: debug.IStackFrame,
+		process: debug.IProcess,
 		public parent: debug.IExpressionContainer,
 		reference: number,
 		public name: string,
@@ -260,8 +247,8 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		public available = true,
 		startOfVariables = 0
 	) {
-		super(stackFrame, reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
-		this.value = massageValue(value);
+		super(process, reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
+		this.value = value;
 	}
 
 	public get evaluateName(): string {
@@ -269,6 +256,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 			return this._evaluateName;
 		}
 
+		// TODO@Isidor get rid of this ugly heuristic
 		let names = [this.name];
 		let v = this.parent;
 		while (v instanceof Variable || v instanceof Expression) {
@@ -281,7 +269,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		names.forEach(name => {
 			if (!result) {
 				result = name;
-			} else if (Variable.ARRAY_ELEMENT_SYNTAX.test(name) || (this.stackFrame.thread.process.session.configuration.type === 'node' && !Variable.NOT_PROPERTY_SYNTAX.test(name))) {
+			} else if (Variable.ARRAY_ELEMENT_SYNTAX.test(name) || (this.process.session.configuration.type === 'node' && !Variable.NOT_PROPERTY_SYNTAX.test(name))) {
 				// use safe way to access node properties a['property_name']. Also handles array elements.
 				result = name && name.indexOf('[') === 0 ? `${result}${name}` : `${result}['${name}']`;
 			} else {
@@ -293,7 +281,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 	}
 
 	public setVariable(value: string): TPromise<any> {
-		return this.stackFrame.thread.process.session.setVariable({
+		return this.process.session.setVariable({
 			name: this.name,
 			value,
 			variablesReference: (<ExpressionContainer>this.parent).reference
@@ -305,7 +293,6 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 				this.namedVariables = response.body.namedVariables;
 				this.indexedVariables = response.body.indexedVariables;
 			}
-			// TODO@Isidor notify stackFrame that a change has happened so watch expressions get revelauted
 		}, err => {
 			this.errorMessage = err.message;
 		});
@@ -320,9 +307,10 @@ export class Scope extends ExpressionContainer implements debug.IScope {
 		reference: number,
 		public expensive: boolean,
 		namedVariables: number,
-		indexedVariables: number
+		indexedVariables: number,
+		public range?: IRange
 	) {
-		super(stackFrame, reference, `scope:${stackFrame.getId()}:${name}:${reference}`, namedVariables, indexedVariables);
+		super(stackFrame.thread.process, reference, `scope:${stackFrame.getId()}:${name}:${reference}`, namedVariables, indexedVariables);
 	}
 }
 
@@ -349,7 +337,8 @@ export class StackFrame implements debug.IStackFrame {
 		if (!this.scopes) {
 			this.scopes = this.thread.process.session.scopes({ frameId: this.frameId }).then(response => {
 				return response && response.body && response.body.scopes ?
-					response.body.scopes.map(rs => new Scope(this, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables)) : [];
+					response.body.scopes.map(rs => new Scope(this, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
+						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : null)) : [];
 			}, err => []);
 		}
 
@@ -388,9 +377,9 @@ export class Thread implements debug.IThread {
 	public stopped: boolean;
 
 	constructor(public process: debug.IProcess, public name: string, public threadId: number) {
-		this.promisedCallStack = undefined;
-		this.stoppedDetails = undefined;
-		this.cachedCallStack = undefined;
+		this.promisedCallStack = null;
+		this.stoppedDetails = null;
+		this.cachedCallStack = null;
 		this.stopped = false;
 	}
 
@@ -399,15 +388,22 @@ export class Thread implements debug.IThread {
 	}
 
 	public clearCallStack(): void {
-		this.promisedCallStack = undefined;
-		this.cachedCallStack = undefined;
+		this.promisedCallStack = null;
+		this.cachedCallStack = null;
 	}
 
-	public getCachedCallStack(): debug.IStackFrame[] {
+	public getCallStack(): debug.IStackFrame[] {
 		return this.cachedCallStack;
 	}
 
-	public getCallStack(getAdditionalStackFrames = false): TPromise<debug.IStackFrame[]> {
+	/**
+	 * Queries the debug adapter for the callstack and returns a promise with
+	 * the stack frames of the callstack.
+	 * If the thread is not stopped, it returns a promise to an empty array.
+	 * Only gets the first 20 stack frames. Calling this method consecutive times
+	 * with getAdditionalStackFrames = true gets the remainder of the call stack.
+	 */
+	public fetchCallStack(getAdditionalStackFrames = false): TPromise<debug.IStackFrame[]> {
 		if (!this.stopped) {
 			return TPromise.as([]);
 		}
@@ -439,7 +435,7 @@ export class Thread implements debug.IThread {
 
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
-					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
+					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), null, null);
 				}
 
 				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
@@ -476,11 +472,15 @@ export class Thread implements debug.IThread {
 	public pause(): TPromise<any> {
 		return this.process.session.pause({ threadId: this.threadId });
 	}
+
+	public reverseContinue(): TPromise<any> {
+		return this.process.session.reverseContinue({ threadId: this.threadId });
+	}
 }
 
 export class Process implements debug.IProcess {
 
-	private threads: { [reference: number]: debug.IThread; };
+	private threads: { [reference: number]: Thread; };
 
 	constructor(public name: string, private _session: debug.ISession & debug.ITreeElement) {
 		this.threads = {};
@@ -490,7 +490,7 @@ export class Process implements debug.IProcess {
 		return this._session;
 	}
 
-	public getThread(threadId: number): debug.IThread {
+	public getThread(threadId: number): Thread {
 		return this.threads[threadId];
 	}
 
@@ -570,7 +570,6 @@ export class Process implements debug.IProcess {
 
 export class Breakpoint implements debug.IBreakpoint {
 
-	public lineNumber: number;
 	public verified: boolean;
 	public idFromAdapter: number;
 	public message: string;
@@ -578,7 +577,7 @@ export class Breakpoint implements debug.IBreakpoint {
 
 	constructor(
 		public uri: uri,
-		public desiredLineNumber: number,
+		public lineNumber: number,
 		public enabled: boolean,
 		public condition: string,
 		public hitCondition: string
@@ -586,7 +585,6 @@ export class Breakpoint implements debug.IBreakpoint {
 		if (enabled === undefined) {
 			this.enabled = true;
 		}
-		this.lineNumber = this.desiredLineNumber;
 		this.verified = false;
 		this.id = generateUuid();
 	}
@@ -755,6 +753,9 @@ export class Model implements debug.IModel {
 				bp.message = bpData.message;
 			}
 		});
+
+		// Remove duplicate breakpoints. This can happen when an adapter updates a line number of a breakpoint
+		this.breakpoints = distinct(this.breakpoints, bp => bp.uri.toString() + bp.lineNumber);
 		this._onDidChangeBreakpoints.fire();
 	}
 
@@ -762,7 +763,6 @@ export class Model implements debug.IModel {
 		element.enabled = enable;
 		if (element instanceof Breakpoint && !element.enabled) {
 			var breakpoint = <Breakpoint>element;
-			breakpoint.lineNumber = breakpoint.desiredLineNumber;
 			breakpoint.verified = false;
 		}
 
@@ -773,7 +773,6 @@ export class Model implements debug.IModel {
 		this.breakpoints.forEach(bp => {
 			bp.enabled = enable;
 			if (!enable) {
-				bp.lineNumber = bp.desiredLineNumber;
 				bp.verified = false;
 			}
 		});
@@ -813,63 +812,32 @@ export class Model implements debug.IModel {
 
 	public addReplExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
 		const expression = new Expression(name);
-		this.addReplElements([expression]);
+		this.addReplElement(expression);
 		return expression.evaluate(process, stackFrame, 'repl')
 			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
-		let elements: OutputElement[] = [];
-		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
-
-		// string message
-		if (typeof value === 'string') {
-			if (value && value.trim() && previousOutput && previousOutput.value === value && previousOutput.severity === severity) {
-				previousOutput.counter++; // we got the same output (but not an empty string when trimmed) so we just increment the counter
-			} else {
-				let lines = value.trim().split('\n');
-				lines.forEach((line, index) => {
-					elements.push(new ValueOutputElement(line, severity));
-				});
-			}
-		}
-
-		// key-value output
-		else {
-			elements.push(new KeyValueOutputElement((<any>value).prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
-		}
-
-		if (elements.length) {
-			this.addReplElements(elements);
-		}
-		this._onDidChangeREPLElements.fire();
-	}
-
-	public appendReplOutput(value: string, severity?: severity): void {
-		const elements: OutputElement[] = [];
-		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
-		let lines = value.split('\n');
-		let groupTogether = !!previousOutput && (previousOutput.category === 'output' && severity === previousOutput.severity);
-
+	public appendToRepl(output: string | debug.IExpression, severity: severity): void {
+		const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
+		const groupTogether = typeof output === 'string' && previousOutput instanceof OutputElement && severity === previousOutput.severity;
 		if (groupTogether) {
-			// append to previous line if same group
-			previousOutput.value += lines.shift();
-		} else if (previousOutput && previousOutput.value === '') {
-			// remove potential empty lines between different output types
-			this.replElements.pop();
+			if (strings.endsWith(previousOutput.value, '\n') && previousOutput.value === output && output.trim()) {
+				// we got the same output (but not an empty string when trimmed) so we just increment the counter
+				previousOutput.counter++;
+			} else {
+				// append to previous line if same group
+				previousOutput.value += output;
+			}
+		} else {
+			const newReplElement = typeof output === 'string' ? new OutputElement(output, severity) : output;
+			this.addReplElement(newReplElement);
 		}
 
-		// fill in lines as output value elements
-		lines.forEach((line, index) => {
-			elements.push(new ValueOutputElement(line, severity, 'output'));
-		});
-
-		this.addReplElements(elements);
 		this._onDidChangeREPLElements.fire();
 	}
 
-	private addReplElements(newElements: debug.ITreeElement[]): void {
-		this.replElements.push(...newElements);
+	private addReplElement(newElement: debug.ITreeElement): void {
+		this.replElements.push(newElement);
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
 		}

@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { decodeTextMateToken, decodeTextMateTokens, DecodeMap, TMScopeRegistry, TMLanguageRegistration } from 'vs/editor/node/textMate/TMSyntax';
-import { TMState } from 'vs/editor/common/modes/TMState';
+import { TMState } from 'vs/editor/node/textMate/TMState';
 
 suite('TextMate.TMScopeRegistry', () => {
 
@@ -332,7 +332,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 					{ startIndex: 1, type: 'meta.punctuation.embedded.section.end.block.php.metatag' }
 				],
 				modeTransitions: [
-					{ startIndex: 0, modeId: 'php'},
+					{ startIndex: 0, modeId: 'php' },
 					{ startIndex: 1, modeId: 'html' }
 				]
 			}, {
@@ -843,8 +843,8 @@ suite('TextMate.decodeTextMateTokens', () => {
 			{
 				line: 'class {',
 				tmTokens: [
-					{ startIndex: 0, endIndex: 6, scopes: [ 'source.css.scss' ] },
-					{ startIndex: 6, endIndex: 7, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'punctuation.section.property-list.begin.bracket.curly.scss' ] }
+					{ startIndex: 0, endIndex: 6, scopes: ['source.css.scss'] },
+					{ startIndex: 6, endIndex: 7, scopes: ['source.css.scss', 'meta.property-list.scss', 'punctuation.section.property-list.begin.bracket.curly.scss'] }
 				],
 				tokens: [
 					{ startIndex: 0, type: '' },
@@ -856,12 +856,12 @@ suite('TextMate.decodeTextMateTokens', () => {
 			}, {
 				line: '    background: red;',
 				tmTokens: [
-					{ startIndex: 0, endIndex: 4, scopes: [ 'source.css.scss', 'meta.property-list.scss' ] },
-					{ startIndex: 4, endIndex: 14, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'meta.property-name.scss', 'support.type.property-name.scss' ] },
-					{ startIndex: 14, endIndex: 15, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'punctuation.separator.key-value.scss' ] },
-					{ startIndex: 15, endIndex: 16, scopes: [ 'source.css.scss', 'meta.property-list.scss' ] },
-					{ startIndex: 16, endIndex: 19, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'meta.property-value.scss', 'support.constant.color.w3c-standard-color-name.scss' ] },
-					{ startIndex: 19, endIndex: 20, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'punctuation.terminator.rule.scss' ] }
+					{ startIndex: 0, endIndex: 4, scopes: ['source.css.scss', 'meta.property-list.scss'] },
+					{ startIndex: 4, endIndex: 14, scopes: ['source.css.scss', 'meta.property-list.scss', 'meta.property-name.scss', 'support.type.property-name.scss'] },
+					{ startIndex: 14, endIndex: 15, scopes: ['source.css.scss', 'meta.property-list.scss', 'punctuation.separator.key-value.scss'] },
+					{ startIndex: 15, endIndex: 16, scopes: ['source.css.scss', 'meta.property-list.scss'] },
+					{ startIndex: 16, endIndex: 19, scopes: ['source.css.scss', 'meta.property-list.scss', 'meta.property-value.scss', 'support.constant.color.w3c-standard-color-name.scss'] },
+					{ startIndex: 19, endIndex: 20, scopes: ['source.css.scss', 'meta.property-list.scss', 'punctuation.terminator.rule.scss'] }
 				],
 				tokens: [
 					{ startIndex: 0, type: 'meta.property-list.scss' },
@@ -877,7 +877,7 @@ suite('TextMate.decodeTextMateTokens', () => {
 			}, {
 				line: '}',
 				tmTokens: [
-					{ startIndex: 0, endIndex: 1, scopes: [ 'source.css.scss', 'meta.property-list.scss', 'punctuation.section.property-list.end.bracket.curly.scss' ] }
+					{ startIndex: 0, endIndex: 1, scopes: ['source.css.scss', 'meta.property-list.scss', 'punctuation.section.property-list.end.bracket.curly.scss'] }
 				],
 				tokens: [
 					{ startIndex: 0, type: 'meta.property-list.scss.punctuation.section.bracket.curly.end' }

@@ -6,10 +6,11 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { mixin } from 'vs/base/common/objects';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, CompletionItem } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, CompletionItem, SnippetString } from 'vs/workbench/api/node/extHostTypes';
 import { IPosition, IRange, ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -260,11 +261,11 @@ class DocumentFormattingAdapter {
 
 	provideDocumentFormattingEdits(resource: URI, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		const {document, version} = this._documents.getDocumentData(resource);
+		const {document} = this._documents.getDocumentData(resource);
 
 		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
+				return value.map(TypeConverters.TextEdit.from);
 			}
 		});
 	}
@@ -282,12 +283,12 @@ class RangeFormattingAdapter {
 
 	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		const {document, version} = this._documents.getDocumentData(resource);
+		const {document} = this._documents.getDocumentData(resource);
 		const ran = TypeConverters.toRange(range);
 
 		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
+				return value.map(TypeConverters.TextEdit.from);
 			}
 		});
 	}
@@ -307,12 +308,12 @@ class OnTypeFormattingAdapter {
 
 	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		const {document, version} = this._documents.getDocumentData(resource);
+		const {document} = this._documents.getDocumentData(resource);
 		const pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
+				return value.map(TypeConverters.TextEdit.from);
 			}
 		});
 	}
@@ -412,14 +413,12 @@ class SuggestAdapter {
 	private _commands: CommandsConverter;
 	private _heapService: ExtHostHeapService;
 	private _provider: vscode.CompletionItemProvider;
-	private _extensionId: string;
 
-	constructor(documents: ExtHostDocuments, commands: CommandsConverter, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider, extensionId?: string) {
+	constructor(documents: ExtHostDocuments, commands: CommandsConverter, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
 		this._commands = commands;
 		this._heapService = heapService;
 		this._provider = provider;
-		this._extensionId = extensionId;
 	}
 
 	provideCompletionItems(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
@@ -432,10 +431,6 @@ class SuggestAdapter {
 			const result: modes.ISuggestResult = {
 				suggestions: [],
 			};
-
-			// the default text edit range
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
-				.with({ end: pos });
 
 			let list: CompletionList;
 			if (!value) {
@@ -450,40 +445,21 @@ class SuggestAdapter {
 				result.incomplete = list.isIncomplete;
 			}
 
-			for (let i = 0; i < list.items.length; i++) {
+			// the default text edit range
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
+				.with({ end: pos });
 
-				const item = list.items[i];
-				const suggestion = TypeConverters.Suggest.from(item);
-				suggestion.command = this._commands.toInternal(item.command);
+			for (const item of list.items) {
+
+				const suggestion = this._convertCompletionItem(item, pos, wordRangeBeforePos);
+
+				// bad completion item
+				if (!suggestion) {
+					// converter did warn
+					continue;
+				}
+
 				ObjectIdentifier.mixin(suggestion, this._heapService.keep(item));
-
-				if (item.textEdit) {
-
-					const editRange = item.textEdit.range;
-
-					// invalid text edit
-					if (!editRange.isSingleLine || editRange.start.line !== pos.line) {
-						console.warn('INVALID text edit, must be single line and on the same line');
-						continue;
-					}
-
-					// insert the text of the edit and create a dedicated
-					// suggestion-container with overwrite[Before|After]
-					suggestion.insertText = item.textEdit.newText;
-					suggestion.overwriteBefore = pos.character - editRange.start.character;
-					suggestion.overwriteAfter = editRange.end.character - pos.character;
-
-				} else {
-					// default text edit
-					suggestion.overwriteBefore = pos.character - wordRangeBeforePos.start.character;
-					suggestion.overwriteAfter = 0;
-				}
-
-				if (this._extensionId) {
-					suggestion._extensionId = this._extensionId;
-				}
-
-				// store suggestion
 				result.suggestions.push(suggestion);
 			}
 
@@ -502,12 +478,81 @@ class SuggestAdapter {
 		if (!item) {
 			return TPromise.as(suggestion);
 		}
+
 		return asWinJsPromise(token => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
-			resolvedItem = resolvedItem || item;
-			const suggestion = TypeConverters.Suggest.from(resolvedItem);
-			suggestion.command = this._commands.toInternal(resolvedItem.command);
+
+			if (!resolvedItem) {
+				return suggestion;
+			}
+
+			const doc = this._documents.getDocumentData(resource).document;
+			const pos = TypeConverters.toPosition(position);
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos)).with({ end: pos });
+			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos);
+			if (newSuggestion) {
+				mixin(suggestion, newSuggestion, true);
+			}
+
 			return suggestion;
 		});
+	}
+
+	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range): modes.ISuggestion {
+		if (!item.label) {
+			console.warn('INVALID text edit -> must have at least a label');
+			return;
+		}
+
+		const result: modes.ISuggestion = {
+			//
+			label: item.label,
+			type: TypeConverters.CompletionItemKind.from(item.kind),
+			detail: item.detail,
+			documentation: item.documentation,
+			filterText: item.filterText,
+			sortText: item.sortText,
+			//
+			insertText: undefined,
+			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(TypeConverters.TextEdit.from),
+			command: this._commands.toInternal(item.command)
+		};
+
+		// 'insertText'-logic
+		if (item.textEdit) {
+			result.insertText = item.textEdit.newText;
+			result.snippetType = 'internal';
+
+		} else if (typeof item.insertText === 'string') {
+			result.insertText = item.insertText;
+			result.snippetType = 'internal';
+
+		} else if (item.insertText instanceof SnippetString) {
+			result.insertText = item.insertText.value;
+			result.snippetType = 'textmate';
+
+		} else {
+			result.insertText = item.label;
+			result.snippetType = 'internal';
+		}
+
+		// 'overwrite[Before|After]'-logic
+		let range: vscode.Range;
+		if (item.textEdit) {
+			range = item.textEdit.range;
+		} else if (item.range) {
+			range = item.range;
+		} else {
+			range = defaultRange;
+		}
+		result.overwriteBefore = position.character - range.start.character;
+		result.overwriteAfter = range.end.character - position.character;
+
+		if (!range.isSingleLine || range.start.line !== position.line) {
+			console.warn('INVALID text edit -> must be single line and on the same line');
+			return;
+		}
+
+		return result;
 	}
 }
 
@@ -777,9 +822,9 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	// --- suggestion
 
-	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[], extensionId?: string): vscode.Disposable {
+	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new SuggestAdapter(this._documents, this._commands.converter, this._heapService, provider, extensionId);
+		this._adapter[handle] = new SuggestAdapter(this._documents, this._commands.converter, this._heapService, provider);
 		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}

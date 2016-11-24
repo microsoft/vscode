@@ -20,10 +20,11 @@
 	"files.exclude.when": "Comprobación adicional de los elementos del mismo nivel de un archivo coincidente. Use $(nombreBase) como variable para el nombre de archivo que coincide.",
 	"filesConfigurationTitle": "Archivos",
 	"formatOnSave": "Formatea un archivo al guardarlo. Debe haber un formateador disponible, el archivo no debe guardarse automáticamente y el editor no debe estar cerrándose.",
+	"insertFinalNewline": "Si se habilita, inserte una nueva línea final al final del archivo cuando lo guarde.",
 	"openEditorsVisible": "Número de editores mostrados en el panel Editores abiertos. Establezca este valor en 0 para ocultar el panel.",
 	"showExplorerViewlet": "Mostrar explorador",
 	"textFileEditor": "Editor de archivos de texto",
-	"trimTrailingWhitespace": "Si está habilitado, se recortará el espacio final cuando guarde un archivo.",
+	"trimTrailingWhitespace": "Si se habilita, se recortará el espacio final cuando se guarde un archivo.",
 	"view": "Ver",
 	"watcherExclude": "Configure patrones globales de las rutas de acceso de archivo que se van a excluir de la inspección de archivos. Al cambiar esta configuración, es necesario reiniciar. Si observa que Code consume mucho tiempo de CPU al iniciarse, puede excluir las carpetas grandes para reducir la carga inicial."
 }

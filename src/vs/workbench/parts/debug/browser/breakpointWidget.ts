@@ -3,29 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
 import 'vs/css!../browser/media/breakpointWidget';
-import async = require('vs/base/common/async');
-import errors = require('vs/base/common/errors');
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import platform = require('vs/base/common/platform');
+import * as nls from 'vs/nls';
+import * as async from 'vs/base/common/async';
+import * as errors from 'vs/base/common/errors';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import lifecycle = require('vs/base/common/lifecycle');
-import dom = require('vs/base/browser/dom');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as dom from 'vs/base/browser/dom';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { CommonEditorRegistry, ServicesAccessor, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
-import { EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import editorbrowser = require('vs/editor/browser/editorBrowser');
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import { IDebugService, IBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.$;
-const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
-const CLOSE_BREAKPOINT_WIDGET_COMMAND_ID = 'closeBreakpointWidget';
 const EXPRESSION_PLACEHOLDER = nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. 'Enter' to accept, 'esc' to cancel.");
 const EXPRESSION_ARIA_LABEL = nls.localize('breakpointWidgetAriaLabel', "The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.");
 const HIT_COUNT_PLACEHOLDER = nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met. 'Enter' to accept, 'esc' to cancel.");
@@ -33,37 +27,22 @@ const HIT_COUNT_ARIA_LABEL = nls.localize('breakpointWidgetHitCountAriaLabel', "
 
 export class BreakpointWidget extends ZoneWidget {
 
-	public static INSTANCE: BreakpointWidget;
-
 	private inputBox: InputBox;
 	private toDispose: lifecycle.IDisposable[];
-	private breakpointWidgetVisible: IContextKey<boolean>;
 	private hitCountContext: boolean;
-	private static lastSelected = 0;
+	private hitCountInput: string;
+	private conditionInput: string;
 
-	constructor(editor: editorbrowser.ICodeEditor, private lineNumber: number,
+	constructor(editor: ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
-		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IDebugService private debugService: IDebugService
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameColor: '#007ACC', frameWidth: 1 });
 
 		this.toDispose = [];
-
+		this.hitCountInput = '';
+		this.conditionInput = '';
 		this.create();
-		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this.breakpointWidgetVisible.set(true);
-		BreakpointWidget.INSTANCE = this;
-		this.toDispose.push(editor.onDidChangeModel(() => this.dispose()));
-	}
-
-	public static createInstance(editor: editorbrowser.ICodeEditor, lineNumber: number, instantiationService: IInstantiationService): void {
-		if (BreakpointWidget.INSTANCE) {
-			BreakpointWidget.INSTANCE.dispose();
-		}
-
-		instantiationService.createInstance(BreakpointWidget, editor, lineNumber);
-		BreakpointWidget.INSTANCE.show({ lineNumber, column: 1 }, 2);
 	}
 
 	private get placeholder(): string {
@@ -74,12 +53,12 @@ export class BreakpointWidget extends ZoneWidget {
 		return this.hitCountContext ? HIT_COUNT_ARIA_LABEL : EXPRESSION_ARIA_LABEL;
 	}
 
-	private getInputBoxValue(breakpoint: debug.IBreakpoint): string {
+	private getInputBoxValue(breakpoint: IBreakpoint): string {
 		if (this.hitCountContext) {
-			return breakpoint && breakpoint.hitCondition ? breakpoint.hitCondition : '';
+			return breakpoint && breakpoint.hitCondition ? breakpoint.hitCondition : this.hitCountInput;
 		}
 
-		return breakpoint && breakpoint.condition ? breakpoint.condition : '';
+		return breakpoint && breakpoint.condition ? breakpoint.condition : this.conditionInput;
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -87,19 +66,18 @@ export class BreakpointWidget extends ZoneWidget {
 		const uri = this.editor.getModel().uri;
 		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.uri.toString() === uri.toString()).pop();
 
-		let selected = BreakpointWidget.lastSelected;
-		if (breakpoint && breakpoint.condition) {
-			selected = 0;
-		} else if (breakpoint && breakpoint.hitCondition) {
-			selected = 1;
-		}
-		BreakpointWidget.lastSelected = selected;
-		this.hitCountContext = selected === 1;
+		this.hitCountContext = breakpoint && breakpoint.hitCondition && !breakpoint.condition;
+		const selected = this.hitCountContext ? 1 : 0;
 		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count")], selected);
 		selectBox.render(dom.append(container, $('.breakpoint-select-container')));
 		selectBox.onDidSelect(e => {
 			this.hitCountContext = e === 'Hit Count';
-			BreakpointWidget.lastSelected = this.hitCountContext ? 1 : 0;
+			if (this.hitCountContext) {
+				this.conditionInput = this.inputBox.value;
+			} else {
+				this.hitCountInput = this.inputBox.value;
+			}
+
 			this.inputBox.setAriaLabel(this.ariaLabel);
 			this.inputBox.setPlaceHolder(this.placeholder);
 			this.inputBox.value = this.getInputBoxValue(breakpoint);
@@ -112,7 +90,7 @@ export class BreakpointWidget extends ZoneWidget {
 		});
 		this.toDispose.push(this.inputBox);
 
-		dom.addClass(this.inputBox.inputElement, platform.isWindows ? 'windows' : platform.isMacintosh ? 'mac' : 'linux');
+		dom.addClass(this.inputBox.inputElement, isWindows ? 'windows' : isMacintosh ? 'mac' : 'linux');
 		this.inputBox.value = this.getInputBoxValue(breakpoint);
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.inputBox.focus(), 0);
@@ -126,16 +104,23 @@ export class BreakpointWidget extends ZoneWidget {
 					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
 						.filter(bp => bp.lineNumber === this.lineNumber && bp.uri.toString() === uri.toString()).pop();
 
-					const raw: debug.IRawBreakpoint = {
+					const raw: IRawBreakpoint = {
 						lineNumber: this.lineNumber,
 						enabled: true,
 						condition: oldBreakpoint && oldBreakpoint.condition,
 						hitCondition: oldBreakpoint && oldBreakpoint.hitCondition
 					};
+
 					if (this.hitCountContext) {
 						raw.hitCondition = this.inputBox.value;
+						if (this.conditionInput) {
+							raw.condition = this.conditionInput;
+						}
 					} else {
 						raw.condition = this.inputBox.value;
+						if (this.hitCountInput) {
+							raw.hitCondition = this.hitCountInput;
+						}
 					}
 
 					if (oldBreakpoint) {
@@ -161,32 +146,7 @@ export class BreakpointWidget extends ZoneWidget {
 
 	public dispose(): void {
 		super.dispose();
-		this.breakpointWidgetVisible.reset();
-		BreakpointWidget.INSTANCE = undefined;
 		lifecycle.dispose(this.toDispose);
 		setTimeout(() => this.editor.focus(), 0);
 	}
 }
-
-class CloseBreakpointWidgetCommand extends EditorCommand {
-
-	constructor() {
-		super({
-			id: CLOSE_BREAKPOINT_WIDGET_COMMAND_ID,
-			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
-			kbOpts: {
-				weight: CommonEditorRegistry.commandWeight(8),
-				kbExpr: EditorContextKeys.Focus,
-				primary: KeyCode.Escape,
-				secondary: [KeyMod.Shift | KeyCode.Escape]
-			}
-		});
-	}
-
-	protected runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
-		if (BreakpointWidget.INSTANCE) {
-			BreakpointWidget.INSTANCE.dispose();
-		}
-	}
-}
-CommonEditorRegistry.registerEditorCommand(new CloseBreakpointWidgetCommand());

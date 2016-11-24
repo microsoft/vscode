@@ -12,8 +12,8 @@ import { EditorModel } from 'vs/workbench/common/editor';
  * and the modified version.
  */
 export class DiffEditorModel extends EditorModel {
-	private _originalModel: EditorModel;
-	private _modifiedModel: EditorModel;
+	protected _originalModel: EditorModel;
+	protected _modifiedModel: EditorModel;
 
 	constructor(originalModel: EditorModel, modifiedModel: EditorModel) {
 		super();

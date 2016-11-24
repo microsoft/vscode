@@ -15,7 +15,6 @@ import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutPro
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
-import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -31,10 +30,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
-import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { TitleControl, ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { extractResources } from 'vs/base/browser/dnd';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 
@@ -923,11 +921,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const stacks = this.editorGroupService.getStacksModel();
 
 		let overlay: Builder;
-		let draggedResources: URI[];
 
 		function cleanUp(): void {
-			draggedResources = void 0;
-
 			if (overlay) {
 				overlay.destroy();
 				overlay = void 0;
@@ -953,7 +948,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
-			const droppedResources = draggedResources;
 			DOM.removeClass(node, 'dropfeedback');
 			cleanUp();
 
@@ -1004,9 +998,23 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Check for URI transfer
 			else {
+				const droppedResources = extractResources(e).filter(r => r.resource.scheme === 'file' || r.resource.scheme === 'untitled');
 				if (droppedResources.length) {
+
+					// Add external ones to recently open list
+					const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
+					if (externalResources.length) {
+						$this.windowService.addToRecentlyOpen(externalResources.map(resource => {
+							return {
+								path: resource.fsPath,
+								isFile: true
+							};
+						}));
+					}
+
+					// Open in Editor
 					$this.windowService.focusWindow()
-						.then(() => editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; })))
+						.then(() => editorService.openEditors(droppedResources.map(d => { return { input: { resource: d.resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; })))
 						.then(() => {
 							if (splitEditor && splitTo !== freeGroup) {
 								groupService.moveGroup(freeGroup, splitTo);
@@ -1155,16 +1163,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Drag over
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-
-			// Upon first drag, detect the dragged resources and only take valid ones
-			if (!draggedResources) {
-				draggedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
-			}
-
-			if (!draggedResources.length && !TitleControl.getDraggedEditor()) {
-				return; // do not show drop feedback if we drag invalid resources or no tab around
-			}
-
 			if (e.target === node) {
 				DOM.addClass(node, 'dropfeedback');
 			}

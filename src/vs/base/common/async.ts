@@ -10,6 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
 
 function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
@@ -368,15 +369,15 @@ export function always<T>(promise: TPromise<T>, f: Function): TPromise<T> {
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.
  */
-export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]> {
+export function sequence<T>(promiseFactories: ITask<TPromise<T>>[]): TPromise<T[]> {
 	const results: T[] = [];
 
 	// reverse since we start with last element using pop()
-	promiseFactory = promiseFactory.reverse();
+	promiseFactories = promiseFactories.reverse();
 
 	function next(): Promise {
-		if (promiseFactory.length) {
-			return promiseFactory.pop()();
+		if (promiseFactories.length) {
+			return promiseFactories.pop()();
 		}
 
 		return null;
@@ -396,6 +397,29 @@ export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]>
 	}
 
 	return TPromise.as(null).then(thenHandler);
+}
+
+export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t): TPromise<T> {
+	promiseFactories = [...promiseFactories.reverse()];
+
+	const loop = () => {
+		if (promiseFactories.length === 0) {
+			return TPromise.as(null);
+		}
+
+		const factory = promiseFactories.pop();
+		const promise = factory();
+
+		return promise.then(result => {
+			if (shouldStop(result)) {
+				return TPromise.as(result);
+			}
+
+			return loop();
+		});
+	};
+
+	return loop();
 }
 
 export function once<T extends Function>(fn: T): T {
@@ -430,11 +454,17 @@ export class Limiter<T> {
 	private runningPromises: number;
 	private maxDegreeOfParalellism: number;
 	private outstandingPromises: ILimitedTaskFactory[];
+	private _onFinished: Emitter<void>;
 
 	constructor(maxDegreeOfParalellism: number) {
 		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
 		this.outstandingPromises = [];
 		this.runningPromises = 0;
+		this._onFinished = new Emitter<void>();
+	}
+
+	public get onFinished(): Event<void> {
+		return this._onFinished.event;
 	}
 
 	queue(promiseFactory: ITask<Promise>): Promise;
@@ -464,7 +494,16 @@ export class Limiter<T> {
 
 	private consumed(): void {
 		this.runningPromises--;
-		this.consume();
+
+		if (this.outstandingPromises.length > 0) {
+			this.consume();
+		} else {
+			this._onFinished.fire();
+		}
+	}
+
+	public dispose(): void {
+		this._onFinished.dispose();
 	}
 }
 

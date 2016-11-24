@@ -12,7 +12,7 @@ import nls = require('vs/nls');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
-import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
+import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -20,7 +20,6 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, EventType, FileChangeType } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -33,6 +32,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -190,7 +190,7 @@ export abstract class BaseHistoryService {
 		}
 
 		// Extension Development Host gets a special title to identify itself
-		if (this.environmentService.extensionDevelopmentPath) {
+		if (this.environmentService.isExtensionDevelopment) {
 			return nls.localize('devExtensionWindowTitle', "[Extension Development Host] - {0}", title);
 		}
 
@@ -255,6 +255,7 @@ export abstract class BaseHistoryService {
 interface IStackEntry {
 	input: IEditorInput | IResourceInput;
 	options?: ITextEditorOptions;
+	timestamp: number;
 }
 
 interface IRecentlyClosedFile {
@@ -270,6 +271,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private static MAX_HISTORY_ITEMS = 200;
 	private static MAX_STACK_ITEMS = 20;
 	private static MAX_RECENTLY_CLOSED_EDITORS = 20;
+	private static MERGE_CURSOR_CHANGES_THRESHOLD = 100;
 
 	private stack: IStackEntry[];
 	private index: number;
@@ -292,7 +294,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IIntegrityService integrityService: IIntegrityService,
-		@ITitleService titleService: ITitleService
+		@ITitleService titleService: ITitleService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(editorGroupService, editorService, contextService, configurationService, environmentService, integrityService, titleService);
 
@@ -405,12 +408,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	protected handleEditorSelectionChangeEvent(editor?: IBaseEditor): void {
-		this.handleEditorEventInStack(editor, true);
+		this.handleEditorEventInStack(editor);
 	}
 
 	protected handleActiveEditorChange(editor?: IBaseEditor): void {
 		this.handleEditorEventInHistory(editor);
-		this.handleEditorEventInStack(editor, false);
+		this.handleEditorEventInStack(editor);
 	}
 
 	private handleEditorEventInHistory(editor?: IBaseEditor): void {
@@ -450,6 +453,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.removeFromHistory(arg1);
 		this.removeFromStack(arg1);
 		this.removeFromRecentlyClosedFiles(arg1);
+		this.removeFromRecentlyOpen(arg1);
 	}
 
 	private removeFromHistory(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
@@ -458,13 +462,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.history = this.history.filter(e => !this.matches(arg1, e));
 	}
 
-	private handleEditorEventInStack(editor: IBaseEditor, storeSelection: boolean): void {
+	private handleEditorEventInStack(editor: IBaseEditor): void {
 		if (this.blockStackChanges) {
 			return; // while we open an editor due to a navigation, we do not want to update our stack
 		}
 
 		if (editor instanceof BaseTextEditor && editor.input) {
-			this.handleTextEditorEvent(<BaseTextEditor>editor, storeSelection);
+			this.handleTextEditorEvent(<BaseTextEditor>editor);
 
 			return;
 		}
@@ -476,14 +480,15 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private handleTextEditorEvent(editor: BaseTextEditor, storeSelection: boolean): void {
+	private handleTextEditorEvent(editor: BaseTextEditor): void {
 		const stateCandidate = new EditorState(editor.input, editor.getSelection());
 		if (!this.currentFileEditorState || this.currentFileEditorState.justifiesNewPushState(stateCandidate)) {
 			this.currentFileEditorState = stateCandidate;
 
 			let options: ITextEditorOptions;
-			if (storeSelection) {
-				const selection = editor.getSelection();
+
+			const selection = editor.getSelection();
+			if (selection) {
 				options = {
 					selection: { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn }
 				};
@@ -512,17 +517,21 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Overwrite an entry in the stack if we have a matching input that comes
 		// with editor options to indicate that this entry is more specific. Also
-		// prevent entries that have the exact same options.
+		// prevent entries that have the exact same options. Finally, Overwrite
+		// entries if we detect that the change came in very fast which indicates
+		// that it was not coming in from a user change but rather rapid programmatic
+		// changes. We just take the last of the changes to not cause too many
+		// entries on the stack.
 		let replace = false;
 		if (this.stack[this.index]) {
 			const currentEntry = this.stack[this.index];
-			if (this.matches(input, currentEntry.input) && this.sameOptions(currentEntry.options, options)) {
+			if (this.matches(input, currentEntry.input) && (this.sameOptions(currentEntry.options, options) || Date.now() - currentEntry.timestamp < HistoryService.MERGE_CURSOR_CHANGES_THRESHOLD)) {
 				replace = true;
 			}
 		}
 
 		const stackInput = this.preferResourceInput(input);
-		const entry = { input: stackInput, options };
+		const entry = { input: stackInput, options, timestamp: Date.now() };
 
 		// If we are not at the end of history, we remove anything after
 		if (this.stack.length > this.index + 1) {
@@ -597,6 +606,16 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private removeFromRecentlyClosedFiles(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
 		this.recentlyClosedFiles = this.recentlyClosedFiles.filter(e => !this.matchesFile(e.resource, arg1));
+	}
+
+	private removeFromRecentlyOpen(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
+		if (arg1 instanceof EditorInput || arg1 instanceof FileChangesEvent) {
+			return; // for now do not delete from file events since recently open are likely out of workspace files for which there are no delete events
+		}
+
+		const input = arg1 as IResourceInput;
+
+		this.windowService.removeFromRecentlyOpen([input.resource.fsPath]);
 	}
 
 	private isFileOpened(resource: URI, group: IEditorGroup): boolean {

@@ -656,7 +656,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					let properties: Map<string> = Object.create(null);
 					switch (telemetryData.telemetryEventName) {
 						case 'typingsInstalled':
-							properties['installedPackages'] = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload).installedPackages;
+							let typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
+							properties['installedPackages'] = typingsInstalledPayload.installedPackages;
+							if (is.defined(typingsInstalledPayload.installSuccess)) {
+								properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
+							}
+							if (is.string(typingsInstalledPayload.typingsInstallerVersion)) {
+								properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
+							}
 							break;
 						default:
 							let payload = telemetryData.payload;

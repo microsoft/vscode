@@ -23,6 +23,7 @@ import extfs = require('vs/base/node/extfs');
 import { nfcall, Limiter, ThrottledDelayer } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
+import { isWindows } from 'vs/base/common/platform';
 
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
@@ -70,6 +71,7 @@ export class FileService implements IFileService {
 	public _serviceBrand: any;
 
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+	private static FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
 	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
 	private basePath: string;
@@ -100,12 +102,12 @@ export class FileService implements IFileService {
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
 
-		if (this.options && !this.options.errorLogger) {
+		if (!this.options.errorLogger) {
 			this.options.errorLogger = console.error;
 		}
 
 		if (this.basePath && !this.options.disableWatcher) {
-			if (process.platform === 'win32') {
+			if (isWindows) {
 				this.setupWin32WorkspaceWatching();
 			} else {
 				this.setupUnixWorkspaceWatching();
@@ -273,13 +275,13 @@ export class FileService implements IFileService {
 
 					// Write fast if we do UTF 8 without BOM
 					if (!addBom && encodingToWrite === encoding.UTF8) {
-						writeFilePromise = pfs.writeFileAndFlush(absolutePath, value, encoding.UTF8);
+						writeFilePromise = pfs.writeFile(absolutePath, value, encoding.UTF8);
 					}
 
 					// Otherwise use encoding lib
 					else {
 						const encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
-						writeFilePromise = pfs.writeFileAndFlush(absolutePath, encoded);
+						writeFilePromise = pfs.writeFile(absolutePath, encoded);
 					}
 
 					// 4.) set contents
@@ -596,26 +598,44 @@ export class FileService implements IFileService {
 	}
 
 	public watchFileChanges(resource: uri): void {
-		assert.ok(resource && resource.scheme === 'file', 'Invalid resource for watching: ' + resource);
-
-		const fsPath = resource.fsPath;
+		assert.ok(resource && resource.scheme === 'file', `Invalid resource for watching: ${resource}`);
 
 		// Create or get watcher for provided path
 		let watcher = this.activeFileChangesWatchers[resource.toString()];
 		if (!watcher) {
+			const fsPath = resource.fsPath;
+
 			try {
 				watcher = fs.watch(fsPath); // will be persistent but not recursive
 			} catch (error) {
-				// the path might not exist anymore, ignore this error and return
-				return;
+				return; // the path might not exist anymore, ignore this error and return
 			}
 
 			this.activeFileChangesWatchers[resource.toString()] = watcher;
 
 			// eventType is either 'rename' or 'change'
-			watcher.on('change', (eventType: string) => {
-				if (eventType !== 'change') {
-					return; // only care about changes for now ('rename' is not reliable and can be send even if the file is still there with some tools)
+			const fsName = paths.basename(resource.fsPath);
+			watcher.on('change', (eventType: string, filename: string) => {
+				const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
+
+				// The file was either deleted or renamed. Many tools apply changes to files in an
+				// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
+				// renaming it back to the original name. Our watcher will detect this as a rename
+				// and then stops to work on Mac and Linux because the watcher is applied to the
+				// inode and not the name. The fix is to detect this case and trying to watch the file
+				// again after a certain delay.
+				if (renamedOrDeleted) {
+					if (isWindows) {
+						return; // on Windows the watcher continues to work even if the file was saved atomically with a replace operation
+					}
+
+					// Very important to dispose the watcher which now points to a stale inode
+					this.unwatchFileChanges(resource);
+
+					// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
+					setTimeout(() => {
+						this.watchFileChanges(resource);
+					}, FileService.FS_REWATCH_DELAY);
 				}
 
 				// add to bucket of undelivered events
@@ -637,6 +657,11 @@ export class FileService implements IFileService {
 
 					return TPromise.as(null);
 				});
+			});
+
+			// Errors
+			watcher.on('error', (error) => {
+				this.options.errorLogger(error);
 			});
 		}
 	}

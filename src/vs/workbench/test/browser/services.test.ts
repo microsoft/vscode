@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import { IEditorControl } from 'vs/platform/editor/common/editor';
+import { IEditorControl, Position, Direction, IEditor } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
@@ -17,14 +17,13 @@ import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput'
 import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { workbenchInstantiationService } from 'vs/test/utils/servicesTestUtils';
-import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { Viewlet, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { WorkbenchProgressService, ScopedService } from 'vs/workbench/services/progress/browser/progressService';
 import { DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { Position, Direction, IEditor } from 'vs/platform/editor/common/editor';
 import { Emitter } from 'vs/base/common/event';
 
 let activeViewlet: Viewlet = <any>{};
@@ -100,17 +99,41 @@ class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
 
 	onDidViewletOpenEmitter = new Emitter<IViewlet>();
-	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
-
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
-	onDidViewletClose = this.onDidViewletCloseEmitter.event;
+	onDidExtletsLoadEmitter = new Emitter<void>();
+	onDidViewletToggleEmitter = new Emitter<void>();
 
-	public openViewlet(id: string, focus?: boolean): Promise {
+	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
+	onDidViewletClose = this.onDidViewletCloseEmitter.event;
+	onDidExtViewletsLoad = this.onDidExtletsLoadEmitter.event;
+	onDidViewletToggle = this.onDidViewletToggleEmitter.event;
+
+	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
 		return TPromise.as(null);
+	}
+
+	public restoreViewlet(id: string): TPromise<IViewlet> {
+		return TPromise.as(null);
+	}
+
+	public toggleViewlet(id: string): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public getAllViewlets(): ViewletDescriptor[] {
+		return [];
+	}
+
+	public getAllViewletsToDisplay(): ViewletDescriptor[] {
+		return [];
 	}
 
 	public getActiveViewlet(): IViewlet {
 		return activeViewlet;
+	}
+
+	public isViewletEnabled(id: string): boolean {
+		return true;
 	}
 
 	public dispose() {

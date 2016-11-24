@@ -12,7 +12,7 @@ import * as types from 'vs/base/common/types';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IExtensionPoint, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ILineTokens, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
-import { TMState } from 'vs/editor/common/modes/TMState';
+import { TMState } from 'vs/editor/node/textMate/TMState';
 import { RawLineTokens } from 'vs/editor/common/modes/supports';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IGrammar, Registry, StackElement, IToken } from 'vscode-textmate';

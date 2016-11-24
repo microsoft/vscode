@@ -34,11 +34,11 @@ suite('EnvironmentService', () => {
 	});
 
 	test('userDataPath', () => {
-		const parse = (a, b: { cwd: () => string, env: { [key: string]: string }}) => parseUserDataDir(parseArgs(a), <any>b);
+		const parse = (a, b: { cwd: () => string, env: { [key: string]: string } }) => parseUserDataDir(parseArgs(a), <any>b);
 
 		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: {} }), path.resolve('/foo/dir'),
 			'should use cwd when --user-data-dir is specified');
-		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: {'VSCODE_CWD': '/bar'} }), path.resolve('/bar/dir'),
+		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: { 'VSCODE_CWD': '/bar' } }), path.resolve('/bar/dir'),
 			'should use VSCODE_CWD as the cwd when --user-data-dir is specified');
 	});
 });

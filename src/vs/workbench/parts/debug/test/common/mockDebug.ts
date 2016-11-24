@@ -5,7 +5,6 @@
 
 import uri from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -25,7 +24,7 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
+	public focusStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -62,10 +61,6 @@ export class MockDebugService implements debug.IDebugService {
 	}
 
 	public removeReplExpressions(): void { }
-
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void { }
-
-	public appendReplOutput(value: string, severity?: severity): void { }
 
 	public addWatchExpression(name?: string): TPromise<void> {
 		return TPromise.as(null);
@@ -174,6 +169,10 @@ export class MockSession implements debug.ISession {
 	}
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
+		return TPromise.as(null);
+	}
+
+	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
 		return TPromise.as(null);
 	}
 

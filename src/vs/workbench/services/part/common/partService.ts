@@ -68,9 +68,9 @@ export interface IPartService {
 	isVisible(part: Parts): boolean;
 
 	/**
-	 * Returns iff the custom titlebar part is visible.
+	 * Set activity bar hidden or not
 	 */
-	isTitleBarHidden(): boolean;
+	setActivityBarHidden(hidden: boolean): void;
 
 	/**
 	 * Number of pixels (adjusted for zooming) that the title bar (if visible) pushes down the workbench contents.
@@ -78,24 +78,9 @@ export interface IPartService {
 	getTitleBarOffset(): number;
 
 	/**
-	 * Checks if the statusbar is currently hidden or not
-	 */
-	isStatusBarHidden(): boolean;
-
-	/**
-	 * Checks if the sidebar is currently hidden or not
-	 */
-	isSideBarHidden(): boolean;
-
-	/**
 	 * Set sidebar hidden or not
 	 */
 	setSideBarHidden(hidden: boolean): void;
-
-	/**
-	 * Checks if the panel part is currently hidden or not
-	 */
-	isPanelHidden(): boolean;
 
 	/**
 	 * Set panel part hidden or not
@@ -132,4 +117,9 @@ export interface IPartService {
 	 * Enables to restore the contents of the sidebar after a restart.
 	 */
 	setRestoreSidebar(): void;
+
+	/**
+	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
+	 */
+	toggleZenMode(): void;
 }

@@ -22,14 +22,13 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
+import { IMessageService, IConfirmation, IChoiceService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IGitService, IFileStatus, Status, StatusType, ServiceState, IModel, IBranch, GitErrorCodes, IGitConfiguration } from 'vs/workbench/parts/git/common/git';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
@@ -1152,7 +1151,7 @@ export class SyncAction extends GitAction {
 		@IGitService gitService: IGitService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
-		@IWindowIPCService private windowService: IWindowIPCService
+		@IChoiceService private choiceService: IChoiceService
 	) {
 		super(id, label, 'git-action sync', gitService);
 	}
@@ -1187,30 +1186,25 @@ export class SyncAction extends GitAction {
 			return this.sync();
 		}
 
+
 		const model = this.gitService.getModel();
 		const HEAD = model.getHEAD();
-		const window = this.windowService.getWindow();
-		const choice = window.showMessageBox({
-			title: SyncAction.LABEL,
-			message: nls.localize('sync is unpredictable', "This action will push and pull commits to and from '{0}'.", HEAD.upstream),
-			type: 'warning',
-			detail: nls.localize('do you want to continue', "Are you sure you want to continue?"),
-			buttons: [nls.localize('ok', "OK"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")],
-			noLink: true,
-			cancelId: 1
-		});
+		const message = nls.localize('sync is unpredictable', "This action will push and pull commits to and from '{0}'.", HEAD.upstream);
+		const options = [nls.localize('ok', "OK"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")];
 
-		switch (choice) {
-			case 0:
-				return this.sync();
-			case 1:
-				return TPromise.as(null);
-			case 2:
-				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'git.confirmSync', value: false })
-					.then(() => this.sync());
-			default:
-				return TPromise.as(null);
-		}
+		return this.choiceService.choose(Severity.Warning, message, options).then(choice => {
+			switch (choice) {
+				case 0:
+					return this.sync();
+				case 1:
+					return TPromise.as(null);
+				case 2:
+					return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'git.confirmSync', value: false })
+						.then(() => this.sync());
+				default:
+					return TPromise.as(null);
+			}
+		});
 	}
 
 	private sync(): TPromise<any> {
@@ -1249,14 +1243,7 @@ export class UndoLastCommitAction extends GitAction {
 		const model = this.gitService.getModel();
 		const HEAD = model.getHEAD();
 
-		if (!HEAD || !HEAD.commit) {
-			return false;
-		}
-
-		const status = model.getStatus();
-
-		return status.getIndexStatus().all().length === 0
-			&& status.getWorkingTreeStatus().all().length === 0;
+		return !!(HEAD && HEAD.commit);
 	}
 
 	public run(): Promise {

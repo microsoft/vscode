@@ -148,7 +148,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 			return;
 		}
 
-		const model: IModel = editorModel.textEditorModel;
+		const model = editorModel.textEditorModel;
 		const versionNow = model.getVersionId();
 		const {tabSize, insertSpaces} = model.getOptions();
 

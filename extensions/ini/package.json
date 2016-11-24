@@ -12,9 +12,9 @@
 		},
 		{
 			"id": "properties",
-			"extensions": [ ".properties", ".gitconfig" ],
+			"extensions": [ ".properties", ".gitconfig", ".cfg", ".conf" ],
 			"filenames": [ "config", ".gitattributes", ".gitconfig", "gitconfig", ".editorconfig" ],
-			"aliases": [ "properties", "properties" ],
+			"aliases": [ "Properties", "properties" ],
 			"configuration": "./properties.language-configuration.json"
 		}],
 		"grammars": [{

@@ -6,6 +6,7 @@
 {
 	"DebugConfig.failed": "Die Datei \"launch.json\" kann nicht im Ordner \".vscode\" erstellt werden ({0}).",
 	"app.launch.json.configurations": "Die Liste der Konfigurationen. Fügen Sie neue Konfigurationen hinzu, oder bearbeiten Sie vorhandene Konfigurationen mit IntelliSense.",
+	"app.launch.json.debugServer": "VERALTET: Verschieben Sie debugServer innerhalb einer Konfiguration.",
 	"app.launch.json.title": "Starten",
 	"app.launch.json.version": "Die Version dieses Dateiformats.",
 	"debugNoType": "Der \"type\" des Debugadapters kann nicht ausgelassen werden und muss vom Typ \"string\" sein.",

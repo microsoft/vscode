@@ -81,5 +81,4 @@ export const ConfigurationKey = 'extensions';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
-	recommendations: string[];
 }

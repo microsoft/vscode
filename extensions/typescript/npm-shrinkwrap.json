@@ -2,6 +2,11 @@
   "name": "typescript",
   "version": "0.10.1",
   "dependencies": {
+    "@types/semver": {
+      "version": "5.3.30",
+      "from": "@types/semver@>=5.3.30 <6.0.0",
+      "resolved": "https://registry.npmjs.org/@types/semver/-/semver-5.3.30.tgz"
+    },
     "applicationinsights": {
       "version": "0.15.6",
       "from": "applicationinsights@0.15.6",
@@ -13,9 +18,9 @@
       "resolved": "https://registry.npmjs.org/semver/-/semver-4.3.6.tgz"
     },
     "typescript": {
-      "version": "2.0.8",
-      "from": "typescript@2.0.8",
-      "resolved": "https://registry.npmjs.org/typescript/-/typescript-2.0.8.tgz"
+      "version": "2.0.10",
+      "from": "typescript@2.0.10",
+      "resolved": "https://registry.npmjs.org/typescript/-/typescript-2.0.10.tgz"
     },
     "vscode-extension-telemetry": {
       "version": "0.0.5",

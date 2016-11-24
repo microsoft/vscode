@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ISharedProcessInitData {
@@ -24,7 +24,8 @@ const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 function _spawnSharedProcess(initData: ISharedProcessInitData, options: ISharedProcessOptions): cp.ChildProcess {
 	const execArgv = [];
 	const env = assign({}, process.env, {
-		AMD_ENTRYPOINT: 'vs/code/node/sharedProcessMain'
+		AMD_ENTRYPOINT: 'vs/code/node/sharedProcessMain',
+		ELECTRON_NO_ASAR: '1'
 	});
 
 	if (options.allowOutput) {

@@ -5,14 +5,13 @@
 
 'use strict';
 
-import uuid = require('vs/base/common/uuid');
-import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
+import * as uuid from 'vs/base/common/uuid';
+import * as strings from 'vs/base/common/strings';
+import * as platform from 'vs/base/common/platform';
+import * as flow from 'vs/base/node/flow';
 
-import flow = require('vs/base/node/flow');
-
-import fs = require('fs');
-import paths = require('path');
+import * as fs from 'fs';
+import * as paths from 'path';
 
 const loop = flow.loop;
 
@@ -244,6 +243,24 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 			});
 		}
 	});
+}
+
+export function delSync(path: string): void {
+	try {
+		const stat = fs.lstatSync(path);
+		if (stat.isDirectory() && !stat.isSymbolicLink()) {
+			readdirSync(path).forEach(child => delSync(paths.join(path, child)));
+			fs.rmdirSync(path);
+		} else {
+			fs.unlinkSync(path);
+		}
+	} catch (err) {
+		if (err.code === 'ENOENT') {
+			return; // not found
+		}
+
+		throw err;
+	}
 }
 
 export function mv(source: string, target: string, callback: (error: Error) => void): void {

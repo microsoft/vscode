@@ -226,9 +226,10 @@ export interface IEditorOptions {
 	/**
 	 * The width reserved for line decorations (in px).
 	 * Line decorations are placed between line numbers and the editor content.
+	 * You can pass in a string in the format floating point followed by "ch". e.g. 1.3ch.
 	 * Defaults to 10.
 	 */
-	lineDecorationsWidth?: number;
+	lineDecorationsWidth?: number | string;
 	/**
 	 * When revealing the cursor, a virtual padding (px) is added to the cursor, turning it into a rectangle.
 	 * This virtual padding ensures that the cursor gets revealed before hitting the edge of the viewport.
@@ -465,9 +466,9 @@ export interface IEditorOptions {
 	renderIndentGuides?: boolean;
 	/**
 	 * Enable rendering of current line highlight.
-	 * Defaults to true.
+	 * Defaults to all.
 	 */
-	renderLineHighlight?: boolean;
+	renderLineHighlight?: 'none' | 'gutter' | 'line' | 'all';
 	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
@@ -668,7 +669,7 @@ export class InternalEditorViewOptions {
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	readonly renderControlCharacters: boolean;
 	readonly renderIndentGuides: boolean;
-	readonly renderLineHighlight: boolean;
+	readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	readonly scrollbar: InternalEditorScrollbarOptions;
 	readonly fixedOverflowWidgets: boolean;
 
@@ -699,7 +700,7 @@ export class InternalEditorViewOptions {
 		renderWhitespace: 'none' | 'boundary' | 'all';
 		renderControlCharacters: boolean;
 		renderIndentGuides: boolean;
-		renderLineHighlight: boolean;
+		renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 		scrollbar: InternalEditorScrollbarOptions;
 		fixedOverflowWidgets: boolean;
 	}) {
@@ -726,7 +727,7 @@ export class InternalEditorViewOptions {
 		this.renderWhitespace = source.renderWhitespace;
 		this.renderControlCharacters = Boolean(source.renderControlCharacters);
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
-		this.renderLineHighlight = Boolean(source.renderLineHighlight);
+		this.renderLineHighlight = source.renderLineHighlight;
 		this.scrollbar = source.scrollbar.clone();
 		this.fixedOverflowWidgets = Boolean(source.fixedOverflowWidgets);
 	}
@@ -1150,6 +1151,10 @@ export interface IModelDecorationOptions {
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
 	linesDecorationsClassName?: string;
+	/**
+	 * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
+	 */
+	marginClassName?: string;
 	/**
 	 * If set, the decoration will be rendered inline with the text with this CSS class name.
 	 * Please use this only for CSS rules that must impact the text. For example, use `className`
@@ -4578,7 +4583,6 @@ export var Handler = {
 	DeleteWordStartRight: 'deleteWordStartRight',
 	DeleteWordEndRight: 'deleteWordEndRight',
 
-	DeleteAllLeft: 'deleteAllLeft',
 	DeleteAllRight: 'deleteAllRight',
 
 	RemoveSecondaryCursors: 'removeSecondaryCursors',

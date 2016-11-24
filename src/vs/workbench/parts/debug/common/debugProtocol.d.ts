@@ -136,7 +136,7 @@ declare module DebugProtocol {
 	}
 
 	/** Event message for 'output' event type.
-		The event indicates that the target has produced output.
+		The event indicates that the target has produced some output.
 	*/
 	export interface OutputEvent extends Event {
 		// event: 'output';
@@ -145,6 +145,8 @@ declare module DebugProtocol {
 			category?: string;
 			/** The output to report. */
 			output: string;
+			/** If an attribute 'variablesReference' exists and its value is > 0, the output contains objects which can be retrieved by passing variablesReference to the VariablesRequest. */
+			variablesReference?: number;
 			/** Optional data to report. For the 'telemetry' category the data will be sent to telemetry, for the other categories the data is shown in JSON format. */
 			data?: any;
 		};
@@ -294,6 +296,27 @@ declare module DebugProtocol {
 	export interface AttachResponse extends Response {
 	}
 
+	/** Restart request; value of command field is 'restart'.
+		Restarts a debug session. If the capability 'supportsRestartRequest' is missing or has the value false,
+		the client will implement 'restart' by terminating the debug adapter first and then launching it anew.
+		A debug adapter can override this default behaviour by implementing a restart request
+		and setting the capability 'supportsRestartRequest' to true.
+	*/
+	export interface RestartRequest extends Request {
+		// command: 'restart';
+		arguments?: RestartArguments;
+	}
+
+	/** Arguments for 'restart' request.
+		The restart request has no standardized attributes.
+	*/
+	export interface RestartArguments {
+	}
+
+	/** Response to 'restart' request. This is just an acknowledgement, so no body field is required. */
+	export interface RestartResponse extends Response {
+	}
+
 	/** Disconnect request; value of command field is 'disconnect'. */
 	export interface DisconnectRequest extends Request {
 		// command: 'disconnect';
@@ -381,7 +404,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'setExceptionBreakpoints' request. */
 	export interface SetExceptionBreakpointsArguments {
-		/** Names of enabled exception breakpoints. */
+		/** Ids of enabled exception breakpoints. */
 		filters: string[];
 	}
 
@@ -422,7 +445,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'next' request. */
 	export interface NextArguments {
-		/** Continue execution for this thread. */
+		/** Execute 'next' for this thread. */
 		threadId: number;
 	}
 
@@ -445,7 +468,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'stepIn' request. */
 	export interface StepInArguments {
-		/** Continue execution for this thread. */
+		/** Execute 'stepIn' for this thread. */
 		threadId: number;
 		/** Optional id of the target to step into. */
 		targetId?: number;
@@ -466,7 +489,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'stepOut' request. */
 	export interface StepOutArguments {
-		/** Continue execution for this thread. */
+		/** Execute 'stepOut' for this thread. */
 		threadId: number;
 	}
 
@@ -476,7 +499,7 @@ declare module DebugProtocol {
 
 	/** StepBack request; value of command field is 'stepBack'.
 		The request starts the debuggee to run one step backwards.
-		The debug adapter first sends the StepBackResponse and then a StoppedEvent (event type 'step') after the step has completed.
+		The debug adapter first sends the StepBackResponse and then a StoppedEvent (event type 'step') after the step has completed. Clients should only call this request if the capability supportsStepBack is true.
 	*/
 	export interface StepBackRequest extends Request {
 		// command: 'stepBack';
@@ -485,12 +508,30 @@ declare module DebugProtocol {
 
 	/** Arguments for 'stepBack' request. */
 	export interface StepBackArguments {
-		/** Continue execution for this thread. */
+		/** Exceute 'stepBack' for this thread. */
 		threadId: number;
 	}
 
 	/** Response to 'stepBack' request. This is just an acknowledgement, so no body field is required. */
 	export interface StepBackResponse extends Response {
+	}
+
+	/** ReverseContinue request; value of command field is 'reverseContinue'.
+		The request starts the debuggee to run backward. Clients should only call this request if the capability supportsStepBack is true.
+	*/
+	export interface ReverseContinueRequest extends Request {
+		// command: 'reverseContinue';
+		arguments: ReverseContinueArguments;
+	}
+
+	/** Arguments for 'reverseContinue' request. */
+	export interface ReverseContinueArguments {
+		/** Exceute 'reverseContinue' for this thread. */
+		threadId: number;
+	}
+
+	/** Response to 'reverseContinue' request. This is just an acknowledgement, so no body field is required. */
+	export interface ReverseContinueResponse extends Response {
 	}
 
 	/** RestartFrame request; value of command field is 'restartFrame'.
@@ -654,7 +695,7 @@ declare module DebugProtocol {
 	/** Response to 'setVariable' request. */
 	export interface SetVariableResponse extends Response {
 		body: {
-			/** The new value of the variable. See capability 'supportsValueEscaping' for details about how to treat newlines in multi-line strings. */
+			/** The new value of the variable. */
 			value: string;
 			/** The type of the new value. Typically shown in the UI when hovering over the value. */
 			type?: string;
@@ -756,7 +797,7 @@ declare module DebugProtocol {
 	/** Response to 'evaluate' request. */
 	export interface EvaluateResponse extends Response {
 		body: {
-			/** The result of the evaluate request. See capability 'supportsValueEscaping' for details about how to treat newlines in multi-lines strings. */
+			/** The result of the evaluate request. */
 			result: string;
 			/** The optional type of the evaluate result. */
 			type?: string;
@@ -868,7 +909,7 @@ declare module DebugProtocol {
 		supportsEvaluateForHovers?: boolean;
 		/** Available filters for the setExceptionBreakpoints request. */
 		exceptionBreakpointFilters?: ExceptionBreakpointsFilter[];
-		/** The debug adapter supports stepping back. */
+		/** The debug adapter supports stepping back via the stepBack and reverseContinue requests. */
 		supportsStepBack?: boolean;
 		/** The debug adapter supports setting a variable to a value. */
 		supportsSetVariable?: boolean;
@@ -886,8 +927,8 @@ declare module DebugProtocol {
 		additionalModuleColumns?: ColumnDescriptor[];
 		/** Checksum algorithms supported by the debug adapter. */
 		supportedChecksumAlgorithms?: ChecksumAlgorithm[];
-		/** The debug adapter will be responsible for escaping newlines in variable values and evaluation results, and the client will display them as-is. If missing or false the client will escape newlines as needed. */
-		supportsValueEscaping?: boolean;
+		/** The debug adapter supports the RestartRequest. In this case a client should not implement 'restart' by terminating and relaunching the adapter but by calling the RestartRequest. */
+		supportsRestartRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1061,7 +1102,7 @@ declare module DebugProtocol {
 	export interface Variable {
 		/** The variable's name. */
 		name: string;
-		/** The variable's value. This can be a multi-line text, e.g. for a function the body of a function. See capability 'supportsValueEscaping' for details about how to treat newlines in multi-line strings. */
+		/** The variable's value. This can be a multi-line text, e.g. for a function the body of a function. */
 		value: string;
 		/** The type of the variable's value. Typically shown in the UI when hovering over the value. */
 		type?: string;

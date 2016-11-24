@@ -24,6 +24,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/themeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -31,10 +32,9 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import * as browser from 'vs/base/browser/browser';
 import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
-import { Position } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IPath, IOpenFileRequest, IWindowConfiguration } from 'vs/workbench/electron-browser/common';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import URI from 'vs/base/common/uri';
@@ -75,7 +75,8 @@ export class ElectronIntegration {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IThemeService private themeService: IThemeService
 	) {
 	}
 
@@ -146,6 +147,19 @@ export class ElectronIntegration {
 			});
 		});
 
+		// High Contrast Events
+		ipc.on('vscode:enterHighContrast', (event) => {
+			this.partService.joinCreation().then(() => {
+				this.themeService.setColorTheme(VS_HC_THEME, false);
+			});
+		});
+
+		ipc.on('vscode:leaveHighContrast', (event) => {
+			this.partService.joinCreation().then(() => {
+				this.themeService.setColorTheme(VS_DARK_THEME, false);
+			});
+		});
+
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
 		this.configurationService.onDidUpdateConfiguration(e => {
@@ -197,12 +211,10 @@ export class ElectronIntegration {
 		// Developer related actions
 		const developerCategory = nls.localize('developer', "Developer");
 		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-		const isDeveloping = !this.environmentService.isBuilt || !!this.environmentService.extensionDevelopmentPath;
+		const isDeveloping = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyCode.KEY_R } : void 0), 'Reload Window');
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : void 0), 'Developer: Toggle Developer Tools', developerCategory);
-		if (this.environmentService.performance) {
-			workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
-		}
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
 
 		// Action registered here to prevent a keybinding conflict with reload window
 		const fileCategory = nls.localize('file', "File");

@@ -6,7 +6,7 @@
 
 import { localize } from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { IReadOnlyModel, IPosition } from 'vs/editor/common/editorCommon';
+import { ITokenizedModel, IPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Registry } from 'vs/platform/platform';
 
@@ -29,7 +29,7 @@ export interface ISnippetsRegistry {
 	/**
 	 * Get all snippet completions for the given position
 	 */
-	getSnippetCompletions(model: IReadOnlyModel, position: IPosition): ISuggestion[];
+	getSnippetCompletions(model: ITokenizedModel, position: IPosition): ISuggestion[];
 
 }
 
@@ -69,8 +69,8 @@ class SnippetsRegistry implements ISnippetsRegistry {
 		}
 	}
 
-	public getSnippetCompletions(model: IReadOnlyModel, position: IPosition): ISuggestion[] {
-		const modeId = model.getModeId();
+	public getSnippetCompletions(model: ITokenizedModel, position: IPosition): ISuggestion[] {
+		const modeId = model.getModeIdAtPosition(position.lineNumber, position.column);
 		if (!this._snippets[modeId]) {
 			return;
 		}
@@ -107,7 +107,7 @@ class SnippetsRegistry implements ISnippetsRegistry {
 				documentation: s.description,
 				insertText: s.codeSnippet,
 				noAutoAccept: true,
-				isTMSnippet: true,
+				snippetType: 'textmate',
 				overwriteBefore
 			});
 

@@ -6,12 +6,12 @@
 
 import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'vs/base/common/paths';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { workbenchInstantiationService } from 'vs/test/utils/servicesTestUtils';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
-import { UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 class ServiceAccessor {
 	constructor( @IUntitledEditorService public untitledEditorService: UntitledEditorService) {
@@ -143,6 +143,73 @@ suite('Workbench - Untitled Editor', () => {
 			assert.equal(counter, 1);
 
 			input.dispose();
+
+			done();
+		});
+	});
+
+	test('onDidChangeContent event', done => {
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet();
+
+		UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
+
+		let counter = 0;
+
+		service.onDidChangeContent(r => {
+			counter++;
+			assert.equal(r.toString(), input.getResource().toString());
+		});
+
+		input.resolve().then((model: UntitledEditorModel) => {
+			model.append('foo');
+			assert.equal(counter, 0, 'Dirty model should not trigger event immediately');
+
+			TPromise.timeout(3).then(() => {
+				assert.equal(counter, 1, 'Dirty model should trigger event');
+
+				model.append('bar');
+				TPromise.timeout(3).then(() => {
+					assert.equal(counter, 2, 'Content change when dirty should trigger event');
+
+					model.clearValue();
+					TPromise.timeout(3).then(() => {
+						assert.equal(counter, 3, 'Manual revert should trigger event');
+
+						model.append('foo');
+						TPromise.timeout(3).then(() => {
+							assert.equal(counter, 4, 'Dirty model should trigger event');
+
+							model.revert();
+							TPromise.timeout(3).then(() => {
+								assert.equal(counter, 5, 'Revert should trigger event');
+
+								input.dispose();
+
+								done();
+							});
+						});
+					});
+				});
+			});
+		});
+	});
+
+	test('onDidDisposeModel event', done => {
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet();
+
+		let counter = 0;
+
+		service.onDidDisposeModel(r => {
+			counter++;
+			assert.equal(r.toString(), input.getResource().toString());
+		});
+
+		input.resolve().then((model: UntitledEditorModel) => {
+			assert.equal(counter, 0);
+			input.dispose();
+			assert.equal(counter, 1);
 
 			done();
 		});

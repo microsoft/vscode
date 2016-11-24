@@ -105,7 +105,16 @@ function main() {
 				});
 			}
 
-			var remappedCoverage = i_remap(global.__coverage__).getFinalCoverage();
+			var remapIgnores = [
+				'vs/base/common/winjs.base.js',
+				'vs/base/common/marked/marked.js',
+				'vs/nls.js',
+				'vs/css.js',
+				'vs/base/common/marked/raw.marked.js',
+				'vs/base/common/winjs.base.raw.js'
+			];
+
+			var remappedCoverage = i_remap(global.__coverage__, { exclude: new RegExp(remapIgnores.join('|')) }).getFinalCoverage();
 
 			// The remapped coverage comes out with broken paths
 			var toUpperDriveLetter = function(str) {

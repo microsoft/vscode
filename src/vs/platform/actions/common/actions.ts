@@ -8,12 +8,11 @@ import URI from 'vs/base/common/uri';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { SyncDescriptor0, createSyncDescriptor, AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
-import { IConstructorSignature2, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature2, IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
 export interface ICommandAction {
@@ -112,23 +111,14 @@ export class MenuItemAction extends Action {
 		return result;
 	}
 
-	private _resource: URI;
-
 	constructor(
 		private _item: IMenuItem,
-		@ICommandService private _commandService: ICommandService
+		@ICommandService private _commandService: ICommandService,
+		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		super(MenuItemAction._getMenuItemId(_item), _item.command.title);
 
 		this.order = this._item.order; //TODO@Ben order is menu item property, not an action property
-	}
-
-	set resource(value: URI) {
-		this._resource = value;
-	}
-
-	get resource() {
-		return this._resource;
 	}
 
 	get item(): IMenuItem {
@@ -145,7 +135,8 @@ export class MenuItemAction extends Action {
 
 	run(alt: boolean) {
 		const {id} = alt === true && this._item.alt || this._item.command;
-		return this._commandService.executeCommand(id, this._resource);
+		const resource = this._contextKeyService.getContextKeyValue<URI>('resource');
+		return this._commandService.executeCommand(id, resource);
 	}
 }
 
