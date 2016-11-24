@@ -13,7 +13,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { DefaultSettingsEditor, DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
+import { DefaultPreferencesEditor, DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenWorkspaceSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/parts/preferences/browser/preferencesService';
@@ -22,10 +22,10 @@ registerSingleton(IPreferencesService, PreferencesService);
 
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
 	new EditorDescriptor(
-		DefaultSettingsEditor.ID,
+		DefaultPreferencesEditor.ID,
 		nls.localize('defaultSettingsEditor', "Default Settings Editor"),
 		'vs/workbench/parts/preferences/browser/preferencesEditor',
-		'DefaultSettingsEditor'
+		'DefaultPreferencesEditor'
 	),
 	[
 		new SyncDescriptor(DefaultSettingsInput),

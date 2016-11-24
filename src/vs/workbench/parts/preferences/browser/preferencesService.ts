@@ -11,7 +11,6 @@ import { Delayer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { parseTree, findNodeAtLocation } from 'vs/base/common/json';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
-import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
@@ -25,13 +24,10 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IPreferencesService, IDefaultSettings, IDefaultKeybindings } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, IPreferencesEditorModel, ISettingsEditorModel, IKeybindingsEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
 import { DefaultSettings, DefaultKeybindings } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
+import { DefaultSettingsInput, DefaultKeybindingsInput, DefaultPreferencesInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 
 
 const SETTINGS_INFO_IGNORE_KEY = 'settings.workspace.info.ignore';
@@ -50,8 +46,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private configurationTarget: ConfigurationTarget = null;
 
-	private _defaultSettings: IDefaultSettings;
-	private _defaultKeybindings: IDefaultKeybindings;
+	private _defaultSettings: ISettingsEditorModel;
+	private _defaultKeybindings: IKeybindingsEditorModel;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -82,18 +78,28 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}));
 	}
 
-	public get defaultSettings(): IDefaultSettings {
+	public get defaultSettings(): ISettingsEditorModel {
 		if (!this._defaultSettings) {
 			this._defaultSettings = this.instantiationService.createInstance(DefaultSettings);
 		}
 		return this._defaultSettings;
 	}
 
-	public get defaultKeybindings(): IDefaultKeybindings {
+	public get defaultKeybindings(): IKeybindingsEditorModel {
 		if (!this._defaultKeybindings) {
 			this._defaultKeybindings = this.instantiationService.createInstance(DefaultKeybindings);
 		}
 		return this._defaultKeybindings;
+	}
+
+	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel> {
+		if (this._defaultSettings.uri.fsPath === uri.fsPath) {
+			return TPromise.wrap(this._defaultSettings);
+		}
+		if (this._defaultKeybindings.uri.fsPath === uri.fsPath) {
+			return TPromise.wrap(this._defaultKeybindings);
+		}
+		return TPromise.wrap(null);
 	}
 
 	openGlobalSettings(): TPromise<void> {
@@ -114,7 +120,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	openGlobalKeybindingSettings(): TPromise<void> {
 		const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
-		return this.openTwoEditors(DefaultKeybindingsInput.getInstance(this.instantiationService, this), URI.file(this.environmentService.appKeybindingsPath), emptyContents).then(() => null);
+		return this.openTwoEditors(DefaultKeybindingsInput.getInstance(this.instantiationService, this.defaultKeybindings), URI.file(this.environmentService.appKeybindingsPath), emptyContents).then(() => null);
 	}
 
 	openEditableSettings(configurationTarget: ConfigurationTarget, showVisibleEditor: boolean = false): TPromise<IEditor> {
@@ -202,12 +208,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (openDefaultSettings) {
 			const emptySettingsContents = this.getEmptyEditableSettingsContent(configurationTarget);
 			const settingsResource = this.getEditableSettingsURI(configurationTarget);
-			return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this), settingsResource, emptySettingsContents).then(() => null);
+			return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.defaultSettings), settingsResource, emptySettingsContents).then(() => null);
 		}
 		return this.openEditableSettings(configurationTarget).then(() => null);
 	}
 
-	private openTwoEditors(leftHandDefaultInput: StringEditorInput, editableResource: URI, defaultEditableContents: string): TPromise<IEditor[]> {
+	private openTwoEditors(leftHandDefaultInput: DefaultPreferencesInput, editableResource: URI, defaultEditableContents: string): TPromise<IEditor[]> {
 		// Create as needed and open in editor
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
 			return this.editorService.createInput({ resource: editableResource }).then(typedRightHandEditableInput => {
@@ -251,32 +257,5 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			endLineNumber: position.lineNumber,
 			endColumn: position.column + node.length
 		};
-	}
-}
-
-export class SettingsContentProvider implements ITextModelContentProvider {
-
-	constructor(
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService
-	) {
-	}
-
-	public provideTextContent(uri: URI): TPromise<editorCommon.IModel> {
-		if (uri.scheme !== 'vscode') {
-			return null;
-		}
-		const defaultSettings = this.preferencesService.defaultSettings;
-		if (defaultSettings.uri.fsPath === uri.fsPath) {
-			let mode = this.modeService.getOrCreateMode('application/json');
-			return TPromise.as(this.modelService.createModel(defaultSettings.content, mode, uri));
-		}
-		const defaultKeybindings = this.preferencesService.defaultKeybindings;
-		if (defaultKeybindings.uri.fsPath === uri.fsPath) {
-			let mode = this.modeService.getOrCreateMode('application/json');
-			return TPromise.as(this.modelService.createModel(defaultKeybindings.content, mode, uri));
-		}
-		return null;
 	}
 }

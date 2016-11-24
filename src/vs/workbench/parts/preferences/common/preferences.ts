@@ -29,15 +29,16 @@ export interface ISetting {
 	description: string;
 }
 
-export interface IDefaultSettings {
+export interface IPreferencesEditorModel {
 	uri: URI;
 	content: string;
+}
+
+export interface ISettingsEditorModel extends IPreferencesEditorModel {
 	settingsGroups: ISettingsGroup[];
 }
 
-export interface IDefaultKeybindings {
-	uri: URI;
-	content: string;
+export interface IKeybindingsEditorModel extends IPreferencesEditorModel {
 }
 
 export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
@@ -45,8 +46,10 @@ export const IPreferencesService = createDecorator<IPreferencesService>('prefere
 export interface IPreferencesService {
 	_serviceBrand: any;
 
-	defaultSettings: IDefaultSettings;
-	defaultKeybindings: IDefaultKeybindings;
+	defaultSettings: ISettingsEditorModel;
+	defaultKeybindings: IKeybindingsEditorModel;
+
+	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
 
 	openGlobalSettings(): TPromise<void>;
 	openWorkspaceSettings(): TPromise<void>;
