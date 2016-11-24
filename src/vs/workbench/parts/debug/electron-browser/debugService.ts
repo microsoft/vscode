@@ -781,9 +781,11 @@ export class DebugService implements debug.IDebugService {
 
 		const sessionId = generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
-		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then(config =>
-			this.doCreateProcess(sessionId, config)
-		);
+		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then(config => {
+			config.request = 'attach';
+			config.port = port;
+			this.doCreateProcess(sessionId, config);
+		});
 	}
 
 	public restartProcess(process: debug.IProcess): TPromise<any> {
@@ -805,16 +807,14 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private onSessionEnd(session: RawDebugSession): void {
-		if (session) {
-			const bpsExist = this.model.getBreakpoints().length > 0;
-			this.telemetryService.publicLog('debugSessionStop', {
-				type: session.configuration.type,
-				success: session.emittedStopped || !bpsExist,
-				sessionLengthInSeconds: session.getLengthInSeconds(),
-				breakpointCount: this.model.getBreakpoints().length,
-				watchExpressionsCount: this.model.getWatchExpressions().length
-			});
-		}
+		const bpsExist = this.model.getBreakpoints().length > 0;
+		this.telemetryService.publicLog('debugSessionStop', {
+			type: session.configuration.type,
+			success: session.emittedStopped || !bpsExist,
+			sessionLengthInSeconds: session.getLengthInSeconds(),
+			breakpointCount: this.model.getBreakpoints().length,
+			watchExpressionsCount: this.model.getWatchExpressions().length
+		});
 
 		try {
 			this.toDisposeOnSessionEnd[session.getId()] = lifecycle.dispose(this.toDisposeOnSessionEnd[session.getId()]);
