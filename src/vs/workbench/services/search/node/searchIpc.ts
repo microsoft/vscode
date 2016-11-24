@@ -17,7 +17,6 @@ export interface ISearchChannel extends IChannel {
 }
 
 export class SearchChannel implements ISearchChannel {
-
 	constructor(private service: IRawSearchService) { }
 
 	call(command: string, arg: any): TPromise<any> {
@@ -30,7 +29,6 @@ export class SearchChannel implements ISearchChannel {
 }
 
 export class SearchChannelClient implements IRawSearchService {
-
 	constructor(private channel: ISearchChannel) { }
 
 	fileSearch(search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {

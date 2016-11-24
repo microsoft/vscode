@@ -8,16 +8,20 @@
 import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
 
+import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as cp from 'child_process';
 
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
+import * as ipc from 'vs/base/parts/ipc/common/ipc';
 import * as baseMime from 'vs/base/common/mime';
-import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
+import { TPromise } from 'vs/base/common/winjs.base';
+
+import { ILineMatch, IProgress, IPatternInfo } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode } from 'vs/base/node/encoding';
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
+import { ISearchWorkerConfig, ISearchWorkerSearchArgs, ISearchWorker, ISearchWorkerChannel, SearchWorkerChannelClient } from './worker/searchWorkerIpc'
 
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 
@@ -29,7 +33,6 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	private extraFiles: string[];
 	private maxResults: number;
 	private walker: FileWalker;
-	private contentPattern: string;
 	private isCanceled: boolean;
 	private isDone: boolean;
 	private total: number;
@@ -40,8 +43,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	private fileEncoding: string;
 	private limitReached: boolean;
 
-	// private worker: cp.ChildProcess;
-	private channels: any[] = [];
+	private channels: ISearchWorker[] = [];
 
 	private onResult: any;
 
@@ -49,8 +51,6 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		this.rootFolders = config.rootFolders;
 		this.extraFiles = config.extraFiles;
 		this.walker = walker;
-		this.contentPattern = config.contentPattern.pattern;
-		const pattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, { matchCase: config.contentPattern.isCaseSensitive, wholeWord: config.contentPattern.isWordMatch, multiline: false, global: true });
 		this.isCanceled = false;
 		this.limitReached = false;
 		this.maxResults = config.maxResults;
@@ -59,51 +59,29 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		this.total = 0;
 		this.fileEncoding = encodingExists(config.fileEncoding) ? config.fileEncoding : UTF8;
 
-		// this.worker = cp.fork('/Users/roblou/code/vscode/out/vs/workbench/services/search/node/searchWorker.js', [], { execArgv: ['--debug-brk=5878']});
-		// this.worker.on('message', m => {
-		// 	console.log('parent got message');
-		// 	if (this.onResult) {
-		// 		this.onResult(JSON.parse(m));
-		// 	}
-		// });
-
-		// this.worker.send({ initialize: { contentPattern: config.contentPattern.pattern }});
-
-		for (let i=0; i<4; i++) {
-			let client = new Client(
-				uri.parse(require.toUrl('bootstrap')).fsPath,
-				{
-					serverName: 'Search Worker',
-					timeout: 60 * 60 * 1000,
-					args: ['--type=searchWorker'],
-					env: {
-						AMD_ENTRYPOINT: 'vs/workbench/services/search/node/worker/searchWorkerApp',
-						PIPE_LOGGING: 'true',
-						VERBOSE_LOGGING: 'true'
-					},
-					// debugBrk: 5878
-				}
-			);
-			this.channels.push(client.getChannel('searchWorker'));
+		// Spin up workers
+		const workerConfig: ISearchWorkerConfig = {
+			pattern: config.contentPattern
+		};
+		const numWorkers = Math.ceil(os.cpus().length/2); // /2 because of hyperthreading. Maybe make better.
+		for (let i = 0; i < numWorkers; i++) {
+			this.channels.push(createWorker(i, workerConfig));
 		}
-
-		// process.on('exit', () => this.worker.kill());
 	}
 
 	public cancel(): void {
 		this.isCanceled = true;
 		this.walker.cancel();
+
+		// TODO cancel workers
 	}
 
 	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		this.channels.forEach(channel => channel.call('initialize', { contentPattern: this.contentPattern }));
-
 		let resultCounter = 0;
 		this.onResult = onResult;
 
 		let progress = () => {
-			this.progressed++;
-			if (this.progressed % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
+			if (++this.progressed % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
 				onProgress({ total: this.total, worked: this.worked }); // buffer progress in chunks to reduce pressure
 			}
 		};
@@ -147,8 +125,8 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			const portionSize = Math.ceil(files.length/this.channels.length);
 			TPromise.join(this.channels.map((c, i) => {
 				const subsetFiles = files.slice(portionSize*i, portionSize*i + portionSize);
-				return c.call('search', subsetFiles).then(matches => {
-					// console.log('got result: ' + fileMatch);
+				return c.search({absolutePaths: subsetFiles, maxResults: 1e8 }).then(matches => {
+					console.log('got result: ' + matches.length);
 					matches.forEach(m => {
 						if (m && m.lineMatches.length) {
 							onResult(m);
@@ -168,67 +146,23 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	}
 }
 
-class FileMatch implements ISerializedFileMatch {
-	public path: string;
-	public lineMatches: LineMatch[];
+function createWorker(id: number, config: ISearchWorkerConfig): ISearchWorker {
+	let client = new Client(
+		uri.parse(require.toUrl('bootstrap')).fsPath,
+		{
+			serverName: 'Search Worker ' + id,
+			timeout: 60 * 60 * 1000,
+			args: ['--type=searchWorker'],
+			env: {
+				AMD_ENTRYPOINT: 'vs/workbench/services/search/node/worker/searchWorkerApp',
+				PIPE_LOGGING: 'true',
+				VERBOSE_LOGGING: 'true'
+			}
+		});
 
-	constructor(path: string) {
-		this.path = path;
-		this.lineMatches = [];
-	}
-
-	public addMatch(lineMatch: LineMatch): void {
-		this.lineMatches.push(lineMatch);
-	}
-
-	public isEmpty(): boolean {
-		return this.lineMatches.length === 0;
-	}
-
-	public serialize(): ISerializedFileMatch {
-		let lineMatches: ILineMatch[] = [];
-
-		for (let i = 0; i < this.lineMatches.length; i++) {
-			lineMatches.push(this.lineMatches[i].serialize());
-		}
-
-		return {
-			path: this.path,
-			lineMatches: lineMatches
-		};
-	}
-}
-
-class LineMatch implements ILineMatch {
-	public preview: string;
-	public lineNumber: number;
-	public offsetAndLengths: number[][];
-
-	constructor(preview: string, lineNumber: number) {
-		this.preview = preview.replace(/(\r|\n)*$/, '');
-		this.lineNumber = lineNumber;
-		this.offsetAndLengths = [];
-	}
-
-	public getText(): string {
-		return this.preview;
-	}
-
-	public getLineNumber(): number {
-		return this.lineNumber;
-	}
-
-	public addMatch(offset: number, length: number): void {
-		this.offsetAndLengths.push([offset, length]);
-	}
-
-	public serialize(): ILineMatch {
-		let result = {
-			preview: this.preview,
-			lineNumber: this.lineNumber,
-			offsetAndLengths: this.offsetAndLengths
-		};
-
-		return result;
-	}
+	// Make async?
+	const channel = ipc.getNextTickChannel(client.getChannel<ISearchWorkerChannel>('searchWorker'));
+	const channelClient = new SearchWorkerChannelClient(channel);
+	channelClient.initialize(config);
+	return channelClient;
 }

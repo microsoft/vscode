@@ -535,14 +535,6 @@ export class SearchModel extends Disposable {
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
-		// console.log('forking searchWorker');
-		// const proc = cp.fork('/Users/roblou/code/vscode/src/searchWorker.js');
-		// proc.on('message', m => {
-		// 	console.log('parent got message: ' + JSON.stringify(m));
-		// })
-
-		// proc.send({ hello: 'ping' })
-
 		this.cancelSearch();
 		this.searchResult.clear();
 
