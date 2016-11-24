@@ -303,7 +303,7 @@ export interface IConfig extends IEnvConfig {
 
 export interface ICompound {
 	name: string;
-	launches: string[];
+	configurations: string[];
 }
 
 export interface IRawEnvAdapter {
