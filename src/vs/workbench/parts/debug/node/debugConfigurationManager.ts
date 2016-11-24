@@ -131,7 +131,7 @@ export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registe
 // debug general schema
 
 export const schemaId = 'vscode://schemas/launch';
-const defaultCompound: debug.ICompound = { name: 'Compound', launches: [] };
+const defaultCompound: debug.ICompound = { name: 'Compound', configurations: [] };
 const schema: IJSONSchema = {
 	id: schemaId,
 	type: 'object',
@@ -162,19 +162,19 @@ const schema: IJSONSchema = {
 			description: nls.localize('app.launch.json.compounds', "List of compounds. Each compound references multiple configurations which will get launched together."),
 			items: {
 				type: 'object',
-				required: ['name', 'launches'],
+				required: ['name', 'configurations'],
 				properties: {
 					name: {
 						type: 'string',
 						description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
 					},
-					launches: {
+					configurations: {
 						type: 'array',
 						default: [],
 						items: {
 							type: 'string'
 						},
-						description: nls.localize('app.launch.json.compounds.launches', "Names of configurations that will be launched as part of this compound.")
+						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")
 					}
 				},
 				default: defaultCompound
