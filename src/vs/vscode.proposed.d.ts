@@ -86,28 +86,26 @@ declare module 'vscode' {
 		getClickCommand?(node: T): string;
 	}
 
-	export namespace scm {
-		export function createSCMProvider(id: string, delegate: SCMDelegate): SCMProvider;
+	export interface SCMResource {
+		uri: Uri;
 	}
 
-	export interface SCMDelegate {
+	export interface SCMResourceGroup {
+		resources: SCMResource[];
+	}
+
+	export interface SCMProvider {
 		commitCommand?: string;
 		clickCommand?: string;
 		dragCommand?: string;
+		resourceGroups: SCMResourceGroup[];
+		onDidChangeResourceGroup: Event<SCMResourceGroup>;
 		getOriginalResource?(uri: Uri, token: CancellationToken): Uri | Thenable<Uri>;
 	}
 
-	export interface SCMProvider extends Disposable {
-		createResourceGroup(id: string, label: string): SCMResourceGroup;
-	}
-
-	export interface SCMResourceGroup extends Disposable {
-		set(...resources: SCMResource[]): void;
-		get(): SCMResource[];
-	}
-
-	export interface SCMResource {
-		uri: Uri;
-		// TODO: status type, icon decoration, etc
+	export namespace scm {
+		export const onDidChangeActiveProvider: Event<SCMProvider>;
+		export let activeProvider: SCMProvider | undefined;
+		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
 	}
 }

@@ -7,6 +7,7 @@
   "engines": {
     "vscode": "^1.5.0"
   },
+  "enableProposedApi": true,
   "categories": [
     "Other"
   ],
