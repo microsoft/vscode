@@ -278,7 +278,7 @@ export class Workbench implements IPartService {
 
 				viewletRestoreStopWatch = StopWatch.create();
 				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('[renderer] open viewlet {0}', viewletIdToRestore));
-				compositeAndEditorPromises.push(this.viewletService.restoreViewlet(viewletIdToRestore).then(() => {
+				compositeAndEditorPromises.push(this.viewletService.openViewlet(viewletIdToRestore).then(() => {
 					viewletTimerEvent.stop();
 					viewletRestoreStopWatch.stop();
 				}));

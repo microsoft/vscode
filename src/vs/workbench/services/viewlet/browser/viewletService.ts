@@ -69,27 +69,22 @@ export class ViewletService implements IViewletService {
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
-		return this.sidebarPart.openViewlet(id, focus);
-	}
-
-	public restoreViewlet(id: string): TPromise<IViewlet> {
-		const shouldFocus = false;
 
 		// Built in viewlets do not need to wait for extensions to be loaded
 		const builtInViewletIds = this.getBuiltInViewlets().map(v => v.id);
 		const isBuiltInViewlet = builtInViewletIds.indexOf(id) !== -1;
 		if (isBuiltInViewlet) {
-			return this.sidebarPart.openViewlet(id, shouldFocus);
+			return this.sidebarPart.openViewlet(id, focus);
 		}
 
 		// Extension viewlets need to be loaded first which can take time
 		return this.extensionViewletsLoaded.then(() => {
 			if (this.viewletRegistry.getViewlet(id)) {
-				return this.sidebarPart.openViewlet(id, shouldFocus);
+				return this.sidebarPart.openViewlet(id, focus);
 			}
 
 			// Fallback to default viewlet if extension viewlet is still not found (e.g. uninstalled)
-			return this.sidebarPart.openViewlet(this.viewletRegistry.getDefaultViewletId(), shouldFocus);
+			return this.sidebarPart.openViewlet(this.viewletRegistry.getDefaultViewletId(), focus);
 		});
 	}
 
