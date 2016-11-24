@@ -3,16 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .view-line :not(.inline-folded).copySetting:after {
+.monaco-editor .view-line:hover :not(.inline-folded).selectSettingValue {
+	text-decoration: underline;
 	cursor: pointer;
-	content:"⍈";
-	margin-left: 1em;
-	display:inline-block;
-	position: absolute;
-	height:16px;
-	width:16px;
 }
 
-.monaco-editor .view-line :not(.inline-folded).copySetting.select:after {
-	content:"...";
+.monaco-editor .copy-preferences-light-bulb {
+	height: 16px;
+	width: 16px;
+	cursor: pointer;
+}
+
+.monaco-editor.vs .copy-preferences-light-bulb {
+	background: url('lightbulb.svg') center center no-repeat;
+}
+
+.monaco-editor.vs-dark .copy-preferences-light-bulb,
+.monaco-editor.hc-black .copy-preferences-light-bulb {
+	background: url('lightbulb-dark.svg') center center no-repeat;
 }
