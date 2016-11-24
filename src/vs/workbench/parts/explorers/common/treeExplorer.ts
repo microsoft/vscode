@@ -5,15 +5,15 @@
 'use strict';
 
 export function toCustomExplorerViewletId(viewletId: string): string {
-	return 'workbench.view.customExplorer.' + viewletId;
+	return `workbench.view.customExplorer.${viewletId}`;
 }
 
 export function toCustomExplorerViewletActionId(viewletId: string): string {
-	return 'workbench.action.customExplorer.' + viewletId;
+	return `workbench.action.customExplorer.${viewletId}`;
 }
 
 export function toCustomExplorerViewletCSSClass(viewletId: string): string {
-	return 'customExplorer-' + viewletId;
+	return `customExplorer-${viewletId}`;
 }
 
 export function isValidViewletId(viewletId: string): boolean {

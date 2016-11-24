@@ -9,17 +9,18 @@ import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDefaultSettings, IDefaultKeybindings, ISettingsGroup, ISetting } from 'vs/workbench/parts/settings/common/openSettings';
+import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-export class DefaultSettings implements IDefaultSettings {
+export class DefaultSettings implements ISettingsEditorModel {
 
 	private _uri: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
 	private indent: string;
 
 	private _settingsGroups: ISettingsGroup[];
 	private _content: string;
+	private _contentByLines: string[];
 
 	constructor( @IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
 		const editorConfig = this.configurationService.getConfiguration<any>();
@@ -32,17 +33,22 @@ export class DefaultSettings implements IDefaultSettings {
 
 	public get content(): string {
 		if (!this._content) {
-			this._content = this.toContent(this.settingsGroups);
+			this.parse();
 		}
 		return this._content;
 	}
 
 	public get settingsGroups(): ISettingsGroup[] {
 		if (!this._settingsGroups) {
-			const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
-			this._settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
+			this.parse();
 		}
 		return this._settingsGroups;
+	}
+
+	private parse() {
+		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
+		this._settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
+		this._content = this.toContent(this.settingsGroups);
 	}
 
 	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
@@ -50,16 +56,16 @@ export class DefaultSettings implements IDefaultSettings {
 			if (!settingsGroup) {
 				settingsGroup = result.filter(g => g.title === config.title)[0];
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], title: config.title, titleRange: null };
+					settingsGroup = { sections: [{ settings: [] }], title: config.title, titleRange: null, range: null };
 					result.push(settingsGroup);
 				}
 			} else {
-				settingsGroup.sections[settingsGroup.sections.length - 1].title = config.title;
+				settingsGroup.sections[settingsGroup.sections.length - 1].description = config.title;
 			}
 		}
 		if (config.properties) {
 			if (!settingsGroup) {
-				settingsGroup = { sections: [{ settings: [] }], title: config.id, titleRange: null };
+				settingsGroup = { sections: [{ settings: [] }], title: config.id, titleRange: null, range: null };
 				result.push(settingsGroup);
 			}
 			const configurationSettings: ISetting[] = Object.keys(config.properties).map((key) => {
@@ -93,51 +99,58 @@ export class DefaultSettings implements IDefaultSettings {
 
 	private toContent(settingsGroups: ISettingsGroup[]): string {
 		let lastSetting: ISetting = null;
-		const result: string[] = [];
+		this._contentByLines = [];
 
-		result.push('// ' + nls.localize('defaultSettingsHeader', "Overwrite settings by placing them into your settings file."));
-		result.push('// ' + nls.localize('defaultSettingsHeader2', "See http://go.microsoft.com/fwlink/?LinkId=808995 for the most commonly used settings."));
-		result.push('{');
+		this._contentByLines.push('// ' + nls.localize('defaultSettingsHeader', "Overwrite settings by placing them into your settings file."));
+		this._contentByLines.push('// ' + nls.localize('defaultSettingsHeader2', "See http://go.microsoft.com/fwlink/?LinkId=808995 for the most commonly used settings."));
+		this._contentByLines.push('{');
 
 		for (const group of settingsGroups) {
-			this.addTitleOrDescription(group.title, '', result);
-			let groupTitleStart = result.length + 1;
-			group.titleRange = { startLineNumber: groupTitleStart, startColumn: 1, endLineNumber: result.length, endColumn: result[result.length - 1].length };
+
+			let groupTitleStart = this._contentByLines.length + 1;
+			this.addTitleOrDescription(group.title, '', this._contentByLines);
+			group.titleRange = { startLineNumber: groupTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+
 			for (const section of group.sections) {
-				if (section.title) {
-					let sectionTitleStart = result.length + 1;
-					this.addTitleOrDescription(section.title, this.indent, result);
-					section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: result.length, endColumn: result[result.length - 1].length };
+				if (section.description) {
+					let sectionTitleStart = this._contentByLines.length + 1;
+					this.addTitleOrDescription(section.description, this.indent, this._contentByLines);
+					section.descriptionRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 				}
+
 				for (const setting of section.settings) {
-					const settingStart = result.length + 1;
-					this.addTitleOrDescription(setting.description, this.indent, result);
-					const valueStart = result.length + 1;
+					const settingStart = this._contentByLines.length + 1;
+					this.addTitleOrDescription(setting.description, this.indent, this._contentByLines);
+
+					const valueStart = this._contentByLines.length + 1;
 					let valueString = JSON.stringify(setting.value, null, this.indent);
+					const preValueContent = this.indent + JSON.stringify(setting.key) + ': ';
 					if (valueString && (typeof setting.value === 'object')) {
 						const mulitLineValue = valueString.split('\n');
-						result.push(this.indent + JSON.stringify(setting.key) + ': ' + mulitLineValue[0]);
+						this._contentByLines.push(preValueContent + mulitLineValue[0]);
 						for (let i = 1; i < mulitLineValue.length; i++) {
-							result.push(this.indent + mulitLineValue[i]);
+							this._contentByLines.push(this.indent + mulitLineValue[i]);
 						}
 					} else {
-						result.push(this.indent + JSON.stringify(setting.key) + ': ' + valueString);
+						this._contentByLines.push(preValueContent + valueString);
 					}
-					result[result.length - 1] += ',';
+
+					setting.valueRange = { startLineNumber: valueStart, startColumn: preValueContent.length + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length + 1 };
+					this._contentByLines[this._contentByLines.length - 1] += ',';
 					lastSetting = setting;
-					result.push('');
-					setting.valueRange = { startLineNumber: valueStart, startColumn: 1, endLineNumber: result.length, endColumn: result[result.length - 1].length };
-					setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: result.length, endColumn: result[result.length - 1].length };
+					this._contentByLines.push('');
+					setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 				}
 			}
+			group.range = { startLineNumber: groupTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 		}
 
 		if (lastSetting) {
-			const content = result[lastSetting.range.endLineNumber - 2];
-			result[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
+			const content = this._contentByLines[lastSetting.range.endLineNumber - 2];
+			this._contentByLines[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
 		}
-		result.push('}');
-		return result.join('\n');
+		this._contentByLines.push('}');
+		return this._contentByLines.join('\n');
 	}
 
 	private addTitleOrDescription(description: string, indent: string, result: string[]) {
@@ -148,7 +161,7 @@ export class DefaultSettings implements IDefaultSettings {
 	}
 }
 
-export class DefaultKeybindings implements IDefaultKeybindings {
+export class DefaultKeybindings implements IKeybindingsEditorModel {
 
 	private _uri: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
 	private _content: string;

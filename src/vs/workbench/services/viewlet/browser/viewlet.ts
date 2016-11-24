@@ -17,7 +17,7 @@ export interface IViewletService {
 
 	onDidViewletOpen: Event<IViewlet>;
 	onDidViewletClose: Event<IViewlet>;
-	onDidExtViewletsLoad: Event<void>;
+	onDidExtensionViewletsLoad: Event<void>;
 	onDidViewletToggle: Event<void>;
 
 	/**
@@ -26,15 +26,9 @@ export interface IViewletService {
 	openViewlet(id: string, focus?: boolean): TPromise<IViewlet>;
 
 	/**
-	 * Restores a viewlet during startup.
-	 * If the viewlet to restore is external, delay restoration until extensions finish loading.
-	 */
-	restoreViewlet(id: string): TPromise<IViewlet>;
-
-	/**
 	 * Toggles a viewlet with the given identifier.
 	 */
-	toggleViewlet(id: string): TPromise<void>;
+	toggleViewlet(id: string): void;
 
 	/**
 	 * Returns the current active viewlet or null if none.

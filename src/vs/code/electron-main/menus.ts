@@ -92,7 +92,7 @@ export class VSCodeMenu {
 		});
 
 		// Listen to some events from window service
-		this.windowsService.onPathOpen(path => this.updateMenu());
+		this.windowsService.onPathsOpen(paths => this.updateMenu());
 		this.windowsService.onRecentPathsChange(paths => this.updateMenu());
 		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
 
@@ -298,7 +298,7 @@ export class VSCodeMenu {
 		const hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", product.nameLong), role: 'hide', accelerator: 'Command+H' });
 		const hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Alt+H' });
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
-		const quit = new MenuItem({ label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => this.quit(), accelerator: 'Command+Q' });
+		const quit = new MenuItem({ label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => this.windowsService.quit(), accelerator: this.getAccelerator('workbench.action.quit', 'Command+Q') });
 
 		const actions = [about];
 		actions.push(...checkForUpdates);
@@ -356,7 +356,7 @@ export class VSCodeMenu {
 		const closeFolder = this.createMenuItem(nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"), 'workbench.action.closeFolder');
 		const closeEditor = this.createMenuItem(nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "Close &&Editor"), 'workbench.action.closeActiveEditor');
 
-		const exit = this.createMenuItem(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit"), () => this.quit());
+		const exit = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")), accelerator: this.getAccelerator('workbench.action.quit'), click: () => this.windowsService.quit() });
 
 		arrays.coalesce([
 			newFile,
@@ -388,6 +388,7 @@ export class VSCodeMenu {
 		const userSettings = this.createMenuItem(nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&User Settings"), 'workbench.action.openGlobalSettings');
 		const workspaceSettings = this.createMenuItem(nls.localize({ key: 'miOpenWorkspaceSettings', comment: ['&& denotes a mnemonic'] }, "&&Workspace Settings"), 'workbench.action.openWorkspaceSettings');
 		const kebindingSettings = this.createMenuItem(nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
+		const keymapExtensions = this.createMenuItem(nls.localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymaps"), 'workbench.extensions.action.showRecommendedKeymapExtensions');
 		const snippetsSettings = this.createMenuItem(nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"), 'workbench.action.openSnippets');
 		const colorThemeSelection = this.createMenuItem(nls.localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme"), 'workbench.action.selectTheme');
 		const iconThemeSelection = this.createMenuItem(nls.localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme"), 'workbench.action.selectIconTheme');
@@ -397,6 +398,7 @@ export class VSCodeMenu {
 		preferencesMenu.append(workspaceSettings);
 		preferencesMenu.append(__separator__());
 		preferencesMenu.append(kebindingSettings);
+		preferencesMenu.append(keymapExtensions);
 		preferencesMenu.append(__separator__());
 		preferencesMenu.append(snippetsSettings);
 		preferencesMenu.append(__separator__());
@@ -404,25 +406,6 @@ export class VSCodeMenu {
 		preferencesMenu.append(iconThemeSelection);
 
 		return new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
-	}
-
-	private quit(): void {
-
-		// If the user selected to exit from an extension development host window, do not quit, but just
-		// close the window unless this is the last window that is opened.
-		const vscodeWindow = this.windowsService.getFocusedWindow();
-		if (vscodeWindow && vscodeWindow.isPluginDevelopmentHost && this.windowsService.getWindowCount() > 1) {
-			vscodeWindow.win.close();
-		}
-
-		// Otherwise: normal quit
-		else {
-			setTimeout(() => {
-				this.isQuitting = true;
-
-				app.quit();
-			}, 10 /* delay this because there is an issue with quitting while the menu is open */);
-		}
 	}
 
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
@@ -537,7 +520,7 @@ export class VSCodeMenu {
 		const commands = this.createMenuItem(nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette..."), 'workbench.action.showCommands');
 
 		const fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 });
-		const toggleFocusMode = this.createMenuItem(nls.localize('miToggleFocusMode', "Toggle Focus Mode"), 'workbench.action.toggleFocusMode', this.windowsService.getWindowCount() > 0);
+		const toggleZenMode = this.createMenuItem(nls.localize('miToggleZenMode', "Toggle Zen Mode"), 'workbench.action.toggleZenMode', this.windowsService.getWindowCount() > 0);
 		const toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
 		const splitEditor = this.createMenuItem(nls.localize({ key: 'miSplitEditor', comment: ['&& denotes a mnemonic'] }, "Split &&Editor"), 'workbench.action.splitEditor');
 		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Editor Group &&Layout"), 'workbench.action.toggleEditorGroupLayout');
@@ -593,7 +576,7 @@ export class VSCodeMenu {
 			integratedTerminal,
 			__separator__(),
 			fullscreen,
-			toggleFocusMode,
+			toggleZenMode,
 			platform.isWindows || platform.isLinux ? toggleMenuBar : void 0,
 			__separator__(),
 			splitEditor,
@@ -867,7 +850,7 @@ export class VSCodeMenu {
 		});
 	}
 
-	private getAccelerator(actionId: string): string {
+	private getAccelerator(actionId: string, fallback?: string): string {
 		if (actionId) {
 			const resolvedKeybinding = this.mapResolvedKeybindingToActionId[actionId];
 			if (resolvedKeybinding) {
@@ -879,11 +862,12 @@ export class VSCodeMenu {
 			}
 
 			const lastKnownKeybinding = this.mapLastKnownKeybindingToActionId[actionId];
-
-			return lastKnownKeybinding; // return the last known keybining (chance of mismatch is very low unless it changed)
+			if (lastKnownKeybinding) {
+				return lastKnownKeybinding; // return the last known keybining (chance of mismatch is very low unless it changed)
+			}
 		}
 
-		return void (0);
+		return fallback;
 	}
 
 	private openAboutDialog(): void {

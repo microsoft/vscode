@@ -22,6 +22,7 @@ import { TerminalService } from 'vs/workbench/parts/terminal/electron-browser/te
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import debugActions = require('vs/workbench/parts/debug/browser/debugActions');
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -200,4 +201,6 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToTopTermi
 	primary: KeyMod.CtrlCmd | KeyCode.Home,
 	linux: { primary: KeyMod.Shift | KeyCode.Home }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Top', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL), 'Terminal: Clear', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_K
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KeybindingsRegistry.WEIGHT.workbenchContrib(1)), 'Terminal: Clear', category);

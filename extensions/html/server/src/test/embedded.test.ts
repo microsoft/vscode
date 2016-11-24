@@ -20,21 +20,18 @@ suite('HTML Embedded Support', () => {
 		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
 
 		let position = document.positionAt(offset);
-		let ls = getLanguageService();
-		let htmlDoc = ls.parseHTMLDocument(document);
 
-		let languageId = embeddedSupport.getLanguageAtPosition(htmlLanguageService, document, htmlDoc, position);
+		let docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
+		let languageId = docRegions.getLanguageAtPosition(position);
+
 		assert.equal(languageId, expectedLanguageId);
 	}
 
 	function assertEmbeddedLanguageContent(value: string, languageId: string, expectedContent: string): void {
-
 		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
 
-		let ls = getLanguageService();
-		let htmlDoc = ls.parseHTMLDocument(document);
-
-		let content = embeddedSupport.getEmbeddedDocument(ls, document, htmlDoc, languageId);
+		let docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
+		let content = docRegions.getEmbeddedDocument(languageId);
 		assert.equal(content.getText(), expectedContent);
 	}
 
@@ -70,8 +67,8 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<html><style>foo { }</style>Hello<style>foo { }</style></html>', 'css', '             foo { }                    foo { }               ');
 		assertEmbeddedLanguageContent('<html>\n  <style>\n    foo { }  \n  </style>\n</html>\n', 'css', '\n         \n    foo { }  \n  \n\n');
 
-		assertEmbeddedLanguageContent('<div style="color: red"></div>', 'css', '          x{color: red}       ');
-		assertEmbeddedLanguageContent('<div style=color:red></div>', 'css', '         x{color:red}      ');
+		assertEmbeddedLanguageContent('<div style="color: red"></div>', 'css', '         __{color: red}       ');
+		assertEmbeddedLanguageContent('<div style=color:red></div>', 'css', '        __{color:red}      ');
 	});
 
 	test('Scripts', function (): any {
@@ -109,6 +106,9 @@ suite('HTML Embedded Support', () => {
 		assertLanguageId('<DIV ONKEYUP=foo(|)</DIV>', 'javascript');
 		assertLanguageId('<DIV ONKEYUP=foo()|</DIV>', 'javascript');
 		assertLanguageId('<DIV ONKEYUP=foo()<|/DIV>', 'html');
+
+		assertLanguageId('<label data-content="|Checkbox"/>', 'html');
+		assertLanguageId('<label on="|Checkbox"/>', 'html');
 	});
 
 	test('Script content', function (): any {

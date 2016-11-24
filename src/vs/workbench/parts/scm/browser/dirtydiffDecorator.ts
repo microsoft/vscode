@@ -6,10 +6,9 @@
 'use strict';
 
 import 'vs/css!./media/dirtydiffDecorator';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as winjs from 'vs/base/common/winjs.base';
-import { memoize } from 'vs/base/common/decorators';
 import * as ext from 'vs/workbench/common/contributions';
 import * as common from 'vs/editor/common/editorCommon';
 import * as widget from 'vs/editor/browser/codeEditor';
@@ -60,6 +59,7 @@ class DirtyDiffModelDecorator {
 	private decorations: string[];
 	private baselineModel: common.IModel;
 	private diffDelayer: ThrottledDelayer<common.IChange[]>;
+	private _originalURIPromise: winjs.TPromise<URI>;
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -79,27 +79,7 @@ class DirtyDiffModelDecorator {
 		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
 	}
 
-	@memoize
-	private get originalURIPromise(): winjs.TPromise<URI> {
-		return this.scmService.getBaselineResource(this.uri)
-			.then(originalUri => {
-				if (!originalUri) {
-					return null;
-				}
-
-				return this.textModelResolverService.createModelReference(originalUri)
-					.then(ref => {
-						this.baselineModel = ref.object.textEditorModel;
-
-						this.toDispose.push(ref);
-						this.toDispose.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
-
-						return originalUri;
-					});
-			});
-	}
-
-	private triggerDiff(): winjs.TPromise<void> {
+	private triggerDiff(): winjs.Promise {
 		if (!this.diffDelayer) {
 			return winjs.TPromise.as(null);
 		}
@@ -120,12 +100,33 @@ class DirtyDiffModelDecorator {
 	}
 
 	private diff(): winjs.TPromise<common.IChange[]> {
-		return this.originalURIPromise.then(originalURI => {
+		return this.getOriginalURIPromise().then(originalURI => {
 			if (!this.model || this.model.isDisposed() || !originalURI) {
 				return winjs.TPromise.as([]); // disposed
 			}
 
 			return this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true);
+		});
+	}
+
+	private getOriginalURIPromise(): winjs.TPromise<URI> {
+		if (this._originalURIPromise) {
+			return this._originalURIPromise;
+		}
+
+		this._originalURIPromise = this.scmService.getBaselineResource(this.uri)
+			.then(originalUri => this.textModelResolverService.createModelReference(originalUri)
+				.then(ref => {
+					this.baselineModel = ref.object.textEditorModel;
+
+					this.toDispose.push(ref);
+					this.toDispose.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+
+					return originalUri;
+				}, err => null));
+
+		return always(this._originalURIPromise, () => {
+			this._originalURIPromise = null;
 		});
 	}
 

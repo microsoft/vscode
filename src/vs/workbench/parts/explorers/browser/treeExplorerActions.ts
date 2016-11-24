@@ -13,7 +13,7 @@ import { toCustomExplorerViewletActionId } from 'vs/workbench/parts/explorers/co
 export class RefreshViewExplorerAction extends Action {
 
 	constructor(view: TreeExplorerView) {
-		super(toCustomExplorerViewletActionId('refresh'), nls.localize('refresh', 'Refresh'), 'customExplorer-action toggle', true, () => {
+		super(toCustomExplorerViewletActionId('refresh'), nls.localize('refresh', "Refresh"), 'customExplorer-action toggle', true, () => {
 			view.updateInput();
 			return TPromise.as(null);
 		});

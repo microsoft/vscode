@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IOpenSettingsService } from 'vs/workbench/parts/settings/common/openSettings';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
 export class OpenGlobalSettingsAction extends Action {
 
@@ -17,13 +17,13 @@ export class OpenGlobalSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IOpenSettingsService private openSettingsService: IOpenSettingsService
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<void> {
-		return this.openSettingsService.openGlobalSettings();
+		return this.preferencesService.openGlobalSettings();
 	}
 }
 
@@ -35,13 +35,13 @@ export class OpenGlobalKeybindingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IOpenSettingsService private openSettingsService: IOpenSettingsService
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.openSettingsService.openGlobalKeybindingSettings();
+		return this.preferencesService.openGlobalKeybindingSettings();
 	}
 }
 
@@ -53,12 +53,12 @@ export class OpenWorkspaceSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IOpenSettingsService private openSettingsService: IOpenSettingsService
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<void> {
-		return this.openSettingsService.openWorkspaceSettings();
+		return this.preferencesService.openWorkspaceSettings();
 	}
 }

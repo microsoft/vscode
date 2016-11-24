@@ -245,6 +245,24 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 	});
 }
 
+export function delSync(path: string): void {
+	try {
+		const stat = fs.lstatSync(path);
+		if (stat.isDirectory() && !stat.isSymbolicLink()) {
+			readdirSync(path).forEach(child => delSync(paths.join(path, child)));
+			fs.rmdirSync(path);
+		} else {
+			fs.unlinkSync(path);
+		}
+	} catch (err) {
+		if (err.code === 'ENOENT') {
+			return; // not found
+		}
+
+		throw err;
+	}
+}
+
 export function mv(source: string, target: string, callback: (error: Error) => void): void {
 	if (source === target) {
 		return callback(null);

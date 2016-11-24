@@ -260,6 +260,11 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
+	quit(): TPromise<void> {
+		this.windowsMainService.quit();
+		return TPromise.as(null);
+	}
+
 	private openFileForURI(filePath: string): TPromise<void> {
 		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
 		const pathsToOpen = [filePath];

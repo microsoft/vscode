@@ -97,12 +97,13 @@
 				"command": "markdown.showPreview",
 				"key": "shift+ctrl+v",
 				"mac": "shift+cmd+v",
-				"when": "!terminalFocus"
+				"when": "editorFocus"
 			},
 			{
 				"command": "markdown.showPreviewToSide",
 				"key": "ctrl+k v",
-				"mac": "cmd+k v"
+				"mac": "cmd+k v",
+				"when": "editorFocus"
 			}
 		],
 		"snippets": [
