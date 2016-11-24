@@ -15,6 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
+import { FileLabel } from 'vs/workbench/browser/labels';
 import { ISCMService, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -49,7 +50,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 }
 
 interface ResourceTemplate {
-	container: HTMLElement;
+	fileLabel: FileLabel;
 }
 
 class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
@@ -57,12 +58,20 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	static TEMPLATE_ID = 'resource';
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
 
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+
+	}
+
 	renderTemplate(container: HTMLElement): ResourceTemplate {
-		return { container };
+		const fileLabel = this.instantiationService.createInstance(FileLabel, container);
+
+		return { fileLabel };
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
-		template.container.textContent = resource.uri.fsPath;
+		template.fileLabel.setFile(resource.uri);
 	}
 
 	disposeTemplate(templateData: ResourceTemplate): void {
@@ -87,7 +96,7 @@ export class SCMViewlet extends Viewlet {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ISCMService private scmService: ISCMService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
@@ -100,15 +109,14 @@ export class SCMViewlet extends Viewlet {
 		parent.addClass('scm-viewlet');
 
 		const root = parent.getHTMLElement();
-		const list = append(root, $('.scm-status'));
+		const list = append(root, $('.scm-status.show-file-icons'));
 
 		const delegate = new Delegate();
 
 		this.list = new List(list, delegate, [
 			new ResourceGroupRenderer(),
-			new ResourceRenderer()
+			this.instantiationService.createInstance(ResourceRenderer)
 		]);
-
 
 		// chain(this.list.onSelectionChange)
 		// 	.map(e => e.elements[0])
