@@ -379,7 +379,7 @@ class Renderer extends LegacyRenderer {
 					badge.setTitleFormat(nls.localize('referenceCount', "{0} reference", len));
 				}
 
-				return badge;
+				return null;
 			});
 			/* tslint:enable:no-unused-expression */
 
