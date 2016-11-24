@@ -105,7 +105,7 @@ class TestViewletService implements IViewletService {
 
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
-	onDidExtViewletsLoad = this.onDidExtletsLoadEmitter.event;
+	onDidExtensionViewletsLoad = this.onDidExtletsLoadEmitter.event;
 	onDidViewletToggle = this.onDidViewletToggleEmitter.event;
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {

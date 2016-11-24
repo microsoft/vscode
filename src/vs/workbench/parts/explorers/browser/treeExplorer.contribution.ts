@@ -19,7 +19,6 @@ import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } f
 import { ITreeExplorer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { toCustomExplorerViewletId, toCustomExplorerViewletCSSClass, isValidViewletId } from 'vs/workbench/parts/explorers/common/treeExplorer';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 registerSingleton(ICustomTreeExplorerService, CustomTreeExplorerService);
 
@@ -42,16 +41,14 @@ const explorerSchema: IJSONSchema = {
 	}
 };
 
-export class ExplorerContribtion implements IWorkbenchContribution {
+export class ExtensionExplorersContribtion implements IWorkbenchContribution {
 
-	constructor(
-		@IMessageService private messageService: IMessageService
-	) {
+	constructor() {
 		this.init();
 	}
 
 	public getId(): string {
-		return 'vs.explorer';
+		return 'vs.explorers.extensionExplorers';
 	}
 
 	private init() {
@@ -60,13 +57,15 @@ export class ExplorerContribtion implements IWorkbenchContribution {
 				const { treeExplorerNodeProviderId, treeLabel, icon } = extension.value;
 
 				if (!isValidViewletId(treeExplorerNodeProviderId)) {
-					return this.messageService.show(Severity.Error, localize('treeExplorer.invalidId', 'Tree Explorer extension {0} has invalid id and failed to activate.', treeLabel));
+					console.warn(`Tree Explorer extension '${treeLabel}' has invalid id and failed to activate.`);
+					continue;
 				}
 
 				const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };
 				if (icon) {
 					const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${toCustomExplorerViewletCSSClass(treeExplorerNodeProviderId)}`;
 					const iconPath = join(extension.description.extensionFolderPath, icon);
+
 					createCSSRule(iconClass, getIconRule(iconPath));
 				}
 
@@ -76,12 +75,12 @@ export class ExplorerContribtion implements IWorkbenchContribution {
 					toCustomExplorerViewletId(treeExplorerNodeProviderId),
 					treeLabel,
 					toCustomExplorerViewletCSSClass(treeExplorerNodeProviderId),
-					-1, // External viewlets are ordered by enabling sequence, so order here doesn't matter.
-					true
+					-1, 	// External viewlets are ordered by enabling sequence, so order here doesn't matter.
+					true 	// from extension
 				));
 			}
 		});
 	}
 }
 
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(ExplorerContribtion);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionExplorersContribtion);
