@@ -47,8 +47,10 @@ export const IPreferencesService = createDecorator<IPreferencesService>('prefere
 export interface IPreferencesService {
 	_serviceBrand: any;
 
-	defaultSettings: ISettingsEditorModel;
-	defaultKeybindings: IKeybindingsEditorModel;
+	getDefaultSettingsEditorModel(): TPromise<ISettingsEditorModel>;
+	getUserSettingsEditorModel(): TPromise<ISettingsEditorModel>;
+	getWorkspaceSettingsEditorModel(): TPromise<ISettingsEditorModel>;
+	getDefaultKeybindingsEditorModel(): TPromise<IKeybindingsEditorModel>;
 
 	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
 

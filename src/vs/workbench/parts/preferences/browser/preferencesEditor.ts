@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { hasClass, getDomNodePagePosition } from 'vs/base/browser/dom';
-import { parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -16,7 +15,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/platform';
 import { EditorOptions, EditorInput, } from 'vs/workbench/common/editor';
-import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
@@ -24,7 +22,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFoldingController, ID as FoldingContributionId } from 'vs/editor/contrib/folding/common/folding';
 import { IPreferencesService, ISettingsGroup, ISetting, ISettingsEditorModel, IKeybindingsEditorModel, IPreferencesEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
-import { DefaultSettings } from 'vs/workbench/parts/preferences/common/preferencesModels';
+import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -176,8 +174,11 @@ export class PreferencesEditorContribution extends Disposable implements editorC
 	}
 
 	private createPreferencesRenderer(editorModel: IPreferencesEditorModel): IPreferencesRenderer {
-		if (editorModel instanceof DefaultSettings) {
+		if (editorModel instanceof DefaultSettingsEditorModel) {
 			return this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
+		}
+		if (editorModel instanceof SettingsEditorModel) {
+			// return this.instantiationService.createInstance(SettingsRenderer, this.editor, editorModel);
 		}
 		return null;
 	}
@@ -195,22 +196,37 @@ export class PreferencesEditorContribution extends Disposable implements editorC
 	}
 }
 
-export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer {
+export class SettingsRenderer extends Disposable implements IPreferencesRenderer {
 
-	private settingsActionsRenderer: SettingsActionsRenderer;
-	private copyPreferenceLightBulbRenderer: CopySettingsLightBulbRenderer;
+	private selectSettingValueRenderer: SettingsDecorationsRenderer;
 
-	constructor(protected editor: ICodeEditor, protected settingsEditorModel: DefaultSettings,
+	constructor(protected editor: ICodeEditor, protected settingsEditorModel: SettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
-		this.settingsActionsRenderer = this._register(instantiationService.createInstance(SettingsActionsRenderer, editor));
-		this.copyPreferenceLightBulbRenderer = this._register(instantiationService.createInstance(CopySettingsLightBulbRenderer, editor, this.settingsEditorModel.settingsGroups));
+		this.selectSettingValueRenderer = this._register(instantiationService.createInstance(SettingsDecorationsRenderer, editor, false));
 	}
 
 	public render() {
-		this.settingsActionsRenderer.render(this.settingsEditorModel.settingsGroups);
+		this.selectSettingValueRenderer.render(this.settingsEditorModel.settingsGroups);
+	}
+}
+
+export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer {
+
+	private selectSettingValueRenderer: SettingsDecorationsRenderer;
+
+	constructor(protected editor: ICodeEditor, protected settingsEditorModel: DefaultSettingsEditorModel,
+		@IPreferencesService protected preferencesService: IPreferencesService,
+		@IInstantiationService protected instantiationService: IInstantiationService
+	) {
+		super();
+		this.selectSettingValueRenderer = this._register(instantiationService.createInstance(SettingsDecorationsRenderer, editor, true));
+	}
+
+	public render() {
+		this.selectSettingValueRenderer.render(this.settingsEditorModel.settingsGroups);
 	}
 }
 
@@ -236,53 +252,18 @@ export class CopySettingsLightBulbRenderer extends Disposable {
 	}
 
 	private copy(setting: ISetting, copyPreferenceWidget: CopyPreferenceWidget<ISetting>) {
-		let jsonSchema: IJSONSchema = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[setting.key];
 		let elementPosition = getDomNodePagePosition(copyPreferenceWidget.getDomNode());
 		const anchor = { x: elementPosition.left + elementPosition.width, y: elementPosition.top + elementPosition.height + 10 };
-		const actions = this.getActions(setting, jsonSchema, anchor);
+		const actions = [<IAction>{
+			id: 'helpMessage',
+			label: this.getHelpMessage(setting),
+			enabled: true,
+			run: () => this.preferencesService.copyConfiguration(setting)
+		}];
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => TPromise.wrap(actions)
 		});
-	}
-
-	private getActions(setting: ISetting, jsonSchema: IJSONSchema, anchor: { x: number, y: number }) {
-		if (jsonSchema.type !== 'boolean' && !jsonSchema.enum) {
-			return [<IAction>{
-				id: 'copyAction',
-				label: nls.localize('copyAction', "Copy to settings"),
-				enabled: true,
-				run: () => this.preferencesService.copyConfiguration(setting)
-			}];
-		}
-		return this.getSelectValuesActions(setting, jsonSchema);
-	}
-
-	private getSelectValuesActions(setting: ISetting, jsonSchema: IJSONSchema): IAction[] {
-		if (jsonSchema.type === 'boolean') {
-			return [<IAction>{
-				id: 'truthyValue',
-				label: 'true',
-				enabled: true,
-				run: () => this.preferencesService.copyConfiguration({ key: setting.key, value: true })
-			}, <IAction>{
-				id: 'falsyValue',
-				label: 'false',
-				enabled: true,
-				run: () => this.preferencesService.copyConfiguration({ key: setting.key, value: false })
-			}];
-		}
-		if (jsonSchema.enum) {
-			return jsonSchema.enum.map(value => {
-				return <IAction>{
-					id: value,
-					label: value,
-					enabled: true,
-					run: () => this.preferencesService.copyConfiguration({ key: setting.key, value })
-				};
-			});
-		}
-		return null;
 	}
 
 	private onPositionChanged(positionChangeEvent: editorCommon.ICursorPositionChangedEvent) {
@@ -310,17 +291,21 @@ export class CopySettingsLightBulbRenderer extends Disposable {
 
 	private showCopyPreferencesWidget(copyPreferencesWidget: CopyPreferenceWidget<ISetting>, setting: ISetting) {
 		copyPreferencesWidget.show(setting.valueRange.startLineNumber, setting);
+		copyPreferencesWidget.getDomNode().title = this.getHelpMessage(setting);
+	}
+
+	private getHelpMessage(setting: ISetting): string {
 		let jsonSchema: IJSONSchema = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[setting.key];
 		if (jsonSchema.type === 'boolean' || jsonSchema.enum) {
-			copyPreferencesWidget.getDomNode().title = nls.localize('selectAndCopyTitle', "Select a value and copy to Settings");
+			return platform.isMacintosh ? nls.localize('selectAndCopyHelpMessageMac', "Cmd + click on the value to choose a value and copy to settings") : nls.localize('selectAndCopyHelpMessage', "Ctrl + click on the value to choose a value and copy to settings");
 		} else {
-			copyPreferencesWidget.getDomNode().title = nls.localize('copyTitle', "Copy to Settings");
+			return platform.isMacintosh ? nls.localize('copyHelpMessageMac', "Cmd + click on the value to copy to settings") : nls.localize('copyHelpMessage', "Ctrl + click on the value to copy to settings");
 		}
 	}
 
 	private getSetting(lineNumber: number): ISetting {
 		for (const group of this.settingsGroups) {
-			if (Range.containsPosition(group.range, { lineNumber, column: 1 })) {
+			if (lineNumber >= group.range.startLineNumber && lineNumber <= group.range.endLineNumber) {
 				for (const section of group.sections) {
 					for (const setting of section.settings) {
 						if (lineNumber === setting.valueRange.startLineNumber) {
@@ -334,35 +319,46 @@ export class CopySettingsLightBulbRenderer extends Disposable {
 	}
 }
 
-export class SettingsActionsRenderer extends Disposable {
+export class SettingsDecorationsRenderer extends Disposable {
 
 	private decorationIds: string[] = [];
-	private static HOVER_MESSAGE = platform.isMacintosh ? nls.localize('selectAndCopyHoverMac', "Cmd + click to select and copy to Settings") : nls.localize('selectAndCopyHover', "Ctrl + click to select and copy to Settings");
+	private chooseHoverMessage: string;
+	private copyHoverMessage: string;
 
-	constructor(private editor: ICodeEditor,
+	private settingsGroups: ISettingsGroup[];
+	private model: editorCommon.IModel;
+
+	constructor(private editor: ICodeEditor, private isDefaultSettings: boolean,
 		@IPreferencesService private settingsService: IPreferencesService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super();
+		if (this.isDefaultSettings) {
+			this.copyHoverMessage = platform.isMacintosh ? nls.localize('copyDefaultSettingMac', "Cmd + click to copy to settings") : nls.localize('copyDefaultSetting', "Ctrl + click to copy to settings");
+			this.chooseHoverMessage = platform.isMacintosh ? nls.localize('selectAndCopyDefaultSettingsHoverMac', "Cmd + click to choose value and copy to settings") : nls.localize('selectAndCopyDefaultSettingsHover', "Ctrl + click to choose a value and copy to settings");
+		} else {
+			this.chooseHoverMessage = platform.isMacintosh ? nls.localize('selectAndCopyHoverMac', "Cmd + click to choose value") : nls.localize('selectAndCopyHover', "Ctrl + click to choose value");
+		}
 		this._register(editor.onMouseUp(e => this.onEditorMouseUp(e)));
 	}
 
-	public render(settingGroups: ISettingsGroup[]): void {
-		const model = this.editor.getModel();
-		model.changeDecorations(changeAccessor => {
+	public render(settingsGroups: ISettingsGroup[]): void {
+		this.model = this.editor.getModel();
+		this.settingsGroups = settingsGroups;
+		this.model.changeDecorations(changeAccessor => {
 			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
 		});
-		model.changeDecorations(changeAccessor => {
-			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, this.createDecorations(settingGroups, model));
+		this.model.changeDecorations(changeAccessor => {
+			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, this.createDecorations(this.model));
 		});
 	}
 
-	private createDecorations(settingsGroups: ISettingsGroup[], model: editorCommon.IModel): editorCommon.IModelDeltaDecoration[] {
+	private createDecorations(model: editorCommon.IModel): editorCommon.IModelDeltaDecoration[] {
 		let result: editorCommon.IModelDeltaDecoration[] = [];
-		for (const settingsGroup of settingsGroups) {
+		for (const settingsGroup of this.settingsGroups) {
 			for (const settingsSection of settingsGroup.sections) {
 				for (const setting of settingsSection.settings) {
-					const decoration = this.createSelectSettingDecoration(setting, model);
+					const decoration = this.createSettingDecoration(setting, model);
 					if (decoration) {
 						result.push(decoration);
 					}
@@ -372,17 +368,20 @@ export class SettingsActionsRenderer extends Disposable {
 		return result;
 	}
 
-	private createSelectSettingDecoration(setting: ISetting, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
+	private createSettingDecoration(setting: ISetting, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
 		const jsonSchema: IJSONSchema = this.getConfigurationsMap()[setting.key];
-		if (jsonSchema.enum || jsonSchema.type === 'boolean') {
-			return {
-				range: setting.valueRange,
-				options: {
-					inlineClassName: 'selectSettingValue',
-					stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					hoverMessage: SettingsActionsRenderer.HOVER_MESSAGE
-				}
-			};
+		if (jsonSchema) {
+			const canChooseValue = jsonSchema.enum || jsonSchema.type === 'boolean';
+			if (this.isDefaultSettings || canChooseValue) {
+				return {
+					range: setting.valueRange,
+					options: {
+						inlineClassName: 'settingValue',
+						stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+						hoverMessage: canChooseValue ? this.chooseHoverMessage : this.copyHoverMessage
+					}
+				};
+			}
 		}
 		return null;
 	}
@@ -398,7 +397,7 @@ export class SettingsActionsRenderer extends Disposable {
 
 		switch (e.target.type) {
 			case editorCommon.MouseTargetType.CONTENT_TEXT:
-				if ((e.event.ctrlKey || e.event.metaKey) && hasClass(<HTMLElement>e.target.element, 'selectSettingValue')) {
+				if ((e.event.ctrlKey || e.event.metaKey) && hasClass(<HTMLElement>e.target.element, 'settingValue')) {
 					this.onClick(e);
 				}
 				return;
@@ -412,36 +411,50 @@ export class SettingsActionsRenderer extends Disposable {
 	}
 
 	private onClick(e: IEditorMouseEvent) {
-		const model = this.editor.getModel();
-		const setting = parse('{' + model.getLineContent(e.target.range.startLineNumber) + '}');
-		const key = Object.keys(setting)[0];
-		let value = setting[key];
-		let jsonSchema: IJSONSchema = this.getConfigurationsMap()[key];
-		const actions = this.getActions(key, jsonSchema);
-		if (actions) {
-			let elementPosition = getDomNodePagePosition(<HTMLElement>e.target.element);
-			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => TPromise.wrap(actions)
-			});
-			return;
+		const setting = this.getSetting(e.target.range.startLineNumber);
+		if (setting) {
+			let jsonSchema: IJSONSchema = this.getConfigurationsMap()[setting.key];
+			const actions = this.getActions(setting, jsonSchema);
+			if (actions) {
+				let elementPosition = getDomNodePagePosition(<HTMLElement>e.target.element);
+				const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => TPromise.wrap(actions)
+				});
+				return;
+			}
+			this.settingsService.copyConfiguration(setting);
 		}
-		this.settingsService.copyConfiguration({ key, value });
 	}
 
-	private getActions(key: string, jsonSchema: IJSONSchema): IAction[] {
+	private getSetting(lineNumber: number): ISetting {
+		for (const group of this.settingsGroups) {
+			if (lineNumber >= group.range.startLineNumber && lineNumber <= group.range.endLineNumber) {
+				for (const section of group.sections) {
+					for (const setting of section.settings) {
+						if (lineNumber >= setting.valueRange.startLineNumber && lineNumber <= setting.valueRange.endLineNumber) {
+							return setting;
+						}
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	private getActions(setting: ISetting, jsonSchema: IJSONSchema): IAction[] {
 		if (jsonSchema.type === 'boolean') {
 			return [<IAction>{
 				id: 'truthyValue',
 				label: 'true',
 				enabled: true,
-				run: () => this.settingsService.copyConfiguration({ key, value: true })
+				run: () => this.settingsService.copyConfiguration({ key: setting.key, value: true })
 			}, <IAction>{
 				id: 'falsyValue',
 				label: 'false',
 				enabled: true,
-				run: () => this.settingsService.copyConfiguration({ key, value: false })
+				run: () => this.settingsService.copyConfiguration({ key: setting.key, value: false })
 			}];
 		}
 		if (jsonSchema.enum) {
@@ -450,10 +463,15 @@ export class SettingsActionsRenderer extends Disposable {
 					id: value,
 					label: value,
 					enabled: true,
-					run: () => this.settingsService.copyConfiguration({ key, value })
+					run: () => this.settingsService.copyConfiguration({ key: setting.key, value })
 				};
 			});
 		}
 		return null;
+	}
+
+	public dispose() {
+		this.model.deltaDecorations(this.decorationIds, []);
+		super.dispose();
 	}
 }
