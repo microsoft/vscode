@@ -63,7 +63,7 @@
 
 .vs-dark .task-statusbar-item-label-info,
 .hc-black .task-statusbar-item-label-info {
-	background: url('status-info.svg') 6px 6px no-repeat;
+	background: url('status-info-dark.svg') 6px 6px no-repeat;
 }
 
 .vs .task-statusbar-item-label-error {
