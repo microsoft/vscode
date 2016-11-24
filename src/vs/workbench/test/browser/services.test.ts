@@ -116,8 +116,7 @@ class TestViewletService implements IViewletService {
 		return TPromise.as(null);
 	}
 
-	public toggleViewlet(id: string): TPromise<void> {
-		return TPromise.as(null);
+	public toggleViewlet(id: string): void {
 	}
 
 	public getAllViewlets(): ViewletDescriptor[] {

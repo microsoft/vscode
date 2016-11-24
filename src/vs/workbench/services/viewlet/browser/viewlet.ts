@@ -34,7 +34,7 @@ export interface IViewletService {
 	/**
 	 * Toggles a viewlet with the given identifier.
 	 */
-	toggleViewlet(id: string): TPromise<void>;
+	toggleViewlet(id: string): void;
 
 	/**
 	 * Returns the current active viewlet or null if none.

@@ -42,16 +42,15 @@ export class ToggleExternalViewletAction extends Action {
 				id: viewlet.id,
 				label: `${actionLabel} ${viewlet.name}`,
 				run: () => {
-					this.viewletService.toggleViewlet(viewlet.id).then(() => {
-						if (isEnabled) {
-							// To disable, so open default viewlet
-							const defaultViewletId = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getDefaultViewletId();
-							this.viewletService.openViewlet(defaultViewletId);
-						} else {
-							// To enable, so open the viewlet to be enabled
-							this.viewletService.openViewlet(viewlet.id);
-						}
-					});
+					this.viewletService.toggleViewlet(viewlet.id);
+					if (isEnabled) {
+						// To disable, so open default viewlet
+						const defaultViewletId = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getDefaultViewletId();
+						this.viewletService.openViewlet(defaultViewletId);
+					} else {
+						// To enable, so open the viewlet to be enabled
+						this.viewletService.openViewlet(viewlet.id);
+					}
 				}
 			});
 		});
