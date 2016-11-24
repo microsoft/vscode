@@ -20,6 +20,7 @@
 			// For reference by services requiring PHP syntax highlighting for partial
 			// code missing script start/end tags.
 			"id": "phplanguage",
+			"aliases": [ null ], // unsupported: prevents language from appearing in Language Mode list
 			"mimetypes": ["application/x-php-language"],
 			"configuration": "./language-configuration.json"
 		}],
