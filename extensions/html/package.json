@@ -143,8 +143,12 @@
     }
   },
   "dependencies": {
-    "vscode-languageclient": "^2.6.4-next.1",
-    "vscode-languageserver-types": "^1.0.5-next.1",
+    "vscode-languageclient": "^3.0.1-alpha.2",
+    "vscode-languageserver-types": "^3.0.1-alpha.2",
     "vscode-nls": "^1.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^6.0.51",
+    "@types/mocha": "^2.2.33"
   }
 }
