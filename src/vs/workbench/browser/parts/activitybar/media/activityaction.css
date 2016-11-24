@@ -25,6 +25,10 @@
 	text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
 }
 
+.vs .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
+	opacity: 0.47;
+}
+
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
 	content: "";
 	position: absolute;
