@@ -60,7 +60,7 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 	}
 }
 
-function proposedAPI(extension: IExtensionDescription): Function {
+function proposed(extension: IExtensionDescription): Function {
 	return (target: any, key: string, descriptor: any) => {
 		let fnKey: string = null;
 		let fn: Function = null;
@@ -389,17 +389,17 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 
 		class SCM {
 
-			@proposedAPI(extension)
+			@proposed(extension)
 			get activeProvider() {
 				return extHostSCM.activeProvider;
 			}
 
-			@proposedAPI(extension)
+			@proposed(extension)
 			get onDidChangeActiveProvider() {
 				return extHostSCM.onDidChangeActiveProvider;
 			}
 
-			@proposedAPI(extension)
+			@proposed(extension)
 			registerSCMProvider(id, provider) {
 				return extHostSCM.registerSCMProvider(id, provider);
 			}
