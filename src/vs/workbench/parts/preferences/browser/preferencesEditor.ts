@@ -239,18 +239,26 @@ export class CopySettingsLightBulbRenderer extends Disposable {
 		let jsonSchema: IJSONSchema = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[setting.key];
 		let elementPosition = getDomNodePagePosition(copyPreferenceWidget.getDomNode());
 		const anchor = { x: elementPosition.left + elementPosition.width, y: elementPosition.top + elementPosition.height + 10 };
-		const actions = this.getActions(setting, jsonSchema);
-		if (actions) {
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => TPromise.wrap(actions)
-			});
-			return;
-		}
-		this.preferencesService.copyConfiguration(setting);
+		const actions = this.getActions(setting, jsonSchema, anchor);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => TPromise.wrap(actions)
+		});
 	}
 
-	private getActions(setting: ISetting, jsonSchema: IJSONSchema): IAction[] {
+	private getActions(setting: ISetting, jsonSchema: IJSONSchema, anchor: { x: number, y: number }) {
+		if (jsonSchema.type !== 'boolean' && !jsonSchema.enum) {
+			return [<IAction>{
+				id: 'copyAction',
+				label: nls.localize('copyAction', "Copy to settings"),
+				enabled: true,
+				run: () => this.preferencesService.copyConfiguration(setting)
+			}];
+		}
+		return this.getSelectValuesActions(setting, jsonSchema);
+	}
+
+	private getSelectValuesActions(setting: ISetting, jsonSchema: IJSONSchema): IAction[] {
 		if (jsonSchema.type === 'boolean') {
 			return [<IAction>{
 				id: 'truthyValue',
@@ -304,9 +312,9 @@ export class CopySettingsLightBulbRenderer extends Disposable {
 		copyPreferencesWidget.show(setting.valueRange.startLineNumber, setting);
 		let jsonSchema: IJSONSchema = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[setting.key];
 		if (jsonSchema.type === 'boolean' || jsonSchema.enum) {
-			copyPreferencesWidget.getDomNode().title = nls.localize('selectAndCopyTitle', "Select a value and copy in Settings");
+			copyPreferencesWidget.getDomNode().title = nls.localize('selectAndCopyTitle', "Select a value and copy to Settings");
 		} else {
-			copyPreferencesWidget.getDomNode().title = nls.localize('copyTitle', "Copy in Settings");
+			copyPreferencesWidget.getDomNode().title = nls.localize('copyTitle', "Copy to Settings");
 		}
 	}
 
@@ -329,7 +337,7 @@ export class CopySettingsLightBulbRenderer extends Disposable {
 export class SettingsActionsRenderer extends Disposable {
 
 	private decorationIds: string[] = [];
-	private static HOVER_MESSAGE = platform.isMacintosh ? nls.localize('selectAndCopyHoverMac', "Cmd + click to select and copy in Settings") : nls.localize('selectAndCopyHover', "Ctrl + click to select and copy in Settings");
+	private static HOVER_MESSAGE = platform.isMacintosh ? nls.localize('selectAndCopyHoverMac', "Cmd + click to select and copy to Settings") : nls.localize('selectAndCopyHover', "Ctrl + click to select and copy to Settings");
 
 	constructor(private editor: ICodeEditor,
 		@IPreferencesService private settingsService: IPreferencesService,
