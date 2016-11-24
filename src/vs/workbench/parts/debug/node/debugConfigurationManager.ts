@@ -71,7 +71,7 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 			},
 			configurationSnippets: {
 				description: nls.localize('vscode.extension.contributes.debuggers.configurationSnippets', "Snippets for adding new configurations in \'launch.json\'."),
-				type: 'object'
+				type: 'array'
 			},
 			configurationAttributes: {
 				description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.json\'."),
