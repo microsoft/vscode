@@ -149,7 +149,8 @@ export class SearchRenderer extends ActionsRenderer {
 			rightRenderer = (right: HTMLElement) => {
 				let len = fileMatch.count();
 
-				return new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
+				new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
+				return null;
 			};
 
 			widget = new LeftRightWidget(container, leftRenderer, rightRenderer);
