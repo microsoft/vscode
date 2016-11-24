@@ -10,7 +10,7 @@ import { compare } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IReadOnlyModel, IPosition } from 'vs/editor/common/editorCommon';
+import { IModel, IPosition } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry } from 'vs/editor/common/modes';
 import { ISnippetsRegistry, Extensions } from 'vs/editor/common/modes/snippetsRegistry';
@@ -42,7 +42,7 @@ export const snippetSuggestSupport: ISuggestSupport = {
 
 	triggerCharacters: [],
 
-	provideCompletionItems(model: IReadOnlyModel, position: Position): ISuggestResult {
+	provideCompletionItems(model: IModel, position: Position): ISuggestResult {
 		const suggestions = Registry.as<ISnippetsRegistry>(Extensions.Snippets).getSnippetCompletions(model, position);
 		if (suggestions) {
 			return { suggestions };
@@ -50,7 +50,7 @@ export const snippetSuggestSupport: ISuggestSupport = {
 	}
 };
 
-export function provideSuggestionItems(model: IReadOnlyModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[]): TPromise<ISuggestionItem[]> {
+export function provideSuggestionItems(model: IModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[]): TPromise<ISuggestionItem[]> {
 
 	const allSuggestions: ISuggestionItem[] = [];
 	const acceptSuggestion = createSuggesionFilter(snippetConfig);
@@ -132,7 +132,7 @@ function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestRes
 	}
 }
 
-function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISuggestion, model: IReadOnlyModel, position: Position): () => TPromise<void> {
+function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISuggestion, model: IModel, position: Position): () => TPromise<void> {
 	return () => {
 		if (typeof provider.resolveCompletionItem === 'function') {
 			return asWinJsPromise(token => provider.resolveCompletionItem(model, position, suggestion, token))
