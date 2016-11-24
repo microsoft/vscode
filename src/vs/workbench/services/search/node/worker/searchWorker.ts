@@ -11,9 +11,11 @@ import * as strings from 'vs/base/common/strings';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { ISerializedFileMatch } from '../search';
 import * as baseMime from 'vs/base/common/mime';
-import { ILineMatch } from 'vs/platform/search/common/search';
+import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
 import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode } from 'vs/base/node/encoding';
 import { detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
+
+import { ISearchWorker, ISearchWorkerConfig, ISearchWorkerSearchArgs } from './searchWorkerIpc';
 
 import profiler = require('v8-profiler');
 
@@ -22,16 +24,7 @@ interface ReadLinesOptions {
 	encoding: string;
 }
 
-// let worker: SearchWorker;
-// process.on('message', m => {
-// 	if (m.initialize) {
-// 		worker = new SearchWorker(m.initialize);
-// 	} else {
-// 		worker.search(m.absolutePath);
-// 	}
-// })
-
-export class SearchWorker {
+export class SearchWorker implements ISearchWorker {
 	private contentPattern: RegExp;
 
 	private limitReached: boolean;
@@ -47,9 +40,27 @@ export class SearchWorker {
 
 	private finalCallback;
 
-	constructor(args: any) {
-		this.contentPattern = strings.createRegExp(args.contentPattern, false, { multiline: false, global: true, matchCase: false });
+	initialize(config: ISearchWorkerConfig): TPromise<void> {
 		console.log('worker started: ' + Date.now());
+		this.contentPattern = strings.createRegExp(config.pattern.pattern, config.pattern.isRegExp, { matchCase: config.pattern.isCaseSensitive, wholeWord: config.pattern.isWordMatch, multiline: false, global: true });
+		return TPromise.wrap<void>(undefined);
+	}
+
+	cancel(): TPromise<void> {
+		return TPromise.wrap<void>(undefined);
+	}
+
+	search(args: ISearchWorkerSearchArgs): TPromise<FileMatch[]> {
+		// profiler.startProfiling('p1');
+		console.log('starting search: ' + Date.now());
+		this.paths = args.absolutePaths;
+		for (let i=0; i<50 && i<this.paths.length; i++) {
+			this.start(this.paths[i]);
+		}
+
+		return new TPromise(resolve => {
+			this.finalCallback = resolve;
+		});
 	}
 
 	private start(p: string) {
@@ -65,20 +76,7 @@ export class SearchWorker {
 		})
 	}
 
-	public search(absolutePaths: string[]): TPromise<FileMatch[]> {
-		// profiler.startProfiling('p1');
-		console.log('starting search: ' + Date.now());
-		this.paths = absolutePaths;
-		for (let i=0; i<50; i++) {
-			this.start(absolutePaths[i]);
-		}
-
-		return new TPromise(resolve => {
-			this.finalCallback = resolve;
-		});
-	}
-
-	public doSearch(absolutePath: string): TPromise<FileMatch> {
+	private doSearch(absolutePath: string): TPromise<FileMatch> {
 		let fileMatch: FileMatch = null;
 		// console.log('doing search: ' + absolutePath);
 
@@ -235,23 +233,23 @@ export class SearchWorker {
 
 
 export class FileMatch implements ISerializedFileMatch {
-	public path: string;
-	public lineMatches: LineMatch[];
+	path: string;
+	lineMatches: LineMatch[];
 
 	constructor(path: string) {
 		this.path = path;
 		this.lineMatches = [];
 	}
 
-	public addMatch(lineMatch: LineMatch): void {
+	addMatch(lineMatch: LineMatch): void {
 		this.lineMatches.push(lineMatch);
 	}
 
-	public isEmpty(): boolean {
+	isEmpty(): boolean {
 		return this.lineMatches.length === 0;
 	}
 
-	public serialize(): ISerializedFileMatch {
+	serialize(): ISerializedFileMatch {
 		let lineMatches: ILineMatch[] = [];
 
 		for (let i = 0; i < this.lineMatches.length; i++) {
@@ -266,9 +264,9 @@ export class FileMatch implements ISerializedFileMatch {
 }
 
 export class LineMatch implements ILineMatch {
-	public preview: string;
-	public lineNumber: number;
-	public offsetAndLengths: number[][];
+	preview: string;
+	lineNumber: number;
+	offsetAndLengths: number[][];
 
 	constructor(preview: string, lineNumber: number) {
 		this.preview = preview.replace(/(\r|\n)*$/, '');
@@ -276,19 +274,19 @@ export class LineMatch implements ILineMatch {
 		this.offsetAndLengths = [];
 	}
 
-	public getText(): string {
+	getText(): string {
 		return this.preview;
 	}
 
-	public getLineNumber(): number {
+	getLineNumber(): number {
 		return this.lineNumber;
 	}
 
-	public addMatch(offset: number, length: number): void {
+	addMatch(offset: number, length: number): void {
 		this.offsetAndLengths.push([offset, length]);
 	}
 
-	public serialize(): ILineMatch {
+	serialize(): ILineMatch {
 		let result = {
 			preview: this.preview,
 			lineNumber: this.lineNumber,
