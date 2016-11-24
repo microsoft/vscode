@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -24,6 +24,8 @@ export class ViewletService implements IViewletService {
 	private viewletRegistry: ViewletRegistry;
 	private enabledExtensionViewletIds: string[];
 	private extensionViewlets: ViewletDescriptor[];
+	private extensionViewletsLoaded: TPromise<void>;
+	private extensionViewletsLoadedPromiseComplete: ValueCallback;
 	private _onDidExtensionViewletsLoad = new Emitter<void>();
 	private _onDidViewletToggle = new Emitter<void>();
 
@@ -38,26 +40,32 @@ export class ViewletService implements IViewletService {
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		this.sidebarPart = sidebarPart;
-		this.viewletRegistry = <ViewletRegistry>Registry.as(ViewletExtensions.Viewlets);
+		this.viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 
 		const enabledExtensionViewletsJson = this.storageService.get(ViewletService.ENABLED_EXTENSION_VIEWLETS);
 		this.enabledExtensionViewletIds = enabledExtensionViewletsJson ? JSON.parse(enabledExtensionViewletsJson) : [];
 		this.extensionViewlets = [];
 
-		this.extensionService.onReady().then(() => {
-			this.onExtensionServiceReady();
-		});
+		this.loadExtensionViewlets();
 	}
 
-	private onExtensionServiceReady(): void {
-		const viewlets = this.viewletRegistry.getViewlets();
-		viewlets.forEach(v => {
-			if (v.fromExtension) {
-				this.extensionViewlets.push(v);
-			}
+	private loadExtensionViewlets(): void {
+		this.extensionViewletsLoaded = new TPromise<void>(c => {
+			this.extensionViewletsLoadedPromiseComplete = c;
 		});
 
-		this._onDidExtensionViewletsLoad.fire();
+		this.extensionService.onReady().then(() => {
+			const viewlets = this.viewletRegistry.getViewlets();
+			viewlets.forEach(v => {
+				if (v.fromExtension) {
+					this.extensionViewlets.push(v);
+				}
+			});
+
+			this.extensionViewletsLoadedPromiseComplete(void 0);
+
+			this._onDidExtensionViewletsLoad.fire();
+		});
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
@@ -67,27 +75,25 @@ export class ViewletService implements IViewletService {
 	public restoreViewlet(id: string): TPromise<IViewlet> {
 		const shouldFocus = false;
 
-		const stockViewletIds = this.getStockViewlets().map(v => v.id);
-		const isStockViewlet = stockViewletIds.indexOf(id) !== -1;
-		if (isStockViewlet) {
+		// Built in viewlets do not need to wait for extensions to be loaded
+		const builtInViewletIds = this.getBuiltInViewlets().map(v => v.id);
+		const isBuiltInViewlet = builtInViewletIds.indexOf(id) !== -1;
+		if (isBuiltInViewlet) {
 			return this.sidebarPart.openViewlet(id, shouldFocus);
-		} else {
-			return new TPromise<IViewlet>(c => {
-				this.onDidExtensionViewletsLoad(() => {
-					// It's possible the external viewlet is uninstalled and not available.
-					// Restore file explorer in that case.
-					if (!this.viewletRegistry.getViewlet(id)) {
-						const defaultViewletId = this.viewletRegistry.getDefaultViewletId();
-						this.sidebarPart.openViewlet(defaultViewletId, shouldFocus).then(viewlet => c(viewlet));
-					} else {
-						this.sidebarPart.openViewlet(id, shouldFocus).then(viewlet => c(viewlet));
-					}
-				});
-			});
 		}
+
+		// Extension viewlets need to be loaded first which can take time
+		return this.extensionViewletsLoaded.then(() => {
+			if (this.viewletRegistry.getViewlet(id)) {
+				return this.sidebarPart.openViewlet(id, shouldFocus);
+			}
+
+			// Fallback to default viewlet if extension viewlet is still not found (e.g. uninstalled)
+			return this.sidebarPart.openViewlet(this.viewletRegistry.getDefaultViewletId(), shouldFocus);
+		});
 	}
 
-	public toggleViewlet(id: string): TPromise<void> {
+	public toggleViewlet(id: string): void {
 		const index = this.enabledExtensionViewletIds.indexOf(id);
 		if (index === -1) {
 			this.enabledExtensionViewletIds.push(id);
@@ -95,9 +101,8 @@ export class ViewletService implements IViewletService {
 			this.enabledExtensionViewletIds.splice(index, 1);
 		}
 
-		this.setEnabledExtensionViewlets();
+		this.storageService.store(ViewletService.ENABLED_EXTENSION_VIEWLETS, JSON.stringify(this.enabledExtensionViewletIds));
 		this._onDidViewletToggle.fire();
-		return TPromise.as(null);
 	}
 
 	public getActiveViewlet(): IViewlet {
@@ -105,32 +110,30 @@ export class ViewletService implements IViewletService {
 	}
 
 	public getAllViewlets(): ViewletDescriptor[] {
-		const stockViewlets = this.getStockViewlets();
-		return stockViewlets.concat(this.extensionViewlets);
+		const builtInViewlets = this.getBuiltInViewlets();
+
+		return builtInViewlets.concat(this.extensionViewlets);
 	}
 
 	public getAllViewletsToDisplay(): ViewletDescriptor[] {
-		const stockViewlets = this.getStockViewlets();
+		const builtInViewlets = this.getBuiltInViewlets();
 		const enabledExtensionViewlets = this.extensionViewlets
 			.filter(v => this.enabledExtensionViewletIds.indexOf(v.id) !== -1)
 			.sort((v1, v2) => {
 				return this.enabledExtensionViewletIds.indexOf(v1.id) - this.enabledExtensionViewletIds.indexOf(v2.id);
 			});
-		return stockViewlets.concat(enabledExtensionViewlets);
+
+		return builtInViewlets.concat(enabledExtensionViewlets);
 	}
 
 	public isViewletEnabled(id: string): boolean {
 		return this.enabledExtensionViewletIds.indexOf(id) !== -1;
 	}
 
-	// Get an ordered list of all stock viewlets
-	private getStockViewlets(): ViewletDescriptor[] {
+	// Get an ordered list of all built in viewlets
+	private getBuiltInViewlets(): ViewletDescriptor[] {
 		return this.viewletRegistry.getViewlets()
 			.filter(viewlet => !viewlet.fromExtension)
 			.sort((v1, v2) => v1.order - v2.order);
-	}
-
-	private setEnabledExtensionViewlets(): void {
-		this.storageService.store(ViewletService.ENABLED_EXTENSION_VIEWLETS, JSON.stringify(this.enabledExtensionViewletIds));
 	}
 }
