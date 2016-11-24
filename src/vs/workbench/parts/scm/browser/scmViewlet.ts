@@ -16,6 +16,10 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { ISCMService, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+
+// TODO@Joao remove
+import { GitSCMProvider } from 'vs/workbench/parts/git/browser/gitSCMProvider';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -82,9 +86,13 @@ export class SCMViewlet extends Viewlet {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ISCMService private scmService: ISCMService
+		@ISCMService private scmService: ISCMService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(VIEWLET_ID, telemetryService);
+
+		// TODO@Joao
+		scmService.activeProvider = instantiationService.createInstance(GitSCMProvider);
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -108,6 +116,7 @@ export class SCMViewlet extends Viewlet {
 		// 	.on(this.openExtension, this, this.disposables);
 
 		this.update();
+		this.scmService.activeProvider.onChange(() => this.update());
 
 		return TPromise.as(null);
 	}
