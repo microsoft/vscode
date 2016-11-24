@@ -33,20 +33,47 @@
 .task-statusbar-item-label-error {
 	display: inline-block;
 	padding: 0px 0px 2px 16px;
-	background: url('status-error.svg') 0px 6px no-repeat;
 	background-size: 11px;
 }
 
 .task-statusbar-item-label-warning {
 	display: inline-block;
 	padding: 0px 0px 2px 22px;
-	background: url('status-warning.svg') 6px 6px no-repeat;
 	background-size: 11px;
 }
 
 .task-statusbar-item-label-info {
 	display: inline-block;
 	padding: 0px 0px 2px 22px;
-	background: url('status-info.svg') 6px 6px no-repeat;
 	background-size: 11px;
+}
+
+.vs-dark .task-statusbar-item-label-error,
+.hc-black .task-statusbar-item-label-error {
+	display: inline-block;
+	padding: 0px 0px 2px 16px;
+	background: url('status-error-dark.svg') 0px 6px no-repeat;
+	background-size: 11px;
+}
+
+.vs-dark .task-statusbar-item-label-warning,
+.hc-black .task-statusbar-item-label-warning {
+	background: url('status-warning-dark.svg') 6px 6px no-repeat;
+}
+
+.vs-dark .task-statusbar-item-label-info,
+.hc-black .task-statusbar-item-label-info {
+	background: url('status-info.svg') 6px 6px no-repeat;
+}
+
+.vs .task-statusbar-item-label-error {
+	background: url('status-error-light.svg') 0px 6px no-repeat;
+}
+
+.vs .task-statusbar-item-label-warning {
+	background: url('status-warning-light.svg') 6px 6px no-repeat;
+}
+
+.vs .task-statusbar-item-label-info {
+	background: url('status-info-light.svg') 6px 6px no-repeat;
 }

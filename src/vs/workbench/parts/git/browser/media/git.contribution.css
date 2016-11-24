@@ -25,9 +25,15 @@
 
 /* Activity Bar */
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.git,
-.monaco-shell .git-statusbar-group > .git-statusbar-branch-item,
+.vs-dark .monaco-workbench .git-statusbar-group > .git-statusbar-branch-item,
+.hc-black .monaco-workbench .git-statusbar-group > .git-statusbar-branch-item,
 .vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.git {
 	background-image: url('git-dark.svg');
+}
+
+.vs .monaco-workbench .git-statusbar-branch-item,
+.vs .monaco-workbench > .activitybar .monaco-action-bar .action-label.git {
+	background-image: url('git-light.svg');
 }
 
 /* Git viewlet label */
