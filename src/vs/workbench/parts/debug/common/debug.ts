@@ -293,6 +293,7 @@ export interface IEnvConfig {
 	preLaunchTask?: string;
 	debugServer?: number;
 	noDebug?: boolean;
+	port?: number;
 }
 
 export interface IConfig extends IEnvConfig {
