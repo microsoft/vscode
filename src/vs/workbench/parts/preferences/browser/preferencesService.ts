@@ -93,10 +93,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel> {
-		if (this._defaultSettings.uri.fsPath === uri.fsPath) {
+		if (this.defaultSettings.uri.fsPath === uri.fsPath) {
 			return TPromise.wrap(this._defaultSettings);
 		}
-		if (this._defaultKeybindings.uri.fsPath === uri.fsPath) {
+		if (this.defaultKeybindings.uri.fsPath === uri.fsPath) {
 			return TPromise.wrap(this._defaultKeybindings);
 		}
 		return TPromise.wrap(null);
