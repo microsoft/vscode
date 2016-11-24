@@ -16,8 +16,8 @@ export class SCMService implements ISCMService {
 
 	private providers: IBaselineResourceProvider[] = [];
 
-	constructor(activeProvider: ISCMProvider) {
-		this.activeProvider = activeProvider;
+	constructor() {
+
 	}
 
 	activeProvider: ISCMProvider;
