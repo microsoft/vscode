@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .view-line:hover :not(.inline-folded).selectSettingValue {
+.monaco-editor .view-line:hover :not(.inline-folded).settingValue {
 	text-decoration: underline;
-	cursor: pointer;
 }
 
 .monaco-editor .copy-preferences-light-bulb {
