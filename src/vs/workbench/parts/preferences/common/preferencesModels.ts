@@ -9,11 +9,11 @@ import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDefaultSettings, IDefaultKeybindings, ISettingsGroup, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-export class DefaultSettings implements IDefaultSettings {
+export class DefaultSettings implements ISettingsEditorModel {
 
 	private _uri: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
 	private indent: string;
@@ -148,7 +148,7 @@ export class DefaultSettings implements IDefaultSettings {
 	}
 }
 
-export class DefaultKeybindings implements IDefaultKeybindings {
+export class DefaultKeybindings implements IKeybindingsEditorModel {
 
 	private _uri: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
 	private _content: string;

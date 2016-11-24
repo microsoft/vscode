@@ -15,18 +15,19 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/platform';
 import { EditorOptions, EditorInput, } from 'vs/workbench/common/editor';
-import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFoldingController, ID as FoldingContributionId } from 'vs/editor/contrib/folding/common/folding';
-import { IPreferencesService, ISettingsGroup, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISettingsGroup, ISetting, ISettingsEditorModel, IKeybindingsEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
-export class AbstractSettingsInput extends StringEditorInput {
+export class DefaultPreferencesInput extends ResourceEditorInput {
 
 	private _willDispose = new Emitter<void>();
 	public willDispose: Event<void> = this._willDispose.event;
@@ -34,17 +35,14 @@ export class AbstractSettingsInput extends StringEditorInput {
 	constructor(
 		name: string,
 		description: string,
-		value: string,
-		private _resource: URI,
-		modeId: string,
-		singleton: boolean,
-		@IInstantiationService instantiationService: IInstantiationService
+		resource: URI,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService
 	) {
-		super(name, description, value, modeId, singleton, instantiationService);
+		super(name, description, resource, textModelResolverService);
 	}
 
 	public getResource(): URI {
-		return this._resource;
+		return this.resource;
 	}
 
 	public dispose() {
@@ -54,41 +52,39 @@ export class AbstractSettingsInput extends StringEditorInput {
 	}
 }
 
-export class DefaultSettingsInput extends AbstractSettingsInput {
+export class DefaultSettingsInput extends DefaultPreferencesInput {
 	private static INSTANCE: DefaultSettingsInput;
 
-	public static getInstance(instantiationService: IInstantiationService, preferencesService: IPreferencesService): DefaultSettingsInput {
+	public static getInstance(instantiationService: IInstantiationService, defaultSettings: ISettingsEditorModel): DefaultSettingsInput {
 		if (!DefaultSettingsInput.INSTANCE) {
-			const defaultSettings = preferencesService.defaultSettings;
-			DefaultSettingsInput.INSTANCE = instantiationService.createInstance(DefaultSettingsInput, nls.localize('defaultName', "Default Settings"), null, defaultSettings.content, defaultSettings.uri, 'application/json', false);
+			DefaultSettingsInput.INSTANCE = instantiationService.createInstance(DefaultSettingsInput, nls.localize('defaultName', "Default Settings"), null, defaultSettings.uri);
 		}
 		return DefaultSettingsInput.INSTANCE;
 	}
 }
 
-export class DefaultKeybindingsInput extends AbstractSettingsInput {
+export class DefaultKeybindingsInput extends DefaultPreferencesInput {
 	private static INSTANCE: DefaultKeybindingsInput;
 
-	public static getInstance(instantiationService: IInstantiationService, preferencesService: IPreferencesService): DefaultKeybindingsInput {
+	public static getInstance(instantiationService: IInstantiationService, defaultKeybindings: IKeybindingsEditorModel): DefaultKeybindingsInput {
 		if (!DefaultKeybindingsInput.INSTANCE) {
-			const defaultKeybindings = preferencesService.defaultKeybindings;
-			DefaultKeybindingsInput.INSTANCE = instantiationService.createInstance(DefaultKeybindingsInput, nls.localize('defaultKeybindings', "Default Keyboard Shortcuts"), null, defaultKeybindings.content, defaultKeybindings.uri, 'application/json', false);
+			DefaultKeybindingsInput.INSTANCE = instantiationService.createInstance(DefaultKeybindingsInput, nls.localize('defaultKeybindings', "Default Keyboard Shortcuts"), null, defaultKeybindings.uri);
 		}
 
 		return DefaultKeybindingsInput.INSTANCE;
 	}
 }
 
-export class DefaultSettingsEditor extends StringEditor {
+export class DefaultPreferencesEditor extends StringEditor {
 
-	public static ID = 'workbench.editors.defaultSettingsEditor';
+	public static ID = 'workbench.editors.defaultPrefrencesEditor';
 
 	private static VIEW_STATE: Map<URI, editorCommon.IEditorViewState> = new Map<URI, editorCommon.IEditorViewState>();
 
 	private inputDisposeListener;
 
 	public getId(): string {
-		return DefaultSettingsEditor.ID;
+		return DefaultPreferencesEditor.ID;
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
@@ -97,7 +93,7 @@ export class DefaultSettingsEditor extends StringEditor {
 	}
 
 	public clearInput(): void {
-		this.saveState(<AbstractSettingsInput>this.input);
+		this.saveState(<DefaultPreferencesInput>this.input);
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
 		}
@@ -105,7 +101,7 @@ export class DefaultSettingsEditor extends StringEditor {
 	}
 
 	protected restoreViewState(input: EditorInput) {
-		const viewState = DefaultSettingsEditor.VIEW_STATE.get((<AbstractSettingsInput>input).getResource());
+		const viewState = DefaultPreferencesEditor.VIEW_STATE.get((<DefaultPreferencesInput>input).getResource());
 		if (viewState) {
 			this.getControl().restoreViewState(viewState);
 		} else if (input instanceof DefaultSettingsInput) {
@@ -113,14 +109,14 @@ export class DefaultSettingsEditor extends StringEditor {
 		}
 	}
 
-	private saveState(input: AbstractSettingsInput) {
+	private saveState(input: DefaultPreferencesInput) {
 		const state = this.getControl().saveViewState();
 		if (state) {
 			const resource = input.getResource();
-			if (DefaultSettingsEditor.VIEW_STATE.has(resource)) {
-				DefaultSettingsEditor.VIEW_STATE.delete(resource);
+			if (DefaultPreferencesEditor.VIEW_STATE.has(resource)) {
+				DefaultPreferencesEditor.VIEW_STATE.delete(resource);
 			}
-			DefaultSettingsEditor.VIEW_STATE.set(resource, state);
+			DefaultPreferencesEditor.VIEW_STATE.set(resource, state);
 		}
 	}
 
@@ -133,8 +129,8 @@ export class DefaultSettingsEditor extends StringEditor {
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
 		}
-		if (input instanceof AbstractSettingsInput) {
-			this.inputDisposeListener = (<AbstractSettingsInput>input).willDispose(() => this.saveState(<AbstractSettingsInput>input));
+		if (input instanceof DefaultPreferencesInput) {
+			this.inputDisposeListener = (<DefaultPreferencesInput>input).willDispose(() => this.saveState(<DefaultPreferencesInput>input));
 		}
 	}
 }
