@@ -33,4 +33,4 @@ class ToggleZenMode extends Action {
 }
 
 let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleZenMode, ToggleZenMode.ID, ToggleZenMode.LABEL, { primary: KeyMod.Shift | KeyCode.F11, mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Zen Mode', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleZenMode, ToggleZenMode.ID, ToggleZenMode.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_Z }), 'View: Toggle Zen Mode', nls.localize('view', "View"));
