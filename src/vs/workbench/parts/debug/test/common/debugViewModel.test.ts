@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import { StackFrame, Expression, Thread, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
 
 suite('Debug - View Model', () => {
-	var model: ViewModel;
+	let model: ViewModel;
 
 	setup(() => {
 		model = new ViewModel('mockconfiguration');
@@ -28,8 +28,9 @@ suite('Debug - View Model', () => {
 		const frame = new StackFrame(thread, 1, null, 'app.js', 1, 1);
 		model.setFocusedStackFrame(frame, process);
 
-		assert.equal(model.focusedStackFrame, frame);
+		assert.equal(model.focusedStackFrame.getId(), frame.getId());
 		assert.equal(model.focusedThread.threadId, 1);
+		assert.equal(model.focusedProcess.getId(), process.getId());
 	});
 
 	test('selected expression', () => {
@@ -38,5 +39,21 @@ suite('Debug - View Model', () => {
 		model.setSelectedExpression(expression);
 
 		assert.equal(model.getSelectedExpression(), expression);
+	});
+
+	test('multi process view and changed workbench state', () => {
+		assert.equal(model.changedWorkbenchViewState, false);
+		assert.equal(model.isMultiProcessView(), false);
+		model.setMultiProcessView(true);
+		assert.equal(model.isMultiProcessView(), true);
+	});
+
+	test('selected configuration name', () => {
+		model.onDidSelectConfigurationName(name => {
+			assert.equal(name, 'configName');
+		});
+		assert.equal(model.selectedConfigurationName, 'mockconfiguration');
+		model.setSelectedConfigurationName('configName');
+		assert.equal(model.selectedConfigurationName, 'configName');
 	});
 });

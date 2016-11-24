@@ -43,7 +43,6 @@ export interface SessionTerminatedEvent extends DebugProtocol.TerminatedEvent {
 
 export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 
-	public restarted: boolean;
 	public emittedStopped: boolean;
 	public readyForBreakpoints: boolean;
 
@@ -307,7 +306,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		if ((this.serverProcess || this.socket) && !this.disconnected) {
 			// point of no return: from now on don't report any errors
 			this.disconnected = true;
-			this.restarted = restart;
 			return this.send('disconnect', { restart: restart }, false).then(() => this.stopServer(), () => this.stopServer());
 		}
 

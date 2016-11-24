@@ -53,7 +53,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
 
 		// Update viewlet switcher when external viewlets become ready
-		this.toUnbind.push(this.viewletService.onDidExtViewletsLoad(() => this.refreshViewletSwitcher()));
+		this.toUnbind.push(this.viewletService.onDidExtensionViewletsLoad(() => this.refreshViewletSwitcher()));
 
 		// Update viewlet switcher on toggling of a viewlet
 		this.toUnbind.push(this.viewletService.onDidViewletToggle(() => this.refreshViewletSwitcher()));
@@ -110,6 +110,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private fillViewletSwitcher(viewlets: ViewletDescriptor[]) {
+
 		// Pull out viewlets no longer needed
 		const newViewletIds = viewlets.map(v => v.id);
 		const existingViewletIds = Object.keys(this.compositeIdToActions);
@@ -119,26 +120,40 @@ export class ActivitybarPart extends Part implements IActivityService {
 			}
 		});
 
+		// Built actions for viewlets to show
 		const actionsToPush = viewlets
 			.filter(viewlet => !this.compositeIdToActions[viewlet.id])
 			.map(viewlet => this.toAction(viewlet));
 
+		// Add to viewlet switcher
 		this.viewletSwitcherBar.push(actionsToPush, { label: true, icon: true });
+
+		// Make sure to activate the active one
+		const activeViewlet = this.viewletService.getActiveViewlet();
+		if (activeViewlet) {
+			const activeViewletEntry = this.compositeIdToActions[activeViewlet.getId()];
+			if (activeViewletEntry) {
+				activeViewletEntry.activate();
+			}
+		}
 	}
 
 	private pullViewlet(viewletId: string): void {
 		const index = Object.keys(this.compositeIdToActions).indexOf(viewletId);
+
 		const action = this.compositeIdToActions[viewletId];
-		const actionItem = this.activityActionItems[action.id];
-		delete this.compositeIdToActions[viewletId];
-		delete this.activityActionItems[action.id];
 		action.dispose();
+		delete this.compositeIdToActions[viewletId];
+
+		const actionItem = this.activityActionItems[action.id];
 		actionItem.dispose();
+		delete this.activityActionItems[action.id];
+
 		this.viewletSwitcherBar.pull(index);
 	}
 
 	private toAction(composite: ViewletDescriptor): ActivityAction {
-		const action = this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite);
+		const action = this.instantiationService.createInstance(ViewletActivityAction, `${composite.id}.activity-bar-action`, composite);
 
 		this.activityActionItems[action.id] = new ActivityActionItem(action, composite.name, this.getKeybindingLabel(composite.id));
 		this.compositeIdToActions[composite.id] = action;

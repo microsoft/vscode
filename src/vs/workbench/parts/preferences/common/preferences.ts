@@ -10,14 +10,15 @@ import URI from 'vs/base/common/uri';
 import { IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export interface ISettingsGroup {
-	titleRange: IRange;
+	range: IRange;
 	title: string;
+	titleRange: IRange;
 	sections: ISettingsSection[];
 }
 
 export interface ISettingsSection {
-	titleRange?: IRange;
-	title?: string;
+	descriptionRange?: IRange;
+	description?: string;
 	settings: ISetting[];
 }
 
@@ -29,26 +30,27 @@ export interface ISetting {
 	description: string;
 }
 
-export interface IDefaultSettings {
+export interface IPreferencesEditorModel {
 	uri: URI;
 	content: string;
+}
+
+export interface ISettingsEditorModel extends IPreferencesEditorModel {
 	settingsGroups: ISettingsGroup[];
-
-	// filterSettings(filter: string): ISettingsGroup[];
 }
 
-export interface IDefaultKeybindings {
-	uri: URI;
-	content: string;
+export interface IKeybindingsEditorModel extends IPreferencesEditorModel {
 }
 
-export const IOpenSettingsService = createDecorator<IOpenSettingsService>('openSettingsService');
+export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
 
-export interface IOpenSettingsService {
+export interface IPreferencesService {
 	_serviceBrand: any;
 
-	defaultSettings: IDefaultSettings;
-	defaultKeybindings: IDefaultKeybindings;
+	defaultSettings: ISettingsEditorModel;
+	defaultKeybindings: IKeybindingsEditorModel;
+
+	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
 
 	openGlobalSettings(): TPromise<void>;
 	openWorkspaceSettings(): TPromise<void>;

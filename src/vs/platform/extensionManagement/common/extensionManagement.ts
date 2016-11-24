@@ -286,7 +286,9 @@ export interface IExtensionTipsService {
 	_serviceBrand: any;
 	getRecommendations(): string[];
 	getWorkspaceRecommendations(): TPromise<string[]>;
+	getKeymapRecommendations(): string[];
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsChannelId = 'extensions';
+export const PreferencesLabel = localize('preferences', "Preferences");
