@@ -549,8 +549,17 @@ export class DebugService implements debug.IDebugService {
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
 			.then(() => this.configurationService.reloadConfiguration()	// make sure configuration is up to date
 				.then(() => this.extensionService.onReady()
-					.then(() => this.configurationManager.getConfiguration(configurationOrName)
-						.then(configuration => {
+					.then(() => {
+						const compound = typeof configurationOrName === 'string' ? this.configurationManager.getCompound(configurationOrName) : null;
+						if (compound) {
+							if (!compound.configurations) {
+								return TPromise.wrapError(new Error(nls.localize('compoundMustHaveConfigurationNames', "Compound must have \"configurationNames\" attribute set in order to start multiple configurations.")));
+							}
+
+							return TPromise.join(compound.configurations.map(name => this.createProcess(name)));
+						}
+
+						return this.configurationManager.getConfiguration(configurationOrName).then(configuration => {
 							if (!configuration) {
 								return this.configurationManager.openConfigFile(false).then(openend => {
 									if (openend) {
@@ -592,7 +601,8 @@ export class DebugService implements debug.IDebugService {
 									actions: [this.taskService.configureAction(), CloseAction]
 								});
 							});
-						}))));
+						});
+					})));
 	}
 
 	private doCreateProcess(sessionId: string, configuration: debug.IConfig): TPromise<any> {
