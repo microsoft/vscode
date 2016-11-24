@@ -5,12 +5,25 @@
 
 'use strict';
 
-import { scm, ExtensionContext, workspace } from 'vscode';
+import { scm, ExtensionContext, workspace, Uri } from 'vscode';
 import * as path from 'path';
 import { findGit, Git } from './git';
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
+}
+
+class GitSCMProvider {
+	resourceGroups = [];
+	onDidChangeResourceGroup = null;
+
+	getOriginalResource(uri: Uri): Uri {
+		if (uri.scheme !== 'file') {
+			return null;
+		}
+
+		return uri.with({ scheme: 'git-index' });
+	}
 }
 
 export function activate(context: ExtensionContext): any {
@@ -24,16 +37,8 @@ export function activate(context: ExtensionContext): any {
 		log(`Using git ${info.version} from ${info.path}`);
 
 		const git = new Git({ gitPath: info.path, version: info.version });
-
-		const scmProvider = scm.createSCMProvider('git', {
-			getOriginalResource: uri => {
-				if (uri.scheme !== 'file') {
-					return null;
-				}
-
-				return uri.with({ scheme: 'git-index' });
-			}
-		});
+		const provider = new GitSCMProvider();
+		const providerDisposable = scm.registerSCMProvider('git', provider);
 
 		const contentProvider = workspace.registerTextDocumentContentProvider('git-index', {
 			provideTextDocumentContent: uri => {
@@ -49,6 +54,6 @@ export function activate(context: ExtensionContext): any {
 			}
 		});
 
-		context.subscriptions.push(scmProvider, contentProvider);
+		context.subscriptions.push(providerDisposable, contentProvider);
 	});
 }

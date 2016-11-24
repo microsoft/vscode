@@ -60,6 +60,33 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 	}
 }
 
+function proposedAPI(extension: IExtensionDescription): Function {
+	return (target: any, key: string, descriptor: any) => {
+		let fnKey: string = null;
+		let fn: Function = null;
+
+		if (typeof descriptor.value === 'function') {
+			fnKey = 'value';
+			fn = descriptor.value;
+		} else if (typeof descriptor.get === 'function') {
+			fnKey = 'get';
+			fn = descriptor.get;
+		}
+
+		if (!fn) {
+			throw new Error('not supported');
+		}
+
+		if (extension.enableProposedApi) {
+			return;
+		}
+
+		descriptor[fnKey] = () => {
+			throw new Error(`${extension.id} cannot access proposed api`);
+		};
+	};
+}
+
 /**
  * This method instantiates and returns the extension API surface
  */
@@ -360,12 +387,26 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 		};
 
-		// namespace: scm
-		const scm: typeof vscode.scm = {
-			createSCMProvider: (id, delegate): vscode.SCMProvider => {
-				return extHostSCM.createSCMProvider(id, delegate);
+		class SCM {
+
+			@proposedAPI(extension)
+			get activeProvider() {
+				return extHostSCM.activeProvider;
 			}
-		};
+
+			@proposedAPI(extension)
+			get onDidChangeActiveProvider() {
+				return extHostSCM.onDidChangeActiveProvider;
+			}
+
+			@proposedAPI(extension)
+			registerSCMProvider(id, provider) {
+				return extHostSCM.registerSCMProvider(id, provider);
+			}
+		}
+
+		// namespace: scm
+		const scm: typeof vscode.scm = new SCM();
 
 		return {
 			version: pkg.version,

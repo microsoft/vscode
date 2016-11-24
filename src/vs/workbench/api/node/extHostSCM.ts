@@ -6,65 +6,50 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import Event, { Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { SCMProvider, SCMDelegate, SCMResourceGroup } from 'vscode';
+import { SCMProvider } from 'vscode';
+import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { MainContext, MainThreadSCMShape } from './extHost.protocol';
-
-class ExtHostSCMProvider implements SCMProvider {
-
-	static Providers: { [id: string]: ExtHostSCMProvider; } = Object.create(null);
-
-	constructor(
-		private _proxy: MainThreadSCMShape,
-		private _id: string,
-		private _delegate: SCMDelegate
-	) {
-		if (ExtHostSCMProvider.Providers[_id]) {
-			throw new Error('provider already exists');
-		}
-
-		ExtHostSCMProvider.Providers[_id] = this;
-		_proxy.$register(this._id, !!this._delegate.getOriginalResource);
-	}
-
-	get id(): string {
-		return this._id;
-	}
-
-	createResourceGroup(id: string, label: string): SCMResourceGroup {
-		throw new Error('JOAO not implemented');
-	}
-
-	getBaselineResource(uri: URI): TPromise<URI> {
-		return asWinJsPromise(token => this._delegate.getOriginalResource(uri, token));
-	}
-
-	dispose(): void {
-		this._proxy.$unregister(this._id);
-		delete ExtHostSCMProvider.Providers[this.id];
-	}
-}
 
 export class ExtHostSCM {
 
 	private _proxy: MainThreadSCMShape;
+	private _providers: { [id: string]: SCMProvider; } = Object.create(null);
+
+	private _onDidChangeActiveProvider = new Emitter<SCMProvider>();
+	get onDidChangeActiveProvider(): Event<SCMProvider> { return this._onDidChangeActiveProvider.event; }
+
+	private _activeProvider: SCMProvider;
+	get activeProvider(): SCMProvider | undefined { return this._activeProvider; }
 
 	constructor(threadService: IThreadService) {
 		this._proxy = threadService.get(MainContext.MainThreadSCM);
 	}
 
-	createSCMProvider(id: string, delegate: SCMDelegate): SCMProvider {
-		return new ExtHostSCMProvider(this._proxy, id, delegate);
+	registerSCMProvider(id: string, provider: SCMProvider): Disposable {
+		if (this._providers[id]) {
+			throw new Error(`Provider ${id} already registered`);
+		}
+
+		// TODO@joao: should pluck all the things out of the provider
+		this._providers[id] = provider;
+		this._proxy.$register(id, !!provider.getOriginalResource);
+
+		return new Disposable(() => {
+			delete this._providers[id];
+			this._proxy.$unregister(id);
+		});
 	}
 
 	$getBaselineResource(id: string, uri: URI): TPromise<URI> {
-		const provider = ExtHostSCMProvider.Providers[id];
+		const provider = this._providers[id];
 
 		if (!provider) {
 			return TPromise.as(null);
 		}
 
-		return provider.getBaselineResource(uri);
+		return asWinJsPromise(token => provider.getOriginalResource(uri, token));
 	}
 }
