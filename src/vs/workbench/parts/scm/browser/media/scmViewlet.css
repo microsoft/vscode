@@ -3,8 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.scm-viewlet > .scm-status {
-	height: 100%;
+.scm-viewlet > .scm-commit-box {
+	padding: 5px 9px 5px 16px;
+}
+
+.scm-viewlet > .scm-commit-box > .monaco-inputbox > .wrapper > .mirror {
+	max-height: 134px;
+}
+
+.scm-viewlet > .scm-commit-box.scroll > .monaco-inputbox > .wrapper > textarea.input {
+	overflow-y: scroll;
 }
 
 .scm-viewlet .monaco-list-row {
