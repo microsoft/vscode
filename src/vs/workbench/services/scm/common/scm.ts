@@ -33,8 +33,8 @@ export interface ISCMProvider extends IDisposable {
 	resourceGroups: ISCMResourceGroup[];
 
 	commit(message: string): TPromise<void>;
-	click(uri: URI): TPromise<void>;
-	drag(from: URI, to: URI): TPromise<void>;
+	open(uri: ISCMResource): TPromise<void>;
+	drag(from: ISCMResource, to: ISCMResource): TPromise<void>;
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 

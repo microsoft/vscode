@@ -9,7 +9,7 @@ import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { mapEvent, filterEvent } from 'vs/base/common/event';
+import { chain } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
@@ -140,13 +140,14 @@ export class SCMViewlet extends Viewlet {
 			flexibleHeight: true
 		});
 
-		const onInputBoxKeyDown = domEvent(this.inputBox.inputElement, 'keydown');
-		const onInputBoxStandardKeyDown = mapEvent(onInputBoxKeyDown, e => new StandardKeyboardEvent(e));
-		const onInputBoxAccept = filterEvent(onInputBoxStandardKeyDown, e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S));
-		onInputBoxAccept(this.acceptChanges, this, this.disposables);
+		chain(domEvent(this.inputBox.inputElement, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
+			.on(this.accept, this, this.disposables);
 
-		const onInputBoxHeightChange = mapEvent(this.inputBox.onDidHeightChange, () => this.currentDimension);
-		onInputBoxHeightChange(this.layout, this, this.disposables);
+		chain(this.inputBox.onDidHeightChange)
+			.map(() => this.currentDimension)
+			.on(this.layout, this, this.disposables);
 
 		this.listContainer = append(root, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
@@ -156,10 +157,10 @@ export class SCMViewlet extends Viewlet {
 			this.instantiationService.createInstance(ResourceRenderer)
 		]);
 
-		// chain(this.list.onSelectionChange)
-		// 	.map(e => e.elements[0])
-		// 	.filter(e => !!e)
-		// 	.on(this.openExtension, this, this.disposables);
+		chain(this.list.onSelectionChange)
+			.map(e => e.elements[0])
+			.filter(e => !!e && !!(e as ISCMResource).uri)
+			.on(this.open, this, this.disposables);
 
 		this.update();
 		this.scmService.activeProvider.onChange(() => this.update());
@@ -202,8 +203,12 @@ export class SCMViewlet extends Viewlet {
 		return 400;
 	}
 
-	private acceptChanges(): void {
+	private accept(): void {
 		this.scmService.activeProvider.commit(this.inputBox.value);
+	}
+
+	private open(e: ISCMResource): void {
+		this.scmService.activeProvider.open(e);
 	}
 
 	dispose(): void {
