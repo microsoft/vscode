@@ -115,15 +115,21 @@ class DirtyDiffModelDecorator {
 		}
 
 		this._originalURIPromise = this.scmService.getBaselineResource(this.uri)
-			.then(originalUri => this.textModelResolverService.createModelReference(originalUri)
-				.then(ref => {
-					this.baselineModel = ref.object.textEditorModel;
+			.then(originalUri => {
+				if (!originalUri) {
+					return null;
+				}
 
-					this.toDispose.push(ref);
-					this.toDispose.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+				return this.textModelResolverService.createModelReference(originalUri)
+					.then(ref => {
+						this.baselineModel = ref.object.textEditorModel;
 
-					return originalUri;
-				}, err => null));
+						this.toDispose.push(ref);
+						this.toDispose.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+
+						return originalUri;
+					});
+			});
 
 		return always(this._originalURIPromise, () => {
 			this._originalURIPromise = null;
