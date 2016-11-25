@@ -8,6 +8,7 @@
 import { scm, ExtensionContext, workspace, Uri } from 'vscode';
 import * as path from 'path';
 import { findGit, Git } from './git';
+import { registerCommands } from './commands';
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
@@ -55,6 +56,8 @@ export function activate(context: ExtensionContext): any {
 			}
 		});
 
-		context.subscriptions.push(providerDisposable, contentProvider);
+		const commands = registerCommands();
+
+		context.subscriptions.push(providerDisposable, contentProvider, commands);
 	});
 }

@@ -24,9 +24,15 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IAction, IActionItem } from 'vs/base/common/actions';
+import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
 // TODO@Joao remove
 import { GitSCMProvider } from 'vs/workbench/parts/git/browser/gitSCMProvider';
@@ -108,23 +114,43 @@ export class SCMViewlet extends Viewlet {
 
 	private static ACCEPT_KEYBINDING = platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
 
-	private currentDimension: Dimension;
+	private cachedDimension: Dimension;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
+
+	private titleMenu: IMenu;
+	private _titleMenuActions: { primary: IAction[]; secondary: IAction[] };
+	private get titleMenuActions() {
+		if (!this._titleMenuActions) {
+			this._titleMenuActions = { primary: [], secondary: [] };
+			fillInActions(this.titleMenu, this._titleMenuActions);
+		}
+		return this._titleMenuActions;
+	}
+
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ISCMService private scmService: ISCMService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IKeybindingService protected keybindingService: IKeybindingService,
+		@IMessageService protected messageService: IMessageService,
+		@IMenuService private menuService: IMenuService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
 		// TODO@Joao
 		scmService.activeProvider = instantiationService.createInstance(GitSCMProvider);
+
+		this.titleMenu = menuService.createMenu(MenuId.SCMTitle, contextKeyService);
+
+		this.disposables.push(this.titleMenu);
+		this.titleMenu.onDidChange(this.onTitleMenuChange, this, this.disposables);
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -146,7 +172,7 @@ export class SCMViewlet extends Viewlet {
 			.on(this.accept, this, this.disposables);
 
 		chain(this.inputBox.onDidHeightChange)
-			.map(() => this.currentDimension)
+			.map(() => this.cachedDimension)
 			.on(this.layout, this, this.disposables);
 
 		this.listContainer = append(root, $('.scm-status.show-file-icons'));
@@ -163,7 +189,8 @@ export class SCMViewlet extends Viewlet {
 			.on(this.open, this, this.disposables);
 
 		this.update();
-		this.scmService.activeProvider.onChange(() => this.update());
+		this.scmService.activeProvider.onChange(this.update, this, this.disposables);
+		this.disposables.push(this.inputBox, this.list);
 
 		return TPromise.as(null);
 	}
@@ -184,12 +211,12 @@ export class SCMViewlet extends Viewlet {
 		this.list.splice(0, this.list.length, ...elements);
 	}
 
-	layout(dimension: Dimension = this.currentDimension): void {
+	layout(dimension: Dimension = this.cachedDimension): void {
 		if (!dimension) {
 			return;
 		}
 
-		this.currentDimension = dimension;
+		this.cachedDimension = dimension;
 		this.inputBox.layout();
 
 		const listHeight = dimension.height - (this.inputBox.height + 12 /* margin */);
@@ -209,6 +236,23 @@ export class SCMViewlet extends Viewlet {
 
 	private open(e: ISCMResource): void {
 		this.scmService.activeProvider.open(e);
+	}
+
+	private onTitleMenuChange(): void {
+		this._titleMenuActions = void 0;
+		this.updateTitleArea();
+	}
+
+	getActions(): IAction[] {
+		return this.titleMenuActions.primary;
+	}
+
+	getSecondaryActions(): IAction[] {
+		return this.titleMenuActions.secondary;
+	}
+
+	getActionItem(action: IAction): IActionItem {
+		return createActionItem(action, this.keybindingService, this.messageService);
 	}
 
 	dispose(): void {
