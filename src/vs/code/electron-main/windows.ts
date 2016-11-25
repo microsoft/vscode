@@ -75,6 +75,7 @@ interface INativeOpenDialogOptions {
 	pickFiles?: boolean;
 	path?: string;
 	forceNewWindow?: boolean;
+	window?: VSCodeWindow;
 }
 
 const ReopenFoldersSetting = {
@@ -100,8 +101,8 @@ export interface IWindowsMainService {
 	open(openConfig: IOpenConfiguration): VSCodeWindow[];
 	openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
 	openFileFolderPicker(forceNewWindow?: boolean): void;
-	openFilePicker(forceNewWindow?: boolean, path?: string): void;
-	openFolderPicker(forceNewWindow?: boolean): void;
+	openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow): void;
+	openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow): void;
 	openAccessibilityOptions(): void;
 	focusLastActive(cli: ParsedArgs): VSCodeWindow;
 	getLastActiveWindow(): VSCodeWindow;
@@ -862,12 +863,12 @@ export class WindowsManager implements IWindowsMainService {
 		this.doPickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow });
 	}
 
-	public openFilePicker(forceNewWindow?: boolean, path?: string): void {
-		this.doPickAndOpen({ pickFiles: true, forceNewWindow, path });
+	public openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow): void {
+		this.doPickAndOpen({ pickFiles: true, forceNewWindow, path, window });
 	}
 
-	public openFolderPicker(forceNewWindow?: boolean): void {
-		this.doPickAndOpen({ pickFolders: true, forceNewWindow });
+	public openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow): void {
+		this.doPickAndOpen({ pickFolders: true, forceNewWindow, window });
 	}
 
 	public openAccessibilityOptions(): void {
@@ -896,7 +897,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
 		const workingDir = options.path || this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
-		const focussedWindow = this.getFocusedWindow();
+		const focussedWindow = options.window || this.getFocusedWindow();
 
 		let pickerProperties: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];
 		if (options.pickFiles && options.pickFolders) {
