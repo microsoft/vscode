@@ -6,11 +6,12 @@
 import 'vs/css!./list';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
+import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
@@ -217,12 +218,19 @@ export class List<T> implements IDisposable {
 	private controller: Controller<T>;
 	private disposables: IDisposable[];
 
+	@memoize
 	get onFocusChange(): Event<IFocusChangeEvent<T>> {
 		return this.eventBufferer.wrapEvent(mapEvent(this.focus.onChange, e => this.toListEvent(e)));
 	}
 
+	@memoize
 	get onSelectionChange(): Event<ISelectionChangeEvent<T>> {
 		return this.eventBufferer.wrapEvent(mapEvent(this.selection.onChange, e => this.toListEvent(e)));
+	}
+
+	@memoize
+	get onContextMenu(): Event<IListMouseEvent<T>> {
+		return fromCallback(handler => this.view.addListener('contextmenu', handler));
 	}
 
 	private _onDOMFocus: Event<FocusEvent>;
