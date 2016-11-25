@@ -116,6 +116,7 @@ suite('SnippetParser', () => {
 		assertEscape('\\abc', '\\abc');
 		assertEscape('foo${f:\\}}bar', 'foo}bar');
 		assertEscape('\\{', '{');
+		assertEscape('I need \\\\\\$', 'I need \\$');
 		assertEscape('\\', '\\');
 		assertEscape('\\{{', '{{');
 		assertEscape('{{', '{{');
