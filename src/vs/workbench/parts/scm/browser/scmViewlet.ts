@@ -140,7 +140,15 @@ export class SCMViewlet extends Viewlet {
 	private update(): void {
 		const provider = this.scmService.activeProvider;
 		const groups = provider.resourceGroups;
-		const elements = groups.reduce<(ISCMResourceGroup | ISCMResource)[]>((result, group) => [...result, group, ...group.get()], []);
+		const elements = groups.reduce<(ISCMResourceGroup | ISCMResource)[]>((result, group) => {
+			const resources = group.get();
+
+			if (resources.length === 0) {
+				return result;
+			}
+
+			return [...result, group, ...group.get()];
+		}, []);
 
 		this.list.splice(0, this.list.length, ...elements);
 	}
