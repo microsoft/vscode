@@ -13,12 +13,12 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { toCustomExplorerViewletActionId } from 'vs/workbench/parts/explorers/common/treeExplorer';
+import { toViewletActionId } from 'vs/workbench/parts/explorers/common/treeExplorer';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 export class ToggleExternalViewletAction extends Action {
-	public static ID = toCustomExplorerViewletActionId('toggle');
+	public static ID = toViewletActionId('toggle');
 	public static LABEL = localize('treeExplorer.toggle', 'Toggle Custom Explorer');
 
 	constructor(
