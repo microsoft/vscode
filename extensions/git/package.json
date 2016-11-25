@@ -20,7 +20,25 @@
     "watch": "gulp watch-extension:git"
   },
   "contributes": {
-    "commands": [],
+    "commands": [
+      {
+        "command": "git.refresh",
+        "title": "Git: Refresh",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/refresh.svg",
+          "dark": "resources/icons/dark/refresh.svg"
+        }
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "git.refresh",
+          "group": "navigation"
+        }
+      ]
+    },
     "languages": [
       {
         "id": "git-commit",
