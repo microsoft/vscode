@@ -66,8 +66,8 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	private get fileBasenameNoExtension(): string {
-		const basename = this.fileBasename;
-		return basename.slice(0, basename.length - paths.extname(basename).length);
+		const basename = this.fileBasename();
+		return basename.slice(0, basename.length - paths.extname(basename).length - 1);
 	}
 
 	private get fileDirname(): string {
