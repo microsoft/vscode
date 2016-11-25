@@ -35,12 +35,21 @@ export interface IMenuItem {
 	order?: number;
 }
 
-export enum MenuId {
-	EditorTitle = 1,
-	EditorTitleContext = 2,
-	EditorContext = 3,
-	ExplorerContext = 4,
-	ProblemsPanelContext = 5
+export class MenuId {
+
+	static readonly EditorTitle = new MenuId('1');
+	static readonly EditorTitleContext = new MenuId('2');
+	static readonly EditorContext = new MenuId('3');
+	static readonly ExplorerContext = new MenuId('4');
+	static readonly ProblemsPanelContext = new MenuId('5');
+
+	constructor(private _id: string) {
+
+	}
+
+	get id(): string {
+		return this._id;
+	}
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -66,7 +75,7 @@ export const MenuRegistry: IMenuRegistry = new class {
 
 	commands: { [id: string]: ICommandAction } = Object.create(null);
 
-	menuItems: { [loc: number]: IMenuItem[] } = Object.create(null);
+	menuItems: { [loc: string]: IMenuItem[] } = Object.create(null);
 
 	addCommand(command: ICommandAction): boolean {
 		const old = this.commands[command.id];
@@ -78,10 +87,10 @@ export const MenuRegistry: IMenuRegistry = new class {
 		return this.commands[id];
 	}
 
-	appendMenuItem(loc: MenuId, item: IMenuItem): IDisposable {
-		let array = this.menuItems[loc];
+	appendMenuItem({id}: MenuId, item: IMenuItem): IDisposable {
+		let array = this.menuItems[id];
 		if (!array) {
-			this.menuItems[loc] = array = [item];
+			this.menuItems[id] = array = [item];
 		} else {
 			array.push(item);
 		}
@@ -95,8 +104,8 @@ export const MenuRegistry: IMenuRegistry = new class {
 		};
 	}
 
-	getMenuItems(loc: MenuId): IMenuItem[] {
-		return this.menuItems[loc] || [];
+	getMenuItems({id}: MenuId): IMenuItem[] {
+		return this.menuItems[id] || [];
 	}
 };
 
