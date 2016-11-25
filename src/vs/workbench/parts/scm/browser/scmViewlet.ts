@@ -6,11 +6,15 @@
 'use strict';
 
 import 'vs/css!./media/scmViewlet';
+import { localize } from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { mapEvent, filterEvent } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { append, $ } from 'vs/base/browser/dom';
+import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
@@ -19,6 +23,10 @@ import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 // TODO@Joao remove
 import { GitSCMProvider } from 'vs/workbench/parts/git/browser/gitSCMProvider';
@@ -98,13 +106,20 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 
 export class SCMViewlet extends Viewlet {
 
+	private static ACCEPT_KEYBINDING = platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
+
+	private currentDimension: Dimension;
+	private inputBoxContainer: HTMLElement;
+	private inputBox: InputBox;
+	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ISCMService private scmService: ISCMService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextViewService private contextViewService: IContextViewService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
@@ -117,11 +132,26 @@ export class SCMViewlet extends Viewlet {
 		parent.addClass('scm-viewlet');
 
 		const root = parent.getHTMLElement();
-		const list = append(root, $('.scm-status.show-file-icons'));
+		this.inputBoxContainer = append(root, $('.scm-commit-box'));
 
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
+			placeholder: localize('accept', "Message (press {0} to submit)", SCMViewlet.ACCEPT_KEYBINDING),
+			ariaLabel: localize('acceptAria', "Changes: Type message and press {0} to accept the changes", SCMViewlet.ACCEPT_KEYBINDING),
+			flexibleHeight: true
+		});
+
+		const onInputBoxKeyDown = domEvent(this.inputBox.inputElement, 'keydown');
+		const onInputBoxStandardKeyDown = mapEvent(onInputBoxKeyDown, e => new StandardKeyboardEvent(e));
+		const onInputBoxAccept = filterEvent(onInputBoxStandardKeyDown, e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S));
+		onInputBoxAccept(this.acceptChanges, this, this.disposables);
+
+		const onInputBoxHeightChange = mapEvent(this.inputBox.onDidHeightChange, () => this.currentDimension);
+		onInputBoxHeightChange(this.layout, this, this.disposables);
+
+		this.listContainer = append(root, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
 
-		this.list = new List(list, delegate, [
+		this.list = new List(this.listContainer, delegate, [
 			new ResourceGroupRenderer(),
 			this.instantiationService.createInstance(ResourceRenderer)
 		]);
@@ -153,12 +183,27 @@ export class SCMViewlet extends Viewlet {
 		this.list.splice(0, this.list.length, ...elements);
 	}
 
-	layout({ height }: Dimension): void {
-		this.list.layout(height);
+	layout(dimension: Dimension = this.currentDimension): void {
+		if (!dimension) {
+			return;
+		}
+
+		this.currentDimension = dimension;
+		this.inputBox.layout();
+
+		const listHeight = dimension.height - (this.inputBox.height + 12 /* margin */);
+		this.listContainer.style.height = `${listHeight}px`;
+		this.list.layout(listHeight);
+
+		toggleClass(this.inputBoxContainer, 'scroll', this.inputBox.height >= 134);
 	}
 
 	getOptimalWidth(): number {
 		return 400;
+	}
+
+	private acceptChanges(): void {
+		this.scmService.activeProvider.commit(this.inputBox.value);
 	}
 
 	dispose(): void {
