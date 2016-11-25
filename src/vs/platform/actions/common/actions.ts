@@ -42,6 +42,7 @@ export class MenuId {
 	static readonly EditorContext = new MenuId('3');
 	static readonly ExplorerContext = new MenuId('4');
 	static readonly ProblemsPanelContext = new MenuId('5');
+	static readonly SCMTitle = new MenuId('scm/title');
 
 	constructor(private _id: string) {
 
