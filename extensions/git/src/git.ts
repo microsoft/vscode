@@ -96,23 +96,22 @@ function findGitHubGitWin32(): Promise<IGit> {
 
 function findGitWin32(): Promise<IGit> {
 	return findSystemGitWin32(process.env['ProgramW6432'])
-		.then(null, () => findSystemGitWin32(process.env['ProgramFiles(x86)']))
-		.then(null, () => findSystemGitWin32(process.env['ProgramFiles']))
-		.then(null, () => findSpecificGit('git'))
-		.then(null, () => findGitHubGitWin32());
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)']))
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles']))
+		.then(void 0, () => findSpecificGit('git'))
+		.then(void 0, () => findGitHubGitWin32());
 }
 
-export function findGit(hint: string): Promise<IGit> {
+export function findGit(hint: string | undefined): Promise<IGit> {
 	var first = hint ? findSpecificGit(hint) : Promise.reject<IGit>(null);
 
-	return first.then(null, () => {
+	return first.then(void 0, () => {
 		switch (process.platform) {
 			case 'darwin': return findGitDarwin();
 			case 'win32': return findGitWin32();
 			default: return findSpecificGit('git');
 		}
 	});
-
 }
 
 
@@ -178,28 +177,28 @@ export interface IGitErrorData {
 
 export class GitError {
 
-	error: Error;
+	error?: Error;
 	message: string;
-	stdout: string;
-	stderr: string;
-	exitCode: number;
-	gitErrorCode: string;
-	gitCommand: string;
+	stdout?: string;
+	stderr?: string;
+	exitCode?: number;
+	gitErrorCode?: string;
+	gitCommand?: string;
 
 	constructor(data: IGitErrorData) {
 		if (data.error) {
 			this.error = data.error;
 			this.message = data.error.message;
 		} else {
-			this.error = null;
+			this.error = void 0;
 		}
 
 		this.message = this.message || data.message || 'Git error';
-		this.stdout = data.stdout || null;
-		this.stderr = data.stderr || null;
-		this.exitCode = data.exitCode || null;
-		this.gitErrorCode = data.gitErrorCode || null;
-		this.gitCommand = data.gitCommand || null;
+		this.stdout = data.stdout;
+		this.stderr = data.stderr;
+		this.exitCode = data.exitCode;
+		this.gitErrorCode = data.gitErrorCode;
+		this.gitCommand = data.gitCommand;
 	}
 
 	toString(): string {
@@ -209,7 +208,7 @@ export class GitError {
 			gitCommand: this.gitCommand,
 			stdout: this.stdout,
 			stderr: this.stderr
-		}, null, 2);
+		}, [], 2);
 
 		if (this.error) {
 			result += (<any>this.error).stack;
@@ -289,7 +288,7 @@ export class Git {
 
 		return exec(child).then(result => {
 			if (result.exitCode) {
-				let gitErrorCode: string = null;
+				let gitErrorCode: string | undefined = void 0;
 
 				if (/Authentication failed/.test(result.stderr)) {
 					gitErrorCode = GitErrorCodes.AuthenticationFailed;

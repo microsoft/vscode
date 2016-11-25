@@ -100,7 +100,7 @@ declare module 'vscode' {
 		dragCommand?: string;
 		resourceGroups: SCMResourceGroup[];
 		onDidChangeResourceGroup: Event<SCMResourceGroup>;
-		getOriginalResource?(uri: Uri, token: CancellationToken): Uri | Thenable<Uri>;
+		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
 	}
 
 	export namespace scm {

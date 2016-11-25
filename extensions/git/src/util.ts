@@ -35,32 +35,3 @@ export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Even
 export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 	return (listener, thisArgs = null, disposables?) => combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i), disposables)));
 }
-
-interface IListener<T> {
-	(e: T): any;
-}
-
-export class Emitter<T> {
-
-	private listeners: IListener<T>[];
-
-	get event(): Event<T> {
-		return (listener: IListener<T>, thisArgs = null, disposables?: IDisposable[]) => {
-			const _listener = thisArgs ? listener.bind(thisArgs) : listener;
-			this.listeners.push(_listener);
-
-			const dispose = () => { this.listeners = this.listeners.filter(l => l !== _listener); };
-			const result = { dispose };
-
-			if (disposables) {
-				disposables.push(result);
-			}
-
-			return result;
-		};
-	}
-
-	fire(e: T = null): void {
-
-	}
-}
