@@ -23,7 +23,7 @@
     "commands": [
       {
         "command": "git.refresh",
-        "title": "Git: Refresh",
+        "title": "Refresh",
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/refresh.svg",
