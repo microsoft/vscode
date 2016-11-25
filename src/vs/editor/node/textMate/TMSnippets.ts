@@ -26,7 +26,7 @@ let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISnippets
 	defaultSnippets: [{ body: [{ language: '', path: '' }] }],
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { language: '{{id}}', path: './snippets/{{id}}.json.' } }],
+		defaultSnippets: [{ body: { language: '${1:id}', path: './snippets/${2:id}.json.' } }],
 		properties: {
 			language: {
 				description: nls.localize('vscode.extension.contributes.snippets-language', 'Language identifier for which this snippet is contributed to.'),
