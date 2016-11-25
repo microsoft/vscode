@@ -27,7 +27,7 @@ With `$name` or `${name:default}` you can insert the value of a variable. When a
 Grammar
 --
 
-Below is the EBNF for snippets. The `$`-character can be escaped  using backslash, like `\$`.
+Below is the EBNF for snippets. With `\` (backslash) you can escape `$`, `}` and `\`.
 
 ```
 any         ::= tabstop | placeholder | variable | text
