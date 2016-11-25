@@ -29,8 +29,9 @@ export interface ISCMResourceGroup {
 }
 
 export interface ISCMProvider extends IDisposable {
-	onChange: Event<void>;
-	resourceGroups: ISCMResourceGroup[];
+	readonly id: string;
+	readonly onChange: Event<void>;
+	readonly resourceGroups: ISCMResourceGroup[];
 
 	commit(message: string): TPromise<void>;
 	open(uri: ISCMResource): TPromise<void>;
