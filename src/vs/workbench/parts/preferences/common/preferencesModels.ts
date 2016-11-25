@@ -4,25 +4,184 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as network from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
+import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
+import { visit, JSONVisitor } from 'vs/base/common/json';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
-export class DefaultSettings implements ISettingsEditorModel {
+export class SettingsEditorModel extends Disposable implements ISettingsEditorModel {
 
-	private _uri: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
+	private _settingsGroups: ISettingsGroup[];
+
+	constructor(private model: IModel, private _configurationTarget: ConfigurationTarget) {
+		super();
+		this._register(this.model.onDidChangeContent(() => {
+			this._settingsGroups = null;
+		}));
+	}
+
+	public get uri(): URI {
+		return this.model.uri;
+	}
+
+	public get configurationTarget(): ConfigurationTarget {
+		return this._configurationTarget;
+	}
+
+	public get settingsGroups(): ISettingsGroup[] {
+		if (!this._settingsGroups) {
+			this.parse();
+		}
+		return this._settingsGroups;
+	}
+
+	public get content(): string {
+		return this.model.getValue();
+	}
+
+	private parse() {
+		const model = this.model;
+		const settings: ISetting[] = [];
+		let parsingSettings = false;
+		let parsingSettingValue = false;
+
+		let currentProperty: string = null;
+		let currentParent: any = [];
+		let previousParents: any[] = [];
+
+		function onValue(value: any, offset: number, length: number) {
+			if (Array.isArray(currentParent)) {
+				(<any[]>currentParent).push(value);
+			} else if (currentProperty) {
+				currentParent[currentProperty] = value;
+			}
+			if (previousParents.length === 1) {
+				let valueStartPosition = model.getPositionAt(offset);
+				let valueEndPosition = model.getPositionAt(offset + length);
+				settings[settings.length - 1].value = value;
+				settings[settings.length - 1].valueRange = {
+					startLineNumber: valueStartPosition.lineNumber,
+					startColumn: valueStartPosition.column,
+					endLineNumber: valueEndPosition.lineNumber,
+					endColumn: valueEndPosition.column
+				};
+				settings[settings.length - 1].range = assign(settings[settings.length - 1].range, {
+					endLineNumber: valueEndPosition.lineNumber,
+					endColumn: valueEndPosition.column
+				});
+			}
+		}
+		let visitor: JSONVisitor = {
+			onObjectBegin: (offset: number, length: number) => {
+				if (!parsingSettings) {
+					parsingSettings = true;
+				} else {
+					parsingSettingValue = true;
+				}
+				let object = {};
+				onValue(object, offset, length);
+				currentParent = object;
+				currentProperty = null;
+				previousParents.push(currentParent);
+			},
+			onObjectProperty: (name: string, offset: number, length: number) => {
+				currentProperty = name;
+				if (parsingSettings && !parsingSettingValue) {
+					let settingStartPosition = model.getPositionAt(offset);
+					settings.push({
+						key: name,
+						description: '',
+						range: {
+							startLineNumber: settingStartPosition.lineNumber,
+							startColumn: settingStartPosition.column,
+							endLineNumber: 0,
+							endColumn: 0
+						},
+						value: null,
+						valueRange: null
+					});
+				}
+			},
+			onObjectEnd: (offset: number, length: number) => {
+				currentParent = previousParents.pop();
+				if (previousParents.length === 1) {
+					let valueEndPosition = model.getPositionAt(offset + length);
+					settings[settings.length - 1].valueRange = assign(settings[settings.length - 1].valueRange, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
+					settings[settings.length - 1].range = assign(settings[settings.length - 1].range, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
+				}
+				if (parsingSettingValue) {
+					parsingSettingValue = false;
+				} else if (parsingSettings) {
+					parsingSettings = false;
+				}
+			},
+			onArrayBegin: (offset: number, length: number) => {
+				let array = [];
+				onValue(array, offset, length);
+				previousParents.push(currentParent);
+				currentParent = array;
+				currentProperty = null;
+			},
+			onArrayEnd: (offset: number, length: number) => {
+				if (parsingSettings && !parsingSettingValue && settings.length > 0) {
+					let valueEndPosition = model.getPositionAt(offset + length);
+					settings[settings.length - 1].valueRange = assign(settings[settings.length - 1].valueRange, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
+					settings[settings.length - 1].range = assign(settings[settings.length - 1].range, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
+				}
+				currentParent = previousParents.pop();
+			},
+			onLiteralValue: onValue,
+			onError: (error) => {
+			}
+		};
+		visit(model.getValue(), visitor);
+		this._settingsGroups = settings.length > 0 ? [<ISettingsGroup>{
+			sections: [
+				{
+					settings
+				}
+			],
+			title: null,
+			titleRange: null,
+			range: {
+				startLineNumber: settings[0].range.startLineNumber,
+				startColumn: settings[0].range.startColumn,
+				endLineNumber: settings[settings.length - 1].range.endLineNumber,
+				endColumn: settings[settings.length - 1].range.endColumn,
+			}
+		}] : [];
+	}
+}
+
+export class DefaultSettingsEditorModel implements ISettingsEditorModel {
+
 	private indent: string;
 
 	private _settingsGroups: ISettingsGroup[];
 	private _content: string;
 	private _contentByLines: string[];
 
-	constructor( @IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
+	constructor(private _uri: URI, @IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
 		const editorConfig = this.configurationService.getConfiguration<any>();
 		this.indent = editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t';
 	}
@@ -161,12 +320,11 @@ export class DefaultSettings implements ISettingsEditorModel {
 	}
 }
 
-export class DefaultKeybindings implements IKeybindingsEditorModel {
+export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel {
 
-	private _uri: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
 	private _content: string;
 
-	constructor( @IKeybindingService private keybindingService: IKeybindingService) {
+	constructor(private _uri: URI, @IKeybindingService private keybindingService: IKeybindingService) {
 	}
 
 	public get uri(): URI {
