@@ -107,7 +107,7 @@ export class ViewletService implements IViewletService {
 		return this.sidebarPart.getActiveViewlet();
 	}
 
-	public getAllViewlets(): ViewletDescriptor[] {
+	public getViewlets(): ViewletDescriptor[] {
 		const builtInViewlets = this.getBuiltInViewlets();
 
 		return builtInViewlets.concat(this.extensionViewlets);

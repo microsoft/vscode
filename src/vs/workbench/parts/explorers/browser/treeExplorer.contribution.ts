@@ -15,10 +15,14 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/common/customTreeExplorerService';
 import { CustomTreeExplorerService } from 'vs/workbench/parts/explorers/browser/customTreeExplorerService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { ITreeExplorer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { toCustomExplorerViewletId, toCustomExplorerViewletCSSClass, isValidViewletId } from 'vs/workbench/parts/explorers/common/treeExplorer';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 registerSingleton(ICustomTreeExplorerService, CustomTreeExplorerService);
 
@@ -41,6 +45,18 @@ const explorerSchema: IJSONSchema = {
 	}
 };
 
+export class OpenViewletAction extends ToggleViewletAction {
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService viewletService: IViewletService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, id, viewletService, editorService);
+	}
+}
+
 export class ExtensionExplorersContribtion implements IWorkbenchContribution {
 
 	constructor() {
@@ -61,6 +77,7 @@ export class ExtensionExplorersContribtion implements IWorkbenchContribution {
 					continue;
 				}
 
+				// Generate CSS to show the icon in the activity bar
 				const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };
 				if (icon) {
 					const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${toCustomExplorerViewletCSSClass(treeExplorerNodeProviderId)}`;
@@ -69,12 +86,23 @@ export class ExtensionExplorersContribtion implements IWorkbenchContribution {
 					createCSSRule(iconClass, getIconRule(iconPath));
 				}
 
+				const viewletId = toCustomExplorerViewletId(treeExplorerNodeProviderId);
+
+				// Register action to open the viewlet
+				const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+				registry.registerWorkbenchAction(
+					new SyncActionDescriptor(OpenViewletAction, viewletId, localize('showViewlet', "Show {0}", treeLabel)),
+					'View: Show {0}',
+					localize('view', "View")
+				);
+
+				// Register as viewlet
 				Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 					'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
 					'TreeExplorerViewlet',
-					toCustomExplorerViewletId(treeExplorerNodeProviderId),
+					viewletId,
 					treeLabel,
-					toCustomExplorerViewletCSSClass(treeExplorerNodeProviderId),
+					viewletId,
 					-1, 	// External viewlets are ordered by enabling sequence, so order here doesn't matter.
 					true 	// from extension
 				));

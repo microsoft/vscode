@@ -31,7 +31,7 @@ export class ToggleExternalViewletAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const extViewlets = this.viewletService.getAllViewlets().filter(viewlet => viewlet.fromExtension);
+		const extViewlets = this.viewletService.getViewlets().filter(viewlet => viewlet.fromExtension);
 
 		const picks: IPickOpenEntry[] = [];
 
