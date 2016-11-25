@@ -18,12 +18,12 @@ export interface IBaselineResourceProvider {
 export const ISCMService = createDecorator<ISCMService>('scm');
 
 export interface ISCMResource {
-	uri: URI;
+	readonly uri: URI;
 }
 
 export interface ISCMResourceGroup {
-	label: string;
-	onChange: Event<void>;
+	readonly label: string;
+	readonly onChange: Event<void>;
 	set(...resources: ISCMResource[]): void;
 	get(): ISCMResource[];
 }
