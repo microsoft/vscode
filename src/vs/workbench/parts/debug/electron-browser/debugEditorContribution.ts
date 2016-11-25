@@ -183,7 +183,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private onFocusStackFrame(stackFrame: IStackFrame): void {
-		if (!stackFrame) {
+		if (!stackFrame || stackFrame.source.uri.toString() !== this.editor.getModel().uri.toString()) {
 			// clear all inline value decorations in this editor
 			return;
 		}
