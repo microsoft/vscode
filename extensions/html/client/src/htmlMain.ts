@@ -7,7 +7,7 @@
 import * as path from 'path';
 
 import { languages, workspace, ExtensionContext, IndentAction } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range, RequestType, Protocol2Code } from 'vscode-languageclient';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range, RequestType } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateColorDecorations } from './colorDecorators';
 
@@ -15,7 +15,7 @@ import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
 namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
+	export const type: RequestType<string, Range[], any, any> = { get method() { return 'css/colorSymbols'; }, _: null };
 }
 
 export function activate(context: ExtensionContext) {
@@ -56,7 +56,7 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 	let colorRequestor = (uri: string) => {
-		return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(Protocol2Code.asRange));
+		return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
 	};
 	disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true });
 	context.subscriptions.push(disposable);
