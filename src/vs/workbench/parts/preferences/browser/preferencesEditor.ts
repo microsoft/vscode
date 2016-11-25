@@ -163,7 +163,9 @@ export class PreferencesEditorContribution extends Disposable implements editorC
 				.then(editorModel => {
 					if (editorModel) {
 						this.preferencesRenderer = this.createPreferencesRenderer(editorModel);
-						this.preferencesRenderer.render();
+						if (this.preferencesRenderer) {
+							this.preferencesRenderer.render();
+						}
 					}
 				});
 		}
