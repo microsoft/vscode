@@ -30,9 +30,10 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IAction, IActionItem } from 'vs/base/common/actions';
-import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { SCMMenus } from './scmMenus';
 
 // TODO@Joao remove
 import { GitSCMProvider } from 'vs/workbench/parts/git/browser/gitSCMProvider';
@@ -119,17 +120,7 @@ export class SCMViewlet extends Viewlet {
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
-
-	private titleMenu: IMenu;
-	private _titleMenuActions: { primary: IAction[]; secondary: IAction[] };
-	private get titleMenuActions() {
-		if (!this._titleMenuActions) {
-			this._titleMenuActions = { primary: [], secondary: [] };
-			fillInActions(this.titleMenu, this._titleMenuActions);
-		}
-		return this._titleMenuActions;
-	}
-
+	private menus: SCMMenus;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -147,10 +138,10 @@ export class SCMViewlet extends Viewlet {
 		// TODO@Joao
 		scmService.activeProvider = instantiationService.createInstance(GitSCMProvider);
 
-		this.titleMenu = menuService.createMenu(MenuId.SCMTitle, contextKeyService);
+		this.menus = this.instantiationService.createInstance(SCMMenus);
+		this.disposables.push(this.menus);
 
-		this.disposables.push(this.titleMenu);
-		this.titleMenu.onDidChange(this.onTitleMenuChange, this, this.disposables);
+		this.menus.onDidChangeTitleMenu(this.updateTitleArea, this, this.disposables);
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -238,17 +229,12 @@ export class SCMViewlet extends Viewlet {
 		this.scmService.activeProvider.open(e);
 	}
 
-	private onTitleMenuChange(): void {
-		this._titleMenuActions = void 0;
-		this.updateTitleArea();
-	}
-
 	getActions(): IAction[] {
-		return this.titleMenuActions.primary;
+		return this.menus.titleMenuActions;
 	}
 
 	getSecondaryActions(): IAction[] {
-		return this.titleMenuActions.secondary;
+		return this.menus.titleMenuSecondaryActions;
 	}
 
 	getActionItem(action: IAction): IActionItem {
