@@ -37,10 +37,6 @@ export class ViewletService implements IViewletService {
 		this.loadExtensionViewlets();
 	}
 
-	public onReady(): TPromise<void> {
-		return this.extensionViewletsLoaded;
-	}
-
 	private loadExtensionViewlets(): void {
 		this.extensionViewlets = [];
 
@@ -70,7 +66,7 @@ export class ViewletService implements IViewletService {
 		}
 
 		// Extension viewlets need to be loaded first which can take time
-		return this.onReady().then(() => {
+		return this.extensionViewletsLoaded.then(() => {
 			if (this.viewletRegistry.getViewlet(id)) {
 				return this.sidebarPart.openViewlet(id, focus);
 			}

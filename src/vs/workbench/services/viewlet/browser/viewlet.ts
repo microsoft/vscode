@@ -24,11 +24,6 @@ export interface IViewletService {
 	openViewlet(id: string, focus?: boolean): TPromise<IViewlet>;
 
 	/**
-	 * Allows to wait until all viewlets are ready, including contributed ones.
-	 */
-	onReady(): TPromise<void>;
-
-	/**
 	 * Returns the current active viewlet or null if none.
 	 */
 	getActiveViewlet(): IViewlet;

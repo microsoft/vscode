@@ -21,6 +21,7 @@ import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 export class ActivitybarPart extends Part implements IActivityService {
 	public _serviceBrand: any;
@@ -32,6 +33,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	constructor(
 		id: string,
 		@IViewletService private viewletService: IViewletService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService
@@ -42,7 +44,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.compositeIdToActions = {};
 
 		// Update viewlet switcher when external viewlets become ready
-		this.viewletService.onReady().then(() => this.updateViewletSwitcher());
+		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
 
 		this.registerListeners();
 	}
