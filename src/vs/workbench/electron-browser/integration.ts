@@ -41,6 +41,7 @@ import URI from 'vs/base/common/uri';
 import { ReloadWindowAction, ToggleDevToolsAction, ShowStartupPerformance, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 import { ipcRenderer as ipc, webFrame, remote } from 'electron';
 
@@ -76,7 +77,8 @@ export class ElectronIntegration {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IViewletService private viewletService: IViewletService
 	) {
 	}
 
@@ -106,6 +108,11 @@ export class ElectronIntegration {
 					ipc.send('vscode:keybindingsResolved', JSON.stringify(keybindings));
 				}
 			}, () => errors.onUnexpectedError);
+		});
+
+		// Send over all extension viewlets when ready
+		this.viewletService.onReady().then(() => {
+			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => v.fromExtension).map(v => { return { id: v.id, label: v.name }; })));
 		});
 
 		ipc.on('vscode:reportError', (event, error) => {

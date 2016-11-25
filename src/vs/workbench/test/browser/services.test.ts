@@ -118,7 +118,7 @@ class TestViewletService implements IViewletService {
 	public toggleViewlet(id: string): void {
 	}
 
-	public getAllViewlets(): ViewletDescriptor[] {
+	public getViewlets(): ViewletDescriptor[] {
 		return [];
 	}
 

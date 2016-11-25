@@ -42,7 +42,7 @@ export interface IViewletService {
 	/**
 	 * Returns all registered viewlets
 	 */
-	getAllViewlets(): ViewletDescriptor[];
+	getViewlets(): ViewletDescriptor[];
 
 	/**
 	 * Returns all viewlets that should be displayed, ordered by:
