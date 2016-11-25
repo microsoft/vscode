@@ -17,6 +17,8 @@ import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 export class SCMMenus implements IDisposable {
 
 	private titleMenu: IMenu;
+	private contextMenu: IMenu;
+	private disposables: IDisposable[] = [];
 
 	private _titleMenuActions: { primary: IAction[]; secondary: IAction[] };
 	private get cachedTitleMenuActions() {
@@ -27,14 +29,13 @@ export class SCMMenus implements IDisposable {
 		return this._titleMenuActions;
 	}
 
-	private disposables: IDisposable[] = [];
-
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IMenuService private menuService: IMenuService
 	) {
 		this.titleMenu = menuService.createMenu(MenuId.SCMTitle, contextKeyService);
-		this.disposables.push(this.titleMenu);
+		this.contextMenu = menuService.createMenu(MenuId.SCMContext, contextKeyService);
+		this.disposables.push(this.titleMenu, this.contextMenu);
 	}
 
 	@memoize
@@ -42,12 +43,18 @@ export class SCMMenus implements IDisposable {
 		return mapEvent(this.titleMenu.onDidChange, () => this._titleMenuActions = void 0);
 	}
 
-	get titleMenuActions(): IAction[] {
+	get title(): IAction[] {
 		return this.cachedTitleMenuActions.primary;
 	}
 
-	get titleMenuSecondaryActions(): IAction[] {
+	get titleSecondary(): IAction[] {
 		return this.cachedTitleMenuActions.secondary;
+	}
+
+	get context(): IAction[] {
+		const result = [];
+		fillInActions(this.contextMenu, result);
+		return result;
 	}
 
 	dispose(): void {

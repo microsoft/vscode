@@ -17,13 +17,13 @@ import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -129,8 +129,9 @@ export class SCMViewlet extends Viewlet {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IKeybindingService protected keybindingService: IKeybindingService,
-		@IMessageService protected messageService: IMessageService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IMessageService private messageService: IMessageService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMenuService private menuService: IMenuService
 	) {
 		super(VIEWLET_ID, telemetryService);
@@ -178,6 +179,8 @@ export class SCMViewlet extends Viewlet {
 			.map(e => e.elements[0])
 			.filter(e => !!e && !!(e as ISCMResource).uri)
 			.on(this.open, this, this.disposables);
+
+		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
 		this.update();
 		this.scmService.activeProvider.onChange(this.update, this, this.disposables);
@@ -230,15 +233,22 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	getActions(): IAction[] {
-		return this.menus.titleMenuActions;
+		return this.menus.title;
 	}
 
 	getSecondaryActions(): IAction[] {
-		return this.menus.titleMenuSecondaryActions;
+		return this.menus.titleSecondary;
 	}
 
 	getActionItem(action: IAction): IActionItem {
 		return createActionItem(action, this.keybindingService, this.messageService);
+	}
+
+	private onListContextMenu(e: IListMouseEvent<ISCMResourceGroup | ISCMResource>): void {
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => ({ x: e.clientX + 1, y: e.clientY }),
+			getActions: () => TPromise.as(this.menus.context)
+		});
 	}
 
 	dispose(): void {

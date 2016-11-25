@@ -43,6 +43,7 @@ export class MenuId {
 	static readonly ExplorerContext = new MenuId('4');
 	static readonly ProblemsPanelContext = new MenuId('5');
 	static readonly SCMTitle = new MenuId('scm/title');
+	static readonly SCMContext = new MenuId('scm/context');
 
 	constructor(private _id: string) {
 
