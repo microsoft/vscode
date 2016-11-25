@@ -35,7 +35,8 @@
       "scm/title": [
         {
           "command": "git.refresh",
-          "group": "navigation"
+          "group": "navigation",
+          "when": "scm.provider == git"
         }
       ]
     },

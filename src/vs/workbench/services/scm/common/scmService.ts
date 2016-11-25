@@ -8,19 +8,31 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ISCMService, IBaselineResourceProvider, ISCMProvider } from './scm';
 
 export class SCMService implements ISCMService {
 
 	_serviceBrand;
 
+	private activeProviderContextKey: IContextKey<string | undefined>;
 	private providers: IBaselineResourceProvider[] = [];
+	private _activeProvider: ISCMProvider;
 
-	constructor() {
-
+	constructor(
+		@IContextKeyService private contextKeyService: IContextKeyService
+	) {
+		this.activeProviderContextKey = contextKeyService.createKey<string | undefined>('scm.provider', void 0);
 	}
 
-	activeProvider: ISCMProvider;
+	get activeProvider(): ISCMProvider {
+		return this._activeProvider;
+	}
+
+	set activeProvider(provider: ISCMProvider) {
+		this._activeProvider = provider;
+		this.activeProviderContextKey.set(provider.id);
+	}
 
 	getBaselineResource(resource: URI): TPromise<URI> {
 		const promises = this.providers
