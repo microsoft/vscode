@@ -17,13 +17,17 @@ export interface IViewletService {
 
 	onDidViewletOpen: Event<IViewlet>;
 	onDidViewletClose: Event<IViewlet>;
-	onDidExtensionViewletsLoad: Event<void>;
 	onDidViewletToggle: Event<void>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
 	 */
 	openViewlet(id: string, focus?: boolean): TPromise<IViewlet>;
+
+	/**
+	 * Allows to wait until all viewlets are ready, including contributed ones.
+	 */
+	onReady(): TPromise<void>;
 
 	/**
 	 * Toggles a viewlet with the given identifier.

@@ -41,6 +41,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.activityActionItems = {};
 		this.compositeIdToActions = {};
 
+		// Update viewlet switcher when external viewlets become ready
+		this.viewletService.onReady().then(() => this.refreshViewletSwitcher());
+
 		this.registerListeners();
 	}
 
@@ -51,9 +54,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
-
-		// Update viewlet switcher when external viewlets become ready
-		this.toUnbind.push(this.viewletService.onDidExtensionViewletsLoad(() => this.refreshViewletSwitcher()));
 
 		// Update viewlet switcher on toggling of a viewlet
 		this.toUnbind.push(this.viewletService.onDidViewletToggle(() => this.refreshViewletSwitcher()));

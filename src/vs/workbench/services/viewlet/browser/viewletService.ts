@@ -31,7 +31,6 @@ export class ViewletService implements IViewletService {
 
 	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; };
 	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; };
-	public get onDidExtensionViewletsLoad(): Event<void> { return this._onDidExtensionViewletsLoad.event; };
 	public get onDidViewletToggle(): Event<void> { return this._onDidViewletToggle.event; };
 
 	constructor(
@@ -47,6 +46,10 @@ export class ViewletService implements IViewletService {
 		this.extensionViewlets = [];
 
 		this.loadExtensionViewlets();
+	}
+
+	public onReady(): TPromise<void> {
+		return this.extensionViewletsLoaded;
 	}
 
 	private loadExtensionViewlets(): void {
@@ -78,7 +81,7 @@ export class ViewletService implements IViewletService {
 		}
 
 		// Extension viewlets need to be loaded first which can take time
-		return this.extensionViewletsLoaded.then(() => {
+		return this.onReady().then(() => {
 			if (this.viewletRegistry.getViewlet(id)) {
 				return this.sidebarPart.openViewlet(id, focus);
 			}
