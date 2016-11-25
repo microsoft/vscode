@@ -15,11 +15,11 @@ export function log(...args: any[]): void {
 
 class GitSCMProvider {
 	resourceGroups = [];
-	onDidChangeResourceGroup = null;
+	onDidChangeResourceGroup: any = null;
 
-	getOriginalResource(uri: Uri): Uri {
+	getOriginalResource(uri: Uri): Uri | undefined {
 		if (uri.scheme !== 'file') {
-			return null;
+			return void 0;
 		}
 
 		return uri.with({ scheme: 'git-index' });
@@ -27,10 +27,11 @@ class GitSCMProvider {
 }
 
 export function activate(context: ExtensionContext): any {
-	if (!workspace) {
+	if (!workspace.rootPath) {
 		return;
 	}
 
+	const rootPath = workspace.rootPath;
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 
 	findGit(pathHint).then(info => {
@@ -42,9 +43,9 @@ export function activate(context: ExtensionContext): any {
 
 		const contentProvider = workspace.registerTextDocumentContentProvider('git-index', {
 			provideTextDocumentContent: uri => {
-				const relativePath = path.relative(workspace.rootPath, uri.fsPath);
+				const relativePath = path.relative(rootPath, uri.fsPath);
 
-				return git.exec(workspace.rootPath, ['show', `HEAD:${relativePath}`]).then(result => {
+				return git.exec(rootPath, ['show', `HEAD:${relativePath}`]).then(result => {
 					if (result.exitCode !== 0) {
 						return null;
 					}
