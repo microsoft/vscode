@@ -223,6 +223,17 @@ export function fromEventEmitter<T>(emitter: EventEmitter, eventType: string): E
 	};
 }
 
+export function fromCallback<T>(fn: (handler: (e: T) => void) => IDisposable): Event<T> {
+	let listener: IDisposable;
+
+	const emitter = new Emitter<T>({
+		onFirstListenerAdd: () => listener = fn(e => emitter.fire(e)),
+		onLastListenerRemove: () => listener.dispose()
+	});
+
+	return emitter.event;
+}
+
 export function fromPromise(promise: TPromise<any>): Event<void> {
 	const emitter = new Emitter<void>();
 	let shouldEmit = false;
