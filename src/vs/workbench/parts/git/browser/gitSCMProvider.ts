@@ -23,7 +23,7 @@ export class GitSCMProvider extends SCMProvider {
 	) {
 		super('git', 'Git');
 
-		this.merge = this.createResourceGroup('merge', localize('conflict changes', "Conflict Changes"));
+		this.merge = this.createResourceGroup('merge', localize('merge conflicts', "Merge Conflicts"));
 		this.index = this.createResourceGroup('index', localize('staged changes', "Staged Changes"));
 		this.workingTree = this.createResourceGroup('workingtree', localize('changes', "Changes"));
 
