@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import * as path from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import { SCMProvider } from 'vs/workbench/services/scm/common/scmProvider';
 import { IGitService, ModelEvents } from 'vs/workbench/parts/git/common/git';
 
@@ -55,11 +55,11 @@ export class GitSCMProvider extends SCMProvider {
 		return TPromise.wrapError<void>('not implemented');
 	}
 
-	click(uri: URI): TPromise<void> {
+	open(resource: ISCMResource): TPromise<void> {
 		return TPromise.wrapError<void>('not implemented');
 	}
 
-	drag(from: URI, to: URI): TPromise<void> {
+	drag(from: ISCMResource, to: ISCMResource): TPromise<void> {
 		return TPromise.wrapError<void>('not implemented');
 	}
 
