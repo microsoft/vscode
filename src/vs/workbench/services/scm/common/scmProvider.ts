@@ -82,8 +82,8 @@ export abstract class SCMProvider implements ISCMProvider {
 	}
 
 	abstract commit(message: string): TPromise<void>;
-	abstract click(uri: URI): TPromise<void>;
-	abstract drag(from: URI, to: URI): TPromise<void>;
+	abstract open(resource: ISCMResource): TPromise<void>;
+	abstract drag(from: ISCMResource, to: ISCMResource): TPromise<void>;
 	abstract getOriginalResource(uri: URI): TPromise<URI>;
 
 	dispose(): void {
