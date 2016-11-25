@@ -17,6 +17,5 @@ export function toViewletCSSClass(viewletId: string): string {
 }
 
 export function isValidViewletId(viewletId: string): boolean {
-	// Only allow alphanumeric letters, `_` and `-`.
-	return /^[a-z0-9_-]+$/i.test(viewletId);
+	return /^[a-z0-9_-]+$/i.test(viewletId); // Only allow alphanumeric letters, `_` and `-`.
 }

@@ -42,7 +42,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.compositeIdToActions = {};
 
 		// Update viewlet switcher when external viewlets become ready
-		this.viewletService.onReady().then(() => this.refreshViewletSwitcher());
+		this.viewletService.onReady().then(() => this.updateViewletSwitcher());
 
 		this.registerListeners();
 	}
@@ -54,9 +54,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
-
-		// Update viewlet switcher on toggling of a viewlet
-		this.toUnbind.push(this.viewletService.onDidViewletToggle(() => this.refreshViewletSwitcher()));
 	}
 
 	private onActiveCompositeChanged(composite: IComposite): void {
@@ -102,14 +99,11 @@ export class ActivitybarPart extends Part implements IActivityService {
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
 		});
 
-		this.fillViewletSwitcher(this.viewletService.getAllViewletsToDisplay());
+		this.updateViewletSwitcher();
 	}
 
-	private refreshViewletSwitcher(): void {
-		this.fillViewletSwitcher(this.viewletService.getAllViewletsToDisplay());
-	}
-
-	private fillViewletSwitcher(viewlets: ViewletDescriptor[]) {
+	private updateViewletSwitcher() {
+		const viewlets = this.viewletService.getViewlets();
 
 		// Pull out viewlets no longer needed
 		const newViewletIds = viewlets.map(v => v.id);
