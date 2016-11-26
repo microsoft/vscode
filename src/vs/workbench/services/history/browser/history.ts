@@ -271,7 +271,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private static MAX_HISTORY_ITEMS = 200;
 	private static MAX_STACK_ITEMS = 20;
 	private static MAX_RECENTLY_CLOSED_EDITORS = 20;
-	private static MERGE_CURSOR_CHANGES_THRESHOLD = 100;
+	private static MERGE_EVENT_CHANGES_THRESHOLD = 100;
 
 	private stack: IStackEntry[];
 	private index: number;
@@ -494,7 +494,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 				};
 			}
 
-			this.add(editor.input, options);
+			this.add(editor.input, options, true /* from event */);
 		}
 	}
 
@@ -504,34 +504,34 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return; // do not push same editor input again
 		}
 
-		this.add(editor.input);
+		this.add(editor.input, void 0, true /* from event */);
 	}
 
-	public add(input: IEditorInput, options?: ITextEditorOptions): void {
+	public add(input: IEditorInput, options?: ITextEditorOptions, fromEvent?: boolean): void {
 		if (!this.blockStackChanges) {
-			this.addToStack(input, options);
+			this.addToStack(input, options, fromEvent);
 		}
 	}
 
-	private addToStack(input: IEditorInput, options?: ITextEditorOptions): void {
+	private addToStack(input: IEditorInput, options?: ITextEditorOptions, fromEvent?: boolean): void {
 
 		// Overwrite an entry in the stack if we have a matching input that comes
 		// with editor options to indicate that this entry is more specific. Also
 		// prevent entries that have the exact same options. Finally, Overwrite
-		// entries if we detect that the change came in very fast which indicates
-		// that it was not coming in from a user change but rather rapid programmatic
-		// changes. We just take the last of the changes to not cause too many
-		// entries on the stack.
+		// entries if it came from an event and we detect that the change came in
+		// very fast which indicates that it was not coming in from a user change
+		// but rather rapid programmatic changes. We just take the last of the changes
+		// to not cause too many entries on the stack.
 		let replace = false;
 		if (this.stack[this.index]) {
 			const currentEntry = this.stack[this.index];
-			if (this.matches(input, currentEntry.input) && (this.sameOptions(currentEntry.options, options) || Date.now() - currentEntry.timestamp < HistoryService.MERGE_CURSOR_CHANGES_THRESHOLD)) {
+			if (this.matches(input, currentEntry.input) && (this.sameOptions(currentEntry.options, options) || (fromEvent && Date.now() - currentEntry.timestamp < HistoryService.MERGE_EVENT_CHANGES_THRESHOLD))) {
 				replace = true;
 			}
 		}
 
 		const stackInput = this.preferResourceInput(input);
-		const entry = { input: stackInput, options, timestamp: Date.now() };
+		const entry = { input: stackInput, options, timestamp: fromEvent ? Date.now() : void 0 };
 
 		// If we are not at the end of history, we remove anything after
 		if (this.stack.length > this.index + 1) {

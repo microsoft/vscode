@@ -81,12 +81,12 @@ export function registerContributions(): void {
 
 	let registry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
 
-	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleMarkersPanelAction, markersPanelActions.ToggleMarkersPanelAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL, {
+	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleMarkersPanelAction, markersPanelActions.ToggleMarkersPanelAction.ID, markersPanelActions.ToggleMarkersPanelAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
 	}), 'View: ' + Messages.MARKERS_PANEL_TOGGLE_LABEL, Messages.MARKERS_PANEL_VIEW_CATEGORY);
 
 	// Retaining old action to show errors and warnings, so that custom bindings to this action for existing users works.
-	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleErrorsAndWarningsAction, markersPanelActions.ToggleErrorsAndWarningsAction.ID, Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL), '');
+	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleErrorsAndWarningsAction, markersPanelActions.ToggleErrorsAndWarningsAction.ID, markersPanelActions.ToggleErrorsAndWarningsAction.LABEL), '');
 
 	// Register StatusUpdater
 	(<IWorkbenchContributionsRegistry>platform.Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(

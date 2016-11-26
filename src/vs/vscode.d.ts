@@ -1399,7 +1399,7 @@ declare module 'vscode' {
 		/**
 		 * An optional function that is invoked whenever an item is selected.
 		 */
-		onDidSelectItem?: <T extends QuickPickItem>(item: T | string) => any;
+		onDidSelectItem?<T extends QuickPickItem>(item: T | string): any;
 	}
 
 	/**
@@ -1588,10 +1588,12 @@ declare module 'vscode' {
 		/**
 		 * The command this code lens represents.
 		 */
-		command: Command;
+		command?: Command;
 
 		/**
 		 * `true` when there is a command associated.
+		 *
+		 * @readonly
 		 */
 		isResolved: boolean;
 
@@ -1682,7 +1684,7 @@ declare module 'vscode' {
 		 * editor will use the range at the current position or the
 		 * current position itself.
 		 */
-		range: Range;
+		range?: Range;
 
 		/**
 		 * Creates a new hover object.
@@ -1749,7 +1751,7 @@ declare module 'vscode' {
 		/**
 		 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
 		 */
-		kind: DocumentHighlightKind;
+		kind?: DocumentHighlightKind;
 
 		/**
 		 * Creates a new document highlight object.
@@ -2250,7 +2252,7 @@ declare module 'vscode' {
 		 * The human-readable doc-comment of this signature. Will be shown
 		 * in the UI but can be omitted.
 		 */
-		documentation: string;
+		documentation?: string;
 
 		/**
 		 * Creates a new parameter information object.
@@ -2278,7 +2280,7 @@ declare module 'vscode' {
 		 * The human-readable doc-comment of this signature. Will be shown
 		 * in the UI but can be omitted.
 		 */
-		documentation: string;
+		documentation?: string;
 
 		/**
 		 * The parameters of this signature.
@@ -2387,39 +2389,39 @@ declare module 'vscode' {
 		 * The kind of this completion item. Based on the kind
 		 * an icon is chosen by the editor.
 		 */
-		kind: CompletionItemKind;
+		kind?: CompletionItemKind;
 
 		/**
 		 * A human-readable string with additional information
 		 * about this item, like type or symbol information.
 		 */
-		detail: string;
+		detail?: string;
 
 		/**
 		 * A human-readable string that represents a doc-comment.
 		 */
-		documentation: string;
+		documentation?: string;
 
 		/**
 		 * A string that should be used when comparing this item
 		 * with other items. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
 		 */
-		sortText: string;
+		sortText?: string;
 
 		/**
 		 * A string that should be used when filtering a set of
 		 * completion items. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
 		 */
-		filterText: string;
+		filterText?: string;
 
 		/**
 		 * A string or snippet that should be inserted in a document when selecting
 		 * this completion. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
 		 */
-		insertText: string | SnippetString;
+		insertText?: string | SnippetString;
 
 		/**
 		 * A range of text that should be replaced by this completion item.
@@ -2430,7 +2432,7 @@ declare module 'vscode' {
 		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 		 */
-		range: Range;
+		range?: Range;
 
 		/**
 		 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
@@ -2442,21 +2444,21 @@ declare module 'vscode' {
 		 * ~~The [range](#Range) of the edit must be single-line and on the same
 		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
 		 */
-		textEdit: TextEdit;
+		textEdit?: TextEdit;
 
 		/**
 		 * An optional array of additional [text edits](#TextEdit) that are applied when
 		 * selecting this completion. Edits must not overlap with the main [edit](#CompletionItem.textEdit)
 		 * nor with themselves.
 		 */
-		additionalTextEdits: TextEdit[];
+		additionalTextEdits?: TextEdit[];
 
 		/**
 		 * An optional [command](#Command) that is executed *after* inserting this completion. *Note* that
 		 * additional modifications to the current document should be described with the
 		 * [additionalTextEdits](#CompletionItem.additionalTextEdits)-property.
 		 */
-		command: Command;
+		command?: Command;
 
 		/**
 		 * Creates a new completion item.
@@ -2480,7 +2482,7 @@ declare module 'vscode' {
 		 * This list it not complete. Further typing should result in recomputing
 		 * this list.
 		 */
-		isIncomplete: boolean;
+		isIncomplete?: boolean;
 
 		/**
 		 * The completion items.

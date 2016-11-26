@@ -49,7 +49,9 @@ export class WindowsService implements IWindowsService, IDisposable {
 	}
 
 	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
-		this.windowsMainService.openFolderPicker(forceNewWindow);
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		this.windowsMainService.openFolderPicker(forceNewWindow, vscodeWindow);
+
 		return TPromise.as(null);
 	}
 
@@ -257,6 +259,11 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
 		crashReporter.start(config);
+		return TPromise.as(null);
+	}
+
+	quit(): TPromise<void> {
+		this.windowsMainService.quit();
 		return TPromise.as(null);
 	}
 
