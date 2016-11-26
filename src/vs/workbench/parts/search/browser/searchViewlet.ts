@@ -24,7 +24,7 @@ import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Scope } from 'vs/workbench/common/memento';
-import { IOpenSettingsService } from 'vs/workbench/parts/settings/common/openSettings';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/common/editor';
 import { FileChangeType, FileChangesEvent, EventType as FileEventType } from 'vs/platform/files/common/files';
@@ -104,7 +104,7 @@ export class SearchViewlet extends Viewlet {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IReplaceService private replaceService: IReplaceService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IOpenSettingsService private openSettingsService: IOpenSettingsService
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(Constants.VIEWLET_ID, telemetryService);
 
@@ -878,7 +878,7 @@ export class SearchViewlet extends Viewlet {
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
-						this.openSettingsService.openWorkspaceSettings().done(() => null, errors.onUnexpectedError);
+						this.preferencesService.openWorkspaceSettings().done(() => null, errors.onUnexpectedError);
 					});
 				}
 			} else {

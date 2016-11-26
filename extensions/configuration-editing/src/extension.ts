@@ -61,9 +61,12 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined) {
 
 	const ranges: vscode.Range[] = [];
 	let addPropertyAndValue = false;
+	let depthInArray = 0;
 	visit(editor.document.getText(), {
 		onObjectProperty: (property, offset, length) => {
-			addPropertyAndValue = property === 'version' || property === 'type' || property === 'request' || property === 'configurations';
+			// Decorate attributes which are unlikely to be edited by the user.
+			// Only decorate "configurations" if it is not inside an array (compounds have a configurations property which should not be decorated).
+			addPropertyAndValue = property === 'version' || property === 'type' || property === 'request' || property === 'compounds' || (property === 'configurations' && depthInArray === 0);
 			if (addPropertyAndValue) {
 				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
 			}
@@ -72,6 +75,12 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined) {
 			if (addPropertyAndValue) {
 				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
 			}
+		},
+		onArrayBegin: (offset: number, length: number) => {
+			depthInArray++;
+		},
+		onArrayEnd: (offset: number, length: number) => {
+			depthInArray--;
 		}
 	});
 

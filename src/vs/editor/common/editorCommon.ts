@@ -4583,7 +4583,6 @@ export var Handler = {
 	DeleteWordStartRight: 'deleteWordStartRight',
 	DeleteWordEndRight: 'deleteWordEndRight',
 
-	DeleteAllLeft: 'deleteAllLeft',
 	DeleteAllRight: 'deleteAllRight',
 
 	RemoveSecondaryCursors: 'removeSecondaryCursors',

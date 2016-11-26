@@ -26,7 +26,7 @@ import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/comm
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
-import { OpenGlobalKeybindingsAction } from 'vs/workbench/parts/settings/browser/openSettingsActions';
+import { OpenGlobalKeybindingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { SelectColorThemeAction } from 'vs/workbench/parts/themes/electron-browser/themes.contribution';
 
