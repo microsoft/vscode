@@ -26,6 +26,11 @@ interface IResolvedKeybinding {
 	binding: number;
 }
 
+interface IExtensionViewlet {
+	id: string;
+	label: string;
+}
+
 interface IConfiguration extends IFilesConfiguration {
 	workbench: {
 		sideBar: {
@@ -61,6 +66,8 @@ export class VSCodeMenu {
 	private mapResolvedKeybindingToActionId: { [id: string]: string; };
 	private keybindingsResolved: boolean;
 
+	private extensionViewlets: IExtensionViewlet[];
+
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@IUpdateService private updateService: IUpdateService,
@@ -70,6 +77,7 @@ export class VSCodeMenu {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.actionIdKeybindingRequests = [];
+		this.extensionViewlets = [];
 
 		this.mapResolvedKeybindingToActionId = Object.create(null);
 		this.mapLastKnownKeybindingToActionId = this.storageService.getItem<{ [id: string]: string; }>(VSCodeMenu.lastKnownKeybindingsMapStorageKey) || Object.create(null);
@@ -129,6 +137,21 @@ export class VSCodeMenu {
 				this.storageService.setItem(VSCodeMenu.lastKnownKeybindingsMapStorageKey, this.mapResolvedKeybindingToActionId); // keep to restore instantly after restart
 				this.mapLastKnownKeybindingToActionId = this.mapResolvedKeybindingToActionId; // update our last known map
 
+				this.updateMenu();
+			}
+		});
+
+		// Listen to extension viewlets
+		ipc.on('vscode:extensionViewlets', (event, rawExtensionViewlets) => {
+			let extensionViewlets: IExtensionViewlet[] = [];
+			try {
+				extensionViewlets = JSON.parse(rawExtensionViewlets);
+			} catch (error) {
+				// Should not happen
+			}
+
+			if (extensionViewlets.length) {
+				this.extensionViewlets = extensionViewlets;
 				this.updateMenu();
 			}
 		});
@@ -517,6 +540,17 @@ export class VSCodeMenu {
 		const integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
 		const problems = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"), 'workbench.actions.view.problems');
 
+		let additionalViewlets: Electron.MenuItem;
+		if (this.extensionViewlets.length) {
+			const additionalViewletsMenu = new Menu();
+
+			this.extensionViewlets.forEach(viewlet => {
+				additionalViewletsMenu.append(this.createMenuItem(viewlet.label, viewlet.id));
+			});
+
+			additionalViewlets = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miAdditionalViewlets', comment: ['&& denotes a mnemonic'] }, "Additional &&Viewlets")), submenu: additionalViewletsMenu, enabled: true });
+		}
+
 		const commands = this.createMenuItem(nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette..."), 'workbench.action.showCommands');
 
 		const fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 });
@@ -569,6 +603,7 @@ export class VSCodeMenu {
 			git,
 			debug,
 			extensions,
+			additionalViewlets,
 			__separator__(),
 			output,
 			problems,

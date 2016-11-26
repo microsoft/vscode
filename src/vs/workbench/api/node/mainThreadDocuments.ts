@@ -189,7 +189,9 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _handleAsResourceInput(uri: URI): TPromise<boolean> {
 		return this._textModelResolverService.createModelReference(uri).then(ref => {
 			const result = !!ref.object;
-			ref.dispose();
+
+			// TODO@Joao TODO@Joh when should this model reference be disposed?
+			// ref.dispose();
 
 			return result;
 		});

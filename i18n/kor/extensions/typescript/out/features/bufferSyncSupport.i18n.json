@@ -8,5 +8,5 @@
 	"doNotCheckAgain": "다시 확인 안 함",
 	"moreInformation": "추가 정보",
 	"updateTscCheck": "사용자 설정 'typescript.check.tscVersion'을 false로 업데이트했습니다.",
-	"versionMismatch": "버전이 일치하지 않습니다. 전역 tsc({0})가 VS 코드의 언어 서비스({1})와 다릅니다. 일관되지 않은 컴파일 오류가 발생할 수 있습니다."
+	"versionMismatch": "버전이 일치하지 않습니다. 전역 tsc({0})가 VS Code의 언어 서비스({1})와 다릅니다. 일관되지 않은 컴파일 오류가 발생할 수 있습니다."
 }

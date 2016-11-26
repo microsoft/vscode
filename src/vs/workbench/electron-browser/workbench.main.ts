@@ -26,7 +26,7 @@ import 'vs/workbench/browser/actions/toggleSidebarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarPosition';
 import 'vs/workbench/browser/actions/toggleEditorLayout';
 import 'vs/workbench/browser/actions/toggleZenMode';
-import 'vs/workbench/parts/settings/browser/openSettings.contribution';
+import 'vs/workbench/parts/preferences/browser/preferences.contribution';
 import 'vs/workbench/browser/actions/configureLocale';
 
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
@@ -65,7 +65,6 @@ import 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/explorers/browser/treeExplorer.contribution';
-import 'vs/workbench/parts/explorers/browser/treeExplorerActions.contribution';
 import 'vs/workbench/parts/explorers/browser/treeExplorerViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/output/browser/output.contribution';
