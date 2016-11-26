@@ -73,8 +73,8 @@ suite('Editor Contrib - Indentation to Spaces', () => {
 			new Selection(1, 5, 1, 5),
 			2,
 			[
-				'    first\t',
-				'  second  \t line \t',
+				'    first  ',
+				'  second     line   ',
 				'       third line',
 				'   fourth line',
 				'fifth'
@@ -160,8 +160,8 @@ suite('Editor Contrib - Indentation to Tabs', () => {
 			new Selection(1, 5, 1, 5),
 			2,
 			[
-				'\t\t\tfirst   ',
-				'\tsecond     line \t',
+				'\t\t\tfirst\t ',
+				'\tsecond\t\t line \t',
 				'\t\t\t third line',
 				'\t fourth line',
 				'fifth'
