@@ -103,8 +103,8 @@ export class ExtensionExplorersContribtion implements IWorkbenchContribution {
 					viewletId,
 					treeLabel,
 					viewletCSSClass,
-					-1, 	// External viewlets are ordered by enabling sequence, so order here doesn't matter.
-					true 	// from extension
+					-1,
+					extension.description.id
 				));
 			}
 		});
