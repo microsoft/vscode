@@ -17,11 +17,10 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { trim } from 'vs/base/common/strings';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
-import { IPath, VSCodeWindow, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
-import { ReadyState } from 'vs/code/common/window';
+import { IPath, VSCodeWindow, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, ReadyState } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/common/mainLifecycle';
+import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
@@ -155,7 +154,7 @@ export class WindowsManager implements IWindowsMainService {
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILifecycleMainService private lifecycleService: ILifecycleMainService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupService: IBackupMainService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService
@@ -359,11 +358,6 @@ export class WindowsManager implements IWindowsMainService {
 		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) {
 			const workspacesWithBackups = this.backupService.getWorkspaceBackupPaths();
 			workspacesWithBackups.forEach(workspacePath => {
-				if (!fs.existsSync(workspacePath)) {
-					this.backupService.removeWorkspaceBackupPathSync(Uri.file(workspacePath));
-					return;
-				}
-
 				const configuration = this.toConfiguration(openConfig, workspacePath);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
