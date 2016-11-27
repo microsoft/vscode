@@ -126,6 +126,13 @@ export interface ITerminalInstance {
 	title: string;
 
 	/**
+	 * The focus state of the terminal before exiting.
+	 *
+	 * @readonly
+	 */
+	hadFocusOnExit: boolean;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 */
 	dispose(): void;
