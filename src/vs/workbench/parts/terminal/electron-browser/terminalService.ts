@@ -97,6 +97,9 @@ export class TerminalService implements ITerminalService {
 		if (wasActiveInstance && this.terminalInstances.length > 0) {
 			let newIndex = index < this.terminalInstances.length ? index : this.terminalInstances.length - 1;
 			this.setActiveInstanceByIndex(newIndex);
+			if (terminalInstance.hadFocusOnExit) {
+				this.getActiveInstance().focus(true);
+			}
 		}
 		if (this.terminalInstances.length === 0) {
 			this.hidePanel();
@@ -128,7 +131,6 @@ export class TerminalService implements ITerminalService {
 			terminalInstance.setVisible(i === terminalIndex);
 		});
 		this._onActiveInstanceChanged.fire();
-		this.getActiveInstance().focus(true);
 	}
 
 	public setActiveInstanceToNext(): void {
