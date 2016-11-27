@@ -109,7 +109,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 	private _onAccepted(keybinding: string): void {
 		let snippetText = [
 			'{',
-			'\t"key": "' + keybinding + '",',
+			'\t"key": ' + JSON.stringify(keybinding) + ',',
 			'\t"command": "${1:commandId}",',
 			'\t"when": "${2:editorTextFocus}"',
 			'}$0'
