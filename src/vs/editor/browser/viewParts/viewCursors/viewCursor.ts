@@ -130,15 +130,17 @@ export class ViewCursor {
 			this._positionLeft = visibleRange.left;
 			this._isInViewport = true;
 
-			let visibleRangeForCharacter = ctx.linesVisibleRangesForRange({
-				startLineNumber: this._position.lineNumber,
-				startColumn: this._position.column,
-				endLineNumber: this._position.lineNumber,
-				endColumn: this._position.column + 1
-			}, false);
+			if (this._cursorStyle !== TextEditorCursorStyle.Line) {
+				let visibleRangeForCharacter = ctx.linesVisibleRangesForRange({
+					startLineNumber: this._position.lineNumber,
+					startColumn: this._position.column,
+					endLineNumber: this._position.lineNumber,
+					endColumn: this._position.column + 1
+				}, false);
 
-			if (visibleRangeForCharacter.length > 0 && visibleRangeForCharacter[0].ranges.length > 0) {
-				this._characterWidth = visibleRangeForCharacter[0].ranges[0].width;
+				if (visibleRangeForCharacter.length > 0 && visibleRangeForCharacter[0].ranges.length > 0) {
+					this._characterWidth = visibleRangeForCharacter[0].ranges[0].width;
+				}
 			}
 		} else {
 			this._isInViewport = false;
@@ -168,13 +170,16 @@ export class ViewCursor {
 			this._domNode.setLineHeight(this._lineHeight);
 			this._domNode.setHeight(this._lineHeight);
 
-			let desiredWidth = '1ch';
-			if (this._characterWidth > 0) {
-				desiredWidth = `${this._characterWidth}px`;
-			}
+			if (this._cursorStyle !== TextEditorCursorStyle.Line) {
+				let desiredWidth = '1ch';
 
-			if (this._domNode.domNode.style.width !== desiredWidth) {
-				this._domNode.domNode.style.width = desiredWidth;
+				if (this._characterWidth > 0) {
+					desiredWidth = `${this._characterWidth}px`;
+				}
+
+				if (this._domNode.domNode.style.width !== desiredWidth) {
+					this._domNode.domNode.style.width = desiredWidth;
+				}
 			}
 
 			return {
