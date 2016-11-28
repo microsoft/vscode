@@ -43,7 +43,10 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	private fileEncoding: string;
 	private limitReached: boolean;
 
-	private channels: ISearchWorker[] = [];
+	private workers: ISearchWorker[] = [];
+	private readyWorkers: ISearchWorker[] = [];
+
+	private batches = [];
 
 	private onResult: any;
 
@@ -65,7 +68,9 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		};
 		const numWorkers = Math.ceil(os.cpus().length/2); // /2 because of hyperthreading. Maybe make better.
 		for (let i = 0; i < numWorkers; i++) {
-			this.channels.push(createWorker(i, workerConfig));
+			const worker = createWorker(i, workerConfig);
+			this.workers.push(worker);
+			this.readyWorkers.push(worker);
 		}
 	}
 
@@ -80,13 +85,13 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		let resultCounter = 0;
 		this.onResult = onResult;
 
-		let progress = () => {
+		const progress = () => {
 			if (++this.progressed % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
 				onProgress({ total: this.total, worked: this.worked }); // buffer progress in chunks to reduce pressure
 			}
 		};
 
-		let unwind = (processed: number) => {
+		const unwind = (processed: number, iAmDone?) => {
 			this.worked += processed;
 
 			// Emit progress() unless we got canceled or hit the limit
@@ -95,7 +100,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			}
 
 			// Emit done()
-			if (this.worked === this.total && this.walkerIsDone && !this.isDone) {
+			if (iAmDone && !this.isDone) {
 				this.isDone = true;
 				done(this.walkerError, {
 					limitHit: this.limitReached,
@@ -104,8 +109,36 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			}
 		};
 
+		const onBatchReady = (batch: string[]): void => {
+			if (this.readyWorkers.length) {
+				run(this.readyWorkers.shift(), batch);
+			} else {
+				this.batches.push(batch);
+			}
+		};
+
+		const run = (worker, batch) => {
+			worker.search({absolutePaths: batch, maxResults: 1e8 }).then(matches => {
+				// console.log('got result');
+				matches.forEach(m => {
+					if (m && m.lineMatches.length) {
+						onResult(m);
+					}
+				});
+
+				unwind(size);
+				if (this.batches.length) run(worker, this.batches.shift());
+				else if (this.walkerIsDone) unwind(0, true);
+				else {
+					this.readyWorkers.push(worker);
+				}
+			});
+		}
+
 		// Walk over the file system
 		const files = [];
+		let nextBatch = [];
+		const workerBatchSize = 50;
 		let size;
 		this.walker.walk(this.rootFolders, this.extraFiles, result => {
 			size = result.size || 1;
@@ -120,28 +153,18 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			progress();
 
 			const absolutePath = result.base ? [result.base, result.relativePath].join(path.sep) : result.relativePath;
-			files.push(absolutePath);
+			// files.push(absolutePath);
+			nextBatch.push(absolutePath);
+			if (nextBatch.length >= workerBatchSize) {
+				onBatchReady(nextBatch);
+				nextBatch = [];
+			}
 		}, (error, isLimitHit) => {
-			const portionSize = Math.ceil(files.length/this.channels.length);
-			TPromise.join(this.channels.map((c, i) => {
-				const subsetFiles = files.slice(portionSize*i, portionSize*i + portionSize);
-				return c.search({absolutePaths: subsetFiles, maxResults: 1e8 }).then(matches => {
-					console.log('got result: ' + matches.length);
-					matches.forEach(m => {
-						if (m && m.lineMatches.length) {
-							onResult(m);
-						}
-					})
-
-				});
-			})).then(() => {
-				unwind(this.total);
-			})
-
+			if (nextBatch.length) onBatchReady(nextBatch);
 
 			this.walkerIsDone = true;
 			this.walkerError = error;
-			unwind(0 /* walker is done, indicate this back to our handler to be able to unwind */);
+			// unwind(0 /* walker is done, indicate this back to our handler to be able to unwind */);
 		});
 	}
 }
