@@ -41,7 +41,7 @@ export class SearchWorker implements ISearchWorker {
 	private finalCallback;
 
 	initialize(config: ISearchWorkerConfig): TPromise<void> {
-		console.log('worker started: ' + Date.now());
+		// console.log('worker started: ' + Date.now());
 		this.contentPattern = strings.createRegExp(config.pattern.pattern, config.pattern.isRegExp, { matchCase: config.pattern.isCaseSensitive, wholeWord: config.pattern.isWordMatch, multiline: false, global: true });
 		return TPromise.wrap<void>(undefined);
 	}
@@ -52,8 +52,10 @@ export class SearchWorker implements ISearchWorker {
 
 	search(args: ISearchWorkerSearchArgs): TPromise<FileMatch[]> {
 		// profiler.startProfiling('p1');
-		console.log('starting search: ' + Date.now());
+		// console.log('starting search: ' + Date.now() + ' ' + args.absolutePaths.length);
 		this.paths = args.absolutePaths;
+		this.running = true;
+		this.results = [];
 		for (let i=0; i<50 && i<this.paths.length; i++) {
 			this.start(this.paths[i]);
 		}
@@ -70,6 +72,7 @@ export class SearchWorker implements ISearchWorker {
 			if (this.paths.length) {
 				this.start(this.paths.pop());
 			} else if (this.running) {
+				// console.log('worker done');
 				this.running = false;
 				this.finalCallback(this.results.filter(r => !!r));
 			}

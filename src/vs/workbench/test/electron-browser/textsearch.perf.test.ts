@@ -42,9 +42,9 @@ declare var __dirname: string;
 suite('TextSearch performance', () => {
 
 	test('Measure', () => {
-		if (process.env['VSCODE_PID']) {
-			return; // TODO@Rob find out why test fails when run from within VS Code
-		}
+		// if (process.env['VSCODE_PID']) {
+		// 	return; // TODO@Rob find out why test fails when run from within VS Code
+		// }
 
 		const n = 3;
 		const argv = minimist(process.argv);
