@@ -3,19 +3,19 @@
   "version": "0.1.0",
   "dependencies": {
     "vscode-jsonrpc": {
-      "version": "2.4.0",
-      "from": "vscode-jsonrpc@>=2.4.0 <3.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-2.4.0.tgz"
+      "version": "3.0.1-alpha.2",
+      "from": "vscode-jsonrpc@>=3.0.1-alpha.2 <4.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.0.1-alpha.2.tgz"
     },
     "vscode-languageclient": {
-      "version": "2.6.4-next.1",
+      "version": "3.0.1-alpha.2",
       "from": "vscode-languageclient@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-2.6.4-next.1.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-3.0.1-alpha.2.tgz"
     },
     "vscode-languageserver-types": {
-      "version": "1.0.5-next.1",
+      "version": "3.0.1-alpha.2",
       "from": "vscode-languageserver-types@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-1.0.5-next.1.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.1-alpha.2.tgz"
     },
     "vscode-nls": {
       "version": "1.0.7",

@@ -57,11 +57,13 @@ class EditorInputCache {
 		if (editorInputPromise) {
 			editorInputPromise.done(() => {
 				if (reloadFromSource) {
-					this.textModelResolverService.resolve(fileMatch.resource()).then(editorModel => {
-						if (editorModel.textEditorModel) {
+					this.textModelResolverService.createModelReference(fileMatch.resource()).done(ref => {
+						const model = ref.object;
+						if (model.textEditorModel) {
 							let replaceResource = this.getReplaceResource(fileMatch.resource());
-							this.modelService.getModel(replaceResource).setValue(editorModel.textEditorModel.getValue());
+							this.modelService.getModel(replaceResource).setValue(model.textEditorModel.getValue());
 							this.replaceService.replace(fileMatch, null, replaceResource);
+							ref.dispose();
 						}
 					});
 				} else {
@@ -107,13 +109,14 @@ class EditorInputCache {
 	}
 
 	private createRightInput(element: FileMatch): TPromise<IEditorInput> {
-		return new TPromise((c, e, p) => {
-			this.textModelResolverService.resolve(element.resource()).then(value => {
-				let model = value.textEditorModel;
-				let replaceResource = this.getReplaceResource(element.resource());
-				this.modelService.createModel(model.getValue(), model.getMode(), replaceResource);
-				c(this.editorService.createInput({ resource: replaceResource }));
-			});
+		return this.textModelResolverService.createModelReference(element.resource()).then(ref => {
+			const model = ref.object;
+			let textEditorModel = model.textEditorModel;
+			let replaceResource = this.getReplaceResource(element.resource());
+			this.modelService.createModel(textEditorModel.getValue(), textEditorModel.getMode(), replaceResource);
+			ref.dispose();
+
+			return this.editorService.createInput({ resource: replaceResource });
 		});
 	}
 

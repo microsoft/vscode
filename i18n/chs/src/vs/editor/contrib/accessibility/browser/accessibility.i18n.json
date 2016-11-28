@@ -9,7 +9,7 @@
 	"outroMsg": "可以通过按 Esc 消除此工具提示并返回到编辑器。",
 	"status": "状态:",
 	"tabFocusModeOffMsg": "在当前编辑器中按 Tab 将插入制表符。通过按 {0} 切换此行为。",
-	"tabFocusModeOffMsgNoKb": "在当前编辑器中按 Tab 会将焦点移动到下一个可聚焦的元素。当前无法通过键绑定触发命令 {0}。",
+	"tabFocusModeOffMsgNoKb": "在当前编辑器中按 Tab 会插入制表符。当前无法通过键绑定触发命令 {0}。",
 	"tabFocusModeOnMsg": "在当前编辑器中按 Tab 会将焦点移动到下一个可聚焦的元素。通过按 {0} 切换此行为。",
 	"tabFocusModeOnMsgNoKb": "在当前编辑器中按 Tab 会将焦点移动到下一个可聚焦的元素。当前无法通过键绑定触发命令 {0}。"
 }

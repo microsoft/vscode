@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
-import severity from 'vs/base/common/severity';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModel as EditorIModel, IEditorContribution, IRange } from 'vs/editor/common/editorCommon';
@@ -58,15 +57,14 @@ export interface ITreeElement {
 }
 
 export interface IExpressionContainer extends ITreeElement {
-	stackFrame: IStackFrame;
 	hasChildren: boolean;
-	getChildren(debugService: IDebugService): TPromise<IExpression[]>;
+	getChildren(): TPromise<IExpression[]>;
 }
 
 export interface IExpression extends ITreeElement, IExpressionContainer {
 	name: string;
 	value: string;
-	valueChanged: boolean;
+	valueChanged?: boolean;
 	type?: string;
 }
 
@@ -283,6 +281,7 @@ export interface IDebugConfiguration {
 export interface IGlobalConfig {
 	version: string;
 	debugServer?: number;
+	compounds: ICompound[];
 	configurations: IConfig[];
 }
 
@@ -294,12 +293,18 @@ export interface IEnvConfig {
 	preLaunchTask?: string;
 	debugServer?: number;
 	noDebug?: boolean;
+	port?: number;
 }
 
 export interface IConfig extends IEnvConfig {
 	windows?: IEnvConfig;
 	osx?: IEnvConfig;
 	linux?: IEnvConfig;
+}
+
+export interface ICompound {
+	name: string;
+	configurations: string[];
 }
 
 export interface IRawEnvAdapter {
@@ -336,6 +341,12 @@ export interface IConfigurationManager {
 	 * If nameOrConfig is null resolves the first configuration and returns it.
 	 */
 	getConfiguration(nameOrConfig: string | IConfig): TPromise<IConfig>;
+
+	/**
+	 * Returns a compound with the specified name.
+	 * Returns null if there is no compound with the specified name.
+	 */
+	getCompound(name: string): ICompound;
 
 	/**
 	 * Opens the launch.json file
@@ -422,16 +433,6 @@ export interface IDebugService {
 	 * Removes all repl expressions.
 	 */
 	removeReplExpressions(): void;
-
-	/**
-	 * Adds a new log to the repl. Either a string value or a dictionary (used to inspect complex objects printed to the repl).
-	 */
-	logToRepl(value: string | { [key: string]: any }, severity?: severity): void;
-
-	/**
-	 * Appends new output to the repl.
-	 */
-	appendReplOutput(value: string, severity?: severity): void;
 
 	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.

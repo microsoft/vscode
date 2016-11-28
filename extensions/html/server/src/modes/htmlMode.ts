@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { LanguageModelCache } from '../languageModelCache';
+import { getLanguageModelCache } from '../languageModelCache';
 import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions } from 'vscode-html-languageservice';
 import { TextDocument, Position, Range } from 'vscode-languageserver-types';
 import { LanguageMode } from './languageModes';
 
-export function getHTMLMode(htmlLanguageService: HTMLLanguageService, htmlDocuments: LanguageModelCache<HTMLDocument>): LanguageMode {
+export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageMode {
 	let settings: any = {};
-
+	let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
 	return {
 		getId() {
 			return 'html';

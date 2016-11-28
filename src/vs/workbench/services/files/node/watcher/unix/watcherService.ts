@@ -61,11 +61,11 @@ export class FileWatcher {
 			// that the watcher process died and we want to restart it here. we only do it a max number of times
 			if (!this.isDisposed) {
 				if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
-					this.errorLogger('Watcher terminated unexpectedly and is restarted again...');
+					this.errorLogger('[FileWatcher] terminated unexpectedly and is restarted again...');
 					this.restartCounter++;
 					this.startWatching();
 				} else {
-					this.errorLogger('Watcher failed to start after retrying for some time, giving up. Please report this as a bug report!');
+					this.errorLogger('[FileWatcher] failed to start after retrying for some time, giving up. Please report this as a bug report!');
 				}
 			}
 		}, this.errorLogger);

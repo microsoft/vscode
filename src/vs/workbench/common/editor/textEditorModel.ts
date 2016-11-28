@@ -9,7 +9,7 @@ import { EndOfLinePreference, IModel, IRawText } from 'vs/editor/common/editorCo
 import { IMode } from 'vs/editor/common/modes';
 import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import { ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { RawText } from 'vs/editor/common/model/textModel';
@@ -20,7 +20,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
  */
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
 	private textEditorModelHandle: URI;
-	private createdEditorModel: boolean;
+	protected createdEditorModel: boolean;
 	private modelDisposeListener: IDisposable;
 
 	constructor(

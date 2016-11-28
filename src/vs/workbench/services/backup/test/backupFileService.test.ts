@@ -14,17 +14,32 @@ import path = require('path');
 import extfs = require('vs/base/node/extfs');
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
-import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
-import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
+import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { parseArgs } from 'vs/platform/environment/node/argv';
+
+class TestEnvironmentService extends EnvironmentService {
+
+	constructor(private _backupHome: string, private _backupWorkspacesPath: string) {
+		super(parseArgs(process.argv), process.execPath);
+	}
+
+	get backupHome(): string { return this._backupHome; }
+
+	get backupWorkspacesPath(): string { return this._backupWorkspacesPath; }
+}
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
 		const fileService = new FileService(workspace.fsPath, { disableWatcher: true }, null);
-		super(workspace, TestEnvironmentService, fileService);
+		const testEnvironmentService = new TestEnvironmentService(backupHome, workspacesJsonPath);
 
-		this.backupHome = backupHome;
-		this.workspacesJsonPath = workspacesJsonPath;
+		super(workspace, testEnvironmentService, fileService);
+	}
+
+	public getBackupResource(resource: Uri): Uri {
+		return super.getBackupResource(resource);
 	}
 }
 
@@ -42,7 +57,7 @@ suite('BackupFileService', () => {
 	const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
 	const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', untitledFile.fsPath);
 
-	let service: BackupFileService;
+	let service: TestBackupFileService;
 
 	setup(done => {
 		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
@@ -79,14 +94,12 @@ suite('BackupFileService', () => {
 	});
 
 	test('doesTextFileHaveBackup should return whether a backup resource exists', done => {
-		service.hasBackup(fooFile).then(exists => {
-			assert.equal(exists, false);
-			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
-				fs.writeFileSync(fooBackupPath, 'foo');
-				service.hasBackup(fooFile).then(exists2 => {
-					assert.equal(exists2, true);
-					done();
-				});
+		pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
+			fs.writeFileSync(fooBackupPath, 'foo');
+			service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+			service.hasBackup(fooFile).then(exists2 => {
+				assert.equal(exists2, true);
+				done();
 			});
 		});
 	});
@@ -152,6 +165,67 @@ suite('BackupFileService', () => {
 			service.discardAllWorkspaceBackups().then(() => {
 				assert.equal(fs.existsSync(untitledBackupPath), false);
 				assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'untitled')), false);
+				done();
+			});
+		});
+	});
+
+	test('BackupFilesModel - simple', () => {
+		const model = new BackupFilesModel();
+
+		const resource1 = Uri.file('test.html');
+
+		assert.equal(model.has(resource1), false);
+
+		model.add(resource1);
+
+		assert.equal(model.has(resource1), true);
+		assert.equal(model.has(resource1, 0), true);
+		assert.equal(model.has(resource1, 1), false);
+
+		model.remove(resource1);
+
+		assert.equal(model.has(resource1), false);
+
+		model.add(resource1);
+
+		assert.equal(model.has(resource1), true);
+		assert.equal(model.has(resource1, 0), true);
+		assert.equal(model.has(resource1, 1), false);
+
+		model.clear();
+
+		assert.equal(model.has(resource1), false);
+
+		model.add(resource1, 1);
+
+		assert.equal(model.has(resource1), true);
+		assert.equal(model.has(resource1, 0), false);
+		assert.equal(model.has(resource1, 1), true);
+
+		const resource2 = Uri.file('test1.html');
+		const resource3 = Uri.file('test2.html');
+		const resource4 = Uri.file('test3.html');
+
+		model.add(resource2);
+		model.add(resource3);
+		model.add(resource4);
+
+		assert.equal(model.has(resource1), true);
+		assert.equal(model.has(resource2), true);
+		assert.equal(model.has(resource3), true);
+		assert.equal(model.has(resource4), true);
+	});
+
+	test('BackupFilesModel - resolve', (done) => {
+		pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
+			fs.writeFileSync(fooBackupPath, 'foo');
+
+			const model = new BackupFilesModel();
+
+			model.resolve(workspaceBackupPath).then(model => {
+				assert.equal(model.has(Uri.file(fooBackupPath)), true);
+
 				done();
 			});
 		});

@@ -10,7 +10,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationTarget, ConfigurationEditingErrorCode, IConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IWorkspaceConfiguration, IWorkspaceConfigurationValue } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationValues, IWorkspaceConfigurationValue } from 'vs/workbench/services/configuration/common/configuration';
 
 suite('ExtHostConfiguration', function () {
 
@@ -22,7 +22,7 @@ suite('ExtHostConfiguration', function () {
 		}
 	};
 
-	function createExtHostConfiguration(data: IWorkspaceConfiguration = Object.create(null), shape?: MainThreadConfigurationShape) {
+	function createExtHostConfiguration(data: IWorkspaceConfigurationValues = Object.create(null), shape?: MainThreadConfigurationShape) {
 		if (!shape) {
 			shape = new class extends MainThreadConfigurationShape { };
 		}
@@ -122,7 +122,7 @@ suite('ExtHostConfiguration', function () {
 		assert.throws(() => config['get'] = <any>'get-prop');
 	});
 
-	test('udate/section to key', function () {
+	test('update/section to key', function () {
 
 		const shape = new RecordingShape();
 		const allConfig = createExtHostConfiguration({
@@ -142,6 +142,28 @@ suite('ExtHostConfiguration', function () {
 
 		config.update('foo.bar', 42, true);
 		assert.equal(shape.lastArgs[1], 'foo.bar');
+	});
+
+	test('update, what is #15834', function () {
+		const shape = new RecordingShape();
+		const allConfig = createExtHostConfiguration({
+			['editor.formatOnSave']: createConfigurationValue(true)
+		}, shape);
+
+		allConfig.getConfiguration('editor').update('formatOnSave', { extensions: ['ts'] });
+		assert.equal(shape.lastArgs[1], 'editor.formatOnSave');
+		assert.deepEqual(shape.lastArgs[2], { extensions: ['ts'] });
+	});
+
+	test('bogous data, #15834', function () {
+		const shape = new RecordingShape();
+		const allConfig = createExtHostConfiguration({
+			['editor.formatOnSave']: createConfigurationValue(true),
+			['editor.formatOnSave.extensions']: createConfigurationValue(['ts'])
+		}, shape);
+
+		assert.ok(allConfig.getConfiguration('').has('editor.formatOnSave'));
+		assert.ok(!allConfig.getConfiguration('').has('editor.formatOnSave.extensions'));
 	});
 
 	test('update/error-state not OK', function () {

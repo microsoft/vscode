@@ -296,7 +296,7 @@ export class KeybindingResolver {
 	}
 
 	public resolve(context: any, currentChord: number, keypress: number): IResolveResult {
-		// console.log('resolve: ' + Keybinding.toLabel(keypress));
+		// console.log('resolve: ' + Keybinding.toUserSettingsLabel(keypress));
 		let lookupMap: ICommandEntry[] = null;
 
 		if (currentChord !== 0) {
@@ -411,7 +411,7 @@ export class IOSupport {
 		} else {
 			out.write(`${quotedSerializeCommand} `);
 		}
-		//		out.write(String(item.weight));
+		// out.write(String(item.weight1 + '-' + item.weight2));
 		out.write('}');
 	}
 

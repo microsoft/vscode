@@ -369,15 +369,15 @@ export function always<T>(promise: TPromise<T>, f: Function): TPromise<T> {
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.
  */
-export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]> {
+export function sequence<T>(promiseFactories: ITask<TPromise<T>>[]): TPromise<T[]> {
 	const results: T[] = [];
 
 	// reverse since we start with last element using pop()
-	promiseFactory = promiseFactory.reverse();
+	promiseFactories = promiseFactories.reverse();
 
 	function next(): Promise {
-		if (promiseFactory.length) {
-			return promiseFactory.pop()();
+		if (promiseFactories.length) {
+			return promiseFactories.pop()();
 		}
 
 		return null;
@@ -397,6 +397,29 @@ export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]>
 	}
 
 	return TPromise.as(null).then(thenHandler);
+}
+
+export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t): TPromise<T> {
+	promiseFactories = [...promiseFactories.reverse()];
+
+	const loop = () => {
+		if (promiseFactories.length === 0) {
+			return TPromise.as(null);
+		}
+
+		const factory = promiseFactories.pop();
+		const promise = factory();
+
+		return promise.then(result => {
+			if (shouldStop(result)) {
+				return TPromise.as(result);
+			}
+
+			return loop();
+		});
+	};
+
+	return loop();
 }
 
 export function once<T extends Function>(fn: T): T {

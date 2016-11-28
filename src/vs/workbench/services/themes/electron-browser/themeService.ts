@@ -58,7 +58,7 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 	type: 'array',
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { label: '{{label}}', uiTheme: VS_DARK_THEME, path: './themes/{{id}}.tmTheme.' } }],
+		defaultSnippets: [{ body: { label: '${1:label}', uiTheme: VS_DARK_THEME, path: './themes/${2:id}.tmTheme.' } }],
 		properties: {
 			label: {
 				description: nls.localize('vscode.extension.contributes.themes.label', 'Label of the color theme as shown in the UI.'),
@@ -82,7 +82,7 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 	type: 'array',
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { id: '{{id}}', label: '{{label}}', path: './fileicons/{{id}}-icon-theme.json' } }],
+		defaultSnippets: [{ body: { id: '${1:id}', label: '${2:label}', path: './fileicons/${3:id}-icon-theme.json' } }],
 		properties: {
 			id: {
 				description: nls.localize('vscode.extension.contributes.iconThemes.id', 'Id of the icon theme as used in the user settings.'),

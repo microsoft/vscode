@@ -58,7 +58,7 @@ suite('HTML Embedded Formatting', () => {
 		assertFormat('<html><head>\n  <script>\nvar x=1;\nconsole.log("Hi");\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 1;\n    console.log("Hi");\n</script>\n</head>\n\n</html>');
 
 		assertFormat('<html><head>\n  |<script>\nvar x=1;\n</script>|</head></html>', '<html><head>\n  <script>\n    var x = 1;\n</script></head></html>');
-		assertFormat('<html><head>\n  <script>\n|var x=1;|\n</script></head></html>', '<html><head>\n  <script>\n    var x = 1;\n</script></head></html>');
+		assertFormat('<html><head>\n  <script>\n|var x=1;|\n</script></head></html>', '<html><head>\n  <script>\n  var x = 1;\n</script></head></html>');
 	});
 
 	test('HTML & Multiple Scripts', function (): any {
