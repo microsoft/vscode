@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!../media/treeExplorer.contribution';
+import 'vs/css!./media/treeExplorer.contribution';
 
 import { localize } from 'vs/nls';
 import { join } from 'vs/base/common/paths';
@@ -12,8 +12,8 @@ import { createCSSRule } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/platform';
 import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/common/customTreeExplorerService';
-import { CustomTreeExplorerService } from 'vs/workbench/parts/explorers/browser/customTreeExplorerService';
+import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
+import { TreeExplorerService } from 'vs/workbench/parts/explorers/browser/treeExplorerService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { ITreeExplorer } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -24,7 +24,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-registerSingleton(ICustomTreeExplorerService, CustomTreeExplorerService);
+registerSingleton(ITreeExplorerService, TreeExplorerService);
 
 const explorerSchema: IJSONSchema = {
 	description: localize('vscode.extension.contributes.explorer', 'Contributes custom tree explorer viewlet to the sidebar'),
@@ -103,8 +103,8 @@ export class ExtensionExplorersContribtion implements IWorkbenchContribution {
 					viewletId,
 					treeLabel,
 					viewletCSSClass,
-					-1, 	// External viewlets are ordered by enabling sequence, so order here doesn't matter.
-					true 	// from extension
+					-1,
+					extension.description.id
 				));
 			}
 		});
