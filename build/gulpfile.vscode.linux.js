@@ -217,6 +217,13 @@ function buildFlatpak(arch) {
 		arch: flatpakArch,
 		bundlePath: manifest.appId + '-' + flatpakArch + '.flatpak',
 	};
+	// Setup PGP signing if requested.
+	if (process.env.GPG_KEY_ID !== undefined) {
+		buildOptions.gpgSign = process.env.GPG_KEY_ID;
+		if (process.env.GPG_HOMEDIR) {
+			buildOptions.gpgHomedir = process.env.GPG_HOME_DIR;
+		}
+	}
 	return function (cb) {
 		require('flatpak-bundler').bundle(manifest, buildOptions, cb);
 	}
