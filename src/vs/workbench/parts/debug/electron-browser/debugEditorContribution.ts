@@ -24,8 +24,10 @@ import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debu
 import { RemoveBreakpointAction, EditConditionalBreakpointAction, ToggleEnablementAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
+import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 
 const HOVER_DELAY = 300;
+const LAUNCH_JSON_REGEX = /launch\.json$/;
 
 @editorContribution
 export class DebugEditorContribution implements IDebugEditorContribution {
@@ -40,6 +42,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private breakpointHintDecoration: string[];
 	private breakpointWidget: BreakpointWidget;
 	private breakpointWidgetVisible: IContextKey<boolean>;
+
+	private configurationWidget: FloatingClickWidget;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -56,6 +60,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
 		this.registerListeners();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
+		this.updateConfigurationWidgetVisibility();
 	}
 
 	private getContextMenuActions(breakpoint: IBreakpoint, uri: uri, lineNumber: number): TPromise<IAction[]> {
@@ -142,6 +147,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
 			this.closeBreakpointWidget();
 			this.hideHoverWidget();
+			this.updateConfigurationWidgetVisibility();
 		}));
 		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
 	}
@@ -252,6 +258,22 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
+	// configuration widget
+	private updateConfigurationWidgetVisibility(): void {
+		const model = this.editor.getModel();
+		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString())) {
+			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration"), null);
+			this.configurationWidget.render();
+			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration()));
+		} else if (this.configurationWidget) {
+			this.configurationWidget.dispose();
+		}
+	}
+
+	private addLaunchConfiguration(): void {
+		this.editor.focus();
+	}
+
 	private static BREAKPOINT_HELPER_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-hint-glyph',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
@@ -263,6 +285,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 		if (this.hoverWidget) {
 			this.hoverWidget.dispose();
+		}
+		if (this.configurationWidget) {
+			this.configurationWidget.dispose();
 		}
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
