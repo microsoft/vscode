@@ -22,7 +22,6 @@ export interface ITelemetryInfo {
 }
 
 export interface ITelemetryExperiments {
-	showDefaultViewlet: boolean;
 	showFirstSessionWatermark: boolean;
 	openUntitledFile: boolean;
 }
@@ -45,7 +44,6 @@ export interface ITelemetryService {
 }
 
 export const defaultExperiments: ITelemetryExperiments = {
-	showDefaultViewlet: false,
 	showFirstSessionWatermark: false,
 	openUntitledFile: true
 };
@@ -78,8 +76,7 @@ export function loadExperiments(storageService: IStorageService, configurationSe
 		storageService.store(key, valueString);
 	}
 
-	const random0 = parseFloat(valueString);
-	let [random1, showDefaultViewlet] = splitRandom(random0);
+	const random1 = parseFloat(valueString);
 	let [random2, showFirstSessionWatermark] = splitRandom(random1);
 	let [, openUntitledFile] = splitRandom(random2);
 
@@ -87,13 +84,11 @@ export function loadExperiments(storageService: IStorageService, configurationSe
 	let isNewSession = storageService.get('telemetry.lastSessionDate') ? false : true;
 	if (!isNewSession) {
 		// for returning users we fall back to the default configuration for the sidebar and the initially opened, empty editor
-		showDefaultViewlet = defaultExperiments.showDefaultViewlet;
 		showFirstSessionWatermark = defaultExperiments.showFirstSessionWatermark;
 		openUntitledFile = defaultExperiments.openUntitledFile;
 	}
 
 	return applyOverrides(configurationService, {
-		showDefaultViewlet,
 		showFirstSessionWatermark,
 		openUntitledFile
 	});
