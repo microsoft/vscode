@@ -46,6 +46,8 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	private workers: ISearchWorker[] = [];
 	private readyWorkers: ISearchWorker[] = [];
 
+	private nextWorker = 0;
+
 	private batches = [];
 
 	private onResult: any;
@@ -64,11 +66,14 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 
 		// Spin up workers
 		const workerConfig: ISearchWorkerConfig = {
-			pattern: config.contentPattern
+			pattern: config.contentPattern,
+			id: undefined
 		};
 		const numWorkers = Math.ceil(os.cpus().length/2); // /2 because of hyperthreading. Maybe make better.
+		// const numWorkers = 2;
 		for (let i = 0; i < numWorkers; i++) {
-			const worker = createWorker(i, workerConfig);
+			workerConfig.id = i;
+			const worker = createWorker(workerConfig);
 			this.workers.push(worker);
 			this.readyWorkers.push(worker);
 		}
@@ -100,7 +105,8 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			}
 
 			// Emit done()
-			if (iAmDone && !this.isDone) {
+			// console.log('unwind: ' + this.worked + '/' + this.total);
+			if (iAmDone && !this.isDone && this.worked === this.total) {
 				this.isDone = true;
 				done(this.walkerError, {
 					limitHit: this.limitReached,
@@ -109,28 +115,30 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			}
 		};
 
-		const onBatchReady = (batch: string[]): void => {
-			if (this.readyWorkers.length) {
-				run(this.readyWorkers.shift(), batch);
+		const onBatchReady = (batch: string[], batchSize): void => {
+			// console.log(`onBatchReady: ${batchSize}, ${this.worked}/${this.total}`);
+			if (this.workers.length) {
+				run(this.workers[this.nextWorker], batch, batchSize);
+				this.nextWorker = ((this.nextWorker + 1) % this.workers.length)
 			} else {
 				this.batches.push(batch);
 			}
 		};
 
-		const run = (worker, batch) => {
+		const run = (worker, batch, batchSize) => {
 			worker.search({absolutePaths: batch, maxResults: 1e8 }).then(matches => {
-				// console.log('got result');
+				// console.log('got result - ' + batchSize);
 				matches.forEach(m => {
 					if (m && m.lineMatches.length) {
 						onResult(m);
 					}
 				});
 
-				unwind(size);
-				if (this.batches.length) run(worker, this.batches.shift());
+				unwind(batchSize);
+				if (this.batches.length) run(worker, this.batches.shift(), 0);
 				else if (this.walkerIsDone) unwind(0, true);
 				else {
-					this.readyWorkers.push(worker);
+					// this.readyWorkers.push(worker);
 				}
 			});
 		}
@@ -138,11 +146,11 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		// Walk over the file system
 		const files = [];
 		let nextBatch = [];
-		const workerBatchSize = 50;
-		let size;
+		let nextBatchSize = 0;
+		let workerBatchSize = 500;
 		this.walker.walk(this.rootFolders, this.extraFiles, result => {
-			size = result.size || 1;
-			this.total += size;
+			let size = result.size || 1;
+			// this.total += size;
 
 			// If the result is empty or we have reached the limit or we are canceled, ignore it
 			if (this.limitReached || this.isCanceled) {
@@ -155,12 +163,19 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			const absolutePath = result.base ? [result.base, result.relativePath].join(path.sep) : result.relativePath;
 			// files.push(absolutePath);
 			nextBatch.push(absolutePath);
+			nextBatchSize += size;
 			if (nextBatch.length >= workerBatchSize) {
-				onBatchReady(nextBatch);
+
+				this.total += nextBatchSize;
+				onBatchReady(nextBatch, nextBatchSize);
 				nextBatch = [];
+				nextBatchSize = 0;
 			}
 		}, (error, isLimitHit) => {
-			if (nextBatch.length) onBatchReady(nextBatch);
+			if (nextBatch.length) {
+				this.total += nextBatchSize;
+				onBatchReady(nextBatch, nextBatchSize);
+			}
 
 			this.walkerIsDone = true;
 			this.walkerError = error;
@@ -169,11 +184,12 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	}
 }
 
-function createWorker(id: number, config: ISearchWorkerConfig): ISearchWorker {
+function createWorker(config: ISearchWorkerConfig): ISearchWorker {
+	config = JSON.parse(JSON.stringify(config)); // copy
 	let client = new Client(
 		uri.parse(require.toUrl('bootstrap')).fsPath,
 		{
-			serverName: 'Search Worker ' + id,
+			serverName: 'Search Worker ' + config.id,
 			timeout: 60 * 60 * 1000,
 			args: ['--type=searchWorker'],
 			env: {

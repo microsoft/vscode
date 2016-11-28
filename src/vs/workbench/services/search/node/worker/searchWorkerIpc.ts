@@ -13,6 +13,7 @@ import { SearchWorker } from './searchWorker';
 
 export interface ISearchWorkerConfig {
 	pattern: IPatternInfo;
+	id: number;
 }
 
 export interface ISearchWorkerSearchArgs {

@@ -88,6 +88,7 @@ suite('TextSearch performance', () => {
 					assert.equal(firstRenderEvent.name, 'searchResultsFirstRender');
 					assert.equal(resultsShownEvent.name, 'searchResultsShown');
 					assert.equal(resultsFinishedEvent.name, 'searchResultsFinished');
+					console.log(resultsShownEvent);
 
 					telemetryService.events = [];
 
