@@ -330,9 +330,10 @@ export class WindowsManager implements IWindowsMainService {
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
+		let foldersToOpen = arrays.distinct(iPathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => platform.isLinux ? folder : folder.toLowerCase()); // prevent duplicates
+		let foldersToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.getWorkspaceBackupPaths() : [];
 		let filesToOpen: IPath[] = [];
 		let filesToDiff: IPath[] = [];
-		let foldersToOpen = iPathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath);
 		let emptyToOpen = iPathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
 		let filesToCreate = iPathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
 
@@ -345,26 +346,14 @@ export class WindowsManager implements IWindowsMainService {
 				emptyToOpen = [Object.create(null)]; // improper use of diffMode, open empty
 			}
 
-			foldersToOpen = []; // diff is always in empty workspace
-			filesToCreate = []; // diff ignores other files that do not exist
+			foldersToOpen = []; 	// diff is always in empty workspace
+			foldersToRestore = [];	// diff is always in empty workspace
+			filesToCreate = []; 	// diff ignores other files that do not exist
 		} else {
 			filesToOpen = candidates;
 		}
 
 		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
-
-		// Restore any existing backup workspaces on the first initial startup, provided an
-		// extension development path is not being launch.
-		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) {
-			const workspacesWithBackups = this.backupService.getWorkspaceBackupPaths();
-			workspacesWithBackups.forEach(workspacePath => {
-				const configuration = this.toConfiguration(openConfig, workspacePath);
-				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
-				usedWindows.push(browserWindow);
-
-				openInNewWindow = true; // any other folders to open must open in new window then
-			});
-		}
 
 		// Handle files to open/diff or to create when we dont open a folder
 		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
@@ -400,15 +389,21 @@ export class WindowsManager implements IWindowsMainService {
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
-				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
+				openInNewWindow = true; // any other folders to open must open in new window then
 			}
+
+			// Reset these because we handled them
+			filesToOpen = [];
+			filesToCreate = [];
+			filesToDiff = [];
 		}
 
-		// Handle folders to open
-		if (foldersToOpen.length > 0) {
+		// Handle folders to open (instructed and to restore)
+		let allFoldersToOpen = arrays.distinct([...foldersToOpen, ...foldersToRestore], folder => platform.isLinux ? folder : folder.toLowerCase()); // prevent duplicates
+		if (allFoldersToOpen.length > 0) {
 
 			// Check for existing instances
-			const windowsOnWorkspacePath = arrays.coalesce(foldersToOpen.map(iPath => this.findWindow(iPath.workspacePath)));
+			const windowsOnWorkspacePath = arrays.coalesce(allFoldersToOpen.map(folderToOpen => this.findWindow(folderToOpen)));
 			if (windowsOnWorkspacePath.length > 0) {
 				const browserWindow = windowsOnWorkspacePath[0];
 				browserWindow.focus(); // just focus one of them
@@ -427,12 +422,12 @@ export class WindowsManager implements IWindowsMainService {
 			}
 
 			// Open remaining ones
-			foldersToOpen.forEach(folderToOpen => {
-				if (windowsOnWorkspacePath.some(win => this.isPathEqual(win.openedWorkspacePath, folderToOpen.workspacePath))) {
+			allFoldersToOpen.forEach(folderToOpen => {
+				if (windowsOnWorkspacePath.some(win => this.isPathEqual(win.openedWorkspacePath, folderToOpen))) {
 					return; // ignore folders that are already open
 				}
 
-				const configuration = this.toConfiguration(openConfig, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff);
+				const configuration = this.toConfiguration(openConfig, folderToOpen, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
