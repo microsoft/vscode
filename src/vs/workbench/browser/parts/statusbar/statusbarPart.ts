@@ -24,6 +24,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Action } from 'vs/base/common/actions';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -184,6 +186,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 }
 
+let manageExtensionAction: ManageExtensionAction;
 class StatusBarEntryItem implements IStatusbarItem {
 	private entry: IStatusbarEntry;
 
@@ -193,9 +196,14 @@ class StatusBarEntryItem implements IStatusbarItem {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		this.entry = entry;
+
+		if (!manageExtensionAction) {
+			manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
+		}
 	}
 
 	public render(el: HTMLElement): IDisposable {
@@ -223,6 +231,19 @@ class StatusBarEntryItem implements IStatusbarItem {
 		// Color
 		if (this.entry.color) {
 			$(textContainer).color(this.entry.color);
+		}
+
+		// Context Menu
+		if (this.entry.extensionId) {
+			$(textContainer).on('contextmenu', e => {
+				dom.EventHelper.stop(e, true);
+
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => el,
+					getActionsContext: () => this.entry.extensionId,
+					getActions: () => TPromise.as([manageExtensionAction])
+				});
+			}, toDispose);
 		}
 
 		el.appendChild(textContainer);
@@ -262,5 +283,18 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 		// Fallback to the command service for any other case
 		this.commandService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
+	}
+}
+
+class ManageExtensionAction extends Action {
+
+	constructor(
+		@ICommandService private commandService: ICommandService
+	) {
+		super('statusbar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
+	}
+
+	public run(extensionId: string): TPromise<any> {
+		return this.commandService.executeCommand('_extensions.manage', extensionId);
 	}
 }
