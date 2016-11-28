@@ -8,7 +8,7 @@ import { sequence, asWinJsPromise } from 'vs/base/common/async';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel, IPosition } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
@@ -106,7 +106,7 @@ export function provideSuggestionItems(model: IModel, position: Position, snippe
 						hasResult = true;
 					}
 
-				}, onUnexpectedError);
+				}, onUnexpectedExternalError);
 			}));
 		};
 	});
