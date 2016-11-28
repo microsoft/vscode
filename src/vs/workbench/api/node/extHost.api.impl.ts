@@ -269,7 +269,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 				return extHostQuickOpen.showInput(options, token);
 			},
 			createStatusBarItem(position?: vscode.StatusBarAlignment, priority?: number): vscode.StatusBarItem {
-				return extHostStatusBar.createStatusBarEntry(<number>position, priority);
+				return extHostStatusBar.createStatusBarEntry(extension.id, <number>position, priority);
 			},
 			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);

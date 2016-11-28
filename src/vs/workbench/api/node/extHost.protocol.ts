@@ -29,7 +29,7 @@ import * as modes from 'vs/editor/common/modes';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IWorkspaceConfiguration } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configuration/common/configuration';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -54,7 +54,7 @@ export interface IInitData {
 		workspace: IWorkspace;
 	};
 	extensions: IExtensionDescription[];
-	configuration: IWorkspaceConfiguration;
+	configuration: IWorkspaceConfigurationValues;
 	telemetryInfo: ITelemetryInfo;
 }
 
@@ -201,7 +201,7 @@ export abstract class MainThreadQuickOpenShape {
 }
 
 export abstract class MainThreadStatusBarShape {
-	$setEntry(id: number, text: string, tooltip: string, command: string, color: string, alignment: MainThreadStatusBarAlignment, priority: number): void { throw ni(); }
+	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string, alignment: MainThreadStatusBarAlignment, priority: number): void { throw ni(); }
 	$dispose(id: number) { throw ni(); }
 }
 
@@ -236,7 +236,7 @@ export abstract class ExtHostCommandsShape {
 }
 
 export abstract class ExtHostConfigurationShape {
-	$acceptConfigurationChanged(entries: IWorkspaceConfiguration) { throw ni(); }
+	$acceptConfigurationChanged(values: IWorkspaceConfigurationValues) { throw ni(); }
 }
 
 export abstract class ExtHostDiagnosticsShape {

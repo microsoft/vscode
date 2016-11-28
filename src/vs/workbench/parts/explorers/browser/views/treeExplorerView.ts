@@ -15,7 +15,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/common/customTreeExplorerService';
+import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
@@ -35,7 +35,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICustomTreeExplorerService private treeExplorerViewletService: ICustomTreeExplorerService,
+		@ITreeExplorerService private treeExplorerService: ITreeExplorerService,
 		@IProgressService private progressService: IProgressService
 	) {
 		super(actionRunner, false, nls.localize('treeExplorerViewlet.tree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
@@ -86,8 +86,8 @@ export class TreeExplorerView extends CollapsibleViewletView {
 	}
 
 	public updateInput(): TPromise<void> {
-		if (this.treeExplorerViewletService.hasProvider(this.treeNodeProviderId)) {
-			return this.treeExplorerViewletService.provideRootNode(this.treeNodeProviderId).then(tree => {
+		if (this.treeExplorerService.hasProvider(this.treeNodeProviderId)) {
+			return this.treeExplorerService.provideRootNode(this.treeNodeProviderId).then(tree => {
 				this.tree.setInput(tree);
 			});
 		}
@@ -96,9 +96,9 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		// is registered.
 		// This renders the viewlet first and wait for a corresponding provider is registered.
 		else {
-			this.treeExplorerViewletService.onTreeExplorerNodeProviderRegistered(providerId => {
+			this.treeExplorerService.onTreeExplorerNodeProviderRegistered(providerId => {
 				if (this.treeNodeProviderId === providerId) {
-					return this.treeExplorerViewletService.provideRootNode(this.treeNodeProviderId).then(tree => {
+					return this.treeExplorerService.provideRootNode(this.treeNodeProviderId).then(tree => {
 						this.tree.setInput(tree);
 					});
 				}

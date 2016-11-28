@@ -166,16 +166,16 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 
 			const outer = this;
 
-			function decodeBuffer(buffer: NodeBuffer): string {
+			function decodeBuffer(buffer: NodeBuffer, start: number, end: number): string {
 				if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
-					return buffer.toString(); // much faster to use built in toString() when encoding is default
+					return buffer.toString(undefined, start, end); // much faster to use built in toString() when encoding is default
 				}
 
-				return decode(buffer, options.encoding);
+				return decode(buffer.slice(start, end), options.encoding);
 			}
 
 			function lineFinished(offset: number): void {
-				line += decodeBuffer(buffer.slice(pos, i + offset));
+				line += decodeBuffer(buffer, pos, i + offset);
 				perLineCallback(line, lineNumber);
 				line = '';
 				lineNumber++;
@@ -245,7 +245,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 						}
 					}
 
-					line += decodeBuffer(buffer.slice(pos, bytesRead));
+					line += decodeBuffer(buffer, pos, bytesRead);
 
 					readFile(false /* isFirstRead */, clb); // Continue reading
 				});

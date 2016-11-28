@@ -7,7 +7,7 @@
 import * as path from 'path';
 
 import { languages, workspace, ExtensionContext, IndentAction } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range, RequestType, Protocol2Code } from 'vscode-languageclient';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range, RequestType } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateColorDecorations } from './colorDecorators';
 
@@ -15,7 +15,7 @@ import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
 namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
+	export const type: RequestType<string, Range[], any, any> = { get method() { return 'css/colorSymbols'; }, _: null };
 }
 
 export function activate(context: ExtensionContext) {
@@ -50,17 +50,14 @@ export function activate(context: ExtensionContext) {
 	// Create the language client and start the client.
 	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions, true);
 	let disposable = client.start();
-
-	// Push the disposable to the context's subscriptions so that the
-	// client can be deactivated on extension deactivation
 	context.subscriptions.push(disposable);
-
-	let colorRequestor = (uri: string) => {
-		return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(Protocol2Code.asRange));
-	};
-	disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true });
-	context.subscriptions.push(disposable);
-
+	client.onReady().then(() => {
+		let colorRequestor = (uri: string) => {
+			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
+		};
+		let disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true });
+		context.subscriptions.push(disposable);
+	});
 
 	languages.setLanguageConfiguration('html', {
 		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,

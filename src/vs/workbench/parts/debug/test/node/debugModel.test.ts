@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import { OutputElement, Model, Process, Expression, OutputNameValueElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
@@ -26,7 +26,7 @@ suite('Debug - Model', () => {
 	// Breakpoints
 
 	test('breakpoints simple', () => {
-		var modelUri = uri.file('/myfolder/myfile.js');
+		const modelUri = uri.file('/myfolder/myfile.js');
 		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
 		assert.equal(model.areBreakpointsActivated(), true);
 		assert.equal(model.getBreakpoints().length, 2);
@@ -36,7 +36,7 @@ suite('Debug - Model', () => {
 	});
 
 	test('breakpoints toggling', () => {
-		var modelUri = uri.file('/myfolder/myfile.js');
+		const modelUri = uri.file('/myfolder/myfile.js');
 		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
 		model.addBreakpoints(modelUri, [{ lineNumber: 12, enabled: true, condition: 'fake condition' }]);
 		assert.equal(model.getBreakpoints().length, 3);
@@ -50,13 +50,13 @@ suite('Debug - Model', () => {
 	});
 
 	test('breakpoints two files', () => {
-		var modelUri1 = uri.file('/myfolder/my file first.js');
-		var modelUri2 = uri.file('/secondfolder/second/second file.js');
+		const modelUri1 = uri.file('/myfolder/my file first.js');
+		const modelUri2 = uri.file('/secondfolder/second/second file.js');
 		model.addBreakpoints(modelUri1, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
 		model.addBreakpoints(modelUri2, [{ lineNumber: 1, enabled: true }, { lineNumber: 2, enabled: true }, { lineNumber: 3, enabled: false }]);
 
 		assert.equal(model.getBreakpoints().length, 5);
-		var bp = model.getBreakpoints()[0];
+		const bp = model.getBreakpoints()[0];
 		const update: any = {};
 		update[bp.getId()] = { line: 100, verified: false };
 		model.updateBreakpoints(update);
@@ -73,13 +73,29 @@ suite('Debug - Model', () => {
 		assert.equal(model.getBreakpoints().length, 3);
 	});
 
+	test('breakpoints conditions', () => {
+		const modelUri1 = uri.file('/myfolder/my file first.js');
+		model.addBreakpoints(modelUri1, [{ lineNumber: 5, condition: 'i < 5', hitCondition: '17' }, { lineNumber: 10, condition: 'j < 3' }]);
+		const breakpoints = model.getBreakpoints();
+
+		assert.equal(breakpoints[0].condition, 'i < 5');
+		assert.equal(breakpoints[0].hitCondition, '17');
+		assert.equal(breakpoints[1].condition, 'j < 3');
+		assert.equal(!!breakpoints[1].hitCondition, false);
+
+		assert.equal(model.getBreakpoints().length, 2);
+		model.removeBreakpoints(model.getBreakpoints());
+		assert.equal(model.getBreakpoints().length, 0);
+	});
+
 	// Threads
 
 	test('threads simple', () => {
-		var threadId = 1;
-		var threadName = 'firstThread';
+		const threadId = 1;
+		const threadName = 'firstThread';
 
 		model.addProcess('mockProcess', rawSession);
+		assert.equal(model.getProcesses().length, 1);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
 			threadId: threadId,
@@ -94,6 +110,9 @@ suite('Debug - Model', () => {
 
 		model.clearThreads(process.getId(), true);
 		assert.equal(process.getThread(threadId), null);
+		assert.equal(model.getProcesses().length, 1);
+		model.removeProcess(process.getId());
+		assert.equal(model.getProcesses().length, 0);
 	});
 
 	test('threads multiple wtih allThreadsStopped', () => {
@@ -294,7 +313,7 @@ suite('Debug - Model', () => {
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 1, 1);
 		model.addWatchExpression(process, stackFrame, 'console').done();
 		model.addWatchExpression(process, stackFrame, 'console').done();
-		const watchExpressions = model.getWatchExpressions();
+		let watchExpressions = model.getWatchExpressions();
 		assertWatchExpressions(watchExpressions, 'console');
 
 		model.renameWatchExpression(process, stackFrame, watchExpressions[0].getId(), 'new_name').done();
@@ -303,6 +322,13 @@ suite('Debug - Model', () => {
 
 		model.evaluateWatchExpressions(process, null);
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
+
+		model.addWatchExpression(process, stackFrame, 'mockExpression');
+		model.moveWatchExpression(model.getWatchExpressions()[2].getId(), 1);
+		watchExpressions = model.getWatchExpressions();
+		assert.equal(watchExpressions[0].name, 'new_name');
+		assert.equal(watchExpressions[1].name, 'mockExpression');
+		assert.equal(watchExpressions[2].name, 'new_name');
 
 		model.removeWatchExpressions();
 		assert.equal(model.getWatchExpressions().length, 0);
@@ -331,10 +357,10 @@ suite('Debug - Model', () => {
 	// Repl output
 
 	test('repl output', () => {
-		model.appendReplOutput(new OutputElement('first line\n', severity.Error));
-		model.appendReplOutput(new OutputElement('second line\n', severity.Warning));
-		model.appendReplOutput(new OutputElement('second line\n', severity.Warning));
-		model.appendReplOutput(new OutputElement('second line\n', severity.Error));
+		model.appendToRepl('first line\n', severity.Error);
+		model.appendToRepl('second line\n', severity.Warning);
+		model.appendToRepl('second line\n', severity.Warning);
+		model.appendToRepl('second line\n', severity.Error);
 
 		let elements = <OutputElement[]>model.getReplElements();
 		assert.equal(elements.length, 3);
@@ -345,28 +371,28 @@ suite('Debug - Model', () => {
 		assert.equal(elements[1].counter, 2);
 		assert.equal(elements[1].severity, severity.Warning);
 
-		model.appendReplOutput(new OutputElement('1', severity.Warning));
-		model.appendReplOutput(new OutputElement('2', severity.Warning));
-		model.appendReplOutput(new OutputElement('3', severity.Warning));
+		model.appendToRepl('1', severity.Warning);
+		model.appendToRepl('2', severity.Warning);
+		model.appendToRepl('3', severity.Warning);
 		elements = <OutputElement[]>model.getReplElements();
 		assert.equal(elements.length, 4);
 		assert.equal(elements[3].value, '123');
 		assert.equal(elements[3].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
-		model.appendReplOutput(new OutputNameValueElement('fake', keyValueObject));
+		model.appendToRepl(new OutputNameValueElement('fake', keyValueObject), null);
 		const element = <OutputNameValueElement>model.getReplElements()[4];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
 
 		const multiLineContent = 'multi line \n string \n last line';
-		model.appendReplOutput(new OutputElement(multiLineContent, severity.Info));
+		model.appendToRepl(multiLineContent, severity.Info);
 		const multiLineElement = <OutputElement>model.getReplElements()[5];
 		assert.equal(multiLineElement.value, multiLineContent);
 		assert.equal(model.getReplElements().length, 6);
 
-		model.appendReplOutput(new OutputElement('second line', severity.Warning));
-		model.appendReplOutput(new OutputElement('second line', severity.Warning));
+		model.appendToRepl('second line', severity.Warning);
+		model.appendToRepl('second line', severity.Warning);
 
 		assert.equal((<OutputElement>model.getReplElements()[6]).value, 'second linesecond line');
 

@@ -12,7 +12,7 @@
 	"schema.blockComments": "블록 주석이 표시되는 방법을 정의합니다.",
 	"schema.brackets": "들여쓰기를 늘리거나 줄이는 대괄호 기호를 정의합니다.",
 	"schema.closeBracket": "닫는 대괄호 문자 또는 문자열 시퀀스입니다.",
-	"schema.comments": "주석 기호 정의",
+	"schema.comments": "주석 기호를 정의합니다.",
 	"schema.lineComment": "줄 주석을 시작하는 문자 시퀀스입니다.",
 	"schema.openBracket": "여는 대괄호 문자 또는 문자열 시퀀스입니다.",
 	"schema.surroundingPairs": "선택한 문자열을 둘러싸는 데 사용할 수 있는 대괄호 쌍을 정의합니다."

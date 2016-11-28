@@ -11,6 +11,7 @@
 	"terminal.integrated.fontLigatures": "Contrôle si les ligatures de police sont activées sur le terminal.",
 	"terminal.integrated.fontSize": "Contrôle la taille de police en pixels du terminal. La valeur par défaut est la valeur associée à editor.fontSize.",
 	"terminal.integrated.lineHeight": "Contrôle la hauteur de ligne du terminal. La multiplication de ce nombre par la taille de police du terminal permet d'obtenir la hauteur de ligne réelle en pixels.",
+	"terminal.integrated.scrollback": "Contrôle la quantité maximale de lignes que le terminal conserve dans sa mémoire tampon.",
 	"terminal.integrated.setLocaleVariables": "Contrôle si les variables locales sont définies au démarrage du terminal. La valeur par défaut est true sur OS X, false sur les autres plateformes.",
 	"terminal.integrated.shell.linux": "Chemin de l'interpréteur de commandes utilisé par le terminal sur Linux.",
 	"terminal.integrated.shell.osx": "Chemin de l'interpréteur de commandes utilisé par le terminal sur OS X.",

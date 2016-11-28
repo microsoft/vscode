@@ -248,7 +248,7 @@ export interface ParameterInformation {
 	 * The human-readable doc-comment of this signature. Will be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation: string;
+	documentation?: string;
 }
 /**
  * Represents the signature of something callable. A signature
@@ -265,7 +265,7 @@ export interface SignatureInformation {
 	 * The human-readable doc-comment of this signature. Will be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation: string;
+	documentation?: string;
 	/**
 	 * The parameters of this signature.
 	 */
