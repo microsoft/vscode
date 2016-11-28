@@ -57,6 +57,12 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
 
+		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@LICENSE@@', product.licenseName))
+			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
+
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename('usr/share/pixmaps/' + product.applicationName + '.png'));
 
@@ -92,7 +98,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('DEBIAN/postinst'));
 
-		const all = es.merge(control, postinst, postrm, prerm, desktop, icon, code);
+		const all = es.merge(control, postinst, postrm, prerm, desktop, appdata, icon, code);
 
 		return all.pipe(vfs.dest(destination));
 	};
@@ -127,6 +133,12 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
 
+		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@LICENSE@@', product.licenseName))
+			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
+
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename('BUILD/usr/share/pixmaps/' + product.applicationName + '.png'));
 
@@ -148,7 +160,7 @@ function prepareRpmPackage(arch) {
 		const specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
 			.pipe(rename('SOURCES/' + product.applicationName + '.xpm'));
 
-		const all = es.merge(code, desktop, icon, spec, specIcon);
+		const all = es.merge(code, desktop, appdata, icon, spec, specIcon);
 
 		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
 	};
@@ -194,6 +206,12 @@ function prepareFlatpak(arch) {
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('share/applications/' + flatpakManifest.appId + '.desktop')));
+
+		all.push(gulp.src('resources/linux/code.appdata.xml', { base: '.' })
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME@@', flatpakManifest.appId))
+			.pipe(replace('@@LICENSE@@', product.licenseName))
+			.pipe(rename('share/appdata/' + flatpakManifest.appId + '.appdata.xml')));
 
 		all.push(gulp.src(binaryDir + '/**/*', { base:binaryDir })
 			.pipe(rename(function (p) {
