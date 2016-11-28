@@ -38,9 +38,10 @@ const stringRegex = /^(['"]).*\1$/;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
 export interface IRenderValueOptions {
-	preserveWhitespace: boolean;
-	showChanged: boolean;
+	preserveWhitespace?: boolean;
+	showChanged?: boolean;
 	maxValueLength?: number;
+	showHover?: boolean;
 }
 
 export function renderExpressionValue(expressionOrValue: debug.IExpression | string, container: HTMLElement, options: IRenderValueOptions): void {
@@ -75,7 +76,9 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 	} else {
 		container.textContent = value;
 	}
-	container.title = value;
+	if (options.showHover) {
+		container.title = value;
+	}
 }
 
 export function renderVariable(tree: ITree, variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
@@ -85,13 +88,13 @@ export function renderVariable(tree: ITree, variable: Variable, data: IVariableT
 	}
 
 	if (variable.value) {
-		data.name.textContent += ':';
+		data.name.textContent += variable.name ? ':' : '';
 		renderExpressionValue(variable, data.value, {
 			showChanged,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-			preserveWhitespace: false
+			preserveWhitespace: false,
+			showHover: true
 		});
-		data.value.title = variable.value;
 	} else {
 		data.value.textContent = '';
 		data.value.title = '';
@@ -958,7 +961,8 @@ export class WatchExpressionsRenderer implements IRenderer {
 			renderExpressionValue(watchExpression, data.value, {
 				showChanged: true,
 				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-				preserveWhitespace: false
+				preserveWhitespace: false,
+				showHover: true
 			});
 			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}

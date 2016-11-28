@@ -133,14 +133,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		return null;
 	}
 
-	public getValue(): string {
-		if (this.cachedModel) {
-			return this.cachedModel.getValue();
-		}
-
-		return null;
-	}
-
 	public setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): void {
 		if (this.cachedModel) {
 			this.cachedModel.setEncoding(encoding);

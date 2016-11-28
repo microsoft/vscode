@@ -1243,14 +1243,7 @@ export class UndoLastCommitAction extends GitAction {
 		const model = this.gitService.getModel();
 		const HEAD = model.getHEAD();
 
-		if (!HEAD || !HEAD.commit) {
-			return false;
-		}
-
-		const status = model.getStatus();
-
-		return status.getIndexStatus().all().length === 0
-			&& status.getWorkingTreeStatus().all().length === 0;
+		return !!(HEAD && HEAD.commit);
 	}
 
 	public run(): Promise {

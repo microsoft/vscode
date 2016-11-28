@@ -12,7 +12,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
 import { IFileStat, IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Event as BaseEvent, PropertyChangeEvent } from 'vs/base/common/events';
 
 
@@ -208,6 +208,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	onDidContentChange: Event<StateChange>;
 	onDidStateChange: Event<StateChange>;
+
+	getVersionId(): number;
 
 	getResource(): URI;
 

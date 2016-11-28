@@ -190,7 +190,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): TPromise<IExpression> {
-		return container.getChildren(this.debugService).then(children => {
+		return container.getChildren().then(children => {
 			// look for our variable in the list. First find the parents of the hovered variable if there are any.
 			// some languages pass the type as part of the name, so need to check if the last word of the name matches.
 			const filtered = children.filter(v => typeof v.name === 'string' && (namesToFind[0] === v.name || namesToFind[0] === v.name.substr(v.name.lastIndexOf(' ') + 1)));

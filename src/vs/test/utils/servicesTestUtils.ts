@@ -294,7 +294,7 @@ export class TestPartService implements IPartService {
 
 	}
 
-	public toggleFocusMode(): void { }
+	public toggleZenMode(): void { }
 }
 
 export class TestEventService extends EventEmitter implements IEventService {
@@ -666,6 +666,16 @@ export class TestBackupFileService implements IBackupFileService {
 
 	public hasBackup(resource: URI): TPromise<boolean> {
 		return TPromise.as(false);
+	}
+
+	public loadBackupResource(resource: URI): TPromise<URI> {
+		return this.hasBackup(resource).then(hasBackup => {
+			if (hasBackup) {
+				return this.getBackupResource(resource);
+			}
+
+			return void 0;
+		});
 	}
 
 	public registerResourceForBackup(resource: URI): TPromise<void> {

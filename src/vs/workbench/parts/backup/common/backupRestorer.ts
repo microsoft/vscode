@@ -55,8 +55,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 				});
 
 				TPromise.join(Object.keys(fileResources).map(resource => {
-					return this.backupFileService.hasBackup(URI.parse(resource)).then(hasBackup => {
-						if (hasBackup) {
+					return this.backupFileService.loadBackupResource(URI.parse(resource)).then(backupResource => {
+						if (backupResource) {
 							return fileResources[resource].resolve();
 						}
 					});
