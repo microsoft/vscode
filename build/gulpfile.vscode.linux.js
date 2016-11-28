@@ -215,6 +215,7 @@ function buildFlatpak(arch) {
 	];
 	const buildOptions = {
 		arch: flatpakArch,
+		subject: product.nameLong + ' ' + packageJson.version + '.' + linuxPackageRevision,
 	};
 	// If requested, use the configured path for the OSTree repository.
 	if (process.env.FLATPAK_REPO) {
