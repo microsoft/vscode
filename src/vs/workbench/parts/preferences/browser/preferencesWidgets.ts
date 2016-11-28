@@ -10,6 +10,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone } from 'vs/editor/browser/editorBrowser';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,7 +32,7 @@ export class SettingsGroupTitleWidget extends ZoneWidget {
 			showArrow: false
 		});
 		this.create();
-		this.editor.onDidLayoutChange(() => this.layout());
+		this._register(this.editor.onDidLayoutChange(() => this.layout()));
 	}
 
 	protected _fillContainer(container: HTMLElement) {
@@ -113,6 +114,7 @@ export class DefaultSettingsHeaderWidget extends Widget implements IOverlayWidge
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
+		this._register(this.editor.onDidChangeCursorPosition(positionChangeEvent => this.onPositionChanged(positionChangeEvent)));
 	}
 
 	public getId(): string {
@@ -197,6 +199,12 @@ export class DefaultSettingsHeaderWidget extends Widget implements IOverlayWidge
 				keyboardEvent.preventDefault();
 				keyboardEvent.stopPropagation();
 				return;
+		}
+	}
+
+	private onPositionChanged(positionChangeEvent: editorCommon.ICursorPositionChangedEvent) {
+		if (positionChangeEvent.position.lineNumber < 3) {
+			this.editor.setScrollTop(0);
 		}
 	}
 
