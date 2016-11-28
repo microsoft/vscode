@@ -91,12 +91,12 @@ export class CopyPreferenceWidget<T> extends Widget implements IOverlayWidget {
 	}
 }
 
-export class DefinePreferenceWidget extends Widget implements IOverlayWidget {
+export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	private _domNode: HTMLElement;
 
-	private _onDefineValue: Emitter<void> = new Emitter<void>();
-	public onDefineValue: Event<void> = this._onDefineValue.event;
+	private _onClick: Emitter<void> = this._register(new Emitter<void>());
+	public onClick: Event<void> = this._onClick.event;
 
 	constructor(private editor: ICodeEditor, private label: string, private keyBindingAction: string,
 		@IKeybindingService keybindingService: IKeybindingService
@@ -111,9 +111,9 @@ export class DefinePreferenceWidget extends Widget implements IOverlayWidget {
 	}
 
 	public render() {
-		this._domNode = DOM.$('.define-preference-widget');
+		this._domNode = DOM.$('.floating-click-widget');
 		DOM.append(this._domNode, DOM.$('')).textContent = this.label;
-		this.onclick(this._domNode, e => this._onDefineValue.fire());
+		this.onclick(this._domNode, e => this._onClick.fire());
 		this.editor.addOverlayWidget(this);
 	}
 
@@ -123,7 +123,7 @@ export class DefinePreferenceWidget extends Widget implements IOverlayWidget {
 	}
 
 	public getId(): string {
-		return 'editor.overlayWidget.definePreferenceWidget';
+		return 'editor.overlayWidget.floatingClickWidget';
 	}
 
 	public getDomNode(): HTMLElement {
