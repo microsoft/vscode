@@ -40,9 +40,20 @@ export class SearchWorker implements ISearchWorker {
 
 	private finalCallback;
 
+	private nextSearch = TPromise.wrap(null);
+
+	private config;
+
 	initialize(config: ISearchWorkerConfig): TPromise<void> {
 		// console.log('worker started: ' + Date.now());
 		this.contentPattern = strings.createRegExp(config.pattern.pattern, config.pattern.isRegExp, { matchCase: config.pattern.isCaseSensitive, wholeWord: config.pattern.isWordMatch, multiline: false, global: true });
+		this.config = config;
+		console.log(config);
+		if (config.id === 0) {
+			console.log('startProfiling');
+			profiler.startProfiling('p1');
+		}
+
 		return TPromise.wrap<void>(undefined);
 	}
 
@@ -51,18 +62,23 @@ export class SearchWorker implements ISearchWorker {
 	}
 
 	search(args: ISearchWorkerSearchArgs): TPromise<FileMatch[]> {
-		// profiler.startProfiling('p1');
 		// console.log('starting search: ' + Date.now() + ' ' + args.absolutePaths.length);
-		this.paths = args.absolutePaths;
-		this.running = true;
-		this.results = [];
-		for (let i=0; i<50 && i<this.paths.length; i++) {
-			this.start(this.paths[i]);
-		}
 
-		return new TPromise(resolve => {
-			this.finalCallback = resolve;
-		});
+		return this.nextSearch = this.nextSearch.then(() => {
+			// console.log('starting batch: ' + Date.now() + ' ' + args.absolutePaths.length);
+			this.paths = args.absolutePaths;
+			this.running = true;
+			this.results = [];
+			const p = (new TPromise(resolve => {
+				this.finalCallback = resolve;
+			}));
+
+			for (let i=0; i<10 && i<this.paths.length; i++) {
+				this.start(this.paths[i]);
+			}
+
+			return p;
+		})
 	}
 
 	private start(p: string) {
@@ -72,9 +88,20 @@ export class SearchWorker implements ISearchWorker {
 			if (this.paths.length) {
 				this.start(this.paths.pop());
 			} else if (this.running) {
-				// console.log('worker done');
 				this.running = false;
 				this.finalCallback(this.results.filter(r => !!r));
+
+				console.log(`done ${this.nResults} ${this.config.id}`)
+				if (this.nResults === 0 && this.config.id === 0) {
+					this.nResults++;
+					console.log('stopProfiling');
+					const profile = profiler.stopProfiling('p1');
+					profile.export(function(error, result) {
+						console.log(error);
+						fs.writeFileSync('p1.cpuprofile', result);
+						profile.delete();
+					});
+				}
 			}
 		})
 	}
@@ -108,13 +135,6 @@ export class SearchWorker implements ISearchWorker {
 			// Read lines buffered to support large files
 			this.readlinesAsync(absolutePath, perLineCallback, { bufferLength: 8096, encoding: 'utf8' }, resolve);
 		}).then(() => {
-			// if (this.nResults++ === 200) {
-			// 	const profile = profiler.stopProfiling('p1');
-			// 	profile.export(function(error, result) {
-			// 		fs.writeFileSync('p1.cpuprofile', result);
-			// 		profile.delete();
-			// 	});
-			// }
 			return fileMatch;
 		});
 	}
