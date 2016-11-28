@@ -114,7 +114,7 @@ export class ElectronIntegration {
 
 		// Send over all extension viewlets when extensions are ready
 		this.extensionService.onReady().then(() => {
-			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => v.fromExtension).map(v => { return { id: v.id, label: v.name }; })));
+			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => !!v.extensionId).map(v => { return { id: v.id, label: v.name }; })));
 		});
 
 		ipc.on('vscode:reportError', (event, error) => {

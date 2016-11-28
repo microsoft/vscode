@@ -47,7 +47,7 @@ export class ViewletService implements IViewletService {
 		this.extensionService.onReady().then(() => {
 			const viewlets = this.viewletRegistry.getViewlets();
 			viewlets.forEach(v => {
-				if (v.fromExtension) {
+				if (!!v.extensionId) {
 					this.extensionViewlets.push(v);
 				}
 			});
@@ -88,7 +88,7 @@ export class ViewletService implements IViewletService {
 
 	private getBuiltInViewlets(): ViewletDescriptor[] {
 		return this.viewletRegistry.getViewlets()
-			.filter(viewlet => !viewlet.fromExtension)
+			.filter(viewlet => !viewlet.extensionId)
 			.sort((v1, v2) => v1.order - v2.order);
 	}
 }
