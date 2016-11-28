@@ -16,9 +16,12 @@ import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common'
 
 export class OutOfProcessWin32FolderWatcher {
 
+	private static MAX_RESTARTS = 5;
+
 	private static changeTypeMap: FileChangeType[] = [FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED];
 
 	private handle: cp.ChildProcess;
+	private restartCounter: number;
 
 	constructor(
 		private watchedFolder: string,
@@ -27,6 +30,8 @@ export class OutOfProcessWin32FolderWatcher {
 		private errorCallback: (error: string) => void,
 		private verboseLogging: boolean
 	) {
+		this.restartCounter = 0;
+
 		this.startWatcher();
 	}
 
@@ -93,8 +98,15 @@ export class OutOfProcessWin32FolderWatcher {
 
 	private onExit(code: any, signal: any): void {
 		if (this.handle) { // exit while not yet being disposed is unexpected!
-			this.errorCallback('[FileWatcher] terminated unexpectedly (code: ' + code + ', signal: ' + signal + ')');
-			this.startWatcher(); // restart
+			this.errorCallback(`[FileWatcher] terminated unexpectedly (code: ${code}, signal: ${signal})`);
+
+			if (this.restartCounter <= OutOfProcessWin32FolderWatcher.MAX_RESTARTS) {
+				this.errorCallback('[FileWatcher] is restarted again...');
+				this.restartCounter++;
+				this.startWatcher(); // restart
+			} else {
+				this.errorCallback('[FileWatcher] Watcher failed to start after retrying for some time, giving up. Please report this as a bug report!');
+			}
 		}
 	}
 

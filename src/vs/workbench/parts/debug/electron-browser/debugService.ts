@@ -1060,7 +1060,6 @@ export class DebugService implements debug.IDebugService {
 				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
 			}
 		});
-
 	}
 
 	private store(): void {

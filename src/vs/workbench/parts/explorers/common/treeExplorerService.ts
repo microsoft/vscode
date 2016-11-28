@@ -9,9 +9,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
-export const ICustomTreeExplorerService = createDecorator<ICustomTreeExplorerService>('customTreeExplorerService');
+export const ITreeExplorerService = createDecorator<ITreeExplorerService>('treeExplorerService');
 
-export interface ICustomTreeExplorerService {
+export interface ITreeExplorerService {
 	_serviceBrand: any;
 
 	onTreeExplorerNodeProviderRegistered: Event<String>;

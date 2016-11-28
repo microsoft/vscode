@@ -9,7 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { WorkspaceConfiguration } from 'vscode';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IWorkspaceConfiguration } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configuration/common/configuration';
 import { toValuesTree } from 'vs/platform/configuration/common/model';
 
 function lookUp(tree: any, key: string) {
@@ -24,11 +24,11 @@ function lookUp(tree: any, key: string) {
 }
 
 interface UsefulConfiguration {
-	data: IWorkspaceConfiguration;
+	data: IWorkspaceConfigurationValues;
 	valueTree: any;
 }
 
-function createUsefulConfiguration(data: IWorkspaceConfiguration): { data: IWorkspaceConfiguration, valueTree: any } {
+function createUsefulConfiguration(data: IWorkspaceConfigurationValues): { data: IWorkspaceConfigurationValues, valueTree: any } {
 	const valueMap: { [key: string]: any } = Object.create(null);
 	for (let key in data) {
 		if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -48,7 +48,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 	private _proxy: MainThreadConfigurationShape;
 	private _configuration: UsefulConfiguration;
 
-	constructor(proxy: MainThreadConfigurationShape, data: IWorkspaceConfiguration) {
+	constructor(proxy: MainThreadConfigurationShape, data: IWorkspaceConfigurationValues) {
 		super();
 		this._proxy = proxy;
 		this._configuration = createUsefulConfiguration(data);
@@ -58,7 +58,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	public $acceptConfigurationChanged(data: IWorkspaceConfiguration) {
+	public $acceptConfigurationChanged(data: IWorkspaceConfigurationValues) {
 		this._configuration = createUsefulConfiguration(data);
 		this._onDidChangeConfiguration.fire(undefined);
 	}

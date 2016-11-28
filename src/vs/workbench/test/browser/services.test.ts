@@ -100,26 +100,15 @@ class TestViewletService implements IViewletService {
 
 	onDidViewletOpenEmitter = new Emitter<IViewlet>();
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
-	onDidExtletsLoadEmitter = new Emitter<void>();
-	onDidViewletToggleEmitter = new Emitter<void>();
 
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
-	onDidExtensionViewletsLoad = this.onDidExtletsLoadEmitter.event;
-	onDidViewletToggle = this.onDidViewletToggleEmitter.event;
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
 		return TPromise.as(null);
 	}
 
-	public toggleViewlet(id: string): void {
-	}
-
-	public getAllViewlets(): ViewletDescriptor[] {
-		return [];
-	}
-
-	public getAllViewletsToDisplay(): ViewletDescriptor[] {
+	public getViewlets(): ViewletDescriptor[] {
 		return [];
 	}
 
@@ -127,13 +116,8 @@ class TestViewletService implements IViewletService {
 		return activeViewlet;
 	}
 
-	public isViewletEnabled(id: string): boolean {
-		return true;
-	}
-
 	public dispose() {
 	}
-
 }
 
 class TestPanelService implements IPanelService {

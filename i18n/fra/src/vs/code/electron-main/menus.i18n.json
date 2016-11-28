@@ -97,6 +97,7 @@
 	"miToggleDebugConsole": "Console de dé&&bogage",
 	"miToggleDevTools": "Activer/désactiver les ou&&tils de développement",
 	"miToggleEditorLayout": "Activer/désactiver la &&disposition du groupe d'éditeurs",
+	"miToggleFocusMode": "Basculer le mode Focus",
 	"miToggleFullScreen": "Plei&&n écran",
 	"miToggleIntegratedTerminal": "&&Terminal intégré",
 	"miToggleMenuBar": "Activer/désactiver la &&barre de menus",

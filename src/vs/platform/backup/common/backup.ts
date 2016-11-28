@@ -28,20 +28,4 @@ export interface IBackupMainService {
 	 * @param workspaces The workspaces to add.
 	 */
 	pushWorkspaceBackupPathsSync(workspaces: Uri[]): void;
-
-	/**
-	 * Removes a workspace backup path being tracked for restoration.
-	 *
-	 * @param workspace The workspace to remove.
-	 */
-	removeWorkspaceBackupPathSync(workspace: Uri): void;
-
-	/**
-	 * Gets whether the workspace has backup(s) associated with it (ie. if the workspace backup
-	 * directory exists).
-	 *
-	 * @param workspace The workspace to evaluate.
-	 * @return Whether the workspace has backups.
-	 */
-	hasWorkspaceBackup(workspace: Uri): boolean;
 }

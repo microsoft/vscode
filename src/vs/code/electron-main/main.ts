@@ -15,8 +15,7 @@ import { IWindowsMainService, WindowsManager } from 'vs/code/electron-main/windo
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
-import { LifecycleService } from 'vs/code/electron-main/lifecycle';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/common/mainLifecycle';
+import { LifecycleService, ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
@@ -82,7 +81,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
-	const lifecycleService = accessor.get(ILifecycleMainService);
+	const lifecycleService = accessor.get(ILifecycleService);
 	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
 	let windowsMainService: IWindowsMainService;
 
@@ -424,7 +423,7 @@ function createServices(args): IInstantiationService {
 
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
 	services.set(ILogService, new SyncDescriptor(MainLogService));
-	services.set(ILifecycleMainService, new SyncDescriptor(LifecycleService));
+	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStorageService, new SyncDescriptor(StorageService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
