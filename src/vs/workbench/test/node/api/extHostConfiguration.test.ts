@@ -10,7 +10,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationTarget, ConfigurationEditingErrorCode, IConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IWorkspaceConfiguration, IWorkspaceConfigurationValue } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationValues, IWorkspaceConfigurationValue } from 'vs/workbench/services/configuration/common/configuration';
 
 suite('ExtHostConfiguration', function () {
 
@@ -22,7 +22,7 @@ suite('ExtHostConfiguration', function () {
 		}
 	};
 
-	function createExtHostConfiguration(data: IWorkspaceConfiguration = Object.create(null), shape?: MainThreadConfigurationShape) {
+	function createExtHostConfiguration(data: IWorkspaceConfigurationValues = Object.create(null), shape?: MainThreadConfigurationShape) {
 		if (!shape) {
 			shape = new class extends MainThreadConfigurationShape { };
 		}
