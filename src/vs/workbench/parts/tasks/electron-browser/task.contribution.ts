@@ -1010,7 +1010,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				return this.configureAction();
 		}
 	}
-	private handleError(err: any):void {
+	private handleError(err: any): void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
 			let buildError = <TaskError>err;
