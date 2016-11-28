@@ -70,6 +70,7 @@ export class GitContentProvider implements IWorkbenchContribution, ITextModelCon
 		];
 
 		model.onWillDispose(() => dispose(disposables));
+		triggerModelUpdate();
 
 		return TPromise.as(model);
 	}
