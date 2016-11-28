@@ -993,6 +993,8 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 	private _shouldRunWithContext: IEntryRunContext;
 	private description: string;
 	private detail: string;
+	private title: string;
+	private icon: string;
 	private hasSeparator: boolean;
 	private separatorLabel: string;
 	private alwaysShow: boolean;
@@ -1012,6 +1014,8 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 		this.hasSeparator = item.separator && item.separator.border;
 		this.separatorLabel = item.separator && item.separator.label;
 		this.alwaysShow = item.alwaysShow;
+		this.title = item.title;
+		this.icon = item.icon;
 
 		const fileItem = <IFilePickOpenEntry>item;
 		this.resource = fileItem.resource;
@@ -1020,7 +1024,8 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 	public getLabelOptions(): IIconLabelOptions {
 		return {
-			extraClasses: this.resource ? getIconClasses(this.modelService, this.modeService, this.resource, this.isFolder) : []
+			extraClasses: this.resource ? getIconClasses(this.modelService, this.modeService, this.resource, this.isFolder) : [],
+			title: this.title
 		};
 	}
 
@@ -1034,6 +1039,10 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 	public getDetail(): string {
 		return this.detail;
+	}
+
+	public getIcon(): string {
+		return this.icon;
 	}
 
 	public showBorder(): boolean {

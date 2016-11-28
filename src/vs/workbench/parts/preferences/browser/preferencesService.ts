@@ -25,11 +25,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IPreferencesService, IPreferencesEditorModel, ISettingsEditorModel, IKeybindingsEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, IPreferencesEditorModel, ISettingsEditorModel, IKeybindingsEditorModel, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DefaultSettingsInput, DefaultKeybindingsInput, DefaultPreferencesInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { SettingHandler, UserSettingHandler, WorkspaceSettingHandler } from 'vs/workbench/parts/preferences/browser/preferencesQuickOpen';
 
 
 const SETTINGS_INFO_IGNORE_KEY = 'settings.workspace.info.ignore';
@@ -44,8 +46,8 @@ interface IWorkbenchSettingsConfiguration {
 
 export class PreferencesService extends Disposable implements IPreferencesService {
 
-	private static DEFAULT_SETTINGS_URI: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
-	private static DEFAULT_KEY_BINDINGS_URI: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
+	static DEFAULT_SETTINGS_URI: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
+	static DEFAULT_KEY_BINDINGS_URI: URI = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
 
 	_serviceBrand: any;
 
@@ -69,19 +71,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super();
 		this._register(this.editorGroupService.onEditorsChanged(() => {
-			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor) {
-				const editorInput = asFileEditorInput(activeEditor.input);
-				if (editorInput) {
-					const configurationTarget = this.getConfigurationTarget(editorInput.getResource());
-					if (configurationTarget !== null) {
-						this.configurationTarget = configurationTarget;
-					}
-				}
+			const configurationTarget = this.getConfigurationTargetForCurrentActiveEditor();
+			if (configurationTarget !== null) {
+				this.configurationTarget = configurationTarget;
 			}
 		}));
 	}
@@ -108,10 +105,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	public getDefaultSettingsEditorModel(): TPromise<ISettingsEditorModel> {
-		if (!this._defaultSettingsEditorModel) {
-			this._defaultSettingsEditorModel = this.instantiationService.createInstance(DefaultSettingsEditorModel, PreferencesService.DEFAULT_SETTINGS_URI);
+		if (this._defaultSettingsEditorModel) {
+			return TPromise.wrap(this._defaultSettingsEditorModel);
 		}
-		return TPromise.wrap(this._defaultSettingsEditorModel);
+		return this.fetchMostCommonlyUsedSettings()
+			.then(mostCommonlyUsedSettings => {
+				this._defaultSettingsEditorModel = this.instantiationService.createInstance(DefaultSettingsEditorModel, PreferencesService.DEFAULT_SETTINGS_URI, mostCommonlyUsedSettings);
+				return this._defaultSettingsEditorModel;
+			});
 	}
 
 	public getDefaultKeybindingsEditorModel(): TPromise<IKeybindingsEditorModel> {
@@ -176,8 +177,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}));
 	}
 
-	public copyConfiguration(configurationValue: IConfigurationValue): void {
-		if (this.configurationTarget) {
+	public copyConfiguration(configurationValue: IConfigurationValue, configurationTarget: ConfigurationTarget = null): void {
+		if (configurationTarget !== null) {
+			this.configurationTarget = configurationTarget;
+		}
+		if (this.configurationTarget !== null) {
 			this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [configurationValue.key] });
 			this.openEditableSettings(this.configurationTarget, true).then(editor => {
 				const editorControl = <ICodeEditor>editor.getControl();
@@ -194,6 +198,46 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 	}
 
+	pickSetting(configurationTarget: ConfigurationTarget = null) {
+		if (configurationTarget === null) {
+			this.pickConfigurationTarget().then(target => this.doPickSetting(target));
+		} else {
+			this.doPickSetting(configurationTarget);
+		}
+	}
+
+	pickValue(setting: ISetting, configurationTarget: ConfigurationTarget = null) {
+		if (configurationTarget === null) {
+			this.pickConfigurationTarget().then(target => this.doPickValue(setting, target));
+		} else {
+			this.doPickValue(setting, configurationTarget);
+		}
+	}
+
+	private doPickValue(setting: ISetting, configurationTarget: ConfigurationTarget) {
+		const settingHandler: SettingHandler = this.instantiationService.createInstance(SettingHandler, configurationTarget);
+		settingHandler.pickValue(setting);
+	}
+
+	private doPickSetting(configurationTarget: ConfigurationTarget) {
+		this.configurationTarget = configurationTarget;
+		this.quickOpenService.show(configurationTarget === ConfigurationTarget.USER ? UserSettingHandler.QUICK_OPEN_PREFIX : WorkspaceSettingHandler.QUICK_OPEN_PREFIX);
+	}
+
+	private pickConfigurationTarget(): TPromise<ConfigurationTarget> {
+		if (!this.contextService.getWorkspace()) {
+			return TPromise.wrap(ConfigurationTarget.USER);
+		}
+		const currentConfigurationTarget = this.getConfigurationTargetForCurrentActiveEditor();
+		if (currentConfigurationTarget !== null) {
+			return TPromise.wrap(currentConfigurationTarget);
+		}
+		const userTargetEntry: IPickOpenEntry = { label: nls.localize('userSetting', "User Setting") };
+		const workspaceTargetEntry: IPickOpenEntry = { label: nls.localize('workspaceSetting', "Workspace Setting") };
+		return this.quickOpenService.pick([userTargetEntry, workspaceTargetEntry], {
+			placeHolder: nls.localize('placeHolder', "Select the Settings target")
+		}).then(value => value === userTargetEntry ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE);
+	}
 
 	private resolveSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<void> {
 		const settingsUri = this.getEditableSettingsURI(configurationTarget);
@@ -227,7 +271,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private isEditorFor(editor: IEditor, configurationTarget: ConfigurationTarget): boolean {
-		const fileEditorInput = asFileEditorInput(editor.input);
+		const fileEditorInput = editor ? asFileEditorInput(editor.input) : null;
 		return !!fileEditorInput && fileEditorInput.getResource().fsPath === this.getEditableSettingsURI(configurationTarget).fsPath;
 	}
 
@@ -316,6 +360,17 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		});
 	}
 
+	private getConfigurationTargetForCurrentActiveEditor(): ConfigurationTarget {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			const editorInput = asFileEditorInput(activeEditor.input);
+			if (editorInput) {
+				return this.getConfigurationTarget(editorInput.getResource());
+			}
+		}
+		return null;
+	}
+
 	private getConfigurationTarget(resource: URI): ConfigurationTarget {
 		if (this.getEditableSettingsURI(ConfigurationTarget.USER).fsPath === resource.fsPath) {
 			return ConfigurationTarget.USER;
@@ -337,5 +392,20 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			endLineNumber: position.lineNumber,
 			endColumn: position.column + node.length
 		};
+	}
+
+	private fetchMostCommonlyUsedSettings(): TPromise<string[]> {
+		return TPromise.wrap([
+			'window.zoomLevel',
+			'editor.fontSize',
+			'files.autoSave',
+			'typescript.check.tscVersion',
+			'editor.fontFamily',
+			'editor.tabSize',
+			'editor.cursorStyle',
+			'editor.renderWhitespace',
+			'files.exclude',
+			'files.associations'
+		]);
 	}
 }

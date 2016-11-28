@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IRange } from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
-import { IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { LinkedMap as Map } from 'vs/base/common/map';
+import { IRange } from 'vs/editor/common/editorCommon';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationValue, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export interface ISettingsGroup {
+	id: string;
 	range: IRange;
 	title: string;
 	titleRange: IRange;
@@ -25,9 +28,16 @@ export interface ISettingsSection {
 export interface ISetting {
 	range: IRange;
 	key: string;
+	keyRange: IRange;
 	value: any;
 	valueRange: IRange;
 	description: string;
+}
+
+export interface IFilterResult {
+	filteredGroups: ISettingsGroup[];
+	allGroups: ISettingsGroup[];
+	matches: Map<string, IRange[]>;
 }
 
 export interface IPreferencesEditorModel {
@@ -37,6 +47,8 @@ export interface IPreferencesEditorModel {
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel {
 	settingsGroups: ISettingsGroup[];
+	groupsTerms: string[];
+	filterSettings(filter: string): IFilterResult;
 }
 
 export interface IKeybindingsEditorModel extends IPreferencesEditorModel {
@@ -57,5 +69,12 @@ export interface IPreferencesService {
 	openGlobalSettings(): TPromise<void>;
 	openWorkspaceSettings(): TPromise<void>;
 	openGlobalKeybindingSettings(): TPromise<void>;
-	copyConfiguration(configurationValue: IConfigurationValue): void;
+
+	pickSetting(configurationTarget?: ConfigurationTarget);
+	pickValue(setting: ISetting, configurationTarget?: ConfigurationTarget);
+	copyConfiguration(configurationValue: IConfigurationValue, configurationTarget?: ConfigurationTarget): void;
 }
+
+export const CONTEXT_DEFAULT_SETTINGS_EDITOR = new RawContextKey<boolean>('defaultSettingsEditor', false);
+export const DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL = 'defaultSettingseditor.action.clearsearchresults';
+export const DEFAULT_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'defaultSettingseditor.action.collapseAll';
