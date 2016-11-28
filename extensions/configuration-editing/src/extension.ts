@@ -46,18 +46,18 @@ function registerKeybindingsCompletions(): vscode.Disposable {
 
 function newCompletionItem(text: string, range: vscode.Range) {
 	const item = new vscode.CompletionItem(JSON.stringify(text));
-					item.kind = vscode.CompletionItemKind.Value;
-					item.textEdit = {
-						range,
-						newText: item.label
-					};
-					return item;
-			}
+	item.kind = vscode.CompletionItemKind.Value;
+	item.textEdit = {
+		range,
+		newText: item.label
+	};
+	return item;
+}
 
 function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined) {
 	if (!editor || path.basename(editor.document.fileName) !== 'launch.json') {
 		return;
-		}
+	}
 
 	const ranges: vscode.Range[] = [];
 	let addPropertyAndValue = false;

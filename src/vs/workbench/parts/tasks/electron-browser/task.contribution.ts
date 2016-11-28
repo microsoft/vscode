@@ -46,7 +46,7 @@ import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
-import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment }  from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -65,11 +65,11 @@ import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import { LanguageServiceTaskSystem, LanguageServiceTaskConfiguration }  from 'vs/workbench/parts/tasks/common/languageServiceTaskSystem';
-import * as FileConfig  from 'vs/workbench/parts/tasks/node/processRunnerConfiguration';
+import * as FileConfig from 'vs/workbench/parts/tasks/node/processRunnerConfiguration';
 import { ProcessRunnerSystem } from 'vs/workbench/parts/tasks/node/processRunnerSystem';
-import { ProcessRunnerDetector }  from 'vs/workbench/parts/tasks/node/processRunnerDetector';
+import { ProcessRunnerDetector } from 'vs/workbench/parts/tasks/node/processRunnerDetector';
 
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IdGenerator } from 'vs/base/common/idGenerator';
@@ -84,9 +84,9 @@ class AbstractTaskAction extends Action {
 	protected messageService: IMessageService;
 	protected contextService: IWorkspaceContextService;
 
-	constructor(id:string, label:string, @ITaskService taskService:ITaskService,
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService:IMessageService,
+		@IMessageService messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService) {
 
 		super(id, label);
@@ -109,8 +109,8 @@ class BuildAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.build';
 	public static TEXT = nls.localize('BuildAction.label', "Run Build Task");
 
-	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(id, label, taskService, telemetryService, messageService, contextService);
 	}
 
@@ -126,8 +126,8 @@ class TestAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.test';
 	public static TEXT = nls.localize('TestAction.label', "Run Test Task");
 
-	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(id, label, taskService, telemetryService, messageService, contextService);
 	}
 
@@ -143,8 +143,8 @@ class RebuildAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.rebuild';
 	public static TEXT = nls.localize('RebuildAction.label', 'Run Rebuild Task');
 
-	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(id, label, taskService, telemetryService, messageService, contextService);
 	}
 
@@ -160,8 +160,8 @@ class CleanAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.clean';
 	public static TEXT = nls.localize('CleanAction.label', 'Run Clean Task');
 
-	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(id, label, taskService, telemetryService, messageService, contextService);
 	}
 
@@ -201,7 +201,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 		this.quickOpenService = quickOpenService;
 	}
 
-	public run(event?:any): TPromise<IEditor> {
+	public run(event?: any): TPromise<IEditor> {
 		if (!this.contextService.getWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('ConfigureTaskRunnerAction.noWorkspace', 'Tasks are only available on a workspace folder.'));
 			return TPromise.as(undefined);
@@ -210,9 +210,9 @@ abstract class OpenTaskConfigurationAction extends Action {
 		let configFileCreated = false;
 		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => {
 			return success;
-		}, (err:any) => {
+		}, (err: any) => {
 			;
-			return this.quickOpenService.pick(taskTemplates, { placeHolder: nls.localize('ConfigureTaskRunnerAction.quickPick.template', 'Select a Task Runner')}).then(selection => {
+			return this.quickOpenService.pick(taskTemplates, { placeHolder: nls.localize('ConfigureTaskRunnerAction.quickPick.template', 'Select a Task Runner') }).then(selection => {
 				if (!selection) {
 					return undefined;
 				}
@@ -328,8 +328,8 @@ class TerminateAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.terminate';
 	public static TEXT = nls.localize('TerminateAction.label', "Terminate Running Task");
 
-	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(id, label, taskService, telemetryService, messageService, contextService);
 	}
 
@@ -359,9 +359,9 @@ class ShowLogAction extends AbstractTaskAction {
 
 	private outputService: IOutputService;
 
-	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IOutputService outputService:IOutputService) {
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IOutputService outputService: IOutputService) {
 
 		super(id, label, taskService, telemetryService, messageService, contextService);
 		this.outputService = outputService;
@@ -388,7 +388,7 @@ class RunTaskAction extends AbstractTaskAction {
 		this.quickOpenService = quickOpenService;
 	}
 
-	public run(event?:any): Promise {
+	public run(event?: any): Promise {
 		if (!this.canRun()) {
 			return TPromise.as(undefined);
 		}
@@ -401,16 +401,16 @@ class StatusBarItem implements IStatusbarItem {
 
 	private panelService: IPanelService;
 	private markerService: IMarkerService;
-	private taskService:ITaskService;
+	private taskService: ITaskService;
 	private outputService: IOutputService;
 
 	private intervalToken: any;
 	private activeCount: number;
-	private static progressChars:string = '|/-\\';
+	private static progressChars: string = '|/-\\';
 
-	constructor(@IPanelService panelService:IPanelService,
-		@IMarkerService markerService:IMarkerService, @IOutputService outputService:IOutputService,
-		@ITaskService taskService:ITaskService,
+	constructor( @IPanelService panelService: IPanelService,
+		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
+		@ITaskService taskService: ITaskService,
 		@IPartService private partService: IPartService) {
 
 		this.panelService = panelService;
@@ -461,8 +461,8 @@ class StatusBarItem implements IStatusbarItem {
 		//			this.outputService.showOutput(TaskService.OutputChannel, e.ctrlKey || e.metaKey, true);
 		//		}));
 
-		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e:MouseEvent) => {
-			const panel= this.panelService.getActivePanel();
+		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
+			const panel = this.panelService.getActivePanel();
 			if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
 				this.partService.setPanelHidden(true);
 			} else {
@@ -470,7 +470,7 @@ class StatusBarItem implements IStatusbarItem {
 			}
 		}));
 
-		let updateStatus = (element:HTMLDivElement, stats:number): boolean => {
+		let updateStatus = (element: HTMLDivElement, stats: number): boolean => {
 			if (stats > 0) {
 				element.innerHTML = stats.toString();
 				$(element).show();
@@ -510,17 +510,17 @@ class StatusBarItem implements IStatusbarItem {
 			}
 		}));
 
-		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Inactive, (data:TaskServiceEventData) => {
+		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Inactive, (data: TaskServiceEventData) => {
 			// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
 			// So try to treat them accordingly.
 			if (this.activeCount > 0) {
-			this.activeCount--;
-			if (this.activeCount === 0) {
-				$(progress).hide();
+				this.activeCount--;
+				if (this.activeCount === 0) {
+					$(progress).hide();
 					if (this.intervalToken) {
-				clearInterval(this.intervalToken);
-				this.intervalToken = null;
-			}
+						clearInterval(this.intervalToken);
+						this.intervalToken = null;
+					}
 				}
 			}
 		}));
@@ -601,8 +601,8 @@ class NullTaskSystem extends EventEmitter implements ITaskSystem {
 class TaskService extends EventEmitter implements ITaskService {
 	public _serviceBrand: any;
 	public static SERVICE_ID: string = 'taskService';
-	public static OutputChannelId:string = 'tasks';
-	public static OutputChannelLabel:string = nls.localize('tasks', "Tasks");
+	public static OutputChannelId: string = 'tasks';
+	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
 	private modeService: IModeService;
 	private configurationService: IConfigurationService;
@@ -629,11 +629,11 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private fileChangesListener: IDisposable;
 
-	constructor(@IModeService modeService: IModeService, @IConfigurationService configurationService: IConfigurationService,
+	constructor( @IModeService modeService: IModeService, @IConfigurationService configurationService: IConfigurationService,
 		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
-		@IMessageService messageService: IMessageService, @IWorkbenchEditorService editorService:IWorkbenchEditorService,
-		@IFileService fileService:IFileService, @IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ITelemetryService telemetryService: ITelemetryService, @ITextFileService textFileService:ITextFileService,
+		@IMessageService messageService: IMessageService, @IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IFileService fileService: IFileService, @IWorkspaceContextService contextService: IWorkspaceContextService,
+		@ITelemetryService telemetryService: ITelemetryService, @ITextFileService textFileService: ITextFileService,
 		@ILifecycleService lifecycleService: ILifecycleService, @IEventService eventService: IEventService,
 		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
@@ -965,7 +965,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				return response;
 			});
 		}
-		return TPromise.as( { success: true} );
+		return TPromise.as({ success: true });
 	}
 
 	public tasks(): TPromise<TaskDescription[]> {
@@ -1010,7 +1010,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				return this.configureAction();
 		}
 	}
-	private handleError(err:any):void {
+	private handleError(err: any):void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
 			let buildError = <TaskError>err;
@@ -1076,7 +1076,7 @@ outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.O
 
 // tasks.json validation
 let schemaId = 'vscode://schemas/tasks';
-let schema : IJSONSchema =
+let schema: IJSONSchema =
 	{
 		'id': schemaId,
 		'description': 'Task definition file',
@@ -1105,7 +1105,7 @@ let schema : IJSONSchema =
 				'anyOf': [
 					{
 						'type': 'string',
-						'enum': ['$tsc', '$tsc-watch' ,'$msCompile', '$lessCompile', '$gulp-tsc', '$cpp', '$csc', '$vb', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go']
+						'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$cpp', '$csc', '$vb', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go']
 					},
 					{
 						'$ref': '#/definitions/pattern'

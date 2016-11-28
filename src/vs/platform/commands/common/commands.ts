@@ -93,7 +93,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 			commandOrArray.unshift(command);
 		} else {
 			this._commands[id] = [command, commandOrArray];
-	}
+		}
 
 		return {
 			dispose: () => {
@@ -122,14 +122,14 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 			return commandOrArray[0];
 		} else {
 			return commandOrArray;
-	}
+		}
 	}
 
 	getCommands(): ICommandsMap {
 		const result: ICommandsMap = Object.create(null);
 		for (let id in this._commands) {
 			result[id] = this.getCommand(id);
-	}
+		}
 		return result;
 	}
 };
