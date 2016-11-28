@@ -48,10 +48,9 @@ export class SearchWorker implements ISearchWorker {
 		// console.log('worker started: ' + Date.now());
 		this.contentPattern = strings.createRegExp(config.pattern.pattern, config.pattern.isRegExp, { matchCase: config.pattern.isCaseSensitive, wholeWord: config.pattern.isWordMatch, multiline: false, global: true });
 		this.config = config;
-		console.log(config);
 		if (config.id === 0) {
-			console.log('startProfiling');
-			profiler.startProfiling('p1');
+			// console.log('startProfiling');
+			// profiler.startProfiling('p1');
 		}
 
 		return TPromise.wrap<void>(undefined);
@@ -62,10 +61,10 @@ export class SearchWorker implements ISearchWorker {
 	}
 
 	search(args: ISearchWorkerSearchArgs): TPromise<FileMatch[]> {
-		// console.log('starting search: ' + Date.now() + ' ' + args.absolutePaths.length);
+		console.log('starting search: ' + Date.now() + ' ' + args.absolutePaths.length);
 
 		return this.nextSearch = this.nextSearch.then(() => {
-			// console.log('starting batch: ' + Date.now() + ' ' + args.absolutePaths.length);
+			console.log('starting batch: ' + Date.now() + ' ' + args.absolutePaths.length);
 			this.paths = args.absolutePaths;
 			this.running = true;
 			this.results = [];
@@ -89,18 +88,18 @@ export class SearchWorker implements ISearchWorker {
 				this.start(this.paths.pop());
 			} else if (this.running) {
 				this.running = false;
+				console.log(`done`);
 				this.finalCallback(this.results.filter(r => !!r));
 
-				console.log(`done ${this.nResults} ${this.config.id}`)
 				if (this.nResults === 0 && this.config.id === 0) {
 					this.nResults++;
-					console.log('stopProfiling');
-					const profile = profiler.stopProfiling('p1');
-					profile.export(function(error, result) {
-						console.log(error);
-						fs.writeFileSync('p1.cpuprofile', result);
-						profile.delete();
-					});
+					// console.log('stopProfiling');
+					// const profile = profiler.stopProfiling('p1');
+					// profile.export(function(error, result) {
+					// 	console.log(error);
+					// 	fs.writeFileSync('p1.cpuprofile', result);
+					// 	profile.delete();
+					// });
 				}
 			}
 		})
