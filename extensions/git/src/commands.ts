@@ -7,6 +7,19 @@
 
 import { commands, Disposable } from 'vscode';
 
+function refresh(): void {
+	console.log('refresh');
+}
+
+function openChange(...args: any[]): void {
+	console.log('openChange', args);
+}
+
 export function registerCommands(): Disposable {
-	return commands.registerCommand('git.refresh', () => console.log('REFRESH'));
+	const disposables = [
+		commands.registerCommand('git.refresh', refresh),
+		commands.registerCommand('git.open-change', openChange)
+	];
+
+	return Disposable.from(...disposables);
 }

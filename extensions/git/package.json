@@ -29,12 +29,24 @@
           "light": "resources/icons/light/refresh.svg",
           "dark": "resources/icons/dark/refresh.svg"
         }
+      },
+      {
+        "command": "git.open-change",
+        "title": "Open Change",
+        "category": "Git"
       }
     ],
     "menus": {
       "scm/title": [
         {
           "command": "git.refresh",
+          "group": "navigation",
+          "when": "scm.provider == git"
+        }
+      ],
+      "scm/context": [
+        {
+          "command": "git.open-change",
           "group": "navigation",
           "when": "scm.provider == git"
         }
