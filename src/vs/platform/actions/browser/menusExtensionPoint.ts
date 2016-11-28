@@ -33,6 +33,7 @@ namespace schema {
 			case 'explorer/context': return MenuId.ExplorerContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'scm/title': return MenuId.SCMTitle;
+			case 'scm/context': return MenuId.SCMContext;
 		}
 	}
 
