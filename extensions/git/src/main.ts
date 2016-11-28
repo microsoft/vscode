@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { scm, ExtensionContext, workspace, Uri } from 'vscode';
+import { scm, ExtensionContext, workspace, Uri, window, Disposable } from 'vscode';
 import * as path from 'path';
 import { findGit, Git } from './git';
 import { registerCommands } from './commands';
@@ -27,6 +27,23 @@ class GitSCMProvider {
 	}
 }
 
+class TextDocumentContentProvider {
+
+	constructor(private git: Git, private rootPath: string) { }
+
+	provideTextDocumentContent(uri: Uri) {
+		const relativePath = path.relative(this.rootPath, uri.fsPath);
+
+		return this.git.exec(this.rootPath, ['show', `HEAD:${relativePath}`]).then(result => {
+			if (result.exitCode !== 0) {
+				return null;
+			}
+
+			return result.stdout;
+		});
+	}
+}
+
 export function activate(context: ExtensionContext): any {
 	if (!workspace.rootPath) {
 		return;
@@ -36,28 +53,20 @@ export function activate(context: ExtensionContext): any {
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 
 	findGit(pathHint).then(info => {
-		log(`Using git ${info.version} from ${info.path}`);
-
 		const git = new Git({ gitPath: info.path, version: info.version });
-		const provider = new GitSCMProvider();
-		const providerDisposable = scm.registerSCMProvider('git', provider);
+		const disposables: Disposable[] = [];
 
-		const contentProvider = workspace.registerTextDocumentContentProvider('git-index', {
-			provideTextDocumentContent: uri => {
-				const relativePath = path.relative(rootPath, uri.fsPath);
+		const outputChannel = window.createOutputChannel('git');
+		outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);
+		git.onOutput(str => outputChannel.append(str), null, disposables);
 
-				return git.exec(rootPath, ['show', `HEAD:${relativePath}`]).then(result => {
-					if (result.exitCode !== 0) {
-						return null;
-					}
+		disposables.push(
+			registerCommands(),
+			scm.registerSCMProvider('git', new GitSCMProvider()),
+			workspace.registerTextDocumentContentProvider('git-index', new TextDocumentContentProvider(git, rootPath)),
+			outputChannel
+		);
 
-					return result.stdout;
-				});
-			}
-		});
-
-		const commands = registerCommands();
-
-		context.subscriptions.push(providerDisposable, contentProvider, commands);
+		context.subscriptions.push(...disposables);
 	});
 }
