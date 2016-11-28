@@ -21,3 +21,15 @@
 .monaco-editor.hc-black .copy-preferences-light-bulb {
 	background: url('lightbulb-dark.svg') center center no-repeat;
 }
+
+.monaco-editor .define-preference-widget {
+	background: rgb(179,255,179);
+	padding: 10px;
+	border-radius: 5px;
+	cursor: pointer;
+}
+
+.monaco-editor.vs-dark .define-preference-widget,
+.monaco-editor.hc-black .define-preference-widget {
+	background: rgb(21,97,21);
+}
