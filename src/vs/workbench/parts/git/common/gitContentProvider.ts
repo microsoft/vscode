@@ -7,8 +7,8 @@
 import { IModelService } from 'vs/editor/common/services/modelService';
 import URI from 'vs/base/common/uri';
 import { dispose } from 'vs/base/common/lifecycle';
+import * as paths from 'vs/base/common/paths';
 import { Throttler } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -17,8 +17,6 @@ import { IGitService, StatusType, ServiceEvents, ServiceOperations, ServiceState
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 export class GitContentProvider implements IWorkbenchContribution, ITextModelContentProvider, IBaselineResourceProvider {
-
-	private throttler = new Throttler();
 
 	constructor(
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
@@ -35,55 +33,46 @@ export class GitContentProvider implements IWorkbenchContribution, ITextModelCon
 	}
 
 	provideTextContent(uri: URI): TPromise<IModel> {
-		if (uri.scheme !== 'git-index') {
-			return null;
-		}
+		const model = this.modelService.createModel('', null, uri);
+		const throttler = new Throttler();
 
-		const gitModel = this.gitService.getModel();
-		const path = uri.fsPath;
-		const treeish = gitModel.getStatus().find(path, StatusType.INDEX) ? '~' : 'HEAD';
+		const updateModel = () => {
+			const gitModel = this.gitService.getModel();
+			const root = gitModel.getRepositoryRoot();
 
-		return this.gitService.buffer(path, treeish)
-			.then(contents => this.modelService.createModel(contents || '', null, uri))
-			.then(model => {
-				const trigger = () => {
-					this.throttler.queue(() => {
-						return this.gitService.buffer(path, treeish)
-							.then(contents => {
-								// TODO@Joao who owns the model? this is confusing
-								// if (!contents) {
-								// 	model.destroy();
-								// 	return;
-								// }
+			if (!root) {
+				return TPromise.as(null);
+			}
 
-								model.setValue(contents);
-							});
-					}).done(null, onUnexpectedError);
-				};
+			const path = uri.fsPath;
+			const relativePath = paths.relative(root, path);
+			const treeish = gitModel.getStatus().find(relativePath, StatusType.INDEX) ? '~' : 'HEAD';
 
-				const onChanges = () => {
-					if (this.gitService.getState() !== ServiceState.OK) {
-						return;
-					}
+			return this.gitService.buffer(path, treeish)
+				.then(contents => model.setValue(contents || ''));
+		};
 
-					trigger();
-				};
+		const triggerModelUpdate = () => {
+			if (this.gitService.getState() !== ServiceState.OK) {
+				return;
+			}
 
-				const disposables = [
-					this.gitService.addListener2(ServiceEvents.STATE_CHANGED, onChanges),
-					this.gitService.addListener2(ServiceEvents.OPERATION_END, e => {
-						if (e.operation.id !== ServiceOperations.BACKGROUND_FETCH) {
-							onChanges();
-						}
-					})
-				];
+			throttler.queue(updateModel);
+		};
 
-				model.onWillDispose(() => {
-					dispose(disposables);
-				});
+		const disposables = [
+			this.gitService.addListener2(ServiceEvents.STATE_CHANGED, triggerModelUpdate),
+			this.gitService.addListener2(ServiceEvents.OPERATION_END, e => {
+				if (e.operation.id !== ServiceOperations.BACKGROUND_FETCH) {
+					triggerModelUpdate();
+				}
+			})
+		];
 
-				return model;
-			});
+		model.onWillDispose(() => dispose(disposables));
+		triggerModelUpdate();
+
+		return TPromise.as(model);
 	}
 
 	getId(): string {

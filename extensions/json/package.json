@@ -66,9 +66,9 @@
             "type": "object",
             "default": {
               "fileMatch": [
-                "{{/myfile}}"
+                "/myfile"
               ],
-              "url": "{{schemaURL}}"
+              "url": "schemaURL"
             },
             "properties": {
               "url": {
@@ -103,7 +103,10 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "^0.0.5",
-    "vscode-languageclient": "^2.4.2-next.22",
+    "vscode-languageclient": "^3.0.1-alpha.3",
     "vscode-nls": "^1.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^6.0.51"
   }
 }

@@ -277,7 +277,7 @@ let schema: IJSONSchema = {
 	'items': {
 		'required': ['key'],
 		'type': 'object',
-		'defaultSnippets': [{ 'body': { 'key': '{{_}}', 'command': '{{_}}', 'when': '{{_}}' } }],
+		'defaultSnippets': [{ 'body': { 'key': '$1', 'command': '$2', 'when': '$3' } }],
 		'properties': {
 			'key': {
 				'type': 'string',

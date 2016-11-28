@@ -13,7 +13,7 @@ import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, 
 import { getLanguageModelCache } from './languageModelCache';
 
 namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
+	export const type: RequestType<string, Range[], any, any> = { get method() { return 'css/colorSymbols'; }, _: null };
 }
 
 export interface Settings {

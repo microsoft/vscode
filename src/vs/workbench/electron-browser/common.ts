@@ -21,7 +21,15 @@ export interface IWindowConfiguration {
 	window: IWindowSettings;
 }
 
+export interface IMemoryInfo {
+	workingSetSize: number;
+	peakWorkingSetSize: number;
+	privateBytes: number;
+	sharedBytes: number;
+}
+
 export interface IStartupFingerprint {
+	version: number;
 	ellapsed: number;
 	timers: {
 		ellapsedWindowLoad?: number;
@@ -32,13 +40,16 @@ export interface IStartupFingerprint {
 		ellapsedViewletRestore: number;
 		ellapsedEditorRestore: number;
 		ellapsedWorkbench: number;
+		ellapsedTimersToTimersComputed: number;
 	};
 	platform: string;
 	release: string;
 	totalmem: number;
 	freemem: number;
+	meminfo: IMemoryInfo;
 	cpus: { count: number; speed: number; model: string; };
 	initialStartup: boolean;
 	hasAccessibilitySupport: boolean;
 	emptyWorkbench: boolean;
+	loadavg: number[];
 }

@@ -19,7 +19,7 @@ suite('window namespace tests', () => {
 			return window.showTextDocument(doc).then((editor) => {
 				const active = window.activeTextEditor;
 				assert.ok(active);
-				assert.ok(pathEquals(active.document.uri.fsPath, doc.uri.fsPath));
+				assert.ok(pathEquals(active!.document.uri.fsPath, doc.uri.fsPath));
 			});
 		});
 	});
