@@ -99,7 +99,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.getUserSettingsEditorModel();
 		}
 
-		if (this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE).fsPath === uri.fsPath) {
+		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
+		if (workspaceSettingsUri && workspaceSettingsUri.fsPath === uri.fsPath) {
 			return this.getWorkspaceSettingsEditorModel();
 		}
 
@@ -157,7 +158,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			.then(() => null);
 	}
 
-	openEditableSettings(configurationTarget: ConfigurationTarget, showVisibleEditor: boolean = false): TPromise<IEditor> {
+	private openEditableSettings(configurationTarget: ConfigurationTarget, showVisibleEditor: boolean = false): TPromise<IEditor> {
 		const emptySettingsContents = this.getEmptyEditableSettingsContent(configurationTarget);
 		const settingsResource = this.getEditableSettingsURI(configurationTarget);
 		if (showVisibleEditor) {
@@ -176,24 +177,31 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	public copyConfiguration(configurationValue: IConfigurationValue): void {
-		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [configurationValue.key] });
-		this.openEditableSettings(this.configurationTarget, true).then(editor => {
-			const editorControl = <ICodeEditor>editor.getControl();
-			const disposable = editorControl.onDidChangeModelContent(() => {
-				new Delayer(100).trigger((): any => {
-					editorControl.focus();
-					editorControl.setSelection(this.getSelectionRange(configurationValue.key, editorControl.getModel()));
+		if (this.configurationTarget) {
+			this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [configurationValue.key] });
+			this.openEditableSettings(this.configurationTarget, true).then(editor => {
+				const editorControl = <ICodeEditor>editor.getControl();
+				const disposable = editorControl.onDidChangeModelContent(() => {
+					new Delayer(100).trigger((): any => {
+						editorControl.focus();
+						editorControl.setSelection(this.getSelectionRange(configurationValue.key, editorControl.getModel()));
+					});
+					disposable.dispose();
 				});
-				disposable.dispose();
+				this.configurationEditingService.writeConfiguration(this.configurationTarget, configurationValue)
+					.then(null, error => this.messageService.show(Severity.Error, error));
 			});
-			this.configurationEditingService.writeConfiguration(this.configurationTarget, configurationValue)
-				.then(null, error => this.messageService.show(Severity.Error, error));
-		});
+		}
 	}
 
+
 	private resolveSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<void> {
-		return this.textModelResolverService.createModelReference(this.getEditableSettingsURI(configurationTarget))
-			.then(reference => this.onModelResolved(reference.object.textEditorModel, configurationTarget));
+		const settingsUri = this.getEditableSettingsURI(configurationTarget);
+		if (settingsUri) {
+			return this.textModelResolverService.createModelReference(settingsUri)
+				.then(reference => this.onModelResolved(reference.object.textEditorModel, configurationTarget));
+		}
+		return TPromise.wrap<void>(null);
 	}
 
 	private onModelResolved(model: editorCommon.IModel, configurationTarget: ConfigurationTarget) {
@@ -242,8 +250,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			case ConfigurationTarget.USER:
 				return URI.file(this.environmentService.appSettingsPath);
 			case ConfigurationTarget.WORKSPACE:
-				return this.contextService.toResource('.vscode/settings.json');
+				if (this.contextService.getWorkspace()) {
+					return this.contextService.toResource('.vscode/settings.json');
+				}
 		}
+		return null;
 	}
 
 	private promptToOpenWorkspaceSettings() {
@@ -306,8 +317,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private getConfigurationTarget(resource: URI): ConfigurationTarget {
-		return resource.fsPath === this.getEditableSettingsURI(ConfigurationTarget.USER).fsPath ? ConfigurationTarget.USER :
-			resource.fsPath === this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE).fsPath ? ConfigurationTarget.WORKSPACE : null;
+		if (this.getEditableSettingsURI(ConfigurationTarget.USER).fsPath === resource.fsPath) {
+			return ConfigurationTarget.USER;
+		}
+		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
+		if (workspaceSettingsUri && workspaceSettingsUri.fsPath === resource.fsPath) {
+			return ConfigurationTarget.WORKSPACE;
+		}
+		return null;
 	}
 
 	private getSelectionRange(setting: string, model: editorCommon.IModel): editorCommon.IRange {

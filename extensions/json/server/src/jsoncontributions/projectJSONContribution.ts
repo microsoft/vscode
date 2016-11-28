@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString, CompletionItemKind, CompletionItem } from 'vscode-languageserver';
+import { MarkedString, CompletionItemKind, CompletionItem, SnippetString } from 'vscode-languageserver';
 import Strings = require('../utils/strings');
 import { XHRResponse, getErrorStatusDescription, xhr } from 'request-light';
 import { JSONWorkerContribution, JSONPath, CompletionsCollector } from 'vscode-json-languageservice';
@@ -47,9 +47,10 @@ export class ProjectJSONContribution implements JSONWorkerContribution {
 				this.cacheSize--;
 				return false;
 			}
+			let insertTextValue = (<SnippetString>item.insertText).value;
 			item.detail = entry.version;
 			item.documentation = entry.description;
-			item.insertText = item.insertText.replace(/\{\{\}\}/, '{{' + entry.version + '}}');
+			item.insertText = insertTextValue.replace(/\$1/, '${1:' + entry.version + '}');
 			return true;
 		}
 		return false;
@@ -102,15 +103,15 @@ export class ProjectJSONContribution implements JSONWorkerContribution {
 
 	public collectDefaultCompletions(resource: string, result: CompletionsCollector): Thenable<any> {
 		if (this.isProjectJSONFile(resource)) {
-			let defaultValue = {
-				'version': '{{1.0.0-*}}',
+			let insertText = SnippetString.create(JSON.stringify({
+				'version': '${1:1.0.0-*}',
 				'dependencies': {},
 				'frameworks': {
 					'net461': {},
 					'netcoreapp1.0': {}
 				}
-			};
-			result.add({ kind: CompletionItemKind.Class, label: localize('json.project.default', 'Default project.json'), insertText: JSON.stringify(defaultValue, null, '\t'), documentation: '' });
+			}, null, '\t'));
+			result.add({ kind: CompletionItemKind.Class, label: localize('json.project.default', 'Default project.json'), insertText, documentation: '' });
 		}
 		return null;
 	}
@@ -149,12 +150,12 @@ export class ProjectJSONContribution implements JSONWorkerContribution {
 							let name = results[i];
 							let insertText = JSON.stringify(name);
 							if (addValue) {
-								insertText += ': "{{}}"';
+								insertText += ': "$1"';
 								if (!isLast) {
 									insertText += ',';
 								}
 							}
-							let item: CompletionItem = { kind: CompletionItemKind.Property, label: name, insertText: insertText, filterText: JSON.stringify(name) };
+							let item: CompletionItem = { kind: CompletionItemKind.Property, label: name, insertText: SnippetString.create(insertText), filterText: JSON.stringify(name) };
 							if (!this.completeWithCache(name, item)) {
 								item.data = RESOLVE_ID + name;
 							}

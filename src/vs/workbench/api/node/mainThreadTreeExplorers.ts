@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostContext, MainThreadTreeExplorersShape, ExtHostTreeExplorersShape } from './extHost.protocol';
-import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/common/customTreeExplorerService';
+import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
 import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -17,7 +17,7 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 
 	constructor(
 		@IThreadService private threadService: IThreadService,
-		@ICustomTreeExplorerService private treeExplorerService: ICustomTreeExplorerService,
+		@ITreeExplorerService private treeExplorerService: ITreeExplorerService,
 		@IMessageService private messageService: IMessageService,
 		@ICommandService private commandService: ICommandService
 	) {

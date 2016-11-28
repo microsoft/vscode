@@ -361,4 +361,52 @@ suite('WorkspaceConfigurationService - Node', () => {
 			});
 		});
 	});
+
+	test('values', (done: () => void) => {
+		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'workspaceLookup.service.testSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
+			return createService(workspaceDir, globalSettingsFile).then(service => {
+				let values = service.values();
+				let value = values['workspaceLookup.service.testSetting'];
+
+				assert.ok(value);
+				assert.equal(value.default, 'isSet');
+
+				fs.writeFileSync(globalSettingsFile, '{ "workspaceLookup.service.testSetting": true }');
+
+				return service.reloadConfiguration().then(() => {
+					values = service.values();
+					value = values['workspaceLookup.service.testSetting'];
+
+					assert.ok(value);
+					assert.equal(value.user, true);
+
+					const settingsFile = path.join(workspaceDir, '.vscode', 'settings.json');
+					fs.writeFileSync(settingsFile, '{ "workspaceLookup.service.testSetting": 55 }');
+
+					return service.reloadConfiguration().then(() => {
+						values = service.values();
+						value = values['workspaceLookup.service.testSetting'];
+
+						assert.ok(value);
+						assert.equal(value.user, true);
+						assert.equal(value.workspace, 55);
+
+						done();
+					});
+				});
+			});
+		});
+	});
 });

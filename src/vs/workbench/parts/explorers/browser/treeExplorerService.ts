@@ -10,9 +10,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
-import { ICustomTreeExplorerService } from 'vs/workbench/parts/explorers/common/customTreeExplorerService';
+import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
 
-export class CustomTreeExplorerService implements ICustomTreeExplorerService {
+export class TreeExplorerService implements ITreeExplorerService {
 	public _serviceBrand: any;
 
 	private _onTreeExplorerNodeProviderRegistered = new Emitter<String>();

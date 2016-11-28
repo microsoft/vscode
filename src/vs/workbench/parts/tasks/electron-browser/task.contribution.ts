@@ -1361,7 +1361,7 @@ let schema: IJSONSchema =
 					{
 						'label': 'Empty task',
 						'body': {
-							'taskName': '{{taskName}}'
+							'taskName': '${1:taskName}'
 						}
 					}
 				]

@@ -20,7 +20,7 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
-import { IStartupFingerprint } from 'vs/workbench/electron-browser/common';
+import { IStartupFingerprint, IMemoryInfo } from 'vs/workbench/electron-browser/common';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
 import { ITelemetryService, NullTelemetryService, configurationTelemetry, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
@@ -212,6 +212,7 @@ export class WorkbenchShell {
 		const workbenchStarted = Date.now();
 		timers.workbenchStarted = new Date(workbenchStarted);
 		this.extensionService.onReady().done(() => {
+			const now = Date.now();
 			const initialStartup = !!timers.isInitialStartup;
 			const start = initialStartup ? timers.perfStartTime : timers.perfWindowLoadTime;
 			let totalmem: number;
@@ -219,12 +220,16 @@ export class WorkbenchShell {
 			let cpus: { count: number; speed: number; model: string; };
 			let platform: string;
 			let release: string;
+			let loadavg: number[];
+			let meminfo: IMemoryInfo;
 
 			try {
 				totalmem = os.totalmem();
 				freemem = os.freemem();
 				platform = os.platform();
 				release = os.release();
+				loadavg = os.loadavg();
+				meminfo = process.getProcessMemoryInfo();
 
 				const rawCpus = os.cpus();
 				if (rawCpus && rawCpus.length > 0) {
@@ -235,6 +240,7 @@ export class WorkbenchShell {
 			}
 
 			const startupTimeEvent: IStartupFingerprint = {
+				version: 1,
 				ellapsed: Math.round(workbenchStarted - start),
 				timers: {
 					ellapsedExtensions: Math.round(timers.perfAfterExtensionLoad - timers.perfBeforeExtensionLoad),
@@ -243,13 +249,16 @@ export class WorkbenchShell {
 					ellapsedViewletRestore: Math.round(restoreViewletDuration),
 					ellapsedEditorRestore: Math.round(restoreEditorsDuration),
 					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen),
-					ellapsedWindowLoadToRequire: Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfWindowLoadTime)
+					ellapsedWindowLoadToRequire: Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfWindowLoadTime),
+					ellapsedTimersToTimersComputed: Date.now() - now
 				},
 				platform,
 				release,
 				totalmem,
 				freemem,
+				meminfo,
 				cpus,
+				loadavg,
 				initialStartup,
 				hasAccessibilitySupport: !!timers.hasAccessibilitySupport,
 				emptyWorkbench: !this.contextService.getWorkspace()
