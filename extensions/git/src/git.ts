@@ -15,7 +15,6 @@ import * as _ from 'lodash';
 import { EventEmitter, Event } from 'vscode';
 import * as nls from 'vscode-nls';
 import * as mime from 'mime';
-import * as AutoDetectDecoderStream from 'autodetect-decoder-stream';
 
 const localize = nls.loadMessageBundle(__filename);
 const readdir = denodeify(fs.readdir);
@@ -177,23 +176,20 @@ export async function exec(child: cp.ChildProcess, defaultEncoding = 'utf8'): Pr
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	const stdoutStream = child.stdout.pipe(new AutoDetectDecoderStream({ defaultEncoding }));
-	const stderrStream = child.stderr.pipe(new AutoDetectDecoderStream({ defaultEncoding }));
-
 	const [exitCode, stdout, stderr] = await Promise.all<any>([
 		new Promise<number>((c, e) => {
 			once(child, 'error', e);
 			once(child, 'exit', c);
 		}),
 		new Promise<string>(c => {
-			let buffers: string[] = [];
-			on(stdoutStream, 'data', b => buffers.push(b));
-			once(stdoutStream, 'close', () => c(buffers.join()));
+			const buffers: string[] = [];
+			on(child.stdout, 'data', b => buffers.push(b));
+			once(child.stdout, 'close', () => c(buffers.join()));
 		}),
 		new Promise<string>(c => {
-			let buffers: string[] = [];
-			on(stderrStream, 'data', b => buffers.push(b));
-			once(stderrStream, 'close', () => c(buffers.join()));
+			const buffers: string[] = [];
+			on(child.stderr, 'data', b => buffers.push(b));
+			once(child.stderr, 'close', () => c(buffers.join()));
 		})
 	]);
 
@@ -457,6 +453,7 @@ export class Repository {
 
 		return await this.doBuffer(object);
 
+		// TODO@joao
 		// return new Promise((c, e) => {
 		// detectMimesFromStream(child.stdout, null, (err, result) => {
 		// 	if (err) {
