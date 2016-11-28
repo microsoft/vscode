@@ -49,6 +49,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	private nextWorker = 0;
 
 	private batches = [];
+	private batchSizes = [];
 
 	private onResult: any;
 
@@ -115,13 +116,16 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			}
 		};
 
+		let begin = 0;
 		const onBatchReady = (batch: string[], batchSize): void => {
 			// console.log(`onBatchReady: ${batchSize}, ${this.worked}/${this.total}`);
-			if (this.workers.length) {
-				run(this.workers[this.nextWorker], batch, batchSize);
-				this.nextWorker = ((this.nextWorker + 1) % this.workers.length)
+			if (this.readyWorkers.length) {
+				const worker = begin < 4 ? this.readyWorkers[begin++] : this.readyWorkers.pop();
+				run(worker, batch, batchSize);
+				// this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 			} else {
 				this.batches.push(batch);
+				this.batchSizes.push(batchSize);
 			}
 		};
 
@@ -135,10 +139,10 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				});
 
 				unwind(batchSize);
-				if (this.batches.length) run(worker, this.batches.shift(), 0);
+				if (this.batches.length) run(worker, this.batches.shift(), this.batchSizes.shift());
 				else if (this.walkerIsDone) unwind(0, true);
 				else {
-					// this.readyWorkers.push(worker);
+					this.readyWorkers.push(worker);
 				}
 			});
 		}
@@ -165,7 +169,6 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			nextBatch.push(absolutePath);
 			nextBatchSize += size;
 			if (nextBatch.length >= workerBatchSize) {
-
 				this.total += nextBatchSize;
 				onBatchReady(nextBatch, nextBatchSize);
 				nextBatch = [];
