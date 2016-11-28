@@ -13,6 +13,7 @@ import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/ser
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { readToMatchingString } from 'vs/base/node/stream';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
@@ -21,6 +22,7 @@ export interface IBackupFilesModel {
 	has(resource: Uri, versionId?: number): boolean;
 	remove(resource: Uri): void;
 	clear(): void;
+	getTextFiles(): string[];
 }
 
 // TODO@daniel this should resolve the backups with their file names once we have the metadata in place
@@ -62,6 +64,10 @@ export class BackupFilesModel implements IBackupFilesModel {
 		}
 
 		return true;
+	}
+
+	public getTextFiles(): string[] {
+		return Object.keys(this.cache).filter(k => path.basename(path.dirname(k)) === 'file');
 	}
 
 	public remove(resource: Uri): void {
@@ -173,6 +179,23 @@ export class BackupFileService implements IBackupFileService {
 			}
 
 			return this.fileService.del(Uri.file(this.backupWorkspacePath)).then(() => model.clear());
+		});
+	}
+
+	public getWorkspaceTextFileBackups(): TPromise<string[]> {
+		return this.ready.then(model => {
+			let readPromises: TPromise<string>[] = [];
+			model.getTextFiles().forEach(textFile => {
+				readPromises.push(new TPromise<string>((c, e) => {
+					readToMatchingString(textFile, '\n', 2000, 10000, (error, result) => {
+						if (result === null) {
+							e(error);
+						}
+						c(result);
+					});
+				}));
+			});
+			return TPromise.join(readPromises);
 		});
 	}
 
