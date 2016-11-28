@@ -11,6 +11,7 @@ import * as cp from 'child_process';
 import * as denodeify from 'denodeify';
 import { IDisposable, toDisposable, dispose } from './util';
 import * as _ from 'lodash';
+import { EventEmitter, Event } from 'vscode';
 
 const readdir = denodeify(fs.readdir);
 
@@ -252,11 +253,14 @@ function encodingExists(encoding) {
 
 export class Git {
 
-	gitPath: string;
-	version: string;
-	env: any;
+	private gitPath: string;
+	private version: string;
+	private env: any;
 	private defaultEncoding: string;
 	private outputListeners: { (output: string): void; }[];
+
+	private _onOutput = new EventEmitter<string>();
+	get onOutput(): Event<string> { return this._onOutput.event; }
 
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
@@ -276,11 +280,11 @@ export class Git {
 
 	stream(cwd: string, args: string[], options: any = {}): cp.ChildProcess {
 		options = _.assign({ cwd: cwd }, options || {});
-		return this.spawn(args, options);
+		return this._spawn(args, options);
 	}
 
 	private _exec(args: string[], options: any = {}): Promise<IExecutionResult> {
-		const child = this.spawn(args, options);
+		const child = this._spawn(args, options);
 
 		if (options.input) {
 			child.stdin.end(options.input, 'utf8');
@@ -304,6 +308,10 @@ export class Git {
 					gitErrorCode = GitErrorCodes.CantAccessRemote;
 				}
 
+				if (options.log !== false) {
+					this.log(result.stderr);
+				}
+
 				return Promise.reject<IExecutionResult>(new GitError({
 					message: 'Failed to execute git',
 					stdout: result.stdout,
@@ -318,7 +326,7 @@ export class Git {
 		});
 	}
 
-	spawn(args: string[], options: any = {}): cp.ChildProcess {
+	private _spawn(args: string[], options: any = {}): cp.ChildProcess {
 		if (!this.gitPath) {
 			throw new Error('git could not be found in the system.');
 		}
@@ -340,12 +348,7 @@ export class Git {
 		return cp.spawn(this.gitPath, args, options);
 	}
 
-	onOutput(listener: (output: string) => void): () => void {
-		this.outputListeners.push(listener);
-		return () => this.outputListeners.splice(this.outputListeners.indexOf(listener), 1);
-	}
-
 	private log(output: string): void {
-		this.outputListeners.forEach(l => l(output));
+		this._onOutput.fire(output);
 	}
 }
