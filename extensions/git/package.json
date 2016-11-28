@@ -91,7 +91,6 @@
     ]
   },
   "dependencies": {
-    "autodetect-decoder-stream": "^1.0.0",
     "denodeify": "^1.2.1",
     "lodash": "^4.17.2",
     "mime": "^1.3.4",
