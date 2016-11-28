@@ -170,6 +170,15 @@ suite('BackupFileService', () => {
 		});
 	});
 
+	test('getWorkspaceTextFileBackups', done => {
+		service.backupResource(fooFile, `${fooFile.fsPath}\ntest`).then(() => {
+			service.getWorkspaceTextFileBackups().then(textFiles => {
+				assert.deepEqual(textFiles, [fooFile.toString()]);
+				done();
+			});
+		});
+	});
+
 	test('BackupFilesModel - simple', () => {
 		const model = new BackupFilesModel();
 
@@ -229,5 +238,19 @@ suite('BackupFileService', () => {
 				done();
 			});
 		});
+	});
+
+	test('BackupFilesModel - getTextFiles', () => {
+		const model = new BackupFilesModel();
+
+		assert.deepEqual(model.getTextFiles(), []);
+
+		const resource1 = Uri.file('/root/file/foo.html');
+		const resource2 = Uri.file('/root/file/bar.html');
+		model.add(resource1);
+		model.add(resource2);
+		model.add(Uri.file('/root/untitled/bar.html'));
+
+		assert.deepEqual(model.getTextFiles(), [resource1.toString(), resource2.toString()]);
 	});
 });
