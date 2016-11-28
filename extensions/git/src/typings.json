@@ -1,6 +1,7 @@
 {
 	"globalDependencies": {
 		"denodeify": "registry:dt/denodeify#1.2.1+20160316155526",
-		"lodash": "registry:dt/lodash#4.14.0+20161110215204"
+		"lodash": "registry:dt/lodash#4.14.0+20161110215204",
+		"mime": "registry:dt/mime#0.0.0+20160316155526"
 	}
 }

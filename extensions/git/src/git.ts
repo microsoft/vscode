@@ -7,17 +7,59 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import * as cp from 'child_process';
 import * as denodeify from 'denodeify';
 import { IDisposable, toDisposable, dispose } from './util';
 import * as _ from 'lodash';
 import { EventEmitter, Event } from 'vscode';
+import * as nls from 'vscode-nls';
+import * as mime from 'mime';
+import * as AutoDetectDecoderStream from 'autodetect-decoder-stream';
 
+const localize = nls.loadMessageBundle(__filename);
 const readdir = denodeify(fs.readdir);
+const readfile = denodeify<string, string, string>(fs.readFile);
 
 export interface IGit {
 	path: string;
 	version: string;
+}
+
+export interface IPushOptions {
+	setUpstream?: boolean;
+}
+
+export interface IFileStatus {
+	x: string;
+	y: string;
+	path: string;
+	mimetype: string;
+	rename?: string;
+}
+
+export interface IRemote {
+	name: string;
+	url: string;
+}
+
+export enum RefType {
+	Head,
+	RemoteHead,
+	Tag
+}
+
+export interface IRef {
+	type: RefType;
+	name?: string;
+	commit?: string;
+	remote?: string;
+}
+
+export interface IBranch extends IRef {
+	upstream?: string;
+	ahead?: number;
+	behind?: number;
 }
 
 function parseVersion(raw: string): string {
@@ -122,12 +164,7 @@ export interface IExecutionResult {
 	stderr: string;
 }
 
-// TODO
-function decode(buffer, encoding) {
-	return buffer.toString('utf8');
-}
-
-export function exec(child: cp.ChildProcess, encoding = 'utf8'): Promise<IExecutionResult> {
+export async function exec(child: cp.ChildProcess, defaultEncoding = 'utf8'): Promise<IExecutionResult> {
 	const disposables: IDisposable[] = [];
 
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
@@ -140,30 +177,29 @@ export function exec(child: cp.ChildProcess, encoding = 'utf8'): Promise<IExecut
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	return Promise.all<any>([
+	const stdoutStream = child.stdout.pipe(new AutoDetectDecoderStream({ defaultEncoding }));
+	const stderrStream = child.stderr.pipe(new AutoDetectDecoderStream({ defaultEncoding }));
+
+	const [exitCode, stdout, stderr] = await Promise.all<any>([
 		new Promise<number>((c, e) => {
 			once(child, 'error', e);
 			once(child, 'exit', c);
 		}),
 		new Promise<string>(c => {
-			let buffers: Buffer[] = [];
-			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(decode(Buffer.concat(buffers), encoding)));
+			let buffers: string[] = [];
+			on(stdoutStream, 'data', b => buffers.push(b));
+			once(stdoutStream, 'close', () => c(buffers.join()));
 		}),
 		new Promise<string>(c => {
-			let buffers: Buffer[] = [];
-			on(child.stderr, 'data', b => buffers.push(b));
-			once(child.stderr, 'close', () => c(decode(Buffer.concat(buffers), encoding)));
+			let buffers: string[] = [];
+			on(stderrStream, 'data', b => buffers.push(b));
+			once(stderrStream, 'close', () => c(buffers.join()));
 		})
-	]).then(values => {
-		dispose(disposables);
+	]);
 
-		return {
-			exitCode: values[0],
-			stdout: values[1],
-			stderr: values[2]
-		};
-	});
+	dispose(disposables);
+
+	return { exitCode, stdout, stderr };
 }
 
 export interface IGitErrorData {
@@ -246,18 +282,12 @@ export const GitErrorCodes = {
 	RepositoryNotFound: 'RepositoryNotFound'
 };
 
-// TODO
-function encodingExists(encoding) {
-	return true;
-}
-
 export class Git {
 
 	private gitPath: string;
 	private version: string;
 	private env: any;
 	private defaultEncoding: string;
-	private outputListeners: { (output: string): void; }[];
 
 	private _onOutput = new EventEmitter<string>();
 	get onOutput(): Event<string> { return this._onOutput.event; }
@@ -265,68 +295,68 @@ export class Git {
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
 		this.version = options.version;
-
-		const encoding = options.defaultEncoding || 'utf8';
-		this.defaultEncoding = encodingExists(encoding) ? encoding : 'utf8';
-
+		this.defaultEncoding = options.defaultEncoding || 'utf8';
 		this.env = options.env || {};
-		this.outputListeners = [];
 	}
 
-	exec(cwd: string, args: string[], options: any = {}): Promise<IExecutionResult> {
+	open(repository: string, env: any = {}): Repository {
+		return new Repository(this, repository, this.defaultEncoding, env);
+	}
+
+	async exec(cwd: string, args: string[], options: any = {}): Promise<IExecutionResult> {
 		options = _.assign({ cwd: cwd }, options || {});
-		return this._exec(args, options);
+		return await this._exec(args, options);
 	}
 
 	stream(cwd: string, args: string[], options: any = {}): cp.ChildProcess {
 		options = _.assign({ cwd: cwd }, options || {});
-		return this._spawn(args, options);
+		return this.spawn(args, options);
 	}
 
-	private _exec(args: string[], options: any = {}): Promise<IExecutionResult> {
-		const child = this._spawn(args, options);
+	private async _exec(args: string[], options: any = {}): Promise<IExecutionResult> {
+		const child = this.spawn(args, options);
 
 		if (options.input) {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		return exec(child).then(result => {
-			if (result.exitCode) {
-				let gitErrorCode: string | undefined = void 0;
+		const result = await exec(child);
 
-				if (/Authentication failed/.test(result.stderr)) {
-					gitErrorCode = GitErrorCodes.AuthenticationFailed;
-				} else if (/Not a git repository/.test(result.stderr)) {
-					gitErrorCode = GitErrorCodes.NotAGitRepository;
-				} else if (/bad config file/.test(result.stderr)) {
-					gitErrorCode = GitErrorCodes.BadConfigFile;
-				} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(result.stderr)) {
-					gitErrorCode = GitErrorCodes.CantCreatePipe;
-				} else if (/Repository not found/.test(result.stderr)) {
-					gitErrorCode = GitErrorCodes.RepositoryNotFound;
-				} else if (/unable to access/.test(result.stderr)) {
-					gitErrorCode = GitErrorCodes.CantAccessRemote;
-				}
+		if (result.exitCode) {
+			let gitErrorCode: string | undefined = void 0;
 
-				if (options.log !== false) {
-					this.log(result.stderr);
-				}
-
-				return Promise.reject<IExecutionResult>(new GitError({
-					message: 'Failed to execute git',
-					stdout: result.stdout,
-					stderr: result.stderr,
-					exitCode: result.exitCode,
-					gitErrorCode,
-					gitCommand: args[0]
-				}));
+			if (/Authentication failed/.test(result.stderr)) {
+				gitErrorCode = GitErrorCodes.AuthenticationFailed;
+			} else if (/Not a git repository/.test(result.stderr)) {
+				gitErrorCode = GitErrorCodes.NotAGitRepository;
+			} else if (/bad config file/.test(result.stderr)) {
+				gitErrorCode = GitErrorCodes.BadConfigFile;
+			} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(result.stderr)) {
+				gitErrorCode = GitErrorCodes.CantCreatePipe;
+			} else if (/Repository not found/.test(result.stderr)) {
+				gitErrorCode = GitErrorCodes.RepositoryNotFound;
+			} else if (/unable to access/.test(result.stderr)) {
+				gitErrorCode = GitErrorCodes.CantAccessRemote;
 			}
 
-			return result;
-		});
+			if (options.log !== false) {
+				this.log(result.stderr);
+			}
+
+			return Promise.reject<IExecutionResult>(new GitError({
+				message: 'Failed to execute git',
+				stdout: result.stdout,
+				stderr: result.stderr,
+				exitCode: result.exitCode,
+				gitErrorCode,
+				gitCommand: args[0]
+			}));
+		}
+
+		return result;
 	}
 
-	private _spawn(args: string[], options: any = {}): cp.ChildProcess {
+	spawn(args: string[], options: any = {}): cp.ChildProcess {
 		if (!this.gitPath) {
 			throw new Error('git could not be found in the system.');
 		}
@@ -350,5 +380,523 @@ export class Git {
 
 	private log(output: string): void {
 		this._onOutput.fire(output);
+	}
+}
+
+export interface ICommit {
+	hash: string;
+	message: string;
+}
+
+export class Repository {
+
+	constructor(
+		private _git: Git,
+		private repository: string,
+		private defaultEncoding: string,
+		private env: any = {}
+	) { }
+
+	get git(): Git {
+		return this._git;
+	}
+
+	get path(): string {
+		return this.repository;
+	}
+
+	// TODO@Joao: rename to exec
+	async run(args: string[], options: any = {}): Promise<IExecutionResult> {
+		options.env = _.assign({}, options.env || {});
+		options.env = _.assign(options.env, this.env);
+
+		return await this.git.exec(this.repository, args, options);
+	}
+
+	stream(args: string[], options: any = {}): cp.ChildProcess {
+		options.env = _.assign({}, options.env || {});
+		options.env = _.assign(options.env, this.env);
+
+		return this.git.stream(this.repository, args, options);
+	}
+
+	spawn(args: string[], options: any = {}): cp.ChildProcess {
+		options.env = _.assign({}, options.env || {});
+		options.env = _.assign(options.env, this.env);
+
+		return this.git.spawn(args, options);
+	}
+
+	init(): Promise<any> {
+		return this.run(['init']);
+	}
+
+	async config(scope: string, key: string, value: any, options: any): Promise<string> {
+		const args = ['config'];
+
+		if (scope) {
+			args.push('--' + scope);
+		}
+
+		args.push(key);
+
+		if (value) {
+			args.push(value);
+		}
+
+		const result = await this.run(args, options);
+		return result.stdout;
+	}
+
+	async buffer(object: string): Promise<string> {
+		const child = this.stream(['show', object]);
+
+		if (!child.stdout) {
+			return Promise.reject<string>(localize('errorBuffer', "Can't open file from git"));
+		}
+
+		return await this.doBuffer(object);
+
+		// return new Promise((c, e) => {
+		// detectMimesFromStream(child.stdout, null, (err, result) => {
+		// 	if (err) {
+		// 		e(err);
+		// 	} else if (isBinaryMime(result.mimes)) {
+		// 		e(<IFileOperationResult>{
+		// 			message: localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
+		// 			fileOperationResult: FileOperationResult.FILE_IS_BINARY
+		// 		});
+		// 	} else {
+		// c(this.doBuffer(object));
+		// 	}
+		// });
+		// });
+	}
+
+	private async doBuffer(object: string): Promise<string> {
+		const child = this.stream(['show', object]);
+		const { exitCode, stdout } = await exec(child, this.defaultEncoding);
+
+		if (exitCode) {
+			return Promise.reject<string>(new GitError({
+				message: 'Could not buffer object.',
+				exitCode
+			}));
+		}
+
+		return stdout;
+	}
+
+	async add(paths: string[]): Promise<void> {
+		const args = ['add', '-A', '--'];
+
+		if (paths && paths.length) {
+			args.push.apply(args, paths);
+		} else {
+			args.push('.');
+		}
+
+		await this.run(args);
+	}
+
+	async stage(path: string, data: string): Promise<void> {
+		const child = this.stream(['hash-object', '--stdin', '-w'], { stdio: [null, null, null] });
+		child.stdin.end(data, 'utf8');
+
+		const { exitCode, stdout } = await exec(child);
+
+		if (exitCode) {
+			throw new GitError({
+				message: 'Could not hash object.',
+				exitCode: exitCode
+			});
+		}
+
+		await this.run(['update-index', '--cacheinfo', '100644', stdout, path]);
+	}
+
+	async checkout(treeish: string, paths: string[]): Promise<void> {
+		const args = ['checkout', '-q'];
+
+		if (treeish) {
+			args.push(treeish);
+		}
+
+		if (paths && paths.length) {
+			args.push('--');
+			args.push.apply(args, paths);
+		}
+
+		try {
+			await this.run(args);
+		} catch (err) {
+			if (/Please, commit your changes or stash them/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
+			}
+
+			throw err;
+		}
+	}
+
+	async commit(message: string, all: boolean, amend: boolean, signoff: boolean): Promise<void> {
+		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
+
+		if (all) {
+			args.push('--all');
+		}
+
+		if (amend) {
+			args.push('--amend');
+		}
+
+		if (signoff) {
+			args.push('--signoff');
+		}
+
+		try {
+			await this.run(args, { input: message || '' });
+		} catch (commitErr) {
+			if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
+				commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
+				throw commitErr;
+			}
+
+			try {
+				await this.run(['config', '--get-all', 'user.name']);
+			} catch (err) {
+				err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
+				throw err;
+			}
+
+			try {
+				await this.run(['config', '--get-all', 'user.email']);
+			} catch (err) {
+				err.gitErrorCode = GitErrorCodes.NoUserEmailConfigured;
+				throw err;
+			}
+
+			throw commitErr;
+		}
+	}
+
+	async branch(name: string, checkout: boolean): Promise<void> {
+		const args = checkout ? ['checkout', '-q', '-b', name] : ['branch', '-q', name];
+		await this.run(args);
+	}
+
+	async clean(paths: string[]): Promise<void> {
+		const tasks = _(paths)
+			.groupBy(p => path.dirname(p))
+			.values<string[]>()
+			.map(paths => () => this.run(['clean', '-f', '-q', '--'].concat(paths)))
+			.value();
+
+		for (let task of tasks) {
+			await task();
+		}
+	}
+
+	async undo(): Promise<void> {
+		await this.run(['clean', '-fd']);
+
+		try {
+			await this.run(['checkout', '--', '.']);
+		} catch (err) {
+			if (/did not match any file\(s\) known to git\./.test(err.stderr || '')) {
+				return;
+			}
+
+			throw err;
+		}
+	}
+
+	async reset(treeish: string, hard: boolean = false): Promise<void> {
+		const args = ['reset'];
+
+		if (hard) {
+			args.push('--hard');
+		}
+
+		args.push(treeish);
+
+		await this.run(args);
+	}
+
+	async revertFiles(treeish: string, paths: string[]): Promise<void> {
+		const result = await this.run(['branch']);
+		let args: string[];
+
+		// In case there are no branches, we must use rm --cached
+		if (!result.stdout) {
+			args = ['rm', '--cached', '-r', '--'];
+		} else {
+			args = ['reset', '-q', treeish, '--'];
+		}
+
+		if (paths && paths.length) {
+			args.push.apply(args, paths);
+		} else {
+			args.push('.');
+		}
+
+		try {
+			await this.run(args);
+		} catch (err) {
+			// In case there are merge conflicts to be resolved, git reset will output
+			// some "needs merge" data. We try to get around that.
+			if (/([^:]+: needs merge\n)+/m.test(err.stdout || '')) {
+				return;
+			}
+
+			throw err;
+		}
+	}
+
+	async fetch(): Promise<void> {
+		try {
+			await this.run(['fetch']);
+		} catch (err) {
+			if (/No remote repository specified\./.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoRemoteRepositorySpecified;
+			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			}
+
+			throw err;
+		}
+	}
+
+	async pull(rebase?: boolean): Promise<void> {
+		const args = ['pull'];
+
+		if (rebase) {
+			args.push('-r');
+		}
+
+		try {
+			await this.run(args);
+		} catch (err) {
+			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
+				err.gitErrorCode = GitErrorCodes.Conflict;
+			} else if (/Please tell me who you are\./.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
+			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			} else if (/Pull is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge/.test(err.stderr)) {
+				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
+			}
+
+			throw err;
+		}
+	}
+
+	async push(remote?: string, name?: string, options?: IPushOptions): Promise<void> {
+		const args = ['push'];
+
+		if (options && options.setUpstream) {
+			args.push('-u');
+		}
+
+		if (remote) {
+			args.push(remote);
+		}
+
+		if (name) {
+			args.push(name);
+		}
+
+		try {
+			await this.run(args);
+		} catch (err) {
+			if (/^error: failed to push some refs to\b/m.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.PushRejected;
+			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			}
+
+			throw err;
+		}
+	}
+
+	async sync(): Promise<void> {
+		await this.pull();
+		await this.push();
+	}
+
+	async getRoot(): Promise<string> {
+		const result = await this.run(['rev-parse', '--show-toplevel'], { log: false });
+		return result.stdout.trim();
+	}
+
+	async getStatus(): Promise<IFileStatus[]> {
+		const executionResult = await this.run(['status', '-z', '-u'], { log: false });
+		const status = executionResult.stdout;
+		const result: IFileStatus[] = [];
+		let current: IFileStatus;
+		let i = 0;
+
+		function readName(): string {
+			const start = i;
+			let c: string;
+			while ((c = status.charAt(i)) !== '\u0000') { i++; }
+			return status.substring(start, i++);
+		}
+
+		while (i < status.length) {
+			current = {
+				x: status.charAt(i++),
+				y: status.charAt(i++),
+				path: '',
+				mimetype: ''
+			};
+
+			i++;
+
+			if (current.x === 'R') {
+				current.rename = readName();
+			}
+
+			current.path = readName();
+			current.mimetype = mime.lookup(current.path);
+
+			// If path ends with slash, it must be a nested git repo
+			if (current.path[current.path.length - 1] === '/') {
+				continue;
+			}
+
+			result.push(current);
+		}
+
+		return result;
+	}
+
+	async getHEAD(): Promise<IRef> {
+		try {
+			const result = await this.run(['symbolic-ref', '--short', 'HEAD'], { log: false });
+
+			if (!result.stdout) {
+				throw new Error('Not in a branch');
+			}
+
+			return { name: result.stdout.trim(), commit: void 0, type: RefType.Head };
+		} catch (err) {
+			const result = await this.run(['rev-parse', 'HEAD'], { log: false });
+
+			if (!result.stdout) {
+				throw new Error('Error parsing HEAD');
+			}
+
+			return { name: void 0, commit: result.stdout.trim(), type: RefType.Head };
+		}
+	}
+
+	async getRefs(): Promise<IRef[]> {
+		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)'], { log: false });
+
+		const fn = (line): IRef | null => {
+			let match: RegExpExecArray | null;
+
+			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
+				return { name: match[1], commit: match[2], type: RefType.Head };
+			} else if (match = /^refs\/remotes\/([^/]+)\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
+				return { name: `${match[1]}/${match[2]}`, commit: match[3], type: RefType.RemoteHead, remote: match[1] };
+			} else if (match = /^refs\/tags\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
+				return { name: match[1], commit: match[2], type: RefType.Tag };
+			}
+
+			return null;
+		};
+
+		return result.stdout.trim().split('\n')
+			.filter(line => !!line)
+			.map(fn)
+			.filter(ref => !!ref) as IRef[];
+	}
+
+	async getRemotes(): Promise<IRemote[]> {
+		const result = await this.run(['remote', '--verbose'], { log: false });
+		const regex = /^([^\s]+)\s+([^\s]+)\s/;
+
+		return _(result.stdout.trim().split('\n'))
+			.filter(b => !!b)
+			.map(line => regex.exec(line))
+			.filter(g => !!g)
+			.map((groups: RegExpExecArray) => ({ name: groups[1], url: groups[2] }))
+			.uniqBy(remote => remote.name)
+			.value();
+	}
+
+	async getBranch(name: string): Promise<IBranch> {
+		if (name === 'HEAD') {
+			return this.getHEAD();
+		}
+
+		const result = await this.run(['rev-parse', name], { log: false });
+
+		if (!result.stdout) {
+			return Promise.reject<IBranch>(new Error('No such branch'));
+		}
+
+		const commit = result.stdout.trim();
+
+		try {
+			const res2 = await this.run(['rev-parse', '--symbolic-full-name', '--abbrev-ref', name + '@{u}'], { log: false });
+			const upstream = res2.stdout.trim();
+
+			const res3 = await this.run(['rev-list', '--left-right', name + '...' + upstream], { log: false });
+
+			let ahead = 0, behind = 0;
+			let i = 0;
+
+			while (i < res3.stdout.length) {
+				switch (res3.stdout.charAt(i)) {
+					case '<': ahead++; break;
+					case '>': behind++; break;
+					default: i++; break;
+				}
+
+				while (res3.stdout.charAt(i++) !== '\n') { /* no-op */ }
+			}
+
+			return { name, type: RefType.Head, commit, upstream, ahead, behind };
+		} catch (err) {
+			return { name, type: RefType.Head, commit };
+		}
+	}
+
+	async getCommitTemplate(): Promise<string> {
+		try {
+			const result = await this.run(['config', '--get', 'commit.template']);
+
+			if (!result.stdout) {
+				return '';
+			}
+
+			// https://github.com/git/git/blob/3a0f269e7c82aa3a87323cb7ae04ac5f129f036b/path.c#L612
+			const homedir = os.homedir();
+			let templatePath = result.stdout.trim()
+				.replace(/^~([^\/]*)\//, (_, user) => `${user ? path.join(path.dirname(homedir), user) : homedir}/`);
+
+			if (!path.isAbsolute(templatePath)) {
+				templatePath = path.join(this.repository, templatePath);
+			}
+
+			const raw = await readfile(templatePath, 'utf8');
+			return raw.replace(/^\s*#.*$\n?/gm, '').trim();
+
+		} catch (err) {
+			return '';
+		}
+	}
+
+	async getCommit(ref: string): Promise<ICommit> {
+		const result = await this.run(['show', '-s', '--format=%H\n%B', ref]);
+		const match = /^([0-9a-f]{40})\n([^]*)$/m.exec(result.stdout.trim());
+
+		if (!match) {
+			return Promise.reject<ICommit>('bad commit format');
+		}
+
+		return { hash: match[1], message: match[2] };
 	}
 }
