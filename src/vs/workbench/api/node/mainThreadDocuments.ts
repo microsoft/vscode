@@ -84,7 +84,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			}
 		}));
 
-		const handle = setInterval(() => this._runDocumentCleanup(), 1000 * 15);
+		const handle = setInterval(() => this._runDocumentCleanup(), 1000 * 60 * 3);
 		this._toDispose.push({ dispose() { clearInterval(handle); } });
 
 		this._modelToDisposeMap = Object.create(null);
