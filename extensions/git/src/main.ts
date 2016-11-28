@@ -34,17 +34,44 @@ class TextDocumentContentProvider {
 
 	constructor(private git: Git, private rootPath: string) { }
 
-	provideTextDocumentContent(uri: Uri) {
+	async provideTextDocumentContent(uri: Uri): Promise<string> {
 		const relativePath = path.relative(this.rootPath, uri.fsPath);
 
-		return this.git.exec(this.rootPath, ['show', `HEAD:${relativePath}`]).then(result => {
+		try {
+			const result = await this.git.exec(this.rootPath, ['show', `HEAD:${relativePath}`]);
+
 			if (result.exitCode !== 0) {
-				return null;
+				return '';
 			}
 
 			return result.stdout;
-		});
+		} catch (err) {
+			return '';
+		}
 	}
+}
+
+async function init(disposables: Disposable[]): Promise<void> {
+	const rootPath = workspace.rootPath;
+
+	if (!rootPath) {
+		return;
+	}
+
+	const pathHint = workspace.getConfiguration('git').get<string>('path');
+	const info = await findGit(pathHint);
+	const git = new Git({ gitPath: info.path, version: info.version });
+
+	const outputChannel = window.createOutputChannel('git');
+	outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);
+	git.onOutput(str => outputChannel.append(str), null, disposables);
+
+	disposables.push(
+		registerCommands(),
+		scm.registerSCMProvider('git', new GitSCMProvider()),
+		workspace.registerTextDocumentContentProvider('git-index', new TextDocumentContentProvider(git, rootPath)),
+		outputChannel
+	);
 }
 
 export function activate(context: ExtensionContext): any {
@@ -52,24 +79,9 @@ export function activate(context: ExtensionContext): any {
 		return;
 	}
 
-	const rootPath = workspace.rootPath;
-	const pathHint = workspace.getConfiguration('git').get<string>('path');
+	const disposables: Disposable[] = [];
+	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
-	findGit(pathHint).then(info => {
-		const git = new Git({ gitPath: info.path, version: info.version });
-		const disposables: Disposable[] = [];
-
-		const outputChannel = window.createOutputChannel('git');
-		outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);
-		git.onOutput(str => outputChannel.append(str), null, disposables);
-
-		disposables.push(
-			registerCommands(),
-			scm.registerSCMProvider('git', new GitSCMProvider()),
-			workspace.registerTextDocumentContentProvider('git-index', new TextDocumentContentProvider(git, rootPath)),
-			outputChannel
-		);
-
-		context.subscriptions.push(...disposables);
-	});
+	init(disposables)
+		.catch(err => console.error(err));
 }
