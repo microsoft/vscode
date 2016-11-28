@@ -215,8 +215,13 @@ function buildFlatpak(arch) {
 	];
 	const buildOptions = {
 		arch: flatpakArch,
-		bundlePath: manifest.appId + '-' + flatpakArch + '.flatpak',
 	};
+	// If requested, use the configured path for the OSTree repository.
+	if (process.env.FLATPAK_REPO) {
+		buildOptions.repoDir = process.env.FLATPAK_REPO;
+	} else {
+		buildOptions.bundlePath = manifest.appId + '-' + flatpakArch + '.flatpak';
+	}
 	// Setup PGP signing if requested.
 	if (process.env.GPG_KEY_ID !== undefined) {
 		buildOptions.gpgSign = process.env.GPG_KEY_ID;
