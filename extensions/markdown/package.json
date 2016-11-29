@@ -118,12 +118,16 @@
 			"order": 20,
 			"properties": {
 				"markdown.styles": {
-					"type": ["array"],
+					"type": "array",
 					"default": [],
 					"description": "%markdown.styles.dec%"
 				},
 				"markdown.previewFrontMatter": {
-					"type": ["string"],
+					"type": "string",
+					"enum": [
+						"hide",
+						"show"
+					],
 					"default": "hide",
 					"description": "%markdown.previewFrontMatter.dec%"
 				}
