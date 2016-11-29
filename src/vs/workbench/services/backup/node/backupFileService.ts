@@ -22,8 +22,7 @@ export interface IBackupFilesModel {
 	has(resource: Uri, versionId?: number): boolean;
 	remove(resource: Uri): void;
 	clear(): void;
-	getTextFiles(): string[];
-	getUntitledFiles(): string[];
+	getFilesByScheme(scheme: string): string[];
 }
 
 // TODO@daniel this should resolve the backups with their file names once we have the metadata in place
@@ -67,12 +66,8 @@ export class BackupFilesModel implements IBackupFilesModel {
 		return true;
 	}
 
-	public getTextFiles(): string[] {
-		return Object.keys(this.cache).filter(k => path.basename(path.dirname(k)) === 'file').map(k => k.replace('file://', ''));
-	}
-
-	public getUntitledFiles(): string[] {
-		return Object.keys(this.cache).filter(k => path.basename(path.dirname(k)) === 'untitled').map(k => k.replace('file://', ''));
+	public getFilesByScheme(scheme: string): string[] {
+		return Object.keys(this.cache).filter(k => path.basename(path.dirname(k)) === scheme).map(k => Uri.parse(k).fsPath);
 	}
 
 	public remove(resource: Uri): void {
@@ -190,7 +185,7 @@ export class BackupFileService implements IBackupFileService {
 	public getWorkspaceTextFileBackups(): TPromise<string[]> {
 		return this.ready.then(model => {
 			let readPromises: TPromise<string>[] = [];
-			model.getTextFiles().forEach(textFile => {
+			model.getFilesByScheme('file').forEach(textFile => {
 				readPromises.push(new TPromise<string>((c, e) => {
 					readToMatchingString(textFile, '\n', 2000, 10000, (error, result) => {
 						if (result === null) {
@@ -206,7 +201,7 @@ export class BackupFileService implements IBackupFileService {
 
 	public getWorkspaceUntitledFileBackups(): TPromise<string[]> {
 		return this.ready.then(model => {
-			return model.getUntitledFiles();
+			return model.getFilesByScheme('untitled');
 		});
 	}
 
