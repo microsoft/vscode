@@ -295,7 +295,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					// Try get restore content, if there is an issue fallback silently to the original file's content
 					if (backupResource) {
 						resolveBackupPromise = this.textFileService.resolveTextContent(backupResource, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => {
-							// The first line of a backup text file is the file name
 							return this.backupFileService.parseBackupContent(backup);
 						}, error => content.value);
 					} else {
