@@ -643,23 +643,6 @@ export class TestBackupService implements IBackupService {
 
 export class TestBackupFileService implements IBackupFileService {
 	public _serviceBrand: any;
-
-	public getWorkspaceBackupPaths(): TPromise<string[]> {
-		return TPromise.as([]);
-	}
-
-	public getWorkspaceBackupPathsSync(): string[] {
-		return [];
-	}
-
-	public pushWorkspaceBackupPathsSync(workspaces: URI[]): void {
-		return null;
-	}
-
-	public getWorkspaceTextFilesWithBackupsSync(workspace: URI): string[] {
-		return [];
-	}
-
 	public hasBackup(resource: URI): TPromise<boolean> {
 		return TPromise.as(false);
 	}
@@ -688,6 +671,14 @@ export class TestBackupFileService implements IBackupFileService {
 
 	public backupResource(resource: URI, content: string): TPromise<void> {
 		return TPromise.as(void 0);
+	}
+
+	public getWorkspaceFileBackups(scheme: string): TPromise<URI[]> {
+		return TPromise.as([]);
+	}
+
+	public parseBackupContent(rawText: IRawTextContent): string {
+		return rawText.value.lines.join('\n');
 	}
 
 	public discardResourceBackup(resource: URI): TPromise<void> {

@@ -13,6 +13,8 @@ import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/ser
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { readToMatchingString } from 'vs/base/node/stream';
+import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
@@ -21,6 +23,7 @@ export interface IBackupFilesModel {
 	has(resource: Uri, versionId?: number): boolean;
 	remove(resource: Uri): void;
 	clear(): void;
+	getFilesByScheme(scheme: string): Uri[];
 }
 
 // TODO@daniel this should resolve the backups with their file names once we have the metadata in place
@@ -62,6 +65,10 @@ export class BackupFilesModel implements IBackupFilesModel {
 		}
 
 		return true;
+	}
+
+	public getFilesByScheme(scheme: string): Uri[] {
+		return Object.keys(this.cache).filter(k => path.basename(path.dirname(k)) === scheme).map(k => Uri.parse(k));
 	}
 
 	public remove(resource: Uri): void {
@@ -147,6 +154,9 @@ export class BackupFileService implements IBackupFileService {
 				return void 0; // return early if backup version id matches requested one
 			}
 
+			// Add metadata to top of file
+			content = `${resource.toString()}\n${content}`;
+
 			return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
 		});
 	}
@@ -172,13 +182,33 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
+	public getWorkspaceFileBackups(scheme: string): TPromise<Uri[]> {
+		return this.ready.then(model => {
+			let readPromises: TPromise<Uri>[] = [];
+			model.getFilesByScheme(scheme).forEach(textFile => {
+				readPromises.push(new TPromise<Uri>((c, e) => {
+					readToMatchingString(textFile.fsPath, '\n', 2000, 10000, (error, result) => {
+						if (result === null) {
+							e(error);
+						}
+						c(Uri.parse(result));
+					});
+				}));
+			});
+			return TPromise.join(readPromises);
+		});
+	}
+
+	public parseBackupContent(rawText: IRawTextContent): string {
+		return rawText.value.lines.slice(1).join('\n');
+	}
+
 	protected getBackupResource(resource: Uri): Uri {
 		if (!this.backupEnabled) {
 			return null;
 		}
 
-		// Only hash the file path if the file is not untitled
-		const backupName = resource.scheme === 'untitled' ? resource.fsPath : crypto.createHash('md5').update(resource.fsPath).digest('hex');
+		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
 		const backupPath = path.join(this.backupWorkspacePath, resource.scheme, backupName);
 
 		return Uri.file(backupPath);
