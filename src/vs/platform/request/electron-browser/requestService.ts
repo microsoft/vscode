@@ -8,14 +8,26 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IRequestOptions, IRequestContext, IRequestFunction } from 'vs/base/node/request';
 import { Readable } from 'stream';
 import { RequestService as NodeRequestService } from 'vs/platform/request/node/requestService';
+import { IHTTPConfiguration } from 'vs/platform/request/node/request';
 
 /**
  * This service exposes the `request` API, while using the global
  * or configured proxy settings.
  */
 export class RequestService extends NodeRequestService {
+
+	private _useXhrRequest = true;
+
+	protected configure(config: IHTTPConfiguration) {
+		this._useXhrRequest = !config.http.proxy;
+	}
+
 	request(options: IRequestOptions): TPromise<IRequestContext> {
-		return super.request(options, xhrRequest);
+		if (this._useXhrRequest) {
+			return super.request(options, xhrRequest);
+		} else {
+			return super.request(options);
+		}
 	}
 }
 
@@ -71,13 +83,18 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise
 	});
 };
 
+// --- header utils
+
+const unsafeHeaders = Object.create(null);
+unsafeHeaders['User-Agent'] = true;
+unsafeHeaders['Content-Length'] = true;
+unsafeHeaders['Accept-Encoding'] = true;
+
 function setRequestHeaders(xhr: XMLHttpRequest, options: IRequestOptions): void {
 	if (options.headers) {
 		for (let k in options.headers) {
-			try {
+			if (!unsafeHeaders[k]) {
 				xhr.setRequestHeader(k, options.headers[k]);
-			} catch (e) {
-				console.warn(e);
 			}
 		}
 	}
