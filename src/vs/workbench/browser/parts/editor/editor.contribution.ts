@@ -97,9 +97,13 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 
 	public serialize(editorInput: EditorInput): string {
 		const untitledEditorInput = <UntitledEditorInput>editorInput;
-		const serialized: ISerializedUntitledEditorInput = {
-			resource: untitledEditorInput.getResource().toString()
-		};
+
+		let resource = untitledEditorInput.getResource();
+		if (untitledEditorInput.hasAssociatedFilePath) {
+			resource = URI.file(resource.fsPath); // untitled with associated file path use the file schema
+		}
+
+		const serialized: ISerializedUntitledEditorInput = { resource: resource.toString() };
 
 		return JSON.stringify(serialized);
 	}
