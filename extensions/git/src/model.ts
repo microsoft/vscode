@@ -15,8 +15,12 @@ export class Model {
 	private _onDidChange = new EventEmitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(private repository: Repository) {
+	constructor(private _repositoryRoot: string, private repository: Repository) {
 
+	}
+
+	get repositoryRoot(): string {
+		return this._repositoryRoot;
 	}
 
 	private _status: IFileStatus[];
@@ -39,14 +43,21 @@ export class Model {
 		return this._remotes;
 	}
 
+	update(now = false): void {
+		if (now) {
+			this._update();
+		} else {
+			this.eventuallyUpdate();
+		}
+	}
+
 	@debounce(500)
-	triggerUpdate(): void {
+	private eventuallyUpdate(): void {
 		this.update();
 	}
 
 	@decorate(throttle)
-	private async update(): Promise<void> {
-		console.log('START');
+	private async _update(): Promise<void> {
 		const status = await this.repository.getStatus();
 		let HEAD: IRef | undefined;
 
@@ -70,7 +81,6 @@ export class Model {
 		this._HEAD = HEAD;
 		this._refs = refs;
 		this._remotes = remotes;
-		console.log('END');
 		this._onDidChange.fire();
 	}
 }
