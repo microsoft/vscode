@@ -23,6 +23,8 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 export class SettingHandler extends QuickOpenHandler {
 
+	private defaultSettingsModel: DefaultSettingsEditorModel;
+
 	constructor(
 		private configurationTarget: ConfigurationTarget,
 		@IPreferencesService private preferencesService: IPreferencesService,
@@ -33,12 +35,19 @@ export class SettingHandler extends QuickOpenHandler {
 		super();
 	}
 
+	public getEmptyLabel(searchString: string): string {
+		if (searchString.length > 0) {
+			return localize('noSettings', "No settings found");
+		}
+		return localize('typeToSearch', "Type to search for settings");
+	}
+
 	getResults(text: string): TPromise<IModel<QuickOpenEntry>> {
 		if (this.configurationTarget === ConfigurationTarget.WORKSPACE && !this.contextService.getWorkspace()) {
 			this.messageService.show(Severity.Info, localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return;
 		}
-		return this.preferencesService.getDefaultSettingsEditorModel()
+		return this.getDefaultSettingsModel()
 			.then(defaultsSettingsEditorModel => this.filterSettings(text, <DefaultSettingsEditorModel>defaultsSettingsEditorModel));
 	}
 
@@ -49,8 +58,7 @@ export class SettingHandler extends QuickOpenHandler {
 			const result: QuickOpenEntry[] = this.toQuickOpenEntries(filterResult.filteredGroups, filterResult.matches);
 			return new QuickOpenModel(result);
 		}
-		const result: QuickOpenEntry[] = this.toQuickOpenEntries([defailtsSettingsEditorModel.mostCommonlyUsedSettings]);
-		return new QuickOpenModel(result);
+		return new QuickOpenModel([]);
 	}
 
 	private static compareGroups(a: ISettingsGroup, b: ISettingsGroup): number {
@@ -181,6 +189,17 @@ export class SettingHandler extends QuickOpenHandler {
 
 	public getAutoFocus(searchValue: string): IAutoFocus {
 		return { autoFocusFirstEntry: true };
+	}
+
+	private getDefaultSettingsModel(): TPromise<DefaultSettingsEditorModel> {
+		if (this.defaultSettingsModel) {
+			return TPromise.wrap(this.defaultSettingsModel);
+		}
+		return this.preferencesService.createDefaultSettingsModel()
+			.then(defaultSettingsModel => {
+				this.defaultSettingsModel = <DefaultSettingsEditorModel>defaultSettingsModel;
+				return this.defaultSettingsModel;
+			});
 	}
 }
 

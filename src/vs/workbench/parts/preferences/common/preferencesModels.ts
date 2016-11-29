@@ -46,35 +46,33 @@ export abstract class AbstractSettingsModel extends Disposable {
 		const filteredGroups: ISettingsGroup[] = [];
 		const regex = strings.createRegExp(filter, false, { global: true });
 		for (const group of allGroups) {
-			if (group.id !== 'mostCommonlyUsed') {
-				const groupMatched = regex.test(group.title);
-				const sections: ISettingsSection[] = [];
-				for (const section of group.sections) {
-					const settings: ISetting[] = [];
-					for (const setting of section.settings) {
-						const settingMatches = this._findMatchesInSetting(regex, setting);
-						if (groupMatched || settingMatches.length > 0) {
-							settings.push(setting);
-						}
-						matches.set(group.title + setting.key, settingMatches);
+			const groupMatched = regex.test(group.title);
+			const sections: ISettingsSection[] = [];
+			for (const section of group.sections) {
+				const settings: ISetting[] = [];
+				for (const setting of section.settings) {
+					const settingMatches = this._findMatchesInSetting(regex, setting);
+					if (groupMatched || settingMatches.length > 0) {
+						settings.push(setting);
 					}
-					if (settings.length) {
-						sections.push({
-							description: section.description,
-							settings,
-							descriptionRange: section.descriptionRange
-						});
-					}
+					matches.set(group.title + setting.key, settingMatches);
 				}
-				if (sections.length) {
-					filteredGroups.push({
-						id: group.id,
-						title: group.title,
-						titleRange: group.titleRange,
-						sections,
-						range: group.range
+				if (settings.length) {
+					sections.push({
+						description: section.description,
+						settings,
+						descriptionRange: section.descriptionRange
 					});
 				}
+			}
+			if (sections.length) {
+				filteredGroups.push({
+					id: group.id,
+					title: group.title,
+					titleRange: group.titleRange,
+					sections,
+					range: group.range
+				});
 			}
 		}
 		return { filteredGroups, matches, allGroups };
