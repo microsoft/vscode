@@ -685,6 +685,10 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as([]);
 	}
 
+	public parseBackupContent(rawText: IRawTextContent): string {
+		return rawText.value.lines.join('\n');
+	}
+
 	public discardResourceBackup(resource: URI): TPromise<void> {
 		return TPromise.as(void 0);
 	}

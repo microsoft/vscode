@@ -14,6 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
+import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
@@ -203,6 +204,10 @@ export class BackupFileService implements IBackupFileService {
 		return this.ready.then(model => {
 			return model.getFilesByScheme('untitled');
 		});
+	}
+
+	public parseBackupContent(rawText: IRawTextContent): string {
+		return rawText.value.lines.slice(1).join('\n');
 	}
 
 	protected getBackupResource(resource: Uri): Uri {
