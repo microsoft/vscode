@@ -192,3 +192,52 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		};
 	}
 }
+
+export class SettingsCountWidget extends Widget implements IOverlayWidget {
+
+	private _domNode: HTMLElement;
+
+	constructor(private editor: ICodeEditor, private total: number
+	) {
+		super();
+	}
+
+	public render() {
+		this._domNode = DOM.$('.settings-count-widget');
+		this.editor.addOverlayWidget(this);
+	}
+
+	public show(count: number) {
+		if (count === this.total) {
+			DOM.removeClass(this._domNode, 'show');
+		} else {
+			if (count === 0) {
+				this._domNode.textContent = localize('noSettings', "No settings");
+				DOM.addClass(this._domNode, 'no-results');
+			} else {
+				this._domNode.textContent = localize('showCount', "Showing {0} of {1} Settings", count, this.total);
+				DOM.removeClass(this._domNode, 'no-results');
+			}
+			DOM.addClass(this._domNode, 'show');
+		}
+	}
+
+	public dispose(): void {
+		this.editor.removeOverlayWidget(this);
+		super.dispose();
+	}
+
+	public getId(): string {
+		return 'editor.overlayWidget.settingsCountWidget';
+	}
+
+	public getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	public getPosition(): IOverlayWidgetPosition {
+		return {
+			preference: null
+		};
+	}
+}

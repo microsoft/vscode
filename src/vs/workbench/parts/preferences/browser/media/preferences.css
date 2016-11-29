@@ -131,3 +131,32 @@
 .vs-dark .editor-actions .action-item .icon.collapseAll {
 	background: url('collapseAll_inverse.svg') center center no-repeat;
 }
+
+.monaco-editor .settings-count-widget {
+	padding: 4px 10px 4px 10px;
+	display: none;
+	position: absolute;
+	top: 4px;
+	right: 28px;
+	border-radius: 2px;
+}
+
+.monaco-editor .settings-count-widget.show {
+	display: inherit;
+}
+
+.monaco-editor .settings-count-widget.show:not(.no-results) {
+	background-color: #EFEFF2;
+}
+
+.monaco-editor.vs-dark .settings-count-widget.show:not(.no-results) {
+	background-color: #2D2D30;
+}
+
+.monaco-editor .settings-count-widget.show.no-results {
+	background-color: rgba(255,0,0,0.5);
+}
+
+.monaco-editor .settings-count-widget.show.no-results {
+	background-color: rgba(255,0,0,0.3);
+}
