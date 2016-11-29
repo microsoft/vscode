@@ -18,7 +18,7 @@ export class LifecycleService implements ILifecycleService {
 	public _serviceBrand: any;
 
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
-	private _onShutdown = new Emitter<void>();
+	private _onShutdown = new Emitter<ShutdownReason>();
 
 	private _willShutdown: boolean;
 
@@ -37,7 +37,7 @@ export class LifecycleService implements ILifecycleService {
 		return this._onWillShutdown.event;
 	}
 
-	public get onShutdown(): Event<void> {
+	public get onShutdown(): Event<ShutdownReason> {
 		return this._onShutdown.event;
 	}
 
@@ -54,7 +54,7 @@ export class LifecycleService implements ILifecycleService {
 					this._willShutdown = false; // reset this flag since the shutdown has been vetoed!
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
-					this._onShutdown.fire();
+					this._onShutdown.fire(reply.reason);
 					ipc.send(reply.okChannel, windowId);
 				}
 			});

@@ -446,7 +446,6 @@ export class ReloadWindowAction extends Action {
 	}
 
 	run(): TPromise<boolean> {
-		this.partService.setRestoreSidebar(); // we want the same sidebar after a reload restored
 		return this.windowService.reloadWindow().then(() => true);
 	}
 }

@@ -61,13 +61,15 @@ export interface ILifecycleService {
 	/**
 	 * Fired when no client is preventing the shutdown from happening. Can be used to dispose heavy resources
 	 * like running processes. Can also be used to save UI state to storage.
+	 *
+	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
 	 */
-	onShutdown: Event<void>;
+	onShutdown: Event<ShutdownReason>;
 }
 
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
 	willShutdown: false,
 	onWillShutdown: () => ({ dispose() { } }),
-	onShutdown: () => ({ dispose() { } })
+	onShutdown: (reason) => ({ dispose() { } })
 };
