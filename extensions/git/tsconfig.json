@@ -1,10 +1,13 @@
 {
 	"compilerOptions": {
 		"target": "es6",
-		"lib": ["es2016"],
+		"lib": [
+			"es2016"
+		],
 		"module": "commonjs",
 		"outDir": "./out",
-		"strictNullChecks": true
+		"strictNullChecks": true,
+		"experimentalDecorators": true
 	},
 	"exclude": [
 		"node_modules"
