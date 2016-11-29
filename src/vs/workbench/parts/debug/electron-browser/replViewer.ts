@@ -242,6 +242,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		// value
 		dom.clearNode(templateData.value);
+		templateData.value.className = '';
 		let result = this.handleANSIOutput(output.value);
 		if (typeof result === 'string') {
 			renderExpressionValue(result, templateData.value, {
