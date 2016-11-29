@@ -53,7 +53,7 @@ export class Model {
 
 	@debounce(500)
 	private eventuallyUpdate(): void {
-		this.update();
+		this._update();
 	}
 
 	@decorate(throttle)
