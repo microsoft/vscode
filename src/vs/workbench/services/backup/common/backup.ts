@@ -57,6 +57,13 @@ export interface IBackupFileService {
 	backupResource(resource: Uri, content: string, versionId?: number): TPromise<void>;
 
 	/**
+	 * Gets a list of text file backups for the current workspace.
+	 *
+	 * @return The list of backups.
+	 */
+	getWorkspaceTextFileBackups(): TPromise<string[]>;
+
+	/**
 	 * Discards the backup associated with a resource if it exists..
 	 *
 	 * @param resource The resource whose backup is being discarded discard to back up.
