@@ -296,7 +296,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					if (backupResource) {
 						resolveBackupPromise = this.textFileService.resolveTextContent(backupResource, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => {
 							// The first line of a backup text file is the file name
-							return backup.value.lines.slice(1).join('\n');
+							return this.backupFileService.parseBackupContent(backup);
 						}, error => content.value);
 					} else {
 						resolveBackupPromise = TPromise.as(content.value);
