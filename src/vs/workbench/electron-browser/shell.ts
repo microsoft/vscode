@@ -364,7 +364,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IChoiceService, this.messageService);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
-		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
+		this.toUnbind.push(lifecycleService.onShutdown(reason => disposables.dispose()));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));

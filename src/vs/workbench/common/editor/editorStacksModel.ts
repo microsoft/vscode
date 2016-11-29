@@ -729,7 +729,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.lifecycleService.onShutdown(() => this.onShutdown()));
+		this.toDispose.push(this.lifecycleService.onShutdown(reason => this.onShutdown()));
 	}
 
 	public get onGroupOpened(): Event<EditorGroup> {
