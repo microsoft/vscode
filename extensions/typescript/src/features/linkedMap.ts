@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 interface Item<T> {
-	previous: Item<T>;
-	next: Item<T>;
+	previous: Item<T> | undefined;
+	next: Item<T> | undefined;
 	key: string;
 	value: T;
 }
@@ -13,8 +13,8 @@ interface Item<T> {
 export default class LinkedMap<T> {
 
 	private map: Map<Item<T>>;
-	private head: Item<T>;
-	private tail: Item<T>;
+	private head: Item<T> | undefined;
+	private tail: Item<T> | undefined;
 	private _length: number;
 
 	constructor() {
@@ -32,7 +32,7 @@ export default class LinkedMap<T> {
 		return this._length;
 	}
 
-	public get(key: string): T {
+	public get(key: string): T | undefined {
 		const item = this.map[key];
 		if (!item) {
 			return undefined;
@@ -61,7 +61,7 @@ export default class LinkedMap<T> {
 		}
 	}
 
-	public remove(key: string): T {
+	public remove(key: string): T | undefined {
 		const item = this.map[key];
 		if (!item) {
 			return undefined;
@@ -72,8 +72,8 @@ export default class LinkedMap<T> {
 		return item.value;
 	}
 
-	public shift(): T {
-		if (!this.head && !this.tail) {
+	public shift(): T | undefined {
+		if (!this.head || !this.tail) {
 			return undefined;
 		}
 		const item = this.head;
@@ -85,7 +85,7 @@ export default class LinkedMap<T> {
 
 	private addItemFirst(item: Item<T>): void {
 		// First time Insert
-		if (!this.head && !this.tail) {
+		if (!this.head || !this.tail) {
 			this.tail = item;
 		}
 		else {
@@ -97,7 +97,7 @@ export default class LinkedMap<T> {
 
 	private addItemLast(item: Item<T>): void {
 		// First time Insert
-		if (!this.head && !this.tail) {
+		if (!this.head || !this.tail) {
 			this.head = item;
 		}
 		else {
@@ -121,8 +121,12 @@ export default class LinkedMap<T> {
 		else {
 			const next = item.next;
 			const previous = item.previous;
-			next.previous = previous;
-			previous.next = next;
+			if (next) {
+				next.previous = previous;
+			}
+			if (previous) {
+				previous.next = next;
+			}
 		}
 	}
 
@@ -140,14 +144,20 @@ export default class LinkedMap<T> {
 		}
 		else {
 			// Both next and previous are not null since item was neither head nor tail.
-			next.previous = previous;
-			previous.next = next;
+			if (next) {
+				next.previous = previous;
+			}
+			if (previous) {
+				previous.next = next;
+			}
 		}
 
 		// Insert the node at head
 		item.previous = undefined;
 		item.next = this.head;
-		this.head.previous = item;
+		if (this.head) {
+			this.head.previous = item;
+		}
 		this.head = item;
 	}
 }
