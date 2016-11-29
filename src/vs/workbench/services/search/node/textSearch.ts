@@ -52,7 +52,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		this.fileEncoding = encodingExists(config.fileEncoding) ? config.fileEncoding : UTF8; // todo
 
 		// Spin up workers
-		const numWorkers = Math.ceil(os.cpus().length/2); // /2 because of hyperthreading. Maybe make better.
+		const numWorkers = Math.ceil(os.cpus().length/2); // /2 because of hyperthreading
 		for (let i = 0; i < numWorkers; i++) {
 			const worker = createWorker(i, config.contentPattern);
 			this.workers.push(worker);
@@ -63,7 +63,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		this.isCanceled = true;
 		this.walker.cancel();
 
-		// TODO cancel workers
+		this.workers.forEach(w => w.cancel());
 	}
 
 	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
@@ -94,14 +94,13 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			}
 		};
 
-		let begin = 0;
-		const run = (batch: string[], batchBytes: number): TPromise<void> => {
+		const run = (batch: string[], batchBytes: number): void => {
 			// console.log(`onBatchReady: ${batchBytes}, ${this.processedBytes}/${this.totalBytes}`);
 			const worker = this.workers[this.nextWorker];
 			this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
 			const maxResults = this.config.maxResults - this.numResults;
-			return worker.search({ absolutePaths: batch, maxResults }).then(result => {
+			worker.search({ absolutePaths: batch, maxResults }).then(result => {
 				const matches = result.matches;
 
 				// console.log('got result - ' + batchBytes);
