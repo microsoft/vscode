@@ -39,7 +39,12 @@ export enum MenuId {
 	EditorTitleContext = 2,
 	EditorContext = 3,
 	ExplorerContext = 4,
-	ProblemsPanelContext = 5
+	ProblemsPanelContext = 5,
+	DebugVariablesContext = 6,
+	DebugWatchContext = 7,
+	DebugCallStackContext = 8,
+	DebugBreakpointsContext = 9,
+	DebugConsoleContext = 10
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');

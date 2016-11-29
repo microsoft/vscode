@@ -105,6 +105,7 @@ export interface IProcess extends ITreeElement {
 	session: ISession;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
 }
 
 export interface IThread extends ITreeElement {
@@ -170,7 +171,6 @@ export interface IStackFrame extends ITreeElement {
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
 	restart(): TPromise<any>;
-	completions(text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
 }
 
 export interface IEnablement extends ITreeElement {

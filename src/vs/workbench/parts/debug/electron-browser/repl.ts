@@ -143,7 +143,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			dataSource: new ReplExpressionsDataSource(),
 			renderer: this.renderer,
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
-			controller: new ReplExpressionsController(this.debugService, this.contextMenuService, new ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
+			controller: this.instantiationService.createInstance(ReplExpressionsController, this.replInput, new ReplExpressionsActionProvider(this.instantiationService))
 		}, replTreeOptions);
 
 		if (!Repl.HISTORY) {
@@ -177,7 +177,9 @@ export class Repl extends Panel implements IPrivateReplService {
 				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
 				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				const completions = focusedStackFrame ? focusedStackFrame.completions(text, position, overwriteBefore) : TPromise.as([]);
+				const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+				const focusedProcess = this.debugService.getViewModel().focusedProcess;
+				const completions = focusedProcess ? focusedProcess.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
 				return wireCancellationToken(token, completions.then(suggestions => ({
 					suggestions: suggestions
 				})));

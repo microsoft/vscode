@@ -464,6 +464,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				allowSyntheticDefaultImports: true,
 				allowNonTsExtensions: true,
 				allowJs: true,
+				jsx: 'Preserve'
 			};
 			let args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
 				options: compilerOptions

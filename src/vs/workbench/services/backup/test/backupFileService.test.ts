@@ -18,6 +18,8 @@ import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backu
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 
 class TestEnvironmentService extends EnvironmentService {
 
@@ -48,14 +50,14 @@ suite('BackupFileService', () => {
 	const backupHome = path.join(parentDir, 'Backups');
 	const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
-	const workspaceResource = Uri.file(platform.isWindows ? 'C:\\workspace' : '/workspace');
+	const workspaceResource = Uri.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
 	const workspaceBackupPath = path.join(backupHome, crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex'));
-	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
-	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
+	const fooFile = Uri.file(platform.isWindows ? 'c:\\foo' : '/foo');
+	const barFile = Uri.file(platform.isWindows ? 'c:\\bar' : '/bar');
 	const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 	const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
 	const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
-	const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', untitledFile.fsPath);
+	const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
 
 	let service: TestBackupFileService;
 
@@ -89,7 +91,8 @@ suite('BackupFileService', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePath>
 		const backupResource = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', backupResource.fsPath)).fsPath;
+		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
+		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 		assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
@@ -108,7 +111,7 @@ suite('BackupFileService', () => {
 		service.backupResource(fooFile, 'test').then(() => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
-			assert.equal(fs.readFileSync(fooBackupPath), 'test');
+			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
 			done();
 		});
 	});
@@ -117,7 +120,7 @@ suite('BackupFileService', () => {
 		service.backupResource(untitledFile, 'test').then(() => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 			assert.equal(fs.existsSync(untitledBackupPath), true);
-			assert.equal(fs.readFileSync(untitledBackupPath), 'test');
+			assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
 			done();
 		});
 	});
@@ -168,6 +171,51 @@ suite('BackupFileService', () => {
 				done();
 			});
 		});
+	});
+
+	test('getWorkspaceFileBackups("file") - text file', done => {
+		service.backupResource(fooFile, `test`).then(() => {
+			service.getWorkspaceFileBackups().then(textFiles => {
+				assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath]);
+				service.backupResource(barFile, `test`).then(() => {
+					service.getWorkspaceFileBackups().then(textFiles => {
+						assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath, barFile.fsPath]);
+						done();
+					});
+				});
+			});
+		});
+	});
+
+	test('getWorkspaceFileBackups("file") - untitled file', done => {
+		service.backupResource(untitledFile, `test`).then(() => {
+			service.getWorkspaceFileBackups().then(textFiles => {
+				assert.deepEqual(textFiles.map(f => f.fsPath), [untitledFile.fsPath]);
+				done();
+			});
+		});
+	});
+
+	test('getWorkspaceFileBackups("untitled") - untitled file', done => {
+		service.backupResource(untitledFile, `test`).then(() => {
+			service.getWorkspaceFileBackups().then(textFiles => {
+				assert.deepEqual(textFiles.map(f => f.fsPath), ['Untitled-1']);
+				done();
+			});
+		});
+	});
+
+	test('parseBackupContent', () => {
+		const rawTextContent: IRawTextContent = {
+			resource: null,
+			name: null,
+			mtime: null,
+			etag: null,
+			encoding: null,
+			value: TextModel.toRawText('metadata\ncontent', TextModel.DEFAULT_CREATION_OPTIONS),
+			valueLogicalHash: null
+		};
+		assert.equal(service.parseBackupContent(rawTextContent), 'content');
 	});
 
 	test('BackupFilesModel - simple', () => {
@@ -229,5 +277,21 @@ suite('BackupFileService', () => {
 				done();
 			});
 		});
+	});
+
+	test('BackupFilesModel - get', () => {
+		const model = new BackupFilesModel();
+
+		assert.deepEqual(model.get(), []);
+
+		const file1 = Uri.file('/root/file/foo.html');
+		const file2 = Uri.file('/root/file/bar.html');
+		const untitled = Uri.file('/root/untitled/bar.html');
+
+		model.add(file1);
+		model.add(file2);
+		model.add(untitled);
+
+		assert.deepEqual(model.get().map(f => f.fsPath), [file1.fsPath, file2.fsPath, untitled.fsPath]);
 	});
 });
