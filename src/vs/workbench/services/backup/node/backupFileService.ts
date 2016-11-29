@@ -21,12 +21,11 @@ export interface IBackupFilesModel {
 
 	add(resource: Uri, versionId?: number): void;
 	has(resource: Uri, versionId?: number): boolean;
+	get(scheme: string): Uri[];
 	remove(resource: Uri): void;
 	clear(): void;
-	getFilesByScheme(scheme: string): Uri[];
 }
 
-// TODO@daniel this should resolve the backups with their file names once we have the metadata in place
 export class BackupFilesModel implements IBackupFilesModel {
 	private cache: { [resource: string]: number /* version ID */ } = Object.create(null);
 
@@ -67,7 +66,7 @@ export class BackupFilesModel implements IBackupFilesModel {
 		return true;
 	}
 
-	public getFilesByScheme(scheme: string): Uri[] {
+	public get(scheme: string): Uri[] {
 		return Object.keys(this.cache).filter(k => path.basename(path.dirname(k)) === scheme).map(k => Uri.parse(k));
 	}
 
@@ -83,6 +82,8 @@ export class BackupFilesModel implements IBackupFilesModel {
 export class BackupFileService implements IBackupFileService {
 
 	public _serviceBrand: any;
+
+	private static readonly META_MARKER = '\n';
 
 	protected backupHome: string;
 	protected workspacesJsonPath: string;
@@ -155,7 +156,7 @@ export class BackupFileService implements IBackupFileService {
 			}
 
 			// Add metadata to top of file
-			content = `${resource.toString()}\n${content}`;
+			content = `${resource.toString()}${BackupFileService.META_MARKER}${content}`;
 
 			return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
 		});
@@ -184,23 +185,26 @@ export class BackupFileService implements IBackupFileService {
 
 	public getWorkspaceFileBackups(scheme: string): TPromise<Uri[]> {
 		return this.ready.then(model => {
-			let readPromises: TPromise<Uri>[] = [];
-			model.getFilesByScheme(scheme).forEach(textFile => {
+			const readPromises: TPromise<Uri>[] = [];
+
+			model.get(scheme).forEach(fileBackup => {
 				readPromises.push(new TPromise<Uri>((c, e) => {
-					readToMatchingString(textFile.fsPath, '\n', 2000, 10000, (error, result) => {
+					readToMatchingString(fileBackup.fsPath, BackupFileService.META_MARKER, 2000, 10000, (error, result) => {
 						if (result === null) {
 							e(error);
 						}
+
 						c(Uri.parse(result));
 					});
 				}));
 			});
+
 			return TPromise.join(readPromises);
 		});
 	}
 
 	public parseBackupContent(rawText: IRawTextContent): string {
-		return rawText.value.lines.slice(1).join('\n');
+		return rawText.value.lines.slice(1).join('\n'); // The first line of a backup text file is the file name
 	}
 
 	protected getBackupResource(resource: Uri): Uri {
