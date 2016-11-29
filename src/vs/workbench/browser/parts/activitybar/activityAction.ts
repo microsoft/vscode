@@ -68,12 +68,11 @@ export class ViewletActivityAction extends ActivityAction {
 	private lastRun: number = 0;
 
 	constructor(
-		id: string,
 		private viewlet: ViewletDescriptor,
 		@IViewletService private viewletService: IViewletService,
 		@IPartService private partService: IPartService
 	) {
-		super(id, viewlet.name, viewlet.cssClass);
+		super(viewlet.id, viewlet.name, viewlet.cssClass);
 	}
 
 	public run(event): TPromise<any> {
@@ -103,9 +102,21 @@ export class ViewletActivityAction extends ActivityAction {
 	}
 }
 
+export class ViewletOverflowActivityAction extends ActivityAction {
+
+	constructor(
+		private viewlets: ViewletDescriptor[]
+	) {
+		super('activitybar.additionalViewlets.action', nls.localize('additionalViewlets', "Additional Viewlets"), 'toggle-more');
+	}
+
+	public run(event): TPromise<any> {
+		return TPromise.as(true);
+	}
+}
+
 let manageExtensionAction: ManageExtensionAction;
 export class ActivityActionItem extends BaseActionItem {
-
 	private $e: Builder;
 	private name: string;
 	private _keybinding: string;

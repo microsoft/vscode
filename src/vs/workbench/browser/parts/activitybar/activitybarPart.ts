@@ -13,7 +13,7 @@ import { ActionsOrientation, ActionBar, IActionItem } from 'vs/base/browser/ui/a
 import { IComposite } from 'vs/workbench/common/composite';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Part } from 'vs/workbench/browser/part';
-import { ViewletActivityAction, ActivityAction, ActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
+import { ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction } from 'vs/workbench/browser/parts/activitybar/activityAction';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/activityService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -33,7 +33,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 	public _serviceBrand: any;
 
 	private dimension: Dimension;
+
 	private viewletSwitcherBar: ActionBar;
+	private viewletOverflowAction: ViewletOverflowActivityAction;
+
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
 	private viewletIdToActivity: { [viewletId: string]: IViewletActivity; };
@@ -116,7 +119,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.viewletSwitcherBar = new ActionBar(div, {
 			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
 			orientation: ActionsOrientation.VERTICAL,
-			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
+			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
+			animated: false
 		});
 
 		this.updateViewletSwitcher();
@@ -124,6 +128,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private updateViewletSwitcher() {
 		let viewlets = this.viewletService.getViewlets();
+		let viewletsToShow = viewlets;
 
 		// Ensure we are not showing more viewlets than we have height for
 		let overflows = false;
@@ -132,21 +137,30 @@ export class ActivitybarPart extends Part implements IActivityService {
 			overflows = viewlets.length > maxVisible;
 
 			if (overflows) {
-				viewlets = viewlets.slice(0, maxVisible);
+				viewletsToShow = viewlets.slice(0, maxVisible - 1 /* make room for overflow action */);
 			}
 		}
 
-		// Pull out viewlets that overflow
-		const viewletsToShow = viewlets.map(v => v.id);
 		const visibleViewlets = Object.keys(this.viewletIdToActions);
+		const visibleViewletsChange = (viewletsToShow.length !== visibleViewlets.length);
+
+		// Pull out overflow action if there is a viewlet change so that we can add it to the end later
+		if (this.viewletOverflowAction && visibleViewletsChange) {
+			this.viewletOverflowAction.dispose();
+			this.viewletOverflowAction = null;
+			this.viewletSwitcherBar.pull(this.viewletSwitcherBar.length() - 1);
+		}
+
+		// Pull out viewlets that overflow
+		const viewletIdsToShow = viewletsToShow.map(v => v.id);
 		visibleViewlets.forEach(viewletId => {
-			if (viewletsToShow.indexOf(viewletId) === -1) {
+			if (viewletIdsToShow.indexOf(viewletId) === -1) {
 				this.pullViewlet(viewletId);
 			}
 		});
 
 		// Built actions for viewlets to show
-		const newViewletsToShow = viewlets
+		const newViewletsToShow = viewletsToShow
 			.filter(viewlet => !this.viewletIdToActions[viewlet.id])
 			.map(viewlet => this.toAction(viewlet));
 
@@ -175,6 +189,14 @@ export class ActivitybarPart extends Part implements IActivityService {
 				}
 			});
 		}
+
+		// Add overflow action as needed
+		if (visibleViewletsChange && overflows) {
+			const viewletsOverflowing = viewlets.slice(viewletsToShow.length);
+
+			this.viewletOverflowAction = this.instantiationService.createInstance(ViewletOverflowActivityAction, viewletsOverflowing);
+			this.viewletSwitcherBar.push(this.viewletOverflowAction, { label: true, icon: true });
+		}
 	}
 
 	private pullViewlet(viewletId: string): void {
@@ -192,7 +214,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private toAction(viewlet: ViewletDescriptor): ActivityAction {
-		const action = this.instantiationService.createInstance(ViewletActivityAction, `${viewlet.id}.activity-bar-action`, viewlet);
+		const action = this.instantiationService.createInstance(ViewletActivityAction, viewlet);
 
 		this.activityActionItems[action.id] = this.instantiationService.createInstance(ActivityActionItem, action, viewlet);
 		this.viewletIdToActions[viewlet.id] = action;
