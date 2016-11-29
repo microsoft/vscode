@@ -10,6 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextFileEditorModelManager, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IResolveContentOptions, IUpdateContentOptions } from 'vs/platform/files/common/files';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
 export const IBackupService = createDecorator<IBackupService>('backupService');
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
@@ -29,7 +30,7 @@ export interface IBackupService {
 	_serviceBrand: any;
 
 	isHotExitEnabled: boolean;
-	backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean): TPromise<IBackupResult>;
+	backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): TPromise<IBackupResult>;
 	cleanupBackupsBeforeShutdown(): TPromise<void>;
 }
 
