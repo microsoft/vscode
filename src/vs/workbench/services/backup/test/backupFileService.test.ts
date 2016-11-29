@@ -18,6 +18,8 @@ import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backu
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 
 class TestEnvironmentService extends EnvironmentService {
 
@@ -211,6 +213,19 @@ suite('BackupFileService', () => {
 				done();
 			});
 		});
+	});
+
+	test('parseBackupContent', () => {
+		const rawTextContent: IRawTextContent = {
+			resource: null,
+			name: null,
+			mtime: null,
+			etag: null,
+			encoding: null,
+			value: TextModel.toRawText('metadata\ncontent', TextModel.DEFAULT_CREATION_OPTIONS),
+			valueLogicalHash: null
+		};
+		assert.equal(service.parseBackupContent(rawTextContent), 'content');
 	});
 
 	test('BackupFilesModel - simple', () => {
