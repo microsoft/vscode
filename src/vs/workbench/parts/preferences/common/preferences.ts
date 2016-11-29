@@ -59,11 +59,7 @@ export const IPreferencesService = createDecorator<IPreferencesService>('prefere
 export interface IPreferencesService {
 	_serviceBrand: any;
 
-	getDefaultSettingsEditorModel(): TPromise<ISettingsEditorModel>;
-	getUserSettingsEditorModel(): TPromise<ISettingsEditorModel>;
-	getWorkspaceSettingsEditorModel(): TPromise<ISettingsEditorModel>;
-	getDefaultKeybindingsEditorModel(): TPromise<IKeybindingsEditorModel>;
-
+	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
 	resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel>;
 
 	openGlobalSettings(): TPromise<void>;
@@ -77,4 +73,3 @@ export interface IPreferencesService {
 
 export const CONTEXT_DEFAULT_SETTINGS_EDITOR = new RawContextKey<boolean>('defaultSettingsEditor', false);
 export const DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL = 'defaultSettingseditor.action.clearsearchresults';
-export const DEFAULT_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'defaultSettingseditor.action.collapseAll';
