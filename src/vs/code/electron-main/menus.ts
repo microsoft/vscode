@@ -262,6 +262,11 @@ export class VSCodeMenu {
 		const editMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")), submenu: editMenu });
 		this.setEditMenu(editMenu);
 
+		// Selection
+		const selectionMenu = new Menu();
+		const selectionMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")), submenu: selectionMenu });
+		this.setSelectionMenu(selectionMenu);
+
 		// View
 		const viewMenu = new Menu();
 		const viewMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")), submenu: viewMenu });
@@ -292,6 +297,7 @@ export class VSCodeMenu {
 
 		menubar.append(fileMenuItem);
 		menubar.append(editMenuItem);
+		menubar.append(selectionMenuItem);
 		menubar.append(viewMenuItem);
 		menubar.append(gotoMenuItem);
 
@@ -526,6 +532,42 @@ export class VSCodeMenu {
 			__separator__(),
 			findInFiles,
 			replaceInFiles
+		].forEach(item => winLinuxEditMenu.append(item));
+	}
+
+	private setSelectionMenu(winLinuxEditMenu: Electron.Menu): void {
+		const insertCursorAbove = this.createMenuItem(nls.localize({ key: 'miInsertCursorAbove', comment: ['&& denotes a mnemonic'] }, "&&Add Cursor Above"), 'editor.action.insertCursorAbove');
+		const insertCursorBelow = this.createMenuItem(nls.localize({ key: 'miInsertCursorBelow', comment: ['&& denotes a mnemonic'] }, "A&&dd Cursor Below"), 'editor.action.insertCursorBelow');
+		const addSelectionToNextFindMatch = this.createMenuItem(nls.localize({ key: 'miAddSelectionToNextFindMatch', comment: ['&& denotes a mnemonic'] }, "Add &&To Next Match"), 'editor.action.addSelectionToNextFindMatch');
+		const addSelectionToPreviousFindMatch = this.createMenuItem(nls.localize({ key: 'miAddSelectionToPreviousFindMatch', comment: ['&& denotes a mnemonic'] }, "Add T&&o Previous Match"), 'editor.action.addSelectionToPreviousFindMatch');
+
+		const copyLinesUp = this.createMenuItem(nls.localize({ key: 'miCopyLinesUp', comment: ['&& denotes a mnemonic'] }, "&&Copy Line Up"), 'editor.action.copyLinesUpAction');
+		const copyLinesDown = this.createMenuItem(nls.localize({ key: 'miCopyLinesDown', comment: ['&& denotes a mnemonic'] }, "Co&&py Line Down"), 'editor.action.copyLinesDownAction');
+		const moveLinesUp = this.createMenuItem(nls.localize({ key: 'miMoveLinesUp', comment: ['&& denotes a mnemonic'] }, "Mo&&ve Line Up"), 'editor.action.moveLinesUpAction');
+		const moveLinesDown = this.createMenuItem(nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Line Down"), 'editor.action.moveLinesDownAction');
+
+		const smartSelectGrow = this.createMenuItem(nls.localize({ key: 'miSmartSelectGrow', comment: ['&& denotes a mnemonic'] }, "&&Expand Selection"), 'editor.action.smartSelect.grow');
+		const smartSelectshrink = this.createMenuItem(nls.localize({ key: 'miSmartSelectShrink', comment: ['&& denotes a mnemonic'] }, "&&Shrink Selection"), 'editor.action.smartSelect.shrink');
+
+		const emmetExpandAbbreviation = this.createMenuItem(nls.localize({ key: 'miEmmetExpandAbbreviation', comment: ['&& denotes a mnemonic'] }, "Emmet: E&&xpand Abbreviation"), 'editor.emmet.action.expandAbbreviation');
+		const showEmmetCommands = this.createMenuItem(nls.localize({ key: 'miShowEmmetCommands', comment: ['&& denotes a mnemonic'] }, "E&&mmet..."), 'workbench.action.showEmmetCommands');
+
+		[
+			insertCursorAbove,
+			insertCursorBelow,
+			addSelectionToNextFindMatch,
+			addSelectionToPreviousFindMatch,
+			__separator__(),
+			copyLinesUp,
+			copyLinesDown,
+			moveLinesUp,
+			moveLinesDown,
+			__separator__(),
+			smartSelectGrow,
+			smartSelectshrink,
+			__separator__(),
+			emmetExpandAbbreviation,
+			showEmmetCommands
 		].forEach(item => winLinuxEditMenu.append(item));
 	}
 
