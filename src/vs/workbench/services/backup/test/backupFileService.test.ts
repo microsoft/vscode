@@ -108,7 +108,7 @@ suite('BackupFileService', () => {
 		service.backupResource(fooFile, 'test').then(() => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
-			assert.equal(fs.readFileSync(fooBackupPath), 'test');
+			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.fsPath}\ntest`);
 			done();
 		});
 	});
@@ -170,10 +170,24 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('getWorkspaceTextFileBackups', done => {
-		service.backupResource(fooFile, `${fooFile.fsPath}\ntest`).then(() => {
+	test('getWorkspaceTextFileBackups - text file', done => {
+		service.backupResource(fooFile, `test`).then(() => {
 			service.getWorkspaceTextFileBackups().then(textFiles => {
-				assert.deepEqual(textFiles, [fooFile.toString()]);
+				assert.deepEqual(textFiles, [fooFile.fsPath]);
+				service.backupResource(barFile, `test`).then(() => {
+					service.getWorkspaceTextFileBackups().then(textFiles => {
+						assert.deepEqual(textFiles, [fooFile.fsPath, barFile.fsPath]);
+						done();
+					});
+				});
+			});
+		});
+	});
+
+	test('getWorkspaceTextFileBackups - untitled file', done => {
+		service.backupResource(untitledFile, `test`).then(() => {
+			service.getWorkspaceTextFileBackups().then(textFiles => {
+				assert.deepEqual(textFiles, []);
 				done();
 			});
 		});
@@ -245,12 +259,10 @@ suite('BackupFileService', () => {
 
 		assert.deepEqual(model.getTextFiles(), []);
 
-		const resource1 = Uri.file('/root/file/foo.html');
-		const resource2 = Uri.file('/root/file/bar.html');
-		model.add(resource1);
-		model.add(resource2);
+		model.add(Uri.file('/root/file/foo.html'));
+		model.add(Uri.file('/root/file/bar.html'));
 		model.add(Uri.file('/root/untitled/bar.html'));
 
-		assert.deepEqual(model.getTextFiles(), [resource1.toString(), resource2.toString()]);
+		assert.deepEqual(model.getTextFiles(), ['/root/file/foo.html', '/root/file/bar.html']);
 	});
 });
