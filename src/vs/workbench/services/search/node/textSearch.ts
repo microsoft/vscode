@@ -109,22 +109,27 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				// console.log('got result - ' + batchBytes);
 				// this.numResults += result.numMatches;
 				if (this.numResults + result.numMatches <= this.config.maxResults) {
-					console.log('will fit')
+					console.log(`will fit ${result.numMatches} + ${this.numResults}`)
 					this.numResults += result.numMatches;
 					matches.forEach(m => {
+						console.log(m.path);
 						onResult(m);
 					});
 				} else {
-					console.log('too large')
+					console.log(`too large ${result.numMatches} + ${this.numResults}`)
 					const fittingIndices = this.resultsIndexUnderMax(matches);
 					if (fittingIndices) {
 						// Report all totally fitting file matches
+						console.log(`taking up to ${JSON.stringify(fittingIndices)}`)
+						console.log(`for ${matches.length}`);
 						for (let i = 0; i < fittingIndices[0]; i++) {
+							console.log(matches[i].path)
 							onResult(matches[i]);
 						}
 
 						const partiallyFittingFileMatch = matches[fittingIndices[0] + 1];
 						if (partiallyFittingFileMatch) {
+							console.log('slicing partial match');
 							partiallyFittingFileMatch.lineMatches = partiallyFittingFileMatch.lineMatches.slice(0, fittingIndices[1] + 1);
 							const partiallyFittingLineMatch = partiallyFittingFileMatch.lineMatches[partiallyFittingFileMatch.lineMatches.length - 1];
 							partiallyFittingLineMatch.offsetAndLengths = partiallyFittingLineMatch.offsetAndLengths.slice(0, fittingIndices[2]);
@@ -185,7 +190,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				const lineMatch = fileMatch.lineMatches[lineMatchIdx];
 				if (lineMatch.offsetAndLengths.length + resultsCounter >= this.config.maxResults) {
 					const fittingOffsetsIdx = this.config.maxResults - resultsCounter - 1;
-					return [lineMatchIdx, fileMatchIdx, fittingOffsetsIdx];
+					return [fileMatchIdx, lineMatchIdx, fittingOffsetsIdx];
 				} else {
 					resultsCounter += lineMatch.offsetAndLengths.length;
 				}
