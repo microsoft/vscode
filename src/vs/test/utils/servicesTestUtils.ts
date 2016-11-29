@@ -677,11 +677,11 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as(void 0);
 	}
 
-	public getWorkspaceTextFileBackups(): TPromise<string[]> {
+	public getWorkspaceTextFileBackups(): TPromise<URI[]> {
 		return TPromise.as([]);
 	}
 
-	public getWorkspaceUntitledFileBackups(): TPromise<string[]> {
+	public getWorkspaceUntitledFileBackups(): TPromise<URI[]> {
 		return TPromise.as([]);
 	}
 
