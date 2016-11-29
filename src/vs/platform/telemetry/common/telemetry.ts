@@ -12,6 +12,7 @@ import URI from 'vs/base/common/uri';
 import { ConfigurationSource, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -22,8 +23,7 @@ export interface ITelemetryInfo {
 }
 
 export interface ITelemetryExperiments {
-	showDefaultViewlet: boolean;
-	showFirstSessionWatermark: boolean;
+	showNewUserWatermark: boolean;
 	openUntitledFile: boolean;
 }
 
@@ -45,8 +45,7 @@ export interface ITelemetryService {
 }
 
 export const defaultExperiments: ITelemetryExperiments = {
-	showDefaultViewlet: false,
-	showFirstSessionWatermark: false,
+	showNewUserWatermark: false,
 	openUntitledFile: true
 };
 
@@ -69,7 +68,7 @@ export const NullTelemetryService = {
 	}
 };
 
-export function loadExperiments(storageService: IStorageService, configurationService: IConfigurationService): ITelemetryExperiments {
+export function loadExperiments(contextService: IWorkspaceContextService, storageService: IStorageService, configurationService: IConfigurationService): ITelemetryExperiments {
 
 	const key = 'experiments.randomness';
 	let valueString = storageService.get(key);
@@ -78,23 +77,20 @@ export function loadExperiments(storageService: IStorageService, configurationSe
 		storageService.store(key, valueString);
 	}
 
-	const random0 = parseFloat(valueString);
-	let [random1, showDefaultViewlet] = splitRandom(random0);
-	let [random2, showFirstSessionWatermark] = splitRandom(random1);
+	const random1 = parseFloat(valueString);
+	let [random2, showNewUserWatermark] = splitRandom(random1);
 	let [, openUntitledFile] = splitRandom(random2);
 
-	// is the user a first time user?
-	let isNewSession = storageService.get('telemetry.lastSessionDate') ? false : true;
-	if (!isNewSession) {
-		// for returning users we fall back to the default configuration for the sidebar and the initially opened, empty editor
-		showDefaultViewlet = defaultExperiments.showDefaultViewlet;
-		showFirstSessionWatermark = defaultExperiments.showFirstSessionWatermark;
+	const newUserDuration = 24 * 60 * 60 * 1000;
+	const firstSessionDate = storageService.get('telemetry.firstSessionDate');
+	const isNewUser = !firstSessionDate || Date.now() - Date.parse(firstSessionDate) < newUserDuration;
+	if (!isNewUser || !!contextService.getWorkspace()) {
+		showNewUserWatermark = defaultExperiments.showNewUserWatermark;
 		openUntitledFile = defaultExperiments.openUntitledFile;
 	}
 
 	return applyOverrides(configurationService, {
-		showDefaultViewlet,
-		showFirstSessionWatermark,
+		showNewUserWatermark,
 		openUntitledFile
 	});
 }

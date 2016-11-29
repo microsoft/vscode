@@ -21,3 +21,15 @@
 .monaco-editor.hc-black .copy-preferences-light-bulb {
 	background: url('lightbulb-dark.svg') center center no-repeat;
 }
+
+.monaco-editor .floating-click-widget {
+	background: rgb(179,255,179);
+	padding: 10px;
+	border-radius: 5px;
+	cursor: pointer;
+}
+
+.monaco-editor.vs-dark .floating-click-widget,
+.monaco-editor.hc-black .floating-click-widget {
+	background: rgb(21,97,21);
+}

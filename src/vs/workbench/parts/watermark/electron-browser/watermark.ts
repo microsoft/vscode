@@ -99,7 +99,7 @@ const openGlobalKeybindings: WatermarkEntry = {
 	ids: [OpenGlobalKeybindingsAction.ID]
 };
 
-const firstSessionEntries = [
+const newUserEntries = [
 	showCommands,
 	selectTheme,
 	selectKeymap,
@@ -158,9 +158,8 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		const box = $(watermark)
 			.div({ 'class': 'watermark-box' });
 		const folder = !!this.contextService.getWorkspace();
-		const firstSession = this.telemetryService.getExperiments().showFirstSessionWatermark &&
-			!this.storageService.get('telemetry.lastSessionDate');
-		const selected = (folder ? folderEntries : firstSession ? firstSessionEntries : noFolderEntries)
+		const newUser = this.telemetryService.getExperiments().showNewUserWatermark;
+		const selected = (newUser ? newUserEntries : (folder ? folderEntries : noFolderEntries))
 			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);
 		const update = () => {
 			const builder = $(box);

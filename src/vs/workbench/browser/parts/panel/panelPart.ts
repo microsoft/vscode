@@ -53,7 +53,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			partService,
 			keybindingService,
 			instantiationService,
-			(<PanelRegistry>Registry.as(PanelExtensions.Panels)),
+			Registry.as<PanelRegistry>(PanelExtensions.Panels),
 			PanelPart.activePanelSettingsKey,
 			'panel',
 			'panel',

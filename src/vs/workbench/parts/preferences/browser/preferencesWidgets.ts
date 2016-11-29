@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class CopyPreferenceWidget<T> extends Widget implements IOverlayWidget {
 
@@ -86,5 +88,51 @@ export class CopyPreferenceWidget<T> extends Widget implements IOverlayWidget {
 			this._visible = false;
 			this._domNode.classList.add('hidden');
 		}
+	}
+}
+
+export class FloatingClickWidget extends Widget implements IOverlayWidget {
+
+	private _domNode: HTMLElement;
+
+	private _onClick: Emitter<void> = this._register(new Emitter<void>());
+	public onClick: Event<void> = this._onClick.event;
+
+	constructor(private editor: ICodeEditor, private label: string, private keyBindingAction: string,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super();
+		if (keyBindingAction) {
+			let keybinding = keybindingService.lookupKeybindings(keyBindingAction);
+			if (keybinding.length > 0) {
+				this.label += ' (' + keybindingService.getLabelFor(keybinding[0]) + ')';
+			}
+		}
+	}
+
+	public render() {
+		this._domNode = DOM.$('.floating-click-widget');
+		DOM.append(this._domNode, DOM.$('')).textContent = this.label;
+		this.onclick(this._domNode, e => this._onClick.fire());
+		this.editor.addOverlayWidget(this);
+	}
+
+	public dispose(): void {
+		this.editor.removeOverlayWidget(this);
+		super.dispose();
+	}
+
+	public getId(): string {
+		return 'editor.overlayWidget.floatingClickWidget';
+	}
+
+	public getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	public getPosition(): IOverlayWidgetPosition {
+		return {
+			preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
+		};
 	}
 }

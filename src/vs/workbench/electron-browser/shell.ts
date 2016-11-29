@@ -335,7 +335,7 @@ export class WorkbenchShell {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath],
-				experiments: loadExperiments(this.storageService, this.configurationService)
+				experiments: loadExperiments(this.contextService, this.storageService, this.configurationService)
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -352,7 +352,7 @@ export class WorkbenchShell {
 
 			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
-			NullTelemetryService._experiments = loadExperiments(this.storageService, this.configurationService);
+			NullTelemetryService._experiments = loadExperiments(this.contextService, this.storageService, this.configurationService);
 			this.telemetryService = NullTelemetryService;
 		}
 

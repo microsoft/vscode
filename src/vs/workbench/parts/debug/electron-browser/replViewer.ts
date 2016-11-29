@@ -220,7 +220,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private renderExpression(tree: ITree, expression: IExpression, templateData: IExpressionTemplateData): void {
 		templateData.input.textContent = expression.name;
 		renderExpressionValue(expression, templateData.value, {
-			preserveWhitespace: true
+			preserveWhitespace: true,
+			showHover: false
 		});
 		if (expression.hasChildren) {
 			templateData.annotation.className = 'annotation octicon octicon-info';
@@ -244,7 +245,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 		let result = this.handleANSIOutput(output.value);
 		if (typeof result === 'string') {
 			renderExpressionValue(result, templateData.value, {
-				preserveWhitespace: true
+				preserveWhitespace: true,
+				showHover: false
 			});
 		} else {
 			templateData.value.appendChild(result);
@@ -263,7 +265,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		// value
 		renderExpressionValue(output.value, templateData.value, {
-			preserveWhitespace: true
+			preserveWhitespace: true,
+			showHover: false
 		});
 
 		// annotation if any
