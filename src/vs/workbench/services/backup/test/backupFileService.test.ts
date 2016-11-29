@@ -57,7 +57,7 @@ suite('BackupFileService', () => {
 	const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 	const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
 	const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
-	const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', untitledFile.fsPath);
+	const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
 
 	let service: TestBackupFileService;
 
@@ -91,7 +91,8 @@ suite('BackupFileService', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePath>
 		const backupResource = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', backupResource.fsPath)).fsPath;
+		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
+		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 		assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
@@ -172,12 +173,12 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('getWorkspaceTextFileBackups - text file', done => {
+	test('getWorkspaceFileBackups("file") - text file', done => {
 		service.backupResource(fooFile, `test`).then(() => {
-			service.getWorkspaceTextFileBackups().then(textFiles => {
+			service.getWorkspaceFileBackups('file').then(textFiles => {
 				assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath]);
 				service.backupResource(barFile, `test`).then(() => {
-					service.getWorkspaceTextFileBackups().then(textFiles => {
+					service.getWorkspaceFileBackups('file').then(textFiles => {
 						assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath, barFile.fsPath]);
 						done();
 					});
@@ -186,19 +187,19 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('getWorkspaceTextFileBackups - untitled file', done => {
+	test('getWorkspaceFileBackups("file") - untitled file', done => {
 		service.backupResource(untitledFile, `test`).then(() => {
-			service.getWorkspaceTextFileBackups().then(textFiles => {
+			service.getWorkspaceFileBackups('file').then(textFiles => {
 				assert.deepEqual(textFiles, []);
 				done();
 			});
 		});
 	});
 
-	test('getWorkspaceUntitledFileBackups - text file', done => {
+	test('getWorkspaceFileBackups("untitled") - text file', done => {
 		service.backupResource(fooFile, `test`).then(() => {
 			service.backupResource(barFile, `test`).then(() => {
-				service.getWorkspaceUntitledFileBackups().then(textFiles => {
+				service.getWorkspaceFileBackups('untitled').then(textFiles => {
 					assert.deepEqual(textFiles, []);
 					done();
 				});
@@ -206,10 +207,10 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('getWorkspaceUntitledFileBackups - untitled file', done => {
+	test('getWorkspaceFileBackups("untitled") - untitled file', done => {
 		service.backupResource(untitledFile, `test`).then(() => {
-			service.getWorkspaceUntitledFileBackups().then(textFiles => {
-				assert.deepEqual(textFiles.map(f => f.fsPath), [untitledBackupPath]);
+			service.getWorkspaceFileBackups('untitled').then(textFiles => {
+				assert.deepEqual(textFiles.map(f => f.fsPath), ['Untitled-1']);
 				done();
 			});
 		});

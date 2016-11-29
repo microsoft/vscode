@@ -57,18 +57,12 @@ export interface IBackupFileService {
 	backupResource(resource: Uri, content: string, versionId?: number): TPromise<void>;
 
 	/**
-	 * Gets a list of text file backups for the current workspace.
+	 * Gets a list of file backups for the current workspace.
 	 *
+	 * @param scheme The scheme of the backup.
 	 * @return The list of backups.
 	 */
-	getWorkspaceTextFileBackups(): TPromise<Uri[]>;
-
-	/**
-	 * Gets a list of untitled backups for the current workspace.
-	 *
-	 * @return The list of backups.
-	 */
-	getWorkspaceUntitledFileBackups(): TPromise<Uri[]>;
+	getWorkspaceFileBackups(scheme: string): TPromise<Uri[]>;
 
 	/**
 	 * Parses backup raw text content into the content, removing the metadata that is also stored
