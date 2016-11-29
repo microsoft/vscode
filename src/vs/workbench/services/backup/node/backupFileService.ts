@@ -23,6 +23,7 @@ export interface IBackupFilesModel {
 	remove(resource: Uri): void;
 	clear(): void;
 	getTextFiles(): string[];
+	getUntitledFiles(): string[];
 }
 
 // TODO@daniel this should resolve the backups with their file names once we have the metadata in place
@@ -68,6 +69,10 @@ export class BackupFilesModel implements IBackupFilesModel {
 
 	public getTextFiles(): string[] {
 		return Object.keys(this.cache).filter(k => path.basename(path.dirname(k)) === 'file').map(k => k.replace('file://', ''));
+	}
+
+	public getUntitledFiles(): string[] {
+		return Object.keys(this.cache).filter(k => path.basename(path.dirname(k)) === 'untitled').map(k => k.replace('file://', ''));
 	}
 
 	public remove(resource: Uri): void {
@@ -196,6 +201,12 @@ export class BackupFileService implements IBackupFileService {
 				}));
 			});
 			return TPromise.join(readPromises);
+		});
+	}
+
+	public getWorkspaceUntitledFileBackups(): TPromise<string[]> {
+		return this.ready.then(model => {
+			return model.getUntitledFiles();
 		});
 	}
 
