@@ -193,6 +193,26 @@ suite('BackupFileService', () => {
 		});
 	});
 
+	test('getWorkspaceUntitledFileBackups - text file', done => {
+		service.backupResource(fooFile, `test`).then(() => {
+			service.backupResource(barFile, `test`).then(() => {
+				service.getWorkspaceUntitledFileBackups().then(textFiles => {
+					assert.deepEqual(textFiles, []);
+					done();
+				});
+			});
+		});
+	});
+
+	test('getWorkspaceUntitledFileBackups - untitled file', done => {
+		service.backupResource(untitledFile, `test`).then(() => {
+			service.getWorkspaceUntitledFileBackups().then(textFiles => {
+				assert.deepEqual(textFiles, [untitledBackupPath]);
+				done();
+			});
+		});
+	});
+
 	test('BackupFilesModel - simple', () => {
 		const model = new BackupFilesModel();
 
