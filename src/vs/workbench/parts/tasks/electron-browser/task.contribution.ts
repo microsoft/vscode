@@ -64,7 +64,7 @@ import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskErr
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
-import { LanguageServiceTaskSystem, LanguageServiceTaskConfiguration }  from 'vs/workbench/parts/tasks/common/languageServiceTaskSystem';
+import { LanguageServiceTaskSystem, LanguageServiceTaskConfiguration } from 'vs/workbench/parts/tasks/common/languageServiceTaskSystem';
 import * as FileConfig from 'vs/workbench/parts/tasks/node/processRunnerConfiguration';
 import { ProcessRunnerSystem } from 'vs/workbench/parts/tasks/node/processRunnerSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/parts/tasks/node/processRunnerDetector';
@@ -381,9 +381,9 @@ class RunTaskAction extends AbstractTaskAction {
 	public static TEXT = nls.localize('RunTaskAction.label', "Run Task");
 	private quickOpenService: IQuickOpenService;
 
-	constructor(id: string, label: string, @IQuickOpenService quickOpenService:IQuickOpenService,
+	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService,
 		@ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(id, label, taskService, telemetryService, messageService, contextService);
 		this.quickOpenService = quickOpenService;
 	}
@@ -911,27 +911,27 @@ class TaskService extends EventEmitter implements ITaskService {
 						if (executeResult.kind === TaskExecuteKind.Started) {
 							if (executeResult.started.restartOnFileChanges) {
 								let pattern = executeResult.started.restartOnFileChanges;
-							this.fileChangesListener = this.eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
-								let needsRestart = event.changes.some((change) => {
-									return (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) && !!match(pattern, change.resource.fsPath);
-								});
-								if (needsRestart) {
-									this.terminate().done(() => {
-										// We need to give the child process a change to stop.
-										setTimeout(() => {
-											this.executeTarget(fn);
-										}, 2000);
+								this.fileChangesListener = this.eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
+									let needsRestart = event.changes.some((change) => {
+										return (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) && !!match(pattern, change.resource.fsPath);
 									});
-								}
-							});
-						}
-							return executeResult.promise.then((value) => {
-							if (this.clearTaskSystemPromise) {
-								this._taskSystemPromise = null;
-								this.clearTaskSystemPromise = false;
+									if (needsRestart) {
+										this.terminate().done(() => {
+											// We need to give the child process a change to stop.
+											setTimeout(() => {
+												this.executeTarget(fn);
+											}, 2000);
+										});
+									}
+								});
 							}
-							return value;
-						});
+							return executeResult.promise.then((value) => {
+								if (this.clearTaskSystemPromise) {
+									this._taskSystemPromise = null;
+									this.clearTaskSystemPromise = false;
+								}
+								return value;
+							});
 						} else {
 							return executeResult.promise;
 						}
@@ -1010,7 +1010,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				return this.configureAction();
 		}
 	}
-	private handleError(err: any):void {
+	private handleError(err: any): void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
 			let buildError = <TaskError>err;
