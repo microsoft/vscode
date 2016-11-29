@@ -152,16 +152,6 @@ export class Adapter {
 				description: nls.localize('internalConsoleOptions', "Controls behavior of the internal debug console.")
 			};
 
-			const warnRelativePaths = (attribute: IJSONSchema) => {
-				if (attribute) {
-					attribute.pattern = '^\\${.*}.*|' + paths.isAbsoluteRegex.source;
-					attribute.errorMessage = nls.localize('relativePathsNotConverted', "Relative paths will no longer be automatically converted to absolute ones. Consider using ${workspaceRoot} as a prefix.");
-				}
-			};
-			warnRelativePaths(properties['outDir']);
-			warnRelativePaths(properties['program']);
-			warnRelativePaths(properties['cwd']);
-
 			const osProperties = objects.deepClone(properties);
 			properties['windows'] = {
 				type: 'object',
