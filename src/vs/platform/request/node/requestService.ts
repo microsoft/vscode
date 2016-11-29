@@ -36,7 +36,7 @@ export class RequestService implements IRequestService {
 		this.configure(e.config);
 	}
 
-	protected configure(config: IHTTPConfiguration) {
+	private configure(config: IHTTPConfiguration) {
 		this.proxyUrl = config.http && config.http.proxy;
 		this.strictSSL = config.http && config.http.proxyStrictSSL;
 		this.authorization = config.http && config.http.proxyAuthorization;
