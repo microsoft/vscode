@@ -8,6 +8,7 @@
 import { scm, ExtensionContext, workspace, Uri, window, Disposable } from 'vscode';
 import * as path from 'path';
 import { findGit, Git } from './git';
+import { Model } from './model';
 import { registerCommands } from './commands';
 import * as nls from 'vscode-nls';
 
@@ -61,6 +62,12 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint);
 	const git = new Git({ gitPath: info.path, version: info.version });
+	const repository = git.open(rootPath);
+	const model = new Model(repository);
+
+	model.onDidChange(() => {
+		console.log(model.status);
+	});
 
 	const outputChannel = window.createOutputChannel('git');
 	outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);

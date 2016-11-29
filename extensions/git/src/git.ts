@@ -14,7 +14,6 @@ import { IDisposable, toDisposable, dispose } from './util';
 import * as _ from 'lodash';
 import { EventEmitter, Event } from 'vscode';
 import * as nls from 'vscode-nls';
-import * as mime from 'mime';
 
 const localize = nls.loadMessageBundle(__filename);
 const readdir = denodeify(fs.readdir);
@@ -33,7 +32,6 @@ export interface IFileStatus {
 	x: string;
 	y: string;
 	path: string;
-	mimetype: string;
 	rename?: string;
 }
 
@@ -743,8 +741,7 @@ export class Repository {
 			current = {
 				x: status.charAt(i++),
 				y: status.charAt(i++),
-				path: '',
-				mimetype: ''
+				path: ''
 			};
 
 			i++;
@@ -754,7 +751,6 @@ export class Repository {
 			}
 
 			current.path = readName();
-			current.mimetype = mime.lookup(current.path);
 
 			// If path ends with slash, it must be a nested git repo
 			if (current.path[current.path.length - 1] === '/') {

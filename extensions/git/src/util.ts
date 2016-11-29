@@ -35,3 +35,37 @@ export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Even
 export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 	return (listener, thisArgs = null, disposables?) => combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i), disposables)));
 }
+
+export function done<T>(promise: Promise<T>): Promise<void> {
+	return promise.then(() => null, () => null);
+}
+
+export function throttle<T>(fn: () => Promise<T>): () => Promise<T> {
+	let current: Promise<T> | undefined;
+	let next: Promise<T> | undefined;
+
+	const trigger = () => {
+		if (next) {
+			return next;
+		}
+
+		if (current) {
+			next = done(current).then(() => {
+				next = undefined;
+				return trigger();
+			});
+
+			return next;
+		}
+
+		current = fn.call(this) as Promise<T>;
+
+		done(current).then(() => {
+			current = undefined;
+		});
+
+		return current;
+	};
+
+	return trigger;
+}
