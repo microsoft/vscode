@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/activitybarpart';
 import nls = require('vs/nls');
-import { Builder, $ } from 'vs/base/browser/builder';
+import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IComposite } from 'vs/workbench/common/composite';
@@ -21,12 +21,22 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
+interface IViewletActivity {
+	badge: IBadge;
+	clazz: string;
+}
+
 export class ActivitybarPart extends Part implements IActivityService {
+
+	private static ACTIVITY_ACTION_HEIGHT = 50;
+
 	public _serviceBrand: any;
 
+	private dimension: Dimension;
 	private viewletSwitcherBar: ActionBar;
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
+	private viewletIdToActivity: { [viewletId: string]: IViewletActivity; };
 
 	constructor(
 		id: string,
@@ -38,8 +48,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 	) {
 		super(id);
 
-		this.activityActionItems = {};
-		this.viewletIdToActions = {};
+		this.activityActionItems = Object.create(null);
+		this.viewletIdToActions = Object.create(null);
+		this.viewletIdToActivity = Object.create(null);
 
 		// Update viewlet switcher when external viewlets become ready
 		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
@@ -68,13 +79,22 @@ export class ActivitybarPart extends Part implements IActivityService {
 		}
 	}
 
-	public showActivity(viewletId: string, badge: IBadge, clazz?: string): void {
+	public showActivity(viewletId: string, badge?: IBadge, clazz?: string): void {
+
+		// Update Action with activity
 		const action = this.viewletIdToActions[viewletId];
 		if (action) {
 			action.setBadge(badge);
 			if (clazz) {
 				action.class = clazz;
 			}
+		}
+
+		// Keep for future use
+		if (badge) {
+			this.viewletIdToActivity[viewletId] = { badge, clazz };
+		} else {
+			delete this.viewletIdToActivity[viewletId];
 		}
 	}
 
@@ -103,32 +123,57 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private updateViewletSwitcher() {
-		const viewlets = this.viewletService.getViewlets();
+		let viewlets = this.viewletService.getViewlets();
 
-		// Pull out viewlets no longer needed
-		const newViewletIds = viewlets.map(v => v.id);
-		const existingViewletIds = Object.keys(this.viewletIdToActions);
-		existingViewletIds.forEach(viewletId => {
-			if (newViewletIds.indexOf(viewletId) === -1) {
+		// Ensure we are not showing more viewlets than we have height for
+		let overflows = false;
+		if (this.dimension) {
+			const maxVisible = Math.floor(this.dimension.height / ActivitybarPart.ACTIVITY_ACTION_HEIGHT);
+			overflows = viewlets.length > maxVisible;
+
+			if (overflows) {
+				viewlets = viewlets.slice(0, maxVisible);
+			}
+		}
+
+		// Pull out viewlets that overflow
+		const viewletsToShow = viewlets.map(v => v.id);
+		const visibleViewlets = Object.keys(this.viewletIdToActions);
+		visibleViewlets.forEach(viewletId => {
+			if (viewletsToShow.indexOf(viewletId) === -1) {
 				this.pullViewlet(viewletId);
 			}
 		});
 
 		// Built actions for viewlets to show
-		const actionsToPush = viewlets
+		const newViewletsToShow = viewlets
 			.filter(viewlet => !this.viewletIdToActions[viewlet.id])
 			.map(viewlet => this.toAction(viewlet));
 
-		// Add to viewlet switcher
-		this.viewletSwitcherBar.push(actionsToPush, { label: true, icon: true });
+		// Update when we have new viewlets to show
+		if (newViewletsToShow.length) {
 
-		// Make sure to activate the active one
-		const activeViewlet = this.viewletService.getActiveViewlet();
-		if (activeViewlet) {
-			const activeViewletEntry = this.viewletIdToActions[activeViewlet.getId()];
-			if (activeViewletEntry) {
-				activeViewletEntry.activate();
+			// Add to viewlet switcher
+			this.viewletSwitcherBar.push(newViewletsToShow, { label: true, icon: true });
+
+			// Make sure to activate the active one
+			const activeViewlet = this.viewletService.getActiveViewlet();
+			if (activeViewlet) {
+				const activeViewletEntry = this.viewletIdToActions[activeViewlet.getId()];
+				if (activeViewletEntry) {
+					activeViewletEntry.activate();
+				}
 			}
+
+			// Make sure to restore activity
+			Object.keys(this.viewletIdToActions).forEach(viewletId => {
+				const activity = this.viewletIdToActivity[viewletId];
+				if (activity) {
+					this.showActivity(viewletId, activity.badge, activity.clazz);
+				} else {
+					this.showActivity(viewletId);
+				}
+			});
 		}
 	}
 
@@ -153,7 +198,23 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.viewletIdToActions[viewlet.id] = action;
 
 		return action;
-	};
+	}
+
+	/**
+	 * Layout title, content and status area in the given dimension.
+	 */
+	public layout(dimension: Dimension): Dimension[] {
+
+		// Pass to super
+		const sizes = super.layout(dimension);
+
+		this.dimension = sizes[1];
+
+		// Update switcher to handle overflow issues
+		this.updateViewletSwitcher();
+
+		return sizes;
+	}
 
 	public dispose(): void {
 		if (this.viewletSwitcherBar) {
