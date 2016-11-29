@@ -81,7 +81,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}));
 	}
 
-	public createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel> {
+	createDefaultSettingsModel(): TPromise<IPreferencesEditorModel> {
+		return this.createDefaultPreferencesEditorModel(PreferencesService.DEFAULT_SETTINGS_URI);
+	}
+
+	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel> {
 		if (PreferencesService.DEFAULT_SETTINGS_URI.fsPath === uri.fsPath) {
 			return this.fetchMostCommonlyUsedSettings()
 				.then(mostCommonSettings => {

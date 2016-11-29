@@ -212,7 +212,7 @@ export class SettingsCountWidget extends Widget implements IOverlayWidget {
 			DOM.removeClass(this._domNode, 'show');
 		} else {
 			if (count === 0) {
-				this._domNode.textContent = localize('noSettings', "No settings");
+				this._domNode.textContent = localize('noSettings', "No settings found");
 				DOM.addClass(this._domNode, 'no-results');
 			} else {
 				this._domNode.textContent = localize('showCount', "Showing {0} of {1} Settings", count, this.total);
