@@ -295,11 +295,15 @@ suite('BackupFileService', () => {
 		assert.deepEqual(model.getFilesByScheme('file'), []);
 		assert.deepEqual(model.getFilesByScheme('untitled'), []);
 
-		model.add(Uri.file('/root/file/foo.html'));
-		model.add(Uri.file('/root/file/bar.html'));
-		model.add(Uri.file('/root/untitled/bar.html'));
+		const file1 = Uri.file('/root/file/foo.html');
+		const file2 = Uri.file('/root/file/bar.html');
+		const untitled = Uri.file('/root/untitled/bar.html');
 
-		assert.deepEqual(model.getFilesByScheme('file').map(f => f.fsPath), ['/root/file/foo.html', '/root/file/bar.html']);
-		assert.deepEqual(model.getFilesByScheme('untitled').map(f => f.fsPath), ['/root/untitled/bar.html']);
+		model.add(file1);
+		model.add(file2);
+		model.add(untitled);
+
+		assert.deepEqual(model.getFilesByScheme('file').map(f => f.fsPath), [file1.fsPath, file2.fsPath]);
+		assert.deepEqual(model.getFilesByScheme('untitled').map(f => f.fsPath), [untitled.fsPath]);
 	});
 });
