@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { illegalArgument } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -31,9 +31,7 @@ export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Ra
 			return () => {
 				return asWinJsPromise(token => provider.provideDocumentRangeFormattingEdits(model, range, options, token)).then(value => {
 					result = value;
-				}, err => {
-					// ignore
-				});
+				}, onUnexpectedExternalError);
 			};
 		}
 	})).then(() => result);
@@ -53,9 +51,7 @@ export function getDocumentFormattingEdits(model: IReadOnlyModel, options: Forma
 			return () => {
 				return asWinJsPromise(token => provider.provideDocumentFormattingEdits(model, options, token)).then(value => {
 					result = value;
-				}, err => {
-					// ignore
-				});
+				}, onUnexpectedExternalError);
 			};
 		}
 	})).then(() => result);
@@ -72,7 +68,7 @@ export function getOnTypeFormattingEdits(model: IReadOnlyModel, position: Positi
 
 	return asWinJsPromise((token) => {
 		return support.provideOnTypeFormattingEdits(model, position, ch, options, token);
-	});
+	}).then(r => r, onUnexpectedExternalError);
 }
 
 CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args) {
