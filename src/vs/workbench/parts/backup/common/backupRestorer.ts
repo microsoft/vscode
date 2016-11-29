@@ -30,53 +30,66 @@ export class BackupRestorer implements IWorkbenchContribution {
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@IEditorGroupService private groupService: IEditorGroupService
 	) {
-		if (!this.environmentService.isExtensionDevelopment) {
-			this.restoreBackups();
-		}
+		this.restoreBackups();
 	}
 
 	private restoreBackups(): void {
+		if (!this.environmentService.isExtensionDevelopment) {
+			this.partService.joinCreation().then(() => {
+				this.doRestoreBackups().done(null, errors.onUnexpectedError);
+			});
+		}
+	}
 
-		// Wait for all editors being restored before restoring backups
-		this.partService.joinCreation().then(() => {
-			const stacks = this.groupService.getStacksModel();
-			const hasOpenedEditors = stacks.groups.length > 0;
+	private doRestoreBackups(): TPromise<any> {
 
-			// Find all files and untitled with backups
-			this.backupFileService.getWorkspaceFileBackups().then(backups => {
-				const restorePromises: TPromise<any>[] = [];
-				const editorsToOpen: URI[] = [];
+		// Find all files and untitled with backups
+		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
 
-				// Restore any backup that is opened and remember those that are not yet
-				backups.forEach(backup => {
-					if (stacks.isOpen(backup)) {
-						if (backup.scheme === 'file') {
-							restorePromises.push(this.textModelResolverService.createModelReference(backup));
-						} else if (backup.scheme === 'untitled') {
-							restorePromises.push(this.untitledEditorService.get(backup).resolve());
-						}
-					} else {
-						editorsToOpen.push(backup);
-					}
-				});
+			// Resolve backups that are opened in stacks model
+			return this.doResolveOpenedBackups(backups).then(unresolved => {
 
-				// Restore all backups that are opened as editors
-				return TPromise.join(restorePromises).then(() => {
-					if (editorsToOpen.length > 0) {
-						const resourceToInputs = TPromise.join(editorsToOpen.map(resource => this.editorService.createInput({ resource })));
-
-						return resourceToInputs.then(inputs => {
-							const openEditorsArgs = inputs.map((input, index) => {
-								return { input, options: { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors }, position: Position.ONE };
-							});
-
-							// Open all remaining backups as editors and resolve them to load their backups
-							return this.editorService.openEditors(openEditorsArgs).then(() => TPromise.join(inputs.map(input => input.resolve())));
-						});
-					}
-				});
-			}).done(null, errors.onUnexpectedError);
+				// Some failed to restore or were not opened at all so we open and resolve them manually
+				if (unresolved.length > 0) {
+					return this.doOpenEditors(unresolved).then(() => this.doResolveOpenedBackups(unresolved));
+				}
+			});
 		});
+	}
+
+	private doOpenEditors(inputs: URI[]): TPromise<void> {
+		const stacks = this.groupService.getStacksModel();
+		const hasOpenedEditors = stacks.groups.length > 0;
+
+		return TPromise.join(inputs.map(resource => this.editorService.createInput({ resource }))).then(inputs => {
+			const openEditorsArgs = inputs.map((input, index) => {
+				return { input, options: { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors }, position: Position.ONE };
+			});
+
+			// Open all remaining backups as editors and resolve them to load their backups
+			return this.editorService.openEditors(openEditorsArgs).then(() => void 0);
+		});
+	}
+
+	private doResolveOpenedBackups(backups: URI[]): TPromise<URI[]> {
+		const stacks = this.groupService.getStacksModel();
+
+		const restorePromises: TPromise<any>[] = [];
+		const unresolved: URI[] = [];
+
+		backups.forEach(backup => {
+			if (stacks.isOpen(backup)) {
+				if (backup.scheme === 'file') {
+					restorePromises.push(this.textModelResolverService.createModelReference(backup).then(null, () => unresolved.push(backup)));
+				} else if (backup.scheme === 'untitled') {
+					restorePromises.push(this.untitledEditorService.get(backup).resolve().then(null, () => unresolved.push(backup)));
+				}
+			} else {
+				unresolved.push(backup);
+			}
+		});
+
+		return TPromise.join(restorePromises).then(() => unresolved, () => unresolved);
 	}
 
 	public getId(): string {
