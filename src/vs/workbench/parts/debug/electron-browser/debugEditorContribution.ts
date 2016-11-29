@@ -4,20 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import uri from 'vs/base/common/uri';
+import { visit } from 'vs/base/common/json';
 import { IAction, Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
@@ -51,7 +55,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService private commandService: ICommandService
 	) {
 		this.breakpointHintDecoration = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService);
@@ -271,7 +276,28 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private addLaunchConfiguration(): void {
-		this.editor.focus();
+		let depthInArray = 0;
+		let configurationsPosition: IPosition;
+		const model = this.editor.getModel();
+		visit(model.getValue(), {
+			onObjectProperty: (property, offset, length) => {
+				if (property === 'configurations' && depthInArray === 0) {
+					configurationsPosition = model.getPositionAt(offset);
+				}
+			},
+			onArrayBegin: (offset: number, length: number) => {
+				depthInArray++;
+			},
+			onArrayEnd: (offset: number, length: number) => {
+				depthInArray--;
+			}
+		});
+
+		if (configurationsPosition) {
+			this.editor.setSelection(new Selection(configurationsPosition.lineNumber, Number.MAX_VALUE, configurationsPosition.lineNumber, Number.MAX_VALUE));
+			this.commandService.executeCommand('editor.action.insertLineAfter').done(() =>
+				this.commandService.executeCommand('editor.action.triggerSuggest'), errors.onUnexpectedError);
+		}
 	}
 
 	private static BREAKPOINT_HELPER_DECORATION: IModelDecorationOptions = {
