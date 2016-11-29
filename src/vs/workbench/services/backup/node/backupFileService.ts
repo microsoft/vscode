@@ -67,7 +67,7 @@ export class BackupFilesModel implements IBackupFilesModel {
 	}
 
 	public getTextFiles(): string[] {
-		return Object.keys(this.cache).filter(k => path.basename(path.dirname(k)) === 'file');
+		return Object.keys(this.cache).filter(k => path.basename(path.dirname(k)) === 'file').map(k => k.replace('file://', ''));
 	}
 
 	public remove(resource: Uri): void {
