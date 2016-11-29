@@ -16,6 +16,13 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
+export enum UnloadReason {
+	CLOSE,
+	QUIT,
+	RELOAD,
+	LOAD
+}
+
 export interface ILifecycleService {
 	_serviceBrand: any;
 
@@ -33,7 +40,7 @@ export interface ILifecycleService {
 
 	ready(): void;
 	registerWindow(vscodeWindow: IVSCodeWindow): void;
-	unload(vscodeWindow: IVSCodeWindow): TPromise<boolean /* veto */>;
+	unload(vscodeWindow: IVSCodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
 	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
 }
 
@@ -126,7 +133,7 @@ export class LifecycleService implements ILifecycleService {
 
 			// Otherwise prevent unload and handle it from window
 			e.preventDefault();
-			this.unload(vscodeWindow).done(veto => {
+			this.unload(vscodeWindow, UnloadReason.CLOSE).done(veto => {
 				if (!veto) {
 					this.windowToCloseRequest[windowId] = true;
 					vscodeWindow.win.close();
@@ -138,7 +145,7 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public unload(vscodeWindow: IVSCodeWindow): TPromise<boolean /* veto */> {
+	public unload(vscodeWindow: IVSCodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
 		if (vscodeWindow.readyState !== ReadyState.READY) {
@@ -149,14 +156,14 @@ export class LifecycleService implements ILifecycleService {
 
 		return new TPromise<boolean>((c) => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
-			const oneTimeOkEvent = 'vscode:ok' + oneTimeEventToken;
-			const oneTimeCancelEvent = 'vscode:cancel' + oneTimeEventToken;
+			const okChannel = `vscode:ok${oneTimeEventToken}`;
+			const cancelChannel = `vscode:cancel${oneTimeEventToken}`;
 
-			ipc.once(oneTimeOkEvent, () => {
+			ipc.once(okChannel, () => {
 				c(false); // no veto
 			});
 
-			ipc.once(oneTimeCancelEvent, () => {
+			ipc.once(cancelChannel, () => {
 
 				// Any cancellation also cancels a pending quit if present
 				if (this.pendingQuitPromiseComplete) {
@@ -168,7 +175,7 @@ export class LifecycleService implements ILifecycleService {
 				c(true); // veto
 			});
 
-			vscodeWindow.send('vscode:beforeUnload', { okChannel: oneTimeOkEvent, cancelChannel: oneTimeCancelEvent, quitRequested: this.quitRequested });
+			vscodeWindow.send('vscode:beforeUnload', { okChannel, cancelChannel, reason: this.quitRequested ? UnloadReason.QUIT : reason });
 		});
 	}
 
