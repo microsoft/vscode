@@ -274,15 +274,17 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('BackupFilesModel - getTextFiles', () => {
+	test('BackupFilesModel - getFilesByScheme', () => {
 		const model = new BackupFilesModel();
 
-		assert.deepEqual(model.getTextFiles(), []);
+		assert.deepEqual(model.getFilesByScheme('file'), []);
+		assert.deepEqual(model.getFilesByScheme('untitled'), []);
 
 		model.add(Uri.file('/root/file/foo.html'));
 		model.add(Uri.file('/root/file/bar.html'));
 		model.add(Uri.file('/root/untitled/bar.html'));
 
-		assert.deepEqual(model.getTextFiles(), ['/root/file/foo.html', '/root/file/bar.html']);
+		assert.deepEqual(model.getFilesByScheme('file'), ['/root/file/foo.html', '/root/file/bar.html']);
+		assert.deepEqual(model.getFilesByScheme('untitled'), ['/root/untitled/bar.html']);
 	});
 });
