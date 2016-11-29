@@ -65,7 +65,6 @@ import 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/explorers/browser/treeExplorer.contribution';
-import 'vs/workbench/parts/explorers/browser/treeExplorerActions.contribution';
 import 'vs/workbench/parts/explorers/browser/treeExplorerViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/output/browser/output.contribution';
@@ -107,3 +106,5 @@ import 'vs/workbench/electron-browser/main';
 import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution';
 
 import 'vs/workbench/parts/watermark/electron-browser/watermark';
+
+import 'vs/workbench/parts/viewpicker/browser/viewpicker.contribution';

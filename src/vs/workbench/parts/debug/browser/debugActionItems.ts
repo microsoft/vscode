@@ -36,9 +36,13 @@ export class SelectConfigurationActionItem extends SelectActionItem {
 		if (!config || !config.configurations || config.configurations.length === 0) {
 			this.setOptions([NO_CONFIGURATIONS_LABEL], 0);
 		} else {
-			const configurationNames = config.configurations.filter(cfg => !!cfg.name).map(cfg => cfg.name);
-			const selected = configurationNames.indexOf(this.debugService.getViewModel().selectedConfigurationName);
-			this.setOptions(configurationNames, selected);
+			const options = config.configurations.filter(cfg => !!cfg.name).map(cfg => cfg.name);
+			if (config.compounds) {
+				options.push(...config.compounds.filter(compound => !!compound.name).map(compound => compound.name));
+			}
+
+			const selected = options.indexOf(this.debugService.getViewModel().selectedConfigurationName);
+			this.setOptions(options, selected);
 		}
 
 		if (changeDebugConfiguration) {

@@ -278,7 +278,7 @@ export class Workbench implements IPartService {
 
 				viewletRestoreStopWatch = StopWatch.create();
 				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('[renderer] open viewlet {0}', viewletIdToRestore));
-				compositeAndEditorPromises.push(this.viewletService.restoreViewlet(viewletIdToRestore).then(() => {
+				compositeAndEditorPromises.push(this.viewletService.openViewlet(viewletIdToRestore).then(() => {
 					viewletTimerEvent.stop();
 					viewletRestoreStopWatch.stop();
 				}));
@@ -504,8 +504,7 @@ export class Workbench implements IPartService {
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
 		if (!this.contextService.getWorkspace()) {
-			// some first time users will see a sidebar; returning users will not see the sidebar
-			this.sideBarHidden = !this.telemetryService.getExperiments().showDefaultViewlet;
+			this.sideBarHidden = true; // we hide sidebar in single-file-mode
 		}
 
 		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);

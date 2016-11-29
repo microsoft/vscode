@@ -124,7 +124,7 @@ let schema: IJSONSchema = {
 	'id': schemaId,
 	'defaultSnippets': [{
 		'label': nls.localize('snippetSchema.json.default', "Empty snippet"),
-		'body': { '{{snippetName}}': { 'prefix': '{{prefix}}', 'body': '{{snippet}}', 'description': '{{description}}' } }
+		'body': { '${1:snippetName}': { 'prefix': '${2:prefix}', 'body': '${3:snippet}', 'description': '${4:description}' } }
 	}],
 	'type': 'object',
 	'description': nls.localize('snippetSchema.json', 'User snippet configuration'),

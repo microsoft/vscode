@@ -281,6 +281,7 @@ export interface IDebugConfiguration {
 export interface IGlobalConfig {
 	version: string;
 	debugServer?: number;
+	compounds: ICompound[];
 	configurations: IConfig[];
 }
 
@@ -292,12 +293,18 @@ export interface IEnvConfig {
 	preLaunchTask?: string;
 	debugServer?: number;
 	noDebug?: boolean;
+	port?: number;
 }
 
 export interface IConfig extends IEnvConfig {
 	windows?: IEnvConfig;
 	osx?: IEnvConfig;
 	linux?: IEnvConfig;
+}
+
+export interface ICompound {
+	name: string;
+	configurations: string[];
 }
 
 export interface IRawEnvAdapter {
@@ -334,6 +341,12 @@ export interface IConfigurationManager {
 	 * If nameOrConfig is null resolves the first configuration and returns it.
 	 */
 	getConfiguration(nameOrConfig: string | IConfig): TPromise<IConfig>;
+
+	/**
+	 * Returns a compound with the specified name.
+	 * Returns null if there is no compound with the specified name.
+	 */
+	getCompound(name: string): ICompound;
 
 	/**
 	 * Opens the launch.json file

@@ -42,6 +42,7 @@ import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { ToggleMarkersPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
@@ -549,8 +550,17 @@ export class DebugService implements debug.IDebugService {
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
 			.then(() => this.configurationService.reloadConfiguration()	// make sure configuration is up to date
 				.then(() => this.extensionService.onReady()
-					.then(() => this.configurationManager.getConfiguration(configurationOrName)
-						.then(configuration => {
+					.then(() => {
+						const compound = typeof configurationOrName === 'string' ? this.configurationManager.getCompound(configurationOrName) : null;
+						if (compound) {
+							if (!compound.configurations) {
+								return TPromise.wrapError(new Error(nls.localize('compoundMustHaveConfigurationNames', "Compound must have \"configurationNames\" attribute set in order to start multiple configurations.")));
+							}
+
+							return TPromise.join(compound.configurations.map(name => this.createProcess(name)));
+						}
+
+						return this.configurationManager.getConfiguration(configurationOrName).then(configuration => {
 							if (!configuration) {
 								return this.configurationManager.openConfigFile(false).then(openend => {
 									if (openend) {
@@ -577,10 +587,14 @@ export class DebugService implements debug.IDebugService {
 									message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
 										errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
 											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
-									actions: [new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
-										this.messageService.hideAll();
-										return this.doCreateProcess(sessionId, configuration);
-									}), CloseAction]
+									actions: [
+										new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+											this.messageService.hideAll();
+											return this.doCreateProcess(sessionId, configuration);
+										}),
+										this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
+										CloseAction
+									]
 								});
 							}, (err: TaskError) => {
 								if (err.code !== TaskErrors.NotConfigured) {
@@ -592,7 +606,8 @@ export class DebugService implements debug.IDebugService {
 									actions: [this.taskService.configureAction(), CloseAction]
 								});
 							});
-						}))));
+						});
+					})));
 	}
 
 	private doCreateProcess(sessionId: string, configuration: debug.IConfig): TPromise<any> {
@@ -766,9 +781,11 @@ export class DebugService implements debug.IDebugService {
 
 		const sessionId = generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
-		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then(config =>
-			this.doCreateProcess(sessionId, config)
-		);
+		return this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName).then(config => {
+			config.request = 'attach';
+			config.port = port;
+			this.doCreateProcess(sessionId, config);
+		});
 	}
 
 	public restartProcess(process: debug.IProcess): TPromise<any> {
@@ -790,16 +807,14 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private onSessionEnd(session: RawDebugSession): void {
-		if (session) {
-			const bpsExist = this.model.getBreakpoints().length > 0;
-			this.telemetryService.publicLog('debugSessionStop', {
-				type: session.configuration.type,
-				success: session.emittedStopped || !bpsExist,
-				sessionLengthInSeconds: session.getLengthInSeconds(),
-				breakpointCount: this.model.getBreakpoints().length,
-				watchExpressionsCount: this.model.getWatchExpressions().length
-			});
-		}
+		const bpsExist = this.model.getBreakpoints().length > 0;
+		this.telemetryService.publicLog('debugSessionStop', {
+			type: session.configuration.type,
+			success: session.emittedStopped || !bpsExist,
+			sessionLengthInSeconds: session.getLengthInSeconds(),
+			breakpointCount: this.model.getBreakpoints().length,
+			watchExpressionsCount: this.model.getWatchExpressions().length
+		});
 
 		try {
 			this.toDisposeOnSessionEnd[session.getId()] = lifecycle.dispose(this.toDisposeOnSessionEnd[session.getId()]);
@@ -1045,7 +1060,6 @@ export class DebugService implements debug.IDebugService {
 				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
 			}
 		});
-
 	}
 
 	private store(): void {

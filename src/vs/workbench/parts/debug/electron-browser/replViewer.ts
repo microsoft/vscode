@@ -91,10 +91,11 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
 		// group 0: the full thing :)
 		// group 1: absolute path
-		// group 2: line number
-		// group 3: column number
+		// group 2: the root slash/drive letter, if present
+		// group 3: line number
+		// group 4: column number
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/(?:at |^|[\(<\'\"\[])(?:file:\/\/)?((?:(?:\/|[a-zA-Z]:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?):(\d+)(?::(\d+))?(?:$|[\)>\'\"\]])/
+		/(?:at |^|[\(<\'\"\[])(?:file:\/\/)?((?:(\/|[a-zA-Z]:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?):(\d+)(?::(\d+))?(?:$|[\)>\'\"\]])/
 	];
 
 	private static LINE_HEIGHT_PX = 18;
@@ -219,7 +220,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private renderExpression(tree: ITree, expression: IExpression, templateData: IExpressionTemplateData): void {
 		templateData.input.textContent = expression.name;
 		renderExpressionValue(expression, templateData.value, {
-			preserveWhitespace: true
+			preserveWhitespace: true,
+			showHover: false
 		});
 		if (expression.hasChildren) {
 			templateData.annotation.className = 'annotation octicon octicon-info';
@@ -243,7 +245,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 		let result = this.handleANSIOutput(output.value);
 		if (typeof result === 'string') {
 			renderExpressionValue(result, templateData.value, {
-				preserveWhitespace: true
+				preserveWhitespace: true,
+				showHover: false
 			});
 		} else {
 			templateData.value.appendChild(result);
@@ -262,7 +265,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		// value
 		renderExpressionValue(output.value, templateData.value, {
-			preserveWhitespace: true
+			preserveWhitespace: true,
+			showHover: false
 		});
 
 		// annotation if any
@@ -373,7 +377,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 			const match = pattern.exec(text);
 			let resource: uri = null;
 			try {
-				resource = match && this.contextService.toResource(match[1]);
+				// If root slash / drive letter is present, resolve relative path
+				resource = match && (match[2] ? uri.file(match[1]) : this.contextService.toResource(match[1]));
 			} catch (e) { }
 
 			if (resource) {
@@ -390,7 +395,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 				link.textContent = text.substr(match.index, match[0].length);
 				link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
 				linkContainer.appendChild(link);
-				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, Number(match[2]), match[3] && Number(match[3]));
+				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, Number(match[3]), match[4] && Number(match[4]));
 
 				let textAfterLink = text.substr(match.index + match[0].length);
 				if (textAfterLink) {

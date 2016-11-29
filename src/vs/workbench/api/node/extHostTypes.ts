@@ -524,6 +524,10 @@ export class WorkspaceEdit {
 
 export class SnippetString {
 
+	private static _escape(value: string): string {
+		return value.replace(/\$|}|\\/g, '\\$&');
+	}
+
 	private _tabstop: number = 1;
 
 	value: string;
@@ -533,7 +537,7 @@ export class SnippetString {
 	}
 
 	appendText(string: string): SnippetString {
-		this.value += string.replace(/\$/g, '\\$');
+		this.value += SnippetString._escape(string);
 		return this;
 	}
 
@@ -552,7 +556,7 @@ export class SnippetString {
 			this._tabstop = nested._tabstop;
 			value = nested.value;
 		} else {
-			value = value.replace(/\$|}/g, '\\$&');
+			value = SnippetString._escape(value);
 		}
 
 		this.value += '${';

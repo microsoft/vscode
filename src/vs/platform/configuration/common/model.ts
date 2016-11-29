@@ -10,18 +10,22 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 export function getDefaultValues(): any {
 	const valueTreeRoot: any = Object.create(null);
 	const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+
 	for (let key in properties) {
 		let value = properties[key].default;
 		addToValueTree(valueTreeRoot, key, value);
 	}
+
 	return valueTreeRoot;
 }
 
 export function toValuesTree(properties: { [qualifiedKey: string]: any }): any {
 	const root = Object.create(null);
+
 	for (let key in properties) {
 		addToValueTree(root, key, properties[key]);
 	}
+
 	return root;
 }
 
@@ -51,5 +55,6 @@ function addToValueTree(settingsTreeRoot: any, key: string, value: any): void {
 
 export function getConfigurationKeys(): string[] {
 	const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+
 	return Object.keys(properties);
 }

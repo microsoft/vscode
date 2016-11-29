@@ -431,8 +431,8 @@
     },
     "xterm": {
       "version": "2.1.0",
-      "from": "xterm@2.1.0",
-      "resolved": "https://registry.npmjs.org/xterm/-/xterm-2.1.0.tgz"
+      "from": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.8",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#81f0516e1098439116ac1344ae3074f51c5bcf52"
     },
     "yauzl": {
       "version": "2.3.1",

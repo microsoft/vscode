@@ -26,7 +26,7 @@
 	"license": "라이선스",
 	"menuContexts": "메뉴 컨텍스트",
 	"name": "확장 이름",
-	"noChangelog": "변경 로그를 사용할 수 없습니다.",
+	"noChangelog": "CHANGELOG를 사용할 수 없습니다.",
 	"noContributions": "참여 없음",
 	"noDependencies": "종속성 없음",
 	"noReadme": "사용 가능한 추가 정보가 없습니다.",
