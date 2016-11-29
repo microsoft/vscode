@@ -61,14 +61,14 @@ export interface IBackupFileService {
 	 *
 	 * @return The list of backups.
 	 */
-	getWorkspaceTextFileBackups(): TPromise<string[]>;
+	getWorkspaceTextFileBackups(): TPromise<Uri[]>;
 
 	/**
 	 * Gets a list of untitled backups for the current workspace.
 	 *
 	 * @return The list of backups.
 	 */
-	getWorkspaceUntitledFileBackups(): TPromise<string[]>;
+	getWorkspaceUntitledFileBackups(): TPromise<Uri[]>;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..
