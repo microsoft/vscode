@@ -132,8 +132,8 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				debugService.renameWatchExpression(element.getId(), inputBox.value).done(null, errors.onUnexpectedError);
 			} else if (element instanceof Expression && !element.name) {
 				debugService.removeWatchExpressions(element.getId());
-			} else if (element instanceof FunctionBreakpoint && renamed && inputBox.value) {
-				debugService.renameFunctionBreakpoint(element.getId(), inputBox.value).done(null, errors.onUnexpectedError);
+			} else if (element instanceof FunctionBreakpoint && inputBox.value) {
+				debugService.renameFunctionBreakpoint(element.getId(), renamed ? inputBox.value : element.name).done(null, errors.onUnexpectedError);
 			} else if (element instanceof FunctionBreakpoint && !element.name) {
 				debugService.removeFunctionBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
 			} else if (element instanceof Variable) {
@@ -1252,6 +1252,7 @@ export class BreakpointsRenderer implements IRenderer {
 	private renderFunctionBreakpoint(tree: ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IBaseBreakpointTemplateData): void {
 		const selected = this.debugService.getViewModel().getSelectedFunctionBreakpoint();
 		if (!functionBreakpoint.name || (selected && selected.getId() === functionBreakpoint.getId())) {
+			data.name.textContent = '';
 			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, {
 				initialValue: functionBreakpoint.name,
 				placeholder: nls.localize('functionBreakpointPlaceholder', "Function to break on"),
