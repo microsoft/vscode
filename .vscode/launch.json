@@ -21,6 +21,17 @@
 		},
 		{
 			"type": "node",
+			"request": "launch",
+			"name": "Gulp Build",
+			"program": "${workspaceRoot}/node_modules/gulp/bin/gulp.js",
+			"stopOnEntry": true,
+			"args": [
+				"watch-extension:json-client"
+			],
+			"cwd": "${workspaceRoot}"
+		},
+		{
+			"type": "node",
 			"request": "attach",
 			"name": "Attach to Extension Host",
 			"port": 5870,
