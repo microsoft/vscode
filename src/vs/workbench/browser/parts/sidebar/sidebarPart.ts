@@ -60,7 +60,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISidebar {
 			partService,
 			keybindingService,
 			instantiationService,
-			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)),
+			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets),
 			SidebarPart.activeViewletSettingsKey,
 			'sideBar',
 			'viewlet',

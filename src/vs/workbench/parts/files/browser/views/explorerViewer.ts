@@ -507,7 +507,7 @@ export class FileController extends DefaultController {
 			getAnchor: () => anchor,
 			getActions: () => {
 				return this.state.actionProvider.getSecondaryActions(tree, stat).then(actions => {
-					fillInActions(this.contributedContextMenu, actions);
+					fillInActions(this.contributedContextMenu, stat.resource, actions);
 					return actions;
 				});
 			},

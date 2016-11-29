@@ -50,17 +50,14 @@ export function activate(context: ExtensionContext) {
 	// Create the language client and start the client.
 	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions, true);
 	let disposable = client.start();
-
-	// Push the disposable to the context's subscriptions so that the
-	// client can be deactivated on extension deactivation
 	context.subscriptions.push(disposable);
-
-	let colorRequestor = (uri: string) => {
-		return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
-	};
-	disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true });
-	context.subscriptions.push(disposable);
-
+	client.onReady().then(() => {
+		let colorRequestor = (uri: string) => {
+			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
+		};
+		let disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true });
+		context.subscriptions.push(disposable);
+	});
 
 	languages.setLanguageConfiguration('html', {
 		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
