@@ -182,10 +182,10 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public getWorkspaceTextFileBackups(): TPromise<Uri[]> {
+	public getWorkspaceFileBackups(scheme: string): TPromise<Uri[]> {
 		return this.ready.then(model => {
 			let readPromises: TPromise<Uri>[] = [];
-			model.getFilesByScheme('file').forEach(textFile => {
+			model.getFilesByScheme(scheme).forEach(textFile => {
 				readPromises.push(new TPromise<Uri>((c, e) => {
 					readToMatchingString(textFile.fsPath, '\n', 2000, 10000, (error, result) => {
 						if (result === null) {
@@ -199,12 +199,6 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public getWorkspaceUntitledFileBackups(): TPromise<Uri[]> {
-		return this.ready.then(model => {
-			return model.getFilesByScheme('untitled');
-		});
-	}
-
 	public parseBackupContent(rawText: IRawTextContent): string {
 		return rawText.value.lines.slice(1).join('\n');
 	}
@@ -214,8 +208,7 @@ export class BackupFileService implements IBackupFileService {
 			return null;
 		}
 
-		// Only hash the file path if the file is not untitled
-		const backupName = resource.scheme === 'untitled' ? resource.fsPath : crypto.createHash('md5').update(resource.fsPath).digest('hex');
+		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
 		const backupPath = path.join(this.backupWorkspacePath, resource.scheme, backupName);
 
 		return Uri.file(backupPath);
