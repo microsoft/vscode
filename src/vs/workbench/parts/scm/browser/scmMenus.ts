@@ -24,7 +24,7 @@ export class SCMMenus implements IDisposable {
 	private get cachedTitleMenuActions() {
 		if (!this._titleMenuActions) {
 			this._titleMenuActions = { primary: [], secondary: [] };
-			fillInActions(this.titleMenu, this._titleMenuActions);
+			fillInActions(this.titleMenu, null, this._titleMenuActions);
 		}
 		return this._titleMenuActions;
 	}
@@ -53,7 +53,7 @@ export class SCMMenus implements IDisposable {
 
 	get context(): IAction[] {
 		const result = [];
-		fillInActions(this.contextMenu, result);
+		fillInActions(this.contextMenu, null, result);
 		return result;
 	}
 
