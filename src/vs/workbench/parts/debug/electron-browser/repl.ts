@@ -143,7 +143,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			dataSource: new ReplExpressionsDataSource(),
 			renderer: this.renderer,
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
-			controller: new ReplExpressionsController(this.debugService, this.contextMenuService, new ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
+			controller: this.instantiationService.createInstance(ReplExpressionsController, this.replInput, new ReplExpressionsActionProvider(this.instantiationService))
 		}, replTreeOptions);
 
 		if (!Repl.HISTORY) {
