@@ -102,17 +102,38 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			const maxResults = this.config.maxResults - this.numResults;
 			worker.search({ absolutePaths: batch, maxResults }).then(result => {
 				const matches = result.matches;
+				if (this.limitReached || this.isCanceled) {
+					return unwind(batchBytes);
+				}
 
 				// console.log('got result - ' + batchBytes);
-				this.numResults += matches.length;
-				matches.forEach(m => {
-					if (m && m.lineMatches.length) {
+				// this.numResults += result.numMatches;
+				if (this.numResults + result.numMatches <= this.config.maxResults) {
+					console.log('will fit')
+					this.numResults += result.numMatches;
+					matches.forEach(m => {
 						onResult(m);
-					}
-				});
+					});
+				} else {
+					console.log('too large')
+					const fittingIndices = this.resultsIndexUnderMax(matches);
+					if (fittingIndices) {
+						// Report all totally fitting file matches
+						for (let i = 0; i < fittingIndices[0]; i++) {
+							onResult(matches[i]);
+						}
 
-				if (result.limitReached || (matches.length + this.numResults >= this.config.maxResults)) {
-					this.limitReached = true;
+						const partiallyFittingFileMatch = matches[fittingIndices[0] + 1];
+						if (partiallyFittingFileMatch) {
+							partiallyFittingFileMatch.lineMatches = partiallyFittingFileMatch.lineMatches.slice(0, fittingIndices[1] + 1);
+							const partiallyFittingLineMatch = partiallyFittingFileMatch.lineMatches[partiallyFittingFileMatch.lineMatches.length - 1];
+							partiallyFittingLineMatch.offsetAndLengths = partiallyFittingLineMatch.offsetAndLengths.slice(0, fittingIndices[2]);
+							onResult(partiallyFittingFileMatch);
+						}
+
+						console.log('limit reached')
+						this.limitReached = true;
+					}
 				}
 
 				unwind(batchBytes);
@@ -154,6 +175,22 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			this.walkerIsDone = true;
 			this.walkerError = error;
 		});
+	}
+
+	private resultsIndexUnderMax(matches: ISerializedFileMatch[]): number[] {
+		let resultsCounter = this.numResults;
+		for (let fileMatchIdx = 0; fileMatchIdx < matches.length; fileMatchIdx++) {
+			const fileMatch = matches[fileMatchIdx];
+			for (let lineMatchIdx = 0; lineMatchIdx < fileMatch.lineMatches.length; lineMatchIdx++) {
+				const lineMatch = fileMatch.lineMatches[lineMatchIdx];
+				if (lineMatch.offsetAndLengths.length + resultsCounter >= this.config.maxResults) {
+					const fittingOffsetsIdx = this.config.maxResults - resultsCounter - 1;
+					return [lineMatchIdx, fileMatchIdx, fittingOffsetsIdx];
+				} else {
+					resultsCounter += lineMatch.offsetAndLengths.length;
+				}
+			}
+		}
 	}
 }
 

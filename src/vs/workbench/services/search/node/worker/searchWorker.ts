@@ -72,53 +72,61 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults
 	return new TPromise(batchDone => {
 		const result: ISearchWorkerSearchResult = {
 			matches: [],
+			numMatches: 0,
 			limitReached: false
 		};
-		let runningCount = 0;
 
+		// Search in the given path, and when it's finished, search in the next path in absolutePaths
 		const startSearchInFile = (absolutePath: string): TPromise<void> => {
-			runningCount++;
-			const searchPromise = searchInFile(absolutePath, contentPattern, maxResults).then(fileMatch => {
+			return searchInFile(absolutePath, contentPattern, maxResults - result.numMatches).then(fileMatch => {
+				// Finish if search is canceled
+				if (isCanceled) {
+					return;
+				}
+
 				if (fileMatch) {
-					result.matches.push(fileMatch.match);
+					result.numMatches += fileMatch.match.lineMatches.length;
+					result.matches.push(fileMatch.match.serialize());
 					if (fileMatch.limitReached) {
+						// If the limit was reached, terminate early with the results so far.
 						isCanceled = true;
 						result.limitReached = true;
-						return batchDone(result);
+						batchDone(result);
 					}
 				}
 
-				runningCount--;
 				if (absolutePaths.length) {
-					startSearchInFile(absolutePaths.pop());
-				} else if (runningCount === 0) {
-					batchDone(result);
+					return startSearchInFile(absolutePaths.pop());
 				}
 			});
-
-			return searchPromise;
 		};
 
+		let batchPromises: TPromise<void>[] = [];
 		for (let i = 0; i < SearchWorker.CONCURRENT_SEARCH_PATHS && i < absolutePaths.length; i++) {
-			startSearchInFile(absolutePaths[i]);
+			batchPromises.push(startSearchInFile(absolutePaths[i]));
 		}
+
+		TPromise.join(batchPromises).then(() => {
+			batchDone(result);
+		});
 	});
 }
 
 interface IFileSearchResult {
 	match: FileMatch;
+	numMatches: number;
 	limitReached?: boolean;
 }
 
 function searchInFile(absolutePath: string, contentPattern: RegExp, maxResults: number): TPromise<IFileSearchResult> {
 	let fileMatch: FileMatch = null;
 	let limitReached = false;
+	let numMatches = 0;
 	// console.log('doing search: ' + absolutePath);
 
 	const perLineCallback = (line: string, lineNumber: number) => {
 		let lineMatch: LineMatch = null;
 		let match = contentPattern.exec(line);
-		let numResults = 0;
 
 		// Record all matches into file result
 		while (match !== null && match[0].length > 0 && !isCanceled && !limitReached) {
@@ -133,8 +141,8 @@ function searchInFile(absolutePath: string, contentPattern: RegExp, maxResults: 
 
 			lineMatch.addMatch(match.index, match[0].length);
 
-			numResults++;
-			if (maxResults && numResults >= maxResults) {
+			numMatches++;
+			if (maxResults && numMatches >= maxResults) {
 				limitReached = true;
 			}
 
@@ -144,7 +152,7 @@ function searchInFile(absolutePath: string, contentPattern: RegExp, maxResults: 
 
 	// Read lines buffered to support large files
 	return readlinesAsync(absolutePath, perLineCallback, { bufferLength: 8096, encoding: 'utf8' }).then(
-		() => ({ match: fileMatch, limitReached }));
+		() => fileMatch ? { match: fileMatch, limitReached, numMatches } : null);
 }
 
 function readlinesAsync(filename: string, perLineCallback: (line: string, lineNumber: number) => void, options: ReadLinesOptions): TPromise<void> {
@@ -293,7 +301,7 @@ export class FileMatch implements ISerializedFileMatch {
 
 		return {
 			path: this.path,
-			lineMatches: lineMatches
+			lineMatches
 		};
 	}
 }
