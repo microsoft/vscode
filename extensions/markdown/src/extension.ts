@@ -235,7 +235,8 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 				this.computeCustomStyleSheetIncludes(uri),
 				`<base href="${document.uri.toString(true)}">`,
 				'</head>',
-				'<body>'
+				'<body>',
+				`<script src="${this.getMediaPath('markdown.js')}"></script>`,
 			).join('\n');
 			const body = this._renderer.render(this.getDocumentContentForPreview(document));
 

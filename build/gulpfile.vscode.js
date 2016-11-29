@@ -68,6 +68,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/parts/html/browser/webview.html',
 	'out-build/vs/workbench/parts/html/browser/webview-pre.js',
 	'out-build/vs/**/markdown.css',
+	'out-build/vs/**/markdown.js',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
 	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
 	'out-build/vs/workbench/services/files/**/*.exe',
