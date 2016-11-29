@@ -18,7 +18,7 @@ import { detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
 
 import { ISearchWorker, ISearchWorkerConfig, ISearchWorkerSearchArgs, ISearchWorkerSearchResult } from './searchWorkerIpc';
 
-import profiler = require('v8-profiler');
+// import profiler = require('v8-profiler');
 
 interface ReadLinesOptions {
 	bufferLength: number;
@@ -29,7 +29,7 @@ interface ReadLinesOptions {
 let isCanceled = false;
 
 export class SearchWorker implements ISearchWorker {
-	static CONCURRENT_SEARCH_PATHS = 10;
+	static CONCURRENT_SEARCH_PATHS = 2;
 
 	private contentPattern: RegExp;
 
@@ -51,14 +51,17 @@ export class SearchWorker implements ISearchWorker {
 
 	cancel(): TPromise<void> {
 		isCanceled = true;
-		return TPromise.wrap<void>(undefined);
+		return TPromise.wrap<void>(null);
 	}
 
 	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
 		// console.log('starting search: ' + Date.now() + ' ' + args.absolutePaths.length);
 		// Queue this search to run after the current one
-		return this.nextSearch = this.nextSearch
-			.then(() => searchBatch(args.absolutePaths, this.contentPattern, args.maxResults));
+		return this.nextSearch = (new TPromise((resolve, reject) => {
+			this.nextSearch
+				.then(() => searchBatch(args.absolutePaths, this.contentPattern, args.maxResults))
+				.then(resolve, reject);
+		}));
 	}
 }
 
@@ -66,54 +69,40 @@ export class SearchWorker implements ISearchWorker {
  * Searches some number of the paths concurrently, and starts searches in other paths when those complete.
  */
 function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults: number): TPromise<ISearchWorkerSearchResult> {
-	const result: ISearchWorkerSearchResult = {
-		matches: [],
-		limitReached: false
-	};
-	let runningCount = 0;
-	let allSearchPromises: TPromise<void>[] = [];
+	return new TPromise(batchDone => {
+		const result: ISearchWorkerSearchResult = {
+			matches: [],
+			limitReached: false
+		};
+		let runningCount = 0;
 
-	let done: (result: ISearchWorkerSearchResult) => void;
-	const p = (new TPromise(resolve => {
-		done = resolve;
-	},
-	() => {
-		cancelAll();
-	}));
-
-	const cancelAll = () => {
-		allSearchPromises.forEach(p => p.cancel());
-	};
-
-	const startSearchInFile = (absolutePath: string): TPromise<void> => {
-		runningCount++;
-		const searchPromise = searchInFile(absolutePath, contentPattern, maxResults).then(fileMatch => {
-			if (fileMatch) {
-				result.matches.push(fileMatch.match);
-				if (fileMatch.limitReached) {
-					cancelAll();
-					result.limitReached = true;
-					return done(result);
+		const startSearchInFile = (absolutePath: string): TPromise<void> => {
+			runningCount++;
+			const searchPromise = searchInFile(absolutePath, contentPattern, maxResults).then(fileMatch => {
+				if (fileMatch) {
+					result.matches.push(fileMatch.match);
+					if (fileMatch.limitReached) {
+						isCanceled = true;
+						result.limitReached = true;
+						return batchDone(result);
+					}
 				}
-			}
 
-			runningCount--;
-			if (absolutePaths.length) {
-				startSearchInFile(absolutePaths.pop());
-			} else if (runningCount === 0) {
-				done(result);
-			}
-		});
+				runningCount--;
+				if (absolutePaths.length) {
+					startSearchInFile(absolutePaths.pop());
+				} else if (runningCount === 0) {
+					batchDone(result);
+				}
+			});
 
-		allSearchPromises.push(searchPromise);
-		return searchPromise;
-	};
+			return searchPromise;
+		};
 
-	for (let i = 0; i < SearchWorker.CONCURRENT_SEARCH_PATHS && i < this.paths.length; i++) {
-		startSearchInFile(this.paths[i]);
-	}
-
-	return p;
+		for (let i = 0; i < SearchWorker.CONCURRENT_SEARCH_PATHS && i < absolutePaths.length; i++) {
+			startSearchInFile(absolutePaths[i]);
+		}
+	});
 }
 
 interface IFileSearchResult {
@@ -124,7 +113,6 @@ interface IFileSearchResult {
 function searchInFile(absolutePath: string, contentPattern: RegExp, maxResults: number): TPromise<IFileSearchResult> {
 	let fileMatch: FileMatch = null;
 	let limitReached = false;
-	let resultPromise: TPromise<IFileSearchResult>;
 	// console.log('doing search: ' + absolutePath);
 
 	const perLineCallback = (line: string, lineNumber: number) => {
@@ -133,7 +121,7 @@ function searchInFile(absolutePath: string, contentPattern: RegExp, maxResults: 
 		let numResults = 0;
 
 		// Record all matches into file result
-		while (match !== null && match[0].length > 0 && !this.limitReached && !isCanceled) {
+		while (match !== null && match[0].length > 0 && !isCanceled && !limitReached) {
 			if (fileMatch === null) {
 				fileMatch = new FileMatch(absolutePath);
 			}
@@ -148,7 +136,6 @@ function searchInFile(absolutePath: string, contentPattern: RegExp, maxResults: 
 			numResults++;
 			if (maxResults && numResults >= maxResults) {
 				limitReached = true;
-				resultPromise.cancel();
 			}
 
 			match = contentPattern.exec(line);
@@ -156,18 +143,11 @@ function searchInFile(absolutePath: string, contentPattern: RegExp, maxResults: 
 	};
 
 	// Read lines buffered to support large files
-	return resultPromise = readlinesAsync(absolutePath, perLineCallback, { bufferLength: 8096, encoding: 'utf8' }).then(
-		() => ({ match: fileMatch, limitReached }),
-		err => {
-			// Don't return an error if the search was canceled or reached its limit
-			if (!errors.isPromiseCanceledError(err)) {
-				return TPromise.wrapError(err);
-			}
-		});
+	return readlinesAsync(absolutePath, perLineCallback, { bufferLength: 8096, encoding: 'utf8' }).then(
+		() => ({ match: fileMatch, limitReached }));
 }
 
 function readlinesAsync(filename: string, perLineCallback: (line: string, lineNumber: number) => void, options: ReadLinesOptions): TPromise<void> {
-	let isCanceled = false;
 	return new TPromise<void>((resolve, reject) => {
 		fs.open(filename, 'r', null, (error: Error, fd: number) => {
 			if (error) {
@@ -264,7 +244,7 @@ function readlinesAsync(filename: string, perLineCallback: (line: string, lineNu
 
 					readFile(false /* isFirstRead */, clb); // Continue reading
 				});
-			}
+			};
 
 			readFile(/*isFirstRead=*/true, (error: Error) => {
 				if (error) {
@@ -284,9 +264,6 @@ function readlinesAsync(filename: string, perLineCallback: (line: string, lineNu
 				});
 			});
 		});
-	},
-	() => {
-		isCanceled = true;
 	});
 }
 
