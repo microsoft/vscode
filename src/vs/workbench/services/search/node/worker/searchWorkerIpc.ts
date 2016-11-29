@@ -23,6 +23,7 @@ export interface ISearchWorkerSearchArgs {
 
 export interface ISearchWorkerSearchResult {
 	matches: ISerializedFileMatch[];
+	numMatches: number;
 	limitReached: boolean;
 }
 
