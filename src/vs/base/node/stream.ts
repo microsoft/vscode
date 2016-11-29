@@ -148,7 +148,7 @@ export function readToMatchingString(file: string, matchingString: string, chunk
 				bytesRead += moreBytesRead;
 
 				const newLineIndex = buffer.indexOf(matchingString);
-				if (buffer.indexOf('\n') >= 0) {
+				if (newLineIndex >= 0) {
 					return end(null, buffer.toString('utf8').substr(0, newLineIndex));
 				}
 
