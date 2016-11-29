@@ -30,7 +30,7 @@ import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/pa
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor, IEditorMouseEvent, IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DefaultSettingsHeaderWidget, SettingsGroupTitleWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { DefaultSettingsHeaderWidget, SettingsGroupTitleWidget, FloatingClickWidget, SettingsCountWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { DefineUserSettingAction, DefineWorkspaceSettingAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -375,6 +375,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private filteredMatchesRenderer: FilteredMatchesRenderer;
 	private hiddenAreasRenderer: HiddenAreasRenderer;
 	private copySettingActionRenderer: CopySettingActionRenderer;
+	private settingsCountWidget: SettingsCountWidget;
 
 	constructor(protected editor: ICodeEditor, protected settingsEditorModel: DefaultSettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
@@ -386,6 +387,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingActionRenderer, editor, true));
+		this.settingsCountWidget = this._register(instantiationService.createInstance(SettingsCountWidget, editor, this.getCount(settingsEditorModel.settingsGroups)));
 		const paranthesisHidingRenderer = this._register(instantiationService.createInstance(ParanthesisHidingRenderer, editor));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, paranthesisHidingRenderer]));
 	}
@@ -394,17 +396,34 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.defaultSettingsEditorContextKey.set(true);
 		this.settingsGroupTitleRenderer.render(this.settingsEditorModel.settingsGroups);
 		this.copySettingActionRenderer.render(this.settingsEditorModel.settingsGroups);
+		this.settingsCountWidget.render();
 		this.hiddenAreasRenderer.render();
+		this.settingsGroupTitleRenderer.showGroup(1);
 	}
 
 	public filterPreferences(filter: string) {
 		const filterResult = this.settingsEditorModel.filterSettings(filter);
 		this.filteredMatchesRenderer.render(filterResult);
 		this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
+		this.settingsCountWidget.show(this.getCount(filterResult.filteredGroups));
+
+		if (!filter) {
+			this.settingsGroupTitleRenderer.showGroup(1);
+		}
 	}
 
 	public collapseAll() {
 		this.settingsGroupTitleRenderer.collapseAll();
+	}
+
+	private getCount(settingsGroups: ISettingsGroup[]): number {
+		let count = 0;
+		for (const group of settingsGroups) {
+			for (const section of group.sections) {
+				count += section.settings.length;
+			}
+		}
+		return count;
 	}
 
 	dispose() {
@@ -483,6 +502,14 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 			this.disposables.push(settingsGroupTitleWidget);
 			this.disposables.push(settingsGroupTitleWidget.onToggled(collapsed => this.onToggled(collapsed, settingsGroupTitleWidget.settingsGroup)));
 		}
+	}
+
+	public showGroup(group: number) {
+		this.hiddenGroups = this.settingsGroups.filter((g, i) => i !== group - 1);
+		for (const groupTitleWidget of this.settingsGroupTitleWidgets.filter((g, i) => i !== group - 1)) {
+			groupTitleWidget.collapse();
+		}
+		this._onHiddenAreasChanged.fire();
 	}
 
 	public collapseAll() {
