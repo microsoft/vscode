@@ -85,7 +85,7 @@ export class ExtensionHostProcessWorker {
 		this.unsentMessages = [];
 		this.extensionHostProcessReady = false;
 		lifecycleService.onWillShutdown(this._onWillShutdown, this);
-		lifecycleService.onShutdown(() => this.terminate());
+		lifecycleService.onShutdown(reason => this.terminate());
 	}
 
 	public start(extensionService: MainProcessExtensionService): void {

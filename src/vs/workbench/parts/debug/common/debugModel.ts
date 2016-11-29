@@ -348,26 +348,6 @@ export class StackFrame implements debug.IStackFrame {
 	public restart(): TPromise<any> {
 		return this.thread.process.session.restartFrame({ frameId: this.frameId });
 	}
-
-	public completions(text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
-		if (!this.thread.process.session.configuration.capabilities.supportsCompletionsRequest) {
-			return TPromise.as([]);
-		}
-
-		return this.thread.process.session.completions({
-			frameId: this.frameId,
-			text,
-			column: position.column,
-			line: position.lineNumber
-		}).then(response => {
-			return response && response.body && response.body.targets ? response.body.targets.map(item => (<ISuggestion>{
-				label: item.label,
-				insertText: item.text || item.label,
-				type: item.type,
-				overwriteBefore: item.length || overwriteBefore
-			})) : [];
-		}, err => []);
-	}
 }
 
 export class Thread implements debug.IThread {
@@ -565,6 +545,26 @@ export class Process implements debug.IProcess {
 				});
 			}
 		});
+	}
+
+	public completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
+		if (!this.session.configuration.capabilities.supportsCompletionsRequest) {
+			return TPromise.as([]);
+		}
+
+		return this.session.completions({
+			frameId,
+			text,
+			column: position.column,
+			line: position.lineNumber
+		}).then(response => {
+			return response && response.body && response.body.targets ? response.body.targets.map(item => (<ISuggestion>{
+				label: item.label,
+				insertText: item.text || item.label,
+				type: item.type,
+				overwriteBefore: item.length || overwriteBefore
+			})) : [];
+		}, err => []);
 	}
 }
 

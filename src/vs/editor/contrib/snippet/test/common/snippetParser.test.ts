@@ -281,4 +281,9 @@ suite('SnippetParser', () => {
 		assert.equal((<Text>(<Placeholder>p2).defaultValue[0]), 'err');
 
 	});
+
+	test('backspace esapce in TM only, #16212', () => {
+		const actual = new SnippetParser(true, false).escape('Foo \\\\${abc}bar');
+		assert.equal(actual, 'Foo \\bar');
+	});
 });

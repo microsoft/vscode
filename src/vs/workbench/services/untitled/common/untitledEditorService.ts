@@ -180,7 +180,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			// Create new taking a resource URI that is not already taken
 			let counter = Object.keys(UntitledEditorService.CACHE).length + 1;
 			do {
-				resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: 'Untitled-' + counter });
+				resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: `Untitled-${counter}` });
 				counter++;
 			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
 		}

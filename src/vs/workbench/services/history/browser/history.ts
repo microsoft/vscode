@@ -309,7 +309,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.lifecycleService.onShutdown(() => this.save()));
+		this.toUnbind.push(this.lifecycleService.onShutdown(reason => this.save()));
 		this.toUnbind.push(this.editorGroupService.onEditorOpenFail(editor => this.remove(editor)));
 		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(event => this.onEditorClosed(event)));
 
