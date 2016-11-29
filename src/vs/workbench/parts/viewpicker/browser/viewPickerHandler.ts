@@ -15,8 +15,8 @@ import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration } from 
 import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IOutputService, Extensions as OutputExtensions, IOutputChannelRegistry } from 'vs/workbench/parts/output/common/output';
-import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
+import { IOutputService, Extensions as OutputExtensions, IOutputChannelRegistry, OUTPUT_PANEL_ID } from 'vs/workbench/parts/output/common/output';
+import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { Action } from 'vs/base/common/actions';
@@ -28,6 +28,7 @@ export class ViewEntry extends QuickOpenEntryGroup {
 
 	constructor(
 		private label: string,
+		private category: string,
 		private open: () => void
 	) {
 		super();
@@ -35,6 +36,10 @@ export class ViewEntry extends QuickOpenEntryGroup {
 
 	public getLabel(): string {
 		return this.label;
+	}
+
+	public getCategory(): string {
+		return this.category;
 	}
 
 	public getAriaLabel(): string {
@@ -80,7 +85,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 				return true;
 			}
 
-			if (!scorer.matches(e.getLabel(), normalizedSearchValueLowercase)) {
+			if (!scorer.matches(e.getLabel(), normalizedSearchValueLowercase) && !scorer.matches(e.getCategory(), normalizedSearchValueLowercase)) {
 				return false;
 			}
 
@@ -99,30 +104,44 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		// Viewlets
 		const viewlets = this.viewletService.getViewlets();
 		viewlets.forEach((viewlet, index) => {
-			const entry = new ViewEntry(viewlet.name, () => this.viewletService.openViewlet(viewlet.id, true).done(null, errors.onUnexpectedError));
+			const viewsCategory = nls.localize('views', "Views");
+			const entry = new ViewEntry(viewlet.name, viewsCategory, () => this.viewletService.openViewlet(viewlet.id, true).done(null, errors.onUnexpectedError));
 			viewEntries.push(entry);
 
 			if (index === 0) {
-				entry.setGroupLabel(nls.localize('views', "Views"));
+				entry.setGroupLabel(viewsCategory);
 			}
 		});
 
+		const terminals = this.terminalService.terminalInstances;
+
 		// Panels
-		const panels = Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels();
+		const panels = Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => {
+			if (p.id === OUTPUT_PANEL_ID) {
+				return false; // since we already show output channels below
+			}
+
+			if (p.id === TERMINAL_PANEL_ID && terminals.length > 0) {
+				return false; // since we already show terminal instances below
+			}
+
+			return true;
+		});
 		panels.forEach((panel, index) => {
-			const entry = new ViewEntry(panel.name, () => this.panelService.openPanel(panel.id, true).done(null, errors.onUnexpectedError));
+			const panelsCategory = nls.localize('panels', "Panels");
+			const entry = new ViewEntry(panel.name, panelsCategory, () => this.panelService.openPanel(panel.id, true).done(null, errors.onUnexpectedError));
 			if (index === 0) {
 				entry.setShowBorder(true);
-				entry.setGroupLabel(nls.localize('panels', "Panels"));
+				entry.setGroupLabel(panelsCategory);
 			}
 
 			viewEntries.push(entry);
 		});
 
 		// Terminals
-		const terminals = this.terminalService.terminalInstances;
 		terminals.forEach((terminal, index) => {
-			const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index + 1, terminal.title), () => {
+			const terminalsCategory = nls.localize('terminals', "Terminal");
+			const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index + 1, terminal.title), terminalsCategory, () => {
 				this.terminalService.showPanel(true).done(() => {
 					this.terminalService.setActiveInstance(terminal);
 				}, errors.onUnexpectedError);
@@ -130,7 +149,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 			if (index === 0) {
 				entry.setShowBorder(true);
-				entry.setGroupLabel(nls.localize('terminals', "Terminal"));
+				entry.setGroupLabel(terminalsCategory);
 			}
 
 			viewEntries.push(entry);
@@ -139,11 +158,12 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		// Output Channels
 		const channels = Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels).getChannels();
 		channels.forEach((channel, index) => {
-			const entry = new ViewEntry(channel.label, () => this.outputService.getChannel(channel.id).show().done(null, errors.onUnexpectedError));
+			const outputCategory = nls.localize('channels', "Output");
+			const entry = new ViewEntry(channel.label, outputCategory, () => this.outputService.getChannel(channel.id).show().done(null, errors.onUnexpectedError));
 
 			if (index === 0) {
 				entry.setShowBorder(true);
-				entry.setGroupLabel(nls.localize('channels', "Output"));
+				entry.setGroupLabel(outputCategory);
 			}
 
 			viewEntries.push(entry);
