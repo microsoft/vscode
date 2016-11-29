@@ -83,9 +83,6 @@ export class TerminalService implements ITerminalService {
 			this.setActiveInstanceByIndex(0);
 		}
 		this._onInstancesChanged.fire();
-		this._updateCursorBlink(terminalInstance);
-		this._updateCommandsToSkipShell(terminalInstance);
-		this._updateScrollback(terminalInstance);
 		return terminalInstance;
 	}
 
@@ -208,22 +205,10 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public updateConfig(): void {
-		this.terminalInstances.forEach((instance) => {
-			this._updateCursorBlink(instance);
-			this._updateCommandsToSkipShell(instance);
-			this._updateScrollback(instance);
+		this.terminalInstances.forEach((terminalInstance) => {
+			terminalInstance.setCursorBlink(this.configHelper.getCursorBlink());
+			terminalInstance.setCommandsToSkipShell(this.configHelper.getCommandsToSkipShell());
+			terminalInstance.setScrollback(this.configHelper.getScrollback());
 		});
-	}
-
-	private _updateCursorBlink(terminalInstance): void {
-		terminalInstance.setCursorBlink(this.configHelper.getCursorBlink());
-	}
-
-	private _updateCommandsToSkipShell(terminalInstance): void {
-		terminalInstance.setCommandsToSkipShell(this.configHelper.getCommandsToSkipShell());
-	}
-
-	private _updateScrollback(terminalInstance): void {
-		terminalInstance.setScrollback(this.configHelper.getScrollback());
 	}
 }

@@ -18,7 +18,7 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ITerminalInstance, IShell } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShell } from 'vs/workbench/parts/terminal/common/terminal';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -65,7 +65,8 @@ export class TerminalInstance implements ITerminalInstance {
 		name: string,
 		shell: IShell,
 		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMessageService private _messageService: IMessageService
+		@IMessageService private _messageService: IMessageService,
+		@ITerminalService private _terminalService: ITerminalService
 	) {
 		this._toDispose = [];
 		this._skipTerminalKeybindings = [];
@@ -168,6 +169,9 @@ export class TerminalInstance implements ITerminalInstance {
 		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 		this.layout(new Dimension(width, height));
 		this.setVisible(this._isVisible);
+		this.setCursorBlink(this._terminalService.configHelper.getCursorBlink());
+		this.setCommandsToSkipShell(this._terminalService.configHelper.getCommandsToSkipShell());
+		this.setScrollback(this._terminalService.configHelper.getScrollback());
 	}
 
 	public copySelection(): void {
