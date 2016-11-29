@@ -34,7 +34,10 @@ export function rename(model: IReadOnlyModel, position: Position, newName: strin
 					} else {
 						rejects.push(result.rejectReason);
 					}
-				}, onUnexpectedExternalError);
+				}, err => {
+					onUnexpectedExternalError(err);
+					return TPromise.wrapError<WorkspaceEdit>('provider failed');
+				});
 			}
 		};
 	});
