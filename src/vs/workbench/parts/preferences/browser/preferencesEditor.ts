@@ -6,7 +6,8 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import { hasClass, getDomNodePagePosition } from 'vs/base/browser/dom';
+import * as DOM from 'vs/base/browser/dom';
+import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
 import { IAction } from 'vs/base/common/actions';
@@ -15,127 +16,231 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/platform';
 import { EditorOptions, EditorInput, } from 'vs/workbench/common/editor';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import {
-	IPreferencesService, ISettingsGroup, ISetting, ISettingsEditorModel, IKeybindingsEditorModel, IPreferencesEditorModel, IFilterResult, CONTEXT_DEFAULT_SETTINGS_EDITOR,
+	IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, CONTEXT_DEFAULT_SETTINGS_EDITOR,
 	DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { DefaultSettingsHeaderWidget, SettingsGroupTitleWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { DefineUserSettingAction, DefineWorkspaceSettingAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 
 
-export class DefaultPreferencesInput extends ResourceEditorInput {
+export class PreferencesEditorInput extends EditorInput {
 
 	private _willDispose = new Emitter<void>();
 	public willDispose: Event<void> = this._willDispose.event;
 
-	constructor(
-		name: string,
-		description: string,
-		resource: URI,
-		@ITextModelResolverService textModelResolverService: ITextModelResolverService
-	) {
-		super(name, description, resource, textModelResolverService);
+	constructor(private _defaultPreferencesResource: URI, private _isSettingsInput: boolean) {
+		super();
 	}
 
-	public getResource(): URI {
-		return this.resource;
+	get isSettings(): boolean {
+		return this._isSettingsInput;
 	}
 
-	public dispose() {
+	getName(): string {
+		return this._isSettingsInput ? nls.localize('settingsEditorName', "Default Settings") : nls.localize('keybindingsEditorName', "Default Keyboard Shortcuts");
+	}
+
+	getTypeId(): string {
+		return 'workbench.editorinputs.defaultpreferences';
+	}
+
+	getResource(): URI {
+		return this._defaultPreferencesResource;
+	}
+
+	supportsSplitEditor(): boolean {
+		return false;
+	}
+
+	resolve(): TPromise<IEditorModel> {
+		return TPromise.wrap(null);
+	}
+
+	matches(other: any): boolean {
+		if (!(other instanceof PreferencesEditorInput)) {
+			return false;
+		}
+		if (this._defaultPreferencesResource.fsPath !== other._defaultPreferencesResource.fsPath) {
+			return false;
+		}
+		return true;
+	}
+
+	dispose() {
 		this._willDispose.fire();
 		this._willDispose.dispose();
 		super.dispose();
 	}
 }
 
-export class DefaultSettingsInput extends DefaultPreferencesInput {
-	private static INSTANCE: DefaultSettingsInput;
+export class PreferencesEditor extends BaseTextEditor {
 
-	public static getInstance(instantiationService: IInstantiationService, defaultSettings: ISettingsEditorModel): DefaultSettingsInput {
-		if (!DefaultSettingsInput.INSTANCE) {
-			DefaultSettingsInput.INSTANCE = instantiationService.createInstance(DefaultSettingsInput, nls.localize('defaultName', "Default Settings"), null, defaultSettings.uri);
-		}
-		return DefaultSettingsInput.INSTANCE;
-	}
-}
-
-export class DefaultKeybindingsInput extends DefaultPreferencesInput {
-	private static INSTANCE: DefaultKeybindingsInput;
-
-	public static getInstance(instantiationService: IInstantiationService, defaultKeybindings: IKeybindingsEditorModel): DefaultKeybindingsInput {
-		if (!DefaultKeybindingsInput.INSTANCE) {
-			DefaultKeybindingsInput.INSTANCE = instantiationService.createInstance(DefaultKeybindingsInput, nls.localize('defaultKeybindings', "Default Keyboard Shortcuts"), null, defaultKeybindings.uri);
-		}
-
-		return DefaultKeybindingsInput.INSTANCE;
-	}
-}
-
-export class DefaultPreferencesEditor extends StringEditor {
-
-	public static ID = 'workbench.editors.defaultPrefrencesEditor';
-
+	public static ID: string = 'workbench.editor.defaultPreferences';
 	private static VIEW_STATE: Map<URI, editorCommon.IEditorViewState> = new Map<URI, editorCommon.IEditorViewState>();
 
 	private inputDisposeListener;
+	private defaultPreferencesEditor: CodeEditor;
+	private defaultSettingHeaderWidget: DefaultSettingsHeaderWidget;
 
-	public getId(): string {
-		return DefaultPreferencesEditor.ID;
+	private isFocussed = false;
+	private toDispose: IDisposable[] = [];
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IMessageService messageService: IMessageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEventService eventService: IEventService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IThemeService themeService: IThemeService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService private modelService: IModelService,
+		@IModeService private modeService: IModeService
+	) {
+		super(PreferencesEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
 	}
 
-	protected getCodeEditorOptions(): editorCommon.IEditorOptions {
+	public createEditorControl(parent: Builder): editorCommon.IEditor {
+		const parentContainer = parent.getHTMLElement();
+		this.defaultSettingHeaderWidget = this._register(this.instantiationService.createInstance(DefaultSettingsHeaderWidget, parentContainer));
+		this._register(this.defaultSettingHeaderWidget.onDidChange(value => this.filterPreferences(value)));
+		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor, parentContainer, this.getCodeEditorOptions()));
+		const focusTracker = this._register(DOM.trackFocus(parentContainer));
+		focusTracker.addBlurListener(() => { this.isFocussed = false; });
+		return this.defaultPreferencesEditor;
+	}
+
+	public getCodeEditorOptions(): editorCommon.IEditorOptions {
 		const options = super.getCodeEditorOptions();
-		options.lineNumbers = 'off';
-		options.renderLineHighlight = 'none';
-		options.scrollBeyondLastLine = false;
-		options.folding = false;
-		options.renderWhitespace = 'none';
-		options.wrappingColumn = 0;
+		options.readOnly = true;
+		if (this.input && (<PreferencesEditorInput>this.input).isSettings) {
+			options.lineNumbers = 'off';
+			options.renderLineHighlight = 'none';
+			options.scrollBeyondLastLine = false;
+			options.folding = false;
+			options.renderWhitespace = 'none';
+			options.wrappingColumn = 0;
+		}
 		return options;
 	}
 
-
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	setInput(input: PreferencesEditorInput, options: EditorOptions): TPromise<void> {
 		this.listenToInput(input);
-		return super.setInput(input, options);
+		return super.setInput(input, options)
+			.then(() => this.createModel(input)
+				.then(model => this.setDefaultPreferencesEditorInput(model, input)));
+	}
+
+	public layout(dimension: Dimension) {
+		if (this.input && (<PreferencesEditorInput>this.input).isSettings) {
+			const headerWidgetPosition = DOM.getDomNodePagePosition(this.defaultSettingHeaderWidget.domNode);
+			this.defaultPreferencesEditor.layout({
+				height: dimension.height - headerWidgetPosition.height,
+				width: dimension.width
+			});
+			this.defaultSettingHeaderWidget.layout(this.defaultPreferencesEditor.getLayoutInfo());
+		} else {
+			this.defaultPreferencesEditor.layout(dimension);
+		}
+	}
+
+	public focus(): void {
+		this.isFocussed = true;
+		if (this.input && (<PreferencesEditorInput>this.input).isSettings) {
+			this.defaultSettingHeaderWidget.focus();
+		} else {
+			super.focus();
+		}
+	}
+
+	private createModel(input: PreferencesEditorInput): TPromise<editorCommon.IModel> {
+		return this.preferencesService.createDefaultPreferencesEditorModel(input.getResource())
+			.then(preferencesEditorModel => {
+				let mode = this.modeService.getOrCreateMode('json');
+				return this.modelService.createModel(preferencesEditorModel.content, mode, preferencesEditorModel.uri);
+			});
+	}
+
+	private setDefaultPreferencesEditorInput(model: editorCommon.IModel, input: PreferencesEditorInput): void {
+		this.defaultPreferencesEditor.setModel(model);
+		this.defaultPreferencesEditor.updateOptions(this.getCodeEditorOptions());
+		if (input.isSettings) {
+			this.defaultSettingHeaderWidget.show();
+			this.defaultPreferencesEditor.onDidFocusEditorText(() => this.onEditorTextFocussed(), this.toDispose);
+		} else {
+			this.toDispose = dispose(this.toDispose);
+			this.defaultSettingHeaderWidget.hide();
+		}
+	}
+
+	private filterPreferences(filter: string) {
+		(<DefaultSettingsRenderer>this.getDefaultPreferencesContribution().getPreferencesRenderer()).filterPreferences(filter);
 	}
 
 	public clearInput(): void {
-		this.saveState(<DefaultPreferencesInput>this.input);
+		this.saveState(<PreferencesEditorInput>this.input);
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
 		}
 		super.clearInput();
 	}
 
+	private getDefaultPreferencesContribution(): PreferencesEditorContribution {
+		return <PreferencesEditorContribution>this.defaultPreferencesEditor.getContribution(PreferencesEditorContribution.ID);
+	}
+
+	private onEditorTextFocussed() {
+		if (!this.isFocussed) {
+			this.focus();
+		}
+	}
+
 	protected restoreViewState(input: EditorInput) {
-		const viewState = DefaultPreferencesEditor.VIEW_STATE.get((<DefaultPreferencesInput>input).getResource());
+		const viewState = PreferencesEditor.VIEW_STATE.get((<PreferencesEditorInput>input).getResource());
 		if (viewState) {
 			this.getControl().restoreViewState(viewState);
 		}
 	}
 
-	private saveState(input: DefaultPreferencesInput) {
+	private saveState(input: PreferencesEditorInput) {
 		const state = this.getControl().saveViewState();
 		if (state) {
 			const resource = input.getResource();
-			if (DefaultPreferencesEditor.VIEW_STATE.has(resource)) {
-				DefaultPreferencesEditor.VIEW_STATE.delete(resource);
+			if (PreferencesEditor.VIEW_STATE.has(resource)) {
+				PreferencesEditor.VIEW_STATE.delete(resource);
 			}
-			DefaultPreferencesEditor.VIEW_STATE.set(resource, state);
+			PreferencesEditor.VIEW_STATE.set(resource, state);
 		}
 	}
 
@@ -143,9 +248,34 @@ export class DefaultPreferencesEditor extends StringEditor {
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
 		}
-		if (input instanceof DefaultPreferencesInput) {
-			this.inputDisposeListener = (<DefaultPreferencesInput>input).willDispose(() => this.saveState(<DefaultPreferencesInput>input));
+		if (input instanceof PreferencesEditorInput) {
+			this.inputDisposeListener = (<PreferencesEditorInput>input).willDispose(() => this.saveState(<PreferencesEditorInput>input));
 		}
+	}
+}
+
+class DefaultPreferencesEditor extends CodeEditor {
+
+	constructor(
+		domElement: HTMLElement,
+		options: editorCommon.IEditorOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
+	}
+
+	protected _getContributions(): IEditorContributionCtor[] {
+		let contributions = super._getContributions();
+		contributions = contributions.filter(c => {
+			if (c.prototype === FoldingController.prototype) {
+				return false;
+			}
+			return true;
+		});
+		return contributions;
 	}
 }
 
@@ -241,7 +371,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	private defaultSettingsEditorContextKey: IContextKey<boolean>;
 
-	private headerWidget: DefaultSettingsHeaderWidget;
 	private settingsGroupTitleRenderer: SettingsGroupTitleRenderer;
 	private filteredMatchesRenderer: FilteredMatchesRenderer;
 	private hiddenAreasRenderer: HiddenAreasRenderer;
@@ -254,7 +383,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	) {
 		super();
 		this.defaultSettingsEditorContextKey = CONTEXT_DEFAULT_SETTINGS_EDITOR.bindTo(contextKeyService);
-		this.headerWidget = this._register(instantiationService.createInstance(DefaultSettingsHeaderWidget, editor));
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingActionRenderer, editor, true));
@@ -264,26 +392,19 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	public render() {
 		this.defaultSettingsEditorContextKey.set(true);
-		this.headerWidget.render();
 		this.settingsGroupTitleRenderer.render(this.settingsEditorModel.settingsGroups);
-		this._register(this.headerWidget.onDidChange(value => this.filterPreferences(value)));
 		this.copySettingActionRenderer.render(this.settingsEditorModel.settingsGroups);
-		this.editor.setScrollTop(0);
+		this.hiddenAreasRenderer.render();
 	}
 
 	public filterPreferences(filter: string) {
 		const filterResult = this.settingsEditorModel.filterSettings(filter);
 		this.filteredMatchesRenderer.render(filterResult);
 		this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
-		this.editor.setScrollTop(0);
 	}
 
 	public collapseAll() {
 		this.settingsGroupTitleRenderer.collapseAll();
-	}
-
-	public setSearchValue(value: string) {
-		this.headerWidget.setInput(value);
 	}
 
 	dispose() {
@@ -405,12 +526,11 @@ export class HiddenAreasRenderer extends Disposable {
 	) {
 		super();
 		for (const hiddenAreProvider of hiddenAreasProviders) {
-			this._register(hiddenAreProvider.onHiddenAreasChanged(() => this.onHiddenAreasChanged()));
+			this._register(hiddenAreProvider.onHiddenAreasChanged(() => this.render()));
 		}
-		this.onHiddenAreasChanged();
 	}
 
-	private onHiddenAreasChanged() {
+	public render() {
 		const ranges: editorCommon.IRange[] = [];
 		for (const hiddenAreaProvider of this.hiddenAreasProviders) {
 			ranges.push(...hiddenAreaProvider.hiddenAreas);
@@ -600,7 +720,7 @@ export class CopySettingActionRenderer extends Disposable {
 
 		switch (e.target.type) {
 			case editorCommon.MouseTargetType.CONTENT_EMPTY:
-				if (hasClass(<HTMLElement>e.target.element, 'copySetting')) {
+				if (DOM.hasClass(<HTMLElement>e.target.element, 'copySetting')) {
 					this.onClick(e);
 				}
 				return;
@@ -619,7 +739,7 @@ export class CopySettingActionRenderer extends Disposable {
 			let jsonSchema: IJSONSchema = this.getConfigurationsMap()[setting.key];
 			const actions = this.getActions(setting, jsonSchema);
 			if (actions) {
-				let elementPosition = getDomNodePagePosition(<HTMLElement>e.target.element);
+				let elementPosition = DOM.getDomNodePagePosition(<HTMLElement>e.target.element);
 				const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,

@@ -271,7 +271,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private indent: string;
 
-	private _settingsGroups: ISettingsGroup[];
+	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
 	private _contentByLines: string[];
 
@@ -280,7 +280,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		super();
 		const editorConfig = this.configurationService.getConfiguration<any>();
 		this.indent = editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t';
-		// this.indent = '';
 	}
 
 	public get uri(): URI {
@@ -295,10 +294,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	public get settingsGroups(): ISettingsGroup[] {
-		if (!this._settingsGroups) {
+		if (!this._allSettingsGroups) {
 			this.parse();
 		}
-		return this._settingsGroups;
+		return this._allSettingsGroups;
 	}
 
 	public get mostCommonlyUsedSettings(): ISettingsGroup {
@@ -325,7 +324,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private parse() {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
 		const allSettingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
-		this._settingsGroups = [this.getMostCommonlyUsedSettings(allSettingsGroups), ...allSettingsGroups];
+		this._allSettingsGroups = [this.getMostCommonlyUsedSettings(allSettingsGroups), ...allSettingsGroups];
 		this._content = this.toContent(this.settingsGroups);
 	}
 

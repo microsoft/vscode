@@ -9,7 +9,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -66,33 +66,11 @@ export class SettingsGroupTitleWidget extends ZoneWidget {
 	}
 }
 
-class HeaderViewZone implements IViewZone {
+export class DefaultSettingsHeaderWidget extends Widget {
 
-	private _domNode: HTMLElement;
-	public id: number;
-	public heightInPx: number;
+	public domNode: HTMLElement;
 
-	public get domNode(): HTMLElement {
-		if (!this._domNode) {
-			this._domNode = DOM.$('.settings-header-view');
-		}
-		return this._domNode;
-	}
-
-	public get afterLineNumber(): number {
-		return 0;
-	}
-
-	public get afterColumn(): number {
-		return 0;
-	}
-}
-
-export class DefaultSettingsHeaderWidget extends Widget implements IOverlayWidget {
-
-	private domNode: HTMLElement;
-	private headerViewZone: HeaderViewZone;
-	protected headerContainer: HTMLElement;
+	private headerContainer: HTMLElement;
 	private searchContainer: HTMLElement;
 	private inputBox: InputBox;
 
@@ -102,46 +80,28 @@ export class DefaultSettingsHeaderWidget extends Widget implements IOverlayWidge
 	private _onEnter = this._register(new Emitter<void>());
 	public onEnter: Event<void> = this._onEnter.event;
 
-	protected _onShowDefaults = this._register(new Emitter<void>());
-	public onShowDefaults: Event<void> = this._onShowDefaults.event;
-
-	private _onCopySetting = new Emitter<void>();
-	public onCopySetting: Event<void> = this._onCopySetting.event;
-
-	constructor(private editor: ICodeEditor,
+	constructor(parent: HTMLElement,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
-		this._register(this.editor.onDidChangeCursorPosition(positionChangeEvent => this.onPositionChanged(positionChangeEvent)));
+		this.create(parent);
 	}
 
-	public getId(): string {
-		return 'editor.overlay.defaultSettingsHeaderWidget';
-	}
-
-	public getDomNode(): HTMLElement {
-		return this.domNode;
-	}
-
-	public getPosition(): IOverlayWidgetPosition {
-		return null;
-	}
-
-	protected create() {
-		this.domNode = DOM.$('div.settings-header-widget');
+	private create(parent: HTMLElement) {
+		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.headerContainer = DOM.append(this.domNode, DOM.$('div.settings-header-container'));
 		const titleContainer = DOM.append(this.headerContainer, DOM.$('div.settings-title-container'));
 		this.createInfoContainer(DOM.append(titleContainer, DOM.$('div.settings-info-container')));
 		this.createSearchContainer(DOM.append(this.headerContainer, DOM.$('div.settings-search-container')));
 	}
 
-	protected createInfoContainer(infoContainer: HTMLElement) {
+	private createInfoContainer(infoContainer: HTMLElement) {
 		DOM.append(infoContainer, DOM.$('span')).textContent = localize('defaultSettingsInfo', "Overwrite settings by placing them into your settings file.");
 	}
 
-	protected createSearchContainer(searchContainer: HTMLElement) {
+	private createSearchContainer(searchContainer: HTMLElement) {
 		this.searchContainer = searchContainer;
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
 		this.inputBox = this._register(new InputBox(searchInput, this.contextViewService, {
@@ -153,64 +113,37 @@ export class DefaultSettingsHeaderWidget extends Widget implements IOverlayWidge
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp(e));
 	}
 
-	public render(): void {
-		this.create();
-		this.headerViewZone = new HeaderViewZone();
-		this.editor.changeViewZones(accessor => {
-			this.headerViewZone.id = accessor.addZone(this.headerViewZone);
-		});
-
-		this.editor.addOverlayWidget(this);
-		this._register(this.editor.onDidLayoutChange(e => this.layout()));
-		this.layout();
+	public show() {
+		DOM.addClass(this.domNode, 'show');
 	}
 
-	public clearInput() {
-		this.inputBox.value = '';
+	public hide() {
+		DOM.removeClass(this.domNode, 'show');
 	}
 
-	public setInput(value: string) {
-		this.inputBox.value = value;
+	public focusTracker(): DOM.IFocusTracker {
+		return DOM.trackFocus(this.inputBox.inputElement);
 	}
 
-	private layout(): void {
-		const editorLayoutInfo = this.editor.getLayoutInfo();
-		this.domNode.style.width = editorLayoutInfo.width - editorLayoutInfo.verticalScrollbarWidth + 'px';
+	public focus() {
+		this.inputBox.focus();
+	}
+
+	public layout(editorLayoutInfo: editorCommon.EditorLayoutInfo): void {
 		this.headerContainer.style.width = editorLayoutInfo.width - editorLayoutInfo.verticalScrollbarWidth + 'px';
 		this.headerContainer.style.paddingLeft = editorLayoutInfo.contentLeft + 'px';
-		this.headerContainer.style.paddingRight = editorLayoutInfo.glyphMarginWidth + 'px';
-		this.searchContainer.style.width = editorLayoutInfo.contentWidth - editorLayoutInfo.glyphMarginWidth - 20 + 'px';
-		this.inputBox.width = editorLayoutInfo.contentWidth - editorLayoutInfo.glyphMarginWidth - 20;
-
-		this.headerViewZone.heightInPx = DOM.getDomNodePagePosition(this.domNode).height;
-		this.editor.changeViewZones(accessor => {
-			accessor.layoutZone(this.headerViewZone.id);
-		});
+		this.searchContainer.style.width = editorLayoutInfo.contentWidth - editorLayoutInfo.glyphMarginWidth + 'px';
+		this.inputBox.width = editorLayoutInfo.contentWidth - editorLayoutInfo.glyphMarginWidth;
 	}
 
 	private _onKeyUp(keyboardEvent: IKeyboardEvent): void {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
-				if (keyboardEvent.ctrlKey) {
-					this._onCopySetting.fire();
-				} else {
-					this._onEnter.fire();
-				}
+				this._onEnter.fire();
 				keyboardEvent.preventDefault();
 				keyboardEvent.stopPropagation();
 				return;
 		}
-	}
-
-	private onPositionChanged(positionChangeEvent: editorCommon.ICursorPositionChangedEvent) {
-		if (positionChangeEvent.position.lineNumber < 3) {
-			this.editor.setScrollTop(0);
-		}
-	}
-
-	public dispose() {
-		this.editor.removeOverlayWidget(this);
-		super.dispose();
 	}
 }
 

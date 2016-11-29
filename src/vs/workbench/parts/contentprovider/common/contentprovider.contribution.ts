@@ -47,14 +47,7 @@ export class WorkbenchContentProvider implements IWorkbenchContribution {
 						return TPromise.as(this.modelService.createModel(modelContent, mode, uri));
 					}
 				}
-				return this.preferencesService.resolvePreferencesEditorModel(uri)
-					.then(preferencesModel => {
-						if (preferencesModel) {
-							let mode = this.modeService.getOrCreateMode('json');
-							return TPromise.as(this.modelService.createModel(preferencesModel.content, mode, uri));
-						}
-						return null;
-					});
+				return null;
 			}
 		});
 	}
