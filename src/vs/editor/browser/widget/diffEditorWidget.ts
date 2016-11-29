@@ -1509,7 +1509,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		let result: IEditorDiffDecorations = {
 			decorations: [],
 			overviewZones: []
-		};:
+		};
 
 		let originalModel = originalEditor.getModel();
 
