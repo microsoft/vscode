@@ -21,7 +21,7 @@ export interface IBackupFilesModel {
 
 	add(resource: Uri, versionId?: number): void;
 	has(resource: Uri, versionId?: number): boolean;
-	get(scheme: string): Uri[];
+	get(): Uri[];
 	remove(resource: Uri): void;
 	clear(): void;
 }
@@ -66,8 +66,8 @@ export class BackupFilesModel implements IBackupFilesModel {
 		return true;
 	}
 
-	public get(scheme: string): Uri[] {
-		return Object.keys(this.cache).filter(k => path.basename(path.dirname(k)) === scheme).map(k => Uri.parse(k));
+	public get(): Uri[] {
+		return Object.keys(this.cache).map(k => Uri.parse(k));
 	}
 
 	public remove(resource: Uri): void {
@@ -183,11 +183,11 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public getWorkspaceFileBackups(scheme: string): TPromise<Uri[]> {
+	public getWorkspaceFileBackups(): TPromise<Uri[]> {
 		return this.ready.then(model => {
 			const readPromises: TPromise<Uri>[] = [];
 
-			model.get(scheme).forEach(fileBackup => {
+			model.get().forEach(fileBackup => {
 				readPromises.push(new TPromise<Uri>((c, e) => {
 					readToMatchingString(fileBackup.fsPath, BackupFileService.META_MARKER, 2000, 10000, (error, result) => {
 						if (result === null) {

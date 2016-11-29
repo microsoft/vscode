@@ -673,7 +673,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as(void 0);
 	}
 
-	public getWorkspaceFileBackups(scheme: string): TPromise<URI[]> {
+	public getWorkspaceFileBackups(): TPromise<URI[]> {
 		return TPromise.as([]);
 	}
 
