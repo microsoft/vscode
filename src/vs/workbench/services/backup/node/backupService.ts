@@ -17,6 +17,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class BackupService implements IBackupService {
 
@@ -95,21 +96,46 @@ export class BackupService implements IBackupService {
 		return !this.environmentService.isExtensionDevelopment && this.configuredHotExit && !!this.contextService.getWorkspace();
 	}
 
-	public backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, quitRequested: boolean): TPromise<IBackupResult> {
+	public backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): TPromise<IBackupResult> {
 		if (!this.isHotExitEnabled) {
 			return TPromise.as({ didBackup: false });
 		}
 
 		return this.windowsService.getWindowCount().then(windowCount => {
+
 			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
 			// When quit is not requested the confirm callback should be shown when the window being
 			// closed is the only VS Code window open, except for on Mac where hot exit is only
 			// ever activated when quit is requested.
-			if (!quitRequested && (windowCount > 1 || platform.isMacintosh)) {
+
+			let doBackup: boolean;
+			switch (reason) {
+				case ShutdownReason.CLOSE:
+					if (windowCount > 1 || platform.isMacintosh) {
+						doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
+					} else {
+						doBackup = true; // backup if last window is closed on win/linux where the application quits right after
+					}
+					break;
+
+				case ShutdownReason.QUIT:
+					doBackup = true; // backup because next start we restore all backups
+					break;
+
+				case ShutdownReason.RELOAD:
+					doBackup = true; // backup because after window reload, backups restore
+					break;
+
+				case ShutdownReason.LOAD:
+					doBackup = false; // do not backup because we are switching contexts
+					break;
+			}
+
+			if (!doBackup) {
 				return TPromise.as({ didBackup: false });
 			}
 
-			// Backup and hot exit
+			// Backup
 			return this.backupAll(dirtyToBackup, textFileEditorModelManager).then(() => { return { didBackup: true }; }); // we did backup
 		});
 	}
