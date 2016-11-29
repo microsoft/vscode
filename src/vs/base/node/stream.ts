@@ -99,9 +99,15 @@ export function readExactlyByFile(file: string, totalBytes: number, callback: (e
 }
 
 /**
- * Reads totalBytes from the provided file.
+ * Reads a file until a matching string is found.
+ *
+ * @param file The file to read.
+ * @param matchingString The string to search for.
+ * @param chunkBytes The number of bytes to read each iteration.
+ * @param maximumBytesToRead The maximum number of bytes to read before giving up.
+ * @param callback The finished callback.
  */
-export function readToMatchingString(file: string, matchingString: string, chunkSize: number, maximumBytesToRead: number, callback: (error: Error, result: string) => void): void {
+export function readToMatchingString(file: string, matchingString: string, chunkBytes: number, maximumBytesToRead: number, callback: (error: Error, result: string) => void): void {
 	fs.open(file, 'r', null, (err, fd) => {
 		if (err) {
 			return callback(err, null);
@@ -125,7 +131,7 @@ export function readToMatchingString(file: string, matchingString: string, chunk
 		let bytesRead = 0;
 		let zeroAttempts = 0;
 		function loop(): void {
-			fs.read(fd, buffer, bytesRead, chunkSize, null, (err, moreBytesRead) => {
+			fs.read(fd, buffer, bytesRead, chunkBytes, null, (err, moreBytesRead) => {
 				if (err) {
 					return end(err, null);
 				}
