@@ -45,7 +45,6 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 
 	private nextWorker = 0;
 	private workers: ISearchWorker[] = [];
-	private workerPromises: TPromise<void>[] = [];
 
 	constructor(config: IRawSearch, walker: FileWalker) {
 		this.config = config;
@@ -60,14 +59,14 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		}
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.isCanceled = true;
 		this.walker.cancel();
 
 		// TODO cancel workers
 	}
 
-	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		let resultCounter = 0;
 
 		const progress = () => {
@@ -85,7 +84,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			}
 
 			// Emit done()
-			console.log('unwind: ' + this.worked + '/' + this.total);
+			// console.log('unwind: ' + this.worked + '/' + this.total);
 			if (!this.isDone && this.processedBytes === this.totalBytes && this.walkerIsDone) {
 				this.isDone = true;
 				done(this.walkerError, {
@@ -97,12 +96,15 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 
 		let begin = 0;
 		const run = (batch: string[], batchBytes: number): TPromise<void> => {
-			console.log(`onBatchReady: ${batchBytes}, ${this.processedBytes}/${this.totalBytes}`);
+			// console.log(`onBatchReady: ${batchBytes}, ${this.processedBytes}/${this.totalBytes}`);
 			const worker = this.workers[this.nextWorker];
 			this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
-			const batchPromise = worker.search({absolutePaths: batch, maxResults: 1e8 }).then(matches => {
-				console.log('got result - ' + batchBytes);
+			const maxResults = this.config.maxResults - this.numResults;
+			return worker.search({ absolutePaths: batch, maxResults }).then(result => {
+				const matches = result.matches;
+
+				// console.log('got result - ' + batchBytes);
 				this.numResults += matches.length;
 				matches.forEach(m => {
 					if (m && m.lineMatches.length) {
@@ -110,12 +112,13 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 					}
 				});
 
+				if (result.limitReached || (matches.length + this.numResults >= this.config.maxResults)) {
+					this.limitReached = true;
+				}
+
 				unwind(batchBytes);
 			});
-
-			this.workerPromises.push(batchPromise);
-			return batchPromise;
-		}
+		};
 
 		// Walk over the file system
 		const files = [];
@@ -125,7 +128,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		this.walker.walk(this.config.rootFolders, this.config.extraFiles, result => {
 			let bytes = result.size || 1;
 
-			// If the result is empty or we have reached the limit or we are canceled, ignore it
+			// If we have reached the limit or we are canceled, ignore it
 			if (this.limitReached || this.isCanceled) {
 				return unwind(bytes);
 			}
@@ -144,7 +147,8 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				nextBatchBytes = 0;
 			}
 		}, (error, isLimitHit) => {
-			if (nextBatch.length) {
+			// Send any remaining paths to a worker
+			if (nextBatch.length && !this.limitReached && !this.isCanceled) {
 				run(nextBatch, nextBatchBytes);
 			}
 

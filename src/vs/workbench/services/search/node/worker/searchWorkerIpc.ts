@@ -21,15 +21,20 @@ export interface ISearchWorkerSearchArgs {
 	maxResults: number;
 }
 
+export interface ISearchWorkerSearchResult {
+	matches: ISerializedFileMatch[];
+	limitReached: boolean;
+}
+
 export interface ISearchWorker {
 	initialize(config: ISearchWorkerConfig): TPromise<void>;
-	search(args: ISearchWorkerSearchArgs): TPromise<ISerializedFileMatch[]>;
+	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult>;
 	cancel(): TPromise<void>;
 }
 
 export interface ISearchWorkerChannel extends IChannel {
 	call(command: 'initialize', config: ISearchWorkerConfig): TPromise<void>;
-	call(command: 'search', args: ISearchWorkerSearchArgs): TPromise<ISerializedFileMatch[]>;
+	call(command: 'search', args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult>;
 	call(command: 'cancel'): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
 }
@@ -54,7 +59,7 @@ export class SearchWorkerChannelClient implements ISearchWorker {
 		return this.channel.call('initialize', config);
 	}
 
-	search(args: ISearchWorkerSearchArgs): TPromise<ISerializedFileMatch[]> {
+	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
 		return this.channel.call('search', args);
 	}
 
