@@ -13,8 +13,9 @@
 }
 
 .vs .monaco-workbench > .part.statusbar {
-	color: rgba(0, 0, 0, 0.675);
-	background: #cbcbcb;
+	opacity: 0.675;
+	color: #000;
+	background: #E6E6E6;
 }
 
 .vs-dark .monaco-workbench > .part.statusbar,

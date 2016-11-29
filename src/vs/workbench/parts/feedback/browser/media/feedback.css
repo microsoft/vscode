@@ -162,8 +162,16 @@
 }
 
 .monaco-shell .statusbar-item > .dropdown.send-feedback > .dropdown-label.send-feedback {
-	background: url('smiley.svg') center center no-repeat;
 	width: 26px;
+}
+
+.monaco-shell.vs-dark .statusbar-item > .dropdown.send-feedback > .dropdown-label.send-feedback,
+.monaco-shell.hc-black .statusbar-item > .dropdown.send-feedback > .dropdown-label.send-feedback {
+	background: url('smiley-dark.svg') center center no-repeat;
+}
+
+.monaco-shell.vs .statusbar-item > .dropdown.send-feedback > .dropdown-label.send-feedback {
+	background: url('smiley-light.svg') center center no-repeat;
 }
 
 /* Theming */
