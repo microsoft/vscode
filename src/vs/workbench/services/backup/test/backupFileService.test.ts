@@ -108,7 +108,7 @@ suite('BackupFileService', () => {
 		service.backupResource(fooFile, 'test').then(() => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
-			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.fsPath}\ntest`);
+			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
 			done();
 		});
 	});
