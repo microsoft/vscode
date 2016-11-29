@@ -78,16 +78,16 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults
 
 		// Search in the given path, and when it's finished, search in the next path in absolutePaths
 		const startSearchInFile = (absolutePath: string): TPromise<void> => {
-			return searchInFile(absolutePath, contentPattern, maxResults - result.numMatches).then(fileMatch => {
+			return searchInFile(absolutePath, contentPattern, maxResults - result.numMatches).then(fileResult => {
 				// Finish if search is canceled
 				if (isCanceled) {
 					return;
 				}
 
-				if (fileMatch) {
-					result.numMatches += fileMatch.match.lineMatches.length;
-					result.matches.push(fileMatch.match.serialize());
-					if (fileMatch.limitReached) {
+				if (fileResult) {
+					result.numMatches += fileResult.numMatches;
+					result.matches.push(fileResult.match.serialize());
+					if (fileResult.limitReached) {
 						// If the limit was reached, terminate early with the results so far.
 						isCanceled = true;
 						result.limitReached = true;
@@ -96,7 +96,7 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults
 				}
 
 				if (absolutePaths.length) {
-					return startSearchInFile(absolutePaths.pop());
+					return startSearchInFile(absolutePaths.shift());
 				}
 			});
 		};
