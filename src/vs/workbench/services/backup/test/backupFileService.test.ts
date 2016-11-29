@@ -175,10 +175,10 @@ suite('BackupFileService', () => {
 
 	test('getWorkspaceFileBackups("file") - text file', done => {
 		service.backupResource(fooFile, `test`).then(() => {
-			service.getWorkspaceFileBackups('file').then(textFiles => {
+			service.getWorkspaceFileBackups().then(textFiles => {
 				assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath]);
 				service.backupResource(barFile, `test`).then(() => {
-					service.getWorkspaceFileBackups('file').then(textFiles => {
+					service.getWorkspaceFileBackups().then(textFiles => {
 						assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath, barFile.fsPath]);
 						done();
 					});
@@ -189,27 +189,16 @@ suite('BackupFileService', () => {
 
 	test('getWorkspaceFileBackups("file") - untitled file', done => {
 		service.backupResource(untitledFile, `test`).then(() => {
-			service.getWorkspaceFileBackups('file').then(textFiles => {
-				assert.deepEqual(textFiles, []);
+			service.getWorkspaceFileBackups().then(textFiles => {
+				assert.deepEqual(textFiles.map(f => f.fsPath), [untitledFile.fsPath]);
 				done();
-			});
-		});
-	});
-
-	test('getWorkspaceFileBackups("untitled") - text file', done => {
-		service.backupResource(fooFile, `test`).then(() => {
-			service.backupResource(barFile, `test`).then(() => {
-				service.getWorkspaceFileBackups('untitled').then(textFiles => {
-					assert.deepEqual(textFiles, []);
-					done();
-				});
 			});
 		});
 	});
 
 	test('getWorkspaceFileBackups("untitled") - untitled file', done => {
 		service.backupResource(untitledFile, `test`).then(() => {
-			service.getWorkspaceFileBackups('untitled').then(textFiles => {
+			service.getWorkspaceFileBackups().then(textFiles => {
 				assert.deepEqual(textFiles.map(f => f.fsPath), ['Untitled-1']);
 				done();
 			});
@@ -293,8 +282,7 @@ suite('BackupFileService', () => {
 	test('BackupFilesModel - get', () => {
 		const model = new BackupFilesModel();
 
-		assert.deepEqual(model.get('file'), []);
-		assert.deepEqual(model.get('untitled'), []);
+		assert.deepEqual(model.get(), []);
 
 		const file1 = Uri.file('/root/file/foo.html');
 		const file2 = Uri.file('/root/file/bar.html');
@@ -304,7 +292,6 @@ suite('BackupFileService', () => {
 		model.add(file2);
 		model.add(untitled);
 
-		assert.deepEqual(model.get('file').map(f => f.fsPath), [file1.fsPath, file2.fsPath]);
-		assert.deepEqual(model.get('untitled').map(f => f.fsPath), [untitled.fsPath]);
+		assert.deepEqual(model.get().map(f => f.fsPath), [file1.fsPath, file2.fsPath, untitled.fsPath]);
 	});
 });

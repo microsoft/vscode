@@ -97,10 +97,6 @@ export class BackupService implements IBackupService {
 	}
 
 	public backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): TPromise<IBackupResult> {
-		if (!this.isHotExitEnabled) {
-			return TPromise.as({ didBackup: false });
-		}
-
 		return this.windowsService.getWindowCount().then(windowCount => {
 
 			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
