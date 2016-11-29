@@ -55,8 +55,8 @@ export class SearchWorker implements ISearchWorker {
 	}
 
 	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
-		// console.log('starting search: ' + Date.now() + ' ' + args.absolutePaths.length);
 		// Queue this search to run after the current one
+		// console.log('got "search"')
 		return this.nextSearch = (new TPromise((resolve, reject) => {
 			this.nextSearch
 				.then(() => searchBatch(args.absolutePaths, this.contentPattern, args.maxResults))
@@ -69,6 +69,11 @@ export class SearchWorker implements ISearchWorker {
  * Searches some number of the paths concurrently, and starts searches in other paths when those complete.
  */
 function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults: number): TPromise<ISearchWorkerSearchResult> {
+	if (isCanceled) {
+		return TPromise.wrap(null);
+	}
+
+	// console.log('searching batch');
 	return new TPromise(batchDone => {
 		const result: ISearchWorkerSearchResult = {
 			matches: [],
@@ -79,7 +84,7 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults
 		// Search in the given path, and when it's finished, search in the next path in absolutePaths
 		const startSearchInFile = (absolutePath: string): TPromise<void> => {
 			return searchInFile(absolutePath, contentPattern, maxResults - result.numMatches).then(fileResult => {
-				// Finish if search is canceled
+				// Finish early if search is canceled
 				if (isCanceled) {
 					return;
 				}
@@ -89,9 +94,10 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults
 					result.matches.push(fileResult.match.serialize());
 					if (fileResult.limitReached) {
 						// If the limit was reached, terminate early with the results so far.
+						// TODO more isCanceled checks, or cancel nextSearch?
 						isCanceled = true;
 						result.limitReached = true;
-						batchDone(result);
+						return batchDone(result);
 					}
 				}
 
