@@ -11,6 +11,7 @@ import * as paths from 'vs/base/common/paths';
 import * as async from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -21,16 +22,19 @@ import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import { ContinueAction, StepOverAction, PauseAction, AddFunctionBreakpointAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, ToggleEnablementAction, RenameFunctionBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, EditWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, ToggleBreakpointsActivatedAction, RestartFrameAction, AddToWatchExpressionsAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+
 
 const $ = dom.$;
 const booleanRegex = /^true|false$/i;
@@ -130,8 +134,8 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				debugService.renameWatchExpression(element.getId(), inputBox.value).done(null, errors.onUnexpectedError);
 			} else if (element instanceof Expression && !element.name) {
 				debugService.removeWatchExpressions(element.getId());
-			} else if (element instanceof FunctionBreakpoint && renamed && inputBox.value) {
-				debugService.renameFunctionBreakpoint(element.getId(), inputBox.value).done(null, errors.onUnexpectedError);
+			} else if (element instanceof FunctionBreakpoint && inputBox.value) {
+				debugService.renameFunctionBreakpoint(element.getId(), renamed ? inputBox.value : element.name).done(null, errors.onUnexpectedError);
 			} else if (element instanceof FunctionBreakpoint && !element.name) {
 				debugService.removeFunctionBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
 			} else if (element instanceof Variable) {
@@ -175,19 +179,29 @@ function getSourceName(source: Source, contextService: IWorkspaceContextService)
 
 export class BaseDebugController extends DefaultController {
 
+	private contributedContextMenu: IMenu;
+
 	constructor(
-		protected debugService: debug.IDebugService,
-		private contextMenuService: IContextMenuService,
 		private actionProvider: IActionProvider,
-		private focusOnContextMenu = true
+		menuId: MenuId,
+		@debug.IDebugService protected debugService: debug.IDebugService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService
 	) {
 		super();
 
+		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
 		if (isMacintosh) {
 			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
 		} else {
 			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
 			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
+		}
+		if (isMacintosh) {
+			this.downKeyBindingDispatcher.set(KeyCode.Enter, this.onRename.bind(this));
+		} else {
+			this.downKeyBindingDispatcher.set(KeyCode.F2, this.onRename.bind(this));
 		}
 	}
 
@@ -199,15 +213,16 @@ export class BaseDebugController extends DefaultController {
 		event.preventDefault();
 		event.stopPropagation();
 
-		if (this.focusOnContextMenu) {
-			tree.setFocus(element);
-		}
+		tree.setFocus(element);
 
 		if (this.actionProvider.hasSecondaryActions(tree, element)) {
 			const anchor = { x: event.posx + 1, y: event.posy };
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
-				getActions: () => this.actionProvider.getSecondaryActions(tree, element),
+				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
+					fillInActions(this.contributedContextMenu, this.getContext(element), actions);
+					return actions;
+				}),
 				onHide: (wasCancelled?: boolean) => {
 					if (wasCancelled) {
 						tree.DOMFocus();
@@ -224,6 +239,14 @@ export class BaseDebugController extends DefaultController {
 
 	protected onDelete(tree: ITree, event: IKeyboardEvent): boolean {
 		return false;
+	}
+
+	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
+		return false;
+	}
+
+	protected getContext(element: any): any {
+		return undefined;
 	}
 }
 
@@ -284,6 +307,12 @@ export class CallStackController extends BaseDebugController {
 		this.focusStackFrame(tree.getFocus(), event, true);
 
 		return true;
+	}
+
+	protected getContext(element: any): any {
+		if (element instanceof StackFrame) {
+			return element.source.uri.toString();
+		}
 	}
 
 	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
@@ -759,11 +788,6 @@ export class VariablesAccessibilityProvider implements IAccessibilityProvider {
 
 export class VariablesController extends BaseDebugController {
 
-	constructor(debugService: debug.IDebugService, contextMenuService: IContextMenuService, actionProvider: IActionProvider) {
-		super(debugService, contextMenuService, actionProvider);
-		this.downKeyBindingDispatcher.set(KeyCode.Enter, this.setSelectedExpression.bind(this));
-	}
-
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to set the value
 		if (element instanceof Variable && event.detail === 2) {
@@ -777,7 +801,7 @@ export class VariablesController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected setSelectedExpression(tree: ITree, event: KeyboardEvent): boolean {
+	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof Variable && !element.hasChildren) {
 			this.debugService.getViewModel().setSelectedExpression(element);
@@ -995,16 +1019,6 @@ export class WatchExpressionsAccessibilityProvider implements IAccessibilityProv
 
 export class WatchExpressionsController extends BaseDebugController {
 
-	constructor(debugService: debug.IDebugService, contextMenuService: IContextMenuService, actionProvider: IActionProvider) {
-		super(debugService, contextMenuService, actionProvider);
-
-		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyCode.Enter, this.onRename.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.F2, this.onRename.bind(this));
-		}
-	}
-
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression && event.detail === 2) {
@@ -1018,7 +1032,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onRename(tree: ITree, event: KeyboardEvent): boolean {
+	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof Expression) {
 			const watchExpression = <Expression>element;
@@ -1258,6 +1272,7 @@ export class BreakpointsRenderer implements IRenderer {
 	private renderFunctionBreakpoint(tree: ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IBaseBreakpointTemplateData): void {
 		const selected = this.debugService.getViewModel().getSelectedFunctionBreakpoint();
 		if (!functionBreakpoint.name || (selected && selected.getId() === functionBreakpoint.getId())) {
+			data.name.textContent = '';
 			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, {
 				initialValue: functionBreakpoint.name,
 				placeholder: nls.localize('functionBreakpointPlaceholder', "Function to break on"),
@@ -1327,15 +1342,6 @@ export class BreakpointsAccessibilityProvider implements IAccessibilityProvider 
 }
 
 export class BreakpointsController extends BaseDebugController {
-
-	constructor(debugService: debug.IDebugService, contextMenuService: IContextMenuService, actionProvider: IActionProvider) {
-		super(debugService, contextMenuService, actionProvider);
-		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyCode.Enter, this.onRename.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.F2, this.onRename.bind(this));
-		}
-	}
 
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		if (element instanceof FunctionBreakpoint && event.detail === 2) {

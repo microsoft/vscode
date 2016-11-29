@@ -26,6 +26,8 @@ import { AddToWatchExpressionsAction, ClearReplAction } from 'vs/workbench/parts
 import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
@@ -242,6 +244,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		// value
 		dom.clearNode(templateData.value);
+		templateData.value.className = '';
 		let result = this.handleANSIOutput(output.value);
 		if (typeof result === 'string') {
 			renderExpressionValue(result, templateData.value, {
@@ -495,13 +498,14 @@ export class ReplExpressionsController extends BaseDebugController {
 	private lastSelectedString: string = null;
 
 	constructor(
-		debugService: IDebugService,
-		contextMenuService: IContextMenuService,
-		actionProvider: IActionProvider,
 		private replInput: ICodeEditor,
-		focusOnContextMenu = true
+		actionProvider: IActionProvider,
+		@IDebugService debugService: IDebugService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService
 	) {
-		super(debugService, contextMenuService, actionProvider, focusOnContextMenu);
+		super(actionProvider, MenuId.DebugConsoleContext, debugService, contextMenuService, contextKeyService, menuService);
 	}
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {

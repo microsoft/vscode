@@ -80,7 +80,7 @@ import { SCMService } from 'vs/workbench/services/scm/common/scmService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -503,6 +503,9 @@ export class Workbench implements IPartService {
 
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
+		if (!this.contextService.getWorkspace()) {
+			this.sideBarHidden = true; // we hide sidebar in single-file-mode
+		}
 
 		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 		if (!viewletRegistry.getDefaultViewletId()) {
@@ -798,7 +801,12 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	private shutdownComponents(): void {
+	private shutdownComponents(reason = ShutdownReason.QUIT): void {
+
+		// Restore sidebar if we are being shutdown as a matter of a reload
+		if (reason === ShutdownReason.RELOAD) {
+			this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
+		}
 
 		// Pass shutdown on to each participant
 		this.toShutdown.forEach(s => s.shutdown());
@@ -1046,10 +1054,6 @@ export class Workbench implements IPartService {
 
 	public getWorkbenchElementId(): string {
 		return Identifiers.WORKBENCH_CONTAINER;
-	}
-
-	public setRestoreSidebar(): void {
-		this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
 	}
 
 	public toggleZenMode(): void {

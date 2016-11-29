@@ -20,7 +20,7 @@ import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, ReadyState } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
-import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
+import { ILifecycleService, UnloadReason } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
@@ -273,7 +273,7 @@ export class WindowsManager implements IWindowsMainService {
 	public reload(win: VSCodeWindow, cli?: ParsedArgs): void {
 
 		// Only reload when the window has not vetoed this
-		this.lifecycleService.unload(win).done(veto => {
+		this.lifecycleService.unload(win, UnloadReason.RELOAD).done(veto => {
 			if (!veto) {
 				win.reload(cli);
 			}
@@ -762,7 +762,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Only load when the window has not vetoed this
-		this.lifecycleService.unload(vscodeWindow).done(veto => {
+		this.lifecycleService.unload(vscodeWindow, UnloadReason.LOAD).done(veto => {
 			if (!veto) {
 
 				// Load it

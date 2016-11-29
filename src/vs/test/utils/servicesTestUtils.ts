@@ -30,7 +30,7 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -289,10 +289,6 @@ export class TestPartService implements IPartService {
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
 	public getWorkbenchElementId(): string { return ''; }
-
-	public setRestoreSidebar(): void {
-
-	}
 
 	public toggleZenMode(): void { }
 }
@@ -647,23 +643,6 @@ export class TestBackupService implements IBackupService {
 
 export class TestBackupFileService implements IBackupFileService {
 	public _serviceBrand: any;
-
-	public getWorkspaceBackupPaths(): TPromise<string[]> {
-		return TPromise.as([]);
-	}
-
-	public getWorkspaceBackupPathsSync(): string[] {
-		return [];
-	}
-
-	public pushWorkspaceBackupPathsSync(workspaces: URI[]): void {
-		return null;
-	}
-
-	public getWorkspaceTextFilesWithBackupsSync(workspace: URI): string[] {
-		return [];
-	}
-
 	public hasBackup(resource: URI): TPromise<boolean> {
 		return TPromise.as(false);
 	}
@@ -694,6 +673,14 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as(void 0);
 	}
 
+	public getWorkspaceFileBackups(): TPromise<URI[]> {
+		return TPromise.as([]);
+	}
+
+	public parseBackupContent(rawText: IRawTextContent): string {
+		return rawText.value.lines.join('\n');
+	}
+
 	public discardResourceBackup(resource: URI): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -708,16 +695,15 @@ export class TestLifecycleService implements ILifecycleService {
 	public _serviceBrand: any;
 
 	public willShutdown: boolean;
-	public quitRequested: boolean;
 
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
-	private _onShutdown = new Emitter<void>();
+	private _onShutdown = new Emitter<ShutdownReason>();
 
 	constructor() {
 	}
 
-	public fireShutdown(): void {
-		this._onShutdown.fire();
+	public fireShutdown(reason = ShutdownReason.QUIT): void {
+		this._onShutdown.fire(reason);
 	}
 
 	public fireWillShutdown(event: ShutdownEvent): void {
@@ -728,7 +714,7 @@ export class TestLifecycleService implements ILifecycleService {
 		return this._onWillShutdown.event;
 	}
 
-	public get onShutdown(): Event<void> {
+	public get onShutdown(): Event<ShutdownReason> {
 		return this._onShutdown.event;
 	}
 }
