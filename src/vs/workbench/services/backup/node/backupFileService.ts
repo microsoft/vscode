@@ -155,7 +155,7 @@ export class BackupFileService implements IBackupFileService {
 			}
 
 			if (resource.scheme === 'file') {
-				content = `${resource.fsPath}\n${content}`;
+				content = `${resource.toString()}\n${content}`;
 			}
 
 			return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
