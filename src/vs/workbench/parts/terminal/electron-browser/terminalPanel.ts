@@ -66,7 +66,6 @@ export class TerminalPanel extends Panel {
 		this._register(this._configurationService.onDidUpdateConfiguration(this._updateFont.bind(this)));
 		this._updateFont();
 		this._updateTheme();
-		this._terminalService.updateConfig();
 
 		// Force another layout (first is setContainers) since config has changed
 		this.layout(new Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
@@ -85,13 +84,11 @@ export class TerminalPanel extends Panel {
 	public setVisible(visible: boolean): TPromise<void> {
 		if (visible) {
 			if (this._terminalService.terminalInstances.length > 0) {
-				this._terminalService.updateConfig();
 				this._updateFont();
 				this._updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
 					this._terminalService.createInstance();
-					this._terminalService.updateConfig();
 					this._updateFont();
 					this._updateTheme();
 				});
