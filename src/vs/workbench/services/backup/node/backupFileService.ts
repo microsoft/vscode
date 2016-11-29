@@ -154,9 +154,8 @@ export class BackupFileService implements IBackupFileService {
 				return void 0; // return early if backup version id matches requested one
 			}
 
-			if (resource.scheme === 'file') {
-				content = `${resource.toString()}\n${content}`;
-			}
+			// Add metadata to top of file
+			content = `${resource.toString()}\n${content}`;
 
 			return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
 		});

@@ -160,7 +160,9 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		// Check for backups first
 		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
 			if (backupResource) {
-				return this.textFileService.resolveTextContent(backupResource, BACKUP_FILE_RESOLVE_OPTIONS).then(rawTextContent => rawTextContent.value.lines.join('\n'));
+				return this.textFileService.resolveTextContent(backupResource, BACKUP_FILE_RESOLVE_OPTIONS).then(rawTextContent => {
+					return this.backupFileService.parseBackupContent(rawTextContent);
+				});
 			}
 
 			return null;
