@@ -64,7 +64,7 @@ async function init(disposables: Disposable[]): Promise<void> {
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
 	disposables.push(
-		registerCommands(),
+		registerCommands(model),
 		scm.registerSCMProvider('git', provider),
 		workspace.registerTextDocumentContentProvider('git-index', new TextDocumentContentProvider(git, rootPath)),
 		outputChannel
