@@ -220,8 +220,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.hotExit': {
 			'type': 'boolean',
-			// TODO: Switch to true once sufficiently stable
-			'default': false,
+			'default': true,
 			'description': nls.localize('hotExit', "Controls whether unsaved files are restored after relaunching. If this is enabled there will be no prompt to save when exiting the editor.")
 		}
 	}
