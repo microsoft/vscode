@@ -7,6 +7,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import * as DOM from 'vs/base/browser/dom';
+import { Delayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
@@ -106,6 +107,8 @@ export class PreferencesEditor extends BaseEditor {
 	private isFocussed = false;
 	private toDispose: IDisposable[] = [];
 
+	private delayedFilterLogging: Delayer<void>;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService private themeService: IThemeService,
@@ -115,6 +118,7 @@ export class PreferencesEditor extends BaseEditor {
 		@IModeService private modeService: IModeService
 	) {
 		super(PreferencesEditor.ID, telemetryService);
+		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 
 	public createEditor(parent: Builder) {
@@ -204,6 +208,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private filterPreferences(filter: string) {
+		this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
 		(<DefaultSettingsRenderer>this.getDefaultPreferencesContribution().getPreferencesRenderer()).filterPreferences(filter);
 	}
 
@@ -258,6 +263,12 @@ export class PreferencesEditor extends BaseEditor {
 		if (model) {
 			model.dispose();
 		}
+	}
+
+	private reportFilteringUsed(filter: string): void {
+		let data = {};
+		data['filter'] = filter;
+		this.telemetryService.publicLog('defaultSettings.filter', data);
 	}
 }
 
