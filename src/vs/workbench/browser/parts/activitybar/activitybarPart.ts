@@ -288,7 +288,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	public show(viewletId: string): void {
 		const index = this.hiddenViewlets.indexOf(viewletId);
 		if (index >= 0) {
-			this.hiddenViewlets.splice(index);
+			this.hiddenViewlets.splice(index, 1);
 
 			this.updateViewletSwitcher();
 		}
