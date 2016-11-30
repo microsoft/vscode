@@ -7,19 +7,27 @@
 
 import 'vs/css!./media/activitybarpart';
 import nls = require('vs/nls');
+import { TPromise } from 'vs/base/common/winjs.base';
+import DOM = require('vs/base/browser/dom');
+import * as arrays from 'vs/base/common/arrays';
 import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IComposite } from 'vs/workbench/common/composite';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Part } from 'vs/workbench/browser/part';
-import { ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
+import { ToggleViewletAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/activityService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Scope as MementoScope } from 'vs/workbench/common/memento';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { dispose } from 'vs/base/common/lifecycle';
 
 interface IViewletActivity {
 	badge: IBadge;
@@ -28,7 +36,8 @@ interface IViewletActivity {
 
 export class ActivitybarPart extends Part implements IActivityService {
 
-	private static ACTIVITY_ACTION_HEIGHT = 50;
+	private static readonly ACTIVITY_ACTION_HEIGHT = 50;
+	private static readonly HIDDEN_VIEWLETS = 'workbench.activity.hiddenViewlets';
 
 	public _serviceBrand: any;
 
@@ -42,11 +51,16 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
 	private viewletIdToActivity: { [viewletId: string]: IViewletActivity; };
 
+	private memento: any;
+	private hiddenViewlets: string[];
+
 	constructor(
 		id: string,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IKeybindingService private keybindingService: IKeybindingService,
+		@IStorageService private storageService: IStorageService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService
 	) {
@@ -55,6 +69,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.activityActionItems = Object.create(null);
 		this.viewletIdToActions = Object.create(null);
 		this.viewletIdToActivity = Object.create(null);
+
+		this.memento = this.getMemento(this.storageService, MementoScope.GLOBAL);
+		this.hiddenViewlets = this.memento[ActivitybarPart.HIDDEN_VIEWLETS] || [];
 
 		// Update viewlet switcher when external viewlets become ready
 		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
@@ -113,6 +130,20 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Top Actionbar with action items for each viewlet action
 		this.createViewletSwitcher($result.clone());
 
+		// Contextmenu for viewlets
+		$(parent).on('contextmenu', (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, true);
+			const event = new StandardMouseEvent(e);
+
+			const actions = this.viewletService.getViewlets().map(viewlet => this.instantiationService.createInstance(ToggleViewletAction, viewlet));
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => { return { x: event.posx + 1, y: event.posy }; },
+				getActions: () => TPromise.as(actions),
+				onHide: () => dispose(actions)
+			});
+		}, this.toUnbind);
+
 		return $result;
 	}
 
@@ -128,7 +159,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private updateViewletSwitcher() {
-		let viewlets = this.viewletService.getViewlets();
+		let viewlets = this.viewletService.getViewlets().filter(viewlet => !this.isHidden(viewlet.id));
 		let viewletsToShow = viewlets;
 
 		// Ensure we are not showing more viewlets than we have height for
@@ -156,7 +187,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 			this.viewletOverflowActionItem = null;
 		}
 
-		// Pull out viewlets that overflow
+		// Pull out viewlets that overflow or got hidden
 		const viewletIdsToShow = viewletsToShow.map(v => v.id);
 		visibleViewlets.forEach(viewletId => {
 			if (viewletIdsToShow.indexOf(viewletId) === -1) {
@@ -228,6 +259,30 @@ export class ActivitybarPart extends Part implements IActivityService {
 		return action;
 	}
 
+	public hide(viewletId: string): void {
+		if (this.isHidden(viewletId)) {
+			return;
+		}
+
+		this.hiddenViewlets.push(viewletId);
+		this.hiddenViewlets = arrays.distinct(this.hiddenViewlets);
+
+		this.updateViewletSwitcher();
+	}
+
+	public isHidden(viewletId: string): boolean {
+		return this.hiddenViewlets.indexOf(viewletId) >= 0;
+	}
+
+	public show(viewletId: string): void {
+		const index = this.hiddenViewlets.indexOf(viewletId);
+		if (index >= 0) {
+			this.hiddenViewlets.splice(index);
+
+			this.updateViewletSwitcher();
+		}
+	}
+
 	/**
 	 * Layout title, content and status area in the given dimension.
 	 */
@@ -251,5 +306,14 @@ export class ActivitybarPart extends Part implements IActivityService {
 		}
 
 		super.dispose();
+	}
+
+	public shutdown(): void {
+
+		// Persist Hidden State
+		this.memento[ActivitybarPart.HIDDEN_VIEWLETS] = this.hiddenViewlets;
+
+		// Pass to super
+		super.shutdown();
 	}
 }

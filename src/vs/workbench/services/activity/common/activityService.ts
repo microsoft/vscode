@@ -62,12 +62,27 @@ export interface IActivityService {
 	_serviceBrand: any;
 
 	/**
-	 * Show activity in the activitybar for the given viewlet or panel.
+	 * Show activity in the activitybar for the given viewlet.
 	 */
-	showActivity(compositeId: string, badge: IBadge, clazz?: string): void;
+	showActivity(viewletId: string, badge: IBadge, clazz?: string): void;
 
 	/**
-	 * Clears activity shown in the activitybar for the given viewlet or panel.
+	 * Clears activity shown in the activitybar for the given viewlet.
 	 */
-	clearActivity(compositeId: string): void;
+	clearActivity(viewletId: string): void;
+
+	/**
+	 * Hides a viewlet from the activitybar.
+	 */
+	hide(viewletId: string): void;
+
+	/**
+	 * Shows a viewlet inside the activity bar.
+	 */
+	show(viewletId: string): void;
+
+	/**
+	 * Find out if a viewlet is hidden or not in the activitybar.
+	 */
+	isHidden(viewletId): boolean;
 }

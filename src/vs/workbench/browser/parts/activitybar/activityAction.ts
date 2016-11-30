@@ -14,16 +14,17 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Action } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityService';
+import { IActivityService, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityService';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { Registry } from 'vs/platform/platform';
 
 export class ActivityAction extends Action {
 	private badge: IBadge;
@@ -188,8 +189,11 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 	}
 }
 
-let manageExtensionAction: ManageExtensionAction;
 export class ActivityActionItem extends BaseActionItem {
+
+	private static manageExtensionAction: ManageExtensionAction;
+	private static hideViewletAction: HideViewletAction;
+
 	private $e: Builder;
 	private name: string;
 	private _keybinding: string;
@@ -212,8 +216,12 @@ export class ActivityActionItem extends BaseActionItem {
 		this._keybinding = this.getKeybindingLabel(viewlet.id);
 		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
 
-		if (!manageExtensionAction) {
-			manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
+		if (!ActivityActionItem.manageExtensionAction) {
+			ActivityActionItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
+		}
+
+		if (!ActivityActionItem.hideViewletAction) {
+			ActivityActionItem.hideViewletAction = instantiationService.createInstance(HideViewletAction);
 		}
 	}
 
@@ -234,17 +242,20 @@ export class ActivityActionItem extends BaseActionItem {
 			role: 'button'
 		}).appendTo(this.builder);
 
-		if (this.viewlet.extensionId) {
-			$(container).on('contextmenu', e => {
-				DOM.EventHelper.stop(e, true);
+		$(container).on('contextmenu', e => {
+			DOM.EventHelper.stop(e, true);
 
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => container,
-					getActionsContext: () => this.viewlet.extensionId,
-					getActions: () => TPromise.as([manageExtensionAction])
-				});
-			}, this.toDispose);
-		}
+			const actions: Action[] = [ActivityActionItem.hideViewletAction];
+			if (this.viewlet.extensionId) {
+				actions.push(ActivityActionItem.manageExtensionAction);
+			}
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => container,
+				getActionsContext: () => this.viewlet,
+				getActions: () => TPromise.as(actions)
+			});
+		}, this.toDispose);
 
 		if (this.cssClass) {
 			this.$e.addClass(this.cssClass);
@@ -376,8 +387,8 @@ class ManageExtensionAction extends Action {
 		super('activitybar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	public run(extensionId: string): TPromise<any> {
-		return this.commandService.executeCommand('_extensions.manage', extensionId);
+	public run(viewlet: ViewletDescriptor): TPromise<any> {
+		return this.commandService.executeCommand('_extensions.manage', viewlet.extensionId);
 	}
 }
 
@@ -403,5 +414,48 @@ class OpenViewletAction extends Action {
 		}
 
 		return TPromise.as(true);
+	}
+}
+
+class HideViewletAction extends Action {
+
+	constructor(
+		@IViewletService private viewletService: IViewletService,
+		@IActivityService private activityService: IActivityService
+	) {
+		super('activitybar.hide.viewlet', nls.localize('hide', "Hide"));
+	}
+
+	public run(viewlet: ViewletDescriptor): TPromise<any> {
+		this.activityService.hide(viewlet.id);
+
+		// Open default viewlet
+		return this.viewletService.openViewlet(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId(), true);
+	}
+}
+
+export class ToggleViewletAction extends Action {
+
+	constructor(
+		private viewlet: ViewletDescriptor,
+		@IViewletService private viewletService: IViewletService,
+		@IActivityService private activityService: IActivityService
+	) {
+		super('activitybar.show.toggleViewlet', viewlet.name);
+
+		this.checked = !this.activityService.isHidden(this.viewlet.id);
+	}
+
+	public run(): TPromise<any> {
+		let viewletToOpen: string;
+		if (this.activityService.isHidden(this.viewlet.id)) {
+			this.activityService.show(this.viewlet.id);
+			viewletToOpen = this.viewlet.id;
+		} else {
+			this.activityService.hide(this.viewlet.id);
+			viewletToOpen = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
+		}
+
+		return this.viewletService.openViewlet(viewletToOpen, true);
 	}
 }
