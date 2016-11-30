@@ -9,6 +9,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalInstance, ITerminalService, IShell, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -40,6 +41,7 @@ export class TerminalService implements ITerminalService {
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IPanelService private _panelService: IPanelService,
 		@IPartService private _partService: IPartService,
@@ -54,6 +56,7 @@ export class TerminalService implements ITerminalService {
 		this._onInstanceTitleChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 
+		this._configurationService.onDidUpdateConfiguration(this.updateConfig.bind(this));
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._configHelper = <TerminalConfigHelper>this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
@@ -96,6 +99,9 @@ export class TerminalService implements ITerminalService {
 		if (wasActiveInstance && this.terminalInstances.length > 0) {
 			let newIndex = index < this.terminalInstances.length ? index : this.terminalInstances.length - 1;
 			this.setActiveInstanceByIndex(newIndex);
+			if (terminalInstance.hadFocusOnExit) {
+				this.getActiveInstance().focus(true);
+			}
 		}
 		if (this.terminalInstances.length === 0) {
 			this.hidePanel();
@@ -196,5 +202,13 @@ export class TerminalService implements ITerminalService {
 			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
 		}
 		return terminalIndex;
+	}
+
+	public updateConfig(): void {
+		this.terminalInstances.forEach((terminalInstance) => {
+			terminalInstance.setCursorBlink(this.configHelper.getCursorBlink());
+			terminalInstance.setCommandsToSkipShell(this.configHelper.getCommandsToSkipShell());
+			terminalInstance.setScrollback(this.configHelper.getScrollback());
+		});
 	}
 }
