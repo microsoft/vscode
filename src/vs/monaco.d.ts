@@ -3406,7 +3406,6 @@ declare module monaco.editor {
         DeleteWordRight: string;
         DeleteWordStartRight: string;
         DeleteWordEndRight: string;
-        DeleteAllLeft: string;
         DeleteAllRight: string;
         RemoveSecondaryCursors: string;
         CancelSelection: string;
@@ -4365,7 +4364,7 @@ declare module monaco.languages {
          * The human-readable doc-comment of this signature. Will be shown
          * in the UI but can be omitted.
          */
-        documentation: string;
+        documentation?: string;
     }
 
     /**
@@ -4383,7 +4382,7 @@ declare module monaco.languages {
          * The human-readable doc-comment of this signature. Will be shown
          * in the UI but can be omitted.
          */
-        documentation: string;
+        documentation?: string;
         /**
          * The parameters of this signature.
          */

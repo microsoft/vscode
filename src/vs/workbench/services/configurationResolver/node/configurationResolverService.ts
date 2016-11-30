@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import uri from 'vs/base/common/uri';
@@ -226,18 +225,15 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				let commandId = null;
 				commandId = interactiveVariablesMap ? interactiveVariablesMap[interactiveVariable] : null;
 				if (!commandId) {
-					return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Interactive variable {0} is not contributed but is specified in a configuration.", interactiveVariable));
-				} else {
-					return this.commandService.executeCommand<string>(commandId, configuration).then(result => {
-						if (!result) {
-							// TODO@Isidor remove this hack
-							configuration.silentlyAbort = true;
-						}
-						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute =>
-							substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result)
-						);
-					});
+					// Just launch any command if the interactive variable is not contributed by the adapter #12735
+					commandId = interactiveVariable;
 				}
+
+				return this.commandService.executeCommand<string>(commandId, configuration).then(result => {
+					interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute =>
+						substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result)
+					);
+				});
 			};
 		});
 

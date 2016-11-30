@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
-import { isFullWidthCharacter, removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -20,12 +20,14 @@ import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IExpressionContainer, IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debug';
-import { Model, OutputNameValueElement, Expression, OutputElement, Variable, OutputExpressionContainer } from 'vs/workbench/parts/debug/common/debugModel';
+import { Model, OutputNameValueElement, Expression, OutputElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { AddToWatchExpressionsAction, ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
@@ -91,10 +93,11 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
 		// group 0: the full thing :)
 		// group 1: absolute path
-		// group 2: line number
-		// group 3: column number
+		// group 2: the root slash/drive letter, if present
+		// group 3: line number
+		// group 4: column number
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/(?:at |^|[\(<\'\"\[])(?:file:\/\/)?((?:(?:\/|[a-zA-Z]:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?):(\d+)(?::(\d+))?(?:$|[\)>\'\"\]])/
+		/(?:at |^|[\(<\'\"\[])(?:file:\/\/)?((?:(\/|[a-zA-Z]:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?):(\d+)(?::(\d+))?(?:$|[\)>\'\"\]])/
 	];
 
 	private static LINE_HEIGHT_PX = 18;
@@ -118,6 +121,10 @@ export class ReplExpressionsRenderer implements IRenderer {
 			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
+		// Last new line should be ignored since the repl elements are by design split by rows
+		if (endsWith(s, '\n')) {
+			s = s.substr(0, s.length - 1);
+		}
 		const lines = removeAnsiEscapeCodes(s).split('\n');
 		const numLines = lines.reduce((lineCount: number, line: string) => {
 			let lineLength = 0;
@@ -146,7 +153,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		if (element instanceof OutputElement) {
 			return ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID;
 		}
-		if (element instanceof OutputNameValueElement || element instanceof OutputExpressionContainer) {
+		if (element instanceof OutputNameValueElement) {
 			return ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID;
 		}
 
@@ -215,8 +222,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private renderExpression(tree: ITree, expression: IExpression, templateData: IExpressionTemplateData): void {
 		templateData.input.textContent = expression.name;
 		renderExpressionValue(expression, templateData.value, {
-			showChanged: false,
-			preserveWhitespace: true
+			preserveWhitespace: true,
+			showHover: false
 		});
 		if (expression.hasChildren) {
 			templateData.annotation.className = 'annotation octicon octicon-info';
@@ -237,14 +244,42 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		// value
 		dom.clearNode(templateData.value);
+		templateData.value.className = '';
 		let result = this.handleANSIOutput(output.value);
 		if (typeof result === 'string') {
-			templateData.value.textContent = result;
+			renderExpressionValue(result, templateData.value, {
+				preserveWhitespace: true,
+				showHover: false
+			});
 		} else {
 			templateData.value.appendChild(result);
 		}
 
-		templateData.value.className = (output.severity === severity.Warning) ? 'warn' : (output.severity === severity.Error) ? 'error' : 'info';
+		dom.addClass(templateData.value, (output.severity === severity.Warning) ? 'warn' : (output.severity === severity.Error) ? 'error' : 'info');
+	}
+
+	private renderOutputNameValue(tree: ITree, output: OutputNameValueElement, templateData: IKeyValueOutputTemplateData): void {
+		// key
+		if (output.name) {
+			templateData.name.textContent = `${output.name}:`;
+		} else {
+			templateData.name.textContent = '';
+		}
+
+		// value
+		renderExpressionValue(output.value, templateData.value, {
+			preserveWhitespace: true,
+			showHover: false
+		});
+
+		// annotation if any
+		if (output.annotation) {
+			templateData.annotation.className = 'annotation octicon octicon-info';
+			templateData.annotation.title = output.annotation;
+		} else {
+			templateData.annotation.className = '';
+			templateData.annotation.title = '';
+		}
 	}
 
 	private handleANSIOutput(text: string): HTMLElement | string {
@@ -345,7 +380,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 			const match = pattern.exec(text);
 			let resource: uri = null;
 			try {
-				resource = match && this.contextService.toResource(match[1]);
+				// If root slash / drive letter is present, resolve relative path
+				resource = match && (match[2] ? uri.file(match[1]) : this.contextService.toResource(match[1]));
 			} catch (e) { }
 
 			if (resource) {
@@ -362,7 +398,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 				link.textContent = text.substr(match.index, match[0].length);
 				link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
 				linkContainer.appendChild(link);
-				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, Number(match[2]), match[3] && Number(match[3]));
+				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, Number(match[3]), match[4] && Number(match[4]));
 
 				let textAfterLink = text.substr(match.index + match[0].length);
 				if (textAfterLink) {
@@ -395,31 +431,6 @@ export class ReplExpressionsRenderer implements IRenderer {
 				}
 			}
 		}, event.ctrlKey || event.metaKey).done(null, errors.onUnexpectedError);
-	}
-
-	private renderOutputNameValue(tree: ITree, output: OutputNameValueElement | OutputExpressionContainer, templateData: IKeyValueOutputTemplateData): void {
-
-		// key
-		if (output.name) {
-			templateData.name.textContent = `${output.name}:`;
-		} else {
-			templateData.name.textContent = '';
-		}
-
-		// value
-		renderExpressionValue(output.value, templateData.value, {
-			showChanged: false,
-			preserveWhitespace: true
-		});
-
-		// annotation if any
-		if (output.annotation) {
-			templateData.annotation.className = 'annotation octicon octicon-info';
-			templateData.annotation.title = output.annotation;
-		} else {
-			templateData.annotation.className = '';
-			templateData.annotation.title = '';
-		}
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
@@ -487,19 +498,20 @@ export class ReplExpressionsController extends BaseDebugController {
 	private lastSelectedString: string = null;
 
 	constructor(
-		debugService: IDebugService,
-		contextMenuService: IContextMenuService,
-		actionProvider: IActionProvider,
 		private replInput: ICodeEditor,
-		focusOnContextMenu = true
+		actionProvider: IActionProvider,
+		@IDebugService debugService: IDebugService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService
 	) {
-		super(debugService, contextMenuService, actionProvider, focusOnContextMenu);
+		super(actionProvider, MenuId.DebugConsoleContext, debugService, contextMenuService, contextKeyService, menuService);
 	}
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <IMouseEvent>eventish;
 		// input and output are one element in the tree => we only expand if the user clicked on the output.
-		if ((element.reference > 0 || (element instanceof OutputNameValueElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
+		if ((element.reference > 0 || (element instanceof OutputNameValueElement && element.hasChildren)) && mouseEvent.target.className.indexOf('input expression') === -1) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();
 			tree.deselect(element);

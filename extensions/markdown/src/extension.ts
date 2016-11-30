@@ -225,6 +225,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
 		return vscode.workspace.openTextDocument(vscode.Uri.parse(uri.query)).then(document => {
+			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
 			const head = [].concat(
 				'<!DOCTYPE html>',
 				'<html>',
@@ -235,7 +236,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 				this.computeCustomStyleSheetIncludes(uri),
 				`<base href="${document.uri.toString(true)}">`,
 				'</head>',
-				'<body>'
+				`<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''}">`
 			).join('\n');
 			const body = this._renderer.render(this.getDocumentContentForPreview(document));
 

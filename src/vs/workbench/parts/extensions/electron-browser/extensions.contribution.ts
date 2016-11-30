@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/extensions';
 import { localize } from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -34,6 +35,8 @@ import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/w
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 // Singletons
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
@@ -162,3 +165,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigurationSchema);
+
+// Register Commands
+CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string) => {
+	const extensionService = accessor.get(IExtensionsWorkbenchService);
+	const extension = extensionService.local.filter(e => e.identifier === extensionId);
+	if (extension.length === 1) {
+		extensionService.open(extension[0]).done(null, errors.onUnexpectedError);
+	}
+});

@@ -200,10 +200,10 @@ suite('Configuration Resolver Service', () => {
 				schemas: [
 					{
 						fileMatch: [
-							'{{/myfile}}',
-							'{{/myOtherfile}}'
+							'/myfile',
+							'/myOtherfile'
 						],
-						url: '{{schemaURL}}'
+						url: 'schemaURL'
 					}
 				]
 			}

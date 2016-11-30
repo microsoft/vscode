@@ -29,7 +29,7 @@ export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = Ext
 	type: 'array',
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { id: '{{languageId}}', aliases: ['{{label}}'], extensions: ['{{extension}}'], configuration: './language-configuration.json' } }],
+		defaultSnippets: [{ body: { id: '${1:languageId}', aliases: ['${2:label}'], extensions: ['${3:extension}'], configuration: './language-configuration.json' } }],
 		properties: {
 			id: {
 				description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),

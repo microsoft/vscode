@@ -17,6 +17,7 @@ export interface IAction extends IDisposable {
 	class: string;
 	enabled: boolean;
 	checked: boolean;
+	radio: boolean;
 	run(event?: any): TPromise<any>;
 }
 
@@ -67,6 +68,7 @@ export interface IActionChangeEvent {
 	class?: string;
 	enabled?: boolean;
 	checked?: boolean;
+	radio?: boolean;
 }
 
 export class Action implements IAction {
@@ -78,6 +80,7 @@ export class Action implements IAction {
 	protected _cssClass: string;
 	protected _enabled: boolean;
 	protected _checked: boolean;
+	protected _radio: boolean;
 	protected _order: number;
 	protected _actionCallback: (event?: any) => TPromise<any>;
 
@@ -169,10 +172,25 @@ export class Action implements IAction {
 		this._setChecked(value);
 	}
 
+	public get radio(): boolean {
+		return this._radio;
+	}
+
+	public set radio(value: boolean) {
+		this._setRadio(value);
+	}
+
 	protected _setChecked(value: boolean): void {
 		if (this._checked !== value) {
 			this._checked = value;
 			this._onDidChange.fire({ checked: value });
+		}
+	}
+
+	protected _setRadio(value: boolean): void {
+		if (this._radio !== value) {
+			this._radio = value;
+			this._onDidChange.fire({ radio: value });
 		}
 	}
 
