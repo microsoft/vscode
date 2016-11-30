@@ -34,6 +34,10 @@
 	border-left: 2px solid;
 }
 
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.toggle-more {
+	background-image: url('ellipsis-global.svg');
+}
+
 .vs .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before,
 .vs-dark .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
 	border-left-color: #007ACC;
