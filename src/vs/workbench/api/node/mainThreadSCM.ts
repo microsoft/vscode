@@ -53,7 +53,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			return TPromise.as(null);
 		}
 
-		return this.proxy.$getBaselineResource(this.id, uri);
+		return this.proxy.$getOriginalResource(this.id, uri);
 	}
 
 	dispose(): void {
