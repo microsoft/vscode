@@ -101,8 +101,7 @@ export class BackupFileService implements IBackupFileService {
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 
 		if (this.currentWorkspace) {
-			const workspaceHash = crypto.createHash('md5').update(this.currentWorkspace.fsPath).digest('hex');
-			this.backupWorkspacePath = path.join(this.backupHome, workspaceHash);
+			this.backupWorkspacePath = path.join(this.backupHome, this.hashPath(this.currentWorkspace));
 		}
 
 		this.ready = this.init();
@@ -213,12 +212,13 @@ export class BackupFileService implements IBackupFileService {
 			return null;
 		}
 
+		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, this.hashPath(resource)));
+	}
+
+	private hashPath(resource: Uri): string {
 		// Windows and Mac paths are case insensitive, we want backups to be too
-		const pathCaseFix = platform.isWindows || platform.isMacintosh ? resource.fsPath.toLowerCase() : resource.fsPath;
+		const caseAwarePath = platform.isWindows || platform.isMacintosh ? resource.fsPath.toLowerCase() : resource.fsPath;
 
-		const backupName = crypto.createHash('md5').update(pathCaseFix).digest('hex');
-		const backupPath = path.join(this.backupWorkspacePath, resource.scheme, backupName);
-
-		return Uri.file(backupPath);
+		return crypto.createHash('md5').update(caseAwarePath).digest('hex');
 	}
 }

@@ -160,4 +160,19 @@ suite('BackupMainService', () => {
 
 		done();
 	});
+
+	test('toBackupPath ignores case on Windows and Mac', () => {
+		// Skip test on Linux
+		if (platform.isLinux) {
+			return;
+		}
+
+		if (platform.isMacintosh) {
+			assert.equal(service.toBackupPath('/foo'), service.toBackupPath('/FOO'));
+		}
+
+		if (platform.isWindows) {
+			assert.equal(service.toBackupPath('c:\\foo'), service.toBackupPath('C:\\FOO'));
+		}
+	});
 });
