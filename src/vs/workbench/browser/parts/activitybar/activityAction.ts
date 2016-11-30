@@ -14,7 +14,7 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Action } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IActivityService, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityService';
+import { IActivityBarService, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -421,13 +421,13 @@ class HideViewletAction extends Action {
 
 	constructor(
 		@IViewletService private viewletService: IViewletService,
-		@IActivityService private activityService: IActivityService
+		@IActivityBarService private activityBarService: IActivityBarService
 	) {
 		super('activitybar.hide.viewlet', nls.localize('hide', "Hide"));
 	}
 
 	public run(viewlet: ViewletDescriptor): TPromise<any> {
-		this.activityService.hide(viewlet.id);
+		this.activityBarService.hide(viewlet.id);
 
 		// Open default viewlet
 		return this.viewletService.openViewlet(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId(), true);
@@ -439,20 +439,20 @@ export class ToggleViewletAction extends Action {
 	constructor(
 		private viewlet: ViewletDescriptor,
 		@IViewletService private viewletService: IViewletService,
-		@IActivityService private activityService: IActivityService
+		@IActivityBarService private activityBarService: IActivityBarService
 	) {
 		super('activitybar.show.toggleViewlet', viewlet.name);
 
-		this.checked = !this.activityService.isHidden(this.viewlet.id);
+		this.checked = !this.activityBarService.isHidden(this.viewlet.id);
 	}
 
 	public run(): TPromise<any> {
 		let viewletToOpen: string;
-		if (this.activityService.isHidden(this.viewlet.id)) {
-			this.activityService.show(this.viewlet.id);
+		if (this.activityBarService.isHidden(this.viewlet.id)) {
+			this.activityBarService.show(this.viewlet.id);
 			viewletToOpen = this.viewlet.id;
 		} else {
-			this.activityService.hide(this.viewlet.id);
+			this.activityBarService.hide(this.viewlet.id);
 			viewletToOpen = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
 		}
 

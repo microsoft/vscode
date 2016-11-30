@@ -57,7 +57,7 @@ import { ConfigurationEditingService } from 'vs/workbench/services/configuration
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
+import { IActivityBarService } from 'vs/workbench/services/activity/common/activityBarService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletService } from 'vs/workbench/services/viewlet/browser/viewletService';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
@@ -440,7 +440,7 @@ export class Workbench implements IPartService {
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart, Identifiers.ACTIVITYBAR_PART);
 		this.toDispose.push(this.activitybarPart);
 		this.toShutdown.push(this.activitybarPart);
-		serviceCollection.set(IActivityService, this.activitybarPart);
+		serviceCollection.set(IActivityBarService, this.activitybarPart);
 
 		// Editor service (editor part)
 		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasFilesToCreateOpenOrDiff);

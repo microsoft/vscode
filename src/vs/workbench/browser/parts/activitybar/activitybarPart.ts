@@ -18,7 +18,7 @@ import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Part } from 'vs/workbench/browser/part';
 import { ToggleViewletAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/activityService';
+import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -34,7 +34,7 @@ interface IViewletActivity {
 	clazz: string;
 }
 
-export class ActivitybarPart extends Part implements IActivityService {
+export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private static readonly ACTIVITY_ACTION_HEIGHT = 50;
 	private static readonly HIDDEN_VIEWLETS = 'workbench.activity.hiddenViewlets';
