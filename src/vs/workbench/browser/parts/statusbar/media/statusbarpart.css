@@ -7,11 +7,21 @@
 	box-sizing: border-box;
 	width: 100%;
 	height: 22px;
-	background: #007ACC;
-	color: white;
 	font-size: 12px;
 	padding: 0 10px;
 	overflow: hidden;
+}
+
+.vs .monaco-workbench > .part.statusbar {
+	opacity: 0.675;
+	color: #000;
+	background: #E6E6E6;
+}
+
+.vs-dark .monaco-workbench > .part.statusbar,
+.hc-black.monaco-workbench > .part.statusbar {
+	color: white;
+	background: #333;
 }
 
 .monaco-workbench.no-workspace > .part.statusbar {

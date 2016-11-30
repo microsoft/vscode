@@ -33,7 +33,7 @@
 /* Theming */
 
 .vs .monaco-workbench > .part.titlebar {
-	background: #ddd;
+	background: #E6E6E6;
 	color: #333333;
 }
 
@@ -42,7 +42,7 @@
 }
 
 .vs-dark .monaco-workbench > .part.titlebar {
-	background: #3c3c3c;
+	background: #333;
 	color: #ccc;
 }
 

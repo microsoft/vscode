@@ -8,6 +8,22 @@
 	visibility: hidden !important;
 }
 
+.vs .monaco-workbench > .part.panel {
+	border-left: 2px solid white;
+}
+
+.vs-dark .monaco-workbench > .part.panel {
+	border-left: 2px solid #1E1E1E;
+}
+
+.vs .monaco-workbench > .part.panel .monaco-editor-background {
+	background-color: #F3F3F3 !important;
+}
+
+.vs-dark .monaco-workbench > .part.panel .monaco-editor-background {
+	background-color: #252526 !important;
+}
+
 .monaco-workbench > .part.panel .title {
 	padding-right: 0px;
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
