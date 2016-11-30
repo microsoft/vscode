@@ -37,7 +37,7 @@ import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { RequestService } from 'vs/platform/request/node/requestService';
+import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
