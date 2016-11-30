@@ -105,7 +105,6 @@ export class ViewletActivityAction extends ActivityAction {
 export class ViewletOverflowActivityAction extends ActivityAction {
 
 	constructor(
-		private viewlets: ViewletDescriptor[],
 		private showMenu: () => void
 	) {
 		super('activitybar.additionalViewlets.action', nls.localize('additionalViewlets', "Additional Viewlets"), 'toggle-more');
@@ -126,7 +125,7 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 
 	constructor(
 		action: ActivityAction,
-		private viewlets: ViewletDescriptor[],
+		private getOverflowingViewlets: () => ViewletDescriptor[],
 		private getBadge: (viewlet: ViewletDescriptor) => IBadge,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
@@ -136,7 +135,6 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 
 		this.cssClass = action.class;
 		this.name = action.label;
-		this.actions = viewlets.map(viewlet => this.instantiationService.createInstance(OpenViewletAction, viewlet));
 	}
 
 	public render(container: HTMLElement): void {
@@ -151,18 +149,24 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 	}
 
 	public showMenu(): void {
-		this.updateActions();
+		if (this.actions) {
+			dispose(this.actions);
+		}
+
+		this.actions = this.getActions();
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.builder.getHTMLElement(),
-			getActions: () => TPromise.as(this.actions)
+			getActions: () => TPromise.as(this.actions),
+			onHide: () => dispose(this.actions)
 		});
 	}
 
-	private updateActions(): void {
+	private getActions(): OpenViewletAction[] {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
-		this.actions.forEach(action => {
+		return this.getOverflowingViewlets().map(viewlet => {
+			const action = this.instantiationService.createInstance(OpenViewletAction, viewlet);
 			action.radio = activeViewlet && activeViewlet.getId() === action.id;
 
 			const badge = this.getBadge(action.viewlet);
@@ -178,6 +182,8 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 			} else {
 				action.label = action.viewlet.name;
 			}
+
+			return action;
 		});
 	}
 

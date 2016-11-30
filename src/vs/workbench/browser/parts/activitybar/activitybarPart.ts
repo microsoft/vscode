@@ -162,17 +162,16 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private updateViewletSwitcher() {
-		let viewlets = this.viewletService.getViewlets().filter(viewlet => !this.isHidden(viewlet.id));
-		let viewletsToShow = viewlets;
+		let viewletsToShow = this.getVisibleViewlets();
 
 		// Ensure we are not showing more viewlets than we have height for
 		let overflows = false;
 		if (this.dimension) {
 			const maxVisible = Math.floor(this.dimension.height / ActivitybarPart.ACTIVITY_ACTION_HEIGHT);
-			overflows = viewlets.length > maxVisible;
+			overflows = viewletsToShow.length > maxVisible;
 
 			if (overflows) {
-				viewletsToShow = viewlets.slice(0, maxVisible - 1 /* make room for overflow action */);
+				viewletsToShow = viewletsToShow.slice(0, maxVisible - 1 /* make room for overflow action */);
 			}
 		}
 
@@ -231,13 +230,22 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Add overflow action as needed
 		if (visibleViewletsChange && overflows) {
-			const viewletsOverflowing = viewlets.slice(viewletsToShow.length);
-
-			this.viewletOverflowAction = this.instantiationService.createInstance(ViewletOverflowActivityAction, viewletsOverflowing, () => this.viewletOverflowActionItem.showMenu());
-			this.viewletOverflowActionItem = this.instantiationService.createInstance(ViewletOverflowActivityActionItem, this.viewletOverflowAction, viewletsOverflowing, viewlet => this.viewletIdToActivity[viewlet.id] && this.viewletIdToActivity[viewlet.id].badge);
+			this.viewletOverflowAction = this.instantiationService.createInstance(ViewletOverflowActivityAction, () => this.viewletOverflowActionItem.showMenu());
+			this.viewletOverflowActionItem = this.instantiationService.createInstance(ViewletOverflowActivityActionItem, this.viewletOverflowAction, () => this.getOverflowingViewlets(), viewlet => this.viewletIdToActivity[viewlet.id] && this.viewletIdToActivity[viewlet.id].badge);
 
 			this.viewletSwitcherBar.push(this.viewletOverflowAction, { label: true, icon: true });
 		}
+	}
+
+	private getOverflowingViewlets(): ViewletDescriptor[] {
+		const viewlets = this.getVisibleViewlets();
+		const visibleViewlets = Object.keys(this.viewletIdToActions);
+
+		return viewlets.filter(viewlet => visibleViewlets.indexOf(viewlet.id) === -1);
+	}
+
+	private getVisibleViewlets(): ViewletDescriptor[] {
+		return this.viewletService.getViewlets().filter(viewlet => !this.isHidden(viewlet.id));
 	}
 
 	private pullViewlet(viewletId: string): void {
