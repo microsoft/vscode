@@ -68,12 +68,11 @@ export class ViewletActivityAction extends ActivityAction {
 	private lastRun: number = 0;
 
 	constructor(
-		id: string,
 		private viewlet: ViewletDescriptor,
 		@IViewletService private viewletService: IViewletService,
 		@IPartService private partService: IPartService
 	) {
-		super(id, viewlet.name, viewlet.cssClass);
+		super(viewlet.id, viewlet.name, viewlet.cssClass);
 	}
 
 	public run(event): TPromise<any> {
@@ -103,9 +102,94 @@ export class ViewletActivityAction extends ActivityAction {
 	}
 }
 
+export class ViewletOverflowActivityAction extends ActivityAction {
+
+	constructor(
+		private viewlets: ViewletDescriptor[],
+		private showMenu: () => void
+	) {
+		super('activitybar.additionalViewlets.action', nls.localize('additionalViewlets', "Additional Viewlets"), 'toggle-more');
+	}
+
+	public run(event): TPromise<any> {
+		this.showMenu();
+
+		return TPromise.as(true);
+	}
+}
+
+export class ViewletOverflowActivityActionItem extends BaseActionItem {
+	private $e: Builder;
+	private name: string;
+	private cssClass: string;
+	private actions: OpenViewletAction[];
+
+	constructor(
+		action: ActivityAction,
+		private viewlets: ViewletDescriptor[],
+		private getBadge: (viewlet: ViewletDescriptor) => IBadge,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IViewletService private viewletService: IViewletService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+	) {
+		super(null, action);
+
+		this.cssClass = action.class;
+		this.name = action.label;
+		this.actions = viewlets.map(viewlet => this.instantiationService.createInstance(OpenViewletAction, viewlet));
+	}
+
+	public render(container: HTMLElement): void {
+		super.render(container);
+
+		this.$e = $('a.action-label').attr({
+			tabIndex: '0',
+			role: 'button',
+			title: this.name,
+			class: this.cssClass
+		}).appendTo(this.builder);
+	}
+
+	public showMenu(): void {
+		this.updateActions();
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => this.builder.getHTMLElement(),
+			getActions: () => TPromise.as(this.actions)
+		});
+	}
+
+	private updateActions(): void {
+		const activeViewlet = this.viewletService.getActiveViewlet();
+
+		this.actions.forEach(action => {
+			action.checked = activeViewlet && activeViewlet.getId() === action.id;
+
+			const badge = this.getBadge(action.viewlet);
+			let suffix: string | number;
+			if (badge instanceof NumberBadge) {
+				suffix = badge.number;
+			} else if (badge instanceof TextBadge) {
+				suffix = badge.text;
+			}
+
+			if (suffix) {
+				action.label = nls.localize('numberBadge', "{0} ({1})", action.viewlet.name, suffix);
+			} else {
+				action.label = action.viewlet.name;
+			}
+		});
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		this.actions = dispose(this.actions);
+	}
+}
+
 let manageExtensionAction: ManageExtensionAction;
 export class ActivityActionItem extends BaseActionItem {
-
 	private $e: Builder;
 	private name: string;
 	private _keybinding: string;
@@ -289,10 +373,35 @@ class ManageExtensionAction extends Action {
 	constructor(
 		@ICommandService private commandService: ICommandService
 	) {
-		super('statusbar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
+		super('activitybar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
 	public run(extensionId: string): TPromise<any> {
 		return this.commandService.executeCommand('_extensions.manage', extensionId);
+	}
+}
+
+class OpenViewletAction extends Action {
+
+	constructor(
+		public viewlet: ViewletDescriptor,
+		@IPartService private partService: IPartService,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(viewlet.id, viewlet.name);
+	}
+
+	public run(): TPromise<any> {
+		const sideBarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
+		const activeViewlet = this.viewletService.getActiveViewlet();
+
+		// Hide sidebar if selected viewlet already visible
+		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
+			this.partService.setSideBarHidden(true);
+		} else {
+			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
+		}
+
+		return TPromise.as(true);
 	}
 }
