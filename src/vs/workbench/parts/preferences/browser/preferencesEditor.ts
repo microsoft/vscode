@@ -30,11 +30,9 @@ import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/pa
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor, IEditorMouseEvent, IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DefaultSettingsHeaderWidget, SettingsGroupTitleWidget, FloatingClickWidget, SettingsCountWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { DefaultSettingsHeaderWidget, SettingsGroupTitleWidget, SettingsCountWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
-import { DefineUserSettingAction, DefineWorkspaceSettingAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -348,22 +346,17 @@ export class PreferencesEditorContribution extends Disposable implements editorC
 export class SettingsRenderer extends Disposable implements IPreferencesRenderer {
 
 	private copySettingActionRenderer: CopySettingActionRenderer;
-	private definePreferenceWidget: FloatingClickWidget;
 
 	constructor(protected editor: ICodeEditor, protected settingsEditorModel: SettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
-		const ACTION = settingsEditorModel.configurationTarget === ConfigurationTarget.USER ? DefineUserSettingAction : DefineWorkspaceSettingAction;
 		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingActionRenderer, editor, false));
-		this.definePreferenceWidget = this._register(instantiationService.createInstance(FloatingClickWidget, editor, ACTION.LABEL, ACTION.ID));
 	}
 
 	public render() {
 		this.copySettingActionRenderer.render(this.settingsEditorModel.settingsGroups);
-		this.definePreferenceWidget.render();
-		this._register(this.definePreferenceWidget.onClick(() => this.preferencesService.pickSetting(this.settingsEditorModel.configurationTarget)));
 	}
 }
 
