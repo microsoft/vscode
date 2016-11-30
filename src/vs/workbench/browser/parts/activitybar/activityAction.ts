@@ -163,7 +163,7 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		this.actions.forEach(action => {
-			action.checked = activeViewlet && activeViewlet.getId() === action.id;
+			action.radio = activeViewlet && activeViewlet.getId() === action.id;
 
 			const badge = this.getBadge(action.viewlet);
 			let suffix: string | number;
