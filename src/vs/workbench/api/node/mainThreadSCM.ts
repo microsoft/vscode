@@ -6,32 +6,29 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ISCMService, ISCMProvider, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMProvider, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures } from './extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource } from './extHost.protocol';
+import { SCMProvider } from 'vs/workbench/services/scm/common/scmProvider';
 
-class MainThreadSCMProvider implements ISCMProvider {
-
-	get id(): string { return this._id; }
-
-	private _onChange = new Emitter<void>();
-	get onChange(): Event<void> { return this._onChange.event; }
-
-	readonly resourceGroups: ISCMResourceGroup[] = [];
-	private disposables: IDisposable[] = [];
+class MainThreadSCMProvider extends SCMProvider {
 
 	constructor(
-		private _id: string,
+		id: string,
 		private proxy: ExtHostSCMShape,
 		private features: SCMProviderFeatures,
 		@ISCMService scmService: ISCMService,
 		@ICommandService private commandService: ICommandService
 	) {
+		super(id, 'Ext Host SCM Provider');
+		scmService.onDidChangeProvider(this.onDidChangeProvider, this, this.disposables);
 		this.disposables.push(scmService.registerSCMProvider(this));
+
+		features.resourceGroups
+			.forEach(resourceGroup => this.createResourceGroup(resourceGroup.id, resourceGroup.label));
 	}
 
 	commit(message: string): TPromise<void> {
@@ -72,6 +69,24 @@ class MainThreadSCMProvider implements ISCMProvider {
 		return this.proxy.$getOriginalResource(this.id, uri);
 	}
 
+	private onDidChangeProvider(provider: ISCMProvider): void {
+		// if (provider === this) {
+		// 	return
+		// }
+	}
+
+	$onChange(raw: SCMRawResource[][]): void {
+		if (raw.length !== this.resourceGroups.length) {
+			throw new Error('bad on change');
+		}
+
+		raw.forEach((group, index) => {
+			const resourceGroup = this.resourceGroups[index];
+			const resources = group.map(raw => ({ uri: URI.parse(raw.uri) }));
+			resourceGroup.set(...resources);
+		});
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
@@ -80,7 +95,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 export class MainThreadSCM extends MainThreadSCMShape {
 
 	private proxy: ExtHostSCMShape;
-	private providers: { [id: string]: IDisposable; } = Object.create(null);
+	private providers: { [id: string]: MainThreadSCMProvider; } = Object.create(null);
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -103,6 +118,16 @@ export class MainThreadSCM extends MainThreadSCMShape {
 
 		provider.dispose();
 		delete this.providers[id];
+	}
+
+	$onChange(id: string, resources: SCMRawResource[][]): void {
+		const provider = this.providers[id];
+
+		if (!provider) {
+			return;
+		}
+
+		provider.$onChange(resources);
 	}
 
 	dispose(): void {

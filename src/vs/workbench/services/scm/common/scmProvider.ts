@@ -52,9 +52,9 @@ export abstract class SCMProvider implements ISCMProvider {
 	private onResourceGroupsChange = new Emitter<void>();
 
 	private _resourceGroups: ResourceGroup[] = [];
-	get resourceGroups(): ISCMResourceGroup[] { return this._resourceGroups; }
+	get resourceGroups(): ResourceGroup[] { return this._resourceGroups; }
 
-	private disposables: IDisposable[] = [];
+	protected disposables: IDisposable[] = [];
 
 	get id(): string { return this._id; }
 	get label(): string { return this._label; }
@@ -63,7 +63,7 @@ export abstract class SCMProvider implements ISCMProvider {
 
 	}
 
-	createResourceGroup(id: string, label: string): ISCMResourceGroup {
+	protected createResourceGroup(id: string, label: string): ISCMResourceGroup {
 		const resourceGroup = new ResourceGroup(id, label);
 		this._resourceGroups.push(resourceGroup);
 		const onChangeListener = this._onChange.add(resourceGroup.onChange);
