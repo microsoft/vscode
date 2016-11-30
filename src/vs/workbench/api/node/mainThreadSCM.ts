@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ISCMService, ISCMProvider, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
@@ -20,7 +20,10 @@ interface Supports {
 class MainThreadSCMProvider implements ISCMProvider {
 
 	get id(): string { return this._id; }
-	readonly onChange: Event<void>;
+
+	private _onChange = new Emitter<void>();
+	get onChange(): Event<void> { return this._onChange.event; }
+
 	readonly resourceGroups: ISCMResourceGroup[] = [];
 	private disposables: IDisposable[] = [];
 
