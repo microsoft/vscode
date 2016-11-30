@@ -55,22 +55,6 @@
 			"outFiles": [ "${workspaceRoot}/out/**/*.js" ]
 		},
 		{
-			"type": "node",
-			"request": "attach",
-			"name": "Attach to Search Process",
-			"port": 5877,
-			"sourceMaps": true,
-			"outFiles": [ "${workspaceRoot}/out/**/*.js" ]
-		},
-		{
-			"type": "node",
-			"request": "attach",
-			"name": "Attach to Search Worker",
-			"port": 5878,
-			"sourceMaps": true,
-			"outFiles": [ "${workspaceRoot}/out/**/*.js" ]
-		},
-		{
 			"type": "extensionHost",
 			"request": "launch",
 			"name": "VSCode API Tests",
