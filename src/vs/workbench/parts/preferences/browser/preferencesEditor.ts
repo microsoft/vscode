@@ -46,6 +46,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+
+// Ignore following contributions
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 
 
@@ -133,9 +135,11 @@ export class PreferencesEditor extends BaseTextEditor {
 		const parentContainer = parent.getHTMLElement();
 		this.defaultSettingHeaderWidget = this._register(this.instantiationService.createInstance(DefaultSettingsHeaderWidget, parentContainer));
 		this._register(this.defaultSettingHeaderWidget.onDidChange(value => this.filterPreferences(value)));
+
 		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor, parentContainer, this.getCodeEditorOptions()));
 		const focusTracker = this._register(DOM.trackFocus(parentContainer));
 		focusTracker.addBlurListener(() => { this.isFocussed = false; });
+
 		return this.defaultPreferencesEditor;
 	}
 
@@ -207,6 +211,7 @@ export class PreferencesEditor extends BaseTextEditor {
 	}
 
 	public clearInput(): void {
+		this.defaultPreferencesEditor.getModel().dispose();
 		this.saveState(<PreferencesEditorInput>this.input);
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
@@ -271,6 +276,10 @@ class DefaultPreferencesEditor extends CodeEditor {
 			if (c.prototype === FoldingController.prototype) {
 				return false;
 			}
+			// Find
+			// Go to line
+			// Go to outline
+			// Ignore warnings
 			return true;
 		});
 		return contributions;
