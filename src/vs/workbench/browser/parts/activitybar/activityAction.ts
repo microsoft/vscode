@@ -127,6 +127,7 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 	constructor(
 		action: ActivityAction,
 		private viewlets: ViewletDescriptor[],
+		private getBadge: (viewlet: ViewletDescriptor) => IBadge,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -163,6 +164,20 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 
 		this.actions.forEach(action => {
 			action.checked = activeViewlet && activeViewlet.getId() === action.id;
+
+			const badge = this.getBadge(action.viewlet);
+			let suffix: string | number;
+			if (badge instanceof NumberBadge) {
+				suffix = badge.number;
+			} else if (badge instanceof TextBadge) {
+				suffix = badge.text;
+			}
+
+			if (suffix) {
+				action.label = nls.localize('numberBadge', "{0} ({1})", action.viewlet.name, suffix);
+			} else {
+				action.label = action.viewlet.name;
+			}
 		});
 	}
 
@@ -369,7 +384,7 @@ class ManageExtensionAction extends Action {
 class OpenViewletAction extends Action {
 
 	constructor(
-		private viewlet: ViewletDescriptor,
+		public viewlet: ViewletDescriptor,
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService
 	) {
