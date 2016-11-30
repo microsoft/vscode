@@ -296,8 +296,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			return;
 		}
 
-		// first open default viewlet
-		this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true).then(() => {
+		const defaultViewletId = this.viewletService.getDefaultViewletId();
+		let hidePromise: TPromise<any>;
+		if (defaultViewletId !== viewletId) {
+			hidePromise = this.viewletService.openViewlet(defaultViewletId, true);
+		} else {
+			hidePromise = TPromise.as(this.partService.setSideBarHidden(true));
+		}
+
+		hidePromise.then(() => {
 
 			// then add to hidden and update switcher
 			this.hiddenViewlets.push(viewletId);

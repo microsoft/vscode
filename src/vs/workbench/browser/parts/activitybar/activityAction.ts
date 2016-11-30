@@ -197,7 +197,7 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 export class ActivityActionItem extends BaseActionItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
-	private static hideViewletAction: HideViewletAction;
+	private static hideViewletAction: RemoveViewletAction;
 
 	private $e: Builder;
 	private name: string;
@@ -226,7 +226,7 @@ export class ActivityActionItem extends BaseActionItem {
 		}
 
 		if (!ActivityActionItem.hideViewletAction) {
-			ActivityActionItem.hideViewletAction = instantiationService.createInstance(HideViewletAction);
+			ActivityActionItem.hideViewletAction = instantiationService.createInstance(RemoveViewletAction);
 		}
 	}
 
@@ -423,13 +423,13 @@ class OpenViewletAction extends Action {
 	}
 }
 
-class HideViewletAction extends Action {
+class RemoveViewletAction extends Action {
 
 	constructor(
 		@IViewletService private viewletService: IViewletService,
 		@IActivityBarService private activityBarService: IActivityBarService
 	) {
-		super('activitybar.hide.viewlet', nls.localize('hide', "Hide"));
+		super('activitybar.remove.viewlet', nls.localize('remove', "Remove"));
 	}
 
 	public run(viewlet: ViewletDescriptor): TPromise<any> {
