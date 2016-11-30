@@ -105,7 +105,7 @@ class Extension implements IExtension {
 			return this.local.changelogUrl;
 		}
 
-		return this.gallery && this.gallery.assets.changelog;
+		return this.gallery && this.gallery.assets.changelog && this.gallery.assets.changelog.uri;
 	}
 
 	get iconUrl(): string {
@@ -122,11 +122,11 @@ class Extension implements IExtension {
 	}
 
 	private get galleryIconUrl(): string {
-		return this.gallery && this.gallery.assets.icon;
+		return this.gallery && this.gallery.assets.icon.uri;
 	}
 
 	private get galleryIconUrlFallback(): string {
-		return this.gallery && this.gallery.assets.iconFallback;
+		return this.gallery && this.gallery.assets.icon.fallbackUri;
 	}
 
 	private get defaultIconUrl(): string {
@@ -134,7 +134,7 @@ class Extension implements IExtension {
 	}
 
 	get licenseUrl(): string {
-		return this.gallery && this.gallery.assets.license;
+		return this.gallery && this.gallery.assets.license && this.gallery.assets.license.uri;
 	}
 
 	get state(): ExtensionState {
