@@ -53,7 +53,7 @@ export class SearchWorker implements ISearchWorker {
 }
 
 /**
- * Searches some number of the paths concurrently, and starts searches in other paths when those complete.
+ * Searches some number of the given paths concurrently, and starts searches in other paths when those complete.
  */
 function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults: number, fileEncoding: string): TPromise<ISearchWorkerSearchResult> {
 	if (isCanceled) {
@@ -79,7 +79,7 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults
 					result.numMatches += fileResult.numMatches;
 					result.matches.push(fileResult.match.serialize());
 					if (fileResult.limitReached) {
-						// If the limit was reached, terminate early with the results so far.
+						// If the limit was reached, terminate early with the results so far and cancel in-progress searches.
 						isCanceled = true;
 						result.limitReached = true;
 						return batchDone(result);
