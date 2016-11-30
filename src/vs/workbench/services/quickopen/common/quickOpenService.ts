@@ -19,11 +19,9 @@ export interface IFilePickOpenEntry extends IPickOpenEntry {
 export interface IPickOpenEntry {
 	id?: string;
 	label: string;
-	title?: string;
 	description?: string;
 	detail?: string;
 	separator?: ISeparator;
-	icon?: string;
 	alwaysShow?: boolean;
 	run?: (context: IEntryRunContext) => void;
 }
