@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
@@ -21,7 +21,7 @@ import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/l
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ISCMService, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMProvider, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -121,6 +121,7 @@ export class SCMViewlet extends Viewlet {
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
+	private providerChangeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -144,6 +145,18 @@ export class SCMViewlet extends Viewlet {
 		this.disposables.push(this.menus);
 
 		this.menus.onDidChangeTitleMenu(this.updateTitleArea, this, this.disposables);
+	}
+
+	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
+		this.providerChangeDisposable.dispose();
+
+		if (activeProvider) {
+			this.providerChangeDisposable = activeProvider.onChange(this.update, this);
+		} else {
+			this.providerChangeDisposable = EmptyDisposable;
+		}
+
+		this.update();
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -182,16 +195,22 @@ export class SCMViewlet extends Viewlet {
 			.on(this.open, this, this.disposables);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
-
-		this.update();
-		this.scmService.activeProvider.onChange(this.update, this, this.disposables);
 		this.disposables.push(this.inputBox, this.list);
+
+		this.setActiveProvider(this.scmService.activeProvider);
+		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
 
 		return TPromise.as(null);
 	}
 
 	private update(): void {
 		const provider = this.scmService.activeProvider;
+
+		if (!provider) {
+			this.list.splice(0, this.list.length);
+			return;
+		}
+
 		const groups = provider.resourceGroups;
 		const elements = groups.reduce<(ISCMResourceGroup | ISCMResource)[]>((result, group) => {
 			const resources = group.get();
