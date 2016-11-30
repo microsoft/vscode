@@ -361,7 +361,7 @@ export abstract class ExtHostTerminalServiceShape {
 }
 
 export abstract class ExtHostSCMShape {
-	$getBaselineResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
+	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
 }
 
 // --- proxy identifiers
