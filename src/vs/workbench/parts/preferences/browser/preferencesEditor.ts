@@ -160,7 +160,7 @@ export class PreferencesEditor extends BaseTextEditor {
 	setInput(input: PreferencesEditorInput, options: EditorOptions): TPromise<void> {
 		this.listenToInput(input);
 		return super.setInput(input, options)
-			.then(() => this.createModel(input)
+			.then(() => this.getOrCreateModel(input)
 				.then(model => this.setDefaultPreferencesEditorInput(model, input)));
 	}
 
@@ -186,11 +186,15 @@ export class PreferencesEditor extends BaseTextEditor {
 		}
 	}
 
-	private createModel(input: PreferencesEditorInput): TPromise<editorCommon.IModel> {
+	private getOrCreateModel(input: PreferencesEditorInput): TPromise<editorCommon.IModel> {
 		return this.preferencesService.createDefaultPreferencesEditorModel(input.getResource())
 			.then(preferencesEditorModel => {
-				let mode = this.modeService.getOrCreateMode('json');
-				return this.modelService.createModel(preferencesEditorModel.content, mode, preferencesEditorModel.uri);
+				let model = this.modelService.getModel(input.getResource());
+				if (!model) {
+					let mode = this.modeService.getOrCreateMode('json');
+					model = this.modelService.createModel(preferencesEditorModel.content, mode, preferencesEditorModel.uri);
+				}
+				return model;
 			});
 	}
 
@@ -211,7 +215,7 @@ export class PreferencesEditor extends BaseTextEditor {
 	}
 
 	public clearInput(): void {
-		this.defaultPreferencesEditor.getModel().dispose();
+		this.disposeModel();
 		this.saveState(<PreferencesEditorInput>this.input);
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
@@ -253,6 +257,13 @@ export class PreferencesEditor extends BaseTextEditor {
 		}
 		if (input instanceof PreferencesEditorInput) {
 			this.inputDisposeListener = (<PreferencesEditorInput>input).willDispose(() => this.saveState(<PreferencesEditorInput>input));
+		}
+	}
+
+	private disposeModel() {
+		const model = this.defaultPreferencesEditor.getModel();
+		if (model) {
+			model.dispose();
 		}
 	}
 }
