@@ -1,11 +1,10 @@
 {
 	"compilerOptions": {
-		"noLib": true,
 		"target": "es5",
 		"module": "commonjs",
-		"outDir": "./out"
-	},
-	"exclude": [
-		"node_modules"
-	]
+		"outDir": "./out",
+		"lib": [
+			"es5", "es2015.promise"
+		]
+	}
 }

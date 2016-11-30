@@ -20,7 +20,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
  */
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
 	private textEditorModelHandle: URI;
-	private createdEditorModel: boolean;
+	protected createdEditorModel: boolean;
 	private modelDisposeListener: IDisposable;
 
 	constructor(

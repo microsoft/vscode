@@ -7,39 +7,57 @@
 
 import 'vs/css!./media/activitybarpart';
 import nls = require('vs/nls');
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder, $ } from 'vs/base/browser/builder';
+import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
-import errors = require('vs/base/common/errors');
 import { ActionsOrientation, ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IComposite } from 'vs/workbench/common/composite';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Part } from 'vs/workbench/browser/part';
-import { ActivityAction, ActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
+import { ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/activityService';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+
+interface IViewletActivity {
+	badge: IBadge;
+	clazz: string;
+}
 
 export class ActivitybarPart extends Part implements IActivityService {
+
+	private static ACTIVITY_ACTION_HEIGHT = 50;
+
 	public _serviceBrand: any;
 
+	private dimension: Dimension;
+
 	private viewletSwitcherBar: ActionBar;
+	private viewletOverflowAction: ViewletOverflowActivityAction;
+	private viewletOverflowActionItem: ViewletOverflowActivityActionItem;
+
 	private activityActionItems: { [actionId: string]: IActionItem; };
-	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
+	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
+	private viewletIdToActivity: { [viewletId: string]: IViewletActivity; };
 
 	constructor(
 		id: string,
 		@IViewletService private viewletService: IViewletService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService
 	) {
 		super(id);
 
-		this.activityActionItems = {};
-		this.compositeIdToActions = {};
+		this.activityActionItems = Object.create(null);
+		this.viewletIdToActions = Object.create(null);
+		this.viewletIdToActivity = Object.create(null);
+
+		// Update viewlet switcher when external viewlets become ready
+		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
 
 		this.registerListeners();
 	}
@@ -51,38 +69,41 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
-
-		// Update viewlet switcher when external viewlets become ready
-		this.toUnbind.push(this.viewletService.onDidExtViewletsLoad(() => this.refreshViewletSwitcher()));
-
-		// Update viewlet switcher on toggling of a viewlet
-		this.toUnbind.push(this.viewletService.onDidViewletToggle(() => this.refreshViewletSwitcher()));
 	}
 
 	private onActiveCompositeChanged(composite: IComposite): void {
-		if (this.compositeIdToActions[composite.getId()]) {
-			this.compositeIdToActions[composite.getId()].activate();
+		if (this.viewletIdToActions[composite.getId()]) {
+			this.viewletIdToActions[composite.getId()].activate();
 		}
 	}
 
 	private onCompositeClosed(composite: IComposite): void {
-		if (this.compositeIdToActions[composite.getId()]) {
-			this.compositeIdToActions[composite.getId()].deactivate();
+		if (this.viewletIdToActions[composite.getId()]) {
+			this.viewletIdToActions[composite.getId()].deactivate();
 		}
 	}
 
-	public showActivity(compositeId: string, badge: IBadge, clazz?: string): void {
-		const action = this.compositeIdToActions[compositeId];
+	public showActivity(viewletId: string, badge?: IBadge, clazz?: string): void {
+
+		// Update Action with activity
+		const action = this.viewletIdToActions[viewletId];
 		if (action) {
 			action.setBadge(badge);
 			if (clazz) {
 				action.class = clazz;
 			}
 		}
+
+		// Keep for future use
+		if (badge) {
+			this.viewletIdToActivity[viewletId] = { badge, clazz };
+		} else {
+			delete this.viewletIdToActivity[viewletId];
+		}
 	}
 
-	public clearActivity(compositeId: string): void {
-		this.showActivity(compositeId, null);
+	public clearActivity(viewletId: string): void {
+		this.showActivity(viewletId, null);
 	}
 
 	public createContentArea(parent: Builder): Builder {
@@ -97,62 +118,130 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private createViewletSwitcher(div: Builder): void {
 		this.viewletSwitcherBar = new ActionBar(div, {
-			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
+			actionItemProvider: (action: Action) => action instanceof ViewletOverflowActivityAction ? this.viewletOverflowActionItem : this.activityActionItems[action.id],
 			orientation: ActionsOrientation.VERTICAL,
-			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
+			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
+			animated: false
 		});
 
-		this.fillViewletSwitcher(this.viewletService.getAllViewletsToDisplay());
+		this.updateViewletSwitcher();
 	}
 
-	private refreshViewletSwitcher(): void {
-		this.fillViewletSwitcher(this.viewletService.getAllViewletsToDisplay());
-	}
+	private updateViewletSwitcher() {
+		let viewlets = this.viewletService.getViewlets();
+		let viewletsToShow = viewlets;
 
-	private fillViewletSwitcher(viewlets: ViewletDescriptor[]) {
-		// Pull out viewlets no longer needed
-		const newViewletIds = viewlets.map(v => v.id);
-		const existingViewletIds = Object.keys(this.compositeIdToActions);
-		existingViewletIds.forEach(viewletId => {
-			if (newViewletIds.indexOf(viewletId) === -1) {
+		// Ensure we are not showing more viewlets than we have height for
+		let overflows = false;
+		if (this.dimension) {
+			const maxVisible = Math.floor(this.dimension.height / ActivitybarPart.ACTIVITY_ACTION_HEIGHT);
+			overflows = viewlets.length > maxVisible;
+
+			if (overflows) {
+				viewletsToShow = viewlets.slice(0, maxVisible - 1 /* make room for overflow action */);
+			}
+		}
+
+		const visibleViewlets = Object.keys(this.viewletIdToActions);
+		const visibleViewletsChange = (viewletsToShow.length !== visibleViewlets.length);
+
+		// Pull out overflow action if there is a viewlet change so that we can add it to the end later
+		if (this.viewletOverflowAction && visibleViewletsChange) {
+			this.viewletSwitcherBar.pull(this.viewletSwitcherBar.length() - 1);
+
+			this.viewletOverflowAction.dispose();
+			this.viewletOverflowAction = null;
+
+			this.viewletOverflowActionItem.dispose();
+			this.viewletOverflowActionItem = null;
+		}
+
+		// Pull out viewlets that overflow
+		const viewletIdsToShow = viewletsToShow.map(v => v.id);
+		visibleViewlets.forEach(viewletId => {
+			if (viewletIdsToShow.indexOf(viewletId) === -1) {
 				this.pullViewlet(viewletId);
 			}
 		});
 
-		const actionsToPush = viewlets
-			.filter(viewlet => !this.compositeIdToActions[viewlet.id])
+		// Built actions for viewlets to show
+		const newViewletsToShow = viewletsToShow
+			.filter(viewlet => !this.viewletIdToActions[viewlet.id])
 			.map(viewlet => this.toAction(viewlet));
 
-		this.viewletSwitcherBar.push(actionsToPush, { label: true, icon: true });
+		// Update when we have new viewlets to show
+		if (newViewletsToShow.length) {
+
+			// Add to viewlet switcher
+			this.viewletSwitcherBar.push(newViewletsToShow, { label: true, icon: true });
+
+			// Make sure to activate the active one
+			const activeViewlet = this.viewletService.getActiveViewlet();
+			if (activeViewlet) {
+				const activeViewletEntry = this.viewletIdToActions[activeViewlet.getId()];
+				if (activeViewletEntry) {
+					activeViewletEntry.activate();
+				}
+			}
+
+			// Make sure to restore activity
+			Object.keys(this.viewletIdToActions).forEach(viewletId => {
+				const activity = this.viewletIdToActivity[viewletId];
+				if (activity) {
+					this.showActivity(viewletId, activity.badge, activity.clazz);
+				} else {
+					this.showActivity(viewletId);
+				}
+			});
+		}
+
+		// Add overflow action as needed
+		if (visibleViewletsChange && overflows) {
+			const viewletsOverflowing = viewlets.slice(viewletsToShow.length);
+
+			this.viewletOverflowAction = this.instantiationService.createInstance(ViewletOverflowActivityAction, viewletsOverflowing, () => this.viewletOverflowActionItem.showMenu());
+			this.viewletOverflowActionItem = this.instantiationService.createInstance(ViewletOverflowActivityActionItem, this.viewletOverflowAction, viewletsOverflowing, viewlet => this.viewletIdToActivity[viewlet.id] && this.viewletIdToActivity[viewlet.id].badge);
+
+			this.viewletSwitcherBar.push(this.viewletOverflowAction, { label: true, icon: true });
+		}
 	}
 
 	private pullViewlet(viewletId: string): void {
-		const index = Object.keys(this.compositeIdToActions).indexOf(viewletId);
-		const action = this.compositeIdToActions[viewletId];
-		const actionItem = this.activityActionItems[action.id];
-		delete this.compositeIdToActions[viewletId];
-		delete this.activityActionItems[action.id];
-		action.dispose();
-		actionItem.dispose();
+		const index = Object.keys(this.viewletIdToActions).indexOf(viewletId);
 		this.viewletSwitcherBar.pull(index);
+
+		const action = this.viewletIdToActions[viewletId];
+		action.dispose();
+		delete this.viewletIdToActions[viewletId];
+
+		const actionItem = this.activityActionItems[action.id];
+		actionItem.dispose();
+		delete this.activityActionItems[action.id];
 	}
 
-	private toAction(composite: ViewletDescriptor): ActivityAction {
-		const action = this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite);
+	private toAction(viewlet: ViewletDescriptor): ActivityAction {
+		const action = this.instantiationService.createInstance(ViewletActivityAction, viewlet);
 
-		this.activityActionItems[action.id] = new ActivityActionItem(action, composite.name, this.getKeybindingLabel(composite.id));
-		this.compositeIdToActions[composite.id] = action;
+		this.activityActionItems[action.id] = this.instantiationService.createInstance(ActivityActionItem, action, viewlet);
+		this.viewletIdToActions[viewlet.id] = action;
 
 		return action;
-	};
+	}
 
-	private getKeybindingLabel(id: string): string {
-		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
-		if (keys && keys.length) {
-			return keys[0];
-		}
+	/**
+	 * Layout title, content and status area in the given dimension.
+	 */
+	public layout(dimension: Dimension): Dimension[] {
 
-		return null;
+		// Pass to super
+		const sizes = super.layout(dimension);
+
+		this.dimension = sizes[1];
+
+		// Update switcher to handle overflow issues
+		this.updateViewletSwitcher();
+
+		return sizes;
 	}
 
 	public dispose(): void {
@@ -162,42 +251,5 @@ export class ActivitybarPart extends Part implements IActivityService {
 		}
 
 		super.dispose();
-	}
-}
-
-class ViewletActivityAction extends ActivityAction {
-	private static preventDoubleClickDelay = 300;
-	private lastRun: number = 0;
-
-	constructor(
-		id: string,
-		private viewlet: ViewletDescriptor,
-		@IViewletService private viewletService: IViewletService,
-		@IPartService private partService: IPartService
-	) {
-		super(id, viewlet.name, viewlet.cssClass);
-	}
-
-	public run(): TPromise<any> {
-
-		// prevent accident trigger on a doubleclick (to help nervous people)
-		const now = Date.now();
-		if (now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
-			return TPromise.as(true);
-		}
-		this.lastRun = now;
-
-		const sideBarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
-		const activeViewlet = this.viewletService.getActiveViewlet();
-
-		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
-			this.partService.setSideBarHidden(true);
-		} else {
-			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
-			this.activate();
-		}
-
-		return TPromise.as(true);
 	}
 }

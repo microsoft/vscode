@@ -604,16 +604,6 @@ registerCommand(new CoreCommand({
 	}
 }));
 registerCommand(new CoreCommand({
-	id: H.DeleteAllLeft,
-	precondition: EditorContextKeys.Writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
-		primary: null,
-		mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
-	}
-}));
-registerCommand(new CoreCommand({
 	id: H.DeleteAllRight,
 	precondition: EditorContextKeys.Writable,
 	kbOpts: {

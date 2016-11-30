@@ -94,6 +94,10 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 			}
 			return extensionDescription;
 		}, (err) => {
+			if (err.code === 'ENOENT') {
+				return null;
+			}
+
 			this._collector.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", this._absoluteManifestPath, err.message));
 			return null;
 		});
