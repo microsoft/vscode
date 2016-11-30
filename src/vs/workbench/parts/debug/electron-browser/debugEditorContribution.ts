@@ -279,6 +279,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		let depthInArray = 0;
 		let configurationsPosition: IPosition;
 		const model = this.editor.getModel();
+
 		visit(model.getValue(), {
 			onObjectProperty: (property, offset, length) => {
 				if (property === 'configurations' && depthInArray === 0) {
@@ -294,9 +295,17 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		});
 
 		if (configurationsPosition) {
-			this.editor.setSelection(new Selection(configurationsPosition.lineNumber, Number.MAX_VALUE, configurationsPosition.lineNumber, Number.MAX_VALUE));
-			this.commandService.executeCommand('editor.action.insertLineAfter').done(() =>
-				this.commandService.executeCommand('editor.action.triggerSuggest'), errors.onUnexpectedError);
+			const insertLineAfter = (lineNumber: number): TPromise<any> => {
+				if (this.editor.getModel().getLineLastNonWhitespaceColumn(lineNumber + 1) === 0) {
+					this.editor.setSelection(new Selection(lineNumber + 1, Number.MAX_VALUE, lineNumber + 1, Number.MAX_VALUE));
+					return TPromise.as(null);
+				}
+
+				this.editor.setSelection(new Selection(lineNumber, Number.MAX_VALUE, lineNumber, Number.MAX_VALUE));
+				return this.commandService.executeCommand('editor.action.insertLineAfter');
+			};
+
+			insertLineAfter(configurationsPosition.lineNumber).done(() => this.commandService.executeCommand('editor.action.triggerSuggest'), errors.onUnexpectedError);
 		}
 	}
 
