@@ -12,7 +12,7 @@ import * as path from 'path';
 
 import * as ipc from 'vs/base/parts/ipc/common/ipc';
 
-import { IProgress, IPatternInfo } from 'vs/platform/search/common/search';
+import { IProgress } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
 import { ISearchWorkerConfig, ISearchWorker, ISearchWorkerChannel, SearchWorkerChannelClient } from './worker/searchWorkerIpc'
@@ -37,30 +37,23 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	private numResults = 0;
 
 	private nextWorker = 0;
-	private static workers: ISearchWorker[] = [];
+	private workers: ISearchWorker[] = [];
+	private workerClients: Client[] = [];
 
 	constructor(config: IRawSearch, walker: FileWalker) {
 		this.config = config;
 		this.walker = walker;
-
-		// Spin up workers
-		const numWorkers = Math.ceil(os.cpus().length/2); // /2 because of hyperthreading
-		if (Engine.workers.length === 0) {
-			for (let i = 0; i < numWorkers; i++) {
-				const worker = createWorker(i, config.contentPattern, config.fileEncoding);
-				Engine.workers.push(worker);
-			}
-		}
 	}
 
 	cancel(): void {
 		this.isCanceled = true;
 		this.walker.cancel();
 
-		Engine.workers.forEach(w => w.cancel());
+		this.workers.forEach(w => w.cancel());
 	}
 
 	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+		this.startWorkers();
 		const progress = () => {
 			if (++this.progressed % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
 				onProgress({ total: this.totalBytes, worked: this.processedBytes }); // buffer progress in chunks to reduce pressure
@@ -78,18 +71,17 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			// Emit done()
 			if (!this.isDone && this.processedBytes === this.totalBytes && this.walkerIsDone) {
 				this.isDone = true;
+				this.disposeWorkers();
 				done(this.walkerError, {
 					limitHit: this.limitReached,
 					stats: this.walker.getStats()
 				});
-
-				// Engine.workers.forEach(w => w.)
 			}
 		};
 
 		const run = (batch: string[], batchBytes: number): void => {
-			const worker = Engine.workers[this.nextWorker];
-			this.nextWorker = (this.nextWorker + 1) % Engine.workers.length;
+			const worker = this.workers[this.nextWorker];
+			this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
 			const maxResults = this.config.maxResults - this.numResults;
 			worker.search({ absolutePaths: batch, maxResults }).then(result => {
@@ -152,26 +144,40 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			this.walkerError = error;
 		});
 	}
-}
 
-function createWorker(id: number, pattern: IPatternInfo, fileEncoding: string): ISearchWorker {
-	let client = new Client(
-		uri.parse(require.toUrl('bootstrap')).fsPath,
-		{
-			serverName: 'Search Worker ' + id,
-			timeout: 60 * 60 * 1000,
-			args: ['--type=searchWorker'],
-			env: {
-				AMD_ENTRYPOINT: 'vs/workbench/services/search/node/worker/searchWorkerApp',
-				PIPE_LOGGING: 'true',
-				VERBOSE_LOGGING: 'true'
-			}
-		});
+	private startWorkers(): void {
+		// If the CPU has hyperthreading enabled, this will report (# of physical cores)*2.
+		// In basic testing, I haven't seen a meaningful gain with > 4 processes.
+		const numWorkers = Math.min(os.cpus().length, 4);
+		for (let i = 0; i < numWorkers; i++) {
+			this.createWorker(i);
+		}
+	}
 
-	// Make async?
-	const channel = ipc.getNextTickChannel(client.getChannel<ISearchWorkerChannel>('searchWorker'));
-	const channelClient = new SearchWorkerChannelClient(channel);
-	const config: ISearchWorkerConfig = { pattern, id, fileEncoding };
-	channelClient.initialize(config);
-	return channelClient;
+	private createWorker(id: number): void {
+		let client = new Client(
+			uri.parse(require.toUrl('bootstrap')).fsPath,
+			{
+				serverName: 'Search Worker ' + id,
+				args: ['--type=searchWorker'],
+				env: {
+					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/worker/searchWorkerApp',
+					PIPE_LOGGING: 'true',
+					VERBOSE_LOGGING: 'true'
+				}
+			});
+
+		// Make async?
+		const channel = ipc.getNextTickChannel(client.getChannel<ISearchWorkerChannel>('searchWorker'));
+		const channelClient = new SearchWorkerChannelClient(channel);
+		const config: ISearchWorkerConfig = { pattern: this.config.contentPattern, id, fileEncoding: this.config.fileEncoding };
+		channelClient.initialize(config);
+
+		this.workers.push(channelClient);
+		this.workerClients.push(client);
+	}
+
+	private disposeWorkers(): void {
+		this.workerClients.forEach(c => c.dispose());
+	}
 }
