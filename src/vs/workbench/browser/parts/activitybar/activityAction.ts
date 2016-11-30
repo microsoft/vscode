@@ -105,13 +105,60 @@ export class ViewletActivityAction extends ActivityAction {
 export class ViewletOverflowActivityAction extends ActivityAction {
 
 	constructor(
-		private viewlets: ViewletDescriptor[]
+		private viewlets: ViewletDescriptor[],
+		private showMenu: () => void
 	) {
 		super('activitybar.additionalViewlets.action', nls.localize('additionalViewlets', "Additional Viewlets"), 'toggle-more');
 	}
 
 	public run(event): TPromise<any> {
+		this.showMenu();
+
 		return TPromise.as(true);
+	}
+}
+
+export class ViewletOverflowActivityActionItem extends BaseActionItem {
+	private $e: Builder;
+	private name: string;
+	private cssClass: string;
+	private actions: OpenViewletAction[];
+
+	constructor(
+		action: ActivityAction,
+		private viewlets: ViewletDescriptor[],
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+	) {
+		super(null, action);
+
+		this.cssClass = action.class;
+		this.name = action.label;
+		this.actions = viewlets.map(viewlet => this.instantiationService.createInstance(OpenViewletAction, viewlet));
+	}
+
+	public render(container: HTMLElement): void {
+		super.render(container);
+
+		this.$e = $('a.action-label').attr({
+			tabIndex: '0',
+			role: 'button',
+			title: this.name,
+			class: this.cssClass
+		}).appendTo(this.builder);
+	}
+
+	public showMenu(): void {
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => this.builder.getHTMLElement(),
+			getActions: () => TPromise.as(this.actions)
+		});
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		this.actions = dispose(this.actions);
 	}
 }
 
@@ -300,10 +347,24 @@ class ManageExtensionAction extends Action {
 	constructor(
 		@ICommandService private commandService: ICommandService
 	) {
-		super('statusbar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
+		super('activitybar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
 	public run(extensionId: string): TPromise<any> {
 		return this.commandService.executeCommand('_extensions.manage', extensionId);
+	}
+}
+
+class OpenViewletAction extends Action {
+
+	constructor(
+		private viewlet: ViewletDescriptor,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(viewlet.id, viewlet.name);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(this.viewlet.id, true);
 	}
 }

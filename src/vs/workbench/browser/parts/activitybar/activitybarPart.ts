@@ -13,7 +13,7 @@ import { ActionsOrientation, ActionBar, IActionItem } from 'vs/base/browser/ui/a
 import { IComposite } from 'vs/workbench/common/composite';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Part } from 'vs/workbench/browser/part';
-import { ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction } from 'vs/workbench/browser/parts/activitybar/activityAction';
+import { ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/activityService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -36,6 +36,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private viewletSwitcherBar: ActionBar;
 	private viewletOverflowAction: ViewletOverflowActivityAction;
+	private viewletOverflowActionItem: ViewletOverflowActivityActionItem;
 
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
@@ -117,7 +118,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private createViewletSwitcher(div: Builder): void {
 		this.viewletSwitcherBar = new ActionBar(div, {
-			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
+			actionItemProvider: (action: Action) => action instanceof ViewletOverflowActivityAction ? this.viewletOverflowActionItem : this.activityActionItems[action.id],
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
 			animated: false
@@ -146,9 +147,13 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Pull out overflow action if there is a viewlet change so that we can add it to the end later
 		if (this.viewletOverflowAction && visibleViewletsChange) {
+			this.viewletSwitcherBar.pull(this.viewletSwitcherBar.length() - 1);
+
 			this.viewletOverflowAction.dispose();
 			this.viewletOverflowAction = null;
-			this.viewletSwitcherBar.pull(this.viewletSwitcherBar.length() - 1);
+
+			this.viewletOverflowActionItem.dispose();
+			this.viewletOverflowActionItem = null;
 		}
 
 		// Pull out viewlets that overflow
@@ -194,13 +199,16 @@ export class ActivitybarPart extends Part implements IActivityService {
 		if (visibleViewletsChange && overflows) {
 			const viewletsOverflowing = viewlets.slice(viewletsToShow.length);
 
-			this.viewletOverflowAction = this.instantiationService.createInstance(ViewletOverflowActivityAction, viewletsOverflowing);
+			this.viewletOverflowAction = this.instantiationService.createInstance(ViewletOverflowActivityAction, viewletsOverflowing, () => this.viewletOverflowActionItem.showMenu());
+			this.viewletOverflowActionItem = this.instantiationService.createInstance(ViewletOverflowActivityActionItem, this.viewletOverflowAction, viewletsOverflowing);
+
 			this.viewletSwitcherBar.push(this.viewletOverflowAction, { label: true, icon: true });
 		}
 	}
 
 	private pullViewlet(viewletId: string): void {
 		const index = Object.keys(this.viewletIdToActions).indexOf(viewletId);
+		this.viewletSwitcherBar.pull(index);
 
 		const action = this.viewletIdToActions[viewletId];
 		action.dispose();
@@ -209,8 +217,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 		const actionItem = this.activityActionItems[action.id];
 		actionItem.dispose();
 		delete this.activityActionItems[action.id];
-
-		this.viewletSwitcherBar.pull(index);
 	}
 
 	private toAction(viewlet: ViewletDescriptor): ActivityAction {
