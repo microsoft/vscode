@@ -37,7 +37,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	private numResults = 0;
 
 	private nextWorker = 0;
-	private workers: ISearchWorker[] = [];
+	private static workers: ISearchWorker[] = [];
 
 	constructor(config: IRawSearch, walker: FileWalker) {
 		this.config = config;
@@ -45,9 +45,11 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 
 		// Spin up workers
 		const numWorkers = Math.ceil(os.cpus().length/2); // /2 because of hyperthreading
-		for (let i = 0; i < numWorkers; i++) {
-			const worker = createWorker(i, config.contentPattern, config.fileEncoding);
-			this.workers.push(worker);
+		if (Engine.workers.length === 0) {
+			for (let i = 0; i < numWorkers; i++) {
+				const worker = createWorker(i, config.contentPattern, config.fileEncoding);
+				Engine.workers.push(worker);
+			}
 		}
 	}
 
@@ -55,7 +57,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		this.isCanceled = true;
 		this.walker.cancel();
 
-		this.workers.forEach(w => w.cancel());
+		Engine.workers.forEach(w => w.cancel());
 	}
 
 	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
@@ -81,13 +83,13 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 					stats: this.walker.getStats()
 				});
 
-				// this.workers.forEach(w => w.)
+				// Engine.workers.forEach(w => w.)
 			}
 		};
 
 		const run = (batch: string[], batchBytes: number): void => {
-			const worker = this.workers[this.nextWorker];
-			this.nextWorker = (this.nextWorker + 1) % this.workers.length;
+			const worker = Engine.workers[this.nextWorker];
+			this.nextWorker = (this.nextWorker + 1) % Engine.workers.length;
 
 			const maxResults = this.config.maxResults - this.numResults;
 			worker.search({ absolutePaths: batch, maxResults }).then(result => {
@@ -98,7 +100,6 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				const matches = result.matches;
 				this.numResults += result.numMatches;
 				matches.forEach(m => {
-					console.log(m.path);
 					onResult(m);
 				});
 
