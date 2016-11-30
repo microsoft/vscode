@@ -26,8 +26,6 @@ import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 
-import * as cp from 'child_process';
-
 export class Match {
 
 	private _lineText: string;
