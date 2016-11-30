@@ -118,7 +118,7 @@ suite('TextSearch performance', () => {
 		const finishedEvents = [];
 		return runSearch() // Warm-up first
 			.then(() => {
-				if (testWorkspacePath) { // Don't measure by default
+				if (testWorkspaceArg) { // Don't measure by default
 					let i = n;
 					return (function iterate() {
 						if (!i--) {
