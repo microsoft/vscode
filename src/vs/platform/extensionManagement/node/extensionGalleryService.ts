@@ -207,8 +207,8 @@ function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IG
 
 	if (type === AssetType.VSIX) {
 		return {
-			uri: `${version.fallbackAssetUri}/${type}?redirect=true`,
-			fallbackUri: `${version.fallbackAssetUri}/${type}`
+			uri: `${version.fallbackAssetUri}/${type}?redirect=true&install=true`,
+			fallbackUri: `${version.fallbackAssetUri}/${type}?install=true`
 		};
 	}
 
