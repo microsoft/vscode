@@ -35,7 +35,13 @@ export class ExtHostSCM {
 
 		// TODO@joao: should pluck all the things out of the provider
 		this._providers[id] = provider;
-		this._proxy.$register(id, !!provider.getOriginalResource);
+
+		this._proxy.$register(id, {
+			commitCommand: provider.commitCommand,
+			clickCommand: provider.clickCommand,
+			dragCommand: provider.dragCommand,
+			supportsOriginalResource: !!provider.getOriginalResource
+		});
 
 		return new Disposable(() => {
 			delete this._providers[id];

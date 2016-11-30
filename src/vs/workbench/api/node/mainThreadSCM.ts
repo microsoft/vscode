@@ -11,11 +11,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ISCMService, ISCMProvider, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape } from './extHost.protocol';
-
-interface Supports {
-	originalResource: boolean;
-}
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures } from './extHost.protocol';
 
 class MainThreadSCMProvider implements ISCMProvider {
 
@@ -30,26 +27,45 @@ class MainThreadSCMProvider implements ISCMProvider {
 	constructor(
 		private _id: string,
 		private proxy: ExtHostSCMShape,
-		private supports: Supports,
-		@ISCMService scmService: ISCMService
+		private features: SCMProviderFeatures,
+		@ISCMService scmService: ISCMService,
+		@ICommandService private commandService: ICommandService
 	) {
 		this.disposables.push(scmService.registerSCMProvider(this));
 	}
 
 	commit(message: string): TPromise<void> {
-		return TPromise.wrapError<void>('commit not implemented');
+		const id = this.features.commitCommand;
+
+		if (!id) {
+			return TPromise.as(null);
+		}
+
+		return this.commandService.executeCommand<void>(id, message);
 	}
 
 	open(uri: ISCMResource): TPromise<void> {
-		return TPromise.wrapError<void>('open not implemented');
+		const id = this.features.clickCommand;
+
+		if (!id) {
+			return TPromise.as(null);
+		}
+
+		return this.commandService.executeCommand<void>(id, uri);
 	}
 
 	drag(from: ISCMResource, to: ISCMResource): TPromise<void> {
-		return TPromise.wrapError<void>('drag not implemented');
+		const id = this.features.dragCommand;
+
+		if (!id) {
+			return TPromise.as(null);
+		}
+
+		return this.commandService.executeCommand<void>(id, from, to);
 	}
 
 	getOriginalResource(uri: URI): TPromise<URI> {
-		if (!this.supports.originalResource) {
+		if (!this.features.supportsOriginalResource) {
 			return TPromise.as(null);
 		}
 
@@ -74,10 +90,8 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		this.proxy = threadService.get(ExtHostContext.ExtHostSCM);
 	}
 
-	$register(id: string, registerOriginalResourceProvider: boolean): void {
-		this.providers[id] = this.instantiationService.createInstance(MainThreadSCMProvider, id, this.proxy, {
-			originalResource: registerOriginalResourceProvider
-		});
+	$register(id: string, features: SCMProviderFeatures): void {
+		this.providers[id] = this.instantiationService.createInstance(MainThreadSCMProvider, id, this.proxy, features);
 	}
 
 	$unregister(id: string): void {
