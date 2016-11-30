@@ -45,20 +45,20 @@ class TestBackupFileService extends BackupFileService {
 	}
 }
 
+const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
+const backupHome = path.join(parentDir, 'Backups');
+const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
+
+const workspaceResource = Uri.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
+const workspaceBackupPath = path.join(backupHome, crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex'));
+const fooFile = Uri.file(platform.isWindows ? 'c:\\foo' : '/foo');
+const barFile = Uri.file(platform.isWindows ? 'c:\\bar' : '/bar');
+const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
+const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
+const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
+const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
+
 suite('BackupFileService', () => {
-	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
-	const backupHome = path.join(parentDir, 'Backups');
-	const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
-
-	const workspaceResource = Uri.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
-	const workspaceBackupPath = path.join(backupHome, crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex'));
-	const fooFile = Uri.file(platform.isWindows ? 'c:\\foo' : '/foo');
-	const barFile = Uri.file(platform.isWindows ? 'c:\\bar' : '/bar');
-	const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
-	const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
-	const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
-	const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
-
 	let service: TestBackupFileService;
 
 	setup(done => {
@@ -232,8 +232,10 @@ suite('BackupFileService', () => {
 		};
 		assert.equal(service.parseBackupContent(rawTextContent), 'content');
 	});
+});
 
-	test('BackupFilesModel - simple', () => {
+suite('BackupFilesModel', () => {
+	test('simple', () => {
 		const model = new BackupFilesModel();
 
 		const resource1 = Uri.file('test.html');
@@ -280,7 +282,7 @@ suite('BackupFileService', () => {
 		assert.equal(model.has(resource4), true);
 	});
 
-	test('BackupFilesModel - resolve', (done) => {
+	test('resolve', (done) => {
 		pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
 			fs.writeFileSync(fooBackupPath, 'foo');
 
@@ -294,7 +296,7 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('BackupFilesModel - get', () => {
+	test('get', () => {
 		const model = new BackupFilesModel();
 
 		assert.deepEqual(model.get(), []);
