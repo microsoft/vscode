@@ -7,7 +7,6 @@
 
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
-import crypto = require('crypto');
 import fs = require('fs');
 import os = require('os');
 import path = require('path');
@@ -15,19 +14,30 @@ import extfs = require('vs/base/node/extfs');
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { TestEnvironmentService } from 'vs/test/utils/servicesTestUtils';
-import { TestLifecycleService } from 'vs/code/test/electron-main/servicesTestUtils';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 
 class TestBackupMainService extends BackupMainService {
 	constructor(backupHome: string, backupWorkspacesPath: string) {
-		super(TestEnvironmentService, new TestLifecycleService());
+		super(TestEnvironmentService);
 
 		this.backupHome = backupHome;
 		this.workspacesJsonPath = backupWorkspacesPath;
 
 		// Force a reload with the new paths
 		this.loadSync();
+	}
+
+	public removeWorkspaceBackupPathSync(workspace: Uri): void {
+		return super.removeWorkspaceBackupPathSync(workspace);
+	}
+
+	public loadSync(): void {
+		super.loadSync();
+	}
+
+	public toBackupPath(workspacePath: string): string {
+		return super.toBackupPath(workspacePath);
 	}
 }
 
@@ -39,9 +49,7 @@ suite('BackupMainService', () => {
 	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
 
-	const fooWorkspaceBackupDir = path.join(backupHome, crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
-
-	let service: BackupMainService;
+	let service: TestBackupMainService;
 
 	setup(done => {
 		service = new TestBackupMainService(backupHome, backupWorkspacesPath);
@@ -123,9 +131,33 @@ suite('BackupMainService', () => {
 		});
 	});
 
-	test('doesWorkspaceHaveBackups should return whether the workspace\'s backup exists', () => {
-		assert.equal(service.hasWorkspaceBackup(fooFile), false);
-		fs.mkdirSync(fooWorkspaceBackupDir);
-		assert.equal(service.hasWorkspaceBackup(fooFile), true);
+	test('service validates backup workspaces on startup and cleans up', done => {
+
+		// 1) backup workspace path does not exist
+		service.pushWorkspaceBackupPathsSync([fooFile, barFile]);
+		service.loadSync();
+		assert.equal(service.getWorkspaceBackupPaths().length, 0);
+
+		// 2) backup workspace path exists with empty contents within
+		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
+		fs.mkdirSync(service.toBackupPath(barFile.fsPath));
+		service.pushWorkspaceBackupPathsSync([fooFile, barFile]);
+		service.loadSync();
+		assert.equal(service.getWorkspaceBackupPaths().length, 0);
+		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
+		assert.ok(!fs.exists(service.toBackupPath(barFile.fsPath)));
+
+		// 3) backup workspace path exists with empty folders within
+		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
+		fs.mkdirSync(service.toBackupPath(barFile.fsPath));
+		fs.mkdirSync(path.join(service.toBackupPath(fooFile.fsPath), 'file'));
+		fs.mkdirSync(path.join(service.toBackupPath(barFile.fsPath), 'untitled'));
+		service.pushWorkspaceBackupPathsSync([fooFile, barFile]);
+		service.loadSync();
+		assert.equal(service.getWorkspaceBackupPaths().length, 0);
+		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
+		assert.ok(!fs.exists(service.toBackupPath(barFile.fsPath)));
+
+		done();
 	});
 });

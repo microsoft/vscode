@@ -110,8 +110,13 @@ suite('SnippetParser', () => {
 
 	test('Parser, escaping', () => {
 		assertEscape('$', '$');
+		assertEscape('\\\\$', '\\$');
 		assertEscape('{', '{');
+		assertEscape('\\}', '}');
+		assertEscape('\\abc', '\\abc');
+		assertEscape('foo${f:\\}}bar', 'foo}bar');
 		assertEscape('\\{', '{');
+		assertEscape('I need \\\\\\$', 'I need \\$');
 		assertEscape('\\', '\\');
 		assertEscape('\\{{', '{{');
 		assertEscape('{{', '{{');
@@ -275,5 +280,10 @@ suite('SnippetParser', () => {
 		assert.equal((<Placeholder>p2).defaultValue.length, '1');
 		assert.equal((<Text>(<Placeholder>p2).defaultValue[0]), 'err');
 
+	});
+
+	test('backspace esapce in TM only, #16212', () => {
+		const actual = new SnippetParser(true, false).escape('Foo \\\\${abc}bar');
+		assert.equal(actual, 'Foo \\bar');
 	});
 });

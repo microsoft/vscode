@@ -587,7 +587,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				!ext.disabledGlobally &&
 				this.isKeymapExtension(ext));
 			if (otherKeymaps.length) {
-				return this.promptForDisablingOtherKeymaps(otherKeymaps);
+				return this.promptForDisablingOtherKeymaps(extension, otherKeymaps);
 			}
 		}
 		return TPromise.as(undefined);
@@ -598,7 +598,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return cats && cats.indexOf('Keymaps') !== -1 || this.tipsService.getKeymapRecommendations().indexOf(extension.identifier) !== -1;
 	}
 
-	private promptForDisablingOtherKeymaps(keymaps: Extension[]): TPromise<void> {
+	private promptForDisablingOtherKeymaps(newKeymap: Extension, oldKeymaps: Extension[]): TPromise<void> {
+		const telemetryData: { [key: string]: any; } = {
+			newKeymap: newKeymap.identifier,
+			oldKeymaps: oldKeymaps.map(k => k.identifier)
+		};
+		this.telemetryService.publicLog('disableOtherKeymapsConfirmation', telemetryData);
 		const message = nls.localize('disableOtherKeymapsConfirmation', "Disable other keymaps to avoid conflicts between keybindings?");
 		const options = [
 			nls.localize('yes', "Yes"),
@@ -606,8 +611,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		];
 		return this.choiceService.choose(Severity.Info, message, options, false)
 			.then<void>(value => {
-				if (value === 0) {
-					return TPromise.join(keymaps.map(keymap => {
+				const confirmed = value === 0;
+				telemetryData['confirmed'] = confirmed;
+				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
+				if (confirmed) {
+					return TPromise.join(oldKeymaps.map(keymap => {
 						return this.setEnablement(keymap, false);
 					}));
 				}

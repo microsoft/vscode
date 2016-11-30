@@ -26,6 +26,11 @@ interface IResolvedKeybinding {
 	binding: number;
 }
 
+interface IExtensionViewlet {
+	id: string;
+	label: string;
+}
+
 interface IConfiguration extends IFilesConfiguration {
 	workbench: {
 		sideBar: {
@@ -61,6 +66,8 @@ export class VSCodeMenu {
 	private mapResolvedKeybindingToActionId: { [id: string]: string; };
 	private keybindingsResolved: boolean;
 
+	private extensionViewlets: IExtensionViewlet[];
+
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@IUpdateService private updateService: IUpdateService,
@@ -70,6 +77,7 @@ export class VSCodeMenu {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.actionIdKeybindingRequests = [];
+		this.extensionViewlets = [];
 
 		this.mapResolvedKeybindingToActionId = Object.create(null);
 		this.mapLastKnownKeybindingToActionId = this.storageService.getItem<{ [id: string]: string; }>(VSCodeMenu.lastKnownKeybindingsMapStorageKey) || Object.create(null);
@@ -92,7 +100,7 @@ export class VSCodeMenu {
 		});
 
 		// Listen to some events from window service
-		this.windowsService.onPathOpen(path => this.updateMenu());
+		this.windowsService.onPathsOpen(paths => this.updateMenu());
 		this.windowsService.onRecentPathsChange(paths => this.updateMenu());
 		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
 
@@ -129,6 +137,21 @@ export class VSCodeMenu {
 				this.storageService.setItem(VSCodeMenu.lastKnownKeybindingsMapStorageKey, this.mapResolvedKeybindingToActionId); // keep to restore instantly after restart
 				this.mapLastKnownKeybindingToActionId = this.mapResolvedKeybindingToActionId; // update our last known map
 
+				this.updateMenu();
+			}
+		});
+
+		// Listen to extension viewlets
+		ipc.on('vscode:extensionViewlets', (event, rawExtensionViewlets) => {
+			let extensionViewlets: IExtensionViewlet[] = [];
+			try {
+				extensionViewlets = JSON.parse(rawExtensionViewlets);
+			} catch (error) {
+				// Should not happen
+			}
+
+			if (extensionViewlets.length) {
+				this.extensionViewlets = extensionViewlets;
 				this.updateMenu();
 			}
 		});
@@ -239,6 +262,11 @@ export class VSCodeMenu {
 		const editMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")), submenu: editMenu });
 		this.setEditMenu(editMenu);
 
+		// Selection
+		const selectionMenu = new Menu();
+		const selectionMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")), submenu: selectionMenu });
+		this.setSelectionMenu(selectionMenu);
+
 		// View
 		const viewMenu = new Menu();
 		const viewMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")), submenu: viewMenu });
@@ -269,6 +297,7 @@ export class VSCodeMenu {
 
 		menubar.append(fileMenuItem);
 		menubar.append(editMenuItem);
+		menubar.append(selectionMenuItem);
 		menubar.append(viewMenuItem);
 		menubar.append(gotoMenuItem);
 
@@ -298,7 +327,7 @@ export class VSCodeMenu {
 		const hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", product.nameLong), role: 'hide', accelerator: 'Command+H' });
 		const hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Alt+H' });
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
-		const quit = new MenuItem({ label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => this.quit(), accelerator: 'Command+Q' });
+		const quit = new MenuItem({ label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => this.windowsService.quit(), accelerator: this.getAccelerator('workbench.action.quit', 'Command+Q') });
 
 		const actions = [about];
 		actions.push(...checkForUpdates);
@@ -356,7 +385,7 @@ export class VSCodeMenu {
 		const closeFolder = this.createMenuItem(nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"), 'workbench.action.closeFolder');
 		const closeEditor = this.createMenuItem(nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "Close &&Editor"), 'workbench.action.closeActiveEditor');
 
-		const exit = this.createMenuItem(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit"), () => this.quit());
+		const exit = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")), accelerator: this.getAccelerator('workbench.action.quit'), click: () => this.windowsService.quit() });
 
 		arrays.coalesce([
 			newFile,
@@ -406,25 +435,6 @@ export class VSCodeMenu {
 		preferencesMenu.append(iconThemeSelection);
 
 		return new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
-	}
-
-	private quit(): void {
-
-		// If the user selected to exit from an extension development host window, do not quit, but just
-		// close the window unless this is the last window that is opened.
-		const vscodeWindow = this.windowsService.getFocusedWindow();
-		if (vscodeWindow && vscodeWindow.isPluginDevelopmentHost && this.windowsService.getWindowCount() > 1) {
-			vscodeWindow.win.close();
-		}
-
-		// Otherwise: normal quit
-		else {
-			setTimeout(() => {
-				this.isQuitting = true;
-
-				app.quit();
-			}, 10 /* delay this because there is an issue with quitting while the menu is open */);
-		}
 	}
 
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
@@ -525,6 +535,42 @@ export class VSCodeMenu {
 		].forEach(item => winLinuxEditMenu.append(item));
 	}
 
+	private setSelectionMenu(winLinuxEditMenu: Electron.Menu): void {
+		const insertCursorAbove = this.createMenuItem(nls.localize({ key: 'miInsertCursorAbove', comment: ['&& denotes a mnemonic'] }, "&&Add Cursor Above"), 'editor.action.insertCursorAbove');
+		const insertCursorBelow = this.createMenuItem(nls.localize({ key: 'miInsertCursorBelow', comment: ['&& denotes a mnemonic'] }, "A&&dd Cursor Below"), 'editor.action.insertCursorBelow');
+		const addSelectionToNextFindMatch = this.createMenuItem(nls.localize({ key: 'miAddSelectionToNextFindMatch', comment: ['&& denotes a mnemonic'] }, "Add &&To Next Match"), 'editor.action.addSelectionToNextFindMatch');
+		const addSelectionToPreviousFindMatch = this.createMenuItem(nls.localize({ key: 'miAddSelectionToPreviousFindMatch', comment: ['&& denotes a mnemonic'] }, "Add T&&o Previous Match"), 'editor.action.addSelectionToPreviousFindMatch');
+
+		const copyLinesUp = this.createMenuItem(nls.localize({ key: 'miCopyLinesUp', comment: ['&& denotes a mnemonic'] }, "&&Copy Line Up"), 'editor.action.copyLinesUpAction');
+		const copyLinesDown = this.createMenuItem(nls.localize({ key: 'miCopyLinesDown', comment: ['&& denotes a mnemonic'] }, "Co&&py Line Down"), 'editor.action.copyLinesDownAction');
+		const moveLinesUp = this.createMenuItem(nls.localize({ key: 'miMoveLinesUp', comment: ['&& denotes a mnemonic'] }, "Mo&&ve Line Up"), 'editor.action.moveLinesUpAction');
+		const moveLinesDown = this.createMenuItem(nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Line Down"), 'editor.action.moveLinesDownAction');
+
+		const smartSelectGrow = this.createMenuItem(nls.localize({ key: 'miSmartSelectGrow', comment: ['&& denotes a mnemonic'] }, "&&Expand Selection"), 'editor.action.smartSelect.grow');
+		const smartSelectshrink = this.createMenuItem(nls.localize({ key: 'miSmartSelectShrink', comment: ['&& denotes a mnemonic'] }, "&&Shrink Selection"), 'editor.action.smartSelect.shrink');
+
+		const emmetExpandAbbreviation = this.createMenuItem(nls.localize({ key: 'miEmmetExpandAbbreviation', comment: ['&& denotes a mnemonic'] }, "Emmet: E&&xpand Abbreviation"), 'editor.emmet.action.expandAbbreviation');
+		const showEmmetCommands = this.createMenuItem(nls.localize({ key: 'miShowEmmetCommands', comment: ['&& denotes a mnemonic'] }, "E&&mmet..."), 'workbench.action.showEmmetCommands');
+
+		[
+			insertCursorAbove,
+			insertCursorBelow,
+			addSelectionToNextFindMatch,
+			addSelectionToPreviousFindMatch,
+			__separator__(),
+			copyLinesUp,
+			copyLinesDown,
+			moveLinesUp,
+			moveLinesDown,
+			__separator__(),
+			smartSelectGrow,
+			smartSelectshrink,
+			__separator__(),
+			emmetExpandAbbreviation,
+			showEmmetCommands
+		].forEach(item => winLinuxEditMenu.append(item));
+	}
+
 	private setViewMenu(viewMenu: Electron.Menu): void {
 		const explorer = this.createMenuItem(nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"), 'workbench.view.explorer');
 		const search = this.createMenuItem(nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"), 'workbench.view.search');
@@ -536,10 +582,21 @@ export class VSCodeMenu {
 		const integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
 		const problems = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"), 'workbench.actions.view.problems');
 
+		let additionalViewlets: Electron.MenuItem;
+		if (this.extensionViewlets.length) {
+			const additionalViewletsMenu = new Menu();
+
+			this.extensionViewlets.forEach(viewlet => {
+				additionalViewletsMenu.append(this.createMenuItem(viewlet.label, viewlet.id));
+			});
+
+			additionalViewlets = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miAdditionalViewlets', comment: ['&& denotes a mnemonic'] }, "Additional &&Viewlets")), submenu: additionalViewletsMenu, enabled: true });
+		}
+
 		const commands = this.createMenuItem(nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette..."), 'workbench.action.showCommands');
 
 		const fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 });
-		const toggleFocusMode = this.createMenuItem(nls.localize('miToggleFocusMode', "Toggle Focus Mode"), 'workbench.action.toggleFocusMode', this.windowsService.getWindowCount() > 0);
+		const toggleZenMode = this.createMenuItem(nls.localize('miToggleZenMode', "Toggle Zen Mode"), 'workbench.action.toggleZenMode', this.windowsService.getWindowCount() > 0);
 		const toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
 		const splitEditor = this.createMenuItem(nls.localize({ key: 'miSplitEditor', comment: ['&& denotes a mnemonic'] }, "Split &&Editor"), 'workbench.action.splitEditor');
 		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Editor Group &&Layout"), 'workbench.action.toggleEditorGroupLayout');
@@ -588,6 +645,7 @@ export class VSCodeMenu {
 			git,
 			debug,
 			extensions,
+			additionalViewlets,
 			__separator__(),
 			output,
 			problems,
@@ -595,7 +653,7 @@ export class VSCodeMenu {
 			integratedTerminal,
 			__separator__(),
 			fullscreen,
-			toggleFocusMode,
+			toggleZenMode,
 			platform.isWindows || platform.isLinux ? toggleMenuBar : void 0,
 			__separator__(),
 			splitEditor,
@@ -869,7 +927,7 @@ export class VSCodeMenu {
 		});
 	}
 
-	private getAccelerator(actionId: string): string {
+	private getAccelerator(actionId: string, fallback?: string): string {
 		if (actionId) {
 			const resolvedKeybinding = this.mapResolvedKeybindingToActionId[actionId];
 			if (resolvedKeybinding) {
@@ -881,11 +939,12 @@ export class VSCodeMenu {
 			}
 
 			const lastKnownKeybinding = this.mapLastKnownKeybindingToActionId[actionId];
-
-			return lastKnownKeybinding; // return the last known keybining (chance of mismatch is very low unless it changed)
+			if (lastKnownKeybinding) {
+				return lastKnownKeybinding; // return the last known keybining (chance of mismatch is very low unless it changed)
+			}
 		}
 
-		return void (0);
+		return fallback;
 	}
 
 	private openAboutDialog(): void {

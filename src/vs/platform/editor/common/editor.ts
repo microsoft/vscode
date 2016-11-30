@@ -134,6 +134,11 @@ export interface IEditorInput extends IDisposable {
 	getDescription(verbose?: boolean): string;
 
 	/**
+	 * Resolves the input.
+	 */
+	resolve(): TPromise<IEditorModel>;
+
+	/**
 	 * Returns if this input is dirty or not.
 	 */
 	isDirty(): boolean;

@@ -200,6 +200,7 @@ export class Separator extends Action {
 	constructor(label?: string, order?) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');
 		this.checked = false;
+		this.radio = false;
 		this.enabled = false;
 		this.order = order;
 	}
@@ -306,6 +307,14 @@ export class ActionItem extends BaseActionItem {
 			this.$e.addClass('checked');
 		} else {
 			this.$e.removeClass('checked');
+		}
+	}
+
+	public _updateRadio(): void {
+		if (this.getAction().radio) {
+			this.$e.addClass('radio');
+		} else {
+			this.$e.removeClass('radio');
 		}
 	}
 }

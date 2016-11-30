@@ -3,41 +3,29 @@
   "version": "1.0.0",
   "dependencies": {
     "vscode-css-languageservice": {
-      "version": "1.1.0",
+      "version": "2.0.0-next.5",
       "from": "vscode-css-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-1.1.0.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-2.0.0-next.5.tgz"
     },
     "vscode-jsonrpc": {
-      "version": "2.3.2-next.5",
-      "from": "vscode-jsonrpc@>=2.3.2-next.2 <3.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-2.3.2-next.5.tgz"
+      "version": "3.0.1-alpha.2",
+      "from": "vscode-jsonrpc@>=3.0.1-alpha.2 <4.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.0.1-alpha.2.tgz"
     },
     "vscode-languageserver": {
-      "version": "2.4.0-next.12",
+      "version": "3.0.1-alpha.2",
       "from": "vscode-languageserver@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-2.4.0-next.12.tgz",
-      "dependencies": {
-        "vscode-languageserver-types": {
-          "version": "1.0.3",
-          "from": "vscode-languageserver-types@>=1.0.3 <2.0.0",
-          "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-1.0.3.tgz"
-        }
-      }
+      "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-3.0.1-alpha.2.tgz"
     },
     "vscode-languageserver-types": {
-      "version": "1.0.3",
-      "from": "vscode-languageserver-types@>=1.0.3 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-1.0.3.tgz"
+      "version": "3.0.1-alpha.2",
+      "from": "vscode-languageserver-types@>=3.0.1-alpha.2 <4.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.1-alpha.2.tgz"
     },
     "vscode-nls": {
       "version": "1.0.7",
       "from": "vscode-nls@>=1.0.4 <2.0.0",
       "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
-    },
-    "vscode-uri": {
-      "version": "1.0.0",
-      "from": "vscode-uri@>=1.0.0 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-uri/-/vscode-uri-1.0.0.tgz"
     }
   }
 }

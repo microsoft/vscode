@@ -31,9 +31,17 @@ export interface IRequestOptions {
 }
 
 export interface IRequestContext {
-	req: http.ClientRequest;
-	res: http.ClientResponse;
+	// req: http.ClientRequest;
+	// res: http.ClientResponse;
+	res: {
+		headers: { [n: string]: string };
+		statusCode?: number;
+	};
 	stream: Stream;
+}
+
+export interface IRequestFunction {
+	(options: IRequestOptions): TPromise<IRequestContext>;
 }
 
 export function request(options: IRequestOptions): TPromise<IRequestContext> {
@@ -71,7 +79,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 					stream = stream.pipe(createGunzip());
 				}
 
-				c({ req, res, stream });
+				c({ res, stream });
 			}
 		});
 
