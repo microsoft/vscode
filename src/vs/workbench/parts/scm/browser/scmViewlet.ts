@@ -137,7 +137,8 @@ export class SCMViewlet extends Viewlet {
 		super(VIEWLET_ID, telemetryService);
 
 		// TODO@Joao
-		scmService.activeProvider = instantiationService.createInstance(GitSCMProvider);
+		const provider = instantiationService.createInstance(GitSCMProvider);
+		scmService.registerSCMProvider(provider);
 
 		this.menus = this.instantiationService.createInstance(SCMMenus);
 		this.disposables.push(this.menus);

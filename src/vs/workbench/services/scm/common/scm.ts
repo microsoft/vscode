@@ -42,8 +42,8 @@ export interface ISCMProvider extends IDisposable {
 export interface ISCMService {
 
 	_serviceBrand: any;
-	activeProvider: ISCMProvider;
+	activeProvider: ISCMProvider | undefined;
+	onDidChangeProvider: Event<ISCMProvider>;
 
-	getBaselineResource(resource: URI): TPromise<URI>;
-	registerBaselineResourceProvider(provider: IBaselineResourceProvider): IDisposable;
+	registerSCMProvider(provider: ISCMProvider): IDisposable;
 }
