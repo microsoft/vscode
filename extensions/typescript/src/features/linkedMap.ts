@@ -73,8 +73,11 @@ export default class LinkedMap<T> {
 	}
 
 	public shift(): T | undefined {
-		if (!this.head || !this.tail) {
+		if (!this.head && !this.tail) {
 			return undefined;
+		}
+		if (!this.head || !this.tail) {
+			throw new Error('Invalid list');
 		}
 		const item = this.head;
 		delete this.map[item.key];
@@ -85,10 +88,11 @@ export default class LinkedMap<T> {
 
 	private addItemFirst(item: Item<T>): void {
 		// First time Insert
-		if (!this.head || !this.tail) {
+		if (!this.head && !this.tail) {
 			this.tail = item;
-		}
-		else {
+		} else if (!this.head) {
+			throw new Error('Invalid list');
+		} else {
 			item.next = this.head;
 			this.head.previous = item;
 		}
@@ -97,10 +101,11 @@ export default class LinkedMap<T> {
 
 	private addItemLast(item: Item<T>): void {
 		// First time Insert
-		if (!this.head || !this.tail) {
+		if (!this.head && !this.tail) {
 			this.head = item;
-		}
-		else {
+		} else if (!this.tail) {
+			throw new Error('Invalid list');
+		} else {
 			item.previous = this.tail;
 			this.tail.next = item;
 		}
@@ -121,12 +126,11 @@ export default class LinkedMap<T> {
 		else {
 			const next = item.next;
 			const previous = item.previous;
-			if (next) {
-				next.previous = previous;
+			if (!next || !previous) {
+				throw new Error('Invalid list');
 			}
-			if (previous) {
-				previous.next = next;
-			}
+			next.previous = previous;
+			previous.next = next;
 		}
 	}
 
@@ -155,9 +159,10 @@ export default class LinkedMap<T> {
 		// Insert the node at head
 		item.previous = undefined;
 		item.next = this.head;
-		if (this.head) {
-			this.head.previous = item;
+		if (!this.head) {
+			throw new Error('Invalid list');
 		}
+		this.head.previous = item;
 		this.head = item;
 	}
 }
