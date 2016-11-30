@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Action } from 'vs/base/common/actions';
-import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IActivityBarService, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -246,6 +246,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 			const actions: Action[] = [ActivityActionItem.hideViewletAction];
 			if (this.viewlet.extensionId) {
+				actions.push(new Separator());
 				actions.push(ActivityActionItem.manageExtensionAction);
 			}
 
