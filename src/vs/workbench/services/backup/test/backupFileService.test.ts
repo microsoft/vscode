@@ -96,6 +96,21 @@ suite('BackupFileService', () => {
 		assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
 	});
 
+	test('getBackupResource should ignore case on Windows and Mac', () => {
+		// Skip test on Linux
+		if (platform.isLinux) {
+			return;
+		}
+
+		if (platform.isMacintosh) {
+			assert.equal(service.getBackupResource(Uri.file('/foo')), service.getBackupResource(Uri.file('/FOO')));
+		}
+
+		if (platform.isWindows) {
+			assert.equal(service.getBackupResource(Uri.file('c:\\foo')), service.getBackupResource(Uri.file('C:\\FOO')));
+		}
+	});
+
 	test('doesTextFileHaveBackup should return whether a backup resource exists', done => {
 		pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
 			fs.writeFileSync(fooBackupPath, 'foo');
