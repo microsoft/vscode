@@ -19,7 +19,7 @@ export class RequestService extends NodeRequestService {
 	}
 }
 
-class ArryBufferStream extends Readable {
+class ArrayBufferStream extends Readable {
 
 	private _buffer: Buffer;
 	private _offset: number;
@@ -58,7 +58,7 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise
 					statusCode: xhr.status,
 					headers: getResponseHeaders(xhr)
 				},
-				stream: new ArryBufferStream(xhr.response)
+				stream: new ArrayBufferStream(xhr.response)
 			});
 		};
 
@@ -73,12 +73,16 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise
 
 function setRequestHeaders(xhr: XMLHttpRequest, options: IRequestOptions): void {
 	if (options.headers) {
-		for (let k in options.headers) {
-			try {
-				xhr.setRequestHeader(k, options.headers[k]);
-			} catch (e) {
-				console.warn(e);
+		outer: for (let k in options.headers) {
+			switch (k) {
+				case 'User-Agent':
+				case 'Accept-Encoding':
+				case 'Content-Length':
+					// unsafe headers
+					continue outer;
 			}
+			xhr.setRequestHeader(k, options.headers[k]);
+
 		}
 	}
 }

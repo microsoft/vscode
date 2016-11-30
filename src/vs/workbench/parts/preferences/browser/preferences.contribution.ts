@@ -9,27 +9,27 @@ import { Registry } from 'vs/platform/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { DefaultPreferencesEditor, DefaultSettingsInput, DefaultKeybindingsInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
+import { PreferencesEditor, PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenWorkspaceSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, CONTEXT_DEFAULT_SETTINGS_EDITOR, DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL } from 'vs/workbench/parts/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/parts/preferences/browser/preferencesService';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 registerSingleton(IPreferencesService, PreferencesService);
 
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
 	new EditorDescriptor(
-		DefaultPreferencesEditor.ID,
-		nls.localize('defaultSettingsEditor', "Default Settings Editor"),
+		PreferencesEditor.ID,
+		nls.localize('defaultPreferencesEditor', "Default Preferences Editor"),
 		'vs/workbench/parts/preferences/browser/preferencesEditor',
-		'DefaultPreferencesEditor'
+		'PreferencesEditor'
 	),
 	[
-		new SyncDescriptor(DefaultSettingsInput),
-		new SyncDescriptor(DefaultKeybindingsInput)
+		new SyncDescriptor(PreferencesEditorInput)
 	]
 );
 
@@ -42,3 +42,13 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsActi
 }), 'Preferences: Open User Settings', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S) }), 'Preferences: Open Keyboard Shortcuts', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL), 'Preferences: Open Workspace Settings', category);
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL,
+		iconClass: 'collapseAll',
+		title: nls.localize('collapseAll', "Collapse All")
+	},
+	when: ContextKeyExpr.and(CONTEXT_DEFAULT_SETTINGS_EDITOR),
+	group: 'navigation'
+});
