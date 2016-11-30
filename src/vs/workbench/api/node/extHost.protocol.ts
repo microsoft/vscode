@@ -232,12 +232,18 @@ export interface SCMProviderFeatures {
 	commitCommand?: string;
 	clickCommand?: string;
 	dragCommand?: string;
+	resourceGroups: vscode.SCMResourceGroup[];
 	supportsOriginalResource: boolean;
+}
+
+export interface SCMRawResource {
+	uri: string;
 }
 
 export abstract class MainThreadSCMShape {
 	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
 	$unregister(id: string): void { throw ni(); }
+	$onChange(id: string, resources: SCMRawResource[][]): void { throw ni(); }
 }
 
 // -- extension host
