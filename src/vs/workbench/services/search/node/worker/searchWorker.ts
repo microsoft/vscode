@@ -7,18 +7,15 @@
 
 import * as fs from 'fs';
 
-import * as errors from 'vs/base/common/errors'
 import * as strings from 'vs/base/common/strings';
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { ISerializedFileMatch } from '../search';
 import * as baseMime from 'vs/base/common/mime';
-import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
+import { ILineMatch } from 'vs/platform/search/common/search';
 import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode } from 'vs/base/node/encoding';
 import { detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
 
 import { ISearchWorker, ISearchWorkerConfig, ISearchWorkerSearchArgs, ISearchWorkerSearchResult } from './searchWorkerIpc';
-
-// import profiler = require('v8-profiler');
 
 interface ReadLinesOptions {
 	bufferLength: number;
@@ -32,20 +29,14 @@ export class SearchWorker implements ISearchWorker {
 	static CONCURRENT_SEARCH_PATHS = 2;
 
 	private contentPattern: RegExp;
-
 	private nextSearch = TPromise.wrap(null);
-
-	private config;
+	private config: ISearchWorkerConfig;
+	private fileEncoding: string;
 
 	initialize(config: ISearchWorkerConfig): TPromise<void> {
-		// console.log('worker started: ' + Date.now());
 		this.contentPattern = strings.createRegExp(config.pattern.pattern, config.pattern.isRegExp, { matchCase: config.pattern.isCaseSensitive, wholeWord: config.pattern.isWordMatch, multiline: false, global: true });
 		this.config = config;
-		if (config.id === 0) {
-			// console.log('startProfiling');
-			// profiler.startProfiling('p1');
-		}
-
+		this.fileEncoding = encodingExists(config.fileEncoding) ? config.fileEncoding : UTF8;
 		return TPromise.wrap<void>(undefined);
 	}
 
@@ -56,24 +47,19 @@ export class SearchWorker implements ISearchWorker {
 
 	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
 		// Queue this search to run after the current one
-		// console.log('got "search"')
-		return this.nextSearch = (new TPromise((resolve, reject) => {
-			this.nextSearch
-				.then(() => searchBatch(args.absolutePaths, this.contentPattern, args.maxResults))
-				.then(resolve, reject);
-		}));
+		return this.nextSearch = this.nextSearch
+			.then(() => searchBatch(args.absolutePaths, this.contentPattern, args.maxResults, this.fileEncoding));
 	}
 }
 
 /**
  * Searches some number of the paths concurrently, and starts searches in other paths when those complete.
  */
-function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults: number): TPromise<ISearchWorkerSearchResult> {
+function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults: number, fileEncoding: string): TPromise<ISearchWorkerSearchResult> {
 	if (isCanceled) {
 		return TPromise.wrap(null);
 	}
 
-	// console.log('searching batch');
 	return new TPromise(batchDone => {
 		const result: ISearchWorkerSearchResult = {
 			matches: [],
@@ -83,7 +69,7 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults
 
 		// Search in the given path, and when it's finished, search in the next path in absolutePaths
 		const startSearchInFile = (absolutePath: string): TPromise<void> => {
-			return searchInFile(absolutePath, contentPattern, maxResults - result.numMatches).then(fileResult => {
+			return searchInFile(absolutePath, contentPattern, maxResults - result.numMatches, fileEncoding).then(fileResult => {
 				// Finish early if search is canceled
 				if (isCanceled) {
 					return;
@@ -94,7 +80,6 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults
 					result.matches.push(fileResult.match.serialize());
 					if (fileResult.limitReached) {
 						// If the limit was reached, terminate early with the results so far.
-						// TODO more isCanceled checks, or cancel nextSearch?
 						isCanceled = true;
 						result.limitReached = true;
 						return batchDone(result);
@@ -124,11 +109,10 @@ interface IFileSearchResult {
 	limitReached?: boolean;
 }
 
-function searchInFile(absolutePath: string, contentPattern: RegExp, maxResults: number): TPromise<IFileSearchResult> {
+function searchInFile(absolutePath: string, contentPattern: RegExp, maxResults: number, fileEncoding: string): TPromise<IFileSearchResult> {
 	let fileMatch: FileMatch = null;
 	let limitReached = false;
 	let numMatches = 0;
-	// console.log('doing search: ' + absolutePath);
 
 	const perLineCallback = (line: string, lineNumber: number) => {
 		let lineMatch: LineMatch = null;
@@ -157,7 +141,7 @@ function searchInFile(absolutePath: string, contentPattern: RegExp, maxResults: 
 	};
 
 	// Read lines buffered to support large files
-	return readlinesAsync(absolutePath, perLineCallback, { bufferLength: 8096, encoding: 'utf8' }).then(
+	return readlinesAsync(absolutePath, perLineCallback, { bufferLength: 8096, encoding: fileEncoding }).then(
 		() => fileMatch ? { match: fileMatch, limitReached, numMatches } : null);
 }
 
@@ -256,7 +240,7 @@ function readlinesAsync(filename: string, perLineCallback: (line: string, lineNu
 
 					line += decodeBuffer(buffer, pos, bytesRead);
 
-					readFile(false /* isFirstRead */, clb); // Continue reading
+					readFile(/*isFirstRead=*/false, clb); // Continue reading
 				});
 			};
 
