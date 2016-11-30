@@ -83,7 +83,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			const worker = this.workers[this.nextWorker];
 			this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
-			const maxResults = this.config.maxResults - this.numResults;
+			const maxResults = this.config.maxResults && (this.config.maxResults - this.numResults);
 			worker.search({ absolutePaths: batch, maxResults }).then(result => {
 				if (!result || this.limitReached || this.isCanceled) {
 					return unwind(batchBytes);
@@ -95,7 +95,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 					onResult(m);
 				});
 
-				if (this.numResults >= this.config.maxResults) {
+				if (this.config.maxResults && this.numResults >= this.config.maxResults) {
 					// It's possible to go over maxResults like this, but it's much simpler than trying to extract the exact number
 					// of file matches, line matches, and matches within a line to == maxResults.
 					this.limitReached = true;

@@ -48,14 +48,14 @@ export class SearchWorker implements ISearchWorker {
 	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
 		// Queue this search to run after the current one
 		return this.nextSearch = this.nextSearch
-			.then(() => searchBatch(args.absolutePaths, this.contentPattern, args.maxResults, this.fileEncoding));
+			.then(() => searchBatch(args.absolutePaths, this.contentPattern, this.fileEncoding, args.maxResults));
 	}
 }
 
 /**
  * Searches some number of the given paths concurrently, and starts searches in other paths when those complete.
  */
-function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults: number, fileEncoding: string): TPromise<ISearchWorkerSearchResult> {
+function searchBatch(absolutePaths: string[], contentPattern: RegExp, fileEncoding: string, maxResults?: number): TPromise<ISearchWorkerSearchResult> {
 	if (isCanceled) {
 		return TPromise.wrap(null);
 	}
@@ -69,7 +69,7 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults
 
 		// Search in the given path, and when it's finished, search in the next path in absolutePaths
 		const startSearchInFile = (absolutePath: string): TPromise<void> => {
-			return searchInFile(absolutePath, contentPattern, maxResults - result.numMatches, fileEncoding).then(fileResult => {
+			return searchInFile(absolutePath, contentPattern, fileEncoding, maxResults && (maxResults - result.numMatches)).then(fileResult => {
 				// Finish early if search is canceled
 				if (isCanceled) {
 					return;
@@ -94,7 +94,7 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, maxResults
 
 		let batchPromises: TPromise<void>[] = [];
 		for (let i = 0; i < SearchWorker.CONCURRENT_SEARCH_PATHS && i < absolutePaths.length; i++) {
-			batchPromises.push(startSearchInFile(absolutePaths[i]));
+			batchPromises.push(startSearchInFile(absolutePaths.shift()));
 		}
 
 		TPromise.join(batchPromises).then(() => {
@@ -109,7 +109,7 @@ interface IFileSearchResult {
 	limitReached?: boolean;
 }
 
-function searchInFile(absolutePath: string, contentPattern: RegExp, maxResults: number, fileEncoding: string): TPromise<IFileSearchResult> {
+function searchInFile(absolutePath: string, contentPattern: RegExp, fileEncoding: string, maxResults?: number): TPromise<IFileSearchResult> {
 	let fileMatch: FileMatch = null;
 	let limitReached = false;
 	let numMatches = 0;
