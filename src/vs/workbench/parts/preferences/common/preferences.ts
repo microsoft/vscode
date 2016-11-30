@@ -32,6 +32,7 @@ export interface ISetting {
 	value: any;
 	valueRange: IRange;
 	description: string;
+	descriptionRange: IRange;
 }
 
 export interface IFilterResult {
