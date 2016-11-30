@@ -21,7 +21,7 @@ export class GitSCMProvider extends SCMProvider {
 	constructor(
 		@IGitService private gitService: IGitService
 	) {
-		super('git', 'Git');
+		super('internal-git', 'Git');
 
 		this.merge = this.createResourceGroup('merge', localize('merge conflicts', "Merge Conflicts"));
 		this.index = this.createResourceGroup('index', localize('staged changes', "Staged Changes"));
