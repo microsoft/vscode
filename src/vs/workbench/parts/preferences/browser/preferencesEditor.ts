@@ -19,7 +19,7 @@ import { EditorOptions, EditorInput, } from 'vs/workbench/common/editor';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import {
@@ -34,14 +34,7 @@ import { DefaultSettingsHeaderWidget, SettingsGroupTitleWidget, SettingsCountWid
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -101,10 +94,10 @@ export class PreferencesEditorInput extends EditorInput {
 	}
 }
 
-export class PreferencesEditor extends BaseTextEditor {
+export class PreferencesEditor extends BaseEditor {
 
 	public static ID: string = 'workbench.editor.defaultPreferences';
-	private static VIEW_STATE: Map<URI, editorCommon.IEditorViewState> = new Map<URI, editorCommon.IEditorViewState>();
+	private static VIEW_STATE: Map<URI, editorCommon.ICodeEditorViewState> = new Map<URI, editorCommon.ICodeEditorViewState>();
 
 	private inputDisposeListener;
 	private defaultPreferencesEditor: CodeEditor;
@@ -115,23 +108,16 @@ export class PreferencesEditor extends BaseTextEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
-		@IMessageService messageService: IMessageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IThemeService themeService: IThemeService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IThemeService private themeService: IThemeService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService
 	) {
-		super(PreferencesEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
+		super(PreferencesEditor.ID, telemetryService);
 	}
 
-	public createEditorControl(parent: Builder): editorCommon.IEditor {
+	public createEditor(parent: Builder) {
 		const parentContainer = parent.getHTMLElement();
 		this.defaultSettingHeaderWidget = this._register(this.instantiationService.createInstance(DefaultSettingsHeaderWidget, parentContainer));
 		this._register(this.defaultSettingHeaderWidget.onDidChange(value => this.filterPreferences(value)));
@@ -139,13 +125,20 @@ export class PreferencesEditor extends BaseTextEditor {
 		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor, parentContainer, this.getCodeEditorOptions()));
 		const focusTracker = this._register(DOM.trackFocus(parentContainer));
 		focusTracker.addBlurListener(() => { this.isFocussed = false; });
+	}
 
+	public getControl(): CodeEditor {
 		return this.defaultPreferencesEditor;
 	}
 
-	public getCodeEditorOptions(): editorCommon.IEditorOptions {
-		const options = super.getCodeEditorOptions();
-		options.readOnly = true;
+	private getCodeEditorOptions(): editorCommon.IEditorOptions {
+		const options: editorCommon.IEditorOptions = {
+			overviewRulerLanes: 3,
+			lineNumbersMinChars: 3,
+			theme: this.themeService.getColorTheme(),
+			fixedOverflowWidgets: true,
+			readOnly: true
+		};
 		if (this.input && (<PreferencesEditorInput>this.input).isSettings) {
 			options.lineNumbers = 'off';
 			options.renderLineHighlight = 'none';
@@ -288,8 +281,6 @@ class DefaultPreferencesEditor extends CodeEditor {
 				return false;
 			}
 			// Find
-			// Go to line
-			// Go to outline
 			// Ignore warnings
 			return true;
 		});
