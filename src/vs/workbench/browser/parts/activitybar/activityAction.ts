@@ -20,11 +20,10 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
+import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { Registry } from 'vs/platform/platform';
 
 export class ActivityAction extends Action {
 	private badge: IBadge;
@@ -430,7 +429,7 @@ class HideViewletAction extends Action {
 		this.activityBarService.hide(viewlet.id);
 
 		// Open default viewlet
-		return this.viewletService.openViewlet(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId(), true);
+		return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
 	}
 }
 
@@ -453,7 +452,7 @@ export class ToggleViewletAction extends Action {
 			viewletToOpen = this.viewlet.id;
 		} else {
 			this.activityBarService.hide(this.viewlet.id);
-			viewletToOpen = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
+			viewletToOpen = this.viewletService.getDefaultViewletId();
 		}
 
 		return this.viewletService.openViewlet(viewletToOpen, true);

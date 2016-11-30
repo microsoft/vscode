@@ -118,6 +118,10 @@ class TestViewletService implements IViewletService {
 
 	public dispose() {
 	}
+
+	public getDefaultViewletId(): string {
+		return 'workbench.view.explorer';
+	}
 }
 
 class TestPanelService implements IPanelService {

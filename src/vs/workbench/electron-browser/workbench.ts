@@ -39,7 +39,6 @@ import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPar
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { WorkbenchLayout } from 'vs/workbench/browser/layout';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actionBarRegistry';
-import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
@@ -273,7 +272,7 @@ export class Workbench implements IPartService {
 				}
 
 				if (!viewletIdToRestore) {
-					viewletIdToRestore = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
+					viewletIdToRestore = this.viewletService.getDefaultViewletId();
 				}
 
 				viewletRestoreStopWatch = StopWatch.create();
@@ -507,11 +506,6 @@ export class Workbench implements IPartService {
 			this.sideBarHidden = true; // we hide sidebar in single-file-mode
 		}
 
-		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
-		if (!viewletRegistry.getDefaultViewletId()) {
-			this.sideBarHidden = true; // can only hide sidebar if we dont have a default Viewlet id
-		}
-
 		// Panel part visibility
 		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
 		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, true);
@@ -702,8 +696,7 @@ export class Workbench implements IPartService {
 
 		// If sidebar becomes visible, show last active Viewlet or default viewlet
 		else if (!hidden && !this.sidebarPart.getActiveViewlet()) {
-			const registry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
-			const viewletToOpen = this.sidebarPart.getLastActiveViewletId() || registry.getDefaultViewletId();
+			const viewletToOpen = this.sidebarPart.getLastActiveViewletId() || this.viewletService.getDefaultViewletId();
 			if (viewletToOpen) {
 				this.sidebarPart.openViewlet(viewletToOpen, true).done(null, errors.onUnexpectedError);
 			}
