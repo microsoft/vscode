@@ -8,6 +8,7 @@
 import * as path from 'path';
 import * as crypto from 'crypto';
 import pfs = require('vs/base/node/pfs');
+import * as platform from 'vs/base/common/platform';
 import Uri from 'vs/base/common/uri';
 import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -100,8 +101,7 @@ export class BackupFileService implements IBackupFileService {
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 
 		if (this.currentWorkspace) {
-			const workspaceHash = crypto.createHash('md5').update(this.currentWorkspace.fsPath).digest('hex');
-			this.backupWorkspacePath = path.join(this.backupHome, workspaceHash);
+			this.backupWorkspacePath = path.join(this.backupHome, this.hashPath(this.currentWorkspace));
 		}
 
 		this.ready = this.init();
@@ -212,9 +212,13 @@ export class BackupFileService implements IBackupFileService {
 			return null;
 		}
 
-		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
-		const backupPath = path.join(this.backupWorkspacePath, resource.scheme, backupName);
+		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, this.hashPath(resource)));
+	}
 
-		return Uri.file(backupPath);
+	private hashPath(resource: Uri): string {
+		// Windows and Mac paths are case insensitive, we want backups to be too
+		const caseAwarePath = platform.isWindows || platform.isMacintosh ? resource.fsPath.toLowerCase() : resource.fsPath;
+
+		return crypto.createHash('md5').update(caseAwarePath).digest('hex');
 	}
 }
