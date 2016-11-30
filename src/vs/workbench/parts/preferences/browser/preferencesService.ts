@@ -25,13 +25,11 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IPreferencesService, IPreferencesEditorModel, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, IPreferencesEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
-import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { SettingHandler, UserSettingHandler, WorkspaceSettingHandler } from 'vs/workbench/parts/preferences/browser/preferencesQuickOpen';
 
 
 const SETTINGS_INFO_IGNORE_KEY = 'settings.workspace.info.ignore';
@@ -67,8 +65,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
 	) {
 		super();
 		this.defaultEditorModels = new Map<URI, IPreferencesEditorModel>();
@@ -177,47 +174,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					}, error => this.messageService.show(Severity.Error, error));
 			});
 		}
-	}
-
-	pickSetting(configurationTarget: ConfigurationTarget = null) {
-		if (configurationTarget === null) {
-			this.pickConfigurationTarget().then(target => this.doPickSetting(target));
-		} else {
-			this.doPickSetting(configurationTarget);
-		}
-	}
-
-	pickValue(setting: ISetting, configurationTarget: ConfigurationTarget = null) {
-		if (configurationTarget === null) {
-			this.pickConfigurationTarget().then(target => this.doPickValue(setting, target));
-		} else {
-			this.doPickValue(setting, configurationTarget);
-		}
-	}
-
-	private doPickValue(setting: ISetting, configurationTarget: ConfigurationTarget) {
-		const settingHandler: SettingHandler = this.instantiationService.createInstance(SettingHandler, configurationTarget);
-		settingHandler.pickValue(setting);
-	}
-
-	private doPickSetting(configurationTarget: ConfigurationTarget) {
-		this.configurationTarget = configurationTarget;
-		this.quickOpenService.show(configurationTarget === ConfigurationTarget.USER ? UserSettingHandler.QUICK_OPEN_PREFIX : WorkspaceSettingHandler.QUICK_OPEN_PREFIX);
-	}
-
-	private pickConfigurationTarget(): TPromise<ConfigurationTarget> {
-		if (!this.contextService.getWorkspace()) {
-			return TPromise.wrap(ConfigurationTarget.USER);
-		}
-		const currentConfigurationTarget = this.getConfigurationTargetForCurrentActiveEditor();
-		if (currentConfigurationTarget !== null) {
-			return TPromise.wrap(currentConfigurationTarget);
-		}
-		const userTargetEntry: IPickOpenEntry = { label: nls.localize('userSetting', "User Setting") };
-		const workspaceTargetEntry: IPickOpenEntry = { label: nls.localize('workspaceSetting', "Workspace Setting") };
-		return this.quickOpenService.pick([userTargetEntry, workspaceTargetEntry], {
-			placeHolder: nls.localize('placeHolder', "Select the Settings target")
-		}).then(value => value === userTargetEntry ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE);
 	}
 
 	private resolveSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<SettingsEditorModel> {

@@ -67,10 +67,8 @@ export interface IPreferencesService {
 	openWorkspaceSettings(): TPromise<void>;
 	openGlobalKeybindingSettings(): TPromise<void>;
 
-	pickSetting(configurationTarget?: ConfigurationTarget);
-	pickValue(setting: ISetting, configurationTarget?: ConfigurationTarget);
 	copyConfiguration(configurationValue: IConfigurationValue, configurationTarget?: ConfigurationTarget): void;
 }
 
 export const CONTEXT_DEFAULT_SETTINGS_EDITOR = new RawContextKey<boolean>('defaultSettingsEditor', false);
-export const DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL = 'defaultSettingseditor.action.clearsearchresults';
+export const DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL = 'defaultSettingsEditor.action.collapseAllGroups';
