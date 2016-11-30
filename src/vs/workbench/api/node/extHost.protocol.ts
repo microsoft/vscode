@@ -228,8 +228,15 @@ export abstract class MainProcessExtensionServiceShape {
 	$onExtensionActivationFailed(extensionId: string): void { throw ni(); }
 }
 
+export interface SCMProviderFeatures {
+	commitCommand?: string;
+	clickCommand?: string;
+	dragCommand?: string;
+	supportsOriginalResource: boolean;
+}
+
 export abstract class MainThreadSCMShape {
-	$register(id: string, registerOriginalResourceProvider: boolean): void { throw ni(); }
+	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
 	$unregister(id: string): void { throw ni(); }
 }
 
