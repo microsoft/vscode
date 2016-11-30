@@ -15,7 +15,7 @@ import * as ipc from 'vs/base/parts/ipc/common/ipc';
 import { IProgress } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
-import { ISearchWorkerConfig, ISearchWorker, ISearchWorkerChannel, SearchWorkerChannelClient } from './worker/searchWorkerIpc'
+import { ISearchWorkerConfig, ISearchWorker, ISearchWorkerChannel, SearchWorkerChannelClient } from './worker/searchWorkerIpc';
 
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 
@@ -108,7 +108,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		// Walk over the file system
 		let nextBatch = [];
 		let nextBatchBytes = 0;
-		let batchFlushBytes = 5e6;
+		const batchFlushBytes = 2 ** 20; // 1MB
 		this.walker.walk(this.config.rootFolders, this.config.extraFiles, result => {
 			let bytes = result.size || 1;
 			this.totalBytes += bytes;
@@ -147,8 +147,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 
 	private startWorkers(): void {
 		// If the CPU has hyperthreading enabled, this will report (# of physical cores)*2.
-		// In basic testing, I haven't seen a meaningful gain with > 4 processes.
-		const numWorkers = Math.min(os.cpus().length, 4);
+		const numWorkers = os.cpus().length;
 		for (let i = 0; i < numWorkers; i++) {
 			this.createWorker(i);
 		}
