@@ -5,10 +5,10 @@
 
 'use strict';
 
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ISerializedFileMatch } from '../search';
-import { IProgress, ILineMatch, IPatternInfo, ISearchStats } from 'vs/platform/search/common/search';
+import { IPatternInfo } from 'vs/platform/search/common/search';
 import { SearchWorker } from './searchWorker';
 
 export interface ISearchWorkerConfig {
@@ -19,7 +19,7 @@ export interface ISearchWorkerConfig {
 
 export interface ISearchWorkerSearchArgs {
 	absolutePaths: string[];
-	maxResults: number;
+	maxResults?: number;
 }
 
 export interface ISearchWorkerSearchResult {
@@ -46,7 +46,7 @@ export class SearchWorkerChannel implements ISearchWorkerChannel {
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
-		switch(command) {
+		switch (command) {
 			case 'initialize': return TPromise.wrap(this.worker.initialize(arg));
 			case 'search': return this.worker.search(arg);
 			case 'cancel': return this.worker.cancel();
