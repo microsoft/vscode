@@ -128,6 +128,7 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 		action: ActivityAction,
 		private viewlets: ViewletDescriptor[],
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IViewletService private viewletService: IViewletService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 	) {
 		super(null, action);
@@ -149,9 +150,19 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 	}
 
 	public showMenu(): void {
+		this.updateActions();
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.builder.getHTMLElement(),
 			getActions: () => TPromise.as(this.actions)
+		});
+	}
+
+	private updateActions(): void {
+		const activeViewlet = this.viewletService.getActiveViewlet();
+
+		this.actions.forEach(action => {
+			action.checked = activeViewlet && activeViewlet.getId() === action.id;
 		});
 	}
 
@@ -359,12 +370,23 @@ class OpenViewletAction extends Action {
 
 	constructor(
 		private viewlet: ViewletDescriptor,
+		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService
 	) {
 		super(viewlet.id, viewlet.name);
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(this.viewlet.id, true);
+		const sideBarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
+		const activeViewlet = this.viewletService.getActiveViewlet();
+
+		// Hide sidebar if selected viewlet already visible
+		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
+			this.partService.setSideBarHidden(true);
+		} else {
+			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
+		}
+
+		return TPromise.as(true);
 	}
 }
