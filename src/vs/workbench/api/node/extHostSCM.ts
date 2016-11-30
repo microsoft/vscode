@@ -43,7 +43,7 @@ export class ExtHostSCM {
 		});
 	}
 
-	$getBaselineResource(id: string, uri: URI): TPromise<URI> {
+	$getOriginalResource(id: string, uri: URI): TPromise<URI> {
 		const provider = this._providers[id];
 
 		if (!provider) {
