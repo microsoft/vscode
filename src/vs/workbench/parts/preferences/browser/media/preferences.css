@@ -123,10 +123,6 @@
 	background: rgb(21,97,21);
 }
 
-.editor-actions .action-item .icon.clearSearchResults {
-	background: url("clear-input.svg") center center no-repeat;
-}
-
 .title-actions .action-item .icon.collapseAll,
 .editor-actions .action-item .icon.collapseAll {
 	background: url('collapseAll.svg') center center no-repeat;
