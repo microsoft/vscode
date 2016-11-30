@@ -62,12 +62,12 @@ export abstract class EditorAction extends ConfigEditorCommand {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
-		this.reportTelemetry(accessor);
+		this.reportTelemetry(accessor, args);
 		return this.run(accessor, editor);
 	}
 
-	protected reportTelemetry(accessor: ServicesAccessor) {
-		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id });
+	protected reportTelemetry(accessor: ServicesAccessor, args: any) {
+		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id, from: args && args.from || 'unknown' });
 	}
 
 	public abstract run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void | TPromise<void>;

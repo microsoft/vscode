@@ -10,6 +10,7 @@ import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as objects from 'vs/base/common/objects';
 import Severity from 'vs/base/common/severity';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import * as dom from 'vs/base/browser/dom';
@@ -182,7 +183,7 @@ export abstract class KeybindingService implements IKeybindingService {
 				e.preventDefault();
 			}
 			let commandId = resolveResult.commandId.replace(/^\^/, '');
-			this._commandService.executeCommand(commandId, resolveResult.commandArgs || {}).done(undefined, err => {
+			this._commandService.executeCommand(commandId, objects.assign({ from: 'keybinding' }, resolveResult.commandArgs || {})).done(undefined, err => {
 				this._messageService.show(Severity.Warning, err);
 			});
 		}
