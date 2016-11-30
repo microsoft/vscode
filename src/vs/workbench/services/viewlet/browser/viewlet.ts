@@ -34,6 +34,11 @@ export interface IViewletService {
 	getDefaultViewletId(): string;
 
 	/**
+	 * Returns the viewlet by id.
+	 */
+	getViewlet(id: string): ViewletDescriptor;
+
+	/**
 	 * Returns all registered viewlets
 	 */
 	getViewlets(): ViewletDescriptor[];

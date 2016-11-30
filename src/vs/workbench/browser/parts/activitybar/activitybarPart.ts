@@ -13,9 +13,9 @@ import * as arrays from 'vs/base/common/arrays';
 import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IComposite } from 'vs/workbench/common/composite';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Part } from 'vs/workbench/browser/part';
+import { IViewlet } from 'vs/workbench/common/viewlet';
 import { ToggleViewletAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
@@ -52,6 +52,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
 	private viewletIdToActivity: { [viewletId: string]: IViewletActivity; };
 
+	private pendingViewlet: ViewletDescriptor;
+
 	private memento: any;
 	private hiddenViewlets: string[];
 
@@ -83,21 +85,31 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private registerListeners(): void {
 
 		// Activate viewlet action on opening of a viewlet
-		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.onActiveCompositeChanged(viewlet)));
+		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.onDidViewletOpen(viewlet)));
 
 		// Deactivate viewlet action on close
-		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
+		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onDidViewletClose(viewlet)));
 	}
 
-	private onActiveCompositeChanged(composite: IComposite): void {
-		if (this.viewletIdToActions[composite.getId()]) {
-			this.viewletIdToActions[composite.getId()].activate();
+	private onDidViewletOpen(viewlet: IViewlet): void {
+		const id = viewlet.getId();
+
+		if (this.viewletIdToActions[id]) {
+			this.viewletIdToActions[id].activate();
+		}
+
+		const pendingViewletShouldClose = this.pendingViewlet && this.pendingViewlet.id !== viewlet.getId();
+		const pendingViewletShouldShow = !this.getVisibleViewlets().some(v => v.id === viewlet.getId());
+		if ( pendingViewletShouldShow || pendingViewletShouldClose) {
+			this.updateViewletSwitcher();
 		}
 	}
 
-	private onCompositeClosed(composite: IComposite): void {
-		if (this.viewletIdToActions[composite.getId()]) {
-			this.viewletIdToActions[composite.getId()].deactivate();
+	private onDidViewletClose(viewlet: IViewlet): void {
+		const id = viewlet.getId();
+
+		if (this.viewletIdToActions[id]) {
+			this.viewletIdToActions[id].deactivate();
 		}
 	}
 
@@ -163,6 +175,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private updateViewletSwitcher() {
 		let viewletsToShow = this.getVisibleViewlets();
+
+		// Always show the active viewlet even if it is marked to be hidden
+		const activeViewlet = this.viewletService.getActiveViewlet();
+		if (activeViewlet && !viewletsToShow.some(v => v.id === activeViewlet.getId())) {
+			this.pendingViewlet = this.viewletService.getViewlet(activeViewlet.getId());
+			viewletsToShow.push(this.pendingViewlet);
+		} else {
+			this.pendingViewlet = void 0;
+		}
 
 		// Ensure we are not showing more viewlets than we have height for
 		let overflows = false;
@@ -275,10 +296,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			return;
 		}
 
-		this.hiddenViewlets.push(viewletId);
-		this.hiddenViewlets = arrays.distinct(this.hiddenViewlets);
+		// first open default viewlet
+		this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true).then(() => {
 
-		this.updateViewletSwitcher();
+			// then add to hidden and update switcher
+			this.hiddenViewlets.push(viewletId);
+			this.hiddenViewlets = arrays.distinct(this.hiddenViewlets);
+
+			this.updateViewletSwitcher();
+		});
 	}
 
 	public isHidden(viewletId: string): boolean {
@@ -286,12 +312,19 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	public show(viewletId: string): void {
-		const index = this.hiddenViewlets.indexOf(viewletId);
-		if (index >= 0) {
+		if (!this.isHidden(viewletId)) {
+			return;
+		}
+
+		// first open that viewlet
+		this.viewletService.openViewlet(viewletId, true).then(() => {
+
+			// then update
+			const index = this.hiddenViewlets.indexOf(viewletId);
 			this.hiddenViewlets.splice(index, 1);
 
 			this.updateViewletSwitcher();
-		}
+		});
 	}
 
 	/**

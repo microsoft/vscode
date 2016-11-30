@@ -435,8 +435,7 @@ class HideViewletAction extends Action {
 	public run(viewlet: ViewletDescriptor): TPromise<any> {
 		this.activityBarService.hide(viewlet.id);
 
-		// Open default viewlet
-		return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
+		return TPromise.as(true);
 	}
 }
 
@@ -444,7 +443,6 @@ export class ToggleViewletAction extends Action {
 
 	constructor(
 		private viewlet: ViewletDescriptor,
-		@IViewletService private viewletService: IViewletService,
 		@IActivityBarService private activityBarService: IActivityBarService
 	) {
 		super('activitybar.show.toggleViewlet', viewlet.name);
@@ -453,15 +451,12 @@ export class ToggleViewletAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let viewletToOpen: string;
 		if (this.activityBarService.isHidden(this.viewlet.id)) {
 			this.activityBarService.show(this.viewlet.id);
-			viewletToOpen = this.viewlet.id;
 		} else {
 			this.activityBarService.hide(this.viewlet.id);
-			viewletToOpen = this.viewletService.getDefaultViewletId();
 		}
 
-		return this.viewletService.openViewlet(viewletToOpen, true);
+		return TPromise.as(true);
 	}
 }

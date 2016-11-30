@@ -95,4 +95,8 @@ export class ViewletService implements IViewletService {
 	public getDefaultViewletId(): string {
 		return this.viewletRegistry.getDefaultViewletId();
 	}
+
+	public getViewlet(id: string): ViewletDescriptor {
+		return this.getViewlets().filter(viewlet => viewlet.id === id)[0];
+	}
 }
