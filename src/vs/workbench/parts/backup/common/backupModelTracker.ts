@@ -6,6 +6,7 @@
 'use strict';
 
 import Uri from 'vs/base/common/uri';
+import errors = require('vs/base/common/errors');
 import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
@@ -56,7 +57,7 @@ export class BackupModelTracker implements IWorkbenchContribution {
 		} else if (event.kind === StateChange.CONTENT_CHANGE) {
 			if (this.backupService.isHotExitEnabled) {
 				const model = this.textFileService.models.get(event.resource);
-				this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId());
+				this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()).done(null, errors.onUnexpectedError);
 			}
 		}
 	}
@@ -65,7 +66,7 @@ export class BackupModelTracker implements IWorkbenchContribution {
 		if (this.backupService.isHotExitEnabled) {
 			const input = this.untitledEditorService.get(resource);
 			if (input.isDirty()) {
-				input.resolve().then(model => this.backupFileService.backupResource(resource, model.getValue(), model.getVersionId()));
+				input.resolve().then(model => this.backupFileService.backupResource(resource, model.getValue(), model.getVersionId())).done(null, errors.onUnexpectedError);
 			} else {
 				this.discardBackup(resource);
 			}
@@ -73,7 +74,7 @@ export class BackupModelTracker implements IWorkbenchContribution {
 	}
 
 	private discardBackup(resource: Uri): void {
-		this.backupFileService.discardResourceBackup(resource);
+		this.backupFileService.discardResourceBackup(resource).done(null, errors.onUnexpectedError);
 	}
 
 	public dispose(): void {

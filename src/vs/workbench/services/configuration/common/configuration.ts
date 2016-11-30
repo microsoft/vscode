@@ -12,6 +12,8 @@ export const WORKSPACE_CONFIG_DEFAULT_PATH = `${WORKSPACE_CONFIG_FOLDER_DEFAULT_
 
 export const IWorkspaceConfigurationService = createDecorator<IWorkspaceConfigurationService>('configurationService');
 
+export type IWorkspaceConfigurationValues = { [key: string]: IWorkspaceConfigurationValue<any> }
+
 export interface IWorkspaceConfigurationService extends IConfigurationService {
 
 	/**
@@ -28,6 +30,11 @@ export interface IWorkspaceConfigurationService extends IConfigurationService {
 	 * Override for the IConfigurationService#keys() method that adds information about workspace settings.
 	 */
 	keys(): IWorkspaceConfigurationKeys;
+
+	/**
+	 * Returns the defined values of configurations in the different scopes.
+	 */
+	values(): IWorkspaceConfigurationValues;
 }
 
 export interface IWorkspaceConfigurationValue<T> extends IConfigurationValue<T> {
@@ -42,22 +49,3 @@ export const WORKSPACE_STANDALONE_CONFIGURATIONS = {
 	'tasks': `${WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME}/tasks.json`,
 	'launch': `${WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME}/launch.json`
 };
-
-export type IWorkspaceConfiguration = { [key: string]: IWorkspaceConfigurationValue<any> }
-
-export function getEntries(configurationService: IWorkspaceConfigurationService): IWorkspaceConfiguration {
-
-	const result: IWorkspaceConfiguration = Object.create(null);
-	const keyset = configurationService.keys();
-	const keys = [...keyset.workspace, ...keyset.user, ...keyset.default].sort();
-	let lastKey: string;
-	for (const key of keys) {
-		if (key !== lastKey) {
-			lastKey = key;
-			const config = configurationService.lookup(key);
-			result[key] = config;
-		}
-	}
-
-	return result;
-}

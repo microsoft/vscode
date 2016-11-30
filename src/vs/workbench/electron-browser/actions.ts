@@ -342,7 +342,8 @@ export class ShowStartupPerformance extends Action {
 			const fingerprint: IStartupFingerprint = timers.fingerprint;
 			console.log(`OS: ${fingerprint.platform} (${fingerprint.release})`);
 			console.log(`CPUs: ${fingerprint.cpus.model} (${fingerprint.cpus.count} x ${fingerprint.cpus.speed})`);
-			console.log(`Memory: ${(fingerprint.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(fingerprint.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
+			console.log(`Memory (System): ${(fingerprint.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(fingerprint.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
+			console.log(`Memory (Process): ${(fingerprint.meminfo.workingSetSize / 1024).toFixed(2)}MB working set (${(fingerprint.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(fingerprint.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(fingerprint.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
 			console.log(`Initial Startup: ${fingerprint.initialStartup}`);
 			console.log(`Screen Reader Active: ${fingerprint.hasAccessibilitySupport}`);
 			console.log(`Empty Workspace: ${fingerprint.emptyWorkbench}`);
@@ -445,7 +446,6 @@ export class ReloadWindowAction extends Action {
 	}
 
 	run(): TPromise<boolean> {
-		this.partService.setRestoreSidebar(); // we want the same sidebar after a reload restored
 		return this.windowService.reloadWindow().then(() => true);
 	}
 }

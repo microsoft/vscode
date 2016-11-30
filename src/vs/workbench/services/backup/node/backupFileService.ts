@@ -14,17 +14,19 @@ import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/ser
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { readToMatchingString } from 'vs/base/node/stream';
+import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
 
 	add(resource: Uri, versionId?: number): void;
 	has(resource: Uri, versionId?: number): boolean;
+	get(): Uri[];
 	remove(resource: Uri): void;
 	clear(): void;
 }
 
-// TODO@daniel this should resolve the backups with their file names once we have the metadata in place
 export class BackupFilesModel implements IBackupFilesModel {
 	private cache: { [resource: string]: number /* version ID */ } = Object.create(null);
 
@@ -65,6 +67,10 @@ export class BackupFilesModel implements IBackupFilesModel {
 		return true;
 	}
 
+	public get(): Uri[] {
+		return Object.keys(this.cache).map(k => Uri.parse(k));
+	}
+
 	public remove(resource: Uri): void {
 		delete this.cache[resource.toString()];
 	}
@@ -77,6 +83,8 @@ export class BackupFilesModel implements IBackupFilesModel {
 export class BackupFileService implements IBackupFileService {
 
 	public _serviceBrand: any;
+
+	private static readonly META_MARKER = '\n';
 
 	protected backupHome: string;
 	protected workspacesJsonPath: string;
@@ -148,6 +156,9 @@ export class BackupFileService implements IBackupFileService {
 				return void 0; // return early if backup version id matches requested one
 			}
 
+			// Add metadata to top of file
+			content = `${resource.toString()}${BackupFileService.META_MARKER}${content}`;
+
 			return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
 		});
 	}
@@ -173,6 +184,30 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
+	public getWorkspaceFileBackups(): TPromise<Uri[]> {
+		return this.ready.then(model => {
+			const readPromises: TPromise<Uri>[] = [];
+
+			model.get().forEach(fileBackup => {
+				readPromises.push(new TPromise<Uri>((c, e) => {
+					readToMatchingString(fileBackup.fsPath, BackupFileService.META_MARKER, 2000, 10000, (error, result) => {
+						if (result === null) {
+							e(error);
+						}
+
+						c(Uri.parse(result));
+					});
+				}));
+			});
+
+			return TPromise.join(readPromises);
+		});
+	}
+
+	public parseBackupContent(rawText: IRawTextContent): string {
+		return rawText.value.lines.slice(1).join('\n'); // The first line of a backup text file is the file name
+	}
+
 	protected getBackupResource(resource: Uri): Uri {
 		if (!this.backupEnabled) {
 			return null;
@@ -181,8 +216,7 @@ export class BackupFileService implements IBackupFileService {
 		// Windows and Mac paths are case insensitive, we want backups to be too
 		const pathCaseFix = platform.isWindows || platform.isMacintosh ? resource.fsPath.toLowerCase() : resource.fsPath;
 
-		// Only hash the file path if the file is not untitled
-		const backupName = resource.scheme === 'untitled' ? pathCaseFix : crypto.createHash('md5').update(pathCaseFix).digest('hex');
+		const backupName = crypto.createHash('md5').update(pathCaseFix).digest('hex');
 		const backupPath = path.join(this.backupWorkspacePath, resource.scheme, backupName);
 
 		return Uri.file(backupPath);

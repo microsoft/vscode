@@ -21,7 +21,7 @@
 	"glyphMargin": "Controla si el editor debe representar el margen de glifo vertical. El margen de glifo se usa, principalmente, para depuración.",
 	"hideCursorInOverviewRuler": "Controla si el cursor debe ocultarse en la regla de visión general.",
 	"ignoreTrimWhitespace": "Controla si el editor de diferencias muestra los cambios de espacio inicial o espacio final como diferencias.",
-	"insertSpaces": "Insertar espacios al presionar TAB. Este valor se invalida en función del contenido del archivo cuando `editor.detectIndentation` está activado.",
+	"insertSpaces": "Insertar espacios al presionar TAB. Este valor se invalida en función del contenido del archivo cuando \"editor.detectIndentation\" está activado.",
 	"insertSpaces.errorMessage": "Se esperaba \"boolean\". Tenga en cuenta que el ajuste \"editor.detectIndentation\" ha reemplazado al valor \"auto\".",
 	"lineHeight": "Controla la altura de línea. Utilice 0 para calcular el valor de lineHeight a partir de fontSize.",
 	"lineNumbers": "Controla la presentación de los números de línea. Los valores posibles son \"on\", \"off\" y \"relative\". \"relative\" muestra el número de líneas desde la posición actual del cursor.",

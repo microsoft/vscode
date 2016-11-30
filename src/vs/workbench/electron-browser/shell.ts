@@ -20,7 +20,7 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
-import { IStartupFingerprint } from 'vs/workbench/electron-browser/common';
+import { IStartupFingerprint, IMemoryInfo } from 'vs/workbench/electron-browser/common';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
 import { ITelemetryService, NullTelemetryService, configurationTelemetry, loadExperiments } from 'vs/platform/telemetry/common/telemetry';
@@ -37,7 +37,7 @@ import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { RequestService } from 'vs/platform/request/node/requestService';
+import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
@@ -212,6 +212,7 @@ export class WorkbenchShell {
 		const workbenchStarted = Date.now();
 		timers.workbenchStarted = new Date(workbenchStarted);
 		this.extensionService.onReady().done(() => {
+			const now = Date.now();
 			const initialStartup = !!timers.isInitialStartup;
 			const start = initialStartup ? timers.perfStartTime : timers.perfWindowLoadTime;
 			let totalmem: number;
@@ -219,12 +220,16 @@ export class WorkbenchShell {
 			let cpus: { count: number; speed: number; model: string; };
 			let platform: string;
 			let release: string;
+			let loadavg: number[];
+			let meminfo: IMemoryInfo;
 
 			try {
 				totalmem = os.totalmem();
 				freemem = os.freemem();
 				platform = os.platform();
 				release = os.release();
+				loadavg = os.loadavg();
+				meminfo = process.getProcessMemoryInfo();
 
 				const rawCpus = os.cpus();
 				if (rawCpus && rawCpus.length > 0) {
@@ -235,6 +240,7 @@ export class WorkbenchShell {
 			}
 
 			const startupTimeEvent: IStartupFingerprint = {
+				version: 1,
 				ellapsed: Math.round(workbenchStarted - start),
 				timers: {
 					ellapsedExtensions: Math.round(timers.perfAfterExtensionLoad - timers.perfBeforeExtensionLoad),
@@ -243,13 +249,16 @@ export class WorkbenchShell {
 					ellapsedViewletRestore: Math.round(restoreViewletDuration),
 					ellapsedEditorRestore: Math.round(restoreEditorsDuration),
 					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen),
-					ellapsedWindowLoadToRequire: Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfWindowLoadTime)
+					ellapsedWindowLoadToRequire: Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfWindowLoadTime),
+					ellapsedTimersToTimersComputed: Date.now() - now
 				},
 				platform,
 				release,
 				totalmem,
 				freemem,
+				meminfo,
 				cpus,
+				loadavg,
 				initialStartup,
 				hasAccessibilitySupport: !!timers.hasAccessibilitySupport,
 				emptyWorkbench: !this.contextService.getWorkspace()
@@ -326,7 +335,7 @@ export class WorkbenchShell {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath],
-				experiments: loadExperiments(this.storageService, this.configurationService)
+				experiments: loadExperiments(this.contextService, this.storageService, this.configurationService)
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -343,7 +352,7 @@ export class WorkbenchShell {
 
 			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
-			NullTelemetryService._experiments = loadExperiments(this.storageService, this.configurationService);
+			NullTelemetryService._experiments = loadExperiments(this.contextService, this.storageService, this.configurationService);
 			this.telemetryService = NullTelemetryService;
 		}
 
@@ -355,7 +364,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IChoiceService, this.messageService);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
-		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
+		this.toUnbind.push(lifecycleService.onShutdown(reason => disposables.dispose()));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));

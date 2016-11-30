@@ -84,7 +84,7 @@ export class Adapter {
 		objects.mixin(this.rawAdapter, secondRawAdapter, extensionDescription.isBuiltin);
 	}
 
-	public getInitialConfigFileContent(): TPromise<string> {
+	public getInitialConfigurationContent(): TPromise<string> {
 		const editorConfig = this.configurationService.getConfiguration<any>();
 		if (typeof this.rawAdapter.initialConfigurations === 'string') {
 			// Contributed initialConfigurations is a command that needs to be invoked
@@ -105,7 +105,7 @@ export class Adapter {
 				configurations: this.rawAdapter.initialConfigurations || []
 			},
 			null,
-			editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t'
+			editorConfig.editor && editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t'
 		));
 	};
 
@@ -151,16 +151,6 @@ export class Adapter {
 				default: 'openOnFirstSessionStart',
 				description: nls.localize('internalConsoleOptions', "Controls behavior of the internal debug console.")
 			};
-
-			const warnRelativePaths = (attribute: IJSONSchema) => {
-				if (attribute) {
-					attribute.pattern = '^\\${.*}.*|' + paths.isAbsoluteRegex.source;
-					attribute.errorMessage = nls.localize('relativePathsNotConverted', "Relative paths will no longer be automatically converted to absolute ones. Consider using ${workspaceRoot} as a prefix.");
-				}
-			};
-			warnRelativePaths(properties['outDir']);
-			warnRelativePaths(properties['program']);
-			warnRelativePaths(properties['cwd']);
 
 			const osProperties = objects.deepClone(properties);
 			properties['windows'] = {

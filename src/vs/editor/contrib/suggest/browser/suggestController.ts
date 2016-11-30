@@ -123,6 +123,7 @@ export class SuggestController implements IEditorContribution {
 
 	cancelSuggestWidget(): void {
 		if (this.widget) {
+			this.model.cancel();
 			this.widget.hideDetailsOrHideWidget();
 		}
 	}

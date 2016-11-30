@@ -37,6 +37,7 @@ export interface IWindowsService {
 	unmaximizeWindow(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
 	toggleMenuBar(windowId: number): TPromise<void>;
+	quit(): TPromise<void>;
 
 	// Global methods
 	// TODO@joao: rename, shouldn't this be openWindow?
@@ -89,7 +90,7 @@ export interface IWindowSettings {
 	openFilesInNewWindow: boolean;
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
-	fullScreenFocusMode: boolean;
+	fullScreenZenMode: boolean;
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
 }

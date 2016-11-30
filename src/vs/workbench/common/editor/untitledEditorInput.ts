@@ -28,7 +28,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	public static SCHEMA: string = 'untitled';
 
 	private resource: URI;
-	private hasAssociatedFilePath: boolean;
+	private _hasAssociatedFilePath: boolean;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
 
@@ -49,11 +49,15 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		super();
 
 		this.resource = resource;
-		this.hasAssociatedFilePath = hasAssociatedFilePath;
+		this._hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
 		this.toUnbind = [];
 		this._onDidModelChangeContent = new Emitter<void>();
 		this._onDidModelChangeEncoding = new Emitter<void>();
+	}
+
+	public get hasAssociatedFilePath(): boolean {
+		return this._hasAssociatedFilePath;
 	}
 
 	public get onDidModelChangeContent(): Event<void> {

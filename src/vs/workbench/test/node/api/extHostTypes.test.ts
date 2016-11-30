@@ -425,6 +425,9 @@ suite('ExtHostTypes', function () {
 		assert.equal(string.appendText('I need $ and $').value, 'I need \\$ and \\$');
 
 		string = new types.SnippetString();
+		assert.equal(string.appendText('I need \\$').value, 'I need \\\\\\$');
+
+		string = new types.SnippetString();
 		string.appendPlaceholder('fo$o}');
 		assert.equal(string.value, '${1:fo\\$o\\}}');
 

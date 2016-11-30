@@ -4,19 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export function toCustomExplorerViewletId(viewletId: string): string {
-	return 'workbench.view.customExplorer.' + viewletId;
+export function toViewletId(viewletId: string): string {
+	return `workbench.view.extension.${viewletId}`;
 }
 
-export function toCustomExplorerViewletActionId(viewletId: string): string {
-	return 'workbench.action.customExplorer.' + viewletId;
+export function toViewletActionId(viewletId: string): string {
+	return `workbench.action.extension.${viewletId}`;
 }
 
-export function toCustomExplorerViewletCSSClass(viewletId: string): string {
-	return 'customExplorer-' + viewletId;
+export function toViewletCSSClass(viewletId: string): string {
+	return `extensionViewlet-${viewletId}`;
 }
 
 export function isValidViewletId(viewletId: string): boolean {
-	// Only allow alphanumeric letters, `_` and `-`.
-	return /^[a-z0-9_-]+$/i.test(viewletId);
+	return /^[a-z0-9_-]+$/i.test(viewletId); // Only allow alphanumeric letters, `_` and `-`.
 }

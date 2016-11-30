@@ -60,6 +60,11 @@ export interface IConfigurationValue {
 	value: any;
 }
 
+export interface IConfigurationEditingOptions {
+	writeToBuffer: boolean;
+	autoSave: boolean;
+}
+
 export interface IConfigurationEditingService {
 
 	_serviceBrand: ServiceIdentifier<any>;
@@ -68,5 +73,5 @@ export interface IConfigurationEditingService {
 	 * Allows to write to either the user or workspace configuration file. The returned promise will be
 	 * in error state in any of the error cases from [ConfigurationEditingErrorCode](#ConfigurationEditingErrorCode)
 	 */
-	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue): TPromise<void>;
+	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options?: IConfigurationEditingOptions): TPromise<void>;
 }

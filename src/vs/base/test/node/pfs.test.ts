@@ -101,4 +101,47 @@ suite('PFS', () => {
 			}, error => onError(error, done));
 		});
 	});
+
+	test('rimraf - simple', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		extfs.mkdirp(newDir, 493, (error) => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+			fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+
+			pfs.rimraf(newDir).then(() => {
+				assert.ok(!fs.existsSync(newDir));
+				done();
+			}, error => onError(error, done));
+		}); // 493 = 0755
+	});
+
+	test('rimraf - recursive folder structure', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		extfs.mkdirp(newDir, 493, (error) => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+			fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+
+			fs.mkdirSync(path.join(newDir, 'somefolder'));
+			fs.writeFileSync(path.join(newDir, 'somefolder', 'somefile.txt'), 'Contents');
+
+			pfs.rimraf(newDir).then(() => {
+				assert.ok(!fs.existsSync(newDir));
+				done();
+			}, error => onError(error, done));
+		}); // 493 = 0755
+	});
 });
