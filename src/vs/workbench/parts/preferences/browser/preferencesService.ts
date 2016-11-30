@@ -9,7 +9,6 @@ import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import * as labels from 'vs/base/common/labels';
-import { Delayer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { parseTree, findNodeAtLocation } from 'vs/base/common/json';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
@@ -171,15 +170,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [configurationValue.key] });
 			this.openEditableSettings(this.configurationTarget, true).then(editor => {
 				const editorControl = <ICodeEditor>editor.getControl();
-				const disposable = editorControl.onDidChangeModelContent(() => {
-					new Delayer(100).trigger((): any => {
+				this.configurationEditingService.writeConfiguration(this.configurationTarget, configurationValue, { writeToBuffer: true, autoSave: true })
+					.then(() => {
 						editorControl.focus();
 						editorControl.setSelection(this.getSelectionRange(configurationValue.key, editorControl.getModel()));
-					});
-					disposable.dispose();
-				});
-				this.configurationEditingService.writeConfiguration(this.configurationTarget, configurationValue)
-					.then(null, error => this.messageService.show(Severity.Error, error));
+					}, error => this.messageService.show(Severity.Error, error));
 			});
 		}
 	}
