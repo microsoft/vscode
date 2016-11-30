@@ -64,6 +64,6 @@ export class GitSCMProvider extends SCMProvider {
 	}
 
 	getOriginalResource(uri: URI): TPromise<URI> {
-		return TPromise.wrapError('not implemented');
+		return TPromise.wrapError<URI>('getOriginalResource not implemented');
 	}
 }

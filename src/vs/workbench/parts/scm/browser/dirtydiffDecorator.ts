@@ -114,7 +114,13 @@ class DirtyDiffModelDecorator {
 			return this._originalURIPromise;
 		}
 
-		this._originalURIPromise = this.scmService.getBaselineResource(this.uri)
+		const provider = this.scmService.activeProvider;
+
+		if (!provider) {
+			return winjs.TPromise.as(null);
+		}
+
+		this._originalURIPromise = provider.getOriginalResource(this.uri)
 			.then(originalUri => {
 				if (!originalUri) {
 					return null;
