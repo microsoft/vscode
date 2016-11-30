@@ -88,21 +88,20 @@ declare module 'vscode' {
 
 	export interface SCMResource {
 		uri: Uri;
-		resourceGroup: string;
 	}
 
 	export interface SCMResourceGroup {
 		id: string;
 		label: string;
+		resources: SCMResource[];
 	}
 
 	export interface SCMProvider {
 		commitCommand?: string;
 		clickCommand?: string;
 		dragCommand?: string;
-		resourceGroups: SCMResourceGroup[];
 
-		onDidChange: Event<SCMResource[]>;
+		onDidChange: Event<SCMResourceGroup[]>;
 		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
 	}
 
