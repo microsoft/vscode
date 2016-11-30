@@ -29,7 +29,8 @@ export class SettingsGroupTitleWidget extends ZoneWidget {
 	constructor(editor: ICodeEditor, public settingsGroup: ISettingsGroup) {
 		super(editor, {
 			showFrame: false,
-			showArrow: false
+			showArrow: false,
+			className: 'settings-group-title-widget'
 		});
 		this.create();
 		this._register(this.editor.onDidLayoutChange(() => this.layout()));

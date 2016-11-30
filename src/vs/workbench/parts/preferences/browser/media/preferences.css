@@ -7,6 +7,7 @@
 	display: none;
 	border-bottom: 1px solid #efefef;
 }
+
 .settings-header-widget.show {
 	display: flex;
 }
@@ -49,6 +50,10 @@
 
 .settings-header-widget > .settings-header-container > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
 	font-size: 14px;
+}
+
+.monaco-editor .zone-widget.settings-group-title-widget {
+	z-index: 0;
 }
 
 .monaco-editor .settings-group-title-widget-container .title-container {
@@ -139,6 +144,7 @@
 	top: 4px;
 	right: 28px;
 	border-radius: 2px;
+	z-index: 1;
 }
 
 .monaco-editor .settings-count-widget.show {

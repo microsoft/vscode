@@ -353,10 +353,15 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	) {
 		super();
 		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingActionRenderer, editor, false));
+		this._register(editor.getModel().onDidChangeContent(() => this.onModelChanged()));
 	}
 
 	public render() {
 		this.copySettingActionRenderer.render(this.settingsEditorModel.settingsGroups);
+	}
+
+	private onModelChanged() {
+		this.render();
 	}
 }
 
@@ -495,6 +500,7 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 			this.disposables.push(settingsGroupTitleWidget);
 			this.disposables.push(settingsGroupTitleWidget.onToggled(collapsed => this.onToggled(collapsed, settingsGroupTitleWidget.settingsGroup)));
 		}
+		this.settingsGroupTitleWidgets.reverse();
 	}
 
 	public showGroup(group: number) {
