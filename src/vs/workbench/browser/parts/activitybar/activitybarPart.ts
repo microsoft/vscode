@@ -12,7 +12,7 @@ import DOM = require('vs/base/browser/dom');
 import * as arrays from 'vs/base/common/arrays';
 import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
-import { ActionsOrientation, ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IComposite } from 'vs/workbench/common/composite';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Part } from 'vs/workbench/browser/part';
@@ -28,6 +28,7 @@ import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose } from 'vs/base/common/lifecycle';
+import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 
 interface IViewletActivity {
 	badge: IBadge;
@@ -135,7 +136,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			DOM.EventHelper.stop(e, true);
 			const event = new StandardMouseEvent(e);
 
-			const actions = this.viewletService.getViewlets().map(viewlet => this.instantiationService.createInstance(ToggleViewletAction, viewlet));
+			const actions: Action[] = this.viewletService.getViewlets().map(viewlet => this.instantiationService.createInstance(ToggleViewletAction, viewlet));
+			actions.push(new Separator());
+			actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => { return { x: event.posx + 1, y: event.posy }; },
