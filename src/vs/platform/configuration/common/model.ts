@@ -13,28 +13,29 @@ export function getDefaultValues(): any {
 
 	for (let key in properties) {
 		let value = properties[key].default;
-		addToValueTree(valueTreeRoot, key, value);
+		addToValueTree(valueTreeRoot, key, value, message => console.error(`Conflict in default settings: ${message}`));
 	}
 
 	return valueTreeRoot;
 }
 
-export function toValuesTree(properties: { [qualifiedKey: string]: any }): any {
+export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {
 	const root = Object.create(null);
 
 	for (let key in properties) {
-		addToValueTree(root, key, properties[key]);
+		addToValueTree(root, key, properties[key], conflictReporter);
 	}
 
 	return root;
 }
 
-function addToValueTree(settingsTreeRoot: any, key: string, value: any): void {
+function addToValueTree(settingsTreeRoot: any, key: string, value: any, conflictReporter: (message: string) => void): void {
 	const segments = key.split('.');
 	const last = segments.pop();
 
 	let curr = settingsTreeRoot;
-	segments.forEach(s => {
+	for (let i = 0; i < segments.length; i++) {
+		let s = segments[i];
 		let obj = curr[s];
 		switch (typeof obj) {
 			case 'undefined':
@@ -43,13 +44,16 @@ function addToValueTree(settingsTreeRoot: any, key: string, value: any): void {
 			case 'object':
 				break;
 			default:
-				console.error(`Conflicting configuration setting: ${key} at ${s} with ${JSON.stringify(obj)}`);
+				conflictReporter(`Ignoring ${key} as ${segments.slice(0, i + 1).join('.')} is ${JSON.stringify(obj)}`);
+				return;
 		}
 		curr = obj;
-	});
+	};
 
 	if (typeof curr === 'object') {
 		curr[last] = value; // workaround https://github.com/Microsoft/vscode/issues/13606
+	} else {
+		conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
 	}
 }
 
