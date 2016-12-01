@@ -49,7 +49,7 @@ suite('Debug - View Model', () => {
 	});
 
 	test('selected configuration name', () => {
-		model.onDidSelectConfigurationName(name => {
+		model.onDidSelectConfiguration(name => {
 			assert.equal(name, 'configName');
 		});
 		assert.equal(model.selectedConfigurationName, 'mockconfiguration');

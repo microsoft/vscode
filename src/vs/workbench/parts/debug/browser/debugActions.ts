@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService, State, NO_CONFIGURATIONS_LABEL, IProcess, SessionRequestType, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
+import { IDebugService, State, IProcess, SessionRequestType, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -70,7 +70,7 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
-		this.toDispose.push(debugService.getViewModel().onDidSelectConfigurationName(configurationName => this.updateClass()));
+		this.toDispose.push(debugService.getViewModel().onDidSelectConfiguration(configurationName => this.updateClass()));
 		this.updateClass();
 	}
 
@@ -112,7 +112,7 @@ export class StartAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService, @ICommandService private commandService: ICommandService) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
-		this.debugService.getViewModel().onDidSelectConfigurationName(() => {
+		this.debugService.getViewModel().onDidSelectConfiguration(() => {
 			this.updateEnablement();
 		});
 	}
