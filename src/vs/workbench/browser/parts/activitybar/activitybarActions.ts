@@ -21,7 +21,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose } from 'vs/base/common/lifecycle';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
@@ -102,102 +102,11 @@ export class ViewletActivityAction extends ActivityAction {
 	}
 }
 
-export class ViewletOverflowActivityAction extends ActivityAction {
-
-	constructor(
-		private showMenu: () => void
-	) {
-		super('activitybar.additionalViewlets.action', nls.localize('additionalViewlets', "Additional Viewlets"), 'toggle-more');
-	}
-
-	public run(event): TPromise<any> {
-		this.showMenu();
-
-		return TPromise.as(true);
-	}
-}
-
-export class ViewletOverflowActivityActionItem extends BaseActionItem {
-	private $e: Builder;
-	private name: string;
-	private cssClass: string;
-	private actions: OpenViewletAction[];
-
-	constructor(
-		action: ActivityAction,
-		private getOverflowingViewlets: () => ViewletDescriptor[],
-		private getBadge: (viewlet: ViewletDescriptor) => IBadge,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IViewletService private viewletService: IViewletService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-	) {
-		super(null, action);
-
-		this.cssClass = action.class;
-		this.name = action.label;
-	}
-
-	public render(container: HTMLElement): void {
-		super.render(container);
-
-		this.$e = $('a.action-label').attr({
-			tabIndex: '0',
-			role: 'button',
-			title: this.name,
-			class: this.cssClass
-		}).appendTo(this.builder);
-	}
-
-	public showMenu(): void {
-		if (this.actions) {
-			dispose(this.actions);
-		}
-
-		this.actions = this.getActions();
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.builder.getHTMLElement(),
-			getActions: () => TPromise.as(this.actions),
-			onHide: () => dispose(this.actions)
-		});
-	}
-
-	private getActions(): OpenViewletAction[] {
-		const activeViewlet = this.viewletService.getActiveViewlet();
-
-		return this.getOverflowingViewlets().map(viewlet => {
-			const action = this.instantiationService.createInstance(OpenViewletAction, viewlet);
-			action.radio = activeViewlet && activeViewlet.getId() === action.id;
-
-			const badge = this.getBadge(action.viewlet);
-			let suffix: string | number;
-			if (badge instanceof NumberBadge) {
-				suffix = badge.number;
-			} else if (badge instanceof TextBadge) {
-				suffix = badge.text;
-			}
-
-			if (suffix) {
-				action.label = nls.localize('numberBadge', "{0} ({1})", action.viewlet.name, suffix);
-			} else {
-				action.label = action.viewlet.name;
-			}
-
-			return action;
-		});
-	}
-
-	public dispose(): void {
-		super.dispose();
-
-		this.actions = dispose(this.actions);
-	}
-}
-
 export class ActivityActionItem extends BaseActionItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
 	private static toggleViewletPinnedAction: ToggleViewletPinnedAction;
+	private static draggedViewlet: ViewletDescriptor;
 
 	private $e: Builder;
 	private name: string;
@@ -205,7 +114,7 @@ export class ActivityActionItem extends BaseActionItem {
 	private cssClass: string;
 	private $badge: Builder;
 	private $badgeContent: Builder;
-	private toDispose: IDisposable[];
+	private mouseUpTimeout: number;
 
 	constructor(
 		action: ActivityAction,
@@ -216,11 +125,12 @@ export class ActivityActionItem extends BaseActionItem {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(null, action);
+		super(null, action, { draggable: true });
 
 		this.cssClass = action.class;
 		this.name = viewlet.name;
 		this._keybinding = this.getKeybindingLabel(viewlet.id);
+
 		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
 
 		if (!ActivityActionItem.manageExtensionAction) {
@@ -249,11 +159,26 @@ export class ActivityActionItem extends BaseActionItem {
 			role: 'button'
 		}).appendTo(this.builder);
 
+		// Try hard to prevent keyboard only focus feedback when using mouse
+		this.$e.on(DOM.EventType.MOUSE_DOWN, () => {
+			this.$e.addClass('clicked');
+		});
+
+		this.$e.on(DOM.EventType.MOUSE_UP, () => {
+			if (this.mouseUpTimeout) {
+				clearTimeout(this.mouseUpTimeout);
+			}
+
+			this.mouseUpTimeout = setTimeout(() => {
+				this.$e.removeClass('clicked');
+			}, 800); // delayed to prevent focus feedback from showing on mouse up
+		});
+
 		$(container).on('contextmenu', e => {
 			DOM.EventHelper.stop(e, true);
 
 			this.showContextMenu(container);
-		}, this.toDispose);
+		});
 
 		if (this.cssClass) {
 			this.$e.addClass(this.cssClass);
@@ -269,10 +194,78 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Activate on drag over to reveal targets
 		[this.$badge, this.$e].forEach(b => new DelayedDragHandler(b.getHTMLElement(), () => {
-			if (!this.getAction().checked) {
+			if (!this.getDraggedViewlet() && !this.getAction().checked) {
 				this.getAction().run();
 			}
 		}));
+
+		// Allow to drag
+		$(container).on(DOM.EventType.DRAG_START, (e: DragEvent) => {
+			e.dataTransfer.effectAllowed = 'move';
+			this.setDraggedViewlet(this.viewlet);
+
+			// Trigger the action even on drag start to prevent clicks from failing that started a drag
+			if (!this.getAction().checked) {
+				this.getAction().run();
+			}
+		});
+
+		// Drag enter
+		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
+		$(container).on(DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
+			const draggedViewlet = this.getDraggedViewlet();
+			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
+				counter++;
+				DOM.addClass(container, 'dropfeedback');
+			}
+		});
+
+		// Drag leave
+		$(container).on(DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			const draggedViewlet = this.getDraggedViewlet();
+			if (draggedViewlet) {
+				counter--;
+				if (counter === 0) {
+					DOM.removeClass(container, 'dropfeedback');
+				}
+			}
+		});
+
+		// Drag end
+		$(container).on(DOM.EventType.DRAG_END, (e: DragEvent) => {
+			const draggedViewlet = this.getDraggedViewlet();
+			if (draggedViewlet) {
+				counter = 0;
+				DOM.removeClass(container, 'dropfeedback');
+
+				this.clearDraggedViewlet();
+			}
+		});
+
+		// Drop
+		$(container).on(DOM.EventType.DROP, (e: DragEvent) => {
+			const draggedViewlet = this.getDraggedViewlet();
+			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
+				DOM.EventHelper.stop(e, true);
+
+				DOM.removeClass(container, 'dropfeedback');
+				this.clearDraggedViewlet();
+
+				this.activityBarService.move(draggedViewlet.id, this.viewlet.id);
+			}
+		});
+	}
+
+	private getDraggedViewlet(): ViewletDescriptor {
+		return ActivityActionItem.draggedViewlet;
+	}
+
+	private setDraggedViewlet(viewlet: ViewletDescriptor): void {
+		ActivityActionItem.draggedViewlet = viewlet;
+	}
+
+	private clearDraggedViewlet(): void {
+		ActivityActionItem.draggedViewlet = void 0;
 	}
 
 	private showContextMenu(container: HTMLElement): void {
@@ -391,10 +384,106 @@ export class ActivityActionItem extends BaseActionItem {
 	public dispose(): void {
 		super.dispose();
 
-		dispose(this.toDispose);
+		this.clearDraggedViewlet();
+
+		if (this.mouseUpTimeout) {
+			clearTimeout(this.mouseUpTimeout);
+		}
 
 		this.$badge.destroy();
 		this.$e.destroy();
+	}
+}
+
+export class ViewletOverflowActivityAction extends ActivityAction {
+
+	constructor(
+		private showMenu: () => void
+	) {
+		super('activitybar.additionalViewlets.action', nls.localize('additionalViewlets', "Additional Viewlets"), 'toggle-more');
+	}
+
+	public run(event): TPromise<any> {
+		this.showMenu();
+
+		return TPromise.as(true);
+	}
+}
+
+export class ViewletOverflowActivityActionItem extends BaseActionItem {
+	private $e: Builder;
+	private name: string;
+	private cssClass: string;
+	private actions: OpenViewletAction[];
+
+	constructor(
+		action: ActivityAction,
+		private getOverflowingViewlets: () => ViewletDescriptor[],
+		private getBadge: (viewlet: ViewletDescriptor) => IBadge,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IViewletService private viewletService: IViewletService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+	) {
+		super(null, action);
+
+		this.cssClass = action.class;
+		this.name = action.label;
+	}
+
+	public render(container: HTMLElement): void {
+		super.render(container);
+
+		this.$e = $('a.action-label').attr({
+			tabIndex: '0',
+			role: 'button',
+			title: this.name,
+			class: this.cssClass
+		}).appendTo(this.builder);
+	}
+
+	public showMenu(): void {
+		if (this.actions) {
+			dispose(this.actions);
+		}
+
+		this.actions = this.getActions();
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => this.builder.getHTMLElement(),
+			getActions: () => TPromise.as(this.actions),
+			onHide: () => dispose(this.actions)
+		});
+	}
+
+	private getActions(): OpenViewletAction[] {
+		const activeViewlet = this.viewletService.getActiveViewlet();
+
+		return this.getOverflowingViewlets().map(viewlet => {
+			const action = this.instantiationService.createInstance(OpenViewletAction, viewlet);
+			action.radio = activeViewlet && activeViewlet.getId() === action.id;
+
+			const badge = this.getBadge(action.viewlet);
+			let suffix: string | number;
+			if (badge instanceof NumberBadge) {
+				suffix = badge.number;
+			} else if (badge instanceof TextBadge) {
+				suffix = badge.text;
+			}
+
+			if (suffix) {
+				action.label = nls.localize('numberBadge', "{0} ({1})", action.viewlet.name, suffix);
+			} else {
+				action.label = action.viewlet.name;
+			}
+
+			return action;
+		});
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		this.actions = dispose(this.actions);
 	}
 }
 

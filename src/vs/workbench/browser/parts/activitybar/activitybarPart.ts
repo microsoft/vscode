@@ -38,7 +38,7 @@ interface IViewletActivity {
 export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private static readonly ACTIVITY_ACTION_HEIGHT = 50;
-	private static readonly UNPINNED_VIEWLETS = 'workbench.activity.unpinnedViewlets';
+	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
 
 	public _serviceBrand: any;
 
@@ -53,7 +53,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private viewletIdToActivity: { [viewletId: string]: IViewletActivity; };
 
 	private memento: any;
-	private unpinnedViewlets: string[];
+	private pinnedViewlets: string[];
 	private activeUnpinnedViewlet: ViewletDescriptor;
 
 	constructor(
@@ -73,7 +73,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.viewletIdToActivity = Object.create(null);
 
 		this.memento = this.getMemento(this.storageService, MementoScope.GLOBAL);
-		this.unpinnedViewlets = this.memento[ActivitybarPart.UNPINNED_VIEWLETS] || [];
+		this.pinnedViewlets = this.memento[ActivitybarPart.PINNED_VIEWLETS] || this.viewletService.getViewlets().map(v => v.id);
 
 		// Update viewlet switcher when external viewlets become ready
 		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
@@ -280,7 +280,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getPinnedViewlets(): ViewletDescriptor[] {
-		return this.viewletService.getViewlets().filter(viewlet => this.isPinned(viewlet.id));
+		return this.pinnedViewlets.map(viewletId => this.viewletService.getViewlet(viewletId));
 	}
 
 	private pullViewlet(viewletId: string): void {
@@ -342,16 +342,16 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		unpinPromise.then(() => {
 
-			// then add to unpinned and update switcher
-			this.unpinnedViewlets.push(viewletId);
-			this.unpinnedViewlets = arrays.distinct(this.unpinnedViewlets);
+			// then remove from pinned and update switcher
+			const index = this.pinnedViewlets.indexOf(viewletId);
+			this.pinnedViewlets.splice(index, 1);
 
 			this.updateViewletSwitcher();
 		});
 	}
 
 	public isPinned(viewletId: string): boolean {
-		return this.unpinnedViewlets.indexOf(viewletId) === -1;
+		return this.pinnedViewlets.indexOf(viewletId) >= 0;
 	}
 
 	public pin(viewletId: string): void {
@@ -363,11 +363,30 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.viewletService.openViewlet(viewletId, true).then(() => {
 
 			// then update
-			const index = this.unpinnedViewlets.indexOf(viewletId);
-			this.unpinnedViewlets.splice(index, 1);
+			this.pinnedViewlets.push(viewletId);
+			this.pinnedViewlets = arrays.distinct(this.pinnedViewlets);
 
 			this.updateViewletSwitcher();
 		});
+	}
+
+	public move(viewletId: string, toViewletId: string): void {
+		const fromIndex = this.pinnedViewlets.indexOf(viewletId);
+		const toIndex = this.pinnedViewlets.indexOf(toViewletId);
+
+		this.pinnedViewlets.splice(fromIndex, 1);
+		this.pinnedViewlets.splice(toIndex, 0, viewletId);
+
+		// Clear viewlets that are impacted by the move
+		const visibleViewlets = Object.keys(this.viewletIdToActions);
+		for (let i = Math.min(fromIndex, toIndex); i < visibleViewlets.length; i++) {
+			this.pullViewlet(visibleViewlets[i]);
+		}
+
+		// timeout helps to prevent artifacts from showing up
+		setTimeout(() => {
+			this.updateViewletSwitcher();
+		}, 0);
 	}
 
 	/**
@@ -398,7 +417,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	public shutdown(): void {
 
 		// Persist Hidden State
-		this.memento[ActivitybarPart.UNPINNED_VIEWLETS] = this.unpinnedViewlets;
+		this.memento[ActivitybarPart.PINNED_VIEWLETS] = this.pinnedViewlets;
 
 		// Pass to super
 		super.shutdown();
