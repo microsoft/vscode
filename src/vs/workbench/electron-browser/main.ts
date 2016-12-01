@@ -38,6 +38,7 @@ const timers = (<any>window).MonacoEnvironment.timers;
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
 	execPath: string;
+	vscodeWindowId: string;
 
 	userEnv: any; /* vs/code/electron-main/env/IProcessEnvironment*/
 
@@ -48,7 +49,7 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 }
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
-
+	console.log('vscodeWindowId: ' + configuration.vscodeWindowId);
 	// Ensure others can listen to zoom level changes
 	browser.setZoomFactor(webFrame.getZoomFactor());
 	browser.setZoomLevel(webFrame.getZoomLevel());
@@ -132,7 +133,7 @@ function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
 
 function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): TPromise<void> {
 	const eventService = new EventService();
-	const environmentService = new EnvironmentService(environment, environment.execPath);
+	const environmentService = new EnvironmentService(environment, environment.execPath, environment.vscodeWindowId);
 	const contextService = new WorkspaceContextService(workspace);
 	const configurationService = new WorkspaceConfigurationService(contextService, eventService, environmentService);
 

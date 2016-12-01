@@ -33,6 +33,10 @@ export class BackupMainService implements IBackupMainService {
 		return this.backups.folderWorkspaces;
 	}
 
+	public getEmptyWorkspaceBackupWindowIds(): string[] {
+		return this.backups.emptyWorkspaces;
+	}
+
 	public pushWorkspaceBackupPathsSync(workspaces: Uri[]): void {
 		let needsSaving = false;
 		workspaces.forEach(workspace => {
@@ -43,6 +47,16 @@ export class BackupMainService implements IBackupMainService {
 		});
 
 		if (needsSaving) {
+			this.saveSync();
+		}
+	}
+
+	// TODO: Think of a less terrible name
+	// TODO: Test
+	// TODO: Merge with pushWorkspaceBackupPathsSync?
+	public pushEmptyWorkspaceBackupWindowIdSync(vscodeWindowId: string): void {
+		if (this.backups.emptyWorkspaces.indexOf(vscodeWindowId) === -1) {
+			this.backups.emptyWorkspaces.push(vscodeWindowId);
 			this.saveSync();
 		}
 	}
@@ -59,6 +73,20 @@ export class BackupMainService implements IBackupMainService {
 		this.saveSync();
 	}
 
+	// TODO: Test
+	// TODO: Merge with removeWorkspaceBackupPathSync?
+	private removeEmptyWorkspaceBackupWindowIdSync(vscodeWindowId: string): void {
+		if (!this.backups.emptyWorkspaces) {
+			return;
+		}
+		const index = this.backups.emptyWorkspaces.indexOf(vscodeWindowId);
+		if (index === -1) {
+			return;
+		}
+		this.backups.emptyWorkspaces.splice(index, 1);
+		this.saveSync();
+	}
+
 	protected loadSync(): void {
 		let backups: IBackupWorkspacesFormat;
 		try {
@@ -71,12 +99,20 @@ export class BackupMainService implements IBackupMainService {
 		if (backups.folderWorkspaces) {
 			const fws = backups.folderWorkspaces;
 			if (!Array.isArray(fws) || fws.some(f => typeof f !== 'string')) {
-				backups = Object.create(null);
+				backups.folderWorkspaces = [];
 			}
+		} else {
+			backups.folderWorkspaces = [];
 		}
 
-		if (!backups.folderWorkspaces) {
-			backups.folderWorkspaces = [];
+		// Ensure emptyWorkspaces is a string[]
+		if (backups.emptyWorkspaces) {
+			const fws = backups.emptyWorkspaces;
+			if (!Array.isArray(fws) || fws.some(f => typeof f !== 'string')) {
+				backups.emptyWorkspaces = [];
+			}
+		} else {
+			backups.emptyWorkspaces = [];
 		}
 
 		this.backups = backups;
@@ -86,20 +122,29 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private validateBackupWorkspaces(backups: IBackupWorkspacesFormat): void {
-		const staleBackupWorkspaces: { workspacePath: string; backupPath: string; }[] = [];
+		// TODO: Tidy up, improve names, reduce duplication
+		const staleBackupWorkspaces: { workspaceIdentifier: string; backupPath: string; }[] = [];
 
-		const backupWorkspaces = backups.folderWorkspaces;
-		backupWorkspaces.forEach(workspacePath => {
+		backups.folderWorkspaces.forEach(workspacePath => {
 			const backupPath = this.toBackupPath(workspacePath);
 			if (!this.hasBackupsSync(backupPath)) {
-				staleBackupWorkspaces.push({ workspacePath, backupPath });
+				staleBackupWorkspaces.push({ workspaceIdentifier: workspacePath, backupPath });
+			}
+		});
+		console.log('checking empty: ' + backups.emptyWorkspaces);
+		backups.emptyWorkspaces.forEach(vscodeWindowId => {
+			const backupPath = this.toEmptyWorkspaceBackupPath(vscodeWindowId);
+			console.log('backupPath: ' + backupPath);
+			if (!this.hasBackupsSync(backupPath)) {
+				staleBackupWorkspaces.push({ workspaceIdentifier: vscodeWindowId, backupPath });
 			}
 		});
 
 		staleBackupWorkspaces.forEach(staleBackupWorkspace => {
-			const {backupPath, workspacePath} = staleBackupWorkspace;
+			const {backupPath, workspaceIdentifier} = staleBackupWorkspace;
 			extfs.delSync(backupPath);
-			this.removeWorkspaceBackupPathSync(Uri.file(workspacePath));
+			this.removeWorkspaceBackupPathSync(Uri.file(workspaceIdentifier));
+			this.removeEmptyWorkspaceBackupWindowIdSync(workspaceIdentifier);
 		});
 	}
 
@@ -138,5 +183,9 @@ export class BackupMainService implements IBackupMainService {
 		const workspaceHash = crypto.createHash('md5').update(workspacePath).digest('hex');
 
 		return path.join(this.backupHome, workspaceHash);
+	}
+
+	protected toEmptyWorkspaceBackupPath(vscodeWindowId: string): string {
+		return path.join(this.backupHome, vscodeWindowId);
 	}
 }

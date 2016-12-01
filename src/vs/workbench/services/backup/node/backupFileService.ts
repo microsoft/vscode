@@ -102,13 +102,16 @@ export class BackupFileService implements IBackupFileService {
 
 		if (this.currentWorkspace) {
 			this.backupWorkspacePath = path.join(this.backupHome, this.hashPath(this.currentWorkspace));
+		} else {
+			this.backupWorkspacePath = path.join(this.backupHome, this.environmentService.vscodeWindowId);
 		}
 
 		this.ready = this.init();
 	}
 
 	private get backupEnabled(): boolean {
-		return this.currentWorkspace && !this.environmentService.isExtensionDevelopment; // Hot exit is disabled for empty workspaces and when doing extension development
+		// Hot exit is disabled when doing extension development
+		return !this.environmentService.isExtensionDevelopment;
 	}
 
 	private init(): TPromise<IBackupFilesModel> {

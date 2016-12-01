@@ -59,7 +59,7 @@ export function createFileInput(instantiationService: IInstantiationService, res
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
 }
 
-export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
+export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath, '');
 
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;

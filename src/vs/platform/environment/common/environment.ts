@@ -42,6 +42,7 @@ export interface IEnvironmentService {
 
 	execPath: string;
 	appRoot: string;
+	vscodeWindowId: string;
 
 	userHome: string;
 	userProductHome: string;
