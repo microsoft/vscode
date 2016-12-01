@@ -223,6 +223,22 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		return [];
 	}
 
+	private getSettingsOverrideStyles(): string {
+		const previewSettings = vscode.workspace.getConfiguration('markdown')['preview'];
+		if (!previewSettings) {
+			return '';
+		}
+		const {fontFamily, fontSize, lineHeight} = previewSettings;
+		return [
+			'<style>',
+			'body {',
+			fontFamily ? `font-family: ${fontFamily};` : '',
+			+fontSize > 0 ? `font-size: ${fontSize}px;` : '',
+			+lineHeight > 0 ? `line-height: ${lineHeight};` : '',
+			'}',
+			'</style>'].join('\n');
+	}
+
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
 		return vscode.workspace.openTextDocument(vscode.Uri.parse(uri.query)).then(document => {
 			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
@@ -233,6 +249,7 @@ class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 				'<meta http-equiv="Content-type" content="text/html;charset=UTF-8">',
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
+				this.getSettingsOverrideStyles(),
 				this.computeCustomStyleSheetIncludes(uri),
 				`<base href="${document.uri.toString(true)}">`,
 				'</head>',
