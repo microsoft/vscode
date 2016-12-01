@@ -280,20 +280,22 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getPinnedViewlets(): ViewletDescriptor[] {
-		return this.pinnedViewlets.map(viewletId => this.viewletService.getViewlet(viewletId));
+		return this.pinnedViewlets.map(viewletId => this.viewletService.getViewlet(viewletId)).filter(v => !!v); // ensure to remove those that might no longer exist
 	}
 
 	private pullViewlet(viewletId: string): void {
 		const index = Object.keys(this.viewletIdToActions).indexOf(viewletId);
-		this.viewletSwitcherBar.pull(index);
+		if (index >= 0) {
+			this.viewletSwitcherBar.pull(index);
 
-		const action = this.viewletIdToActions[viewletId];
-		action.dispose();
-		delete this.viewletIdToActions[viewletId];
+			const action = this.viewletIdToActions[viewletId];
+			action.dispose();
+			delete this.viewletIdToActions[viewletId];
 
-		const actionItem = this.activityActionItems[action.id];
-		actionItem.dispose();
-		delete this.activityActionItems[action.id];
+			const actionItem = this.activityActionItems[action.id];
+			actionItem.dispose();
+			delete this.activityActionItems[action.id];
+		}
 	}
 
 	private toAction(viewlet: ViewletDescriptor): ActivityAction {
