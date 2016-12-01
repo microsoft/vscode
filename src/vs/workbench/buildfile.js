@@ -25,7 +25,7 @@ exports.collectModules = function(excludes) {
 		createModuleDescription('vs/workbench/parts/debug/node/telemetryApp', []),
 
 		createModuleDescription('vs/workbench/services/search/node/searchApp', []),
-		createModuleDescription('vs/workbench/services/search/node/searchWorkerApp', []),
+		createModuleDescription('vs/workbench/services/search/node/worker/searchWorkerApp', []),
 		createModuleDescription('vs/workbench/services/files/node/watcher/unix/watcherApp', []),
 
 		createModuleDescription('vs/workbench/node/extensionHostProcess', [])
