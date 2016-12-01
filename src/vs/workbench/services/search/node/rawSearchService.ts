@@ -27,12 +27,13 @@ export type IRawProgressItem<T> = T | T[] | IProgress;
 
 export class SearchService implements IRawSearchService {
 
-	private static BATCH_SIZE = 512;
+	private static FILE_SEARCH_BATCH_SIZE = 512;
+	private static TEXT_SEARCH_BATCH_SIZE = 300;
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
 	public fileSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
-		return this.doFileSearch(FileSearchEngine, config, SearchService.BATCH_SIZE);
+		return this.doFileSearch(FileSearchEngine, config, SearchService.FILE_SEARCH_BATCH_SIZE);
 	}
 
 	public textSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
@@ -45,7 +46,7 @@ export class SearchService implements IRawSearchService {
 			maxFilesize: MAX_FILE_SIZE
 		}));
 
-		return this.doSearch(engine, SearchService.BATCH_SIZE);
+		return this.doSearchWithBatchTimeout(engine, SearchService.TEXT_SEARCH_BATCH_SIZE);
 	}
 
 	public doFileSearch(EngineClass: { new (config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
@@ -268,6 +269,28 @@ export class SearchService implements IRawSearchService {
 		});
 	}
 
+	private doSearchWithBatchTimeout(engine: ISearchEngine<ISerializedFileMatch>, batchSize: number): PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>> {
+		return new PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>>((c, e, p) => {
+			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
+			const collector = new BatchedCollector(batchSize, /*timeout=*/2000, /*batchOnlyAfter=*/50, p);
+			engine.search((match) => {
+				collector.addItem(match, match.numMatches);
+			}, (progress) => {
+				p(progress);
+			}, (error, stats) => {
+				collector.flush();
+
+				if (error) {
+					e(error);
+				} else {
+					c(stats);
+				}
+			});
+		}, () => {
+			engine.cancel();
+		});
+	}
+
 	private doSearch<T>(engine: ISearchEngine<T>, batchSize?: number): PPromise<ISerializedSearchComplete, IRawProgressItem<T>> {
 		return new PPromise<ISerializedSearchComplete, IRawProgressItem<T>>((c, e, p) => {
 			let batch: T[] = [];
@@ -343,4 +366,50 @@ interface CacheStats {
 	cacheWasResolved: boolean;
 	cacheFilterStartTime: number;
 	cacheFilterResultCount: number;
+}
+
+/**
+ * Collects a batch of items that each have a size. When the cumulative size of the batch reaches 'maxBatchSize', it calls the callback.
+ * If the batch isn't filled within 'timeout' ms, the callback is also called.
+ * And after 'batchOnlyAfter' ms, the timeout is ignored, and the callback is called only when the batch is full.
+ */
+class BatchedCollector<T> {
+	private totalNumberCompleted = 0;
+	private batch: T[] = [];
+	private batchSize = 0;
+	private timeoutHandle: number;
+
+	constructor(private maxBatchSize: number, private timeout: number, private batchOnlyAfter: number, private cb: (items: T | T[]) => void) {
+	}
+
+	addItem(item: T, size: number): void {
+		if (!item) {
+			return;
+		}
+
+		if (this.maxBatchSize > 0) {
+			this.batch.push(item);
+			this.batchSize += size;
+			if (this.batchSize > this.maxBatchSize) {
+				this.flush();
+			} else {
+				if (!this.timeoutHandle && this.totalNumberCompleted < this.batchOnlyAfter) {
+					this.timeoutHandle = setTimeout(() => {
+						this.flush();
+					}, this.timeout);
+				}
+			}
+		} else {
+			this.cb(item);
+		}
+	}
+
+	flush(): void {
+		this.totalNumberCompleted += this.batchSize;
+		this.cb(this.batch);
+		this.batch = [];
+		this.batchSize = 0;
+		clearTimeout(this.timeoutHandle);
+		this.timeoutHandle = 0;
+	}
 }
