@@ -28,6 +28,7 @@ export class ViewCursor {
 	private _isVisible: boolean;
 	private _isInViewport: boolean;
 	private _cursorStyle: TextEditorCursorStyle;
+	private _cursorStyleChanged: boolean;
 	private _lastRenderedContent: string;
 	private _lineHeight: number;
 	private _characterWidth: number;
@@ -35,6 +36,7 @@ export class ViewCursor {
 	constructor(context: ViewContext, isSecondary: boolean) {
 		this._context = context;
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+		this._cursorStyleChanged = false;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._lastRenderedContent = '';
 
@@ -116,6 +118,7 @@ export class ViewCursor {
 		}
 		if (e.viewInfo.cursorStyle) {
 			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+			this._cursorStyleChanged = true;
 		}
 		if (e.fontInfo) {
 			Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
@@ -180,6 +183,9 @@ export class ViewCursor {
 				if (this._domNode.domNode.style.width !== desiredWidth) {
 					this._domNode.domNode.style.width = desiredWidth;
 				}
+			} else if (this._cursorStyleChanged) {
+				this._domNode.domNode.style.width = '2px';
+				this._cursorStyleChanged = false;
 			}
 
 			return {

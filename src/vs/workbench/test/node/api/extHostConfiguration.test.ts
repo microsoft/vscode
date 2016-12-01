@@ -156,12 +156,24 @@ suite('ExtHostConfiguration', function () {
 	});
 
 	test('bogous data, #15834', function () {
-		const shape = new RecordingShape();
-		const allConfig = createExtHostConfiguration({
-			['editor.formatOnSave']: createConfigurationValue(true),
-			['editor.formatOnSave.extensions']: createConfigurationValue(['ts'])
-		}, shape);
+		let oldLogger = console.error;
+		let errorLogged = false;
 
+		// workaround until we have a proper logging story
+		console.error = (message, args) => {
+			errorLogged = true;
+		};
+		let allConfig;
+		try {
+			const shape = new RecordingShape();
+			allConfig = createExtHostConfiguration({
+				['editor.formatOnSave']: createConfigurationValue(true),
+				['editor.formatOnSave.extensions']: createConfigurationValue(['ts'])
+			}, shape);
+		} finally {
+			console.error = oldLogger;
+		}
+		assert.ok(errorLogged);
 		assert.ok(allConfig.getConfiguration('').has('editor.formatOnSave'));
 		assert.ok(!allConfig.getConfiguration('').has('editor.formatOnSave.extensions'));
 	});

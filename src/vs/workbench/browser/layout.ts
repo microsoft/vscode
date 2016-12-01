@@ -522,6 +522,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.editor.layout(new Dimension(editorSize.width, editorSize.height));
 		this.sidebar.layout(sidebarSize);
 		this.panel.layout(panelDimension);
+		this.activitybar.layout(activityBarSize);
 
 		// Propagate to Context View
 		this.contextViewService.layout();

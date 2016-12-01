@@ -41,6 +41,11 @@ export class MenuId {
 	static readonly EditorContext = new MenuId('3');
 	static readonly ExplorerContext = new MenuId('4');
 	static readonly ProblemsPanelContext = new MenuId('5');
+	static readonly DebugVariablesContext = new MenuId('6');
+	static readonly DebugWatchContext = new MenuId('7');
+	static readonly DebugCallStackContext = new MenuId('8');
+	static readonly DebugBreakpointsContext = new MenuId('9');
+	static readonly DebugConsoleContext = new MenuId('10');
 
 	constructor(private _id: string) {
 

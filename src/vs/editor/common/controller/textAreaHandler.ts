@@ -154,12 +154,9 @@ export class TextAreaHandler extends Disposable {
 			let typeInput = this.textAreaState.updateComposition();
 			this._onType.fire(typeInput);
 
-			// Due to isEdgeOrIE (where the textarea was not cleared initially)
+			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
 			// we cannot assume the text at the end consists only of the composited text
-			if (Browser.isEdgeOrIE) {
-				// In Chrome v49, the text at the time of the compositionend event is not really the final text
-				// for the mac dead key input method.
-				// N.B: This can be removed in Chrome v53
+			if (Browser.isEdgeOrIE || Browser.isChrome) {
 				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
 			}
 

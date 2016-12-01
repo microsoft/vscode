@@ -64,8 +64,8 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 						languageIdFromType = void 0;
 					}
 				} else {
-					let attributelLanguageId = getAttributeLanguage(lastAttributeName);
-					if (attributelLanguageId) {
+					let attributeLanguageId = getAttributeLanguage(lastAttributeName);
+					if (attributeLanguageId) {
 						let start = scanner.getTokenOffset();
 						let end = scanner.getTokenEnd();
 						let firstChar = document.getText()[start];
@@ -73,7 +73,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 							start++;
 							end--;
 						}
-						regions.push({ languageId: attributelLanguageId, start, end, attributeValue: true });
+						regions.push({ languageId: attributeLanguageId, start, end, attributeValue: true });
 					}
 				}
 				lastAttributeName = null;
@@ -135,7 +135,7 @@ function getLanguageRanges(document: TextDocument, regions: EmbeddedRegion[], ra
 function getLanguagesInDocument(document: TextDocument, regions: EmbeddedRegion[]): string[] {
 	let result = [];
 	for (let region of regions) {
-		if (result.indexOf(region.languageId) === -1) {
+		if (region.languageId && result.indexOf(region.languageId) === -1) {
 			result.push(region.languageId);
 			if (result.length === 3) {
 				return result;

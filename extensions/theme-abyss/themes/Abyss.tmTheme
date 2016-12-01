@@ -132,7 +132,7 @@
 			<key>name</key>
 			<string>Class name</string>
 			<key>scope</key>
-			<string>entity.name.type.class</string>
+			<string>entity.name.class, entity.name.type</string>
 			<key>settings</key>
 			<dict>
 				<key>fontStyle</key>

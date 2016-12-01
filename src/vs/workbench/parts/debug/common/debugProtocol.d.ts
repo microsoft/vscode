@@ -395,7 +395,7 @@ declare module DebugProtocol {
 	}
 
 	/** SetExceptionBreakpoints request; value of command field is 'setExceptionBreakpoints'.
-		Enable that the debuggee stops on exceptions with a StoppedEvent (event type 'exception').
+		The request configures the debuggers response to thrown exceptions. If an execption is configured to break, a StoppedEvent is fired (event type 'exception').
 	*/
 	export interface SetExceptionBreakpointsRequest extends Request {
 		// command: 'setExceptionBreakpoints';
@@ -404,8 +404,10 @@ declare module DebugProtocol {
 
 	/** Arguments for 'setExceptionBreakpoints' request. */
 	export interface SetExceptionBreakpointsArguments {
-		/** Ids of enabled exception breakpoints. */
+		/** IDs of checked exception options. The set of IDs is returned via the 'exceptionBreakpointFilters' capability. */
 		filters: string[];
+		/** Configuration options for selected exceptions. */
+		exceptionOptions?: ExceptionOptions[];
 	}
 
 	/** Response to 'setExceptionBreakpoints' request. This is just an acknowledgement, so no body field is required. */
@@ -609,6 +611,8 @@ declare module DebugProtocol {
 		startFrame?: number;
 		/** The maximum number of frames to return. If levels is not specified or 0, all frames are returned. */
 		levels?: number;
+		/** Specifies details on how to format the stack frames. */
+		format?: StackFrameFormat;
 	}
 
 	/** Response to 'stackTrace' request. */
@@ -664,6 +668,8 @@ declare module DebugProtocol {
 		start?: number;
 		/** The number of variables to return. If count is missing or 0, all variables are returned. */
 		count?: number;
+		/** Specifies details on how to format the Variable values. */
+		format?: ValueFormat;
 	}
 
 	/** Response to 'variables' request. */
@@ -792,6 +798,8 @@ declare module DebugProtocol {
 		frameId?: number;
 		/** The context in which the evaluate request is run. Possible values are 'watch' if evaluate is run in a watch, 'repl' if run from the REPL console, or 'hover' if run from a data hover. */
 		context?: string;
+		/** Specifies details on how to format the Evaluate result. */
+		format?: ValueFormat;
 	}
 
 	/** Response to 'evaluate' request. */
@@ -907,7 +915,7 @@ declare module DebugProtocol {
 		supportsHitConditionalBreakpoints?: boolean;
 		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
 		supportsEvaluateForHovers?: boolean;
-		/** Available filters for the setExceptionBreakpoints request. */
+		/** Available filters or options for the setExceptionBreakpoints request. */
 		exceptionBreakpointFilters?: ExceptionBreakpointsFilter[];
 		/** The debug adapter supports stepping back via the stepBack and reverseContinue requests. */
 		supportsStepBack?: boolean;
@@ -929,6 +937,10 @@ declare module DebugProtocol {
 		supportedChecksumAlgorithms?: ChecksumAlgorithm[];
 		/** The debug adapter supports the RestartRequest. In this case a client should not implement 'restart' by terminating and relaunching the adapter but by calling the RestartRequest. */
 		supportsRestartRequest?: boolean;
+		/** The debug adapter supports 'exceptionOptions' on the setExceptionBreakpoints request. */
+		supportsExceptionOptions?: boolean;
+		/** The debug adapter supports a 'format' attribute on the stackTraceRequest, variablesRequest, and evaluateRequest. */
+		supportsValueFormattingOptions?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1217,6 +1229,52 @@ declare module DebugProtocol {
 		algorithm: ChecksumAlgorithm;
 		/** Value of the checksum. */
 		checksum: string;
+	}
+
+	/** Provides formatting information for a value. */
+	export interface ValueFormat {
+		/** Display the value in hex. */
+		hex?: boolean;
+	}
+
+	/** Provides formatting information for a stack frame. */
+	export interface StackFrameFormat extends ValueFormat {
+		/** Displays parameters for the stack frame. */
+		parameters?: boolean;
+		/** Displays the types of parameters for the stack frame. */
+		parameterTypes?: boolean;
+		/** Displays the names of parameters for the stack frame. */
+		parameterNames?: boolean;
+		/** Displays the values of parameters for the stack frame. */
+		parameterValues?: boolean;
+		/** Displays the line number of the stack frame. */
+		line?: boolean;
+		/** Displays the module of the stack frame. */
+		module?: boolean;
+	}
+
+	/** An ExceptionOptions assigns configuration options to a set of exceptions. */
+	export interface ExceptionOptions {
+		/** A path that selects a single or multiple exceptions in a tree. If 'path' is missing, the whole tree is selected. By convention the first segment of the path is a category that is used to group exceptions in the UI. */
+		path?: ExceptionPathSegment[];
+		/** Condition when a thrown exception should result in a break. */
+		breakMode: ExceptionBreakMode;
+	}
+
+	/** This enumeration defines all possible conditions when a thrown exception should result in a break.
+		never: never breaks,
+		always: always breaks,
+		unhandled: breaks when excpetion unhandled,
+		userUnhandled: breaks if the exception is not handled by user code.
+	*/
+	export type ExceptionBreakMode = 'never' | 'always' | 'unhandled' | 'userUnhandled';
+
+	/** An ExceptionPathSegment represents a segment in a path that is used to match leafs or nodes in a tree of exceptions. If a segment consists of more than one name, it matches the names provided if 'negate' is false or missing or it matches anything except the names provided if 'negate' is true. */
+	export interface ExceptionPathSegment {
+		/** If false or missing this segment matches the names provided, otherwise it matches anything except the names provided. */
+		negate?: boolean;
+		/** Depending on the value of 'negate' the names that should match or not match. */
+		names: string[];
 	}
 }
 

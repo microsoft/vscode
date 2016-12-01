@@ -104,7 +104,7 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 
 	private consolidateConfigurations(): ICache<T> {
 		const defaults = getDefaultValues();				// defaults coming from contributions to registries
-		const user = toValuesTree(this.rawConfig.getConfig());	// user configured settings
+		const user = toValuesTree(this.rawConfig.getConfig(), message => console.error(`Conflict in user settings: ${message}`));	// user configured settings
 
 		const consolidated = objects.mixin(
 			objects.clone(defaults), 	// target: default values (but dont modify!)
