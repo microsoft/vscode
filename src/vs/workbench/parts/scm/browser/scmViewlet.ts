@@ -34,6 +34,7 @@ import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
+import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -43,6 +44,7 @@ interface SearchInputEvent extends Event {
 interface ResourceGroupTemplate {
 	name: HTMLElement;
 	count: CountBadge;
+	actionBar: ActionBar;
 }
 
 class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGroupTemplate> {
@@ -50,18 +52,27 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 	static TEMPLATE_ID = 'resource group';
 	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
 
+	constructor(
+		private scmMenus: SCMMenus,
+		private actionItemProvider: IActionItemProvider
+	) { }
+
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
-		const countContainer = append(element, $('div'));
+		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer);
+		const actionsContainer = append(element, $('.actions'));
+		const actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
 
-		return { name, count };
+		return { name, count, actionBar };
 	}
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
 		template.name.textContent = group.label;
 		template.count.setCount(group.resources.length);
+		template.actionBar.clear();
+		template.actionBar.push(this.scmMenus.getResourceGroupActions(group.id));
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
@@ -71,6 +82,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 
 interface ResourceTemplate {
 	fileLabel: FileLabel;
+	actionBar: ActionBar;
 }
 
 class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
@@ -79,19 +91,27 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
 
 	constructor(
+		private scmMenus: SCMMenus,
+		private actionItemProvider: IActionItemProvider,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 
 	}
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
-		const fileLabel = this.instantiationService.createInstance(FileLabel, container, void 0);
+		const element = append(container, $('.resource'));
+		const name = append(element, $('.name'));
+		const fileLabel = this.instantiationService.createInstance(FileLabel, name, void 0);
+		const actionsContainer = append(element, $('.actions'));
+		const actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
 
-		return { fileLabel };
+		return { fileLabel, actionBar };
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
 		template.fileLabel.setFile(resource.uri);
+		template.actionBar.clear();
+		template.actionBar.push(this.scmMenus.getResourceActions(resource.resourceGroupId));
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {
@@ -176,9 +196,11 @@ export class SCMViewlet extends Viewlet {
 		this.listContainer = append(root, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
 
+		const actionItemProvider = action => this.getActionItem(action);
+
 		this.list = new List(this.listContainer, delegate, [
-			new ResourceGroupRenderer(),
-			this.instantiationService.createInstance(ResourceRenderer)
+			new ResourceGroupRenderer(this.menus, actionItemProvider),
+			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider)
 		]);
 
 		chain(this.list.onSelectionChange)
@@ -254,21 +276,15 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	private onListContextMenu(e: IListMouseEvent<ISCMResourceGroup | ISCMResource>): void {
-		const provider = this.scmService.activeProvider;
-
-		if (!provider) {
-			return;
-		}
-
 		const element = e.element;
 		let actions: IAction[];
 
 		if ((element as ISCMResource).uri) {
 			const resource = element as ISCMResource;
-			actions = this.menus.getResourceContextActions(provider.id, resource.resourceGroupId);
+			actions = this.menus.getResourceContextActions(resource.resourceGroupId);
 		} else {
 			const resourceGroup = element as ISCMResourceGroup;
-			actions = this.menus.getResourceGroupContextActions(provider.id, resourceGroup.id);
+			actions = this.menus.getResourceGroupContextActions(resourceGroup.id);
 		}
 
 		this.contextMenuService.showContextMenu({

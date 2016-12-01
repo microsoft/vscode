@@ -29,12 +29,41 @@
 	font-size: 11px;
 	font-weight: bold;
 	text-transform: uppercase;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
-.scm-viewlet .monaco-list-row > .resource-group > .count-badge {
+.scm-viewlet .monaco-list-row > .resource-group:hover > .count {
+	display: none;
+}
+
+.scm-viewlet .monaco-list-row > .resource-group:not(:hover) > .actions {
+	display: none;
+}
+
+.scm-viewlet .monaco-list-row > .resource {
+	display: flex;
+}
+
+.scm-viewlet .monaco-list-row > .resource > .name {
 	flex: 1;
-	font-size: 11px;
-	font-weight: bold;
-	text-transform: uppercase;
-	cursor: default;
+	overflow: hidden;
+}
+
+.scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label {
+	width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.scm-viewlet .monaco-list-row > .resource > .actions .action-label,
+.scm-viewlet .monaco-list-row > .resource-group > .actions .action-label {
+	width: 16px;
+	height: 100%;
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+}
+
+.scm-viewlet .monaco-list-row > .resource:not(:hover) > .actions {
+	display: none;
 }

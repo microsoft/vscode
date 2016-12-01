@@ -63,23 +63,39 @@ export class SCMMenus implements IDisposable {
 		return this.titleSecondaryActions;
 	}
 
-	getResourceGroupActions(providerId: string, resourceGroupId: string): IAction[] {
-		const menuId = new SCMMenuId(providerId, resourceGroupId, SCMMenuType.ResourceGroup, false);
+	getResourceGroupActions(resourceGroupId: string): IAction[] {
+		if (!this.scmService.activeProvider) {
+			return [];
+		}
+
+		const menuId = new SCMMenuId(this.scmService.activeProvider.id, resourceGroupId, SCMMenuType.ResourceGroup, false);
 		return this.getActions(menuId);
 	}
 
-	getResourceGroupContextActions(providerId: string, resourceGroupId: string): IAction[] {
-		const menuId = new SCMMenuId(providerId, resourceGroupId, SCMMenuType.ResourceGroup, true);
+	getResourceGroupContextActions(resourceGroupId: string): IAction[] {
+		if (!this.scmService.activeProvider) {
+			return [];
+		}
+
+		const menuId = new SCMMenuId(this.scmService.activeProvider.id, resourceGroupId, SCMMenuType.ResourceGroup, true);
 		return this.getActions(menuId);
 	}
 
-	getResourceActions(providerId: string, resourceGroupId: string): IAction[] {
-		const menuId = new SCMMenuId(providerId, resourceGroupId, SCMMenuType.Resource, false);
+	getResourceActions(resourceGroupId: string): IAction[] {
+		if (!this.scmService.activeProvider) {
+			return [];
+		}
+
+		const menuId = new SCMMenuId(this.scmService.activeProvider.id, resourceGroupId, SCMMenuType.Resource, false);
 		return this.getActions(menuId);
 	}
 
-	getResourceContextActions(providerId: string, resourceGroupId: string): IAction[] {
-		const menuId = new SCMMenuId(providerId, resourceGroupId, SCMMenuType.Resource, true);
+	getResourceContextActions(resourceGroupId: string): IAction[] {
+		if (!this.scmService.activeProvider) {
+			return [];
+		}
+
+		const menuId = new SCMMenuId(this.scmService.activeProvider.id, resourceGroupId, SCMMenuType.Resource, true);
 		return this.getActions(menuId);
 	}
 

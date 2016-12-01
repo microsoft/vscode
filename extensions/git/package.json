@@ -38,22 +38,38 @@
       {
         "command": "git.stage",
         "title": "Stage",
-        "category": "Git"
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/stage.svg",
+          "dark": "resources/icons/dark/stage.svg"
+        }
       },
       {
         "command": "git.stage-all",
         "title": "Stage All",
-        "category": "Git"
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/stage.svg",
+          "dark": "resources/icons/dark/stage.svg"
+        }
       },
       {
         "command": "git.unstage",
         "title": "Unstage",
-        "category": "Git"
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/unstage.svg",
+          "dark": "resources/icons/dark/unstage.svg"
+        }
       },
       {
         "command": "git.unstage-all",
         "title": "Unstage All",
-        "category": "Git"
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/unstage.svg",
+          "dark": "resources/icons/dark/unstage.svg"
+        }
       }
     ],
     "menus": {
@@ -63,9 +79,21 @@
           "group": "navigation"
         }
       ],
+      "scm/git/index/group": [
+        {
+          "command": "git.unstage-all",
+          "group": "navigation"
+        }
+      ],
       "scm/git/index/group/context": [
         {
           "command": "git.unstage-all",
+          "group": "navigation"
+        }
+      ],
+      "scm/git/index/resource": [
+        {
+          "command": "git.unstage",
           "group": "navigation"
         }
       ],
@@ -75,9 +103,21 @@
           "group": "navigation"
         }
       ],
+      "scm/git/workingTree/group": [
+        {
+          "command": "git.stage-all",
+          "group": "navigation"
+        }
+      ],
       "scm/git/workingTree/group/context": [
         {
           "command": "git.stage-all",
+          "group": "navigation"
+        }
+      ],
+      "scm/git/workingTree/resource": [
+        {
+          "command": "git.stage",
           "group": "navigation"
         }
       ],
