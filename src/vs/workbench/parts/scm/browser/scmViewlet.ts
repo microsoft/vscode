@@ -136,8 +136,6 @@ export class SCMViewlet extends Viewlet {
 
 		this.menus = this.instantiationService.createInstance(SCMMenus);
 		this.disposables.push(this.menus);
-
-		this.menus.onDidChangeTitleMenu(this.updateTitleArea, this, this.disposables);
 	}
 
 	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
@@ -149,6 +147,7 @@ export class SCMViewlet extends Viewlet {
 			this.providerChangeDisposable = EmptyDisposable;
 		}
 
+		this.updateTitleArea();
 		this.update();
 	}
 
@@ -243,11 +242,11 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	getActions(): IAction[] {
-		return this.menus.title;
+		return this.menus.getTitleActions();
 	}
 
 	getSecondaryActions(): IAction[] {
-		return this.menus.titleSecondary;
+		return this.menus.getTitleSecondaryActions();
 	}
 
 	getActionItem(action: IAction): IActionItem {
@@ -262,17 +261,15 @@ export class SCMViewlet extends Viewlet {
 		}
 
 		const element = e.element;
-		let resourceGroupId: string;
+		let actions: IAction[];
 
 		if ((element as ISCMResource).uri) {
 			const resource = element as ISCMResource;
-			resourceGroupId = resource.resourceGroupId;
+			actions = this.menus.getResourceContextActions(provider.id, resource.resourceGroupId);
 		} else {
 			const resourceGroup = element as ISCMResourceGroup;
-			resourceGroupId = resourceGroup.id;
+			actions = this.menus.getResourceGroupContextActions(provider.id, resourceGroup.id);
 		}
-
-		const actions = this.menus.getResourceContextActions(provider.id, resourceGroupId);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => ({ x: e.clientX + 1, y: e.clientY }),

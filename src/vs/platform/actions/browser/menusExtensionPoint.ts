@@ -13,7 +13,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, SCMMenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, SCMTitleMenuId, SCMMenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 
 namespace schema {
 
@@ -26,23 +26,17 @@ namespace schema {
 		group?: string;
 	}
 
-	const SCMMenuRegex = /^scm\/([^/]+)\/([^/]+)(\/context)?$/;
-
 	export function parseMenuId(value: string): MenuId {
 		switch (value) {
 			case 'editor/title': return MenuId.EditorTitle;
 			case 'editor/context': return MenuId.EditorContext;
 			case 'explorer/context': return MenuId.ExplorerContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
-			case 'scm/title': return MenuId.SCMTitle;
 		}
 
-		const match = SCMMenuRegex.exec(value);
-
-		if (match) {
-			const [, providerId, resourceGroupId, isContext] = match;
-			return new SCMMenuId(providerId, resourceGroupId, !!isContext);
-		}
+		return SCMTitleMenuId.parse(value)
+			|| SCMMenuId.parse(value)
+			|| void 0;
 	}
 
 	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {

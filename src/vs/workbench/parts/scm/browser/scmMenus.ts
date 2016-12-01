@@ -6,60 +6,84 @@
 'use strict';
 
 import 'vs/css!./media/scmViewlet';
-import Event, { mapEvent } from 'vs/base/common/event';
-import { memoize } from 'vs/base/common/decorators';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId, IMenu, SCMMenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, SCMTitleMenuId, SCMMenuId, SCMMenuType, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { ISCMService, ISCMProvider } from 'vs/workbench/services/scm/common/scm';
+
 
 export class SCMMenus implements IDisposable {
 
-	private titleMenu: IMenu;
 	private disposables: IDisposable[] = [];
 
-	private _titleMenuActions: { primary: IAction[]; secondary: IAction[] };
-	private get cachedTitleMenuActions() {
-		if (!this._titleMenuActions) {
-			this._titleMenuActions = { primary: [], secondary: [] };
-			fillInActions(this.titleMenu, null, this._titleMenuActions);
-		}
-		return this._titleMenuActions;
-	}
+	private titleDisposable: IDisposable = EmptyDisposable;
+	private titleActions: IAction[] = [];
+	private titleSecondaryActions: IAction[] = [];
 
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ISCMService private scmService: ISCMService,
 		@IMenuService private menuService: IMenuService
 	) {
-		this.titleMenu = menuService.createMenu(MenuId.SCMTitle, contextKeyService);
-		this.disposables.push(this.titleMenu);
+		this.setActiveProvider(this.scmService.activeProvider);
+		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
 	}
 
-	@memoize
-	get onDidChangeTitleMenu(): Event<any> {
-		return mapEvent(this.titleMenu.onDidChange, () => this._titleMenuActions = void 0);
+	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
+		if (this.titleDisposable) {
+			this.titleDisposable.dispose();
+			this.titleDisposable = EmptyDisposable;
+		}
+
+		if (!activeProvider) {
+			return;
+		}
+
+		const titleMenuId = new SCMTitleMenuId(activeProvider.id);
+		const titleMenu = this.menuService.createMenu(titleMenuId, this.contextKeyService);
+		const updateActions = () => fillInActions(titleMenu, null, { primary: this.titleActions, secondary: this.titleSecondaryActions });
+		const listener = titleMenu.onDidChange(updateActions);
+		updateActions();
+
+		this.titleDisposable = toDisposable(() => {
+			listener.dispose();
+			titleMenu.dispose();
+			this.titleActions = [];
+			this.titleSecondaryActions = [];
+		});
 	}
 
-	get title(): IAction[] {
-		return this.cachedTitleMenuActions.primary;
+	getTitleActions(): IAction[] {
+		return this.titleActions;
 	}
 
-	get titleSecondary(): IAction[] {
-		return this.cachedTitleMenuActions.secondary;
+	getTitleSecondaryActions(): IAction[] {
+		return this.titleSecondaryActions;
+	}
+
+	getResourceGroupActions(providerId: string, resourceGroupId: string): IAction[] {
+		const menuId = new SCMMenuId(providerId, resourceGroupId, SCMMenuType.ResourceGroup, false);
+		return this.getActions(menuId);
+	}
+
+	getResourceGroupContextActions(providerId: string, resourceGroupId: string): IAction[] {
+		const menuId = new SCMMenuId(providerId, resourceGroupId, SCMMenuType.ResourceGroup, true);
+		return this.getActions(menuId);
 	}
 
 	getResourceActions(providerId: string, resourceGroupId: string): IAction[] {
-		const menuId = new SCMMenuId(providerId, resourceGroupId, false);
-		const menu = this.menuService.createMenu(menuId, this.contextKeyService);
-		const result = [];
-		fillInActions(menu, null, result);
-		menu.dispose();
-		return result;
+		const menuId = new SCMMenuId(providerId, resourceGroupId, SCMMenuType.Resource, false);
+		return this.getActions(menuId);
 	}
 
 	getResourceContextActions(providerId: string, resourceGroupId: string): IAction[] {
-		const menuId = new SCMMenuId(providerId, resourceGroupId, true);
+		const menuId = new SCMMenuId(providerId, resourceGroupId, SCMMenuType.Resource, true);
+		return this.getActions(menuId);
+	}
+
+	private getActions(menuId: MenuId): IAction[] {
 		const menu = this.menuService.createMenu(menuId, this.contextKeyService);
 		const result = [];
 		fillInActions(menu, null, result);
