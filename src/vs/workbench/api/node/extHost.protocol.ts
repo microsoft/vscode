@@ -236,7 +236,7 @@ export interface SCMProviderFeatures {
 	supportsOriginalResource: boolean;
 }
 
-export type SCMRawResource = [string /*uri*/];
+export type SCMRawResource = [string /*uri*/, string /*decoration icon*/, boolean /*strike through*/];
 export type SCMRawResourceGroup = [string /*id*/, string /*label*/, SCMRawResource[]];
 
 export abstract class MainThreadSCMShape {

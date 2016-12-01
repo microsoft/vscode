@@ -5,17 +5,65 @@
 
 'use strict';
 
-import { Uri, Disposable, SCMProvider, SCMResource, SCMResourceGroup, EventEmitter, Event } from 'vscode';
+import { Uri, Disposable, SCMProvider, SCMResource, SCMResourceDecorations, SCMResourceGroup, EventEmitter, Event } from 'vscode';
 import { Model } from './model';
 import * as path from 'path';
 
-const Status: any = {};
+enum Theme {
+	Light,
+	Dark
+}
+
+const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
+
+function getIconUri(iconName: string, theme: Theme): Uri {
+	const themeName = theme === Theme.Light ? 'light' : 'dark';
+	return Uri.file(path.join(iconsRootPath, themeName, `${iconName}.svg`));
+}
+
+enum Status {
+	INDEX_MODIFIED,
+	INDEX_ADDED,
+	INDEX_DELETED,
+	INDEX_RENAMED,
+	INDEX_COPIED,
+
+	MODIFIED,
+	DELETED,
+	UNTRACKED,
+	IGNORED,
+
+	ADDED_BY_US,
+	ADDED_BY_THEM,
+	DELETED_BY_US,
+	DELETED_BY_THEM,
+	BOTH_ADDED,
+	BOTH_DELETED,
+	BOTH_MODIFIED
+}
 
 class Resource implements SCMResource {
 
 	get uri(): Uri { return this._uri; }
 
-	constructor(private _uri: Uri, type: any) {
+	get decorations(): SCMResourceDecorations {
+		let iconPath: Uri | undefined;
+		let strikeThrough = false;
+
+		switch (this.type) {
+			case Status.MODIFIED:
+				iconPath = getIconUri('refresh', Theme.Light);
+				break;
+			case Status.DELETED:
+				iconPath = getIconUri('refresh', Theme.Light);
+				strikeThrough = true;
+				break;
+		}
+
+		return { iconPath, strikeThrough };
+	}
+
+	constructor(private _uri: Uri, private type: any) {
 
 	}
 }

@@ -59,6 +59,17 @@
 	text-overflow: ellipsis;
 }
 
+.scm-viewlet .monaco-list-row > .resource > .name.strike-through > .monaco-icon-label > .label-name {
+	text-decoration: line-through;
+}
+
+.scm-viewlet .monaco-list-row > .resource > .decoration-icon {
+	width: 16px;
+	height: 100%;
+	background-repeat: no-repeat;
+	background-position: 50% 50%;
+}
+
 .scm-viewlet .monaco-list-row > .resource > .actions .action-label,
 .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label {
 	width: 16px;
