@@ -389,7 +389,7 @@ class BatchedCollector<T> {
 		if (this.maxBatchSize > 0) {
 			this.batch.push(item);
 			this.batchSize += size;
-			if (this.batchSize > this.maxBatchSize) {
+			if (this.batchSize >= this.maxBatchSize) {
 				this.flush();
 			} else {
 				if (!this.timeoutHandle && this.totalNumberCompleted < this.batchOnlyAfter) {
