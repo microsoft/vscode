@@ -354,7 +354,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return this.pinnedViewlets.indexOf(viewletId) >= 0;
 	}
 
-	public pin(viewletId: string): void {
+	public pin(viewletId: string, update = true): void {
 		if (this.isPinned(viewletId)) {
 			return;
 		}
@@ -366,11 +366,19 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			this.pinnedViewlets.push(viewletId);
 			this.pinnedViewlets = arrays.distinct(this.pinnedViewlets);
 
-			this.updateViewletSwitcher();
+			if (update) {
+				this.updateViewletSwitcher();
+			}
 		});
 	}
 
 	public move(viewletId: string, toViewletId: string): void {
+
+		// Make sure a moved viewlet gets pinned
+		if (!this.isPinned(viewletId)) {
+			this.pin(viewletId, false /* defer update, we take care of it */);
+		}
+
 		const fromIndex = this.pinnedViewlets.indexOf(viewletId);
 		const toIndex = this.pinnedViewlets.indexOf(toViewletId);
 
