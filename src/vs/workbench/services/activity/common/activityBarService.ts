@@ -56,18 +56,38 @@ export class IconBadge extends BaseBadge {
 export class ProgressBadge extends BaseBadge {
 }
 
-export const IActivityService = createDecorator<IActivityService>('activityService');
+export const IActivityBarService = createDecorator<IActivityBarService>('activityBarService');
 
-export interface IActivityService {
+export interface IActivityBarService {
 	_serviceBrand: any;
 
 	/**
-	 * Show activity in the activitybar for the given viewlet or panel.
+	 * Show activity in the activitybar for the given viewlet.
 	 */
-	showActivity(compositeId: string, badge: IBadge, clazz?: string): void;
+	showActivity(viewletId: string, badge: IBadge, clazz?: string): void;
 
 	/**
-	 * Clears activity shown in the activitybar for the given viewlet or panel.
+	 * Clears activity shown in the activitybar for the given viewlet.
 	 */
-	clearActivity(compositeId: string): void;
+	clearActivity(viewletId: string): void;
+
+	/**
+	 * Unpins a viewlet from the activitybar.
+	 */
+	unpin(viewletId: string): void;
+
+	/**
+	 * Pin a viewlet inside the activity bar.
+	 */
+	pin(viewletId: string): void;
+
+	/**
+	 * Find out if a viewlet is pinned in the activity bar.
+	 */
+	isPinned(viewletId: string): boolean;
+
+	/**
+	 * Reorder viewlet ordering by moving a viewlet to the location of another viewlet.
+	 */
+	move(viewletId: string, toViewletId: string): void;
 }

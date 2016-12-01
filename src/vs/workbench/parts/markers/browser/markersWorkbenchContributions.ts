@@ -11,7 +11,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import * as platform from 'vs/platform/platform';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
+import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import * as panel from 'vs/workbench/browser/panel';
@@ -25,7 +25,7 @@ class StatusUpdater implements IWorkbenchContribution {
 
 	constructor(
 		@IMarkerService private markerService: IMarkerService,
-		@IActivityService private activityService: IActivityService
+		@IActivityBarService private activityBarService: IActivityBarService
 	) {
 
 		this.toDispose = [];
@@ -37,9 +37,9 @@ class StatusUpdater implements IWorkbenchContribution {
 		const problemCount = stats.errors + stats.warnings + stats.infos + stats.unknowns;
 		if (problemCount > 0) {
 			const badge = new NumberBadge(problemCount, n => localize({ comment: ['Argument represents count (number) of errors and warnings.'], key: 'errorsAndWarnings' }, '{0} Errors and Warnings', n));
-			this.activityService.showActivity(Constants.MARKERS_PANEL_ID, badge);
+			this.activityBarService.showActivity(Constants.MARKERS_PANEL_ID, badge);
 		} else {
-			this.activityService.showActivity(Constants.MARKERS_PANEL_ID, null);
+			this.activityBarService.showActivity(Constants.MARKERS_PANEL_ID, null);
 		}
 	}
 
