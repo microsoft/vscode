@@ -36,8 +36,8 @@ interface CallbackMap {
 
 interface RequestItem {
 	request: Proto.Request;
-	promise: Promise<any>;
-	callbacks: CallbackItem;
+	promise: Promise<any> | null;
+	callbacks: CallbackItem | null;
 }
 
 interface IPackageInfo {
@@ -85,13 +85,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private pathSeparator: string;
 
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
-	private tsdk: string;
+	private tsdk: string | null;
 	private _checkGlobalTSCVersion: boolean;
 	private _experimentalAutoBuild: boolean;
 	private trace: Trace;
 	private _output: OutputChannel;
-	private servicePromise: Promise<cp.ChildProcess>;
-	private lastError: Error;
+	private servicePromise: Promise<cp.ChildProcess> | null;
+	private lastError: Error | null;
 	private reader: Reader<Proto.Response>;
 	private sequenceNumber: number;
 	private exitRequested: boolean;
@@ -103,7 +103,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private pendingResponses: number;
 	private callbacks: CallbackMap;
 
-	private _packageInfo: IPackageInfo;
+	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 
@@ -114,7 +114,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.pathSeparator = path.sep;
 
 		let p = new Promise<void>((resolve, reject) => {
-			this._onReady = { promise: null, resolve, reject };
+			this._onReady = { promise: Promise.reject<void>(null), resolve, reject };
 		});
 		this._onReady.promise = p;
 
@@ -129,7 +129,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.pendingResponses = 0;
 		this.callbacks = Object.create(null);
 		const configuration = workspace.getConfiguration();
-		this.tsdk = configuration.get<string>('typescript.tsdk', null);
+		this.tsdk = configuration.get<string | null>('typescript.tsdk', null);
 		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
 		this._apiVersion = new API('1.0.0');
 		this._checkGlobalTSCVersion = true;
@@ -137,7 +137,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		workspace.onDidChangeConfiguration(() => {
 			this.trace = this.readTrace();
 			let oldTsdk = this.tsdk;
-			this.tsdk = workspace.getConfiguration().get<string>('typescript.tsdk', null);
+			this.tsdk = workspace.getConfiguration().get<string | null>('typescript.tsdk', null);
 			if (this.servicePromise === null && oldTsdk !== this.tsdk) {
 				this.startService();
 			}
@@ -230,7 +230,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		// this.output.show(true);
 	}
 
-	private get packageInfo(): IPackageInfo {
+	private get packageInfo(): IPackageInfo | null {
 
 		if (this._packageInfo !== undefined) {
 			return this._packageInfo;
@@ -264,7 +264,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return Promise.reject<cp.ChildProcess>(this.lastError);
 		}
 		this.startService();
-		return this.servicePromise;
+		if (this.servicePromise) {
+			return this.servicePromise;
+		}
+		return Promise.reject<cp.ChildProcess>(new Error('Could not create TS service'));
 	}
 
 	private startService(resendModels: boolean = false): void {
@@ -362,7 +365,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 				let version = this.getTypeScriptVersion(modulePath);
 				if (!version) {
-					version = workspace.getConfiguration().get<string>('typescript.tsdk_version', undefined);
+					version = workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
 				}
 				if (version) {
 					this._apiVersion = new API(version);
@@ -469,7 +472,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			let args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
 				options: compilerOptions
 			};
-			this.execute('compilerOptionsForInferredProjects', args).then(null, (err) => {
+			this.execute('compilerOptionsForInferredProjects', args, true).catch((err) => {
 				this.error(`'compilerOptionsForInferredProjects' request failed with error.`, err);
 			});
 		}
@@ -479,7 +482,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 	}
 
-	private getTypeScriptVersion(serverPath: string): string {
+	private getTypeScriptVersion(serverPath: string): string | undefined {
 		let p = serverPath.split(path.sep);
 		if (p.length <= 2) {
 			return undefined;
@@ -491,13 +494,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return undefined;
 		}
 		let contents = fs.readFileSync(fileName).toString();
-		let desc = null;
+		let desc: any = null;
 		try {
 			desc = JSON.parse(contents);
 		} catch (err) {
 			return undefined;
 		}
-		if (!desc.version) {
+		if (!desc || !desc.version) {
 			return undefined;
 		}
 		return desc.version;
@@ -528,7 +531,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 	}
 
-	public asAbsolutePath(resource: Uri): string {
+	public asAbsolutePath(resource: Uri): string | null {
 		if (resource.scheme !== 'file') {
 			return null;
 		}
@@ -563,7 +566,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			promise: null,
 			callbacks: null
 		};
-		let result: Promise<any> = null;
+		let result: Promise<any> = Promise.resolve(null);
 		if (expectsResult) {
 			result = new Promise<any>((resolve, reject) => {
 				requestInfo.callbacks = { c: resolve, e: reject, start: Date.now() };
@@ -584,7 +587,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private sendNextRequests(): void {
 		while (this.pendingResponses === 0 && this.requestQueue.length > 0) {
-			this.sendRequest(this.requestQueue.shift());
+			const item = this.requestQueue.shift();
+			if (item) {
+				this.sendRequest(item);
+			}
 		}
 	}
 
@@ -691,9 +697,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (this.trace === Trace.Off) {
 			return;
 		}
-		let data: string = undefined;
+		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && request.arguments) {
-			data = `Arguments: ${JSON.stringify(request.arguments, null, 4)}`;
+			data = `Arguments: ${JSON.stringify(request.arguments, [], 4)}`;
 		}
 		this.logTrace(`Sending request: ${request.command} (${request.seq}). Response expected: ${responseExpected ? 'yes' : 'no'}. Current queue length: ${this.requestQueue.length}`, data);
 	}
@@ -702,9 +708,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (this.trace === Trace.Off) {
 			return;
 		}
-		let data: string = undefined;
+		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && response.body) {
-			data = `Result: ${JSON.stringify(response.body, null, 4)}`;
+			data = `Result: ${JSON.stringify(response.body, [], 4)}`;
 		}
 		this.logTrace(`Response received: ${response.command} (${response.request_seq}). Request took ${Date.now() - startTime} ms. Success: ${response.success} ${!response.success ? '. Message: ' + response.message : ''}`, data);
 	}
@@ -713,9 +719,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (this.trace === Trace.Off) {
 			return;
 		}
-		let data: string = undefined;
+		let data: string | undefined = undefined;
 		if (this.trace === Trace.Verbose && event.body) {
-			data = `Data: ${JSON.stringify(event.body, null, 4)}`;
+			data = `Data: ${JSON.stringify(event.body, [], 4)}`;
 		}
 		this.logTrace(`Event received: ${event.event} (${event.seq}).`, data);
 	}
