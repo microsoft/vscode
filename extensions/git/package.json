@@ -34,21 +34,57 @@
         "command": "git.open-change",
         "title": "Open Change",
         "category": "Git"
+      },
+      {
+        "command": "git.stage",
+        "title": "Stage",
+        "category": "Git"
+      },
+      {
+        "command": "git.stage-all",
+        "title": "Stage All",
+        "category": "Git"
+      },
+      {
+        "command": "git.unstage",
+        "title": "Unstage",
+        "category": "Git"
+      },
+      {
+        "command": "git.unstage-all",
+        "title": "Unstage All",
+        "category": "Git"
       }
     ],
     "menus": {
-      "scm/title": [
+      "scm/git/title": [
         {
           "command": "git.refresh",
-          "group": "navigation",
-          "when": "scm.provider == git"
+          "group": "navigation"
         }
       ],
-      "scm/git/workingTree/context": [
+      "scm/git/index/group/context": [
         {
-          "command": "git.open-change",
-          "group": "navigation",
-          "when": "scm.provider == git"
+          "command": "git.unstage-all",
+          "group": "navigation"
+        }
+      ],
+      "scm/git/index/resource/context": [
+        {
+          "command": "git.unstage",
+          "group": "navigation"
+        }
+      ],
+      "scm/git/workingTree/group/context": [
+        {
+          "command": "git.stage-all",
+          "group": "navigation"
+        }
+      ],
+      "scm/git/workingTree/resource/context": [
+        {
+          "command": "git.stage",
+          "group": "navigation"
         }
       ]
     },

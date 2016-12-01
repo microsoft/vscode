@@ -7,6 +7,10 @@
 
 import { Event } from 'vscode';
 
+export function log(...args: any[]): void {
+	console.log.apply(console, ['git:', ...args]);
+}
+
 export interface IDisposable {
 	dispose(): void;
 }

@@ -9,15 +9,12 @@ import { scm, ExtensionContext, workspace, Uri, window, Disposable } from 'vscod
 import * as path from 'path';
 import { findGit, Git } from './git';
 import { Model } from './model';
+import { log } from './util';
 import { GitSCMProvider } from './scmProvider';
 import { registerCommands } from './commands';
 import * as nls from 'vscode-nls';
 
 nls.config();
-
-export function log(...args: any[]): void {
-	console.log.apply(console, ['git:', ...args]);
-}
 
 class TextDocumentContentProvider {
 
