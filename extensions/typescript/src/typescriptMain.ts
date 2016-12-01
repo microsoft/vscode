@@ -165,7 +165,7 @@ class LanguageProvider {
 			languages.registerRenameProvider(selector, renameProvider);
 			languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n');
 			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
-			if (client.apiVersion.has211Features()) {
+			if (client.apiVersion.has213Features()) {
 				languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, modeId));
 			}
 			languages.setLanguageConfiguration(modeId, {
