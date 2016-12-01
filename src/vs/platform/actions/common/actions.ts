@@ -42,7 +42,6 @@ export class MenuId {
 	static readonly ExplorerContext = new MenuId('4');
 	static readonly ProblemsPanelContext = new MenuId('5');
 	static readonly SCMTitle = new MenuId('scm/title');
-	static readonly SCMContext = new MenuId('scm/context');
 
 	constructor(private _id: string) {
 
@@ -50,6 +49,17 @@ export class MenuId {
 
 	get id(): string {
 		return this._id;
+	}
+}
+
+export class SCMMenuId extends MenuId {
+
+	get providerId(): string { return this._providerId; }
+	get resourceGroupId(): string { return this._resourceGroupId; }
+	get isContext(): boolean { return this._isContext; }
+
+	constructor(private _providerId: string, private _resourceGroupId: string, private _isContext: boolean) {
+		super(`scm/${_providerId}/${_resourceGroupId}${_isContext ? '/context' : ''}`);
 	}
 }
 
