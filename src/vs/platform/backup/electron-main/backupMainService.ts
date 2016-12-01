@@ -135,7 +135,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	protected toBackupPath(workspacePath: string): string {
-		const workspaceHash = crypto.createHash('md5').update(workspacePath).digest('hex');
+		const workspaceHash = crypto.createHash('md5').update(workspacePath.toLowerCase()).digest('hex');
 
 		return path.join(this.backupHome, workspaceHash);
 	}
