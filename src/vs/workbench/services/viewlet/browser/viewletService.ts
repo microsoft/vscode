@@ -72,7 +72,7 @@ export class ViewletService implements IViewletService {
 			}
 
 			// Fallback to default viewlet if extension viewlet is still not found (e.g. uninstalled)
-			return this.sidebarPart.openViewlet(this.viewletRegistry.getDefaultViewletId(), focus);
+			return this.sidebarPart.openViewlet(this.getDefaultViewletId(), focus);
 		});
 	}
 
@@ -90,5 +90,13 @@ export class ViewletService implements IViewletService {
 		return this.viewletRegistry.getViewlets()
 			.filter(viewlet => !viewlet.extensionId)
 			.sort((v1, v2) => v1.order - v2.order);
+	}
+
+	public getDefaultViewletId(): string {
+		return this.viewletRegistry.getDefaultViewletId();
+	}
+
+	public getViewlet(id: string): ViewletDescriptor {
+		return this.getViewlets().filter(viewlet => viewlet.id === id)[0];
 	}
 }
