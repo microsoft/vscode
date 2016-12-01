@@ -87,9 +87,17 @@ class MainThreadSCMProvider implements ISCMProvider {
 			const [id, label, rawResources] = rawGroup;
 
 			const resources = rawResources.map(rawResource => {
-				const [uri] = rawResource;
+				const [uri, decorationIcon, strikeThrough] = rawResource;
+				const decorations = {
+					icon: decorationIcon && URI.parse(decorationIcon),
+					strikeThrough
+				};
 
-				return { uri: URI.parse(uri), resourceGroupId: id };
+				return {
+					resourceGroupId: id,
+					uri: URI.parse(uri),
+					decorations
+				};
 			});
 
 			return { id, label, resources };

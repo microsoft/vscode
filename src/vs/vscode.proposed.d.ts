@@ -86,8 +86,14 @@ declare module 'vscode' {
 		getClickCommand?(node: T): string;
 	}
 
+	export interface SCMResourceDecorations {
+		readonly iconPath?: string | Uri;
+		readonly strikeThrough?: boolean;
+	}
+
 	export interface SCMResource {
 		readonly uri: Uri;
+		readonly decorations?: SCMResourceDecorations;
 	}
 
 	export interface SCMResourceGroup {

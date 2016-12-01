@@ -81,7 +81,9 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 }
 
 interface ResourceTemplate {
+	name: HTMLElement;
 	fileLabel: FileLabel;
+	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
 }
 
@@ -102,16 +104,24 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		const element = append(container, $('.resource'));
 		const name = append(element, $('.name'));
 		const fileLabel = this.instantiationService.createInstance(FileLabel, name, void 0);
+		const decorationIcon = append(element, $('.decoration-icon'));
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
 
-		return { fileLabel, actionBar };
+		return { name, fileLabel, decorationIcon, actionBar };
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
 		template.fileLabel.setFile(resource.uri);
 		template.actionBar.clear();
 		template.actionBar.push(this.scmMenus.getResourceActions(resource.resourceGroupId));
+		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
+
+		if (resource.decorations.icon) {
+			template.decorationIcon.style.backgroundImage = `url('${resource.decorations.icon}')`;
+		} else {
+			delete template.decorationIcon.style.backgroundImage;
+		}
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {

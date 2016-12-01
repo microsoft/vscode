@@ -47,7 +47,23 @@ export class ExtHostSCM {
 		const onDidChange = debounceEvent(provider.onDidChange, (l, e) => e, 200);
 		const onDidChangeListener = onDidChange(resourceGroups => {
 			const rawResourceGroups = resourceGroups.map(g => {
-				const rawResources = g.resources.map(r => [r.uri.toString()] as SCMRawResource);
+				const rawResources = g.resources.map(r => {
+					const uri = r.uri.toString();
+					let strikeThrough = false;
+					let decorationIcon: string | undefined;
+
+					if (r.decorations) {
+						if (typeof r.decorations.iconPath === 'string') {
+							decorationIcon = URI.file(r.decorations.iconPath).toString();
+						} else if (r.decorations.iconPath) {
+							decorationIcon = `${r.decorations.iconPath}`;
+						}
+
+						strikeThrough = !!r.decorations.strikeThrough;
+					}
+
+					return [uri, decorationIcon, strikeThrough] as SCMRawResource;
+				});
 				return [g.id, g.label, rawResources] as SCMRawResourceGroup;
 			});
 
