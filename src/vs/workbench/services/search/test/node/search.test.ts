@@ -803,7 +803,10 @@ suite('Search', () => {
 			}
 		}, (result) => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(c, 520);
+
+			// Search can go over the maxResults because it doesn't trim the results from its worker processes to the exact max size.
+			// But the worst-case scenario should be 2*max-1
+			assert.ok(c < 520 * 2);
 			done();
 		});
 	});
