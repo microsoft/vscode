@@ -85,6 +85,7 @@ export class SelectBox extends Widget {
 		if (this.selected >= 0) {
 			this.select.selectedIndex = this.selected;
 			this.select.title = this.options[this.selected];
+			this._onDidSelect.fire(this.options[this.selected]);
 		}
 	}
 
