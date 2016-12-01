@@ -17,8 +17,11 @@ import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy, matchesWords } from 'vs/base/common/filters';
 
 export abstract class AbstractSettingsModel extends Disposable {
+
+	static _fuzzyFilter: IFilter = or(matchesPrefix, matchesContiguousSubString, matchesWords, matchesFuzzy);
 
 	public get groupsTerms(): string[] {
 		return this.settingsGroups.map(group => '@' + group.id);
@@ -51,7 +54,7 @@ export abstract class AbstractSettingsModel extends Disposable {
 			for (const section of group.sections) {
 				const settings: ISetting[] = [];
 				for (const setting of section.settings) {
-					const settingMatches = this._findMatchesInSetting(regex, setting);
+					const settingMatches = this._findMatchesInSetting(filter, regex, setting);
 					if (groupMatched || settingMatches.length > 0) {
 						settings.push(setting);
 					}
@@ -86,15 +89,7 @@ export abstract class AbstractSettingsModel extends Disposable {
 		return null;
 	}
 
-	private _findMatchesInSetting(searchRegex: RegExp, setting: ISetting): IRange[] {
-		const result: IRange[] = [];
-		for (let lineNumber = setting.range.startLineNumber; lineNumber <= setting.range.endLineNumber; lineNumber++) {
-			result.push(...this._findMatchesInLine(searchRegex, lineNumber));
-		}
-		return result;
-	}
-
-	protected abstract _findMatchesInLine(searchRegex: RegExp, lineNumber: number): IRange[];
+	protected abstract _findMatchesInSetting(searchString: string, searchRegex: RegExp, setting: ISetting): IRange[];
 	public abstract settingsGroups: ISettingsGroup[];
 }
 
@@ -192,7 +187,8 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 						},
 						value: null,
 						keyRange: null,
-						valueRange: null
+						valueRange: null,
+						descriptionRange: null,
 					});
 				}
 			},
@@ -258,10 +254,18 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		}] : [];
 	}
 
-	protected _findMatchesInLine(searchRegex: RegExp, lineNumber: number): IRange[] {
-		return this.model.findMatches(searchRegex.source, {
+	protected _findMatchesInSetting(searchString: string, searchRegex: RegExp, setting: ISetting): IRange[] {
+		const result: IRange[] = [];
+		for (let lineNumber = setting.range.startLineNumber; lineNumber <= setting.range.endLineNumber; lineNumber++) {
+			result.push(...this._findMatchesInLine(searchString, lineNumber));
+		}
+		return result;
+	}
+
+	private _findMatchesInLine(searchString: string, lineNumber: number): IRange[] {
+		return this.model.findMatches(searchString, {
 			startLineNumber: lineNumber, startColumn: this.model.getLineMinColumn(lineNumber), endLineNumber: lineNumber, endColumn: this.model.getLineMaxColumn(lineNumber),
-		}, false, !searchRegex.ignoreCase, false);
+		}, false, false, false);
 	}
 }
 
@@ -383,7 +387,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				const prop = config.properties[key];
 				const value = prop.default;
 				const description = prop.description || '';
-				return { key, value, description, range: null, keyRange: null, valueRange: null };
+				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRange: null };
 			});
 			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
 		}
@@ -429,6 +433,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				for (const setting of section.settings) {
 					const settingStart = this._contentByLines.length + 1;
 					this.addDescription(setting.description, this.indent, this._contentByLines);
+					setting.descriptionRange = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 
 					let preValueConent = this.indent;
 					const keyString = JSON.stringify(setting.key);
@@ -473,7 +478,34 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		}
 	}
 
-	protected _findMatchesInLine(searchRegex: RegExp, lineNumber: number): IRange[] {
+	protected _findMatchesInSetting(searchString: string, searchRegex: RegExp, setting: ISetting): IRange[] {
+		const result: IRange[] = [...this._findMatchesInDescription(searchString, setting)];
+		for (let lineNumber = setting.valueRange.startLineNumber; lineNumber <= setting.valueRange.endLineNumber; lineNumber++) {
+			result.push(...this._findMatchesInLine(searchRegex, lineNumber));
+		}
+		return result;
+	}
+
+	private _findMatchesInDescription(searchString: string, setting: ISetting): IRange[] {
+		const result: IRange[] = [];
+		for (let lineNumber = setting.descriptionRange.startLineNumber; lineNumber <= setting.descriptionRange.endLineNumber; lineNumber++) {
+			const content = this._contentByLines[lineNumber - 1];
+			const matches: IMatch[] = AbstractSettingsModel._fuzzyFilter(searchString, content);
+			if (matches) {
+				result.push(...matches.map(match => {
+					return <IRange>{
+						startLineNumber: lineNumber,
+						startColumn: match.start + 1,
+						endLineNumber: lineNumber,
+						endColumn: match.end + 1
+					};
+				}));
+			}
+		}
+		return result;
+	}
+
+	private _findMatchesInLine(searchRegex: RegExp, lineNumber: number): IRange[] {
 		const result: IRange[] = [];
 		const text = this._contentByLines[lineNumber - 1];
 		var m: RegExpExecArray;

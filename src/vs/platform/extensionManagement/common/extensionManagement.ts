@@ -119,14 +119,18 @@ export interface IGalleryExtensionProperties {
 	engine?: string;
 }
 
+export interface IGalleryExtensionAsset {
+	uri: string;
+	fallbackUri: string;
+}
+
 export interface IGalleryExtensionAssets {
-	manifest: string;
-	readme: string;
-	changelog: string;
-	download: string;
-	icon: string;
-	iconFallback: string;
-	license: string;
+	manifest: IGalleryExtensionAsset;
+	readme: IGalleryExtensionAsset;
+	changelog: IGalleryExtensionAsset;
+	download: IGalleryExtensionAsset;
+	icon: IGalleryExtensionAsset;
+	license: IGalleryExtensionAsset;
 }
 
 export interface IGalleryExtension {

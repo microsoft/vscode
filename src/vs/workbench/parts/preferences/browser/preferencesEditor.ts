@@ -7,6 +7,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import * as DOM from 'vs/base/browser/dom';
+import { Delayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
@@ -19,7 +20,7 @@ import { EditorOptions, EditorInput, } from 'vs/workbench/common/editor';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import {
@@ -34,18 +35,13 @@ import { DefaultSettingsHeaderWidget, SettingsGroupTitleWidget, SettingsCountWid
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+
+// Ignore following contributions
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 
 
@@ -99,10 +95,10 @@ export class PreferencesEditorInput extends EditorInput {
 	}
 }
 
-export class PreferencesEditor extends BaseTextEditor {
+export class PreferencesEditor extends BaseEditor {
 
 	public static ID: string = 'workbench.editor.defaultPreferences';
-	private static VIEW_STATE: Map<URI, editorCommon.IEditorViewState> = new Map<URI, editorCommon.IEditorViewState>();
+	private static VIEW_STATE: Map<URI, editorCommon.ICodeEditorViewState> = new Map<URI, editorCommon.ICodeEditorViewState>();
 
 	private inputDisposeListener;
 	private defaultPreferencesEditor: CodeEditor;
@@ -111,37 +107,42 @@ export class PreferencesEditor extends BaseTextEditor {
 	private isFocussed = false;
 	private toDispose: IDisposable[] = [];
 
+	private delayedFilterLogging: Delayer<void>;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
-		@IMessageService messageService: IMessageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IThemeService themeService: IThemeService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IThemeService private themeService: IThemeService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService
 	) {
-		super(PreferencesEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
+		super(PreferencesEditor.ID, telemetryService);
+		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 
-	public createEditorControl(parent: Builder): editorCommon.IEditor {
+	public createEditor(parent: Builder) {
 		const parentContainer = parent.getHTMLElement();
 		this.defaultSettingHeaderWidget = this._register(this.instantiationService.createInstance(DefaultSettingsHeaderWidget, parentContainer));
 		this._register(this.defaultSettingHeaderWidget.onDidChange(value => this.filterPreferences(value)));
+
 		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor, parentContainer, this.getCodeEditorOptions()));
 		const focusTracker = this._register(DOM.trackFocus(parentContainer));
 		focusTracker.addBlurListener(() => { this.isFocussed = false; });
+	}
+
+	public getControl(): CodeEditor {
 		return this.defaultPreferencesEditor;
 	}
 
-	public getCodeEditorOptions(): editorCommon.IEditorOptions {
-		const options = super.getCodeEditorOptions();
-		options.readOnly = true;
+	private getCodeEditorOptions(): editorCommon.IEditorOptions {
+		const options: editorCommon.IEditorOptions = {
+			overviewRulerLanes: 3,
+			lineNumbersMinChars: 3,
+			theme: this.themeService.getColorTheme(),
+			fixedOverflowWidgets: true,
+			readOnly: true
+		};
 		if (this.input && (<PreferencesEditorInput>this.input).isSettings) {
 			options.lineNumbers = 'off';
 			options.renderLineHighlight = 'none';
@@ -156,7 +157,7 @@ export class PreferencesEditor extends BaseTextEditor {
 	setInput(input: PreferencesEditorInput, options: EditorOptions): TPromise<void> {
 		this.listenToInput(input);
 		return super.setInput(input, options)
-			.then(() => this.createModel(input)
+			.then(() => this.getOrCreateModel(input)
 				.then(model => this.setDefaultPreferencesEditorInput(model, input)));
 	}
 
@@ -182,11 +183,15 @@ export class PreferencesEditor extends BaseTextEditor {
 		}
 	}
 
-	private createModel(input: PreferencesEditorInput): TPromise<editorCommon.IModel> {
+	private getOrCreateModel(input: PreferencesEditorInput): TPromise<editorCommon.IModel> {
 		return this.preferencesService.createDefaultPreferencesEditorModel(input.getResource())
 			.then(preferencesEditorModel => {
-				let mode = this.modeService.getOrCreateMode('json');
-				return this.modelService.createModel(preferencesEditorModel.content, mode, preferencesEditorModel.uri);
+				let model = this.modelService.getModel(input.getResource());
+				if (!model) {
+					let mode = this.modeService.getOrCreateMode('json');
+					model = this.modelService.createModel(preferencesEditorModel.content, mode, preferencesEditorModel.uri);
+				}
+				return model;
 			});
 	}
 
@@ -203,10 +208,12 @@ export class PreferencesEditor extends BaseTextEditor {
 	}
 
 	private filterPreferences(filter: string) {
+		this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
 		(<DefaultSettingsRenderer>this.getDefaultPreferencesContribution().getPreferencesRenderer()).filterPreferences(filter);
 	}
 
 	public clearInput(): void {
+		this.disposeModel();
 		this.saveState(<PreferencesEditorInput>this.input);
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
@@ -250,6 +257,19 @@ export class PreferencesEditor extends BaseTextEditor {
 			this.inputDisposeListener = (<PreferencesEditorInput>input).willDispose(() => this.saveState(<PreferencesEditorInput>input));
 		}
 	}
+
+	private disposeModel() {
+		const model = this.defaultPreferencesEditor.getModel();
+		if (model) {
+			model.dispose();
+		}
+	}
+
+	private reportFilteringUsed(filter: string): void {
+		let data = {};
+		data['filter'] = filter;
+		this.telemetryService.publicLog('defaultSettings.filter', data);
+	}
 }
 
 class DefaultPreferencesEditor extends CodeEditor {
@@ -271,6 +291,8 @@ class DefaultPreferencesEditor extends CodeEditor {
 			if (c.prototype === FoldingController.prototype) {
 				return false;
 			}
+			// Find
+			// Ignore warnings
 			return true;
 		});
 		return contributions;

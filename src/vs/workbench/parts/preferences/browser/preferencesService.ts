@@ -85,7 +85,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (PreferencesService.DEFAULT_SETTINGS_URI.fsPath === uri.fsPath) {
 			return this.fetchMostCommonlyUsedSettings()
 				.then(mostCommonSettings => {
-					const uri = URI.from({ scheme: PreferencesService.DEFAULT_SETTINGS_URI.scheme, authority: PreferencesService.DEFAULT_SETTINGS_URI.authority, path: PreferencesService.DEFAULT_SETTINGS_URI.path, fragment: '' + this.defaultEditorModels.size });
 					const model = this.instantiationService.createInstance(DefaultSettingsEditorModel, uri, mostCommonSettings);
 					this.defaultEditorModels.set(uri, model);
 					return model;
@@ -93,7 +92,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		if (PreferencesService.DEFAULT_KEY_BINDINGS_URI.fsPath === uri.fsPath) {
-			const uri = URI.from({ scheme: PreferencesService.DEFAULT_KEY_BINDINGS_URI.scheme, authority: PreferencesService.DEFAULT_KEY_BINDINGS_URI.authority, path: PreferencesService.DEFAULT_KEY_BINDINGS_URI.path, fragment: '' + this.defaultEditorModels.size });
 			const model = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
 			this.defaultEditorModels.set(uri, model);
 			return TPromise.wrap(model);
