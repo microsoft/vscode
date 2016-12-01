@@ -6,29 +6,36 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { dispose } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ISCMService, ISCMProvider, ISCMResource } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource } from './extHost.protocol';
-import { SCMProvider } from 'vs/workbench/services/scm/common/scmProvider';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceGroup } from './extHost.protocol';
 
-class MainThreadSCMProvider extends SCMProvider {
+class MainThreadSCMProvider implements ISCMProvider {
+
+	private _resources: ISCMResourceGroup[] = [];
+	get resources(): ISCMResourceGroup[] { return this._resources; }
+
+	private _onDidChange = new Emitter<ISCMResourceGroup[]>();
+	get onDidChange(): Event<ISCMResourceGroup[]> { return this._onDidChange.event; }
+
+	private disposables: IDisposable[] = [];
+
+	get id(): string { return this._id; }
+	get label(): string { return this.features.label; }
 
 	constructor(
-		id: string,
+		private _id: string,
 		private proxy: ExtHostSCMShape,
 		private features: SCMProviderFeatures,
 		@ISCMService scmService: ISCMService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super(id, 'Ext Host SCM Provider');
 		scmService.onDidChangeProvider(this.onDidChangeProvider, this, this.disposables);
 		this.disposables.push(scmService.registerSCMProvider(this));
-
-		features.resourceGroups
-			.forEach(resourceGroup => this.createResourceGroup(resourceGroup.id, resourceGroup.label));
 	}
 
 	commit(message: string): TPromise<void> {
@@ -75,16 +82,20 @@ class MainThreadSCMProvider extends SCMProvider {
 		// }
 	}
 
-	$onChange(raw: SCMRawResource[][]): void {
-		if (raw.length !== this.resourceGroups.length) {
-			throw new Error('bad on change');
-		}
+	$onChange(rawResourceGroups: SCMRawResourceGroup[]): void {
+		this._resources = rawResourceGroups.map(rawGroup => {
+			const [id, label, rawResources] = rawGroup;
 
-		raw.forEach((group, index) => {
-			const resourceGroup = this.resourceGroups[index];
-			const resources = group.map(raw => ({ uri: URI.parse(raw.uri) }));
-			resourceGroup.set(...resources);
+			const resources = rawResources.map(rawResource => {
+				const [uri] = rawResource;
+
+				return { uri: URI.parse(uri) };
+			});
+
+			return { id, label, resources };
 		});
+
+		this._onDidChange.fire(this.resources);
 	}
 
 	dispose(): void {
@@ -120,14 +131,14 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		delete this.providers[id];
 	}
 
-	$onChange(id: string, resources: SCMRawResource[][]): void {
+	$onChange(id: string, rawResourceGroups: SCMRawResourceGroup[]): void {
 		const provider = this.providers[id];
 
 		if (!provider) {
 			return;
 		}
 
-		provider.$onChange(resources);
+		provider.$onChange(rawResourceGroups);
 	}
 
 	dispose(): void {
