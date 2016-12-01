@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 
+import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ISerializedFileMatch } from '../search';
@@ -24,6 +25,14 @@ interface ReadLinesOptions {
 
 // Global isCanceled flag for the process. It's only set once and this avoids awkwardness in passing it around.
 let isCanceled = false;
+
+const MAX_FILE_ERRORS = 5; // Don't report more than this number of errors, 1 per file, to avoid flooding the log when there's a general issue
+let numErrorsLogged = 0;
+function onError(error: any): void {
+	if (numErrorsLogged++ < MAX_FILE_ERRORS) {
+		onUnexpectedError(error);
+	}
+}
 
 export class SearchWorker implements ISearchWorker {
 	static CONCURRENT_SEARCH_PATHS = 2;
@@ -89,7 +98,7 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, fileEncodi
 				if (absolutePaths.length) {
 					return startSearchInFile(absolutePaths.shift());
 				}
-			});
+			}, onError);
 		};
 
 		let batchPromises: TPromise<void>[] = [];

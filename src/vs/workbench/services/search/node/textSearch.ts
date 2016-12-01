@@ -12,6 +12,7 @@ import * as path from 'path';
 
 import * as ipc from 'vs/base/parts/ipc/common/ipc';
 
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IProgress } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
@@ -49,7 +50,10 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		this.isCanceled = true;
 		this.walker.cancel();
 
-		this.workers.forEach(w => w.cancel());
+		this.workers.forEach(w => {
+			w.cancel()
+				.then(null, onUnexpectedError);
+		});
 	}
 
 	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
@@ -102,7 +106,12 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				}
 
 				unwind(batchBytes);
-			});
+			},
+				error => {
+					// An error on the worker's end, not in reading the file, but in processing the batch. Log and continue.
+					onUnexpectedError(error);
+					unwind(batchBytes);
+				});
 		};
 
 		// Walk over the file system
@@ -170,7 +179,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		const channel = ipc.getNextTickChannel(client.getChannel<ISearchWorkerChannel>('searchWorker'));
 		const channelClient = new SearchWorkerChannelClient(channel);
 		const config: ISearchWorkerConfig = { pattern: this.config.contentPattern, id, fileEncoding: this.config.fileEncoding };
-		channelClient.initialize(config);
+		channelClient.initialize(config).then(null, onUnexpectedError);
 
 		this.workers.push(channelClient);
 		this.workerClients.push(client);
