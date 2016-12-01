@@ -587,7 +587,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private sendNextRequests(): void {
 		while (this.pendingResponses === 0 && this.requestQueue.length > 0) {
-			this.sendRequest(this.requestQueue.shift());
+			const item = this.requestQueue.shift();
+			if (item) {
+				this.sendRequest(item);
+			}
 		}
 	}
 
