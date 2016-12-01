@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as platform from 'vs/base/common/platform';
 import * as extfs from 'vs/base/node/extfs';
 import Uri from 'vs/base/common/uri';
 import { IBackupWorkspacesFormat, IBackupMainService } from 'vs/platform/backup/common/backup';
@@ -135,7 +136,8 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	protected toBackupPath(workspacePath: string): string {
-		const workspaceHash = crypto.createHash('md5').update(workspacePath).digest('hex');
+		const caseAwarePath = platform.isWindows || platform.isMacintosh ? workspacePath.toLowerCase() : workspacePath;
+		const workspaceHash = crypto.createHash('md5').update(caseAwarePath).digest('hex');
 
 		return path.join(this.backupHome, workspaceHash);
 	}

@@ -377,12 +377,12 @@ class BeforeAfterData {
 
 		let contentBefore = '';
 		if (overwriteBefore > 0) {
-			contentBefore = model.getLineContent(selection.startLineNumber).substring(selection.startColumn - 1 - overwriteBefore, selection.startColumn);
+			contentBefore = model.getLineContent(selection.startLineNumber).substring(selection.startColumn - 1 - overwriteBefore, selection.startColumn - 1);
 		}
 
 		let contentAfter = '';
 		if (overwriteAfter > 0) {
-			contentAfter = model.getLineContent(selection.endLineNumber).substring(selection.endColumn - 1, selection.endColumn + overwriteAfter);
+			contentAfter = model.getLineContent(selection.endLineNumber).substring(selection.endColumn - 1, selection.endColumn - 1 + overwriteAfter);
 		}
 
 		return new BeforeAfterData(model, contentBefore, contentAfter, overwriteBefore, overwriteAfter);

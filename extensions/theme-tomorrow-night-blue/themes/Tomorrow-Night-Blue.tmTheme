@@ -77,7 +77,7 @@
 			<key>name</key>
 			<string>Class, Support</string>
 			<key>scope</key>
-			<string>entity.name.class, entity.name.type.class, support.type, support.class</string>
+			<string>entity.name.class, entity.name.type, support.type, support.class</string>
 			<key>settings</key>
 			<dict>
 				<key>fontStyle</key>

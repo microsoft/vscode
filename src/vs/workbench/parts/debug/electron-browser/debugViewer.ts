@@ -25,6 +25,8 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
@@ -176,14 +178,19 @@ function getSourceName(source: Source, contextService: IWorkspaceContextService)
 
 export class BaseDebugController extends DefaultController {
 
+	private contributedContextMenu: IMenu;
+
 	constructor(
 		private actionProvider: IActionProvider,
+		menuId: MenuId,
 		@debug.IDebugService protected debugService: debug.IDebugService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService
 	) {
 		super();
 
+		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
 		if (isMacintosh) {
 			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
 		} else {
@@ -211,7 +218,10 @@ export class BaseDebugController extends DefaultController {
 			const anchor = { x: event.posx + 1, y: event.posy };
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
-				getActions: () => this.actionProvider.getSecondaryActions(tree, element),
+				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
+					fillInActions(this.contributedContextMenu, this.getContext(element), actions);
+					return actions;
+				}),
 				onHide: (wasCancelled?: boolean) => {
 					if (wasCancelled) {
 						tree.DOMFocus();
@@ -232,6 +242,10 @@ export class BaseDebugController extends DefaultController {
 
 	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
 		return false;
+	}
+
+	protected getContext(element: any): any {
+		return undefined;
 	}
 }
 
@@ -292,6 +306,12 @@ export class CallStackController extends BaseDebugController {
 		this.focusStackFrame(tree.getFocus(), event, true);
 
 		return true;
+	}
+
+	protected getContext(element: any): any {
+		if (element instanceof StackFrame) {
+			return element.source.uri.toString();
+		}
 	}
 
 	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.

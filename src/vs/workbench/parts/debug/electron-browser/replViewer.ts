@@ -26,6 +26,7 @@ import { AddToWatchExpressionsAction, ClearReplAction } from 'vs/workbench/parts
 import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -501,9 +502,10 @@ export class ReplExpressionsController extends BaseDebugController {
 		actionProvider: IActionProvider,
 		@IDebugService debugService: IDebugService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService
 	) {
-		super(actionProvider, debugService, contextMenuService, contextKeyService);
+		super(actionProvider, MenuId.DebugConsoleContext, debugService, contextMenuService, contextKeyService, menuService);
 	}
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {

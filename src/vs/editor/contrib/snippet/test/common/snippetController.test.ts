@@ -506,4 +506,19 @@ suite('SnippetController', () => {
 		}, ['this._', 'abc', 'def._']);
 
 	});
+
+	test('Multiple cursor and overwriteBefore/After, #16277', () => {
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelections([
+				new Selection(1, 5, 1, 5),
+				new Selection(2, 5, 2, 5),
+			]);
+
+			codeSnippet = CodeSnippet.fromTextmate('document');
+			controller.run(codeSnippet, 3, 0);
+			assert.equal(editor.getModel().getValue(), '{document}\n{document && true}');
+
+		}, ['{foo}', '{foo && true}']);
+	});
 });

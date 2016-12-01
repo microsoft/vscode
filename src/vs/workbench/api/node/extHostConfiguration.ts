@@ -35,7 +35,7 @@ function createUsefulConfiguration(data: IWorkspaceConfigurationValues): { data:
 			valueMap[key] = data[key].value;
 		}
 	}
-	const valueTree = toValuesTree(valueMap);
+	const valueTree = toValuesTree(valueMap, message => console.error(`Conflict in configuration settings: ${message}`));
 	return {
 		data,
 		valueTree

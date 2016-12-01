@@ -9,6 +9,10 @@
 	margin: 10px 0;
 }
 
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.dropfeedback {
+	background-color: #403F3F;
+}
+
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
 	display: flex;
 	overflow: hidden;
@@ -34,6 +38,10 @@
 	border-left: 2px solid;
 }
 
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.clicked:focus:before {
+	border-left: none !important; /* no focus feedback when using mouse */
+}
+
 .vs .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before,
 .vs-dark .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
 	border-left-color: #007ACC;
@@ -49,6 +57,10 @@
 
 .monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item .action-label:focus:before {
 	right: 1px;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.toggle-more {
+	background-image: url('ellipsis-global.svg');
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .label {

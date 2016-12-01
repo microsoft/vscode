@@ -6,18 +6,94 @@
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
+import { LinkedMap as Map } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel, IRange } from 'vs/editor/common/editorCommon';
 import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy, matchesWords } from 'vs/base/common/filters';
 
-export class SettingsEditorModel extends Disposable implements ISettingsEditorModel {
+export abstract class AbstractSettingsModel extends Disposable {
+
+	static _fuzzyFilter: IFilter = or(matchesPrefix, matchesContiguousSubString, matchesWords, matchesFuzzy);
+
+	public get groupsTerms(): string[] {
+		return this.settingsGroups.map(group => '@' + group.id);
+	}
+
+	protected doFilterSettings(filter: string, allGroups: ISettingsGroup[]): IFilterResult {
+		if (!filter) {
+			return {
+				filteredGroups: allGroups,
+				allGroups,
+				matches: new Map<string, IRange[]>()
+			};
+		}
+
+		const group = this.filterByGroupTerm(filter);
+		if (group) {
+			return {
+				filteredGroups: [group],
+				allGroups,
+				matches: new Map<string, IRange[]>()
+			};
+		}
+
+		const matches: Map<string, IRange[]> = new Map<string, IRange[]>();
+		const filteredGroups: ISettingsGroup[] = [];
+		const regex = strings.createRegExp(filter, false, { global: true });
+		for (const group of allGroups) {
+			const groupMatched = regex.test(group.title);
+			const sections: ISettingsSection[] = [];
+			for (const section of group.sections) {
+				const settings: ISetting[] = [];
+				for (const setting of section.settings) {
+					const settingMatches = this._findMatchesInSetting(filter, regex, setting);
+					if (groupMatched || settingMatches.length > 0) {
+						settings.push(setting);
+					}
+					matches.set(group.title + setting.key, settingMatches);
+				}
+				if (settings.length) {
+					sections.push({
+						description: section.description,
+						settings,
+						descriptionRange: section.descriptionRange
+					});
+				}
+			}
+			if (sections.length) {
+				filteredGroups.push({
+					id: group.id,
+					title: group.title,
+					titleRange: group.titleRange,
+					sections,
+					range: group.range
+				});
+			}
+		}
+		return { filteredGroups, matches, allGroups };
+	}
+
+	private filterByGroupTerm(filter: string): ISettingsGroup {
+		if (this.groupsTerms.indexOf(filter) !== -1) {
+			const id = filter.substring(1);
+			return this.settingsGroups.filter(group => group.id === id)[0];
+		}
+		return null;
+	}
+
+	protected abstract _findMatchesInSetting(searchString: string, searchRegex: RegExp, setting: ISetting): IRange[];
+	public abstract settingsGroups: ISettingsGroup[];
+}
+
+export class SettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
 	private _settingsGroups: ISettingsGroup[];
 
@@ -45,6 +121,10 @@ export class SettingsEditorModel extends Disposable implements ISettingsEditorMo
 
 	public get content(): string {
 		return this.model.getValue();
+	}
+
+	public filterSettings(filter: string): IFilterResult {
+		return this.doFilterSettings(filter, this.settingsGroups);
 	}
 
 	private parse() {
@@ -106,7 +186,9 @@ export class SettingsEditorModel extends Disposable implements ISettingsEditorMo
 							endColumn: 0
 						},
 						value: null,
-						valueRange: null
+						keyRange: null,
+						valueRange: null,
+						descriptionRange: null,
 					});
 				}
 			},
@@ -171,17 +253,33 @@ export class SettingsEditorModel extends Disposable implements ISettingsEditorMo
 			}
 		}] : [];
 	}
+
+	protected _findMatchesInSetting(searchString: string, searchRegex: RegExp, setting: ISetting): IRange[] {
+		const result: IRange[] = [];
+		for (let lineNumber = setting.range.startLineNumber; lineNumber <= setting.range.endLineNumber; lineNumber++) {
+			result.push(...this._findMatchesInLine(searchString, lineNumber));
+		}
+		return result;
+	}
+
+	private _findMatchesInLine(searchString: string, lineNumber: number): IRange[] {
+		return this.model.findMatches(searchString, {
+			startLineNumber: lineNumber, startColumn: this.model.getLineMinColumn(lineNumber), endLineNumber: lineNumber, endColumn: this.model.getLineMaxColumn(lineNumber),
+		}, false, false, false);
+	}
 }
 
-export class DefaultSettingsEditorModel implements ISettingsEditorModel {
+export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
 	private indent: string;
 
-	private _settingsGroups: ISettingsGroup[];
+	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
 	private _contentByLines: string[];
 
-	constructor(private _uri: URI, @IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
+	constructor(private _uri: URI, private _mostCommonlyUsedSettingsKeys: string[],
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
+		super();
 		const editorConfig = this.configurationService.getConfiguration<any>();
 		this.indent = editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t';
 	}
@@ -198,16 +296,74 @@ export class DefaultSettingsEditorModel implements ISettingsEditorModel {
 	}
 
 	public get settingsGroups(): ISettingsGroup[] {
-		if (!this._settingsGroups) {
+		if (!this._allSettingsGroups) {
 			this.parse();
 		}
-		return this._settingsGroups;
+		return this._allSettingsGroups;
+	}
+
+	public get mostCommonlyUsedSettings(): ISettingsGroup {
+		return this.settingsGroups[0];
+	}
+
+	public filterSettings(filter: string): IFilterResult {
+		return this.doFilterSettings(filter, this.settingsGroups);
+	}
+
+	public getSetting(key: string): ISetting {
+		for (const group of this.settingsGroups) {
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					if (setting.key === key) {
+						return setting;
+					}
+				}
+			}
+		}
+		return null;
 	}
 
 	private parse() {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
-		this._settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
+		const allSettingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
+		this._allSettingsGroups = [this.getMostCommonlyUsedSettings(allSettingsGroups), ...allSettingsGroups];
 		this._content = this.toContent(this.settingsGroups);
+	}
+
+	private getMostCommonlyUsedSettings(allSettingsGroups: ISettingsGroup[]): ISettingsGroup {
+		const map: Map<string, ISetting> = new Map<string, ISetting>();
+		for (const group of allSettingsGroups) {
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					map.set(setting.key, setting);
+				}
+			}
+		}
+		const settings = this._mostCommonlyUsedSettingsKeys.map(key => {
+			const setting = map.get(key);
+			if (setting) {
+				return <ISetting>{
+					description: setting.description,
+					key: setting.key,
+					value: setting.value,
+					range: null,
+					valueRange: null
+				};
+			}
+			return null;
+		}).filter(setting => !!setting);
+
+		return <ISettingsGroup>{
+			id: 'mostCommonlyUsed',
+			range: null,
+			title: nls.localize('commonlyUsed', "Most Commonly Used"),
+			titleRange: null,
+			sections: [
+				{
+					settings
+				}
+			]
+		};
 	}
 
 	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
@@ -215,7 +371,7 @@ export class DefaultSettingsEditorModel implements ISettingsEditorModel {
 			if (!settingsGroup) {
 				settingsGroup = result.filter(g => g.title === config.title)[0];
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], title: config.title, titleRange: null, range: null };
+					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.title, titleRange: null, range: null };
 					result.push(settingsGroup);
 				}
 			} else {
@@ -224,14 +380,14 @@ export class DefaultSettingsEditorModel implements ISettingsEditorModel {
 		}
 		if (config.properties) {
 			if (!settingsGroup) {
-				settingsGroup = { sections: [{ settings: [] }], title: config.id, titleRange: null, range: null };
+				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null };
 				result.push(settingsGroup);
 			}
 			const configurationSettings: ISetting[] = Object.keys(config.properties).map((key) => {
 				const prop = config.properties[key];
 				const value = prop.default;
 				const description = prop.description || '';
-				return { key, value, description, range: null, valueRange: null };
+				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRange: null };
 			});
 			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
 		}
@@ -260,48 +416,51 @@ export class DefaultSettingsEditorModel implements ISettingsEditorModel {
 		let lastSetting: ISetting = null;
 		this._contentByLines = [];
 
-		this._contentByLines.push('// ' + nls.localize('defaultSettingsHeader', "Overwrite settings by placing them into your settings file."));
-		this._contentByLines.push('// ' + nls.localize('defaultSettingsHeader2', "See http://go.microsoft.com/fwlink/?LinkId=808995 for the most commonly used settings."));
 		this._contentByLines.push('{');
+		this._contentByLines.push('');
 
 		for (const group of settingsGroups) {
-
-			let groupTitleStart = this._contentByLines.length + 1;
-			this.addTitleOrDescription(group.title, '', this._contentByLines);
-			group.titleRange = { startLineNumber: groupTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+			this._contentByLines.push('');
+			let groupStart = this._contentByLines.length + 1;
 
 			for (const section of group.sections) {
 				if (section.description) {
 					let sectionTitleStart = this._contentByLines.length + 1;
-					this.addTitleOrDescription(section.description, this.indent, this._contentByLines);
+					this.addDescription(section.description, this.indent, this._contentByLines);
 					section.descriptionRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 				}
 
 				for (const setting of section.settings) {
 					const settingStart = this._contentByLines.length + 1;
-					this.addTitleOrDescription(setting.description, this.indent, this._contentByLines);
+					this.addDescription(setting.description, this.indent, this._contentByLines);
+					setting.descriptionRange = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 
+					let preValueConent = this.indent;
+					const keyString = JSON.stringify(setting.key);
+					preValueConent += keyString;
+					setting.keyRange = { startLineNumber: this._contentByLines.length + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this._contentByLines.length + 1, endColumn: setting.key.length };
+
+					preValueConent += ': ';
 					const valueStart = this._contentByLines.length + 1;
 					let valueString = JSON.stringify(setting.value, null, this.indent);
-					const preValueContent = this.indent + JSON.stringify(setting.key) + ': ';
 					if (valueString && (typeof setting.value === 'object')) {
 						const mulitLineValue = valueString.split('\n');
-						this._contentByLines.push(preValueContent + mulitLineValue[0]);
+						this._contentByLines.push(preValueConent + mulitLineValue[0]);
 						for (let i = 1; i < mulitLineValue.length; i++) {
 							this._contentByLines.push(this.indent + mulitLineValue[i]);
 						}
 					} else {
-						this._contentByLines.push(preValueContent + valueString);
+						this._contentByLines.push(preValueConent + valueString);
 					}
 
-					setting.valueRange = { startLineNumber: valueStart, startColumn: preValueContent.length + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length + 1 };
+					setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length + 1 };
 					this._contentByLines[this._contentByLines.length - 1] += ',';
 					lastSetting = setting;
 					this._contentByLines.push('');
 					setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 				}
 			}
-			group.range = { startLineNumber: groupTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+			group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 		}
 
 		if (lastSetting) {
@@ -312,11 +471,58 @@ export class DefaultSettingsEditorModel implements ISettingsEditorModel {
 		return this._contentByLines.join('\n');
 	}
 
-	private addTitleOrDescription(description: string, indent: string, result: string[]) {
+	private addDescription(description: string, indent: string, result: string[]) {
 		const multiLines = description.split('\n');
 		for (const line of multiLines) {
 			result.push(indent + '//' + line);
 		}
+	}
+
+	protected _findMatchesInSetting(searchString: string, searchRegex: RegExp, setting: ISetting): IRange[] {
+		const result: IRange[] = [...this._findMatchesInDescription(searchString, setting)];
+		for (let lineNumber = setting.valueRange.startLineNumber; lineNumber <= setting.valueRange.endLineNumber; lineNumber++) {
+			result.push(...this._findMatchesInLine(searchRegex, lineNumber));
+		}
+		return result;
+	}
+
+	private _findMatchesInDescription(searchString: string, setting: ISetting): IRange[] {
+		const result: IRange[] = [];
+		for (let lineNumber = setting.descriptionRange.startLineNumber; lineNumber <= setting.descriptionRange.endLineNumber; lineNumber++) {
+			const content = this._contentByLines[lineNumber - 1];
+			const matches: IMatch[] = AbstractSettingsModel._fuzzyFilter(searchString, content);
+			if (matches) {
+				result.push(...matches.map(match => {
+					return <IRange>{
+						startLineNumber: lineNumber,
+						startColumn: match.start + 1,
+						endLineNumber: lineNumber,
+						endColumn: match.end + 1
+					};
+				}));
+			}
+		}
+		return result;
+	}
+
+	private _findMatchesInLine(searchRegex: RegExp, lineNumber: number): IRange[] {
+		const result: IRange[] = [];
+		const text = this._contentByLines[lineNumber - 1];
+		var m: RegExpExecArray;
+		// Reset regex to search from the beginning
+		searchRegex.lastIndex = 0;
+		do {
+			m = searchRegex.exec(text);
+			if (m) {
+				var range: IRange = { startLineNumber: lineNumber, startColumn: m.index + 1, endLineNumber: lineNumber, endColumn: m.index + 1 + m[0].length };
+				result.push(range);
+				if (m.index + m[0].length === text.length) {
+					// Reached the end of the line
+					return result;
+				}
+			}
+		} while (m);
+		return result;
 	}
 }
 

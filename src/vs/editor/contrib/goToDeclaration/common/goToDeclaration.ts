@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
@@ -24,7 +24,7 @@ export function getDeclarationsAtPosition(model: IReadOnlyModel, position: Posit
 		}).then(result => {
 			return result;
 		}, err => {
-			onUnexpectedError(err);
+			onUnexpectedExternalError(err);
 		});
 	});
 

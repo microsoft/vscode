@@ -103,7 +103,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 
 		return configurationService.initialize().then(() => {
 			return {
-				configurationEditingService: new ConfigurationEditingService(configurationService, workspaceContextService, environmentService, fileService, textFileService),
+				configurationEditingService: new ConfigurationEditingService(configurationService, workspaceContextService, environmentService, fileService, null, textFileService),
 				configurationService
 			};
 		});
