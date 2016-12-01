@@ -171,7 +171,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/worker/searchWorkerApp',
 					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: 'true'
+					VERBOSE_LOGGING: process.env.VERBOSE_LOGGING
 				}
 			});
 
