@@ -122,7 +122,7 @@ var AMDLoader;
         };
         Utilities.NEXT_ANONYMOUS_ID = 1;
         return Utilities;
-    }());
+    } ());
     AMDLoader.Utilities = Utilities;
     var ConfigurationOptionsUtil = (function () {
         function ConfigurationOptionsUtil() {
@@ -191,6 +191,20 @@ var AMDLoader;
             if (!Array.isArray(options.nodeModules)) {
                 options.nodeModules = [];
             }
+            if (typeof options.nodeCachedDataWriteDelay !== 'number' || options.nodeCachedDataWriteDelay < 0) {
+                options.nodeCachedDataWriteDelay = 1000 * 7;
+            }
+            if (typeof options.onNodeCachedDataError !== 'function') {
+                options.onNodeCachedDataError = function (err) {
+                    if (err.errorCode === 'cachedDataRejected') {
+                        console.warn('Rejected cached data from file: ' + err.path);
+                    }
+                    else if (err.errorCode === 'unlink' || err.errorCode === 'writeFile') {
+                        console.error('Problems writing cached data file: ' + err.path);
+                        console.error(err.detail);
+                    }
+                };
+            }
             return options;
         };
         ConfigurationOptionsUtil.mergeConfigurationOptions = function (overwrite, base) {
@@ -234,7 +248,7 @@ var AMDLoader;
             return ConfigurationOptionsUtil.validateConfigurationOptions(result);
         };
         return ConfigurationOptionsUtil;
-    }());
+    } ());
     AMDLoader.ConfigurationOptionsUtil = ConfigurationOptionsUtil;
     var Configuration = (function () {
         function Configuration(options) {
@@ -528,7 +542,7 @@ var AMDLoader;
             this.options.onError(err);
         };
         return Configuration;
-    }());
+    } ());
     AMDLoader.Configuration = Configuration;
     // ------------------------------------------------------------------------
     // ModuleIdResolver
@@ -608,7 +622,7 @@ var AMDLoader;
             this._config.onError(err);
         };
         return ModuleIdResolver;
-    }());
+    } ());
     AMDLoader.ModuleIdResolver = ModuleIdResolver;
     // ------------------------------------------------------------------------
     // Module
@@ -838,7 +852,7 @@ var AMDLoader;
             return this._unresolvedDependenciesCount === 0;
         };
         return Module;
-    }());
+    } ());
     AMDLoader.Module = Module;
     // ------------------------------------------------------------------------
     // LoaderEvent
@@ -865,7 +879,7 @@ var AMDLoader;
             this.timestamp = timestamp;
         }
         return LoaderEvent;
-    }());
+    } ());
     AMDLoader.LoaderEvent = LoaderEvent;
     var LoaderEventRecorder = (function () {
         function LoaderEventRecorder(loaderAvailableTimestamp) {
@@ -878,7 +892,7 @@ var AMDLoader;
             return this._events;
         };
         return LoaderEventRecorder;
-    }());
+    } ());
     AMDLoader.LoaderEventRecorder = LoaderEventRecorder;
     var NullLoaderEventRecorder = (function () {
         function NullLoaderEventRecorder() {
@@ -891,7 +905,7 @@ var AMDLoader;
         };
         NullLoaderEventRecorder.INSTANCE = new NullLoaderEventRecorder();
         return NullLoaderEventRecorder;
-    }());
+    } ());
     AMDLoader.NullLoaderEventRecorder = NullLoaderEventRecorder;
     var ModuleManager = (function () {
         function ModuleManager(scriptLoader) {
@@ -1536,7 +1550,7 @@ var AMDLoader;
             }
         };
         return ModuleManager;
-    }());
+    } ());
     AMDLoader.ModuleManager = ModuleManager;
     /**
      * Load `scriptSrc` only once (avoid multiple <script> tags)
@@ -1577,7 +1591,7 @@ var AMDLoader;
             }
         };
         return OnlyOnceScriptLoader;
-    }());
+    } ());
     var BrowserScriptLoader = (function () {
         function BrowserScriptLoader() {
         }
@@ -1644,7 +1658,7 @@ var AMDLoader;
             document.getElementsByTagName('head')[0].appendChild(script);
         };
         return BrowserScriptLoader;
-    }());
+    } ());
     var WorkerScriptLoader = (function () {
         function WorkerScriptLoader() {
             this.loadCalls = [];
@@ -1697,7 +1711,7 @@ var AMDLoader;
             }
         };
         return WorkerScriptLoader;
-    }());
+    } ());
     var NodeScriptLoader = (function () {
         function NodeScriptLoader() {
             this._initialized = false;
@@ -1771,22 +1785,73 @@ var AMDLoader;
                         contents = prefix + data + suffix;
                     }
                     contents = nodeInstrumenter(contents, vmScriptSrc);
-                    var r;
-                    if (/^v0\.12/.test(process.version)) {
-                        r = _this._vm.runInThisContext(contents, { filename: vmScriptSrc });
+                    if (!opts.nodeCachedDataDir) {
+                        var r = _this._vm.runInThisContext(contents, { filename: vmScriptSrc });
+                        r.call(global, RequireFunc, DefineFunc, vmScriptSrc, _this._path.dirname(scriptSrc));
+                        recorder.record(LoaderEventType.NodeEndEvaluatingScript, scriptSrc);
+                        callback();
                     }
                     else {
-                        r = _this._vm.runInThisContext(contents, vmScriptSrc);
+                        var cachedDataPath_1 = _this._path.join(opts.nodeCachedDataDir, scriptSrc.replace(/\\|\//g, '') + '.code');
+                        _this._fs.readFile(cachedDataPath_1, function (err, data) {
+                            // create script options
+                            var scriptOptions = {
+                                filename: vmScriptSrc,
+                                produceCachedData: typeof data === 'undefined',
+                                cachedData: data
+                            };
+                            // create script, run script
+                            var script = new _this._vm.Script(contents, scriptOptions);
+                            var r = script.runInThisContext(scriptOptions);
+                            r.call(global, RequireFunc, DefineFunc, vmScriptSrc, _this._path.dirname(scriptSrc));
+                            // signal done
+                            recorder.record(LoaderEventType.NodeEndEvaluatingScript, scriptSrc);
+                            callback();
+                            // cached code after math
+                            if (script.cachedDataRejected) {
+                                // data rejected => delete cache file
+                                opts.onNodeCachedDataError({
+                                    errorCode: 'cachedDataRejected',
+                                    path: cachedDataPath_1
+                                });
+                                NodeScriptLoader._runSoon(function () {
+                                    return _this._fs.unlink(cachedDataPath_1, function (err) {
+                                        if (err) {
+                                            opts.onNodeCachedDataError({
+                                                errorCode: 'unlink',
+                                                path: cachedDataPath_1,
+                                                detail: err
+                                            });
+                                        }
+                                    });
+                                }, opts.nodeCachedDataWriteDelay);
+                            }
+                            else if (script.cachedDataProduced) {
+                                // data produced => write cache file
+                                NodeScriptLoader._runSoon(function () {
+                                    return _this._fs.writeFile(cachedDataPath_1, script.cachedData, function (err) {
+                                        if (err) {
+                                            opts.onNodeCachedDataError({
+                                                errorCode: 'writeFile',
+                                                path: cachedDataPath_1,
+                                                detail: err
+                                            });
+                                        }
+                                    });
+                                }, opts.nodeCachedDataWriteDelay);
+                            }
+                        });
                     }
-                    r.call(global, RequireFunc, DefineFunc, vmScriptSrc, _this._path.dirname(scriptSrc));
-                    recorder.record(LoaderEventType.NodeEndEvaluatingScript, scriptSrc);
-                    callback();
                 });
             }
         };
+        NodeScriptLoader._runSoon = function (callback, minTimeout) {
+            var timeout = minTimeout + Math.ceil(Math.random() * minTimeout);
+            setTimeout(callback, timeout);
+        };
         NodeScriptLoader._BOM = 0xFEFF;
         return NodeScriptLoader;
-    }());
+    } ());
     // ------------------------------------------------------------------------
     // ------------------------------------------------------------------------
     // ------------------------------------------------------------------------
@@ -1816,7 +1881,7 @@ var AMDLoader;
             jQuery: true
         };
         return DefineFunc;
-    }());
+    } ());
     var RequireFunc = (function () {
         function RequireFunc() {
             if (arguments.length === 1) {
@@ -1869,7 +1934,7 @@ var AMDLoader;
             return moduleManager.getChecksums();
         };
         return RequireFunc;
-    }());
+    } ());
     var global = _amdLoaderGlobal, hasPerformanceNow = (global.performance && typeof global.performance.now === 'function'), isWebWorker, isElectronRenderer, isElectronMain, isNode, scriptLoader, moduleManager, loaderAvailableTimestamp;
     function initVars() {
         isWebWorker = (typeof global.importScripts === 'function');

@@ -88,6 +88,8 @@ export interface IWindowConfiguration extends ParsedArgs {
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
+
+	nodeCachedDataDir: string;
 }
 
 export enum ReadyState {

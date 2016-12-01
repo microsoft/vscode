@@ -276,6 +276,12 @@ export class WorkbenchShell {
 		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
 		workspaceStats.reportWorkspaceTags(this.options);
 
+		// Telemetry: node cached data error
+		const onNodeCachedDataError = (err) => { this.telemetryService.publicLog('nodeCachedData', { errorCode: err.errorCode, path: err.path }); };
+		(<any>self).require.config({ onNodeCachedDataError }, true);
+		(<any[]>(<any>window).MonacoEnvironment.nodeCachedDataErrors).forEach(onNodeCachedDataError);
+		delete (<any>window).MonacoEnvironment.nodeCachedDataErrors;
+
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
 		}
