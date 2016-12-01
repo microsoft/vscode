@@ -197,7 +197,7 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 export class ActivityActionItem extends BaseActionItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
-	private static hideViewletAction: RemoveViewletAction;
+	private static toggleViewletPinnedAction: ToggleViewletPinnedAction;
 
 	private $e: Builder;
 	private name: string;
@@ -211,6 +211,8 @@ export class ActivityActionItem extends BaseActionItem {
 		action: ActivityAction,
 		private viewlet: ViewletDescriptor,
 		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IViewletService private viewletService: IViewletService,
+		@IActivityBarService private activityBarService: IActivityBarService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -225,8 +227,8 @@ export class ActivityActionItem extends BaseActionItem {
 			ActivityActionItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
 		}
 
-		if (!ActivityActionItem.hideViewletAction) {
-			ActivityActionItem.hideViewletAction = instantiationService.createInstance(RemoveViewletAction);
+		if (!ActivityActionItem.toggleViewletPinnedAction) {
+			ActivityActionItem.toggleViewletPinnedAction = instantiationService.createInstance(ToggleViewletPinnedAction, void 0);
 		}
 	}
 
@@ -250,17 +252,7 @@ export class ActivityActionItem extends BaseActionItem {
 		$(container).on('contextmenu', e => {
 			DOM.EventHelper.stop(e, true);
 
-			const actions: Action[] = [ActivityActionItem.hideViewletAction];
-			if (this.viewlet.extensionId) {
-				actions.push(new Separator());
-				actions.push(ActivityActionItem.manageExtensionAction);
-			}
-
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => container,
-				getActionsContext: () => this.viewlet,
-				getActions: () => TPromise.as(actions)
-			});
+			this.showContextMenu(container);
 		}, this.toDispose);
 
 		if (this.cssClass) {
@@ -281,6 +273,27 @@ export class ActivityActionItem extends BaseActionItem {
 				this.getAction().run();
 			}
 		}));
+	}
+
+	private showContextMenu(container: HTMLElement): void {
+		const actions: Action[] = [ActivityActionItem.toggleViewletPinnedAction];
+		if (this.viewlet.extensionId) {
+			actions.push(new Separator());
+			actions.push(ActivityActionItem.manageExtensionAction);
+		}
+
+		const isPinned = this.activityBarService.isPinned(this.viewlet.id);
+		if (isPinned) {
+			ActivityActionItem.toggleViewletPinnedAction.label = nls.localize('removeFromActivityBar', "Remove from Activity Bar");
+		} else {
+			ActivityActionItem.toggleViewletPinnedAction.label = nls.localize('keepInActivityBar', "Keep in Activity Bar");
+		}
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => container,
+			getActionsContext: () => this.viewlet,
+			getActions: () => TPromise.as(actions)
+		});
 	}
 
 	public focus(): void {
@@ -423,38 +436,24 @@ class OpenViewletAction extends Action {
 	}
 }
 
-class RemoveViewletAction extends Action {
-
-	constructor(
-		@IViewletService private viewletService: IViewletService,
-		@IActivityBarService private activityBarService: IActivityBarService
-	) {
-		super('activitybar.remove.viewlet', nls.localize('remove', "Remove"));
-	}
-
-	public run(viewlet: ViewletDescriptor): TPromise<any> {
-		this.activityBarService.hide(viewlet.id);
-
-		return TPromise.as(true);
-	}
-}
-
-export class ToggleViewletAction extends Action {
+export class ToggleViewletPinnedAction extends Action {
 
 	constructor(
 		private viewlet: ViewletDescriptor,
 		@IActivityBarService private activityBarService: IActivityBarService
 	) {
-		super('activitybar.show.toggleViewlet', viewlet.name);
+		super('activitybar.show.toggleViewletPinned', viewlet ? viewlet.name : nls.localize('toggle', "Toggle Viewlet Pinned"));
 
-		this.checked = !this.activityBarService.isHidden(this.viewlet.id);
+		this.checked = this.viewlet && this.activityBarService.isPinned(this.viewlet.id);
 	}
 
-	public run(): TPromise<any> {
-		if (this.activityBarService.isHidden(this.viewlet.id)) {
-			this.activityBarService.show(this.viewlet.id);
+	public run(context?: ViewletDescriptor): TPromise<any> {
+		const viewlet = this.viewlet || context;
+
+		if (this.activityBarService.isPinned(viewlet.id)) {
+			this.activityBarService.unpin(viewlet.id);
 		} else {
-			this.activityBarService.hide(this.viewlet.id);
+			this.activityBarService.pin(viewlet.id);
 		}
 
 		return TPromise.as(true);

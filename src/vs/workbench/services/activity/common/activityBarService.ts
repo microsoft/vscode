@@ -72,17 +72,17 @@ export interface IActivityBarService {
 	clearActivity(viewletId: string): void;
 
 	/**
-	 * Hides a viewlet from the activitybar.
+	 * Unpins a viewlet from the activitybar.
 	 */
-	hide(viewletId: string): void;
+	unpin(viewletId: string): void;
 
 	/**
-	 * Shows a viewlet inside the activity bar.
+	 * Pin a viewlet inside the activity bar.
 	 */
-	show(viewletId: string): void;
+	pin(viewletId: string): void;
 
 	/**
-	 * Find out if a viewlet is hidden or not in the activitybar.
+	 * Find out if a viewlet is pinned in the activity bar.
 	 */
-	isHidden(viewletId): boolean;
+	isPinned(viewletId: string): boolean;
 }

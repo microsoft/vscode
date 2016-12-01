@@ -16,7 +16,7 @@ import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/b
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Part } from 'vs/workbench/browser/part';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { ToggleViewletAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
+import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -38,7 +38,7 @@ interface IViewletActivity {
 export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private static readonly ACTIVITY_ACTION_HEIGHT = 50;
-	private static readonly HIDDEN_VIEWLETS = 'workbench.activity.hiddenViewlets';
+	private static readonly HIDDEN_VIEWLETS = 'workbench.activity.unpinnedViewlets';
 
 	public _serviceBrand: any;
 
@@ -55,7 +55,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private pendingViewlet: ViewletDescriptor;
 
 	private memento: any;
-	private hiddenViewlets: string[];
+	private unpinnedViewlets: string[];
 
 	constructor(
 		id: string,
@@ -74,7 +74,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.viewletIdToActivity = Object.create(null);
 
 		this.memento = this.getMemento(this.storageService, MementoScope.GLOBAL);
-		this.hiddenViewlets = this.memento[ActivitybarPart.HIDDEN_VIEWLETS] || [];
+		this.unpinnedViewlets = this.memento[ActivitybarPart.HIDDEN_VIEWLETS] || [];
 
 		// Update viewlet switcher when external viewlets become ready
 		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
@@ -99,7 +99,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		const pendingViewletShouldClose = this.pendingViewlet && this.pendingViewlet.id !== viewlet.getId();
-		const pendingViewletShouldShow = !this.getVisibleViewlets().some(v => v.id === viewlet.getId());
+		const pendingViewletShouldShow = !this.getPinnedViewlets().some(v => v.id === viewlet.getId());
 		if ( pendingViewletShouldShow || pendingViewletShouldClose) {
 			this.updateViewletSwitcher();
 		}
@@ -146,20 +146,25 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Contextmenu for viewlets
 		$(parent).on('contextmenu', (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
-			const event = new StandardMouseEvent(e);
 
-			const actions: Action[] = this.viewletService.getViewlets().map(viewlet => this.instantiationService.createInstance(ToggleViewletAction, viewlet));
-			actions.push(new Separator());
-			actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
-
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => { return { x: event.posx + 1, y: event.posy }; },
-				getActions: () => TPromise.as(actions),
-				onHide: () => dispose(actions)
-			});
+			this.showContextMenu(e);
 		}, this.toUnbind);
 
 		return $result;
+	}
+
+	private showContextMenu(e: MouseEvent): void {
+		const event = new StandardMouseEvent(e);
+
+		const actions: Action[] = this.viewletService.getViewlets().map(viewlet => this.instantiationService.createInstance(ToggleViewletPinnedAction, viewlet));
+		actions.push(new Separator());
+		actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => { return { x: event.posx + 1, y: event.posy }; },
+			getActions: () => TPromise.as(actions),
+			onHide: () => dispose(actions)
+		});
 	}
 
 	private createViewletSwitcher(div: Builder): void {
@@ -174,7 +179,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private updateViewletSwitcher() {
-		let viewletsToShow = this.getVisibleViewlets();
+		let viewletsToShow = this.getPinnedViewlets();
 
 		// Always show the active viewlet even if it is marked to be hidden
 		const activeViewlet = this.viewletService.getActiveViewlet();
@@ -259,14 +264,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getOverflowingViewlets(): ViewletDescriptor[] {
-		const viewlets = this.getVisibleViewlets();
+		const viewlets = this.getPinnedViewlets();
 		const visibleViewlets = Object.keys(this.viewletIdToActions);
 
 		return viewlets.filter(viewlet => visibleViewlets.indexOf(viewlet.id) === -1);
 	}
 
-	private getVisibleViewlets(): ViewletDescriptor[] {
-		return this.viewletService.getViewlets().filter(viewlet => !this.isHidden(viewlet.id));
+	private getPinnedViewlets(): ViewletDescriptor[] {
+		return this.viewletService.getViewlets().filter(viewlet => this.isPinned(viewlet.id));
 	}
 
 	private pullViewlet(viewletId: string): void {
@@ -291,35 +296,39 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return action;
 	}
 
-	public hide(viewletId: string): void {
-		if (this.isHidden(viewletId)) {
+	public unpin(viewletId: string): void {
+		if (!this.isPinned(viewletId)) {
 			return;
 		}
 
+		const activeViewlet = this.viewletService.getActiveViewlet();
 		const defaultViewletId = this.viewletService.getDefaultViewletId();
-		let hidePromise: TPromise<any>;
-		if (defaultViewletId !== viewletId) {
-			hidePromise = this.viewletService.openViewlet(defaultViewletId, true);
+
+		let unpinPromise: TPromise<any>;
+		if (!activeViewlet || activeViewlet.getId() !== viewletId) {
+			unpinPromise = TPromise.as(null); // do not hide if there is no active viewlet or the active viewlet is not the one we unpin
+		} if (defaultViewletId !== viewletId) {
+			unpinPromise = this.viewletService.openViewlet(defaultViewletId, true);
 		} else {
-			hidePromise = TPromise.as(this.partService.setSideBarHidden(true));
+			unpinPromise = TPromise.as(this.partService.setSideBarHidden(true));
 		}
 
-		hidePromise.then(() => {
+		unpinPromise.then(() => {
 
-			// then add to hidden and update switcher
-			this.hiddenViewlets.push(viewletId);
-			this.hiddenViewlets = arrays.distinct(this.hiddenViewlets);
+			// then add to unpinned and update switcher
+			this.unpinnedViewlets.push(viewletId);
+			this.unpinnedViewlets = arrays.distinct(this.unpinnedViewlets);
 
 			this.updateViewletSwitcher();
 		});
 	}
 
-	public isHidden(viewletId: string): boolean {
-		return this.hiddenViewlets.indexOf(viewletId) >= 0;
+	public isPinned(viewletId: string): boolean {
+		return this.unpinnedViewlets.indexOf(viewletId) === -1;
 	}
 
-	public show(viewletId: string): void {
-		if (!this.isHidden(viewletId)) {
+	public pin(viewletId: string): void {
+		if (this.isPinned(viewletId)) {
 			return;
 		}
 
@@ -327,8 +336,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.viewletService.openViewlet(viewletId, true).then(() => {
 
 			// then update
-			const index = this.hiddenViewlets.indexOf(viewletId);
-			this.hiddenViewlets.splice(index, 1);
+			const index = this.unpinnedViewlets.indexOf(viewletId);
+			this.unpinnedViewlets.splice(index, 1);
 
 			this.updateViewletSwitcher();
 		});
@@ -362,7 +371,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	public shutdown(): void {
 
 		// Persist Hidden State
-		this.memento[ActivitybarPart.HIDDEN_VIEWLETS] = this.hiddenViewlets;
+		this.memento[ActivitybarPart.HIDDEN_VIEWLETS] = this.unpinnedViewlets;
 
 		// Pass to super
 		super.shutdown();
