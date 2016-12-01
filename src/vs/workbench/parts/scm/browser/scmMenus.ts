@@ -10,14 +10,13 @@ import Event, { mapEvent } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, SCMMenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class SCMMenus implements IDisposable {
 
 	private titleMenu: IMenu;
-	private contextMenu: IMenu;
 	private disposables: IDisposable[] = [];
 
 	private _titleMenuActions: { primary: IAction[]; secondary: IAction[] };
@@ -34,8 +33,7 @@ export class SCMMenus implements IDisposable {
 		@IMenuService private menuService: IMenuService
 	) {
 		this.titleMenu = menuService.createMenu(MenuId.SCMTitle, contextKeyService);
-		this.contextMenu = menuService.createMenu(MenuId.SCMContext, contextKeyService);
-		this.disposables.push(this.titleMenu, this.contextMenu);
+		this.disposables.push(this.titleMenu);
 	}
 
 	@memoize
@@ -51,9 +49,21 @@ export class SCMMenus implements IDisposable {
 		return this.cachedTitleMenuActions.secondary;
 	}
 
-	get context(): IAction[] {
+	getResourceActions(providerId: string, resourceGroupId: string): IAction[] {
+		const menuId = new SCMMenuId(providerId, resourceGroupId, false);
+		const menu = this.menuService.createMenu(menuId, this.contextKeyService);
 		const result = [];
-		fillInActions(this.contextMenu, null, result);
+		fillInActions(menu, null, result);
+		menu.dispose();
+		return result;
+	}
+
+	getResourceContextActions(providerId: string, resourceGroupId: string): IAction[] {
+		const menuId = new SCMMenuId(providerId, resourceGroupId, true);
+		const menu = this.menuService.createMenu(menuId, this.contextKeyService);
+		const result = [];
+		fillInActions(menu, null, result);
+		menu.dispose();
 		return result;
 	}
 

@@ -44,7 +44,7 @@
           "when": "scm.provider == git"
         }
       ],
-      "scm/context": [
+      "scm/git/workingTree/context": [
         {
           "command": "git.open-change",
           "group": "navigation",

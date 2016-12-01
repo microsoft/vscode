@@ -19,6 +19,7 @@ export const ISCMService = createDecorator<ISCMService>('scm');
 
 export interface ISCMResource {
 	readonly uri: URI;
+	readonly resourceGroupId: string;
 }
 
 export interface ISCMResourceGroup {

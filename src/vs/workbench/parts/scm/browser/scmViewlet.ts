@@ -255,9 +255,28 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	private onListContextMenu(e: IListMouseEvent<ISCMResourceGroup | ISCMResource>): void {
+		const provider = this.scmService.activeProvider;
+
+		if (!provider) {
+			return;
+		}
+
+		const element = e.element;
+		let resourceGroupId: string;
+
+		if ((element as ISCMResource).uri) {
+			const resource = element as ISCMResource;
+			resourceGroupId = resource.resourceGroupId;
+		} else {
+			const resourceGroup = element as ISCMResourceGroup;
+			resourceGroupId = resourceGroup.id;
+		}
+
+		const actions = this.menus.getResourceContextActions(provider.id, resourceGroupId);
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => ({ x: e.clientX + 1, y: e.clientY }),
-			getActions: () => TPromise.as(this.menus.context)
+			getActions: () => TPromise.as(actions)
 		});
 	}
 

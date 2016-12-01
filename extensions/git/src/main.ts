@@ -55,7 +55,7 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const model = new Model(repositoryRoot, repository);
 	const provider = new GitSCMProvider(model);
 
-	provider.onDidChange(g => console.log(g));
+	provider.onDidChange(g => log(g));
 
 	const outputChannel = window.createOutputChannel('git');
 	outputChannel.appendLine(`Using git ${info.version} from ${info.path}`);
