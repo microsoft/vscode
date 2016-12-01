@@ -85,4 +85,9 @@ export interface IActivityBarService {
 	 * Find out if a viewlet is pinned in the activity bar.
 	 */
 	isPinned(viewletId: string): boolean;
+
+	/**
+	 * Reorder viewlet ordering by moving a viewlet to the location of another viewlet.
+	 */
+	move(viewletId: string, toViewletId: string): void;
 }
