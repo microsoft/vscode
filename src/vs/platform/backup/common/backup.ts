@@ -8,6 +8,7 @@ import Uri from 'vs/base/common/uri';
 
 export interface IBackupWorkspacesFormat {
 	folderWorkspaces: string[];
+	emptyWorkspaces: string[];
 }
 
 export const IBackupMainService = createDecorator<IBackupMainService>('backupService');
@@ -22,10 +23,16 @@ export interface IBackupMainService {
 	 */
 	getWorkspaceBackupPaths(): string[];
 
+	// TODO: Doc
+	getEmptyWorkspaceBackupWindowIds(): string[];
+
 	/**
 	 * Pushes workspace backup paths to be tracked for restoration.
 	 *
 	 * @param workspaces The workspaces to add.
 	 */
 	pushWorkspaceBackupPathsSync(workspaces: Uri[]): void;
+
+	// TODO: Doc
+	pushEmptyWorkspaceBackupWindowIdSync(vscodeWindowId: string): void;
 }

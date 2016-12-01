@@ -49,8 +49,7 @@ export class BackupService implements IBackupService {
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		// Hot exit is disabled for empty workspaces
-		this.configuredHotExit = this.contextService.getWorkspace() && configuration && configuration.files && configuration.files.hotExit;
+		this.configuredHotExit = configuration && configuration.files && configuration.files.hotExit;
 	}
 
 	/**
@@ -91,9 +90,7 @@ export class BackupService implements IBackupService {
 	}
 
 	public get isHotExitEnabled(): boolean {
-		// If hot exit is enabled then save the dirty files in the workspace and then exit
-		// Hot exit is currently disabled for empty workspaces (#13733).
-		return !this.environmentService.isExtensionDevelopment && this.configuredHotExit && !!this.contextService.getWorkspace();
+		return !this.environmentService.isExtensionDevelopment && this.configuredHotExit;
 	}
 
 	public backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): TPromise<IBackupResult> {
@@ -139,11 +136,6 @@ export class BackupService implements IBackupService {
 	public cleanupBackupsBeforeShutdown(): TPromise<void> {
 		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.as(void 0);
-		}
-
-		const workspace = this.contextService.getWorkspace();
-		if (!workspace) {
-			return TPromise.as(void 0); // no backups to cleanup
 		}
 
 		return this.backupFileService.discardAllWorkspaceBackups();

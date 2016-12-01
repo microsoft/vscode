@@ -62,6 +62,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get execPath(): string { return this._execPath; }
 
 	@memoize
+	get vscodeWindowId(): string { return this._vscodeWindowId; }
+
+	@memoize
 	get userHome(): string { return os.homedir(); }
 
 	@memoize
@@ -114,7 +117,7 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get sharedIPCHandle(): string { return `${getIPCHandlePrefix()}-${pkg.version}-shared${getIPCHandleSuffix()}`; }
 
-	constructor(private _args: ParsedArgs, private _execPath: string) { }
+	constructor(private _args: ParsedArgs, private _execPath: string, private _vscodeWindowId: string) { }
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; } {

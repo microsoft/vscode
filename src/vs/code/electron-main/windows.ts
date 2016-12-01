@@ -335,6 +335,7 @@ export class WindowsManager implements IWindowsMainService {
 		let filesToOpen: IPath[] = [];
 		let filesToDiff: IPath[] = [];
 		let emptyToOpen = iPathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
+		let emptyToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.getEmptyWorkspaceBackupWindowIds() : [];
 		let filesToCreate = iPathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
 
 		// Diff mode needs special care
@@ -385,7 +386,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Otherwise open instance with files
 			else {
-				const configuration = this.toConfiguration(openConfig, null, filesToOpen, filesToCreate, filesToDiff);
+				const configuration = this.toConfiguration(openConfig, null, null, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
@@ -427,7 +428,7 @@ export class WindowsManager implements IWindowsMainService {
 					return; // ignore folders that are already open
 				}
 
-				const configuration = this.toConfiguration(openConfig, folderToOpen, filesToOpen, filesToCreate, filesToDiff);
+				const configuration = this.toConfiguration(openConfig, null, folderToOpen, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
@@ -441,7 +442,20 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle empty
-		if (emptyToOpen.length > 0) {
+		if (emptyToRestore.length > 0) {
+			// TODO: There's an extra empty workspace opening when restoring an empty workspace (sometimes)
+			emptyToRestore.forEach(vscodeWindowId => {
+				const configuration = this.toConfiguration(openConfig);
+				configuration.vscodeWindowId = vscodeWindowId;
+				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
+				usedWindows.push(browserWindow);
+
+				openInNewWindow = true; // any other folders to open must open in new window then
+			});
+		}
+		// TODO: Is this handling correct?
+		// Only open empty if no empty workspaces were restored
+		else if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
 				const configuration = this.toConfiguration(openConfig);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
@@ -614,12 +628,13 @@ export class WindowsManager implements IWindowsMainService {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
 	}
 
-	private toConfiguration(config: IOpenConfiguration, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
+	private toConfiguration(config: IOpenConfiguration, vscodeWindowId?: string, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
 		const configuration: IWindowConfiguration = mixin({}, config.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
 		configuration.userEnv = this.getWindowUserEnv(config);
 		configuration.isInitialStartup = config.initialStartup;
+		configuration.vscodeWindowId = vscodeWindowId;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
@@ -729,8 +744,15 @@ export class WindowsManager implements IWindowsMainService {
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen),
-				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
+				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0,
+				vscodeWindowId: configuration.vscodeWindowId
 			});
+
+			configuration.vscodeWindowId = vscodeWindow.vscodeWindowId;
+			if (!configuration.extensionDevelopmentPath) {
+				// TODO: Cover closing a folder/existing window case
+				this.backupService.pushEmptyWorkspaceBackupWindowIdSync(configuration.vscodeWindowId);
+			}
 
 			WindowsManager.WINDOWS.push(vscodeWindow);
 
