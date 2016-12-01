@@ -102,9 +102,9 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
 		const element = append(container, $('.resource'));
+		const decorationIcon = append(element, $('.decoration-icon'));
 		const name = append(element, $('.name'));
 		const fileLabel = this.instantiationService.createInstance(FileLabel, name, void 0);
-		const decorationIcon = append(element, $('.decoration-icon'));
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
 
@@ -120,7 +120,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		if (resource.decorations.icon) {
 			template.decorationIcon.style.backgroundImage = `url('${resource.decorations.icon}')`;
 		} else {
-			delete template.decorationIcon.style.backgroundImage;
+			template.decorationIcon.style.backgroundImage = '';
 		}
 	}
 

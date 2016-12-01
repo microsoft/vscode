@@ -68,6 +68,7 @@
 	height: 100%;
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
+	margin-right: 6px;
 }
 
 .scm-viewlet .monaco-list-row > .resource > .actions .action-label,
