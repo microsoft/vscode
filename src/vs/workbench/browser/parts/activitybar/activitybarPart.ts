@@ -16,7 +16,7 @@ import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/b
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Part } from 'vs/workbench/browser/part';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
+import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -270,6 +270,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return viewlets.filter(viewlet => visibleViewlets.indexOf(viewlet.id) === -1);
 	}
 
+	private getVisibleViewlets(): ViewletDescriptor[] {
+		const viewlets = this.viewletService.getViewlets();
+		const visibleViewlets = Object.keys(this.viewletIdToActions);
+
+		return viewlets.filter(viewlet => visibleViewlets.indexOf(viewlet.id) >= 0);
+	}
+
 	private getPinnedViewlets(): ViewletDescriptor[] {
 		return this.viewletService.getViewlets().filter(viewlet => this.isPinned(viewlet.id));
 	}
@@ -303,14 +310,32 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const defaultViewletId = this.viewletService.getDefaultViewletId();
+		const visibleViewlets = this.getVisibleViewlets();
 
 		let unpinPromise: TPromise<any>;
+
+		// Case: viewlet is not the active one or the active one is a different one
+		// Solv: we do nothing
 		if (!activeViewlet || activeViewlet.getId() !== viewletId) {
-			unpinPromise = TPromise.as(null); // do not hide if there is no active viewlet or the active viewlet is not the one we unpin
-		} if (defaultViewletId !== viewletId) {
+			unpinPromise = TPromise.as(null);
+		}
+
+		// Case: viewlet is not the default viewlet and default viewlet is still showing
+		// Solv: we open the default viewlet
+		else if (defaultViewletId !== viewletId && this.isPinned(defaultViewletId)) {
 			unpinPromise = this.viewletService.openViewlet(defaultViewletId, true);
-		} else {
+		}
+
+		// Case: we closed the last visible viewlet
+		// Solv: we hide the sidebar
+		else if (visibleViewlets.length === 1) {
 			unpinPromise = TPromise.as(this.partService.setSideBarHidden(true));
+		}
+
+		// Case: we closed the default viewlet
+		// Solv: we open the next visible viewlet from top
+		else {
+			unpinPromise = this.viewletService.openViewlet(visibleViewlets.filter(viewlet => viewlet.id !== viewletId)[0].id, true);
 		}
 
 		unpinPromise.then(() => {
