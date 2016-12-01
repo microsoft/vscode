@@ -305,6 +305,7 @@ export function any<T>(...events: Event<T>[]): Event<T> {
 	return emitter.event;
 }
 
+export function debounceEvent<T>(event: Event<T>, merger: (last: T, event: T) => T, delay?: number): Event<T>;
 export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay: number = 100): Event<O> {
 
 	let subscription: IDisposable;

@@ -53,8 +53,13 @@ export class GitSCMProvider implements SCMProvider {
 
 	private disposables: Disposable[] = [];
 
+	private _resources: SCMResourceGroup[] = [];
+	get resources(): SCMResourceGroup[] { return this._resources; }
+
 	private _onDidChange = new EventEmitter<SCMResourceGroup[]>();
 	get onDidChange(): Event<SCMResourceGroup[]> { return this._onDidChange.event; }
+
+	get label(): string { return 'Git'; }
 
 	constructor(private model: Model) {
 		model.onDidChange(this.onModelChange, this, this.disposables);
@@ -106,21 +111,22 @@ export class GitSCMProvider implements SCMProvider {
 			}
 		});
 
-		const groups: SCMResourceGroup[] = [];
+		const resources: SCMResourceGroup[] = [];
 
 		if (merge.length > 0) {
-			groups.push(new MergeGroup(merge));
+			resources.push(new MergeGroup(merge));
 		}
 
 		if (index.length > 0) {
-			groups.push(new IndexGroup(index));
+			resources.push(new IndexGroup(index));
 		}
 
 		if (workingTree.length > 0) {
-			groups.push(new WorkingTreeGroup(workingTree));
+			resources.push(new WorkingTreeGroup(workingTree));
 		}
 
-		this._onDidChange.fire(groups);
+		this._resources = resources;
+		this._onDidChange.fire(resources);
 	}
 
 	dispose(): void {

@@ -229,21 +229,20 @@ export abstract class MainProcessExtensionServiceShape {
 }
 
 export interface SCMProviderFeatures {
+	label: string;
 	commitCommand?: string;
 	clickCommand?: string;
 	dragCommand?: string;
-	resourceGroups: vscode.SCMResourceGroup[];
 	supportsOriginalResource: boolean;
 }
 
-export interface SCMRawResource {
-	uri: string;
-}
+export type SCMRawResource = [string /*uri*/];
+export type SCMRawResourceGroup = [string /*id*/, string /*label*/, SCMRawResource[]];
 
 export abstract class MainThreadSCMShape {
 	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
 	$unregister(id: string): void { throw ni(); }
-	$onChange(id: string, resources: SCMRawResource[][]): void { throw ni(); }
+	$onChange(id: string, resources: SCMRawResourceGroup[]): void { throw ni(); }
 }
 
 // -- extension host
