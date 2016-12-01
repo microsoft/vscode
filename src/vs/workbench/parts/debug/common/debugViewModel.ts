@@ -109,7 +109,7 @@ export class ViewModel implements debug.IViewModel {
 		this.multiProcessView = isMultiProcessView;
 	}
 
-	public get onDidSelectConfigurationName(): Event<string> {
+	public get onDidSelectConfiguration(): Event<string> {
 		return this._onDidSelectConfigurationName.event;
 	}
 }
