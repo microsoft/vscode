@@ -22,6 +22,7 @@
 
 .scm-viewlet .monaco-list-row > .resource-group {
 	display: flex;
+	height: 100%;
 }
 
 .scm-viewlet .monaco-list-row > .resource-group > .name {
@@ -43,6 +44,7 @@
 
 .scm-viewlet .monaco-list-row > .resource {
 	display: flex;
+	height: 100%;
 }
 
 .scm-viewlet .monaco-list-row > .resource > .name {
@@ -52,6 +54,7 @@
 
 .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label {
 	width: 100%;
+	height: 100%;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
