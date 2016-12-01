@@ -19,7 +19,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
+import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import arrays = require('vs/base/common/arrays');
 
@@ -38,7 +38,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IActivityService private activityService: IActivityService,
+		@IActivityBarService private activityBarService: IActivityBarService,
 		@IWindowService private windowService: IWindowService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
@@ -148,9 +148,9 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		const dirtyCount = this.textFileService.getDirty().length;
 		this.lastDirtyCount = dirtyCount;
 		if (dirtyCount > 0) {
-			this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
+			this.activityBarService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
 		} else {
-			this.activityService.clearActivity(VIEWLET_ID);
+			this.activityBarService.clearActivity(VIEWLET_ID);
 		}
 	}
 

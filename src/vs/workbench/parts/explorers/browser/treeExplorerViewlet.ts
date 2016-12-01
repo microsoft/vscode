@@ -13,7 +13,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/treeExplorerView';
 import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
-import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
 
 export class TreeExplorerViewlet extends Viewlet {
 
@@ -27,8 +26,7 @@ export class TreeExplorerViewlet extends Viewlet {
 	constructor(
 		viewletId: string,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IActivityService private activityService: IActivityService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(viewletId, telemetryService);
 
