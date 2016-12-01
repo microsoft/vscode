@@ -7,6 +7,14 @@
 
 import { commands, Disposable } from 'vscode';
 import { Model } from './model';
+import { log } from './util';
+
+function refresh(model: Model): () => void {
+	return () => {
+		log('refresh');
+		model.update();
+	};
+}
 
 function openChange(...args: any[]): void {
 	console.log('openChange', args);
@@ -14,7 +22,7 @@ function openChange(...args: any[]): void {
 
 export function registerCommands(model: Model): Disposable {
 	const disposables = [
-		commands.registerCommand('git.refresh', () => model.update()),
+		commands.registerCommand('git.refresh', refresh(model)),
 		commands.registerCommand('git.open-change', openChange)
 	];
 

@@ -41,7 +41,6 @@ export class MenuId {
 	static readonly EditorContext = new MenuId('3');
 	static readonly ExplorerContext = new MenuId('4');
 	static readonly ProblemsPanelContext = new MenuId('5');
-	static readonly SCMTitle = new MenuId('scm/title');
 
 	constructor(private _id: string) {
 
@@ -52,14 +51,38 @@ export class MenuId {
 	}
 }
 
+export class SCMTitleMenuId extends MenuId {
+
+	static parse(value: string): MenuId | null {
+		const match = /^scm\/([^/]+)\/title$/.exec(value);
+		return match ? new SCMTitleMenuId(match[1]) : null;
+	}
+
+	constructor(private _providerId: string) {
+		super(`scm/${_providerId}/title`);
+	}
+}
+
+export const enum SCMMenuType {
+	ResourceGroup,
+	Resource
+}
+
 export class SCMMenuId extends MenuId {
 
-	get providerId(): string { return this._providerId; }
-	get resourceGroupId(): string { return this._resourceGroupId; }
-	get isContext(): boolean { return this._isContext; }
+	static parse(value: string): MenuId | null {
+		const match = /^scm\/([^/]+)\/([^/]+)\/(group|resource)(\/context)?$/.exec(value);
 
-	constructor(private _providerId: string, private _resourceGroupId: string, private _isContext: boolean) {
-		super(`scm/${_providerId}/${_resourceGroupId}${_isContext ? '/context' : ''}`);
+		if (match) {
+			const [, providerId, resourceGroupId, typeStr, isContext] = match;
+			const type = typeStr === 'group' ? SCMMenuType.ResourceGroup : SCMMenuType.Resource;
+
+			return new SCMMenuId(providerId, resourceGroupId, type, !!isContext);
+		}
+	}
+
+	constructor(private providerId: string, private resourceGroupId: string, private type: SCMMenuType, private isContext: boolean) {
+		super(`scm/${providerId}/${resourceGroupId}/${type === SCMMenuType.ResourceGroup ? 'group' : 'resource'}${isContext ? '/context' : ''}`);
 	}
 }
 
