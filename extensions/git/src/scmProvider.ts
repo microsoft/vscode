@@ -21,6 +21,17 @@ function getIconUri(iconName: string, theme: Theme): Uri {
 	return Uri.file(path.join(iconsRootPath, themeName, `${iconName}.svg`));
 }
 
+const Icons = {
+	Modified: getIconUri('status-modified', Theme.Light),
+	Added: getIconUri('status-added', Theme.Light),
+	Deleted: getIconUri('status-deleted', Theme.Light),
+	Renamed: getIconUri('status-renamed', Theme.Light),
+	Copied: getIconUri('status-copied', Theme.Light),
+	Untracked: getIconUri('status-untracked', Theme.Light),
+	Ignored: getIconUri('status-ignored', Theme.Light),
+	Conflict: getIconUri('status-conflict', Theme.Light),
+};
+
 enum Status {
 	INDEX_MODIFIED,
 	INDEX_ADDED,
@@ -46,21 +57,45 @@ class Resource implements SCMResource {
 
 	get uri(): Uri { return this._uri; }
 
-	get decorations(): SCMResourceDecorations {
-		let iconPath: Uri | undefined;
-		let strikeThrough = false;
-
+	private get iconPath(): Uri | undefined {
 		switch (this.type) {
-			case Status.MODIFIED:
-				iconPath = getIconUri('refresh', Theme.Light);
-				break;
-			case Status.DELETED:
-				iconPath = getIconUri('refresh', Theme.Light);
-				strikeThrough = true;
-				break;
+			case Status.INDEX_MODIFIED: return Icons.Modified;
+			case Status.MODIFIED: return Icons.Modified;
+			case Status.INDEX_ADDED: return Icons.Added;
+			case Status.INDEX_DELETED: return Icons.Deleted;
+			case Status.DELETED: return Icons.Deleted;
+			case Status.INDEX_RENAMED: return Icons.Renamed;
+			case Status.INDEX_COPIED: return Icons.Copied;
+			case Status.UNTRACKED: return Icons.Untracked;
+			case Status.IGNORED: return Icons.Ignored;
+			case Status.BOTH_DELETED: return Icons.Conflict;
+			case Status.ADDED_BY_US: return Icons.Conflict;
+			case Status.DELETED_BY_THEM: return Icons.Conflict;
+			case Status.ADDED_BY_THEM: return Icons.Conflict;
+			case Status.DELETED_BY_US: return Icons.Conflict;
+			case Status.BOTH_ADDED: return Icons.Conflict;
+			case Status.BOTH_MODIFIED: return Icons.Conflict;
+			default: return void 0;
 		}
+	}
 
-		return { iconPath, strikeThrough };
+	private get strikeThrough(): boolean {
+		switch (this.type) {
+			case Status.DELETED:
+			case Status.BOTH_DELETED:
+			case Status.DELETED_BY_THEM:
+			case Status.DELETED_BY_US:
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	get decorations(): SCMResourceDecorations {
+		return {
+			iconPath: this.iconPath,
+			strikeThrough: this.strikeThrough
+		};
 	}
 
 	constructor(private _uri: Uri, private type: any) {
