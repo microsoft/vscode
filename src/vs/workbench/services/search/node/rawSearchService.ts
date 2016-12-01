@@ -27,13 +27,12 @@ export type IRawProgressItem<T> = T | T[] | IProgress;
 
 export class SearchService implements IRawSearchService {
 
-	private static FILE_SEARCH_BATCH_SIZE = 512;
-	private static TEXT_SEARCH_BATCH_SIZE = 300;
+	private static BATCH_SIZE = 512;
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
 	public fileSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
-		return this.doFileSearch(FileSearchEngine, config, SearchService.FILE_SEARCH_BATCH_SIZE);
+		return this.doFileSearch(FileSearchEngine, config, SearchService.BATCH_SIZE);
 	}
 
 	public textSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
@@ -46,7 +45,7 @@ export class SearchService implements IRawSearchService {
 			maxFilesize: MAX_FILE_SIZE
 		}));
 
-		return this.doSearchWithBatchTimeout(engine, SearchService.TEXT_SEARCH_BATCH_SIZE);
+		return this.doSearchWithBatchTimeout(engine, SearchService.BATCH_SIZE);
 	}
 
 	public doFileSearch(EngineClass: { new (config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
@@ -371,7 +370,7 @@ interface CacheStats {
 /**
  * Collects a batch of items that each have a size. When the cumulative size of the batch reaches 'maxBatchSize', it calls the callback.
  * If the batch isn't filled within 'timeout' ms, the callback is also called.
- * And after 'batchOnlyAfter' ms, the timeout is ignored, and the callback is called only when the batch is full.
+ * And after 'batchOnlyAfter' items, the timeout is ignored, and the callback is called only when the batch is full.
  */
 class BatchedCollector<T> {
 	private totalNumberCompleted = 0;
