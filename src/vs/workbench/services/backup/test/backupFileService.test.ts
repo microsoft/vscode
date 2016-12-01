@@ -56,7 +56,7 @@ const barFile = Uri.file(platform.isWindows ? 'c:\\bar' : '/bar');
 const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
 const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
-const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
+const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath.toLowerCase()).digest('hex'));
 
 suite('BackupFileService', () => {
 	let service: TestBackupFileService;
@@ -90,8 +90,8 @@ suite('BackupFileService', () => {
 	test('getBackupResource should get the correct backup path for untitled files', () => {
 		// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePath>
 		const backupResource = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
-		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
+		const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath.toLowerCase()).digest('hex');
+		const filePathHash = crypto.createHash('md5').update(backupResource.fsPath.toLowerCase()).digest('hex');
 		const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 		assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
 	});
@@ -103,11 +103,11 @@ suite('BackupFileService', () => {
 		}
 
 		if (platform.isMacintosh) {
-			assert.equal(service.getBackupResource(Uri.file('/foo')), service.getBackupResource(Uri.file('/FOO')));
+			assert.equal(service.getBackupResource(Uri.file('/foo')).fsPath, service.getBackupResource(Uri.file('/FOO')).fsPath);
 		}
 
 		if (platform.isWindows) {
-			assert.equal(service.getBackupResource(Uri.file('c:\\foo')), service.getBackupResource(Uri.file('C:\\FOO')));
+			assert.equal(service.getBackupResource(Uri.file('c:\\foo')).fsPath, service.getBackupResource(Uri.file('C:\\FOO')).fsPath);
 		}
 	});
 
