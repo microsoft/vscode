@@ -35,9 +35,6 @@ import { IAction, IActionItem } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 
-// TODO@Joao remove
-import { GitSCMProvider } from 'vs/workbench/parts/git/browser/gitSCMProvider';
-
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
 	immediate?: boolean;
@@ -64,7 +61,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
 		template.name.textContent = group.label;
-		template.count.setCount(group.get().length);
+		template.count.setCount(group.resources.length);
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
@@ -137,10 +134,6 @@ export class SCMViewlet extends Viewlet {
 	) {
 		super(VIEWLET_ID, telemetryService);
 
-		// TODO@Joao
-		const provider = instantiationService.createInstance(GitSCMProvider);
-		scmService.registerSCMProvider(provider);
-
 		this.menus = this.instantiationService.createInstance(SCMMenus);
 		this.disposables.push(this.menus);
 
@@ -151,7 +144,7 @@ export class SCMViewlet extends Viewlet {
 		this.providerChangeDisposable.dispose();
 
 		if (activeProvider) {
-			this.providerChangeDisposable = activeProvider.onChange(this.update, this);
+			this.providerChangeDisposable = activeProvider.onDidChange(this.update, this);
 		} else {
 			this.providerChangeDisposable = EmptyDisposable;
 		}
@@ -211,15 +204,12 @@ export class SCMViewlet extends Viewlet {
 			return;
 		}
 
-		const groups = provider.resourceGroups;
-		const elements = groups.reduce<(ISCMResourceGroup | ISCMResource)[]>((result, group) => {
-			const resources = group.get();
-
-			if (resources.length === 0) {
+		const elements = provider.resources.reduce<(ISCMResourceGroup | ISCMResource)[]>((result, group) => {
+			if (group.resources.length === 0) {
 				return result;
 			}
 
-			return [...result, group, ...group.get()];
+			return [...result, group, ...group.resources];
 		}, []);
 
 		this.list.splice(0, this.list.length, ...elements);
