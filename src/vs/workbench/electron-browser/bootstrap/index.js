@@ -161,7 +161,7 @@ function main() {
 			'vs/nls': nlsConfig,
 			recordStats: !!configuration.performance,
 			nodeCachedDataDir: configuration.nodeCachedDataDir,
-			onNodeCachedDataError: (err) => nodeCachedDataErrors.push(err),
+			onNodeCachedDataError: function (err) { nodeCachedDataErrors.push(err) },
 		});
 
 		if (nlsConfig.pseudo) {
