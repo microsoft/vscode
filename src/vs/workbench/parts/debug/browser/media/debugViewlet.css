@@ -41,12 +41,45 @@
 	background: url('repl-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .debug-action.start {
-	background: url('continue.svg') center center no-repeat;
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
+	display: flex;
+	align-items: center;
+	margin: 6px 0;
+	border: 1px solid #dddddd;
+	font-size: 11px;
+	margin-right: 0.3em;
+	height: 20px;
 }
 
-.vs-dark .monaco-workbench .debug-action.start,
-.hc-black .monaco-workbench .debug-action.start {
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
+	border-color: #383838;
+}
+
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug {
+	border-right: 1px solid #dddddd;
+	height: 20px;
+}
+
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .name {
+	margin-right: 6px;
+	display: inline-block;
+}
+
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug {
+	border-color: #383838;
+}
+
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .icon {
+	width: 20px;
+	height: 20px;
+	background: url('continue.svg') center center no-repeat;
+	vertical-align: bottom;
+}
+
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .icon,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .icon {
 	background: url('continue-inverse.svg') center center no-repeat;
 }
 
@@ -56,8 +89,12 @@
 	line-height: 22px;
 }
 
-.monaco-workbench .monaco-action-bar .action-item.select-container {
-	overflow: hidden;
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
+	width: 12px;
+	background-color: inherit;
+	border: none;
+	margin-top: 0px;
+	cursor: pointer;
 }
 
 .debug-viewlet .line-number {

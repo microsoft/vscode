@@ -92,20 +92,6 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 }
 
-export class SelectConfigAction extends AbstractDebugAction {
-	static ID = 'workbench.debug.action.setActiveConfig';
-	static LABEL = nls.localize('selectConfig', "Select Configuration");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action select-active-config', debugService, keybindingService);
-	}
-
-	public run(configName: string): TPromise<any> {
-		this.debugService.getViewModel().setSelectedConfigurationName(configName === NO_CONFIGURATIONS_LABEL ? null : configName);
-		return TPromise.as(null);
-	}
-}
-
 export class StartAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.start';
 	static LABEL = nls.localize('startDebug', "Start Debugging");
