@@ -102,7 +102,7 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, fileEncodi
 		};
 
 		let batchPromises: TPromise<void>[] = [];
-		for (let i = 0; i < SearchWorker.CONCURRENT_SEARCH_PATHS && i < absolutePaths.length; i++) {
+		for (let i = 0; i < SearchWorker.CONCURRENT_SEARCH_PATHS && absolutePaths.length; i++) {
 			batchPromises.push(startSearchInFile(absolutePaths.shift()));
 		}
 
