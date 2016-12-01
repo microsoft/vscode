@@ -1792,7 +1792,7 @@ var AMDLoader;
                         callback();
                     }
                     else {
-                        var cachedDataPath_1 = _this._path.join(opts.nodeCachedDataDir, scriptSrc.replace(/\\|\//g, '') + '.code');
+                        var cachedDataPath_1 = _this._getCachedDataPath(opts.nodeCachedDataDir, scriptSrc);
                         _this._fs.readFile(cachedDataPath_1, function (err, data) {
                             // create script options
                             var scriptOptions = {
@@ -1844,6 +1844,11 @@ var AMDLoader;
                     }
                 });
             }
+        };
+        NodeScriptLoader.prototype._getCachedDataPath = function (baseDir, filename) {
+            var hash = this._crypto.createHash('md5').update(filename, 'utf8').digest('hex');
+            var basename = this._path.basename(filename).replace(/\.js$/, '');
+            return this._path.join(baseDir, hash + "-" + basename + ".code");
         };
         NodeScriptLoader._runSoon = function (callback, minTimeout) {
             var timeout = minTimeout + Math.ceil(Math.random() * minTimeout);
