@@ -29,7 +29,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		this.client = client;
 		this.commandId = `typescript.codeActions.${modeId}`;
 		this.supportedCodeActions = client.execute('getSupportedCodeFixes', null, undefined)
-			.then(response => response.body)
+			.then(response => response.body || [])
 			.then(codes => {
 				return codes.map(code => +code).filter(code => !isNaN(code));
 			})
@@ -45,7 +45,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 	public provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): Thenable<Command[]> {
 		const file = this.client.asAbsolutePath(document.uri);
 		if (!file) {
-			return Promise.resolve<Command[]>(null);
+			return Promise.resolve(null);
 		}
 
 		const source: Source = {
@@ -63,7 +63,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 					errorCodes: supportedActions
 				}, token);
 			})
-			.then(response => response.body)
+			.then(response => response.body || [])
 			.then(codeActions => codeActions.map(action => this.actionToEdit(source, action)));
 	}
 
