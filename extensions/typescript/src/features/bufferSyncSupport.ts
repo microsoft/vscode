@@ -167,7 +167,10 @@ export default class BufferSyncSupport {
 
 	public dispose(): void {
 		while (this.disposables.length) {
-			this.disposables.pop().dispose();
+			const obj = this.disposables.pop();
+			if (obj) {
+				obj.dispose();
+			}
 		}
 	}
 
