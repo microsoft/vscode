@@ -15,7 +15,7 @@ import { IExtensionsWorkbenchService, ExtensionState } from 'vs/workbench/parts/
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/browser/extensionTipsService';
@@ -85,13 +85,12 @@ suite('ExtensionsWorkbenchService Test', () => {
 		}, {
 				dependencies: ['pub.1', 'pub.2'],
 			}, {
-				manifest: 'expectedMainfest',
-				readme: 'expectedReadme',
-				changeLog: 'expectedChangelog',
-				download: 'expectedDownload',
-				icon: 'expectedIcon',
-				iconFallback: 'expectedIconFallback',
-				license: 'expectedLicense'
+				manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
+				readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
+				changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
+				download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
+				icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
+				license: { uri: 'uri:license', fallbackUri: 'fallback:license' }
 			});
 
 		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
@@ -110,9 +109,9 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal('1.5', actual.version);
 			assert.equal('1.5', actual.latestVersion);
 			assert.equal('expectedDescription', actual.description);
-			assert.equal('expectedIcon', actual.iconUrl);
-			assert.equal('expectedIconFallback', actual.iconUrlFallback);
-			assert.equal('expectedLicense', actual.licenseUrl);
+			assert.equal('uri:icon', actual.iconUrl);
+			assert.equal('fallback:icon', actual.iconUrlFallback);
+			assert.equal('uri:license', actual.licenseUrl);
 			assert.equal(ExtensionState.Uninstalled, actual.state);
 			assert.equal(1000, actual.installCount);
 			assert.equal(4, actual.rating);
@@ -234,13 +233,12 @@ suite('ExtensionsWorkbenchService Test', () => {
 		}, {
 				dependencies: ['pub.1'],
 			}, {
-				manifest: 'expectedMainfest',
-				readme: 'expectedReadme',
-				changeLog: 'expectedChangelog',
-				download: 'expectedDownload',
-				icon: 'expectedIcon',
-				iconFallback: 'expectedIconFallback',
-				license: 'expectedLicense'
+				manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
+				readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
+				changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
+				download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
+				icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
+				license: { uri: 'uri:license', fallbackUri: 'fallback:license' }
 			});
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local1, local2]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery1));
@@ -262,7 +260,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal('file:///localPath1/localIcon1', actual.iconUrl);
 			assert.equal('file:///localPath1/localIcon1', actual.iconUrlFallback);
 			assert.equal(ExtensionState.Installed, actual.state);
-			assert.equal('expectedLicense', actual.licenseUrl);
+			assert.equal('uri:license', actual.licenseUrl);
 			assert.equal(1000, actual.installCount);
 			assert.equal(4, actual.rating);
 			assert.equal(100, actual.ratingCount);
@@ -818,7 +816,16 @@ suite('ExtensionsWorkbenchService Test', () => {
 		return localExtension;
 	}
 
-	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {
+	const noAssets: IGalleryExtensionAssets = {
+		changelog: null,
+		download: null,
+		icon: null,
+		license: null,
+		manifest: null,
+		readme: null
+	};
+
+	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
 		const galleryExtension = <IGalleryExtension>Object.create({});
 		assign(galleryExtension, { name, publisher: 'pub', id: generateUuid(), properties: {}, assets: {} }, properties);
 		assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
