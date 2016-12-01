@@ -15,8 +15,8 @@ import { Scope } from 'vs/workbench/common/memento';
 import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IDebugService, VIEWLET_ID, State } from 'vs/workbench/parts/debug/common/debug';
 import { DebugViewRegistry } from 'vs/workbench/parts/debug/browser/debugViewRegistry';
-import { StartAction, ToggleReplAction, ConfigureAction, SelectConfigAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { SelectConfigurationActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
+import { StartAction, ToggleReplAction, ConfigureAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { StartDebugActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -122,7 +122,6 @@ export class DebugViewlet extends Viewlet {
 		if (!this.actions) {
 			this.actions = [
 				this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL),
-				this.instantiationService.createInstance(SelectConfigAction, SelectConfigAction.ID, SelectConfigAction.LABEL),
 				this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL),
 				this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)
 			];
@@ -136,8 +135,8 @@ export class DebugViewlet extends Viewlet {
 	}
 
 	public getActionItem(action: IAction): IActionItem {
-		if (action.id === SelectConfigAction.ID) {
-			return this.instantiationService.createInstance(SelectConfigurationActionItem, action);
+		if (action.id === StartAction.ID) {
+			return this.instantiationService.createInstance(StartDebugActionItem, null, action);
 		}
 
 		return null;
