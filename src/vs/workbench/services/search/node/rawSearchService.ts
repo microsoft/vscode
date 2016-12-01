@@ -404,11 +404,13 @@ class BatchedCollector<T> {
 	}
 
 	flush(): void {
-		this.totalNumberCompleted += this.batchSize;
-		this.cb(this.batch);
-		this.batch = [];
-		this.batchSize = 0;
-		clearTimeout(this.timeoutHandle);
-		this.timeoutHandle = 0;
+		if (this.batchSize) {
+			this.totalNumberCompleted += this.batchSize;
+			this.cb(this.batch);
+			this.batch = [];
+			this.batchSize = 0;
+			clearTimeout(this.timeoutHandle);
+			this.timeoutHandle = 0;
+		}
 	}
 }
