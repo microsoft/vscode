@@ -47,7 +47,7 @@ export class SearchWorkerChannel implements ISearchWorkerChannel {
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
-			case 'initialize': return TPromise.wrap(this.worker.initialize(arg));
+			case 'initialize': return this.worker.initialize(arg);
 			case 'search': return this.worker.search(arg);
 			case 'cancel': return this.worker.cancel();
 		}
