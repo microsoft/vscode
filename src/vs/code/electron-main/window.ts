@@ -84,7 +84,6 @@ export interface IWindowConfiguration extends ParsedArgs {
 	perfWindowLoadTime?: number;
 
 	workspacePath?: string;
-	backupFolder?: string;
 
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
