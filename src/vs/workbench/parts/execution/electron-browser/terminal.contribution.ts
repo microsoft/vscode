@@ -23,31 +23,33 @@ import { asFileEditorInput } from 'vs/workbench/common/editor';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
-import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 
-let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
-configurationRegistry.registerConfiguration({
-	'id': 'externalTerminal',
-	'order': 100,
-	'title': nls.localize('terminalConfigurationTitle', "External Terminal"),
-	'type': 'object',
-	'properties': {
-		'terminal.external.windowsExec': {
-			'type': 'string',
-			'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-			'default': DEFAULT_TERMINAL_WINDOWS
-		},
-		'terminal.external.osxExec': {
-			'type': 'string',
-			'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
-			'default': DEFAULT_TERMINAL_OSX
-		},
-		'terminal.external.linuxExec': {
-			'type': 'string',
-			'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
-			'default': DEFAULT_TERMINAL_LINUX
+DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
+	let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+	configurationRegistry.registerConfiguration({
+		'id': 'externalTerminal',
+		'order': 100,
+		'title': nls.localize('terminalConfigurationTitle', "External Terminal"),
+		'type': 'object',
+		'properties': {
+			'terminal.external.windowsExec': {
+				'type': 'string',
+				'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
+				'default': DEFAULT_TERMINAL_WINDOWS
+			},
+			'terminal.external.osxExec': {
+				'type': 'string',
+				'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
+				'default': DEFAULT_TERMINAL_OSX
+			},
+			'terminal.external.linuxExec': {
+				'type': 'string',
+				'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
+				'default': defaultTerminalLinux
+			}
 		}
-	}
+	});
 });
 
 export class OpenConsoleAction extends Action {
