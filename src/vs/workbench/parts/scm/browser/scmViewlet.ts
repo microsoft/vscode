@@ -35,6 +35,8 @@ import { IAction, IActionItem } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { isDarkTheme } from 'vs/platform/theme/common/themes';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -95,6 +97,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	constructor(
 		private scmMenus: SCMMenus,
 		private actionItemProvider: IActionItemProvider,
+		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 
@@ -117,8 +120,11 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		template.actionBar.push(this.scmMenus.getResourceActions(resource.resourceGroupId));
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 
-		if (resource.decorations.icon) {
-			template.decorationIcon.style.backgroundImage = `url('${resource.decorations.icon}')`;
+		const theme = this.themeService.getColorTheme();
+		const icon = isDarkTheme(theme) ? resource.decorations.iconDark : resource.decorations.icon;
+
+		if (icon) {
+			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
 		} else {
 			template.decorationIcon.style.backgroundImage = '';
 		}
@@ -160,6 +166,7 @@ export class SCMViewlet extends Viewlet {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IThemeService private themeService: IThemeService,
 		@IMenuService private menuService: IMenuService
 	) {
 		super(VIEWLET_ID, telemetryService);
@@ -223,6 +230,7 @@ export class SCMViewlet extends Viewlet {
 
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
+		this.themeService.onDidColorThemeChange(this.update, this, this.disposables);
 
 		return TPromise.as(null);
 	}

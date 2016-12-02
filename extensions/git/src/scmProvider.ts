@@ -9,28 +9,11 @@ import { Uri, Disposable, SCMProvider, SCMResource, SCMResourceDecorations, SCMR
 import { Model } from './model';
 import * as path from 'path';
 
-enum Theme {
-	Light,
-	Dark
-}
-
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
-function getIconUri(iconName: string, theme: Theme): Uri {
-	const themeName = theme === Theme.Light ? 'light' : 'dark';
-	return Uri.file(path.join(iconsRootPath, themeName, `${iconName}.svg`));
+function getIconUri(iconName: string, theme: string): Uri {
+	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
 }
-
-const Icons = {
-	Modified: getIconUri('status-modified', Theme.Light),
-	Added: getIconUri('status-added', Theme.Light),
-	Deleted: getIconUri('status-deleted', Theme.Light),
-	Renamed: getIconUri('status-renamed', Theme.Light),
-	Copied: getIconUri('status-copied', Theme.Light),
-	Untracked: getIconUri('status-untracked', Theme.Light),
-	Ignored: getIconUri('status-ignored', Theme.Light),
-	Conflict: getIconUri('status-conflict', Theme.Light),
-};
 
 enum Status {
 	INDEX_MODIFIED,
@@ -57,24 +40,47 @@ class Resource implements SCMResource {
 
 	get uri(): Uri { return this._uri; }
 
-	private get iconPath(): Uri | undefined {
+	private static Icons = {
+		light: {
+			Modified: getIconUri('status-modified', 'light'),
+			Added: getIconUri('status-added', 'light'),
+			Deleted: getIconUri('status-deleted', 'light'),
+			Renamed: getIconUri('status-renamed', 'light'),
+			Copied: getIconUri('status-copied', 'light'),
+			Untracked: getIconUri('status-untracked', 'light'),
+			Ignored: getIconUri('status-ignored', 'light'),
+			Conflict: getIconUri('status-conflict', 'light'),
+		},
+		dark: {
+			Modified: getIconUri('status-modified', 'dark'),
+			Added: getIconUri('status-added', 'dark'),
+			Deleted: getIconUri('status-deleted', 'dark'),
+			Renamed: getIconUri('status-renamed', 'dark'),
+			Copied: getIconUri('status-copied', 'dark'),
+			Untracked: getIconUri('status-untracked', 'dark'),
+			Ignored: getIconUri('status-ignored', 'dark'),
+			Conflict: getIconUri('status-conflict', 'dark')
+		}
+	};
+
+	private getIconPath(theme: string): Uri | undefined {
 		switch (this.type) {
-			case Status.INDEX_MODIFIED: return Icons.Modified;
-			case Status.MODIFIED: return Icons.Modified;
-			case Status.INDEX_ADDED: return Icons.Added;
-			case Status.INDEX_DELETED: return Icons.Deleted;
-			case Status.DELETED: return Icons.Deleted;
-			case Status.INDEX_RENAMED: return Icons.Renamed;
-			case Status.INDEX_COPIED: return Icons.Copied;
-			case Status.UNTRACKED: return Icons.Untracked;
-			case Status.IGNORED: return Icons.Ignored;
-			case Status.BOTH_DELETED: return Icons.Conflict;
-			case Status.ADDED_BY_US: return Icons.Conflict;
-			case Status.DELETED_BY_THEM: return Icons.Conflict;
-			case Status.ADDED_BY_THEM: return Icons.Conflict;
-			case Status.DELETED_BY_US: return Icons.Conflict;
-			case Status.BOTH_ADDED: return Icons.Conflict;
-			case Status.BOTH_MODIFIED: return Icons.Conflict;
+			case Status.INDEX_MODIFIED: return Resource.Icons[theme].Modified;
+			case Status.MODIFIED: return Resource.Icons[theme].Modified;
+			case Status.INDEX_ADDED: return Resource.Icons[theme].Added;
+			case Status.INDEX_DELETED: return Resource.Icons[theme].Deleted;
+			case Status.DELETED: return Resource.Icons[theme].Deleted;
+			case Status.INDEX_RENAMED: return Resource.Icons[theme].Renamed;
+			case Status.INDEX_COPIED: return Resource.Icons[theme].Copied;
+			case Status.UNTRACKED: return Resource.Icons[theme].Untracked;
+			case Status.IGNORED: return Resource.Icons[theme].Ignored;
+			case Status.BOTH_DELETED: return Resource.Icons[theme].Conflict;
+			case Status.ADDED_BY_US: return Resource.Icons[theme].Conflict;
+			case Status.DELETED_BY_THEM: return Resource.Icons[theme].Conflict;
+			case Status.ADDED_BY_THEM: return Resource.Icons[theme].Conflict;
+			case Status.DELETED_BY_US: return Resource.Icons[theme].Conflict;
+			case Status.BOTH_ADDED: return Resource.Icons[theme].Conflict;
+			case Status.BOTH_MODIFIED: return Resource.Icons[theme].Conflict;
 			default: return void 0;
 		}
 	}
@@ -92,10 +98,10 @@ class Resource implements SCMResource {
 	}
 
 	get decorations(): SCMResourceDecorations {
-		return {
-			iconPath: this.iconPath,
-			strikeThrough: this.strikeThrough
-		};
+		const light = { iconPath: this.getIconPath('light') };
+		const dark = { iconPath: this.getIconPath('dark') };
+
+		return { strikeThrough: this.strikeThrough, light, dark };
 	}
 
 	constructor(private _uri: Uri, private type: any) {
