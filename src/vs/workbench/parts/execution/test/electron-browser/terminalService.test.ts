@@ -7,7 +7,7 @@
 
 import { deepEqual, equal } from 'assert';
 import { WinTerminalService, LinuxTerminalService, MacTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
-import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 suite('Execution - TerminalService', () => {
 	let mockOnExit;
@@ -196,26 +196,27 @@ suite('Execution - TerminalService', () => {
 	});
 
 	test(`LinuxTerminalService - uses default terminal when configuration.terminal.external.linuxExec is undefined`, done => {
-		let testCwd = 'path/to/workspace';
-		let mockSpawner = {
-			spawn: (command, args, opts) => {
-				// assert
-				equal(command, DEFAULT_TERMINAL_LINUX, 'terminal should equal expected');
-				done();
-				return {
-					on: (evt) => evt
-				};
-			}
-		};
-		mockConfig.terminal.external.linuxExec = undefined;
-		let testService = new LinuxTerminalService(mockConfig);
-		(<any>testService).spawnTerminal(
-			mockSpawner,
-			mockConfig,
-			testCwd,
-			mockOnExit,
-			mockOnError
-		);
+		DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
+			let testCwd = 'path/to/workspace';
+			let mockSpawner = {
+				spawn: (command, args, opts) => {
+					// assert
+					equal(command, defaultTerminalLinux, 'terminal should equal expected');
+					done();
+					return {
+						on: (evt) => evt
+					};
+				}
+			};
+			mockConfig.terminal.external.linuxExec = undefined;
+			let testService = new LinuxTerminalService(mockConfig);
+			(<any>testService).spawnTerminal(
+				mockSpawner,
+				mockConfig,
+				testCwd,
+				mockOnExit,
+				mockOnError
+			);
+		});
 	});
-
 });

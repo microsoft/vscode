@@ -14,7 +14,6 @@ import strings = require('vs/base/common/strings');
 import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import filters = require('vs/base/common/filters');
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -23,6 +22,7 @@ import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickO
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { DocumentSymbolProviderRegistry, SymbolInformation, SymbolKind } from 'vs/editor/common/modes';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -413,9 +413,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	public canRun(): boolean | string {
 		let canRun = false;
 
-		let editor = this.editorService.getActiveEditor();
-		if (editor instanceof BaseTextEditor) {
-			let editorControl = <IEditor>editor.getControl();
+		const editorControl: IEditor = getCodeEditor(this.editorService.getActiveEditor());
+		if (editorControl) {
 			let model = editorControl.getModel();
 			if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
@@ -426,7 +425,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 		}
 
-		return canRun ? true : editor instanceof BaseTextEditor ? nls.localize('cannotRunGotoSymbolInFile', "No symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
+		return canRun ? true : editorControl !== null ? nls.localize('cannotRunGotoSymbolInFile', "No symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {
@@ -470,9 +469,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	}
 
 	private doGetActiveOutline(): TPromise<OutlineModel> {
-		let editor = this.editorService.getActiveEditor();
-		if (editor instanceof BaseTextEditor) {
-			let editorControl = <IEditor>editor.getControl();
+		const editorControl: IEditor = getCodeEditor(this.editorService.getActiveEditor());
+		if (editorControl) {
 			let model = editorControl.getModel();
 			if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models

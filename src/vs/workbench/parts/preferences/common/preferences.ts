@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import { IRange } from 'vs/editor/common/editorCommon';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationValue, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export interface ISettingsGroup {
@@ -68,7 +68,7 @@ export interface IPreferencesService {
 	openWorkspaceSettings(): TPromise<void>;
 	openGlobalKeybindingSettings(): TPromise<void>;
 
-	copyConfiguration(configurationValue: IConfigurationValue, configurationTarget?: ConfigurationTarget): void;
+	copyConfiguration(configurationValue: IConfigurationValue): void;
 }
 
 export const CONTEXT_DEFAULT_SETTINGS_EDITOR = new RawContextKey<boolean>('defaultSettingsEditor', false);
