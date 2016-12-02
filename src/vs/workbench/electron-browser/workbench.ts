@@ -458,7 +458,7 @@ export class Workbench implements IPartService {
 
 		// Backup File Service
 		const workspace = this.contextService.getWorkspace();
-		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, workspace ? workspace.resource : null));
+		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, this.windowService.getCurrentWindowId()));
 
 		// Backup Service
 		serviceCollection.set(IBackupModelService, this.instantiationService.createInstance(BackupModelService));

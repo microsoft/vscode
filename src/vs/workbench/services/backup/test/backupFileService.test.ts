@@ -17,9 +17,11 @@ import Uri from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 class TestEnvironmentService extends EnvironmentService {
 
@@ -30,19 +32,6 @@ class TestEnvironmentService extends EnvironmentService {
 	get backupHome(): string { return this._backupHome; }
 
 	get backupWorkspacesPath(): string { return this._backupWorkspacesPath; }
-}
-
-class TestBackupFileService extends BackupFileService {
-	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService(workspace.fsPath, { disableWatcher: true }, null);
-		const testEnvironmentService = new TestEnvironmentService(backupHome, workspacesJsonPath);
-
-		super(workspace, testEnvironmentService, fileService);
-	}
-
-	public getBackupResource(resource: Uri): Uri {
-		return super.getBackupResource(resource);
-	}
 }
 
 const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
@@ -57,6 +46,23 @@ const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
 const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
 const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath.toLowerCase()).digest('hex'));
+
+class TestBackupFileService extends BackupFileService {
+	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
+		const fileService = new FileService(workspace.fsPath, { disableWatcher: true }, null);
+		const environmentService = new TestEnvironmentService(backupHome, workspacesJsonPath);
+		const backupService: IBackupService = {
+			_serviceBrand: null,
+			getBackupPath: () => TPromise.as(workspaceBackupPath)
+		};
+
+		super(1, environmentService, fileService, backupService);
+	}
+
+	public getBackupResource(resource: Uri): Uri {
+		return super.getBackupResource(resource);
+	}
+}
 
 suite('BackupFileService', () => {
 	let service: TestBackupFileService;
