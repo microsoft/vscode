@@ -23,6 +23,10 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 	private cachedModel: DiffEditorModel;
 
+	constructor(name: string, description: string, original: EditorInput, modified: EditorInput, private forceOpenAsBinary?: boolean) {
+		super(name, description, original, modified);
+	}
+
 	public getTypeId(): string {
 		return DiffEditorInput.ID;
 	}
