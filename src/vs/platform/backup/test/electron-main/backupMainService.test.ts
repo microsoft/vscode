@@ -28,8 +28,8 @@ class TestBackupMainService extends BackupMainService {
 		this.loadSync();
 	}
 
-	public removeWorkspaceBackupPathSync(workspace: Uri): void {
-		return super.removeWorkspaceBackupPathSync(workspace);
+	public removeBackupPathSync(workspaceIdenfitier: string, isEmptyWorkspace: boolean): void {
+		return super.removeBackupPathSync(workspaceIdenfitier, isEmptyWorkspace);
 	}
 
 	public loadSync(): void {
@@ -204,15 +204,15 @@ suite('BackupMainService', () => {
 		});
 	});
 
-	suite('removeWorkspaceBackupPathSync', () => {
-		test('removeWorkspaceBackupPathSync should remove workspaces from workspaces.json', done => {
+	suite('removeBackupPathSync', () => {
+		test('should remove workspaces from workspaces.json', done => {
 			service.registerWindowForBackups(1, false, null, fooFile.fsPath);
 			service.registerWindowForBackups(2, false, null, barFile.fsPath);
-			service.removeWorkspaceBackupPathSync(fooFile);
+			service.removeBackupPathSync(fooFile.fsPath, false);
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
 				assert.deepEqual(json.folderWorkspaces, [barFile.fsPath]);
-				service.removeWorkspaceBackupPathSync(barFile);
+				service.removeBackupPathSync(barFile.fsPath, false);
 				pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
 					const json2 = <IBackupWorkspacesFormat>JSON.parse(content);
 					assert.deepEqual(json2.folderWorkspaces, []);
@@ -221,10 +221,10 @@ suite('BackupMainService', () => {
 			});
 		});
 
-		test('removeWorkspaceBackupPathSync should fail gracefully when removing a path that doesn\'t exist', done => {
+		test('should fail gracefully when removing a path that doesn\'t exist', done => {
 			const workspacesJson: IBackupWorkspacesFormat = { folderWorkspaces: [fooFile.fsPath], emptyWorkspaces: [] };
 			pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
-				service.removeWorkspaceBackupPathSync(barFile);
+				service.removeBackupPathSync(barFile.fsPath, false);
 				pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
 					const json = <IBackupWorkspacesFormat>JSON.parse(content);
 					assert.deepEqual(json.folderWorkspaces, [fooFile.fsPath]);
