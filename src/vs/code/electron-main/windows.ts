@@ -444,7 +444,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (emptyToRestore.length > 0) {
 			emptyToRestore.forEach(emptyWorkspaceBackupFolder => {
 				const configuration = this.toConfiguration(openConfig, null, null, null, null);
-				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */, openInNewWindow ? void 0 : openConfig.windowToUse, emptyWorkspaceBackupFolder);
+				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */, null, emptyWorkspaceBackupFolder);
 				usedWindows.push(browserWindow);
 
 				openInNewWindow = true; // any other folders to open must open in new window then
