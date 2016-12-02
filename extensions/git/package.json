@@ -79,52 +79,40 @@
           "group": "navigation"
         }
       ],
-      "scm/git/index/group": [
+      "scm/git/index/title/context": [
+        {
+          "command": "git.unstage-all"
+        },
         {
           "command": "git.unstage-all",
-          "group": "navigation"
+          "group": "inline"
         }
       ],
-      "scm/git/index/group/context": [
+      "scm/git/index/context": [
         {
-          "command": "git.unstage-all",
-          "group": "navigation"
-        }
-      ],
-      "scm/git/index/resource": [
+          "command": "git.unstage"
+        },
         {
           "command": "git.unstage",
-          "group": "navigation"
+          "group": "inline"
         }
       ],
-      "scm/git/index/resource/context": [
+      "scm/git/workingTree/title/context": [
         {
-          "command": "git.unstage",
-          "group": "navigation"
-        }
-      ],
-      "scm/git/workingTree/group": [
+          "command": "git.stage-all"
+        },
         {
           "command": "git.stage-all",
-          "group": "navigation"
+          "group": "inline"
         }
       ],
-      "scm/git/workingTree/group/context": [
+      "scm/git/workingTree/context": [
         {
-          "command": "git.stage-all",
-          "group": "navigation"
-        }
-      ],
-      "scm/git/workingTree/resource": [
+          "command": "git.stage"
+        },
         {
           "command": "git.stage",
-          "group": "navigation"
-        }
-      ],
-      "scm/git/workingTree/resource/context": [
-        {
-          "command": "git.stage",
-          "group": "navigation"
+          "group": "inline"
         }
       ]
     },

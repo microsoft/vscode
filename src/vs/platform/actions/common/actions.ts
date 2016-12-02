@@ -68,26 +68,35 @@ export class SCMTitleMenuId extends MenuId {
 	}
 }
 
-export const enum SCMMenuType {
-	ResourceGroup,
-	Resource
-}
-
-export class SCMMenuId extends MenuId {
+export class SCMResourceGroupMenuID extends MenuId {
 
 	static parse(value: string): MenuId | null {
-		const match = /^scm\/([^/]+)\/([^/]+)\/(group|resource)(\/context)?$/.exec(value);
+		const match = /^scm\/([^/]+)\/([^/]+)\/title\/context$/.exec(value);
 
 		if (match) {
-			const [, providerId, resourceGroupId, typeStr, isContext] = match;
-			const type = typeStr === 'group' ? SCMMenuType.ResourceGroup : SCMMenuType.Resource;
-
-			return new SCMMenuId(providerId, resourceGroupId, type, !!isContext);
+			const [, providerId, resourceGroupId] = match;
+			return new SCMResourceGroupMenuID(providerId, resourceGroupId);
 		}
 	}
 
-	constructor(private providerId: string, private resourceGroupId: string, private type: SCMMenuType, private isContext: boolean) {
-		super(`scm/${providerId}/${resourceGroupId}/${type === SCMMenuType.ResourceGroup ? 'group' : 'resource'}${isContext ? '/context' : ''}`);
+	constructor(private providerId: string, private resourceGroupId: string) {
+		super(`scm/${providerId}/${resourceGroupId}/title/context`);
+	}
+}
+
+export class SCMResourceMenuID extends MenuId {
+
+	static parse(value: string): MenuId | null {
+		const match = /^scm\/([^/]+)\/([^/]+)\/context$/.exec(value);
+
+		if (match) {
+			const [, providerId, resourceGroupId] = match;
+			return new SCMResourceMenuID(providerId, resourceGroupId);
+		}
+	}
+
+	constructor(private providerId: string, private resourceGroupId: string) {
+		super(`scm/${providerId}/${resourceGroupId}/context`);
 	}
 }
 
