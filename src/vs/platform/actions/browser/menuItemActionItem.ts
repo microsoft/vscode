@@ -17,7 +17,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
 
 
-export function fillInActions(menu: IMenu, context: any, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }): void {
+export function fillInActions(menu: IMenu, context: any, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	const groups = menu.getActions(context);
 	if (groups.length === 0) {
 		return;
@@ -25,7 +25,7 @@ export function fillInActions(menu: IMenu, context: any, target: IAction[] | { p
 
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
-		if (group === 'navigation') {
+		if (isPrimaryGroup(group)) {
 
 			const head = Array.isArray<IAction>(target) ? target : target.primary;
 

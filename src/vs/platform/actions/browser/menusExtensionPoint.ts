@@ -13,7 +13,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, SCMTitleMenuId, SCMMenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, SCMTitleMenuId, SCMResourceMenuID, SCMResourceGroupMenuID, MenuRegistry } from 'vs/platform/actions/common/actions';
 
 namespace schema {
 
@@ -36,7 +36,8 @@ namespace schema {
 		}
 
 		return SCMTitleMenuId.parse(value)
-			|| SCMMenuId.parse(value)
+			|| SCMResourceGroupMenuID.parse(value)
+			|| SCMResourceMenuID.parse(value)
 			|| void 0;
 	}
 
