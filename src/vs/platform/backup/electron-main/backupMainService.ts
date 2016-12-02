@@ -61,24 +61,18 @@ export class BackupMainService implements IBackupMainService {
 			backupFolder = Date.now().toString();
 		}
 
-		if (workspacePath) {
-			const caseAwarePath = this.sanitizePath(workspacePath);
-			backupFolder = crypto.createHash('md5').update(caseAwarePath).digest('hex');
+		this.mapWindowToBackupFolder[windowId] = isEmptyWorkspace ? backupFolder : this.getWorkspaceHash(workspacePath);
+		this.pushBackupPathsSync(isEmptyWorkspace ? backupFolder : this.sanitizePath(workspacePath), isEmptyWorkspace);
+	}
+
+	protected pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace?: boolean): void {
+		if (!isEmptyWorkspace) {
+			workspaceIdentifier = this.sanitizePath(workspaceIdentifier);
 		}
-
-		this.mapWindowToBackupFolder[windowId] = backupFolder;
-
-		if (isEmptyWorkspace) {
-			if (this.backups.emptyWorkspaces.indexOf(backupFolder) === -1) {
-				this.backups.emptyWorkspaces.push(backupFolder);
-				this.saveSync();
-			}
-		} else {
-			const sanitizedPath = this.sanitizePath(workspacePath);
-			if (this.backups.folderWorkspaces.indexOf(sanitizedPath) === -1) {
-				this.backups.folderWorkspaces.push(sanitizedPath);
-				this.saveSync();
-			}
+		const array = isEmptyWorkspace ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
+		if (array.indexOf(workspaceIdentifier) === -1) {
+			array.push(workspaceIdentifier);
+			this.saveSync();
 		}
 	}
 
