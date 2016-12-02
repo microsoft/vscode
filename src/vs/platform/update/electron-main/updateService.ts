@@ -99,8 +99,6 @@ export class UpdateService implements IUpdateService {
 			return;
 		}
 
-		telemetryService.publicLog('whattt', { yeah: 123 });
-
 		const channel = this.getUpdateChannel();
 		const feedUrl = this.getUpdateFeedUrl(channel);
 
