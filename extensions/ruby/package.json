@@ -1,8 +1,10 @@
 {
 	"name": "ruby",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"activationEvents": ["onLanguage:ruby"],
+	"main": "./out/rubyMain",
 	"contributes": {
 		"languages": [{
 			"id": "ruby",
@@ -17,5 +19,9 @@
 			"scopeName": "source.ruby",
 			"path": "./syntaxes/Ruby.plist"
 		}]
+	},
+	"scripts": {
+		"compile": "gulp compile-extension:ruby",
+		"watch": "gulp watch-extension:ruby"
 	}
 }
