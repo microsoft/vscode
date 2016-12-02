@@ -18,7 +18,8 @@ export interface IBaselineResourceProvider {
 export const ISCMService = createDecorator<ISCMService>('scm');
 
 export interface ISCMResourceDecorations {
-	icon: URI;
+	icon?: URI;
+	iconDark?: URI;
 	strikeThrough?: boolean;
 }
 
