@@ -59,6 +59,27 @@ export class BackupRestorer implements IWorkbenchContribution {
 		});
 	}
 
+	private doResolveOpenedBackups(backups: URI[]): TPromise<URI[]> {
+		const stacks = this.groupService.getStacksModel();
+
+		const restorePromises: TPromise<any>[] = [];
+		const unresolved: URI[] = [];
+
+		backups.forEach(backup => {
+			if (stacks.isOpen(backup)) {
+				if (backup.scheme === 'file') {
+					restorePromises.push(this.textModelResolverService.createModelReference(backup).then(null, () => unresolved.push(backup)));
+				} else if (backup.scheme === 'untitled') {
+					restorePromises.push(this.untitledEditorService.get(backup).resolve().then(null, () => unresolved.push(backup)));
+				}
+			} else {
+				unresolved.push(backup);
+			}
+		});
+
+		return TPromise.join(restorePromises).then(() => unresolved, () => unresolved);
+	}
+
 	private doOpenEditors(inputs: URI[]): TPromise<void> {
 		const stacks = this.groupService.getStacksModel();
 		const hasOpenedEditors = stacks.groups.length > 0;
@@ -81,27 +102,6 @@ export class BackupRestorer implements IWorkbenchContribution {
 		}
 
 		return this.editorService.createInput({ resource });
-	}
-
-	private doResolveOpenedBackups(backups: URI[]): TPromise<URI[]> {
-		const stacks = this.groupService.getStacksModel();
-
-		const restorePromises: TPromise<any>[] = [];
-		const unresolved: URI[] = [];
-
-		backups.forEach(backup => {
-			if (stacks.isOpen(backup)) {
-				if (backup.scheme === 'file') {
-					restorePromises.push(this.textModelResolverService.createModelReference(backup).then(null, () => unresolved.push(backup)));
-				} else if (backup.scheme === 'untitled') {
-					restorePromises.push(this.untitledEditorService.get(backup).resolve().then(null, () => unresolved.push(backup)));
-				}
-			} else {
-				unresolved.push(backup);
-			}
-		});
-
-		return TPromise.join(restorePromises).then(() => unresolved, () => unresolved);
 	}
 
 	public getId(): string {
