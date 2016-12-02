@@ -148,4 +148,27 @@ suite('CompletionModel', function () {
 		// dupe, issue #14942
 		assertTopScore('is', 0, 'isValidViewletId', 'import statement');
 	});
+
+	test('proper current word when length=0, #16380', function () {
+
+		model = new CompletionModel([
+			createSuggestItem('    </div', 4),
+			createSuggestItem('a', 0),
+			createSuggestItem('p', 0),
+			createSuggestItem('    </tag', 4),
+			createSuggestItem('    XYZ', 4),
+		], 1, {
+				leadingLineContent: '   <',
+				characterCountDelta: 0
+			});
+
+		assert.equal(model.items.length, 4);
+
+		const [a, b, c, d] = model.items;
+		assert.equal(a.suggestion.label, '    </div');
+		assert.equal(b.suggestion.label, 'a');
+		assert.equal(c.suggestion.label, 'p');
+		assert.equal(d.suggestion.label, '    </tag');
+	});
+
 });
