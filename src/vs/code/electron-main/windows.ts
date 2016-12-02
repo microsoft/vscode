@@ -767,7 +767,9 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		this.backupService.registerWindowForBackups(vscodeWindow.id, !configuration.workspacePath, emptyWorkspaceBackupFolder, configuration.workspacePath);
+		if (!configuration.extensionDevelopmentPath) {
+			this.backupService.registerWindowForBackups(vscodeWindow.id, !configuration.workspacePath, emptyWorkspaceBackupFolder, configuration.workspacePath);
+		}
 
 		// Only load when the window has not vetoed this
 		this.lifecycleService.unload(vscodeWindow, UnloadReason.LOAD).done(veto => {
