@@ -10,6 +10,7 @@ import { languages, workspace, ExtensionContext, IndentAction } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range, RequestType } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateColorDecorations } from './colorDecorators';
+import TelemetryReporter from 'vscode-extension-telemetry';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -18,7 +19,16 @@ namespace ColorSymbolRequest {
 	export const type: RequestType<string, Range[], any, any> = { get method() { return 'css/colorSymbols'; }, _: null };
 }
 
+interface IPackageInfo {
+	name: string;
+	version: string;
+	aiKey: string;
+}
+
 export function activate(context: ExtensionContext) {
+
+	let packageInfo = getPackageInfo(context);
+	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'htmlServerMain.js'));
@@ -57,6 +67,11 @@ export function activate(context: ExtensionContext) {
 		};
 		let disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true });
 		context.subscriptions.push(disposable);
+		client.onTelemetry(e => {
+			if (telemetryReporter) {
+				telemetryReporter.sendTelemetryEvent(e.key, e.data);
+			}
+		});
 	});
 
 	languages.setLanguageConfiguration('html', {
@@ -103,4 +118,16 @@ export function activate(context: ExtensionContext) {
 			}
 		],
 	});
+}
+
+function getPackageInfo(context: ExtensionContext): IPackageInfo {
+	let extensionPackage = require(context.asAbsolutePath('./package.json'));
+	if (extensionPackage) {
+		return {
+			name: extensionPackage.name,
+			version: extensionPackage.version,
+			aiKey: extensionPackage.aiKey
+		};
+	}
+	return null;
 }

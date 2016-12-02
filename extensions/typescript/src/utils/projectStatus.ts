@@ -31,8 +31,8 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 
 	const projectHintIgnoreList = memento.get<string[]>('projectHintIgnoreList', []);
 	for (let path of projectHintIgnoreList) {
-		if (path === null) {
-			path = undefined;
+		if (!path) {
+			path = 'undefined';
 		}
 		projectHinted[path] = true;
 	}
@@ -53,7 +53,7 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 		delete projectHinted[e.document.fileName];
 	}));
 
-	function onEditor(editor: vscode.TextEditor): void {
+	function onEditor(editor: vscode.TextEditor | undefined): void {
 		if (!editor
 			|| !vscode.languages.match(selector, editor.document)
 			|| !client.asAbsolutePath(editor.document.uri)) {
@@ -63,20 +63,26 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 		}
 
 		const file = client.asAbsolutePath(editor.document.uri);
+		if (!file) {
+			return;
+		}
+
 		isOpen(file).then(value => {
 			if (!value) {
 				return;
 			}
 
 			return client.execute('projectInfo', { file, needFileNameList: true }).then(res => {
-
+				if (!res.body) {
+					return;
+				}
 				let {configFileName, fileNames} = res.body;
 
 				if (projectHinted[configFileName] === true) {
 					return;
 				}
 
-				if (fileNames.length > fileLimit) {
+				if (fileNames && fileNames.length > fileLimit) {
 					let largeRoots = computeLargeRoots(configFileName, fileNames).map(f => `'/${f}/'`).join(', ');
 
 					currentHint = {
@@ -91,10 +97,11 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 								item.hide();
 
 								let configFileUri: vscode.Uri;
-								if (dirname(configFileName).indexOf(vscode.workspace.rootPath) === 0) {
+								let rootPath = vscode.workspace.rootPath;
+								if (rootPath && dirname(configFileName).indexOf('' + rootPath) === 0) {
 									configFileUri = vscode.Uri.file(configFileName);
 								} else {
-									configFileUri = vscode.Uri.parse('untitled://' + join(vscode.workspace.rootPath, 'jsconfig.json'));
+									configFileUri = vscode.Uri.parse('untitled://' + join(rootPath, 'jsconfig.json'));
 								}
 
 								return vscode.workspace.openTextDocument(configFileUri)

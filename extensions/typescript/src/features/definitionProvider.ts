@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { DefinitionProvider, TextDocument, Position, Range, CancellationToken, Location } from 'vscode';
+import { DefinitionProvider, TextDocument, Position, Range, CancellationToken, Definition, Location } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -20,19 +20,23 @@ export default class TypeScriptDefinitionProvider implements DefinitionProvider 
 		this.client = client;
 	}
 
-	public provideDefinition(document: TextDocument, position: Position, token: CancellationToken): Promise<Location> {
+	public provideDefinition(document: TextDocument, position: Position, token: CancellationToken): Promise<Definition | null> {
+		const filepath = this.client.asAbsolutePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve(null);
+		}
 		let args: Proto.FileLocationRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
 		if (!args.file) {
-			return Promise.resolve<Location>(null);
+			return Promise.resolve(null);
 		}
 		return this.client.execute('definition', args, token).then(response => {
-			let locations: Proto.FileSpan[] = response.body;
+			let locations: Proto.FileSpan[] = response.body || [];
 			if (!locations || locations.length === 0) {
-				return null;
+				return [] as Definition;
 			}
 			return locations.map(location => {
 				let resource = this.client.asUrl(location.file);
@@ -41,10 +45,10 @@ export default class TypeScriptDefinitionProvider implements DefinitionProvider 
 				} else {
 					return new Location(resource, new Range(location.start.line - 1, location.start.offset - 1, location.end.line - 1, location.end.offset - 1));
 				}
-			});
+			}).filter(x => x !== null) as Location[];
 		}, (error) => {
 			this.client.error(`'definition' request failed with error.`, error);
-			return null;
+			return [] as Definition;
 		});
 	}
 }

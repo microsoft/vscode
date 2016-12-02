@@ -6,6 +6,8 @@
 'use strict';
 
 import * as fs from 'fs';
+import gracefulFs = require('graceful-fs');
+gracefulFs.gracefulify(fs);
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
@@ -35,8 +37,6 @@ function onError(error: any): void {
 }
 
 export class SearchWorker implements ISearchWorker {
-	static CONCURRENT_SEARCH_PATHS = 2;
-
 	private contentPattern: RegExp;
 	private nextSearch = TPromise.wrap(null);
 	private config: ISearchWorkerConfig;
@@ -94,19 +94,10 @@ function searchBatch(absolutePaths: string[], contentPattern: RegExp, fileEncodi
 						return batchDone(result);
 					}
 				}
-
-				if (absolutePaths.length) {
-					return startSearchInFile(absolutePaths.shift());
-				}
 			}, onError);
 		};
 
-		let batchPromises: TPromise<void>[] = [];
-		for (let i = 0; i < SearchWorker.CONCURRENT_SEARCH_PATHS && absolutePaths.length; i++) {
-			batchPromises.push(startSearchInFile(absolutePaths.shift()));
-		}
-
-		TPromise.join(batchPromises).then(() => {
+		TPromise.join(absolutePaths.map(startSearchInFile)).then(() => {
 			batchDone(result);
 		});
 	});
@@ -293,14 +284,17 @@ export class FileMatch implements ISerializedFileMatch {
 
 	serialize(): ISerializedFileMatch {
 		let lineMatches: ILineMatch[] = [];
+		let numMatches = 0;
 
 		for (let i = 0; i < this.lineMatches.length; i++) {
+			numMatches += this.lineMatches[i].offsetAndLengths.length;
 			lineMatches.push(this.lineMatches[i].serialize());
 		}
 
 		return {
 			path: this.path,
-			lineMatches
+			lineMatches,
+			numMatches
 		};
 	}
 }
