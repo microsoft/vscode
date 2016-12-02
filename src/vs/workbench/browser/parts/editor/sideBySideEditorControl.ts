@@ -21,7 +21,6 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -35,6 +34,7 @@ import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitl
 import { IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { extractResources } from 'vs/base/browser/dnd';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 export enum Rochade {
 	NONE,
@@ -939,9 +939,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			// for th editor to be a text editor and creating the options accordingly if so
 			let options = EditorOptions.create({ pinned: true });
 			const activeEditor = $this.editorService.getActiveEditor();
-			if (activeEditor instanceof BaseTextEditor && activeEditor.position === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
+			const editor = getCodeEditor(activeEditor);
+			if (editor && activeEditor.position === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
 				options = TextEditorOptions.create({ pinned: true });
-				(<TextEditorOptions>options).fromEditor(activeEditor.getControl());
+				(<TextEditorOptions>options).fromEditor(editor);
 			}
 
 			return options;

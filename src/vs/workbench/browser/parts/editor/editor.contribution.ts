@@ -12,9 +12,10 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { StringEditor } from 'vs/workbench/browser/parts/editor/stringEditor';
+import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -77,6 +78,18 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	),
 	[
 		new SyncDescriptor(DiffEditorInput)
+	]
+);
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	new EditorDescriptor(
+		SideBySideEditor.ID,
+		nls.localize('sideBySideEditor', "Side by Side Editor"),
+		'vs/workbench/browser/parts/editor/sideBySideEditor',
+		'SideBySideEditor'
+	),
+	[
+		new SyncDescriptor(SideBySideEditorInput)
 	]
 );
 

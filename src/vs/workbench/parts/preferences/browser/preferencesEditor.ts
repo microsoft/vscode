@@ -150,6 +150,7 @@ export class DefaultPreferencesEditor extends BaseEditor {
 			options.folding = false;
 			options.renderWhitespace = 'none';
 			options.wrappingColumn = 0;
+			options.overviewRulerLanes = 0;
 		}
 		return options;
 	}

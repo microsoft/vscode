@@ -16,11 +16,12 @@ import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState } from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IEditorGroupService, GroupOrientation, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
@@ -29,13 +30,11 @@ import { IEditorPart } from 'vs/workbench/services/editor/browser/editorService'
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { Position, POSITIONS, Direction } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorStacksModel, EditorGroup, EditorIdentifier, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import Event, { Emitter } from 'vs/base/common/event';
 
@@ -666,7 +665,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doHandleDirty(identifier: EditorIdentifier, ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
-		if (!identifier || !identifier.editor || !identifier.editor.isDirty() || (ignoreIfOpenedInOtherGroup && this.countEditors(identifier.editor, true /* include diff editors */) > 1 /* allow to close a dirty editor if it is opened in another group */)) {
+		if (!identifier || !identifier.editor || !identifier.editor.isDirty() || (ignoreIfOpenedInOtherGroup && this.countEditors(identifier.editor) > 1 /* allow to close a dirty editor if it is opened in another group */)) {
 			return TPromise.as(false); // no veto
 		}
 
@@ -685,10 +684,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	private countEditors(editor: EditorInput, includeDiffEditors: boolean): number {
+	private countEditors(editor: EditorInput): number {
 		const editors = [editor];
-		if (includeDiffEditors && editor instanceof DiffEditorInput) {
-			editors.push(editor.modifiedInput);
+		if (editor instanceof SideBySideEditorInput) {
+			editors.push(editor.master);
 		}
 
 		return editors.reduce((prev, e) => prev += this.stacks.count(e), 0);
@@ -796,9 +795,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// for th editor to be a text editor and creating the options accordingly if so
 		let options = EditorOptions.create({ pinned: true, index });
 		const activeEditor = this.getActiveEditor();
-		if (activeEditor instanceof BaseTextEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
+		const codeEditor = getCodeEditor(activeEditor);
+		if (codeEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
 			options = TextEditorOptions.create({ pinned: true, index });
-			(<TextEditorOptions>options).fromEditor(activeEditor.getControl());
+			(<TextEditorOptions>options).fromEditor(codeEditor);
 		}
 
 		// A move to another group is an open first...

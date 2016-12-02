@@ -11,7 +11,7 @@ import { LinkedMap as Map } from 'vs/base/common/map';
 import * as labels from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { parseTree, findNodeAtLocation } from 'vs/base/common/json';
-import { asFileEditorInput, EditorInput } from 'vs/workbench/common/editor';
+import { asFileEditorInput, SideBySideEditorInput, EditorInput } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -49,7 +49,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	_serviceBrand: any;
 
-	private configurationTarget: ConfigurationTarget = null;
 	private defaultEditorModels: Map<URI, IPreferencesEditorModel>;
 
 	constructor(
@@ -69,12 +68,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	) {
 		super();
 		this.defaultEditorModels = new Map<URI, IPreferencesEditorModel>();
-		this._register(this.editorGroupService.onEditorsChanged(() => {
-			const configurationTarget = this.getConfigurationTargetForCurrentActiveEditor();
-			if (configurationTarget !== null) {
-				this.configurationTarget = configurationTarget;
-			}
-		}));
 	}
 
 	createDefaultSettingsModel(): TPromise<IPreferencesEditorModel> {
@@ -143,38 +136,25 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private openEditableSettings(configurationTarget: ConfigurationTarget, showVisibleEditor: boolean = false): TPromise<IEditor> {
+	private openEditableSettings(configurationTarget: ConfigurationTarget): TPromise<IEditor> {
 		const emptySettingsContents = this.getEmptyEditableSettingsContent(configurationTarget);
 		const settingsResource = this.getEditableSettingsURI(configurationTarget);
-		if (showVisibleEditor) {
-			if (this.isEditorFor(this.editorService.getActiveEditor(), configurationTarget)) {
-				return TPromise.wrap(this.editorService.getActiveEditor());
-			}
-			const [editableSettingsEditor] = this.editorService.getVisibleEditors().filter(editor => this.isEditorFor(editor, configurationTarget));
-			if (editableSettingsEditor) {
-				return TPromise.wrap(editableSettingsEditor);
-			}
-		}
 		return this.createIfNotExists(settingsResource, emptySettingsContents).then(() => this.editorService.openEditor({
 			resource: settingsResource,
 			options: { pinned: true }
 		}));
 	}
 
-	public copyConfiguration(configurationValue: IConfigurationValue, configurationTarget: ConfigurationTarget = null): void {
+	public copyConfiguration(configurationValue: IConfigurationValue): void {
+		const configurationTarget = this.getConfigurationTargetForCurrentActiveEditor();
 		if (configurationTarget !== null) {
-			this.configurationTarget = configurationTarget;
-		}
-		if (this.configurationTarget !== null) {
 			this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [configurationValue.key] });
-			this.openEditableSettings(this.configurationTarget, true).then(editor => {
-				const editorControl = <ICodeEditor>editor.getControl();
-				this.configurationEditingService.writeConfiguration(this.configurationTarget, configurationValue, { writeToBuffer: true, autoSave: true })
-					.then(() => {
-						editorControl.focus();
-						editorControl.setSelection(this.getSelectionRange(configurationValue.key, editorControl.getModel()));
-					}, error => this.messageService.show(Severity.Error, error));
-			});
+			const editorControl = <ICodeEditor>this.editorService.getActiveEditor().getControl();
+			this.configurationEditingService.writeConfiguration(configurationTarget, configurationValue, { writeToBuffer: true, autoSave: true })
+				.then(() => {
+					editorControl.focus();
+					editorControl.setSelection(this.getSelectionRange(configurationValue.key, editorControl.getModel()));
+				}, error => this.messageService.show(Severity.Error, error));
 		}
 	}
 
@@ -185,11 +165,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				.then(reference => this.instantiationService.createInstance(SettingsEditorModel, reference.object.textEditorModel, configurationTarget));
 		}
 		return TPromise.wrap(null);
-	}
-
-	private isEditorFor(editor: IEditor, configurationTarget: ConfigurationTarget): boolean {
-		const fileEditorInput = editor ? asFileEditorInput(editor.input) : null;
-		return !!fileEditorInput && fileEditorInput.getResource().fsPath === this.getEditableSettingsURI(configurationTarget).fsPath;
 	}
 
 	private getEmptyEditableSettingsContent(configurationTarget: ConfigurationTarget): string {
@@ -246,19 +221,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.openEditableSettings(configurationTarget).then(() => null);
 	}
 
-	private openTwoEditors(leftHandDefaultInput: EditorInput, editableResource: URI, defaultEditableContents: string): TPromise<IEditor[]> {
+	private openTwoEditors(leftHandDefaultInput: EditorInput, editableResource: URI, defaultEditableContents: string): TPromise<IEditor> {
 		// Create as needed and open in editor
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
 			return this.editorService.createInput({ resource: editableResource }).then(typedRightHandEditableInput => {
-				const editors = [
-					{ input: leftHandDefaultInput, position: Position.ONE, options: { pinned: true } },
-					{ input: typedRightHandEditableInput, position: Position.TWO, options: { pinned: true } }
-				];
-
-				return this.editorService.openEditors(editors).then(result => {
-					this.editorGroupService.focusGroup(Position.TWO);
-					return result;
-				});
+				const sideBySideInput = new SideBySideEditorInput(typedRightHandEditableInput.getName(), typedRightHandEditableInput.getDescription(), leftHandDefaultInput, <EditorInput>typedRightHandEditableInput);
+				return this.editorService.openEditor(sideBySideInput);
 			});
 		});
 	}
@@ -278,7 +246,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private getConfigurationTargetForCurrentActiveEditor(): ConfigurationTarget {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
-			const editorInput = asFileEditorInput(activeEditor.input);
+			const editorInput = asFileEditorInput(activeEditor.input, true);
 			if (editorInput) {
 				return this.getConfigurationTarget(editorInput.getResource());
 			}
