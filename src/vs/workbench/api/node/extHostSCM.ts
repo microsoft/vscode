@@ -13,6 +13,16 @@ import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceGroup } from './extHost.protocol';
 import * as vscode from 'vscode';
 
+function getIconPath(decorations: vscode.SCMResourceThemableDecorations) {
+	if (!decorations) {
+		return void 0;
+	} else if (typeof decorations.iconPath === 'string') {
+		return URI.file(decorations.iconPath).toString();
+	} else if (decorations.iconPath) {
+		return `${decorations.iconPath}`;
+	}
+}
+
 export class ExtHostSCM {
 
 	private _proxy: MainThreadSCMShape;
@@ -49,20 +59,22 @@ export class ExtHostSCM {
 			const rawResourceGroups = resourceGroups.map(g => {
 				const rawResources = g.resources.map(r => {
 					const uri = r.uri.toString();
-					let strikeThrough = false;
-					let decorationIcon: string | undefined;
+					const iconPath = getIconPath(r.decorations);
+					const lightIconPath = r.decorations && getIconPath(r.decorations.light) || iconPath;
+					const darkIconPath = r.decorations && getIconPath(r.decorations.dark) || iconPath;
+					const icons: string[] = [];
 
-					if (r.decorations) {
-						if (typeof r.decorations.iconPath === 'string') {
-							decorationIcon = URI.file(r.decorations.iconPath).toString();
-						} else if (r.decorations.iconPath) {
-							decorationIcon = `${r.decorations.iconPath}`;
-						}
-
-						strikeThrough = !!r.decorations.strikeThrough;
+					if (lightIconPath || darkIconPath) {
+						icons.push(lightIconPath);
 					}
 
-					return [uri, decorationIcon, strikeThrough] as SCMRawResource;
+					if (darkIconPath !== lightIconPath) {
+						icons.push(darkIconPath);
+					}
+
+					const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
+
+					return [uri, icons, strikeThrough] as SCMRawResource;
 				});
 				return [g.id, g.label, rawResources] as SCMRawResourceGroup;
 			});
