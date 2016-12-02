@@ -51,11 +51,6 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	public registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void {
-		// Backups and hot exit are disabled during extension development
-		if (this.environmentService.isExtensionDevelopment) {
-			return;
-		}
-
 		// Generate a new folder if this is a new empty workspace
 		if (!backupFolder) {
 			backupFolder = Date.now().toString();
