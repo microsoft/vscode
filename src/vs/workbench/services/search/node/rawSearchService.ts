@@ -20,6 +20,7 @@ import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { MAX_FILE_SIZE } from 'vs/platform/files/common/files';
 import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
+import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
 import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine } from './search';
 import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
 
@@ -31,19 +32,28 @@ export class SearchService implements IRawSearchService {
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
+	private textSearchWorkerProvider: TextSearchWorkerProvider;
+
 	public fileSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
 		return this.doFileSearch(FileSearchEngine, config, SearchService.BATCH_SIZE);
 	}
 
 	public textSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
-		let engine = new TextSearchEngine(config, new FileWalker({
-			rootFolders: config.rootFolders,
-			extraFiles: config.extraFiles,
-			includePattern: config.includePattern,
-			excludePattern: config.excludePattern,
-			filePattern: config.filePattern,
-			maxFilesize: MAX_FILE_SIZE
-		}));
+		if (!this.textSearchWorkerProvider) {
+			this.textSearchWorkerProvider = new TextSearchWorkerProvider();
+		}
+
+		let engine = new TextSearchEngine(
+			config,
+			new FileWalker({
+				rootFolders: config.rootFolders,
+				extraFiles: config.extraFiles,
+				includePattern: config.includePattern,
+				excludePattern: config.excludePattern,
+				filePattern: config.filePattern,
+				maxFilesize: MAX_FILE_SIZE
+			}),
+			this.textSearchWorkerProvider);
 
 		return this.doSearchWithBatchTimeout(engine, SearchService.BATCH_SIZE);
 	}
