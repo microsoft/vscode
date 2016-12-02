@@ -59,11 +59,6 @@ export class API {
 	}
 }
 
-export interface ProjectStatusChanaged {
-	projectName: string;
-	enabled: boolean;
-}
-
 export interface ITypescriptServiceClient {
 	asAbsolutePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
