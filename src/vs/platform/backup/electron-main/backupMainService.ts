@@ -50,7 +50,7 @@ export class BackupMainService implements IBackupMainService {
 		return TPromise.as(path.join(this.backupHome, this.mapWindowToBackupFolder[windowId]));
 	}
 
-	public registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string): void {
+	public registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void {
 		// Backups and hot exit are disabled during extension development
 		if (this.environmentService.isExtensionDevelopment) {
 			return;
@@ -61,7 +61,12 @@ export class BackupMainService implements IBackupMainService {
 			backupFolder = Date.now().toString();
 		}
 
-		this.mapWindowToBackupFolder[windowId] = backupFolder;
+		if (workspacePath) {
+			const caseAwarePath = platform.isLinux ? workspacePath : workspacePath.toLowerCase();
+			backupFolder = crypto.createHash('md5').update(caseAwarePath).digest('hex');
+		}
+
+		this.mapWindowToBackupFolder[windowId] = isEmptyWorkspace ? backupFolder : workspacePath;
 
 		// TODO: Merge push* functions into this one?
 		if (isEmptyWorkspace) {
@@ -214,7 +219,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	protected toBackupPath(workspacePath: string): string {
-		const caseAwarePath = platform.isWindows || platform.isMacintosh ? workspacePath.toLowerCase() : workspacePath;
+		const caseAwarePath = platform.isLinux ? workspacePath : workspacePath.toLowerCase();
 		const workspaceHash = crypto.createHash('md5').update(caseAwarePath).digest('hex');
 
 		return path.join(this.backupHome, workspaceHash);

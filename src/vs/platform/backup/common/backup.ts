@@ -28,7 +28,7 @@ export interface IBackupMainService extends IBackupService {
 	 */
 	emptyWorkspaceBackupPaths: string[];
 
-	registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string): void;
+	registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string);
 
 	/**
 	 * Pushes workspace backup paths to be tracked for restoration.
