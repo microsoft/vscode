@@ -14,7 +14,6 @@ import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/ser
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -92,13 +91,12 @@ export class BackupFileService implements IBackupFileService {
 	private ready: TPromise<IBackupFilesModel>;
 
 	constructor(
-		private currentWorkspace: Uri,
+		windowId: number,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IFileService private fileService: IFileService,
-		@IBackupService private backupService: IBackupService,
-		@IWindowService private windowService: IWindowService
+		@IBackupService private backupService: IBackupService
 	) {
-		this.ready = this.init();
+		this.ready = this.init(windowId);
 	}
 
 	private get backupEnabled(): boolean {
@@ -106,15 +104,15 @@ export class BackupFileService implements IBackupFileService {
 		return !this.environmentService.isExtensionDevelopment;
 	}
 
-	private init(): TPromise<IBackupFilesModel> {
+	private init(windowId: number): TPromise<IBackupFilesModel> {
 		const model = new BackupFilesModel();
 
 		if (!this.backupEnabled) {
 			return TPromise.as(model);
 		}
 
-		console.log('requesting backup workspace for window ' + this.windowService.getCurrentWindowId());
-		return this.backupService.getBackupPath(this.windowService.getCurrentWindowId()).then(backupPath => {
+		console.log('requesting backup workspace for window ' + windowId);
+		return this.backupService.getBackupPath(windowId).then(backupPath => {
 			console.log('backup workspace from main: ' + backupPath);
 			this.backupWorkspacePath = backupPath;
 			return model.resolve(this.backupWorkspacePath);
