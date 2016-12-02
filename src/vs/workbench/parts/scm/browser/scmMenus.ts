@@ -8,7 +8,7 @@
 import 'vs/css!./media/scmViewlet';
 import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, SCMTitleMenuId, SCMMenuId, SCMMenuType, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, SCMTitleMenuId, SCMResourceMenuID, SCMResourceGroupMenuID, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { ISCMService, ISCMProvider } from 'vs/workbench/services/scm/common/scm';
@@ -68,8 +68,8 @@ export class SCMMenus implements IDisposable {
 			return [];
 		}
 
-		const menuId = new SCMMenuId(this.scmService.activeProvider.id, resourceGroupId, SCMMenuType.ResourceGroup, false);
-		return this.getActions(menuId);
+		const menuId = new SCMResourceGroupMenuID(this.scmService.activeProvider.id, resourceGroupId);
+		return this.getActions(menuId).primary;
 	}
 
 	getResourceGroupContextActions(resourceGroupId: string): IAction[] {
@@ -77,8 +77,8 @@ export class SCMMenus implements IDisposable {
 			return [];
 		}
 
-		const menuId = new SCMMenuId(this.scmService.activeProvider.id, resourceGroupId, SCMMenuType.ResourceGroup, true);
-		return this.getActions(menuId);
+		const menuId = new SCMResourceGroupMenuID(this.scmService.activeProvider.id, resourceGroupId);
+		return this.getActions(menuId).secondary;
 	}
 
 	getResourceActions(resourceGroupId: string): IAction[] {
@@ -86,8 +86,8 @@ export class SCMMenus implements IDisposable {
 			return [];
 		}
 
-		const menuId = new SCMMenuId(this.scmService.activeProvider.id, resourceGroupId, SCMMenuType.Resource, false);
-		return this.getActions(menuId);
+		const menuId = new SCMResourceMenuID(this.scmService.activeProvider.id, resourceGroupId);
+		return this.getActions(menuId).primary;
 	}
 
 	getResourceContextActions(resourceGroupId: string): IAction[] {
@@ -95,14 +95,16 @@ export class SCMMenus implements IDisposable {
 			return [];
 		}
 
-		const menuId = new SCMMenuId(this.scmService.activeProvider.id, resourceGroupId, SCMMenuType.Resource, true);
-		return this.getActions(menuId);
+		const menuId = new SCMResourceMenuID(this.scmService.activeProvider.id, resourceGroupId);
+		return this.getActions(menuId).secondary;
 	}
 
-	private getActions(menuId: MenuId): IAction[] {
+	private getActions(menuId: MenuId): { primary: IAction[]; secondary: IAction[]; } {
 		const menu = this.menuService.createMenu(menuId, this.contextKeyService);
-		const result = [];
-		fillInActions(menu, null, result);
+		const primary = [];
+		const secondary = [];
+		const result = { primary, secondary };
+		fillInActions(menu, null, result, g => g === 'inline');
 		menu.dispose();
 		return result;
 	}
