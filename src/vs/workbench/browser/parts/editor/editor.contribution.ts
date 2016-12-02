@@ -106,8 +106,6 @@ class UntitledEditorServiceAccessor {
 // Register Editor Input Factory
 class UntitledEditorInputFactory implements IEditorInputFactory {
 
-	constructor() { }
-
 	public serialize(editorInput: EditorInput): string {
 		const untitledEditorInput = <UntitledEditorInput>editorInput;
 
@@ -133,6 +131,70 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 }
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(UntitledEditorInput.ID, UntitledEditorInputFactory);
+
+interface ISerializedSideBySideEditorInput {
+	name: string;
+	description: string;
+
+	detailsSerialized: string;
+	masterSerialized: string;
+
+	detailsTypeId: string;
+	masterTypeId: string;
+}
+
+// Register Side by Side Editor Input Factory
+class SideBySideEditorInputFactory implements IEditorInputFactory {
+
+	public serialize(editorInput: EditorInput): string {
+		const input = <SideBySideEditorInput>editorInput;
+
+		if (input.details && input.master) {
+			const registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
+			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
+
+			if (detailsInputFactory && masterInputFactory) {
+				const detailsSerialized = detailsInputFactory.serialize(input.details);
+				const masterSerialized = masterInputFactory.serialize(input.master);
+
+				if (detailsSerialized && masterSerialized) {
+					return JSON.stringify(<ISerializedSideBySideEditorInput>{
+						name: input.getName(),
+						description: input.getDescription(),
+						detailsSerialized,
+						masterSerialized,
+						detailsTypeId: input.details.getTypeId(),
+						masterTypeId: input.master.getTypeId()
+					});
+				}
+			}
+		}
+
+		return null;
+	}
+
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
+
+		const registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+		const detailsInputFactory = registry.getEditorInputFactory(deserialized.detailsTypeId);
+		const masterInputFactory = registry.getEditorInputFactory(deserialized.masterTypeId);
+
+		if (detailsInputFactory && masterInputFactory) {
+			const detailsInput = detailsInputFactory.deserialize(instantiationService, deserialized.detailsSerialized);
+			const masterInput = masterInputFactory.deserialize(instantiationService, deserialized.masterSerialized);
+
+			if (detailsInput && masterInput) {
+				return new SideBySideEditorInput(deserialized.name, deserialized.description, detailsInput, masterInput);
+			}
+		}
+
+		return null;
+	}
+}
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(SideBySideEditorInput.ID, SideBySideEditorInputFactory);
 
 // Register Editor Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);

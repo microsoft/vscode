@@ -363,6 +363,8 @@ export abstract class UntitledEditorInput extends EditorInput implements IEncodi
  */
 export class SideBySideEditorInput extends EditorInput {
 
+	public static ID: string = 'workbench.editorinputs.sidebysideEditorInput';
+
 	private _toUnbind: IDisposable[];
 
 	constructor(private name: string, private description: string, private _details: EditorInput, private _master: EditorInput) {
@@ -431,7 +433,7 @@ export class SideBySideEditorInput extends EditorInput {
 	}
 
 	getTypeId(): string {
-		return 'workbench.editorinputs.sidebysideEditorInput';
+		return SideBySideEditorInput.ID;
 	}
 
 	public getName(): string {
