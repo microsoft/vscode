@@ -271,7 +271,7 @@ export class SearchService implements IRawSearchService {
 	private doSearchWithBatchTimeout(engine: ISearchEngine<ISerializedFileMatch>, batchSize: number): PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>> {
 		return new PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>>((c, e, p) => {
 			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
-			const collector = new BatchedCollector(batchSize, /*timeout=*/2000, /*batchOnlyAfter=*/50, p);
+			const collector = new BatchedCollector(batchSize, p);
 			engine.search((match) => {
 				collector.addItem(match, match.numMatches);
 			}, (progress) => {
@@ -369,16 +369,26 @@ interface CacheStats {
 
 /**
  * Collects a batch of items that each have a size. When the cumulative size of the batch reaches 'maxBatchSize', it calls the callback.
- * If the batch isn't filled within 'timeout' ms, the callback is also called.
- * And after 'batchOnlyAfter' items, the timeout is ignored, and the callback is called only when the batch is full.
+ * If the batch isn't filled within some time, the callback is also called.
+ * And after 'runTimeoutUntilCount' items, the timeout is ignored, and the callback is called only when the batch is full.
  */
 class BatchedCollector<T> {
+	// Use INIT_TIMEOUT for INIT_TIMEOUT_DURATION ms, then switch to LONGER_TIMEOUT
+	private static INIT_TIMEOUT = 500;
+	private static INIT_TIMEOUT_DURATION = 5000;
+	private static LONGER_TIMEOUT = 2000;
+
+	// After RUN_TIMEOUT_UNTIL_COUNT items have been collected, stop flushing on timeout
+	private static RUN_TIMEOUT_UNTIL_COUNT = 50;
+
 	private totalNumberCompleted = 0;
 	private batch: T[] = [];
 	private batchSize = 0;
 	private timeoutHandle: number;
 
-	constructor(private maxBatchSize: number, private timeout: number, private batchOnlyAfter: number, private cb: (items: T | T[]) => void) {
+	private startTime: number;
+
+	constructor(private maxBatchSize: number, private cb: (items: T | T[]) => void) {
 	}
 
 	addItem(item: T, size: number): void {
@@ -387,19 +397,28 @@ class BatchedCollector<T> {
 		}
 
 		if (this.maxBatchSize > 0) {
-			this.batch.push(item);
-			this.batchSize += size;
-			if (this.batchSize >= this.maxBatchSize) {
-				this.flush();
-			} else {
-				if (!this.timeoutHandle && this.totalNumberCompleted < this.batchOnlyAfter) {
-					this.timeoutHandle = setTimeout(() => {
-						this.flush();
-					}, this.timeout);
-				}
-			}
+			this.addItemToBatch(item, size);
 		} else {
 			this.cb(item);
+		}
+	}
+
+	private addItemToBatch(item: T, size: number): void {
+		if (!this.startTime) {
+			this.startTime = Date.now();
+		}
+
+		this.batch.push(item);
+		this.batchSize += size;
+		if (this.batchSize >= this.maxBatchSize) {
+			// Flush because the batch is full
+			this.flush();
+		} else if (!this.timeoutHandle && this.totalNumberCompleted < BatchedCollector.RUN_TIMEOUT_UNTIL_COUNT) {
+			// No timeout running, start a timeout to flush
+			const t = this.getTimeout();
+			this.timeoutHandle = setTimeout(() => {
+				this.flush();
+			}, t);
 		}
 	}
 
@@ -409,8 +428,17 @@ class BatchedCollector<T> {
 			this.cb(this.batch);
 			this.batch = [];
 			this.batchSize = 0;
-			clearTimeout(this.timeoutHandle);
-			this.timeoutHandle = 0;
+
+			if (this.timeoutHandle) {
+				clearTimeout(this.timeoutHandle);
+				this.timeoutHandle = 0;
+			}
 		}
+	}
+
+	private getTimeout(): number {
+		return Date.now() - this.startTime < BatchedCollector.INIT_TIMEOUT_DURATION ?
+			BatchedCollector.INIT_TIMEOUT :
+			BatchedCollector.LONGER_TIMEOUT;
 	}
 }
