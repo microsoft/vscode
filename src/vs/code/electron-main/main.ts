@@ -35,6 +35,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { BackupChannel } from 'vs/platform/backup/common/backupIpc';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -184,6 +185,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		const urlService = accessor.get(IURLService);
 		const urlChannel = instantiationService2.createInstance(URLChannel, urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
+
+		const backupService = accessor.get(IBackupMainService);
+		const backupChannel = instantiationService2.createInstance(BackupChannel, backupService);
+		electronIpcServer.registerChannel('backup', backupChannel);
 
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);

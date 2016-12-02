@@ -11,6 +11,7 @@ import * as extfs from 'vs/base/node/extfs';
 import Uri from 'vs/base/common/uri';
 import { IBackupWorkspacesFormat, IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -21,13 +22,45 @@ export class BackupMainService implements IBackupMainService {
 
 	private backups: IBackupWorkspacesFormat;
 
+	private mapWindowToBackupFolder: { [windowId: number]: string; };
+
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
+		this.mapWindowToBackupFolder = Object.create(null);
 
 		this.loadSync();
+	}
+
+	public getBackupPath(windowId: number): TPromise<string> {
+		if (!this.mapWindowToBackupFolder[windowId]) {
+			throw new Error(`Unknown backup workspace for window ${windowId}`);
+		}
+
+		return TPromise.as(path.join(this.backupHome, this.mapWindowToBackupFolder[windowId]));
+	}
+
+	public registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string): void {
+		// Backups and hot exit are disabled during extension development
+		if (this.environmentService.isExtensionDevelopment) {
+			return;
+		}
+
+		// Generate a new folder if this is a new empty workspace
+		if (!backupFolder) {
+			backupFolder = Date.now().toString();
+		}
+
+		this.mapWindowToBackupFolder[windowId] = backupFolder;
+
+		// TODO: Merge push* functions into this one?
+		if (isEmptyWorkspace) {
+			this.pushEmptyWorkspaceBackupWindowIdSync(backupFolder);
+		} else {
+			this.pushWorkspaceBackupPathsSync([Uri.file(backupFolder)]);
+		}
 	}
 
 	public getWorkspaceBackupPaths(): string[] {
