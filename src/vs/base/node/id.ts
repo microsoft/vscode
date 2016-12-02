@@ -33,6 +33,7 @@ const mac = new class {
 				}
 			}
 		}
+		this._value = `missing-${uuid.generateUuid()}`;
 	}
 };
 
