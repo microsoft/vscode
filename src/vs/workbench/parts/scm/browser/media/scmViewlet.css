@@ -34,10 +34,6 @@
 	text-overflow: ellipsis;
 }
 
-.scm-viewlet .monaco-list-row > .resource-group:hover > .count {
-	display: none;
-}
-
 .scm-viewlet .monaco-list-row > .resource-group:not(:hover) > .actions {
 	display: none;
 }
@@ -68,7 +64,6 @@
 	height: 100%;
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
-	margin-right: 6px;
 }
 
 .scm-viewlet .monaco-list-row > .resource > .actions .action-label,
@@ -79,6 +74,6 @@
 	background-repeat: no-repeat;
 }
 
-.scm-viewlet .monaco-list-row > .resource:not(:hover) > .actions {
+.scm-viewlet .monaco-list-row:not(.selected) > .resource:not(:hover) > .actions {
 	display: none;
 }
