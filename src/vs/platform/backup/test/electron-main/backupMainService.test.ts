@@ -205,7 +205,7 @@ suite('BackupMainService', () => {
 	});
 
 	suite('removeBackupPathSync', () => {
-		test('should remove workspaces from workspaces.json', done => {
+		test('should remove folder workspaces from workspaces.json', done => {
 			service.registerWindowForBackups(1, false, null, fooFile.fsPath);
 			service.registerWindowForBackups(2, false, null, barFile.fsPath);
 			service.removeBackupPathSync(fooFile.fsPath, false);
@@ -221,10 +221,27 @@ suite('BackupMainService', () => {
 			});
 		});
 
+		test('should remove empty workspaces from workspaces.json', done => {
+			service.registerWindowForBackups(1, true, 'foo');
+			service.registerWindowForBackups(2, true, 'bar');
+			service.removeBackupPathSync('foo', true);
+			pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
+				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
+				assert.deepEqual(json.emptyWorkspaces, ['bar']);
+				service.removeBackupPathSync('bar', true);
+				pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
+					const json2 = <IBackupWorkspacesFormat>JSON.parse(content);
+					assert.deepEqual(json2.emptyWorkspaces, []);
+					done();
+				});
+			});
+		});
+
 		test('should fail gracefully when removing a path that doesn\'t exist', done => {
 			const workspacesJson: IBackupWorkspacesFormat = { folderWorkspaces: [fooFile.fsPath], emptyWorkspaces: [] };
 			pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
 				service.removeBackupPathSync(barFile.fsPath, false);
+				service.removeBackupPathSync('test', true);
 				pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
 					const json = <IBackupWorkspacesFormat>JSON.parse(content);
 					assert.deepEqual(json.folderWorkspaces, [fooFile.fsPath]);
