@@ -62,10 +62,10 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
-		const countContainer = append(element, $('.count'));
-		const count = new CountBadge(countContainer);
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
+		const countContainer = append(element, $('.count'));
+		const count = new CountBadge(countContainer);
 
 		return { name, count, actionBar };
 	}
@@ -105,11 +105,11 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
 		const element = append(container, $('.resource'));
-		const decorationIcon = append(element, $('.decoration-icon'));
 		const name = append(element, $('.name'));
 		const fileLabel = this.instantiationService.createInstance(FileLabel, name, void 0);
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
+		const decorationIcon = append(element, $('.decoration-icon'));
 
 		return { name, fileLabel, decorationIcon, actionBar };
 	}
