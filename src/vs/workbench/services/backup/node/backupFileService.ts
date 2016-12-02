@@ -111,9 +111,7 @@ export class BackupFileService implements IBackupFileService {
 			return TPromise.as(model);
 		}
 
-		console.log('requesting backup workspace for window ' + windowId);
 		return this.backupService.getBackupPath(windowId).then(backupPath => {
-			console.log('backup workspace from main: ' + backupPath);
 			this.backupWorkspacePath = backupPath;
 			return model.resolve(this.backupWorkspacePath);
 		});
