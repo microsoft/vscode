@@ -99,7 +99,6 @@ class LanguageProvider {
 	private extensions: Map<boolean>;
 	private syntaxDiagnostics: Map<Diagnostic[]>;
 	private currentDiagnostics: DiagnosticCollection;
-	private languageServiceEnabled: boolean;
 	private bufferSyncSupport: BufferSyncSupport;
 
 	private completionItemProvider: CompletionItemProvider;
@@ -121,7 +120,7 @@ class LanguageProvider {
 		}, this.extensions);
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
-		this.languageServiceEnabled = true;
+
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this);
 		this.configurationChanged();
