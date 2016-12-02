@@ -6,8 +6,9 @@
 'use strict';
 
 import {
-	Uri, Disposable, SCMProvider, SCMResource, SCMResourceDecorations, SCMResourceGroup, EventEmitter, Event
-	commands } from 'vscode';
+	Uri, Disposable, SCMProvider, SCMResource, SCMResourceDecorations,
+	SCMResourceGroup, EventEmitter, Event, commands
+} from 'vscode';
 import { Model } from './model';
 import * as path from 'path';
 
@@ -17,7 +18,7 @@ function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
 }
 
-enum Status {
+export enum Status {
 	INDEX_MODIFIED,
 	INDEX_ADDED,
 	INDEX_DELETED,
@@ -38,7 +39,7 @@ enum Status {
 	BOTH_MODIFIED
 }
 
-class Resource implements SCMResource {
+export class Resource implements SCMResource {
 
 	get uri(): Uri { return this._uri; }
 	get type(): Status { return this._type; }
@@ -112,7 +113,7 @@ class Resource implements SCMResource {
 	}
 }
 
-class ResourceGroup implements SCMResourceGroup {
+export class ResourceGroup implements SCMResourceGroup {
 
 	get id(): string { return this._id; }
 	get label(): string { return this._label; }
@@ -123,19 +124,19 @@ class ResourceGroup implements SCMResourceGroup {
 	}
 }
 
-class MergeGroup extends ResourceGroup {
+export class MergeGroup extends ResourceGroup {
 	constructor(resources: SCMResource[]) {
 		super('merge', 'Merge Changes', resources);
 	}
 }
 
-class IndexGroup extends ResourceGroup {
+export class IndexGroup extends ResourceGroup {
 	constructor(resources: SCMResource[]) {
 		super('index', 'Staged Changes', resources);
 	}
 }
 
-class WorkingTreeGroup extends ResourceGroup {
+export class WorkingTreeGroup extends ResourceGroup {
 	constructor(resources: SCMResource[]) {
 		super('workingTree', 'Changes', resources);
 	}
