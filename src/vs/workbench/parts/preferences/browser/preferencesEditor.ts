@@ -36,16 +36,16 @@ import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/con
 import { CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
 // Ignore following contributions
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { FindController } from 'vs/editor/contrib/find/browser/find';
+import { SelectionHighlighter } from 'vs/editor/contrib/find/common/findController';
 
 
-export class PreferencesEditorInput extends EditorInput {
+export class DefaultPreferencesEditorInput extends EditorInput {
 
 	private _willDispose = new Emitter<void>();
 	public willDispose: Event<void> = this._willDispose.event;
@@ -79,7 +79,7 @@ export class PreferencesEditorInput extends EditorInput {
 	}
 
 	matches(other: any): boolean {
-		if (!(other instanceof PreferencesEditorInput)) {
+		if (!(other instanceof DefaultPreferencesEditorInput)) {
 			return false;
 		}
 		if (this._defaultPreferencesResource.fsPath !== other._defaultPreferencesResource.fsPath) {
@@ -95,7 +95,7 @@ export class PreferencesEditorInput extends EditorInput {
 	}
 }
 
-export class PreferencesEditor extends BaseEditor {
+export class DefaultPreferencesEditor extends BaseEditor {
 
 	public static ID: string = 'workbench.editor.defaultPreferences';
 	private static VIEW_STATE: Map<URI, editorCommon.ICodeEditorViewState> = new Map<URI, editorCommon.ICodeEditorViewState>();
@@ -117,7 +117,7 @@ export class PreferencesEditor extends BaseEditor {
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService
 	) {
-		super(PreferencesEditor.ID, telemetryService);
+		super(DefaultPreferencesEditor.ID, telemetryService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 
@@ -126,7 +126,7 @@ export class PreferencesEditor extends BaseEditor {
 		this.defaultSettingHeaderWidget = this._register(this.instantiationService.createInstance(DefaultSettingsHeaderWidget, parentContainer));
 		this._register(this.defaultSettingHeaderWidget.onDidChange(value => this.filterPreferences(value)));
 
-		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor, parentContainer, this.getCodeEditorOptions()));
+		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parentContainer, this.getCodeEditorOptions()));
 		const focusTracker = this._register(DOM.trackFocus(parentContainer));
 		focusTracker.addBlurListener(() => { this.isFocussed = false; });
 	}
@@ -143,7 +143,7 @@ export class PreferencesEditor extends BaseEditor {
 			fixedOverflowWidgets: true,
 			readOnly: true
 		};
-		if (this.input && (<PreferencesEditorInput>this.input).isSettings) {
+		if (this.input && (<DefaultPreferencesEditorInput>this.input).isSettings) {
 			options.lineNumbers = 'off';
 			options.renderLineHighlight = 'none';
 			options.scrollBeyondLastLine = false;
@@ -154,7 +154,7 @@ export class PreferencesEditor extends BaseEditor {
 		return options;
 	}
 
-	setInput(input: PreferencesEditorInput, options: EditorOptions): TPromise<void> {
+	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions): TPromise<void> {
 		this.listenToInput(input);
 		return super.setInput(input, options)
 			.then(() => this.getOrCreateModel(input)
@@ -162,7 +162,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	public layout(dimension: Dimension) {
-		if (this.input && (<PreferencesEditorInput>this.input).isSettings) {
+		if (this.input && (<DefaultPreferencesEditorInput>this.input).isSettings) {
 			const headerWidgetPosition = DOM.getDomNodePagePosition(this.defaultSettingHeaderWidget.domNode);
 			this.defaultPreferencesEditor.layout({
 				height: dimension.height - headerWidgetPosition.height,
@@ -176,14 +176,14 @@ export class PreferencesEditor extends BaseEditor {
 
 	public focus(): void {
 		this.isFocussed = true;
-		if (this.input && (<PreferencesEditorInput>this.input).isSettings) {
+		if (this.input && (<DefaultPreferencesEditorInput>this.input).isSettings) {
 			this.defaultSettingHeaderWidget.focus();
 		} else {
 			super.focus();
 		}
 	}
 
-	private getOrCreateModel(input: PreferencesEditorInput): TPromise<editorCommon.IModel> {
+	private getOrCreateModel(input: DefaultPreferencesEditorInput): TPromise<editorCommon.IModel> {
 		return this.preferencesService.createDefaultPreferencesEditorModel(input.getResource())
 			.then(preferencesEditorModel => {
 				let model = this.modelService.getModel(input.getResource());
@@ -195,7 +195,7 @@ export class PreferencesEditor extends BaseEditor {
 			});
 	}
 
-	private setDefaultPreferencesEditorInput(model: editorCommon.IModel, input: PreferencesEditorInput): void {
+	private setDefaultPreferencesEditorInput(model: editorCommon.IModel, input: DefaultPreferencesEditorInput): void {
 		this.defaultPreferencesEditor.setModel(model);
 		this.defaultPreferencesEditor.updateOptions(this.getCodeEditorOptions());
 		if (input.isSettings) {
@@ -214,7 +214,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	public clearInput(): void {
 		this.disposeModel();
-		this.saveState(<PreferencesEditorInput>this.input);
+		this.saveState(<DefaultPreferencesEditorInput>this.input);
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
 		}
@@ -232,20 +232,20 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	protected restoreViewState(input: EditorInput) {
-		const viewState = PreferencesEditor.VIEW_STATE.get((<PreferencesEditorInput>input).getResource());
+		const viewState = DefaultPreferencesEditor.VIEW_STATE.get((<DefaultPreferencesEditorInput>input).getResource());
 		if (viewState) {
 			this.getControl().restoreViewState(viewState);
 		}
 	}
 
-	private saveState(input: PreferencesEditorInput) {
+	private saveState(input: DefaultPreferencesEditorInput) {
 		const state = this.getControl().saveViewState();
 		if (state) {
 			const resource = input.getResource();
-			if (PreferencesEditor.VIEW_STATE.has(resource)) {
-				PreferencesEditor.VIEW_STATE.delete(resource);
+			if (DefaultPreferencesEditor.VIEW_STATE.has(resource)) {
+				DefaultPreferencesEditor.VIEW_STATE.delete(resource);
 			}
-			PreferencesEditor.VIEW_STATE.set(resource, state);
+			DefaultPreferencesEditor.VIEW_STATE.set(resource, state);
 		}
 	}
 
@@ -253,8 +253,8 @@ export class PreferencesEditor extends BaseEditor {
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
 		}
-		if (input instanceof PreferencesEditorInput) {
-			this.inputDisposeListener = (<PreferencesEditorInput>input).willDispose(() => this.saveState(<PreferencesEditorInput>input));
+		if (input instanceof DefaultPreferencesEditorInput) {
+			this.inputDisposeListener = (<DefaultPreferencesEditorInput>input).willDispose(() => this.saveState(<DefaultPreferencesEditorInput>input));
 		}
 	}
 
@@ -272,30 +272,12 @@ export class PreferencesEditor extends BaseEditor {
 	}
 }
 
-class DefaultPreferencesEditor extends CodeEditor {
-
-	constructor(
-		domElement: HTMLElement,
-		options: editorCommon.IEditorOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService
-	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
-	}
+class DefaultPreferencesCodeEditor extends CodeEditor {
 
 	protected _getContributions(): IEditorContributionCtor[] {
 		let contributions = super._getContributions();
-		contributions = contributions.filter(c => {
-			if (c.prototype === FoldingController.prototype) {
-				return false;
-			}
-			// Find
-			// Ignore warnings
-			return true;
-		});
-		return contributions;
+		let skipContributions = [FoldingController.prototype, SelectionHighlighter.prototype, FindController.prototype];
+		return contributions.filter(c => skipContributions.indexOf(c.prototype) === -1);
 	}
 }
 
