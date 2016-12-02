@@ -11,6 +11,8 @@ import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
 import winjs = require('vs/base/common/winjs.base');
 import extfs = require('vs/base/node/extfs');
+import { mkdirp } from 'vs/base/node/pfs';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import lifecycle = require('vs/base/common/lifecycle');
 import { readAndRegisterSnippets } from 'vs/editor/node/textMate/TMSnippets';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -37,13 +39,10 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 		this.toDispose = [];
 		this.fileWatchDelayer = new async.ThrottledDelayer<void>(SnippetsTracker.FILE_WATCH_DELAY);
 
-		if (!fs.existsSync(this.snippetFolder)) {
-			fs.mkdirSync(this.snippetFolder);
-		}
-
-		this.scanUserSnippets().then(_ => {
-			this.registerListeners();
-		});
+		mkdirp(this.snippetFolder)
+			.then(() => this.scanUserSnippets())
+			.then(() => this.registerListeners())
+			.done(undefined, onUnexpectedError);
 	}
 
 	private registerListeners(): void {
