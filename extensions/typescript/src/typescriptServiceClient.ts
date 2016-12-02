@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem } from 'vscode';
+import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, EventEmitter, Event } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
@@ -102,6 +102,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private requestQueue: RequestItem[];
 	private pendingResponses: number;
 	private callbacks: CallbackMap;
+	private _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
 
 	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
@@ -146,6 +147,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			this.telemetryReporter = new TelemetryReporter(this.packageInfo.name, this.packageInfo.version, this.packageInfo.aiKey);
 		}
 		this.startService();
+	}
+
+	get onProjectLanguageServiceStateChanged(): Event<Proto.ProjectLanguageServiceStateEventBody> {
+		return this._onProjectLanguageServiceStateChanged.event;
 	}
 
 	private get output(): OutputChannel {
@@ -684,6 +689,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							break;
 					}
 					this.logTelemetry(telemetryData.telemetryEventName, properties);
+				} else if (event.event === 'projectLanguageServiceState') {
+					const data = (event as Proto.ProjectLanguageServiceStateEvent).body;
+					if (data) {
+						this._onProjectLanguageServiceStateChanged.fire(data);
+					}
 				}
 			} else {
 				throw new Error('Unknown message type ' + message.type + ' recevied');
