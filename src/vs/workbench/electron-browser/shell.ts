@@ -74,6 +74,7 @@ import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeService
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CrashReporter } from 'vs/workbench/electron-browser/crashReporter';
+import { NodeCachedDataManager } from 'vs/workbench/electron-browser/nodeCachedDataManager';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -169,7 +170,12 @@ export class WorkbenchShell {
 		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
 		this.workbench.startup({
 			onWorkbenchStarted: (customKeybindingsCount, restoreViewletDuration, restoreEditorsDuration) => {
+
+				// run workbench started logic
 				this.onWorkbenchStarted(customKeybindingsCount, restoreViewletDuration, restoreEditorsDuration);
+
+				// start cached data manager
+				instantiationService.createInstance(NodeCachedDataManager);
 			}
 		});
 

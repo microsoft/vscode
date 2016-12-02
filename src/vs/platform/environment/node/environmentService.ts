@@ -114,6 +114,9 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get sharedIPCHandle(): string { return `${getIPCHandlePrefix()}-${pkg.version}-shared${getIPCHandleSuffix()}`; }
 
+	@memoize
+	get nodeCachedDataDir(): string { return path.join(this.userDataPath, 'CachedData', pkg.version); }
+
 	constructor(private _args: ParsedArgs, private _execPath: string) { }
 }
 
