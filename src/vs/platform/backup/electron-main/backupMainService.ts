@@ -71,28 +71,16 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	protected removeWorkspaceBackupPathSync(workspace: Uri): void {
-		if (!this.backups.folderWorkspaces) {
+	protected removeBackupPathSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): void {
+		const array = isEmptyWorkspace ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
+		if (!array) {
 			return;
 		}
-		const index = this.backups.folderWorkspaces.indexOf(workspace.fsPath);
+		const index = array.indexOf(workspaceIdentifier);
 		if (index === -1) {
 			return;
 		}
-		this.backups.folderWorkspaces.splice(index, 1);
-		this.saveSync();
-	}
-
-	// TODO: Test
-	private removeEmptyWorkspaceBackupFolder(backupFolder: string): void {
-		if (!this.backups.emptyWorkspaces) {
-			return;
-		}
-		const index = this.backups.emptyWorkspaces.indexOf(backupFolder);
-		if (index === -1) {
-			return;
-		}
-		this.backups.emptyWorkspaces.splice(index, 1);
+		array.splice(index, 1);
 		this.saveSync();
 	}
 
@@ -135,10 +123,9 @@ export class BackupMainService implements IBackupMainService {
 
 		backups.folderWorkspaces.forEach(workspacePath => {
 			const backupPath = path.join(this.backupHome, this.getWorkspaceHash(workspacePath));
-			console.log('this.hasBackupsSync(backupPath) for ' + workspacePath + ' : ' + this.hasBackupsSync(backupPath));
 			if (!this.hasBackupsSync(backupPath)) {
 				const backupWorkspace = this.sanitizePath(workspacePath);
-				staleBackupWorkspaces.push({ workspaceIdentifier: backupWorkspace, backupPath, isEmptyWorkspace: false });
+				staleBackupWorkspaces.push({ workspaceIdentifier: Uri.file(backupWorkspace).fsPath, backupPath, isEmptyWorkspace: false });
 			}
 		});
 
@@ -152,11 +139,7 @@ export class BackupMainService implements IBackupMainService {
 		staleBackupWorkspaces.forEach(staleBackupWorkspace => {
 			const {backupPath, workspaceIdentifier, isEmptyWorkspace} = staleBackupWorkspace;
 			extfs.delSync(backupPath);
-			if (isEmptyWorkspace) {
-				this.removeEmptyWorkspaceBackupFolder(workspaceIdentifier);
-			} else {
-				this.removeWorkspaceBackupPathSync(Uri.file(workspaceIdentifier));
-			}
+			this.removeBackupPathSync(workspaceIdentifier, isEmptyWorkspace);
 		});
 	}
 
