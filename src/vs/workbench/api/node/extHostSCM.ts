@@ -63,7 +63,7 @@ export class ExtHostSCM {
 			supportsOriginalResource: !!provider.getOriginalResource
 		});
 
-		const onDidChange = debounceEvent(provider.onDidChange, (l, e) => e, 200);
+		const onDidChange = debounceEvent(provider.onDidChange, (l, e) => e, 100);
 		const onDidChangeListener = onDidChange(resourceGroups => {
 			this.cache = Object.create(null);
 

@@ -5,7 +5,9 @@
 
 'use strict';
 
-import { Uri, Disposable, SCMProvider, SCMResource, SCMResourceDecorations, SCMResourceGroup, EventEmitter, Event } from 'vscode';
+import {
+	Uri, Disposable, SCMProvider, SCMResource, SCMResourceDecorations, SCMResourceGroup, EventEmitter, Event
+	commands } from 'vscode';
 import { Model } from './model';
 import * as path from 'path';
 
@@ -39,6 +41,7 @@ enum Status {
 class Resource implements SCMResource {
 
 	get uri(): Uri { return this._uri; }
+	get type(): Status { return this._type; }
 
 	private static Icons = {
 		light: {
@@ -104,7 +107,7 @@ class Resource implements SCMResource {
 		return { strikeThrough: this.strikeThrough, light, dark };
 	}
 
-	constructor(private _uri: Uri, private type: any) {
+	constructor(private _uri: Uri, private _type: Status) {
 
 	}
 }
@@ -159,11 +162,21 @@ export class GitSCMProvider implements SCMProvider {
 		console.log('commit', message);
 	}
 
-	open(resource: SCMResource): void {
-		console.log('open', resource);
+	open(resource: Resource): Thenable<void> {
+		const fileName = path.basename(resource.uri.fsPath);
+		const indexUri = resource.uri.with({ scheme: 'git-index' });
+
+		switch (resource.type) {
+			case Status.UNTRACKED: return commands.executeCommand<void>('vscode.open', resource.uri);
+			case Status.MODIFIED: return commands.executeCommand<void>('vscode.diff', indexUri, resource.uri, `${fileName} (HEAD) ↔ ${fileName}`);
+			case Status.DELETED: return commands.executeCommand<void>('vscode.open', indexUri);
+			// TODO@joao: rest!
+		}
+
+		return Promise.resolve();
 	}
 
-	drag(resource: SCMResource, resourceGroup: SCMResourceGroup): void {
+	drag(resource: Resource, resourceGroup: ResourceGroup): void {
 		console.log('drag', resource, resourceGroup);
 	}
 
