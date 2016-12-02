@@ -47,6 +47,8 @@ import { SelectionHighlighter } from 'vs/editor/contrib/find/common/findControll
 
 export class DefaultPreferencesEditorInput extends EditorInput {
 
+	public static ID = 'workbench.editorinputs.defaultpreferences';
+
 	private _willDispose = new Emitter<void>();
 	public willDispose: Event<void> = this._willDispose.event;
 
@@ -63,7 +65,7 @@ export class DefaultPreferencesEditorInput extends EditorInput {
 	}
 
 	getTypeId(): string {
-		return 'workbench.editorinputs.defaultpreferences';
+		return DefaultPreferencesEditorInput.ID;
 	}
 
 	getResource(): URI {
