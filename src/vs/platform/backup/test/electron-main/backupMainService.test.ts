@@ -67,41 +67,41 @@ suite('BackupMainService', () => {
 	});
 
 	test('getWorkspaceBackupPaths should return [] when workspaces.json doesn\'t exist', () => {
-		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
+		assert.deepEqual(service.workspaceBackupPaths, []);
 	});
 
 	test('getWorkspaceBackupPaths should return [] when workspaces.json is not properly formed JSON', () => {
 		fs.writeFileSync(backupWorkspacesPath, '');
-		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
+		assert.deepEqual(service.workspaceBackupPaths, []);
 		fs.writeFileSync(backupWorkspacesPath, '{]');
-		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
+		assert.deepEqual(service.workspaceBackupPaths, []);
 		fs.writeFileSync(backupWorkspacesPath, 'foo');
-		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
+		assert.deepEqual(service.workspaceBackupPaths, []);
 	});
 
 	test('getWorkspaceBackupPaths should return [] when folderWorkspaces in workspaces.json is absent', () => {
 		fs.writeFileSync(backupWorkspacesPath, '{}');
-		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
+		assert.deepEqual(service.workspaceBackupPaths, []);
 	});
 
 	test('getWorkspaceBackupPaths should return [] when folderWorkspaces in workspaces.json is not a string array', () => {
 		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{}}');
-		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
+		assert.deepEqual(service.workspaceBackupPaths, []);
 		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{"foo": ["bar"]}}');
-		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
+		assert.deepEqual(service.workspaceBackupPaths, []);
 		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{"foo": []}}');
-		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
+		assert.deepEqual(service.workspaceBackupPaths, []);
 		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{"foo": "bar"}}');
-		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
+		assert.deepEqual(service.workspaceBackupPaths, []);
 		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":"foo"}');
-		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
+		assert.deepEqual(service.workspaceBackupPaths, []);
 		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":1}');
-		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
+		assert.deepEqual(service.workspaceBackupPaths, []);
 	});
 
 	test('pushWorkspaceBackupPathsSync should persist paths to workspaces.json', () => {
 		service.pushWorkspaceBackupPathsSync([fooFile, barFile]);
-		assert.deepEqual(service.getWorkspaceBackupPaths(), [fooFile.fsPath, barFile.fsPath]);
+		assert.deepEqual(service.workspaceBackupPaths, [fooFile.fsPath, barFile.fsPath]);
 	});
 
 	test('removeWorkspaceBackupPath should remove workspaces from workspaces.json', done => {
@@ -136,14 +136,14 @@ suite('BackupMainService', () => {
 		// 1) backup workspace path does not exist
 		service.pushWorkspaceBackupPathsSync([fooFile, barFile]);
 		service.loadSync();
-		assert.equal(service.getWorkspaceBackupPaths().length, 0);
+		assert.equal(service.workspaceBackupPaths.length, 0);
 
 		// 2) backup workspace path exists with empty contents within
 		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
 		fs.mkdirSync(service.toBackupPath(barFile.fsPath));
 		service.pushWorkspaceBackupPathsSync([fooFile, barFile]);
 		service.loadSync();
-		assert.equal(service.getWorkspaceBackupPaths().length, 0);
+		assert.equal(service.workspaceBackupPaths.length, 0);
 		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
 		assert.ok(!fs.exists(service.toBackupPath(barFile.fsPath)));
 
@@ -154,7 +154,7 @@ suite('BackupMainService', () => {
 		fs.mkdirSync(path.join(service.toBackupPath(barFile.fsPath), 'untitled'));
 		service.pushWorkspaceBackupPathsSync([fooFile, barFile]);
 		service.loadSync();
-		assert.equal(service.getWorkspaceBackupPaths().length, 0);
+		assert.equal(service.workspaceBackupPaths.length, 0);
 		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
 		assert.ok(!fs.exists(service.toBackupPath(barFile.fsPath)));
 

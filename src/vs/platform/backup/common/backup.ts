@@ -18,17 +18,17 @@ export const IBackupService = createDecorator<IBackupService>('backupService');
 export interface IBackupMainService extends IBackupService {
 	_serviceBrand: any;
 
-	registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string): void;
+	/**
+	 * The set of active workspace backup paths being tracked for restoration.
+	 */
+	workspaceBackupPaths: string[];
 
 	/**
-	 * Gets the set of active workspace backup paths being tracked for restoration.
-	 *
-	 * @return The set of active workspace backup paths being tracked for restoration.
+	 * The set of active empty workspace backup paths being tracked for restoration.
 	 */
-	getWorkspaceBackupPaths(): string[];
+	emptyWorkspaceBackupPaths: string[];
 
-	// TODO: Doc
-	getEmptyWorkspaceBackupWindowIds(): string[];
+	registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string): void;
 
 	/**
 	 * Pushes workspace backup paths to be tracked for restoration.

@@ -34,6 +34,14 @@ export class BackupMainService implements IBackupMainService {
 		this.loadSync();
 	}
 
+	public get workspaceBackupPaths(): string[] {
+		return this.backups.folderWorkspaces;
+	}
+
+	public get emptyWorkspaceBackupPaths(): string[] {
+		return this.backups.emptyWorkspaces;
+	}
+
 	public getBackupPath(windowId: number): TPromise<string> {
 		if (!this.mapWindowToBackupFolder[windowId]) {
 			throw new Error(`Unknown backup workspace for window ${windowId}`);
@@ -61,14 +69,6 @@ export class BackupMainService implements IBackupMainService {
 		} else {
 			this.pushWorkspaceBackupPathsSync([Uri.file(backupFolder)]);
 		}
-	}
-
-	public getWorkspaceBackupPaths(): string[] {
-		return this.backups.folderWorkspaces;
-	}
-
-	public getEmptyWorkspaceBackupWindowIds(): string[] {
-		return this.backups.emptyWorkspaces;
 	}
 
 	public pushWorkspaceBackupPathsSync(workspaces: Uri[]): void {
