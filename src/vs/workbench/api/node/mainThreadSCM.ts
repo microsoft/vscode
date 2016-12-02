@@ -39,33 +39,27 @@ class MainThreadSCMProvider implements ISCMProvider {
 	}
 
 	commit(message: string): TPromise<void> {
-		const id = this.features.commitCommand;
-
-		if (!id) {
+		if (!this.features.supportsCommit) {
 			return TPromise.as(null);
 		}
 
-		return this.commandService.executeCommand<void>(id, message);
+		return this.proxy.$commit(this.id, message);
 	}
 
-	open(uri: ISCMResource): TPromise<void> {
-		const id = this.features.clickCommand;
-
-		if (!id) {
+	open(resource: ISCMResource): TPromise<void> {
+		if (!this.features.supportsOpen) {
 			return TPromise.as(null);
 		}
 
-		return this.commandService.executeCommand<void>(id, uri);
+		return this.proxy.$open(this.id, resource.resourceGroupId, resource.uri.toString());
 	}
 
-	drag(from: ISCMResource, to: ISCMResource): TPromise<void> {
-		const id = this.features.dragCommand;
-
-		if (!id) {
+	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void> {
+		if (!this.features.supportsDrag) {
 			return TPromise.as(null);
 		}
 
-		return this.commandService.executeCommand<void>(id, from, to);
+		return this.proxy.$drag(this.id, from.resourceGroupId, from.uri.toString(), to.id);
 	}
 
 	getOriginalResource(uri: URI): TPromise<URI> {
