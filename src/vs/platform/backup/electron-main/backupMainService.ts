@@ -52,7 +52,7 @@ export class BackupMainService implements IBackupMainService {
 
 	public registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void {
 		// Generate a new folder if this is a new empty workspace
-		if (!backupFolder) {
+		if (isEmptyWorkspace && !backupFolder) {
 			backupFolder = Date.now().toString();
 		}
 
@@ -60,7 +60,7 @@ export class BackupMainService implements IBackupMainService {
 		this.pushBackupPathsSync(isEmptyWorkspace ? backupFolder : this.sanitizePath(workspacePath), isEmptyWorkspace);
 	}
 
-	protected pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace?: boolean): void {
+	protected pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): void {
 		if (!isEmptyWorkspace) {
 			workspaceIdentifier = this.sanitizePath(workspaceIdentifier);
 		}
@@ -131,20 +131,31 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private validateBackupWorkspaces(backups: IBackupWorkspacesFormat): void {
+		const staleBackupWorkspaces: { workspaceIdentifier: string; backupPath: string; isEmptyWorkspace: boolean }[] = [];
+
 		backups.folderWorkspaces.forEach(workspacePath => {
 			const backupPath = path.join(this.backupHome, this.getWorkspaceHash(workspacePath));
+			console.log('this.hasBackupsSync(backupPath) for ' + workspacePath + ' : ' + this.hasBackupsSync(backupPath));
 			if (!this.hasBackupsSync(backupPath)) {
-				extfs.delSync(backupPath);
-				const backupWorkspace = Uri.file(this.sanitizePath(workspacePath));
-				this.removeWorkspaceBackupPathSync(backupWorkspace);
+				const backupWorkspace = this.sanitizePath(workspacePath);
+				staleBackupWorkspaces.push({ workspaceIdentifier: backupWorkspace, backupPath, isEmptyWorkspace: false });
 			}
 		});
 
 		backups.emptyWorkspaces.forEach(backupFolder => {
 			const backupPath = path.join(this.backupHome, backupFolder);
 			if (!this.hasBackupsSync(backupPath)) {
-				extfs.delSync(backupPath);
-				this.removeEmptyWorkspaceBackupFolder(backupFolder);
+				staleBackupWorkspaces.push({ workspaceIdentifier: backupFolder, backupPath, isEmptyWorkspace: true });
+			}
+		});
+
+		staleBackupWorkspaces.forEach(staleBackupWorkspace => {
+			const {backupPath, workspaceIdentifier, isEmptyWorkspace} = staleBackupWorkspace;
+			extfs.delSync(backupPath);
+			if (isEmptyWorkspace) {
+				this.removeEmptyWorkspaceBackupFolder(workspaceIdentifier);
+			} else {
+				this.removeWorkspaceBackupPathSync(Uri.file(workspaceIdentifier));
 			}
 		});
 	}
@@ -184,7 +195,7 @@ export class BackupMainService implements IBackupMainService {
 		return platform.isLinux ? p : p.toLowerCase();
 	}
 
-	private getWorkspaceHash(workspacePath: string): string {
+	protected getWorkspaceHash(workspacePath: string): string {
 		return crypto.createHash('md5').update(this.sanitizePath(workspacePath)).digest('hex');
 	}
 }
