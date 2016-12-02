@@ -142,7 +142,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return this.instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		return super.setInput(input, options).then(() => {
 			this.editorControl.updateOptions(this.getCodeEditorOptions()); // support input specific editor options
 		});

@@ -83,7 +83,7 @@ export class TextFileEditor extends BaseTextEditor {
 		return <FileEditorInput>super.getInput();
 	}
 
-	public setInput(input: FileEditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: FileEditorInput, options?: EditorOptions): TPromise<void> {
 		const oldInput = this.getInput();
 		super.setInput(input, options);
 

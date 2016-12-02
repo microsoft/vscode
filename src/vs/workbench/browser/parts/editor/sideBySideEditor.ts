@@ -47,7 +47,7 @@ export class SideBySideEditor extends BaseEditor {
 		this.createSash(parentElement);
 	}
 
-	public setInput(newInput: SideBySideEditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
 		const oldInput = <SideBySideEditorInput>this.getInput();
 		return super.setInput(newInput, options)
 			.then(() => this.updateInput(oldInput, newInput, options));
@@ -86,7 +86,7 @@ export class SideBySideEditor extends BaseEditor {
 		return null;
 	}
 
-	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions): TPromise<void> {
+	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();
@@ -94,19 +94,19 @@ export class SideBySideEditor extends BaseEditor {
 			this.createEditorContainers();
 			return this.setNewInput(newInput, options);
 		} else {
-			this.detailsEditor.setInput(newInput.details, new EditorOptions());
+			this.detailsEditor.setInput(newInput.details);
 			this.masterEditor.setInput(newInput.master, options);
 		}
 	}
 
-	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions): TPromise<void> {
+	private setNewInput(newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
 		return TPromise.join([
-			this._createEditor(<EditorInput>newInput.details, this.detailsEditorContainer, new EditorOptions()), //TODO@ben why do you have to provide options
+			this._createEditor(<EditorInput>newInput.details, this.detailsEditorContainer),
 			this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer, options)
 		]).then(result => this.onEditorsCreated(result[0], result[1]));
 	}
 
-	private _createEditor(editorInput: EditorInput, container: HTMLElement, options: EditorOptions): TPromise<BaseEditor> {
+	private _createEditor(editorInput: EditorInput, container: HTMLElement, options?: EditorOptions): TPromise<BaseEditor> {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 		if (!descriptor) {
 			return TPromise.wrapError(new Error(strings.format('Can not find a registered editor for the input {0}', editorInput)));
