@@ -66,37 +66,19 @@ export class BackupMainService implements IBackupMainService {
 			backupFolder = crypto.createHash('md5').update(caseAwarePath).digest('hex');
 		}
 
-		this.mapWindowToBackupFolder[windowId] = isEmptyWorkspace ? backupFolder : workspacePath;
+		this.mapWindowToBackupFolder[windowId] = backupFolder;
 
-		// TODO: Merge push* functions into this one?
 		if (isEmptyWorkspace) {
-			this.pushEmptyWorkspaceBackupWindowIdSync(backupFolder);
-		} else {
-			this.pushWorkspaceBackupPathsSync([Uri.file(backupFolder)]);
-		}
-	}
-
-	public pushWorkspaceBackupPathsSync(workspaces: Uri[]): void {
-		let needsSaving = false;
-		workspaces.forEach(workspace => {
-			if (this.backups.folderWorkspaces.indexOf(workspace.fsPath) === -1) {
-				this.backups.folderWorkspaces.push(workspace.fsPath);
-				needsSaving = true;
+			if (this.backups.emptyWorkspaces.indexOf(backupFolder) === -1) {
+				this.backups.emptyWorkspaces.push(backupFolder);
+				this.saveSync();
 			}
-		});
-
-		if (needsSaving) {
-			this.saveSync();
-		}
-	}
-
-	// TODO: Think of a less terrible name
-	// TODO: Test
-	// TODO: Merge with pushWorkspaceBackupPathsSync?
-	public pushEmptyWorkspaceBackupWindowIdSync(vscodeWindowId: string): void {
-		if (this.backups.emptyWorkspaces.indexOf(vscodeWindowId) === -1) {
-			this.backups.emptyWorkspaces.push(vscodeWindowId);
-			this.saveSync();
+		} else {
+			const sanitizedPath = this.sanitizePath(workspacePath);
+			if (this.backups.folderWorkspaces.indexOf(sanitizedPath) === -1) {
+				this.backups.folderWorkspaces.push(sanitizedPath);
+				this.saveSync();
+			}
 		}
 	}
 
@@ -112,13 +94,14 @@ export class BackupMainService implements IBackupMainService {
 		this.saveSync();
 	}
 
+	// TODO: Remove based on windowId instead?
 	// TODO: Test
 	// TODO: Merge with removeWorkspaceBackupPathSync?
-	private removeEmptyWorkspaceBackupWindowIdSync(vscodeWindowId: string): void {
+	private removeEmptyWorkspaceBackupWindowIdSync(backupFolder: string): void {
 		if (!this.backups.emptyWorkspaces) {
 			return;
 		}
-		const index = this.backups.emptyWorkspaces.indexOf(vscodeWindowId);
+		const index = this.backups.emptyWorkspaces.indexOf(backupFolder);
 		if (index === -1) {
 			return;
 		}
@@ -218,8 +201,12 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
+	private sanitizePath(p) {
+		return platform.isLinux ? p : p.toLowerCase();
+	}
+
 	protected toBackupPath(workspacePath: string): string {
-		const caseAwarePath = platform.isLinux ? workspacePath : workspacePath.toLowerCase();
+		const caseAwarePath = this.sanitizePath(workspacePath);
 		const workspaceHash = crypto.createHash('md5').update(caseAwarePath).digest('hex');
 
 		return path.join(this.backupHome, workspaceHash);

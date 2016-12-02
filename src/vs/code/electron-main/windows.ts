@@ -442,7 +442,6 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Handle empty
 		if (emptyToRestore.length > 0) {
-			// TODO: There's an extra empty workspace opening when restoring an empty workspace (sometimes)
 			emptyToRestore.forEach(backupFolder => {
 				const configuration = this.toConfiguration(openConfig, null, null, null, null, backupFolder);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
@@ -451,7 +450,6 @@ export class WindowsManager implements IWindowsMainService {
 				openInNewWindow = true; // any other folders to open must open in new window then
 			});
 		}
-		// TODO: Is this handling correct?
 		// Only open empty if no empty workspaces were restored
 		else if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
