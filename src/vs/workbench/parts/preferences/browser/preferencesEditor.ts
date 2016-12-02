@@ -351,6 +351,7 @@ export class PreferencesEditorContribution extends Disposable implements editorC
 export class SettingsRenderer extends Disposable implements IPreferencesRenderer {
 
 	private copySettingActionRenderer: CopySettingActionRenderer;
+	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(protected editor: ICodeEditor, protected settingsEditorModel: SettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
@@ -358,14 +359,18 @@ export class SettingsRenderer extends Disposable implements IPreferencesRenderer
 	) {
 		super();
 		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingActionRenderer, editor, false));
-		this._register(editor.getModel().onDidChangeContent(() => this.onModelChanged()));
+		this._register(editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 	}
 
-	public render() {
+	public render(): void {
 		this.copySettingActionRenderer.render(this.settingsEditorModel.settingsGroups);
 	}
 
-	private onModelChanged() {
+	private onModelChanged(): void {
+		if (!this.editor.getModel()) {
+			// model could have been disposed during the delay
+			return;
+		}
 		this.render();
 	}
 }
@@ -721,12 +726,13 @@ export class CopySettingActionRenderer extends Disposable {
 		if (jsonSchema) {
 			const canChooseValue = jsonSchema.enum || jsonSchema.type === 'boolean';
 			if (this.isDefaultSettings || canChooseValue) {
+				const lineNumber = setting.keyRange.startLineNumber;
 				return {
 					range: {
-						startLineNumber: setting.valueRange.startLineNumber,
-						startColumn: model.getLineMaxColumn(setting.valueRange.startLineNumber),
-						endLineNumber: setting.valueRange.startLineNumber,
-						endColumn: model.getLineMaxColumn(setting.valueRange.startLineNumber),
+						startLineNumber: lineNumber,
+						startColumn: model.getLineMaxColumn(lineNumber),
+						endLineNumber: lineNumber,
+						endColumn: model.getLineMaxColumn(lineNumber),
 					},
 					options: {
 						afterContentClassName: 'copySetting',
@@ -787,7 +793,7 @@ export class CopySettingActionRenderer extends Disposable {
 			if (lineNumber >= group.range.startLineNumber && lineNumber <= group.range.endLineNumber) {
 				for (const section of group.sections) {
 					for (const setting of section.settings) {
-						if (lineNumber >= setting.valueRange.startLineNumber && lineNumber <= setting.valueRange.endLineNumber) {
+						if (lineNumber >= setting.keyRange.startLineNumber && lineNumber <= setting.keyRange.endLineNumber) {
 							return setting;
 						}
 					}
