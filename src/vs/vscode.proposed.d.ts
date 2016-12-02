@@ -109,13 +109,13 @@ declare module 'vscode' {
 
 	export interface SCMProvider {
 		readonly label: string;
-		readonly commitCommand?: string;
-		readonly clickCommand?: string;
-		readonly dragCommand?: string;
-
 		readonly resources: SCMResourceGroup[];
 		readonly onDidChange: Event<SCMResourceGroup[]>;
 		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
+
+		commit?(message: string, token: CancellationToken): ProviderResult<void>;
+		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
+		drag?(resource: SCMResource, resourceGroup: SCMResourceGroup, token: CancellationToken): ProviderResult<void>;
 	}
 
 	export namespace scm {

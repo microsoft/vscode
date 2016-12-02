@@ -23,6 +23,13 @@ function getIconPath(decorations: vscode.SCMResourceThemableDecorations) {
 	}
 }
 
+export interface Cache {
+	[groupId: string]: {
+		resourceGroup: vscode.SCMResourceGroup,
+		resources: { [uri: string]: vscode.SCMResource }
+	};
+}
+
 export class ExtHostSCM {
 
 	private _proxy: MainThreadSCMShape;
@@ -33,6 +40,8 @@ export class ExtHostSCM {
 
 	private _activeProvider: vscode.SCMProvider;
 	get activeProvider(): vscode.SCMProvider | undefined { return this._activeProvider; }
+
+	private cache: Cache = Object.create(null);
 
 	constructor(threadService: IThreadService) {
 		this._proxy = threadService.get(MainContext.MainThreadSCM);
@@ -48,15 +57,19 @@ export class ExtHostSCM {
 
 		this._proxy.$register(id, {
 			label: provider.label,
-			commitCommand: provider.commitCommand,
-			clickCommand: provider.clickCommand,
-			dragCommand: provider.dragCommand,
+			supportsCommit: !!provider.commit,
+			supportsOpen: !!provider.open,
+			supportsDrag: !!provider.drag,
 			supportsOriginalResource: !!provider.getOriginalResource
 		});
 
 		const onDidChange = debounceEvent(provider.onDidChange, (l, e) => e, 200);
 		const onDidChangeListener = onDidChange(resourceGroups => {
+			this.cache = Object.create(null);
+
 			const rawResourceGroups = resourceGroups.map(g => {
+				const resources: { [id: string]: vscode.SCMResource; } = Object.create(null);
+
 				const rawResources = g.resources.map(r => {
 					const uri = r.uri.toString();
 					const iconPath = getIconPath(r.decorations);
@@ -73,9 +86,13 @@ export class ExtHostSCM {
 					}
 
 					const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
+					resources[uri] = r;
 
 					return [uri, icons, strikeThrough] as SCMRawResource;
 				});
+
+				this.cache[g.id] = { resourceGroup: g, resources };
+
 				return [g.id, g.label, rawResources] as SCMRawResourceGroup;
 			});
 
@@ -87,6 +104,52 @@ export class ExtHostSCM {
 			delete this._providers[id];
 			this._proxy.$unregister(id);
 		});
+	}
+
+	$commit(id: string, message: string): TPromise<void> {
+		const provider = this._providers[id];
+
+		if (!provider) {
+			return TPromise.as(null);
+		}
+
+		return asWinJsPromise(token => provider.commit(message, token));
+	}
+
+	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> {
+		const provider = this._providers[id];
+
+		if (!provider) {
+			return TPromise.as(null);
+		}
+
+		const resourceGroup = this.cache[resourceGroupId];
+		const resource = resourceGroup && resourceGroup.resources[uri];
+
+		if (!resource) {
+			return TPromise.as(null);
+		}
+
+		return asWinJsPromise(token => provider.open(resource, token));
+	}
+
+	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> {
+		const provider = this._providers[id];
+
+		if (!provider) {
+			return TPromise.as(null);
+		}
+
+		const fromResourceGroup = this.cache[fromResourceGroupId];
+		const resource = fromResourceGroup && fromResourceGroup.resources[fromUri];
+		const toResourceGroup = this.cache[toResourceGroupId];
+		const resourceGroup = toResourceGroup && toResourceGroup.resourceGroup;
+
+		if (!resource || !resourceGroup) {
+			return TPromise.as(null);
+		}
+
+		return asWinJsPromise(token => provider.drag(resource, resourceGroup, token));
 	}
 
 	$getOriginalResource(id: string, uri: URI): TPromise<URI> {

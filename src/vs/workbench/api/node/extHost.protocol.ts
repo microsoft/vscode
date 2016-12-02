@@ -232,9 +232,9 @@ export abstract class MainProcessExtensionServiceShape {
 
 export interface SCMProviderFeatures {
 	label: string;
-	commitCommand?: string;
-	clickCommand?: string;
-	dragCommand?: string;
+	supportsCommit: boolean;
+	supportsOpen: boolean;
+	supportsDrag: boolean;
 	supportsOriginalResource: boolean;
 }
 
@@ -380,6 +380,9 @@ export abstract class ExtHostTerminalServiceShape {
 }
 
 export abstract class ExtHostSCMShape {
+	$commit(id: string, message: string): TPromise<void> { throw ni(); }
+	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> { throw ni(); }
+	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> { throw ni(); }
 	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
 }
 

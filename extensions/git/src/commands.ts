@@ -16,8 +16,8 @@ function refresh(model: Model): () => void {
 	};
 }
 
-function openChange(...args: any[]): void {
-	console.log('openChange', args);
+function open(...args: any[]): void {
+	console.log('open', args);
 }
 
 function stage(resource: SCMResource): void {
@@ -43,7 +43,7 @@ export function registerCommands(model: Model): Disposable {
 		commands.registerCommand('git.stage-all', stageAll),
 		commands.registerCommand('git.unstage', unstage),
 		commands.registerCommand('git.unstage-all', unstageAll),
-		commands.registerCommand('git.open-change', openChange)
+		commands.registerCommand('git.open', open)
 	];
 
 	return Disposable.from(...disposables);
