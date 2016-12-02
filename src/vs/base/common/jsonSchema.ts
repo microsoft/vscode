@@ -42,7 +42,8 @@ export interface IJSONSchema {
 
 	defaultSnippets?: IJSONSchemaSnippet[]; // VSCode extension
 	errorMessage?: string; // VSCode extension
-	deprecatedMessage?: string; // VSCode extension
+	deprecationMessage?: string; // VSCode extension
+	enumDescriptions?: string[]; // VSCode extension
 }
 
 export interface IJSONSchemaMap {
