@@ -22,7 +22,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private backups: IBackupWorkspacesFormat;
 
-	private mapWindowToBackupFolder: { [windowId: number]: string; };
+	protected mapWindowToBackupFolder: { [windowId: number]: string; };
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService
