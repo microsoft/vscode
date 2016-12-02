@@ -2554,7 +2554,7 @@ declare module 'vscode' {
 		/**
 		 * The uri this link points to.
 		 */
-		target: Uri;
+		target?: Uri;
 
 		/**
 		 * Creates a new document link.
@@ -2562,7 +2562,7 @@ declare module 'vscode' {
 		 * @param range The range the document link applies to. Must not be empty.
 		 * @param target The uri the document link points to.
 		 */
-		constructor(range: Range, target: Uri);
+		constructor(range: Range, target?: Uri);
 	}
 
 	/**
