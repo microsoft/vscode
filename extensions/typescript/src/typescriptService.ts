@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CancellationToken, Uri } from 'vscode';
+import { CancellationToken, Uri, Event } from 'vscode';
 import * as Proto from './protocol';
 import * as semver from 'semver';
 
@@ -54,12 +54,15 @@ export class API {
 		return semver.gte(this._version, '2.0.8');
 	}
 
-	public has220Features(): boolean {
-		return semver.gte(this._version, '2.2.0');
+	public has213Features(): boolean {
+		return semver.gte(this._version, '2.1.3');
 	}
 }
 
-export type ProjectStatusChanagedCallback = (string, boolean) => void;
+export interface ProjectStatusChanaged {
+	projectName: string;
+	enabled: boolean;
+}
 
 export interface ITypescriptServiceClient {
 	asAbsolutePath(resource: Uri): string | null;
@@ -69,7 +72,7 @@ export interface ITypescriptServiceClient {
 	warn(message: string, data?: any): void;
 	error(message: string, data?: any): void;
 
-	onProjectLanguageServiceStateChanged(callback: ProjectStatusChanagedCallback);
+	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
 
 	logTelemetry(eventName: string, properties?: { [prop: string]: string });
 

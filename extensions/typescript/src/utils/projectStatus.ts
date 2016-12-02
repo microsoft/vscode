@@ -104,7 +104,7 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 				return;
 			}
 
-			return client.execute('projectInfo', { file, needFileNameList: true }).then(res => {
+			return client.execute('projectInfo', { file, needFileNameList: true } as protocol.ProjectInfoRequestArgs).then(res => {
 				if (!res.body) {
 					return;
 				}
@@ -138,12 +138,12 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 	return toDispose;
 }
 
-function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: ITypescriptServiceClient) {
-	client.onProjectLanguageServiceStateChanged((projectName: string, languageServiceEnabled) => {
-		if (languageServiceEnabled) {
+function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: ITypescriptServiceClient): vscode.Disposable {
+	return client.onProjectLanguageServiceStateChanged(body => {
+		if (body.languageServiceEnabled) {
 			item.hide();
 		} else {
-			item.show(projectName, '', () => { });
+			item.show(body.projectName, '', () => { });
 		}
 	});
 }
@@ -161,8 +161,8 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 		});
 	}));
 
-	if (client.apiVersion.has220Features) {
-		createLargeProjectMonitorFromTypeScript(item, client);
+	if (client.apiVersion.has213Features()) {
+		toDispose.push(createLargeProjectMonitorFromTypeScript(item, client));
 	} else {
 		toDispose.push(...createLargeProjectMonitorForProject(item, client, isOpen, memento));
 	}
@@ -174,8 +174,6 @@ function computeLargeRoots(configFileName: string, fileNames: string[]): string[
 
 	let roots: { [first: string]: number } = Object.create(null);
 	let dir = dirname(configFileName);
-
-	// console.log(dir, fileNames);
 
 	for (let fileName of fileNames) {
 		if (fileName.indexOf(dir) === 0) {

@@ -12,9 +12,9 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem } from 'vscode';
+import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, EventEmitter, Event } from 'vscode';
 import * as Proto from './protocol';
-import { ITypescriptServiceClient, ITypescriptServiceClientHost, API, ProjectStatusChanagedCallback } from './typescriptService';
+import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
 import * as VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
@@ -102,12 +102,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private requestQueue: RequestItem[];
 	private pendingResponses: number;
 	private callbacks: CallbackMap;
+	private _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
 
 	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
-
-	private onProjectLanguageServiceStateChangedCallbacks: ProjectStatusChanagedCallback[];
 
 	constructor(host: ITypescriptServiceClientHost, storagePath: string, globalState: Memento) {
 		this.host = host;
@@ -126,7 +125,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.exitRequested = false;
 		this.firstStart = Date.now();
 		this.numberRestarts = 0;
-		this.onProjectLanguageServiceStateChangedCallbacks = [];
 
 		this.requestQueue = [];
 		this.pendingResponses = 0;
@@ -149,6 +147,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			this.telemetryReporter = new TelemetryReporter(this.packageInfo.name, this.packageInfo.version, this.packageInfo.aiKey);
 		}
 		this.startService();
+	}
+
+	get onProjectLanguageServiceStateChanged(): Event<Proto.ProjectLanguageServiceStateEventBody> {
+		return this._onProjectLanguageServiceStateChanged.event;
 	}
 
 	private get output(): OutputChannel {
@@ -180,10 +182,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public onReady(): Promise<void> {
 		return this._onReady.promise;
-	}
-
-	public onProjectLanguageServiceStateChanged(callback: ProjectStatusChanagedCallback) {
-		this.onProjectLanguageServiceStateChangedCallbacks.push(callback);
 	}
 
 	private data2String(data: any): string {
@@ -694,8 +692,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				} else if (event.event === 'projectLanguageServiceState') {
 					const data = (event as Proto.ProjectLanguageServiceStateEvent).body;
 					if (data) {
-						this.onProjectLanguageServiceStateChangedCallbacks.forEach(cb =>
-							cb(data.projectName, data.languageServiceEnabled));
+						this._onProjectLanguageServiceStateChanged.fire(data);
 					}
 				}
 			} else {
