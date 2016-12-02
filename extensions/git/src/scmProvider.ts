@@ -155,6 +155,18 @@ export class GitSCMProvider implements SCMProvider {
 		model.update(true);
 	}
 
+	commit(message: string): void {
+		console.log('commit', message);
+	}
+
+	open(resource: SCMResource): void {
+		console.log('open', resource);
+	}
+
+	drag(resource: SCMResource, resourceGroup: SCMResourceGroup): void {
+		console.log('drag', resource, resourceGroup);
+	}
+
 	getOriginalResource(uri: Uri): Uri | undefined {
 		if (uri.scheme !== 'file') {
 			return void 0;
