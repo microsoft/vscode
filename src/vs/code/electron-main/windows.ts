@@ -385,7 +385,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Otherwise open instance with files
 			else {
-				const configuration = this.toConfiguration(openConfig, null, null, filesToOpen, filesToCreate, filesToDiff);
+				const configuration = this.toConfiguration(openConfig, null, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
@@ -427,7 +427,7 @@ export class WindowsManager implements IWindowsMainService {
 					return; // ignore folders that are already open
 				}
 
-				const configuration = this.toConfiguration(openConfig, null, folderToOpen, filesToOpen, filesToCreate, filesToDiff);
+				const configuration = this.toConfiguration(openConfig, folderToOpen, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
@@ -444,10 +444,8 @@ export class WindowsManager implements IWindowsMainService {
 		if (emptyToRestore.length > 0) {
 			// TODO: There's an extra empty workspace opening when restoring an empty workspace (sometimes)
 			emptyToRestore.forEach(backupFolder => {
-				const configuration = this.toConfiguration(openConfig);
+				const configuration = this.toConfiguration(openConfig, null, null, null, null, backupFolder);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
-				// TODO: Moved empty workspace registration into openInBrowserWindow so all windows are handled in same spot
-				this.backupService.registerWindowForBackups(browserWindow.id, true, backupFolder);
 				usedWindows.push(browserWindow);
 
 				openInNewWindow = true; // any other folders to open must open in new window then
@@ -459,8 +457,6 @@ export class WindowsManager implements IWindowsMainService {
 			emptyToOpen.forEach(() => {
 				const configuration = this.toConfiguration(openConfig);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
-				// TODO: Moved empty workspace registration into openInBrowserWindow so all windows are handled in same spot
-				this.backupService.registerWindowForBackups(browserWindow.id, true);
 				usedWindows.push(browserWindow);
 
 				openInNewWindow = true; // any other folders to open must open in new window then
@@ -626,13 +622,13 @@ export class WindowsManager implements IWindowsMainService {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
 	}
 
-	private toConfiguration(config: IOpenConfiguration, vscodeWindowId?: string, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
+	private toConfiguration(config: IOpenConfiguration, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], backupFolder?: string): IWindowConfiguration {
 		const configuration: IWindowConfiguration = mixin({}, config.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
 		configuration.userEnv = this.getWindowUserEnv(config);
 		configuration.isInitialStartup = config.initialStartup;
-		configuration.vscodeWindowId = vscodeWindowId;
+		configuration.backupFolder = backupFolder;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
@@ -742,8 +738,7 @@ export class WindowsManager implements IWindowsMainService {
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen),
-				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0,
-				vscodeWindowId: configuration.vscodeWindowId
+				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
 			});
 
 			WindowsManager.WINDOWS.push(vscodeWindow);
@@ -775,9 +770,7 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		if (configuration.workspacePath) {
-			this.backupService.registerWindowForBackups(vscodeWindow.id, false, configuration.workspacePath);
-		}
+		this.backupService.registerWindowForBackups(vscodeWindow.id, !configuration.workspacePath, configuration.backupFolder, configuration.workspacePath);
 
 		// Only load when the window has not vetoed this
 		this.lifecycleService.unload(vscodeWindow, UnloadReason.LOAD).done(veto => {

@@ -71,7 +71,6 @@ export interface IPath {
 export interface IWindowConfiguration extends ParsedArgs {
 	appRoot: string;
 	execPath: string;
-	vscodeWindowId: string;
 
 	userEnv: platform.IProcessEnvironment;
 
@@ -86,6 +85,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	perfWindowLoadTime?: number;
 
 	workspacePath?: string;
+	backupFolder?: string;
 
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
