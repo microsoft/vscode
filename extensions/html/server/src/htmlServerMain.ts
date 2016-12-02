@@ -132,6 +132,9 @@ connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
 	if (mode && mode.doComplete) {
+		if (mode.getId() !== 'html') {
+			connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
+		}
 		return mode.doComplete(document, textDocumentPosition.position);
 	}
 	return { isIncomplete: true, items: [] };

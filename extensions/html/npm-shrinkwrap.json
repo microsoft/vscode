@@ -2,6 +2,16 @@
   "name": "html",
   "version": "0.1.0",
   "dependencies": {
+    "applicationinsights": {
+      "version": "0.15.6",
+      "from": "applicationinsights@0.15.6",
+      "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.15.6.tgz"
+    },
+    "vscode-extension-telemetry": {
+      "version": "0.0.5",
+      "from": "vscode-extension-telemetry@>=0.0.5 <0.0.6",
+      "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.5.tgz"
+    },
     "vscode-jsonrpc": {
       "version": "3.0.1-alpha.2",
       "from": "vscode-jsonrpc@>=3.0.1-alpha.2 <4.0.0",
@@ -21,6 +31,11 @@
       "version": "1.0.7",
       "from": "vscode-nls@>=1.0.7 <2.0.0",
       "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
+    },
+    "winreg": {
+      "version": "0.0.13",
+      "from": "winreg@0.0.13",
+      "resolved": "https://registry.npmjs.org/winreg/-/winreg-0.0.13.tgz"
     }
   }
 }

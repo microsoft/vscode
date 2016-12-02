@@ -130,6 +130,21 @@
 					],
 					"default": "hide",
 					"description": "%markdown.previewFrontMatter.dec%"
+				},
+				"markdown.preview.fontFamily": {
+					"type": "string",
+					"default": "'Segoe WPC', 'Segoe UI', 'SFUIText-Light', 'HelveticaNeue-Light'",
+					"description": "%markdown.preview.fontFamily.desc%"
+				},
+				"markdown.preview.fontSize": {
+					"type": "number",
+					"default": 14,
+					"description": "%markdown.preview.fontSize.desc%"
+				},
+				"markdown.preview.lineHeight": {
+					"type": "number",
+					"default": 1.6,
+					"description": "%markdown.preview.lineHeight.desc%"
 				}
 			}
 		}
