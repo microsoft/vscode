@@ -5,7 +5,6 @@
 'use strict';
 
 import { illegalArgument } from 'vs/base/common/errors';
-import { CursorMoveHelper } from 'vs/editor/common/controller/cursorMoveHelper';
 import { SingleCursorState, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -512,12 +511,6 @@ export class OneCursor implements IOneCursor {
 		}
 		return visibleRange;
 	}
-	public getColumnAtBeginningOfViewLine(lineNumber: number, column: number): number {
-		return CursorMoveHelper.getColumnAtBeginningOfLine(this.viewModel, lineNumber, column);
-	}
-	public getColumnAtEndOfViewLine(lineNumber: number, column: number): number {
-		return CursorMoveHelper.getColumnAtEndOfLine(this.viewModel, lineNumber, column);
-	}
 	public getNearestRevealViewPositionInViewport(): Position {
 		const position = this.viewState.position;
 		const revealRange = this.getRevealViewLinesRangeInViewport();
@@ -764,25 +757,17 @@ export class OneCursorOp {
 	}
 
 	public static moveToBeginningOfLine(cursor: OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
-		let validatedViewPosition = cursor.viewState.position;
-		let viewLineNumber = validatedViewPosition.lineNumber;
-		let viewColumn = validatedViewPosition.column;
-
-		viewColumn = cursor.getColumnAtBeginningOfViewLine(viewLineNumber, viewColumn);
-		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
-		cursor.moveViewPosition(inSelectionMode, viewLineNumber, viewColumn, 0, true);
-		return true;
+		return this._applyMoveOperationResult(
+			cursor, ctx,
+			this._fromViewCursorState(cursor, MoveOperations.moveToBeginningOfLine(cursor.config, cursor.viewModel, cursor.viewState, inSelectionMode))
+		);
 	}
 
 	public static moveToEndOfLine(cursor: OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
-		let validatedViewPosition = cursor.viewState.position;
-		let viewLineNumber = validatedViewPosition.lineNumber;
-		let viewColumn = validatedViewPosition.column;
-
-		viewColumn = cursor.getColumnAtEndOfViewLine(viewLineNumber, viewColumn);
-		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
-		cursor.moveViewPosition(inSelectionMode, viewLineNumber, viewColumn, 0, true);
-		return true;
+		return this._applyMoveOperationResult(
+			cursor, ctx,
+			this._fromViewCursorState(cursor, MoveOperations.moveToEndOfLine(cursor.config, cursor.viewModel, cursor.viewState, inSelectionMode))
+		);
 	}
 
 	public static expandLineSelection(cursor: OneCursor, ctx: IOneCursorOperationContext): boolean {

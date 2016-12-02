@@ -24,7 +24,6 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { Selection } from 'vs/editor/common/core/selection';
 
 /**
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
@@ -143,7 +142,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return this.instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		return super.setInput(input, options).then(() => {
 			this.editorControl.updateOptions(this.getCodeEditorOptions()); // support input specific editor options
 		});
@@ -174,10 +173,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	public getControl(): IEditor {
 		return this.editorControl;
-	}
-
-	public getSelection(): Selection {
-		return this.editorControl.getSelection();
 	}
 
 	public dispose(): void {

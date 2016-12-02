@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/sidebyside';
+import 'vs/css!./media/editorGroupsControl';
 import arrays = require('vs/base/common/arrays');
 import Event, { Emitter } from 'vs/base/common/event';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -21,7 +21,6 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -35,6 +34,7 @@ import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitl
 import { IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { extractResources } from 'vs/base/browser/dnd';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 export enum Rochade {
 	NONE,
@@ -49,7 +49,7 @@ export enum ProgressState {
 	STOP
 }
 
-export interface ISideBySideEditorControl {
+export interface IEditorGroupsControl {
 
 	onGroupFocusChanged: Event<void>;
 
@@ -86,7 +86,7 @@ export interface ISideBySideEditorControl {
 /**
  * Helper class to manage multiple side by side editors for the editor part.
  */
-export class SideBySideEditorControl implements ISideBySideEditorControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
+export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
 	private static TITLE_AREA_CONTROL_KEY = '__titleAreaControl';
 	private static PROGRESS_BAR_CONTROL_KEY = '__progressBar';
@@ -187,7 +187,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private get minSize(): number {
-		return this.layoutVertically ? SideBySideEditorControl.MIN_EDITOR_WIDTH : SideBySideEditorControl.MIN_EDITOR_HEIGHT;
+		return this.layoutVertically ? EditorGroupsControl.MIN_EDITOR_WIDTH : EditorGroupsControl.MIN_EDITOR_HEIGHT;
 	}
 
 	private isSiloMinimized(position: number): boolean {
@@ -207,7 +207,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private get snapToMinimizeThresholdSize(): number {
-		return this.layoutVertically ? SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD_WIDTH : SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD_HEIGHT;
+		return this.layoutVertically ? EditorGroupsControl.SNAP_TO_MINIMIZED_THRESHOLD_WIDTH : EditorGroupsControl.SNAP_TO_MINIMIZED_THRESHOLD_HEIGHT;
 	}
 
 	private registerListeners(): void {
@@ -892,7 +892,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const instantiationService = this.instantiationService.createChild(new ServiceCollection(
 				[IContextKeyService, this.contextKeyService.createScoped(container.getHTMLElement())]
 			));
-			container.setProperty(SideBySideEditorControl.INSTANTIATION_SERVICE_KEY, instantiationService); // associate with container
+			container.setProperty(EditorGroupsControl.INSTANTIATION_SERVICE_KEY, instantiationService); // associate with container
 
 			// Title containers
 			const titleContainer = $(container).div({ 'class': 'title' });
@@ -910,7 +910,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			// Progress Bar
 			const progressBar = new ProgressBar($(container));
 			progressBar.getContainer().hide();
-			container.setProperty(SideBySideEditorControl.PROGRESS_BAR_CONTROL_KEY, progressBar); // associate with container
+			container.setProperty(EditorGroupsControl.PROGRESS_BAR_CONTROL_KEY, progressBar); // associate with container
 		});
 	}
 
@@ -939,9 +939,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			// for th editor to be a text editor and creating the options accordingly if so
 			let options = EditorOptions.create({ pinned: true });
 			const activeEditor = $this.editorService.getActiveEditor();
-			if (activeEditor instanceof BaseTextEditor && activeEditor.position === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
+			const editor = getCodeEditor(activeEditor);
+			if (editor && activeEditor.position === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
 				options = TextEditorOptions.create({ pinned: true });
-				(<TextEditorOptions>options).fromEditor(activeEditor.getControl());
+				(<TextEditorOptions>options).fromEditor(editor);
 			}
 
 			return options;
@@ -1092,7 +1093,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				if ($this.layoutVertically) {
 					overlay.style({ left: '0', width: '100%' });
 				} else {
-					overlay.style({ top: $this.showTabs ? `${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : 0, height: $this.showTabs ? `calc(100% - ${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : '100%' });
+					overlay.style({ top: $this.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0, height: $this.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%' });
 				}
 			}
 
@@ -1115,8 +1116,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
 						overlay = $('div').style({
-							top: $this.showTabs ? `${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : 0,
-							height: $this.showTabs ? `calc(100% - ${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : '100%'
+							top: $this.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0,
+							height: $this.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%'
 						}).id(overlayId);
 
 						overlay.appendTo(container);
@@ -1200,7 +1201,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		titleAreaControl.setContext(context);
 		titleAreaControl.refresh(true /* instant */);
 
-		silo.child().setProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container
+		silo.child().setProperty(EditorGroupsControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container
 	}
 
 	private findPosition(element: HTMLElement): Position {
@@ -1249,8 +1250,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			// Overlay the editor area with a div to be able to capture all mouse events
 			// Do NOT cover the title area to prevent missing double click events!
 			const overlayDiv = $('div').style({
-				top: `${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px`,
-				height: `calc(100% - ${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px)`
+				top: `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px`,
+				height: `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px)`
 			}).id('monaco-workbench-editor-move-overlay');
 			overlayDiv.appendTo(this.silos[position]);
 
@@ -1861,7 +1862,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const editorSize = this.silosSize[position];
 		if (editorSize && this.visibleEditors[position]) {
 			let editorWidth = this.layoutVertically ? editorSize : this.dimension.width;
-			let editorHeight = (this.layoutVertically ? this.dimension.height : this.silosSize[position]) - SideBySideEditorControl.EDITOR_TITLE_HEIGHT;
+			let editorHeight = (this.layoutVertically ? this.dimension.height : this.silosSize[position]) - EditorGroupsControl.EDITOR_TITLE_HEIGHT;
 
 			if (position !== Position.ONE) {
 				if (this.layoutVertically) {
@@ -1876,15 +1877,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public getInstantiationService(position: Position): IInstantiationService {
-		return this.getFromContainer(position, SideBySideEditorControl.INSTANTIATION_SERVICE_KEY);
+		return this.getFromContainer(position, EditorGroupsControl.INSTANTIATION_SERVICE_KEY);
 	}
 
 	public getProgressBar(position: Position): ProgressBar {
-		return this.getFromContainer(position, SideBySideEditorControl.PROGRESS_BAR_CONTROL_KEY);
+		return this.getFromContainer(position, EditorGroupsControl.PROGRESS_BAR_CONTROL_KEY);
 	}
 
 	private getTitleAreaControl(position: Position): ITitleAreaControl {
-		return this.getFromContainer(position, SideBySideEditorControl.TITLE_AREA_CONTROL_KEY);
+		return this.getFromContainer(position, EditorGroupsControl.TITLE_AREA_CONTROL_KEY);
 	}
 
 	private getFromContainer(position: Position, key: string): any {

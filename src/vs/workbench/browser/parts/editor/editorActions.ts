@@ -8,6 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
@@ -19,7 +20,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class SplitEditorAction extends Action {
@@ -56,9 +56,10 @@ export class SplitEditorAction extends Action {
 
 		// Options
 		let options: EditorOptions;
-		if (editorToSplit instanceof BaseTextEditor) {
+		const codeEditor = getCodeEditor(editorToSplit);
+		if (codeEditor) {
 			options = new TextEditorOptions();
-			(<TextEditorOptions>options).fromEditor(editorToSplit.getControl());
+			(<TextEditorOptions>options).fromEditor(codeEditor);
 		} else {
 			options = new EditorOptions();
 		}
@@ -247,10 +248,11 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 			// Options
 			let options: EditorOptions;
-			if (referenceEditor instanceof BaseTextEditor) {
+			const codeEditor = getCodeEditor(referenceEditor);
+			if (codeEditor) {
 				options = new TextEditorOptions();
 				options.pinned = true;
-				(<TextEditorOptions>options).fromEditor(referenceEditor.getControl());
+				(<TextEditorOptions>options).fromEditor(codeEditor);
 			} else {
 				options = EditorOptions.create({ pinned: true });
 			}

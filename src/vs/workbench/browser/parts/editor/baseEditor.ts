@@ -67,7 +67,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * Sets the given input with the options to the part. An editor has to deal with the
 	 * situation that the same input is being set with different options.
 	 */
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		this._input = input;
 		this._options = options;
 

@@ -136,6 +136,12 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		let currentProperty: string = null;
 		let currentParent: any = [];
 		let previousParents: any[] = [];
+		let range = {
+			startLineNumber: 0,
+			startColumn: 0,
+			endLineNumber: 0,
+			endColumn: 0
+		};
 
 		function onValue(value: any, offset: number, length: number) {
 			if (Array.isArray(currentParent)) {
@@ -163,6 +169,9 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			onObjectBegin: (offset: number, length: number) => {
 				if (!parsingSettings) {
 					parsingSettings = true;
+					let position = model.getPositionAt(offset);
+					range.startLineNumber = position.lineNumber;
+					range.startColumn = position.column;
 				} else {
 					parsingSettingValue = true;
 				}
@@ -177,8 +186,14 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				if (parsingSettings && !parsingSettingValue) {
 					let settingStartPosition = model.getPositionAt(offset);
 					settings.push({
-						key: name,
 						description: '',
+						key: name,
+						keyRange: {
+							startLineNumber: settingStartPosition.lineNumber,
+							startColumn: settingStartPosition.column,
+							endLineNumber: settingStartPosition.lineNumber,
+							endColumn: settingStartPosition.column + length
+						},
 						range: {
 							startLineNumber: settingStartPosition.lineNumber,
 							startColumn: settingStartPosition.column,
@@ -186,7 +201,6 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 							endColumn: 0
 						},
 						value: null,
-						keyRange: null,
 						valueRange: null,
 						descriptionRange: null,
 					});
@@ -208,6 +222,9 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				if (parsingSettingValue) {
 					parsingSettingValue = false;
 				} else if (parsingSettings) {
+					let position = model.getPositionAt(offset);
+					range.endLineNumber = position.lineNumber;
+					range.endColumn = position.column;
 					parsingSettings = false;
 				}
 			},
@@ -245,12 +262,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			],
 			title: null,
 			titleRange: null,
-			range: {
-				startLineNumber: settings[0].range.startLineNumber,
-				startColumn: settings[0].range.startColumn,
-				endLineNumber: settings[settings.length - 1].range.endLineNumber,
-				endColumn: settings[settings.length - 1].range.endColumn,
-			}
+			range
 		}] : [];
 	}
 
