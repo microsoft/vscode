@@ -26,8 +26,7 @@ interface ProjectHintedMap {
 	[k: string]: boolean;
 }
 
-const fileLimit = 1; // TODO
-
+const fileLimit = 500;
 
 class ExcludeHintItem {
 	private _item: vscode.StatusBarItem;
@@ -174,6 +173,8 @@ function computeLargeRoots(configFileName: string, fileNames: string[]): string[
 
 	let roots: { [first: string]: number } = Object.create(null);
 	let dir = dirname(configFileName);
+
+	// console.log(dir, fileNames);
 
 	for (let fileName of fileNames) {
 		if (fileName.indexOf(dir) === 0) {
