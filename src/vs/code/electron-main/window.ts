@@ -32,7 +32,6 @@ export interface IWindowCreationOptions {
 	extensionDevelopmentPath?: string;
 	allowFullscreen?: boolean;
 	titleBarStyle?: 'native' | 'custom';
-	vscodeWindowId?: string;
 }
 
 export enum WindowMode {
@@ -139,7 +138,6 @@ export class VSCodeWindow implements IVSCodeWindow {
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
 	private _extensionDevelopmentPath: string;
-	private _vscodeWindowId: string;
 	private windowState: IWindowState;
 	private currentWindowMode: WindowMode;
 
@@ -198,8 +196,6 @@ export class VSCodeWindow implements IVSCodeWindow {
 				this.hiddenTitleBarStyle = true;
 			}
 		}
-
-		this._vscodeWindowId = config.vscodeWindowId ? config.vscodeWindowId : Date.now().toString();
 
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
@@ -263,10 +259,6 @@ export class VSCodeWindow implements IVSCodeWindow {
 
 	public get win(): Electron.BrowserWindow {
 		return this._win;
-	}
-
-	public get vscodeWindowId(): string {
-		return this._vscodeWindowId;
 	}
 
 	public focus(): void {
