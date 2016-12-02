@@ -66,11 +66,11 @@ suite('BackupMainService', () => {
 		extfs.del(backupHome, os.tmpdir(), done);
 	});
 
-	test('getWorkspaceBackupPaths should return [] when workspaces.json doesn\'t exist', () => {
+	test('workspaceBackupPaths should return [] when workspaces.json doesn\'t exist', () => {
 		assert.deepEqual(service.workspaceBackupPaths, []);
 	});
 
-	test('getWorkspaceBackupPaths should return [] when workspaces.json is not properly formed JSON', () => {
+	test('workspaceBackupPaths should return [] when workspaces.json is not properly formed JSON', () => {
 		fs.writeFileSync(backupWorkspacesPath, '');
 		assert.deepEqual(service.workspaceBackupPaths, []);
 		fs.writeFileSync(backupWorkspacesPath, '{]');
@@ -79,12 +79,12 @@ suite('BackupMainService', () => {
 		assert.deepEqual(service.workspaceBackupPaths, []);
 	});
 
-	test('getWorkspaceBackupPaths should return [] when folderWorkspaces in workspaces.json is absent', () => {
+	test('workspaceBackupPaths should return [] when folderWorkspaces in workspaces.json is absent', () => {
 		fs.writeFileSync(backupWorkspacesPath, '{}');
 		assert.deepEqual(service.workspaceBackupPaths, []);
 	});
 
-	test('getWorkspaceBackupPaths should return [] when folderWorkspaces in workspaces.json is not a string array', () => {
+	test('workspaceBackupPaths should return [] when folderWorkspaces in workspaces.json is not a string array', () => {
 		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{}}');
 		assert.deepEqual(service.workspaceBackupPaths, []);
 		fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{"foo": ["bar"]}}');
@@ -181,5 +181,32 @@ suite('BackupMainService', () => {
 		if (platform.isWindows) {
 			assert.equal(service.toBackupPath('c:\\foo'), service.toBackupPath('C:\\FOO'));
 		}
+	});
+
+	suite('getBackupPath', () => {
+		test('should return the window\'s correct path', done => {
+			service.registerWindowForBackups(1, false, null, fooFile.fsPath);
+			service.registerWindowForBackups(2, true, 'test');
+			service.getBackupPath(1).then(window1Path => {
+				assert.equal(window1Path, service.toBackupPath(fooFile.fsPath));
+				service.getBackupPath(2).then(window2Path => {
+					assert.equal(window2Path, path.join(backupHome, 'test'));
+					done();
+				});
+			});
+		});
+
+		test('should override stale window paths with new paths', done => {
+			service.registerWindowForBackups(1, false, null, fooFile.fsPath);
+			service.registerWindowForBackups(1, false, null, barFile.fsPath);
+			service.getBackupPath(1).then(windowPath => {
+				assert.equal(windowPath, service.toBackupPath(barFile.fsPath));
+				done();
+			});
+		});
+
+		test('should throw when the window is not registered', () => {
+			assert.throws(() => service.getBackupPath(1));
+		});
 	});
 });
