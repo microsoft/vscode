@@ -28,7 +28,7 @@ import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
 import product from 'vs/platform/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupModelService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService } from 'vs/platform/message/common/message';
 
 export class TextFileService extends AbstractTextFileService {
@@ -48,7 +48,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IModelService private modelService: IModelService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IBackupService backupService: IBackupService,
+		@IBackupModelService backupService: IBackupModelService,
 		@IMessageService messageService: IMessageService
 	) {
 		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);

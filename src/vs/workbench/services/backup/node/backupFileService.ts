@@ -11,8 +11,10 @@ import pfs = require('vs/base/node/pfs');
 import * as platform from 'vs/base/common/platform';
 import Uri from 'vs/base/common/uri';
 import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -86,26 +88,16 @@ export class BackupFileService implements IBackupFileService {
 
 	private static readonly META_MARKER = '\n';
 
-	protected backupHome: string;
-	protected workspacesJsonPath: string;
-
 	private backupWorkspacePath: string;
 	private ready: TPromise<IBackupFilesModel>;
 
 	constructor(
 		private currentWorkspace: Uri,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@IBackupService private backupService: IBackupService,
+		@IWindowService private windowService: IWindowService
 	) {
-		this.backupHome = environmentService.backupHome;
-		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
-
-		if (this.currentWorkspace) {
-			this.backupWorkspacePath = path.join(this.backupHome, this.hashPath(this.currentWorkspace));
-		} else {
-			this.backupWorkspacePath = path.join(this.backupHome, this.environmentService.vscodeWindowId);
-		}
-
 		this.ready = this.init();
 	}
 
@@ -121,7 +113,12 @@ export class BackupFileService implements IBackupFileService {
 			return TPromise.as(model);
 		}
 
-		return model.resolve(this.backupWorkspacePath);
+		console.log('requesting backup workspace for window ' + this.windowService.getCurrentWindowId());
+		return this.backupService.getBackupPath(this.windowService.getCurrentWindowId()).then(backupPath => {
+			console.log('backup workspace from main: ' + backupPath);
+			this.backupWorkspacePath = backupPath;
+			return model.resolve(this.backupWorkspacePath);
+		});
 	}
 
 	public hasBackup(resource: Uri): TPromise<boolean> {

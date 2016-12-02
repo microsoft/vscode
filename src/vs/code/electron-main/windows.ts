@@ -29,7 +29,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product';
-import Uri from 'vs/base/common/uri';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -444,10 +443,11 @@ export class WindowsManager implements IWindowsMainService {
 		// Handle empty
 		if (emptyToRestore.length > 0) {
 			// TODO: There's an extra empty workspace opening when restoring an empty workspace (sometimes)
-			emptyToRestore.forEach(vscodeWindowId => {
+			emptyToRestore.forEach(backupFolder => {
 				const configuration = this.toConfiguration(openConfig);
-				configuration.vscodeWindowId = vscodeWindowId;
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
+				// TODO: Moved empty workspace registration into openInBrowserWindow so all windows are handled in same spot
+				this.backupService.registerWindowForBackups(browserWindow.id, true, backupFolder);
 				usedWindows.push(browserWindow);
 
 				openInNewWindow = true; // any other folders to open must open in new window then
@@ -459,6 +459,8 @@ export class WindowsManager implements IWindowsMainService {
 			emptyToOpen.forEach(() => {
 				const configuration = this.toConfiguration(openConfig);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
+				// TODO: Moved empty workspace registration into openInBrowserWindow so all windows are handled in same spot
+				this.backupService.registerWindowForBackups(browserWindow.id, true);
 				usedWindows.push(browserWindow);
 
 				openInNewWindow = true; // any other folders to open must open in new window then
@@ -482,10 +484,6 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		// Register new paths for backup
-		if (!openConfig.cli.extensionDevelopmentPath) {
-			this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(p => p.workspacePath).map(p => Uri.file(p.workspacePath)));
-		}
 
 		// Emit events
 		this._onPathsOpen.fire(iPathsToOpen);
@@ -748,12 +746,6 @@ export class WindowsManager implements IWindowsMainService {
 				vscodeWindowId: configuration.vscodeWindowId
 			});
 
-			configuration.vscodeWindowId = vscodeWindow.vscodeWindowId;
-			if (!configuration.extensionDevelopmentPath) {
-				// TODO: Cover closing a folder/existing window case
-				this.backupService.pushEmptyWorkspaceBackupWindowIdSync(configuration.vscodeWindowId);
-			}
-
 			WindowsManager.WINDOWS.push(vscodeWindow);
 
 			// Window Events
@@ -781,6 +773,10 @@ export class WindowsManager implements IWindowsMainService {
 				configuration.debugPluginHost = currentWindowConfig.debugPluginHost;
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 			}
+		}
+
+		if (configuration.workspacePath) {
+			this.backupService.registerWindowForBackups(vscodeWindow.id, false, configuration.workspacePath);
 		}
 
 		// Only load when the window has not vetoed this

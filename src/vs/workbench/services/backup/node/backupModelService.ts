@@ -7,7 +7,7 @@
 
 import platform = require('vs/base/common/platform');
 import Uri from 'vs/base/common/uri';
-import { IBackupService, IBackupFileService, IBackupResult } from 'vs/workbench/services/backup/common/backup';
+import { IBackupModelService, IBackupFileService, IBackupResult } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextFileEditorModel, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
@@ -19,7 +19,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
-export class BackupService implements IBackupService {
+export class BackupModelService implements IBackupModelService {
 
 	public _serviceBrand: any;
 
