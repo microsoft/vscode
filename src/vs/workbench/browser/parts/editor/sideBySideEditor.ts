@@ -41,7 +41,7 @@ export class SideBySideEditor extends BaseEditor {
 		super(SideBySideEditor.ID, telemetryService);
 	}
 
-	public createEditor(parent: Builder) {
+	public createEditor(parent: Builder): void {
 		const parentElement = parent.getHTMLElement();
 		DOM.addClass(parentElement, 'side-by-side-editor');
 		this.createSash(parentElement);
@@ -63,24 +63,27 @@ export class SideBySideEditor extends BaseEditor {
 		super.setEditorVisible(visible, position);
 	}
 
-	public clearInput() {
+	public clearInput(): void {
 		this.disposeEditors();
 		super.clearInput();
 	}
 
-	public focus() {
+	public focus(): void {
 		if (this.masterEditor) {
 			this.masterEditor.focus();
 		}
 	}
 
-	public layout(dimension: Dimension) {
+	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		this.sash.setDimenesion(this.dimension);
 	}
 
 	public getControl(): IEditorControl {
-		return this.masterEditor.getControl();
+		if (this.masterEditor) {
+			return this.masterEditor.getControl();
+		}
+		return null;
 	}
 
 	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions): TPromise<void> {
@@ -111,19 +114,19 @@ export class SideBySideEditor extends BaseEditor {
 		return this.instantiationService.createInstance(<EditorDescriptor>descriptor)
 			.then((editor: BaseEditor) => {
 				editor.create(new Builder(container));
-				editor.setInput(editorInput, options);
-				return editor;
+				return editor.setInput(editorInput, options).then(() => editor);
 			});
 	}
 
-	private onEditorsCreated(details: BaseEditor, master: BaseEditor) {
+	private onEditorsCreated(details: BaseEditor, master: BaseEditor): void {
 		this.detailsEditor = details;
 		this.masterEditor = master;
-		this.setVisible(this.isVisible());
+		this.setEditorVisible(this.isVisible(), this.position);
 		this.dolayout(this.sash.getVerticalSashLeft());
+		this.focus();
 	}
 
-	private createEditorContainers() {
+	private createEditorContainers(): void {
 		const parentElement = this.getContainer().getHTMLElement();
 		this.detailsEditorContainer = DOM.append(parentElement, DOM.$('.details-editor-container'));
 		this.detailsEditorContainer.style.position = 'absolute';
@@ -136,7 +139,7 @@ export class SideBySideEditor extends BaseEditor {
 		this._register(this.sash.onPositionChange(position => this.dolayout(position)));
 	}
 
-	private dolayout(splitPoint: number) {
+	private dolayout(splitPoint: number): void {
 		if (!this.detailsEditor || !this.masterEditor) {
 			return;
 		}
@@ -155,7 +158,7 @@ export class SideBySideEditor extends BaseEditor {
 		this.masterEditor.layout(new Dimension(masterEditorWidth, this.dimension.height));
 	}
 
-	private disposeEditors() {
+	private disposeEditors(): void {
 		const parentContainer = this.getContainer().getHTMLElement();
 		if (this.detailsEditor) {
 			this.detailsEditor.dispose();

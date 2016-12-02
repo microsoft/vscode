@@ -365,7 +365,7 @@ export class SideBySideEditorInput extends EditorInput {
 
 	private _toUnbind: IDisposable[];
 
-	constructor(private name: string, private description: string, private _details: EditorInput, private _master: EditorInput, protected forceOpenAsBinary?: boolean) {
+	constructor(private name: string, private description: string, private _details: EditorInput, private _master: EditorInput) {
 		super();
 		this._toUnbind = [];
 		this.registerListeners();
