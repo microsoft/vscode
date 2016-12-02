@@ -12,9 +12,9 @@ import nls = require('vs/nls');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -33,6 +33,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -150,8 +151,8 @@ export abstract class BaseHistoryService {
 		}
 
 		// Apply listener for selection changes if this is a text editor
-		if (activeEditor instanceof BaseTextEditor) {
-			const control = activeEditor.getControl();
+		const control = getCodeEditor(activeEditor);
+		if (control) {
 			this.activeEditorListeners.push(control.onDidChangeCursorPosition(event => {
 				this.handleEditorSelectionChangeEvent(activeEditor);
 			}));
@@ -467,8 +468,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return; // while we open an editor due to a navigation, we do not want to update our stack
 		}
 
-		if (editor instanceof BaseTextEditor && editor.input) {
-			this.handleTextEditorEvent(<BaseTextEditor>editor);
+		const control = getCodeEditor(editor);
+		if (control && editor.input) {
+			this.handleTextEditorEvent(editor, control);
 
 			return;
 		}
@@ -480,14 +482,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private handleTextEditorEvent(editor: BaseTextEditor): void {
-		const stateCandidate = new EditorState(editor.input, editor.getSelection());
+	private handleTextEditorEvent(editor: IBaseEditor, editorControl: editorCommon.IEditor): void {
+		const stateCandidate = new EditorState(editor.input, editorControl.getSelection());
 		if (!this.currentFileEditorState || this.currentFileEditorState.justifiesNewPushState(stateCandidate)) {
 			this.currentFileEditorState = stateCandidate;
 
 			let options: ITextEditorOptions;
 
-			const selection = editor.getSelection();
+			const selection = editorControl.getSelection();
 			if (selection) {
 				options = {
 					selection: { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn }
