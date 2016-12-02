@@ -80,7 +80,7 @@ export class NodeCachedDataManager {
 
 			}).done(undefined, onUnexpectedError);
 
-		}, 3 * 1000);
+		}, 30 * 1000);
 
 		this._disposables.push({
 			dispose() { clearTimeout(handle); }
