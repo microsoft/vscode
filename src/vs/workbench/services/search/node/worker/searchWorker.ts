@@ -284,14 +284,17 @@ export class FileMatch implements ISerializedFileMatch {
 
 	serialize(): ISerializedFileMatch {
 		let lineMatches: ILineMatch[] = [];
+		let numMatches = 0;
 
 		for (let i = 0; i < this.lineMatches.length; i++) {
+			numMatches += this.lineMatches[i].offsetAndLengths.length;
 			lineMatches.push(this.lineMatches[i].serialize());
 		}
 
 		return {
 			path: this.path,
-			lineMatches
+			lineMatches,
+			numMatches
 		};
 	}
 }
