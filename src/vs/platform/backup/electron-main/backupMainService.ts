@@ -57,7 +57,7 @@ export class BackupMainService implements IBackupMainService {
 		}
 
 		this.mapWindowToBackupFolder[windowId] = isEmptyWorkspace ? backupFolder : this.getWorkspaceHash(workspacePath);
-		this.pushBackupPathsSync(isEmptyWorkspace ? backupFolder : this.sanitizePath(workspacePath), isEmptyWorkspace);
+		this.pushBackupPathsSync(isEmptyWorkspace ? backupFolder : workspacePath, isEmptyWorkspace);
 	}
 
 	protected pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): void {
