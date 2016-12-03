@@ -524,7 +524,7 @@ export class TransposeAction extends EditorAction {
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			let selection = selections[i];
-			if (selection.isEmpty) {
+			if (selection.isEmpty()) {
 				let cursor = selection.getStartPosition();
 				if (cursor.column > model.getLineContent(cursor.lineNumber).length) {
 					return;
@@ -564,18 +564,19 @@ export class UpperCaseAction extends EditorAction {
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			let selection = selections[i];
-			if (selection.isEmpty) {
+			if (selection.isEmpty()) {
 				let cursor = selection.getStartPosition();
 				let word = model.getWordAtPosition(cursor);
 				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
 
 				if (wordRange !== undefined) {
 					let text = model.getValueInRange(wordRange);
-					commands.push(new ReplaceCommand(wordRange, text.toLocaleUpperCase()));
+					commands.push(new ReplaceCommandThatPreservesSelection(wordRange, text.toLocaleUpperCase(),
+						new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
 				}
 			} else {
 				let text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommand(selection, text.toLocaleUpperCase()));
+				commands.push(new ReplaceCommandThatPreservesSelection(selection, text.toLocaleUpperCase(), selection));
 			}
 		}
 
@@ -601,18 +602,19 @@ export class LowerCaseAction extends EditorAction {
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			let selection = selections[i];
-			if (selection.isEmpty) {
+			if (selection.isEmpty()) {
 				let cursor = selection.getStartPosition();
 				let word = model.getWordAtPosition(cursor);
 				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
 
 				if (wordRange !== undefined) {
 					let text = model.getValueInRange(wordRange);
-					commands.push(new ReplaceCommand(wordRange, text.toLocaleLowerCase()));
+					commands.push(new ReplaceCommandThatPreservesSelection(wordRange, text.toLocaleLowerCase(),
+						new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
 				}
 			} else {
 				let text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommand(selection, text.toLocaleLowerCase()));
+				commands.push(new ReplaceCommandThatPreservesSelection(selection, text.toLocaleLowerCase(), selection));
 			}
 		}
 
