@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString, workspace } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 
@@ -87,7 +87,9 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	public updateConfiguration(config: WorkspaceConfiguration): void {
-		this.config.useCodeSnippetsOnMethodSuggest = config.get(Configuration.useCodeSnippetsOnMethodSuggest, false);
+		// Use shared setting for js and ts
+		let typeScriptConfig = workspace.getConfiguration('typescript');
+		this.config.useCodeSnippetsOnMethodSuggest = typeScriptConfig.get(Configuration.useCodeSnippetsOnMethodSuggest, false);
 	}
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
@@ -162,7 +164,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 					item.detail = Previewer.plain(detail.displayParts);
 				}
 
-				if (detail && this.config.useCodeSnippetsOnMethodSuggest && item.kind === CompletionItemKind.Function) {
+				if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
 					let codeSnippet = detail.name;
 					let suggestionArgumentNames: string[];
 
