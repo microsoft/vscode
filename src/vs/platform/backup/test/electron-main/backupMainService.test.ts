@@ -190,6 +190,25 @@ suite('BackupMainService', () => {
 			service.loadSync();
 			assert.deepEqual(service.emptyWorkspaceBackupPaths, []);
 		});
+
+		test('should merge same cased paths on Windows and Mac', () => {
+			// Skip test on Linux
+			if (platform.isLinux) {
+				return;
+			}
+
+			if (platform.isMacintosh) {
+				fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":["/foo", "/FOO"]}');
+				service.loadSync();
+				assert.deepEqual(service.workspaceBackupPaths, ['/foo']);
+			}
+
+			if (platform.isWindows) {
+				fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":["c:\\foo", "C:\\FOO", "c:\\FOO]}');
+				service.loadSync();
+				assert.deepEqual(service.workspaceBackupPaths, ['c:\\foo']);
+			}
+		});
 	});
 
 	suite('registerWindowForBackups', () => {

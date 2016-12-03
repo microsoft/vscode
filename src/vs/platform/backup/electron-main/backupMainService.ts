@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as arrays from 'vs/base/common/arrays';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -120,6 +121,10 @@ export class BackupMainService implements IBackupMainService {
 
 	private validateBackupWorkspaces(backups: IBackupWorkspacesFormat): void {
 		const staleBackupWorkspaces: { workspaceIdentifier: string; backupPath: string; isEmptyWorkspace: boolean }[] = [];
+
+		// Merge duplicates for folder workspaces, don't worry about cleaning them up as they will
+		// be removed when there are no backups.
+		backups.folderWorkspaces = arrays.distinct(backups.folderWorkspaces.map(w => this.sanitizePath(w)));
 
 		backups.folderWorkspaces.forEach(workspacePath => {
 			const backupPath = path.join(this.backupHome, this.getWorkspaceHash(workspacePath));
