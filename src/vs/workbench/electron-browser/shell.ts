@@ -21,7 +21,7 @@ import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
 import { IStartupFingerprint, IMemoryInfo } from 'vs/workbench/electron-browser/common';
-import { Workbench } from 'vs/workbench/electron-browser/workbench';
+import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/workbench/services/storage/common/storageService';
 import { ITelemetryService, NullTelemetryService, configurationTelemetry, loadExperiments, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -171,10 +171,10 @@ export class WorkbenchShell {
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
 		this.workbench.startup({
-			onWorkbenchStarted: (customKeybindingsCount, restoreViewletDuration, restoreEditorsDuration) => {
+			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
 
 				// run workbench started logic
-				this.onWorkbenchStarted(customKeybindingsCount, restoreViewletDuration, restoreEditorsDuration);
+				this.onWorkbenchStarted(info);
 
 				// start cached data manager
 				instantiationService.createInstance(NodeCachedDataManager);
@@ -196,7 +196,7 @@ export class WorkbenchShell {
 		return workbenchContainer;
 	}
 
-	private onWorkbenchStarted(customKeybindingsCount: number, restoreViewletDuration: number, restoreEditorsDuration: number): void {
+	private onWorkbenchStarted(info: IWorkbenchStartedInfo): void {
 
 		// Log to timer
 		timer.start(timer.Topic.STARTUP, '[renderer] overall workbench load', timers.perfBeforeWorkbenchOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
@@ -210,10 +210,11 @@ export class WorkbenchShell {
 			'workbench.filesToOpen': filesToOpen && filesToOpen.length || undefined,
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
-			customKeybindingsCount,
+			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme(),
 			language: platform.language,
-			experiments: this.telemetryService.getExperiments()
+			experiments: this.telemetryService.getExperiments(),
+			pinnedViewlets: info.pinnedViewlets
 		});
 
 		// Telemetry: performance info
@@ -254,8 +255,8 @@ export class WorkbenchShell {
 					ellapsedExtensions: Math.round(timers.perfAfterExtensionLoad - timers.perfBeforeExtensionLoad),
 					ellapsedExtensionsReady: Math.round(timers.perfAfterExtensionLoad - start),
 					ellapsedRequire: Math.round(timers.perfAfterLoadWorkbenchMain - timers.perfBeforeLoadWorkbenchMain),
-					ellapsedViewletRestore: Math.round(restoreViewletDuration),
-					ellapsedEditorRestore: Math.round(restoreEditorsDuration),
+					ellapsedViewletRestore: Math.round(info.restoreViewletDuration),
+					ellapsedEditorRestore: Math.round(info.restoreEditorsDuration),
 					ellapsedWorkbench: Math.round(workbenchStarted - timers.perfBeforeWorkbenchOpen),
 					ellapsedWindowLoadToRequire: Math.round(timers.perfBeforeLoadWorkbenchMain - timers.perfWindowLoadTime),
 					ellapsedTimersToTimersComputed: Date.now() - now
