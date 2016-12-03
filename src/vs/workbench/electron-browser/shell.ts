@@ -87,6 +87,8 @@ import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
+import { IBackupService } from 'vs/platform/backup/common/backup';
+import { BackupChannelClient } from 'vs/platform/backup/common/backupIpc';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { remote } from 'electron';
@@ -438,6 +440,10 @@ export class WorkbenchShell {
 		const urlChannel = mainProcessClient.getChannel('url');
 		const urlChannelClient = new URLChannelClient(urlChannel, windowIPCService.getWindowId());
 		serviceCollection.set(IURLService, urlChannelClient);
+
+		const backupChannel = mainProcessClient.getChannel('backup');
+		const backupChannelClient = new BackupChannelClient(backupChannel);
+		serviceCollection.set(IBackupService, backupChannelClient);
 
 		return [instantiationServiceImpl, serviceCollection];
 	}

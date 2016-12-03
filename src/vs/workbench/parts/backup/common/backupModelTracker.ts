@@ -7,7 +7,7 @@
 
 import Uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupModelService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -24,7 +24,7 @@ export class BackupModelTracker implements IWorkbenchContribution {
 
 	constructor(
 		@IBackupFileService private backupFileService: IBackupFileService,
-		@IBackupService private backupService: IBackupService,
+		@IBackupModelService private backupService: IBackupModelService,
 		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,

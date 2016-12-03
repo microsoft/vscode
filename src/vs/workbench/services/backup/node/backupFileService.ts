@@ -11,6 +11,7 @@ import pfs = require('vs/base/node/pfs');
 import * as platform from 'vs/base/common/platform';
 import Uri from 'vs/base/common/uri';
 import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -86,39 +87,34 @@ export class BackupFileService implements IBackupFileService {
 
 	private static readonly META_MARKER = '\n';
 
-	protected backupHome: string;
-	protected workspacesJsonPath: string;
-
 	private backupWorkspacePath: string;
 	private ready: TPromise<IBackupFilesModel>;
 
 	constructor(
-		private currentWorkspace: Uri,
+		windowId: number,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@IBackupService private backupService: IBackupService
 	) {
-		this.backupHome = environmentService.backupHome;
-		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
-
-		if (this.currentWorkspace) {
-			this.backupWorkspacePath = path.join(this.backupHome, this.hashPath(this.currentWorkspace));
-		}
-
-		this.ready = this.init();
+		this.ready = this.init(windowId);
 	}
 
 	private get backupEnabled(): boolean {
-		return this.currentWorkspace && !this.environmentService.isExtensionDevelopment; // Hot exit is disabled for empty workspaces and when doing extension development
+		// Hot exit is disabled when doing extension development
+		return !this.environmentService.isExtensionDevelopment;
 	}
 
-	private init(): TPromise<IBackupFilesModel> {
+	private init(windowId: number): TPromise<IBackupFilesModel> {
 		const model = new BackupFilesModel();
 
 		if (!this.backupEnabled) {
 			return TPromise.as(model);
 		}
 
-		return model.resolve(this.backupWorkspacePath);
+		return this.backupService.getBackupPath(windowId).then(backupPath => {
+			this.backupWorkspacePath = backupPath;
+			return model.resolve(this.backupWorkspacePath);
+		});
 	}
 
 	public hasBackup(resource: Uri): TPromise<boolean> {
