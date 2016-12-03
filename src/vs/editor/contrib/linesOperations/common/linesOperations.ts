@@ -507,12 +507,12 @@ export class JoinLinesAction extends EditorAction {
 }
 
 @editorAction
-class TransposeAction extends EditorAction {
+export class TransposeAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.transpose',
-			label: nls.localize('editor.transpose', "Transpose characters or words around the cursor"),
-			alias: 'Transpose characters or words around the cursor',
+			label: nls.localize('editor.transpose', "Transpose characters around the cursor"),
+			alias: 'Transpose characters around the cursor',
 			precondition: EditorContextKeys.Writable
 		});
 	}
@@ -522,22 +522,24 @@ class TransposeAction extends EditorAction {
 		let model = editor.getModel();
 		let commands: ICommand[] = [];
 
-		selections.forEach((selection) => {
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let selection = selections[i];
 			if (selection.isEmpty) {
 				let cursor = selection.getStartPosition();
-				// transpose characters or words around the cursor
-				if (cursor.column === 1 || cursor.column > model.getLineContent(cursor.lineNumber).length) {
+				if (cursor.column > model.getLineContent(cursor.lineNumber).length) {
 					return;
 				}
 
-				let wordRange = model.getWordAtPosition(cursor);
-				if (!wordRange || (cursor.column > wordRange.startColumn && cursor.column < wordRange.endColumn)) {
-					// transpose characters
-					let deleteSelection = new Range(cursor.lineNumber, cursor.column - 1, cursor.lineNumber, cursor.column + 1);
-					let chars = model.getValueInRange(deleteSelection).split('').reverse().join('');
-					commands.push(new ReplaceCommandThatPreservesSelection(deleteSelection, chars, selection));
-				}
+				let deleteSelection = new Range(cursor.lineNumber, Math.max(1, cursor.column - 1), cursor.lineNumber, cursor.column + 1);
+				let chars = model.getValueInRange(deleteSelection).split('').reverse().join('');
+				commands.push(new ReplaceCommandThatPreservesSelection(deleteSelection, chars,
+					new Selection(cursor.lineNumber, cursor.column + 1, cursor.lineNumber, cursor.column + 1)));
 			}
+		}
+
+		editor.executeCommands(this.id, commands);
+	}
+}
 		});
 
 		editor.executeCommands(this.id, commands);
