@@ -547,7 +547,7 @@ export class TransposeAction extends EditorAction {
 }
 
 @editorAction
-class UpperCaseAction extends EditorAction {
+export class UpperCaseAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.transformToUppercase',
@@ -562,7 +562,8 @@ class UpperCaseAction extends EditorAction {
 		let model = editor.getModel();
 		let commands: ICommand[] = [];
 
-		selections.forEach((selection) => {
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let selection = selections[i];
 			if (selection.isEmpty) {
 				let cursor = selection.getStartPosition();
 				let word = model.getWordAtPosition(cursor);
@@ -576,14 +577,14 @@ class UpperCaseAction extends EditorAction {
 				let text = model.getValueInRange(selection);
 				commands.push(new ReplaceCommand(selection, text.toLocaleUpperCase()));
 			}
-		});
+		}
 
 		editor.executeCommands(this.id, commands);
 	}
 }
 
 @editorAction
-class LowerCaseAction extends EditorAction {
+export class LowerCaseAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.transformToLowercase',
@@ -598,7 +599,8 @@ class LowerCaseAction extends EditorAction {
 		let model = editor.getModel();
 		let commands: ICommand[] = [];
 
-		selections.forEach((selection) => {
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let selection = selections[i];
 			if (selection.isEmpty) {
 				let cursor = selection.getStartPosition();
 				let word = model.getWordAtPosition(cursor);
@@ -612,7 +614,7 @@ class LowerCaseAction extends EditorAction {
 				let text = model.getValueInRange(selection);
 				commands.push(new ReplaceCommand(selection, text.toLocaleLowerCase()));
 			}
-		});
+		}
 
 		editor.executeCommands(this.id, commands);
 	}
