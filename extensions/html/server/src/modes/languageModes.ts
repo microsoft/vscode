@@ -85,14 +85,14 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 			});
 		},
 		getAllModesInDocument(document: TextDocument): LanguageMode[] {
-			let modes = [];
+			let result = [];
 			for (let languageId of documentRegions.get(document).getLanguagesInDocument()) {
 				let mode = modes[languageId];
 				if (mode) {
-					modes.push(mode);
+					result.push(mode);
 				}
 			}
-			return modes;
+			return result;
 		},
 		getAllModes(): LanguageMode[] {
 			let result = [];
