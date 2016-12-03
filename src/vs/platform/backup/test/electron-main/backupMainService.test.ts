@@ -36,6 +36,10 @@ class TestBackupMainService extends BackupMainService {
 		super.loadSync();
 	}
 
+	public sanitizeFolderWorkspaces(backups: IBackupWorkspacesFormat): void {
+		super.sanitizeFolderWorkspaces(backups);
+	}
+
 	public toBackupPath(workspacePath: string): string {
 		return path.join(this.backupHome, super.getWorkspaceHash(workspacePath));
 	}
@@ -72,8 +76,6 @@ suite('BackupMainService', () => {
 
 	test('service validates backup workspaces on startup and cleans up', done => {
 		// 1) backup workspace path does not exist
-		console.log('fooFile :' + fooFile.fsPath);
-		console.log('barFile :' + barFile.fsPath);
 		service.registerWindowForBackups(1, false, null, fooFile.fsPath);
 		service.registerWindowForBackups(2, false, null, barFile.fsPath);
 		service.loadSync();
@@ -190,23 +192,26 @@ suite('BackupMainService', () => {
 			service.loadSync();
 			assert.deepEqual(service.emptyWorkspaceBackupPaths, []);
 		});
+	});
 
+	suite('sanitizeFolderWorkspaces', () => {
 		test('should merge same cased paths on Windows and Mac', () => {
 			// Skip test on Linux
 			if (platform.isLinux) {
 				return;
 			}
 
-			if (platform.isMacintosh) {
-				fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":["/foo", "/FOO"]}');
-				service.loadSync();
-				assert.deepEqual(service.workspaceBackupPaths, ['/foo']);
-			}
+			const backups: IBackupWorkspacesFormat = {
+				folderWorkspaces: platform.isWindows ? ['c:\\foo', 'C:\\FOO', 'c:\\FOO'] : ['/foo', '/FOO'],
+				emptyWorkspaces: []
+			};
+
+			service.sanitizeFolderWorkspaces(backups);
 
 			if (platform.isWindows) {
-				fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":["c:\\foo", "C:\\FOO", "c:\\FOO]}');
-				service.loadSync();
-				assert.deepEqual(service.workspaceBackupPaths, ['c:\\foo']);
+				assert.deepEqual(backups.folderWorkspaces, ['c:\\foo']);
+			} else {
+				assert.deepEqual(backups.folderWorkspaces, ['/foo']);
 			}
 		});
 	});
