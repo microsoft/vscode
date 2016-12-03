@@ -6,11 +6,16 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
+import { getDocumentRangeFormattingEdits } from 'vs/editor/contrib/format/common/format';
+import { EditOperationsCommand } from 'vs/editor/contrib/format/common//formatCommand';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { EditorContextKeys, Handler, ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys, Handler, ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation, CodeEditorStateFlag } from 'vs/editor/common/editorCommon';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
@@ -540,9 +545,54 @@ export class TransposeAction extends EditorAction {
 		editor.executeCommands(this.id, commands);
 	}
 }
-		});
 
-		editor.executeCommands(this.id, commands);
+@editorAction
+class PasteAndFormatAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.pasteAndFormat',
+			label: nls.localize('editor.pasteAndFormat', "Paste and format"),
+			alias: 'Paste and format',
+			precondition: EditorContextKeys.Writable
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+		const originalCursorPosition = editor.getSelection().getStartPosition();
+
+		// 1. paste
+		editor.focus();
+		document.execCommand('paste');
+
+		const currentCursorPosition = editor.getSelection().getStartPosition();
+		const pastedContentRange = new Selection(currentCursorPosition.lineNumber, currentCursorPosition.column, originalCursorPosition.lineNumber, originalCursorPosition.column);
+
+		// 2. format
+		const model = editor.getModel();
+		const { tabSize, insertSpaces } = model.getOptions();
+		const workerService = accessor.get(IEditorWorkerService);
+		const formattingPromise = getDocumentRangeFormattingEdits(model, pastedContentRange, { tabSize, insertSpaces });
+
+		if (!formattingPromise) {
+			return TPromise.as(void 0);
+		}
+
+		const state = editor.captureState(CodeEditorStateFlag.Value, CodeEditorStateFlag.Position);
+
+		return formattingPromise.then(edits => workerService.computeMoreMinimalEdits(editor.getModel().uri, edits, editor.getSelections())).then(edits => {
+			if (!state.validate(editor) || isFalsyOrEmpty(edits)) {
+				return;
+			}
+
+			const command = new EditOperationsCommand(edits, editor.getSelection());
+			editor.executeCommand(this.id, command);
+			editor.focus();
+
+			// 3. update cursor positions
+			let selection = editor.getSelection();
+			selection = new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn);
+			editor.setSelection(selection);
+		});
 	}
 }
 

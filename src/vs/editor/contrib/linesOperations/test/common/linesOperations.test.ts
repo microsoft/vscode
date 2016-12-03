@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-import { DeleteAllLeftAction, JoinLinesAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
+import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
 
 suite('Editor Contrib - Line Operations', () => {
 	test('delete all left', function () {
