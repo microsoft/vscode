@@ -517,6 +517,8 @@ export class VSCodeMenu {
 
 		const emmetExpandAbbreviation = this.createMenuItem(nls.localize({ key: 'miEmmetExpandAbbreviation', comment: ['&& denotes a mnemonic'] }, "Emmet: E&&xpand Abbreviation"), 'editor.emmet.action.expandAbbreviation');
 		const showEmmetCommands = this.createMenuItem(nls.localize({ key: 'miShowEmmetCommands', comment: ['&& denotes a mnemonic'] }, "E&&mmet..."), 'workbench.action.showEmmetCommands');
+		const toggleLineComment = this.createMenuItem(nls.localize({ key: 'miToggleLineComment', comment: ['&& denotes a mnemonic'] }, "&&Toggle Line Comment"), 'editor.action.commentLine');
+		const toggleBlockComment = this.createMenuItem(nls.localize({ key: 'miToggleBlockComment', comment: ['&& denotes a mnemonic'] }, "Toggle &&Block Comment"), 'editor.action.blockComment');
 
 		[
 			undo,
@@ -532,6 +534,8 @@ export class VSCodeMenu {
 			findInFiles,
 			replaceInFiles,
 			__separator__(),
+			toggleLineComment,
+			toggleBlockComment,
 			emmetExpandAbbreviation,
 			showEmmetCommands
 		].forEach(item => winLinuxEditMenu.append(item));
