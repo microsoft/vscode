@@ -61,7 +61,7 @@ export class BackupMainService implements IBackupMainService {
 		this.pushBackupPathsSync(isEmptyWorkspace ? backupFolder : workspacePath, isEmptyWorkspace);
 	}
 
-	protected pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): void {
+	protected pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): string {
 		if (!isEmptyWorkspace) {
 			workspaceIdentifier = this.sanitizePath(workspaceIdentifier);
 		}
@@ -70,6 +70,8 @@ export class BackupMainService implements IBackupMainService {
 			array.push(workspaceIdentifier);
 			this.saveSync();
 		}
+
+		return workspaceIdentifier;
 	}
 
 	protected removeBackupPathSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): void {
@@ -132,9 +134,26 @@ export class BackupMainService implements IBackupMainService {
 
 		backups.folderWorkspaces.forEach(workspacePath => {
 			const backupPath = path.join(this.backupHome, this.getWorkspaceHash(workspacePath));
-			if (!this.hasBackupsSync(backupPath)) {
+			const hasBackups = this.hasBackupsSync(backupPath);
+			const missingWorkspace = hasBackups && !fs.existsSync(workspacePath);
+
+			// If the folder has no backups, make sure to delete it
+			// If the folder has backups, but the target workspace is missing, convert backups to empty ones
+			if (!hasBackups || missingWorkspace) {
 				const backupWorkspace = this.sanitizePath(workspacePath);
 				staleBackupWorkspaces.push({ workspaceIdentifier: Uri.file(backupWorkspace).fsPath, backupPath, isEmptyWorkspace: false });
+
+				if (missingWorkspace) {
+					const identifier = this.pushBackupPathsSync((Date.now() + Math.round(Math.random() * 1000)).toString(), true /* is empty workspace */);
+					const newEmptyWorkspaceBackupPath = path.join(path.dirname(backupPath), identifier);
+					try {
+						fs.renameSync(backupPath, newEmptyWorkspaceBackupPath);
+					} catch (ex) {
+						console.error(`Backup: Could not rename backup folder for missing workspace: ${ex.toString()}`);
+
+						this.removeBackupPathSync(identifier, true);
+					}
+				}
 			}
 		});
 
@@ -147,7 +166,13 @@ export class BackupMainService implements IBackupMainService {
 
 		staleBackupWorkspaces.forEach(staleBackupWorkspace => {
 			const {backupPath, workspaceIdentifier, isEmptyWorkspace} = staleBackupWorkspace;
-			extfs.delSync(backupPath);
+
+			try {
+				extfs.delSync(backupPath);
+			} catch (ex) {
+				console.error(`Backup: Could not delete stale backup: ${ex.toString()}`);
+			}
+
 			this.removeBackupPathSync(workspaceIdentifier, isEmptyWorkspace);
 		});
 	}
@@ -179,7 +204,7 @@ export class BackupMainService implements IBackupMainService {
 			}
 			fs.writeFileSync(this.workspacesJsonPath, JSON.stringify(this.backups));
 		} catch (ex) {
-			console.error('Could not save workspaces.json', ex);
+			console.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
 		}
 	}
 
