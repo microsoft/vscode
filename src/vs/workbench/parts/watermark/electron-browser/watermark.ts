@@ -152,7 +152,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 	private create(): void {
 		const container = this.partService.getContainer(Parts.EDITOR_PART);
-		$(container).addClass('has-watermark');
+
 		const watermark = $()
 			.div({ 'class': 'watermark' });
 		const box = $(watermark)
@@ -178,7 +178,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 			});
 		};
 		update();
-		watermark.build(container, 0);
+		watermark.build(container.firstChild as HTMLElement, 0);
 		this.toDispose.push(this.keybindingService.onDidUpdateKeybindings(update));
 	}
 
