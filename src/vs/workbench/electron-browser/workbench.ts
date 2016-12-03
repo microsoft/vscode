@@ -101,9 +101,16 @@ interface WorkbenchParams {
 	serviceCollection: ServiceCollection;
 }
 
+export interface IWorkbenchStartedInfo {
+	customKeybindingsCount: number;
+	restoreViewletDuration: number;
+	restoreEditorsDuration: number;
+	pinnedViewlets: string[];
+}
+
 export interface IWorkbenchCallbacks {
 	onServicesCreated?: () => void;
-	onWorkbenchStarted?: (customKeybindingsCount: number, restoreViewletDuration: number, restoreEditorsDuration: number) => void;
+	onWorkbenchStarted?: (info: IWorkbenchStartedInfo) => void;
 }
 
 const Identifiers = {
@@ -322,7 +329,12 @@ export class Workbench implements IPartService {
 				this.creationPromiseComplete(true);
 
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
-					this.callbacks.onWorkbenchStarted(this.keybindingService.customKeybindingsCount(), viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0, editorRestoreStopWatch.elapsed());
+					this.callbacks.onWorkbenchStarted({
+						customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
+						restoreViewletDuration: viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0,
+						restoreEditorsDuration: editorRestoreStopWatch.elapsed(),
+						pinnedViewlets: this.activitybarPart.getPinned()
+					});
 				}
 
 				if (error) {

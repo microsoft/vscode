@@ -305,6 +305,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return action;
 	}
 
+	public getPinned(): string[] {
+		return this.pinnedViewlets;
+	}
+
 	public unpin(viewletId: string): void {
 		if (!this.isPinned(viewletId)) {
 			return;
