@@ -515,6 +515,9 @@ export class VSCodeMenu {
 		const findInFiles = this.createMenuItem(nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"), 'workbench.action.findInFiles');
 		const replaceInFiles = this.createMenuItem(nls.localize({ key: 'miReplaceInFiles', comment: ['&& denotes a mnemonic'] }, "Replace &&in Files"), 'workbench.action.replaceInFiles');
 
+		const emmetExpandAbbreviation = this.createMenuItem(nls.localize({ key: 'miEmmetExpandAbbreviation', comment: ['&& denotes a mnemonic'] }, "Emmet: E&&xpand Abbreviation"), 'editor.emmet.action.expandAbbreviation');
+		const showEmmetCommands = this.createMenuItem(nls.localize({ key: 'miShowEmmetCommands', comment: ['&& denotes a mnemonic'] }, "E&&mmet..."), 'workbench.action.showEmmetCommands');
+
 		[
 			undo,
 			redo,
@@ -527,7 +530,10 @@ export class VSCodeMenu {
 			replace,
 			__separator__(),
 			findInFiles,
-			replaceInFiles
+			replaceInFiles,
+			__separator__(),
+			emmetExpandAbbreviation,
+			showEmmetCommands
 		].forEach(item => winLinuxEditMenu.append(item));
 	}
 
@@ -551,9 +557,6 @@ export class VSCodeMenu {
 		const smartSelectGrow = this.createMenuItem(nls.localize({ key: 'miSmartSelectGrow', comment: ['&& denotes a mnemonic'] }, "&&Expand Selection"), 'editor.action.smartSelect.grow');
 		const smartSelectshrink = this.createMenuItem(nls.localize({ key: 'miSmartSelectShrink', comment: ['&& denotes a mnemonic'] }, "&&Shrink Selection"), 'editor.action.smartSelect.shrink');
 
-		const emmetExpandAbbreviation = this.createMenuItem(nls.localize({ key: 'miEmmetExpandAbbreviation', comment: ['&& denotes a mnemonic'] }, "Emmet: E&&xpand Abbreviation"), 'editor.emmet.action.expandAbbreviation');
-		const showEmmetCommands = this.createMenuItem(nls.localize({ key: 'miShowEmmetCommands', comment: ['&& denotes a mnemonic'] }, "E&&mmet..."), 'workbench.action.showEmmetCommands');
-
 		[
 			insertCursorAbove,
 			insertCursorBelow,
@@ -568,9 +571,6 @@ export class VSCodeMenu {
 			selectAll,
 			smartSelectGrow,
 			smartSelectshrink,
-			__separator__(),
-			emmetExpandAbbreviation,
-			showEmmetCommands
 		].forEach(item => winLinuxEditMenu.append(item));
 	}
 
