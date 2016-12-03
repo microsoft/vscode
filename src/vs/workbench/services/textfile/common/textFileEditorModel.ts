@@ -203,7 +203,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
 
-			// Set flags back to previous values, we are still dirty if revert failed and we where
+			// Set flags back to previous values, we are still dirty if revert failed
 			else {
 				undo();
 			}
@@ -247,6 +247,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (result === FileOperationResult.FILE_NOT_FOUND) {
 				if (!this.textEditorModel && !this.createTextEditorModelPromise) {
 					return this.backupFileService.loadBackupResource(this.resource).then(backup => {
+
+						// Make sure meanwhile someone else did not suceed or start loading
+						if (this.createTextEditorModelPromise) {
+							return this.createTextEditorModelPromise;
+						} else if (this.textEditorModel) {
+							return TPromise.as(this.textEditorModel);
+						}
+
+						// If we have a backup, continue loading with it
 						if (!!backup) {
 							const content: IContent = {
 								resource: this.resource,
@@ -327,7 +336,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		else {
 			diag('load() - created text editor model', this.resource, new Date());
 
-			return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
+			this.createTextEditorModelPromise = this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
 				let resolveBackupPromise: TPromise<string | IRawText>;
 
 				// Try get restore content, if there is an issue fallback silently to the original file's content
@@ -339,7 +348,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					resolveBackupPromise = TPromise.as(content.value);
 				}
 
-				this.createTextEditorModelPromise = resolveBackupPromise.then(fileContent => {
+				return resolveBackupPromise.then(fileContent => {
 					return this.createTextEditorModel(fileContent, content.resource).then(() => {
 						this.createTextEditorModelPromise = null;
 
@@ -358,9 +367,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						return TPromise.wrapError(error);
 					});
 				});
-
-				return this.createTextEditorModelPromise;
 			});
+
+			return this.createTextEditorModelPromise;
 		}
 	}
 
