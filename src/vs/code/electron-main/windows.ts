@@ -29,7 +29,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product';
-import Uri from 'vs/base/common/uri';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -331,10 +330,11 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		let foldersToOpen = arrays.distinct(iPathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => platform.isLinux ? folder : folder.toLowerCase()); // prevent duplicates
-		let foldersToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.getWorkspaceBackupPaths() : [];
+		let foldersToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.workspaceBackupPaths : [];
 		let filesToOpen: IPath[] = [];
 		let filesToDiff: IPath[] = [];
 		let emptyToOpen = iPathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
+		let emptyToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.emptyWorkspaceBackupPaths : [];
 		let filesToCreate = iPathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
 
 		// Diff mode needs special care
@@ -441,7 +441,17 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle empty
-		if (emptyToOpen.length > 0) {
+		if (emptyToRestore.length > 0) {
+			emptyToRestore.forEach(emptyWorkspaceBackupFolder => {
+				const configuration = this.toConfiguration(openConfig, null, null, null, null);
+				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */, null, emptyWorkspaceBackupFolder);
+				usedWindows.push(browserWindow);
+
+				openInNewWindow = true; // any other folders to open must open in new window then
+			});
+		}
+		// Only open empty if no empty workspaces were restored
+		else if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
 				const configuration = this.toConfiguration(openConfig);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
@@ -468,10 +478,6 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		// Register new paths for backup
-		if (!openConfig.cli.extensionDevelopmentPath) {
-			this.backupService.pushWorkspaceBackupPathsSync(iPathsToOpen.filter(p => p.workspacePath).map(p => Uri.file(p.workspacePath)));
-		}
 
 		// Emit events
 		this._onPathsOpen.fire(iPathsToOpen);
@@ -711,7 +717,7 @@ export class WindowsManager implements IWindowsMainService {
 		return [Object.create(null)];
 	}
 
-	private openInBrowserWindow(configuration: IWindowConfiguration, forceNewWindow?: boolean, windowToUse?: VSCodeWindow): VSCodeWindow {
+	private openInBrowserWindow(configuration: IWindowConfiguration, forceNewWindow?: boolean, windowToUse?: VSCodeWindow, emptyWorkspaceBackupFolder?: string): VSCodeWindow {
 		let vscodeWindow: VSCodeWindow;
 
 		if (!forceNewWindow) {
@@ -760,6 +766,10 @@ export class WindowsManager implements IWindowsMainService {
 				configuration.debugPluginHost = currentWindowConfig.debugPluginHost;
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 			}
+		}
+
+		if (!configuration.extensionDevelopmentPath) {
+			this.backupService.registerWindowForBackups(vscodeWindow.id, !configuration.workspacePath, emptyWorkspaceBackupFolder, configuration.workspacePath);
 		}
 
 		// Only load when the window has not vetoed this

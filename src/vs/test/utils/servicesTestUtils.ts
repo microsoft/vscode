@@ -18,7 +18,7 @@ import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/stor
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import { IBackupService, IBackupFileService, IBackupResult } from 'vs/workbench/services/backup/common/backup';
+import { IBackupModelService, IBackupFileService, IBackupResult } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -116,7 +116,7 @@ export class TestTextFileService extends TextFileService {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IBackupService backupService: IBackupService,
+		@IBackupModelService backupService: IBackupModelService,
 		@IMessageService messageService: IMessageService
 	) {
 		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
@@ -181,7 +181,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
-	instantiationService.stub(IBackupService, new TestBackupService());
+	instantiationService.stub(IBackupModelService, new TestBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
@@ -623,7 +623,7 @@ export const TestFileService = {
 	}
 };
 
-export class TestBackupService implements IBackupService {
+export class TestBackupService implements IBackupModelService {
 	public _serviceBrand: any;
 
 	public isHotExitEnabled: boolean = false;
