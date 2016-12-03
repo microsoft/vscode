@@ -23,6 +23,7 @@ import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/c
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import debugActions = require('vs/workbench/parts/debug/browser/debugActions');
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -134,7 +135,10 @@ configurationRegistry.registerConfiguration({
 				debugActions.StopAction.ID,
 				debugActions.RunAction.ID,
 				debugActions.RestartAction.ID,
-				debugActions.ContinueAction.ID
+				debugActions.ContinueAction.ID,
+				OpenNextRecentlyUsedEditorInGroupAction.ID,
+				OpenPreviousRecentlyUsedEditorInGroupAction.ID
+
 			].sort()
 		}
 	}
