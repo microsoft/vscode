@@ -55,21 +55,17 @@ export class BackupModelTracker implements IWorkbenchContribution {
 		if (event.kind === StateChange.REVERTED) {
 			this.discardBackup(event.resource);
 		} else if (event.kind === StateChange.CONTENT_CHANGE) {
-			if (this.backupService.isHotExitEnabled) {
-				const model = this.textFileService.models.get(event.resource);
-				this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()).done(null, errors.onUnexpectedError);
-			}
+			const model = this.textFileService.models.get(event.resource);
+			this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()).done(null, errors.onUnexpectedError);
 		}
 	}
 
 	private onUntitledModelChanged(resource: Uri): void {
-		if (this.backupService.isHotExitEnabled) {
-			const input = this.untitledEditorService.get(resource);
-			if (input.isDirty()) {
-				input.resolve().then(model => this.backupFileService.backupResource(resource, model.getValue(), model.getVersionId())).done(null, errors.onUnexpectedError);
-			} else {
-				this.discardBackup(resource);
-			}
+		const input = this.untitledEditorService.get(resource);
+		if (input.isDirty()) {
+			input.resolve().then(model => this.backupFileService.backupResource(resource, model.getValue(), model.getVersionId())).done(null, errors.onUnexpectedError);
+		} else {
+			this.discardBackup(resource);
 		}
 	}
 
