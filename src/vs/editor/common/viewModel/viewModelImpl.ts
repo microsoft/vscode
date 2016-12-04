@@ -71,7 +71,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this.getCurrentCenteredModelRange = getCurrentCenteredModelRange;
 
 		this.decorations = new ViewModelDecorations(this.editorId, this.configuration, {
-			convertModelRangeToViewRange: (modelRange: editorCommon.IRange, isWholeLine: boolean) => {
+			convertModelRangeToViewRange: (modelRange: Range, isWholeLine: boolean) => {
 				if (isWholeLine) {
 					return this.convertWholeLineModelRangeToViewRange(modelRange);
 				}
@@ -475,7 +475,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.model.getEOL();
 	}
 
-	public getValueInRange(range: editorCommon.IRange, eol: editorCommon.EndOfLinePreference): string {
+	public getValueInRange(range: Range, eol: editorCommon.EndOfLinePreference): string {
 		var modelRange = this.convertViewRangeToModelRange(range);
 		return this.model.getValueInRange(modelRange, eol);
 	}
@@ -490,7 +490,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.lines.convertOutputPositionToInputPosition(viewLineNumber, viewColumn);
 	}
 
-	public convertViewRangeToModelRange(viewRange: editorCommon.IRange): Range {
+	public convertViewRangeToModelRange(viewRange: Range): Range {
 		var start = this.convertViewPositionToModelPosition(viewRange.startLineNumber, viewRange.startColumn);
 		var end = this.convertViewPositionToModelPosition(viewRange.endLineNumber, viewRange.endColumn);
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
@@ -520,13 +520,13 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.lines.convertInputPositionToOutputPosition(modelLineNumber, modelColumn);
 	}
 
-	public convertModelRangeToViewRange(modelRange: editorCommon.IRange): Range {
+	public convertModelRangeToViewRange(modelRange: Range): Range {
 		var start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn);
 		var end = this.convertModelPositionToViewPosition(modelRange.endLineNumber, modelRange.endColumn);
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public convertWholeLineModelRangeToViewRange(modelRange: editorCommon.IRange): Range {
+	public convertWholeLineModelRangeToViewRange(modelRange: Range): Range {
 		var start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, 1);
 		var end = this.convertModelPositionToViewPosition(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber));
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
@@ -538,7 +538,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
 	}
 
-	public modelPositionIsVisible(position: editorCommon.IPosition): boolean {
+	public modelPositionIsVisible(position: Position): boolean {
 		return this.lines.inputPositionIsVisible(position.lineNumber, position.column);
 	}
 

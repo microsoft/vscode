@@ -257,7 +257,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		}
 	}
 
-	private _sendRevealRange(range: editorCommon.IRange, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+	private _sendRevealRange(range: Range, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		if (!this.model || !this.cursor) {
 			return;
 		}
@@ -277,66 +277,63 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	}
 
 	public revealLine(lineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: lineNumber,
-			startColumn: 1,
-			endLineNumber: lineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.Simple, false);
+		this._revealLine(lineNumber, editorCommon.VerticalRevealType.Simple);
 	}
 
 	public revealLineInCenter(lineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: lineNumber,
-			startColumn: 1,
-			endLineNumber: lineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.Center, false);
+		this._revealLine(lineNumber, editorCommon.VerticalRevealType.Center);
 	}
 
 	public revealLineInCenterIfOutsideViewport(lineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: lineNumber,
-			startColumn: 1,
-			endLineNumber: lineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.CenterIfOutsideViewport, false);
+		this._revealLine(lineNumber, editorCommon.VerticalRevealType.CenterIfOutsideViewport);
+	}
+
+	private _revealLine(lineNumber: number, revealType: editorCommon.VerticalRevealType): void {
+		if (typeof lineNumber !== 'number') {
+			throw new Error('Invalid arguments');
+		}
+
+		this._sendRevealRange(
+			new Range(lineNumber, 1, lineNumber, 1),
+			revealType,
+			false
+		);
 	}
 
 	public revealPosition(position: editorCommon.IPosition, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
-		if (!Position.isIPosition(position)) {
-			throw new Error('Invalid arguments');
-		}
-		this._sendRevealRange({
-			startLineNumber: position.lineNumber,
-			startColumn: position.column,
-			endLineNumber: position.lineNumber,
-			endColumn: position.column
-		}, revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, revealHorizontal);
+		this._revealPosition(
+			position,
+			revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple,
+			revealHorizontal
+		);
 	}
 
 	public revealPositionInCenter(position: editorCommon.IPosition): void {
-		if (!Position.isIPosition(position)) {
-			throw new Error('Invalid arguments');
-		}
-		this._sendRevealRange({
-			startLineNumber: position.lineNumber,
-			startColumn: position.column,
-			endLineNumber: position.lineNumber,
-			endColumn: position.column
-		}, editorCommon.VerticalRevealType.Center, true);
+		this._revealPosition(
+			position,
+			editorCommon.VerticalRevealType.Center,
+			true
+		);
 	}
 
 	public revealPositionInCenterIfOutsideViewport(position: editorCommon.IPosition): void {
+		this._revealPosition(
+			position,
+			editorCommon.VerticalRevealType.CenterIfOutsideViewport,
+			true
+		);
+	}
+
+	private _revealPosition(position: editorCommon.IPosition, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		if (!Position.isIPosition(position)) {
 			throw new Error('Invalid arguments');
 		}
-		this._sendRevealRange({
-			startLineNumber: position.lineNumber,
-			startColumn: position.column,
-			endLineNumber: position.lineNumber,
-			endColumn: position.column
-		}, editorCommon.VerticalRevealType.CenterIfOutsideViewport, true);
+
+		this._sendRevealRange(
+			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+			verticalType,
+			revealHorizontal
+		);
 	}
 
 	public getSelection(): Selection {
@@ -396,42 +393,75 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	}
 
 	public revealLines(startLineNumber: number, endLineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: startLineNumber,
-			startColumn: 1,
-			endLineNumber: endLineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.Simple, false);
+		this._revealLines(
+			startLineNumber,
+			endLineNumber,
+			editorCommon.VerticalRevealType.Simple
+		);
 	}
 
 	public revealLinesInCenter(startLineNumber: number, endLineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: startLineNumber,
-			startColumn: 1,
-			endLineNumber: endLineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.Center, false);
+		this._revealLines(
+			startLineNumber,
+			endLineNumber,
+			editorCommon.VerticalRevealType.Center
+		);
 	}
 
 	public revealLinesInCenterIfOutsideViewport(startLineNumber: number, endLineNumber: number): void {
-		this._sendRevealRange({
-			startLineNumber: startLineNumber,
-			startColumn: 1,
-			endLineNumber: endLineNumber,
-			endColumn: 1
-		}, editorCommon.VerticalRevealType.CenterIfOutsideViewport, false);
+		this._revealLines(
+			startLineNumber,
+			endLineNumber,
+			editorCommon.VerticalRevealType.CenterIfOutsideViewport
+		);
+	}
+
+	private _revealLines(startLineNumber: number, endLineNumber: number, verticalType: editorCommon.VerticalRevealType): void {
+		if (typeof startLineNumber !== 'number' || typeof endLineNumber !== 'number') {
+			throw new Error('Invalid arguments');
+		}
+
+		this._sendRevealRange(
+			new Range(startLineNumber, 1, endLineNumber, 1),
+			verticalType,
+			false
+		);
 	}
 
 	public revealRange(range: editorCommon.IRange, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = true): void {
-		this._sendRevealRange(range, revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, revealHorizontal);
+		this._revealRange(
+			range,
+			revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple,
+			revealHorizontal
+		);
 	}
 
 	public revealRangeInCenter(range: editorCommon.IRange): void {
-		this._sendRevealRange(range, editorCommon.VerticalRevealType.Center, true);
+		this._revealRange(
+			range,
+			editorCommon.VerticalRevealType.Center,
+			true
+		);
 	}
 
 	public revealRangeInCenterIfOutsideViewport(range: editorCommon.IRange): void {
-		this._sendRevealRange(range, editorCommon.VerticalRevealType.CenterIfOutsideViewport, true);
+		this._revealRange(
+			range,
+			editorCommon.VerticalRevealType.CenterIfOutsideViewport,
+			true
+		);
+	}
+
+	private _revealRange(range: editorCommon.IRange, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+		if (!Range.isIRange(range)) {
+			throw new Error('Invalid arguments');
+		}
+
+		this._sendRevealRange(
+			Range.lift(range),
+			verticalType,
+			revealHorizontal
+		);
 	}
 
 	public setSelections(ranges: editorCommon.ISelection[]): void {

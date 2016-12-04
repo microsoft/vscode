@@ -2357,7 +2357,7 @@ declare module monaco.editor {
         /**
          * The range of the decoration.
          */
-        readonly range: IRange;
+        readonly range: Range;
         /**
          * A flag describing if this is a problem decoration (e.g. warning/error).
          */

@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
-import { Handler, IEditorOptions, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection, IPosition } from 'vs/editor/common/editorCommon';
+import { Handler, IEditorOptions, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode } from 'vs/editor/common/modes';
 import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
@@ -543,14 +543,8 @@ function cursorEqual(cursor: Cursor, posLineNumber: number, posColumn: number, s
 	selectionEqual(cursor.getSelection(), posLineNumber, posColumn, selLineNumber, selColumn);
 }
 
-function positionEqual(position: IPosition, lineNumber: number, column: number) {
-	assert.deepEqual({
-		lineNumber: position.lineNumber,
-		column: position.column
-	}, {
-			lineNumber: lineNumber,
-			column: column
-		}, 'position equal');
+function positionEqual(position: Position, lineNumber: number, column: number) {
+	assert.deepEqual(position, new Position(lineNumber, column), 'position equal');
 }
 
 function selectionEqual(selection: ISelection, posLineNumber: number, posColumn: number, selLineNumber: number, selColumn: number) {

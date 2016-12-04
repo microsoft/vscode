@@ -13,6 +13,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StyleMutator } from 'vs/base/browser/styleMutator';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { Configuration } from 'vs/editor/browser/config/configuration';
@@ -874,11 +875,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 			getDecorationsInViewport: () => linesViewportData.getDecorationsInViewport(),
 
-			linesVisibleRangesForRange: (range: editorCommon.IRange, includeNewLines: boolean) => {
+			linesVisibleRangesForRange: (range: Range, includeNewLines: boolean) => {
 				return this.viewLines.linesVisibleRangesForRange(range, includeNewLines);
 			},
 
-			visibleRangeForPosition: (position: editorCommon.IPosition) => {
+			visibleRangeForPosition: (position: Position) => {
 				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column), deltaTop);
 				if (!visibleRanges) {
 					return null;

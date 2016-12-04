@@ -9,6 +9,7 @@ import 'vs/css!./viewCursors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { Position } from 'vs/editor/common/core/position';
 import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -99,7 +100,7 @@ export class ViewCursors extends ViewPart {
 		return true;
 	}
 	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
-		let shouldRender = (position: editorCommon.IPosition) => {
+		let shouldRender = (position: Position) => {
 			for (let i = 0, len = e.ranges.length; i < len; i++) {
 				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
 					return true;
@@ -185,7 +186,7 @@ export class ViewCursors extends ViewPart {
 	}
 	// --- end event handlers
 
-	public getPosition(): editorCommon.IPosition {
+	public getPosition(): Position {
 		return this._primaryCursor.getPosition();
 	}
 
