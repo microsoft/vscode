@@ -117,7 +117,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.on('data', (data) => {
 			this._process.send({
 				event: 'input',
-				data: this.sanitizeInput(data)
+				data: this._sanitizeInput(data)
 			});
 			return false;
 		});
@@ -290,7 +290,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalHasTextContextKey.set(!window.getSelection().isCollapsed);
 	}
 
-	private sanitizeInput(data: any) {
+	private _sanitizeInput(data: any) {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
