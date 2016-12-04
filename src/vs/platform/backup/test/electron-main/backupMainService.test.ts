@@ -75,6 +75,7 @@ suite('BackupMainService', () => {
 	});
 
 	test('service validates backup workspaces on startup and cleans up', done => {
+
 		// 1) backup workspace path does not exist
 		service.registerWindowForBackups(1, false, null, fooFile.fsPath);
 		service.registerWindowForBackups(2, false, null, barFile.fsPath);
@@ -102,6 +103,20 @@ suite('BackupMainService', () => {
 		assert.deepEqual(service.workspaceBackupPaths, []);
 		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
 		assert.ok(!fs.exists(service.toBackupPath(barFile.fsPath)));
+
+		// 4) backup workspace path points to a workspace that no longer exists
+		// so it should convert the backup worspace to an empty workspace backup
+		const fileBackups = path.join(service.toBackupPath(fooFile.fsPath), 'file');
+		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
+		fs.mkdirSync(service.toBackupPath(barFile.fsPath));
+		fs.mkdirSync(fileBackups);
+		service.registerWindowForBackups(1, false, null, fooFile.fsPath);
+		assert.equal(service.workspaceBackupPaths.length, 1);
+		assert.equal(service.emptyWorkspaceBackupPaths.length, 0);
+		fs.writeFileSync(path.join(fileBackups, 'backup.txt'), '');
+		service.loadSync();
+		assert.equal(service.workspaceBackupPaths.length, 0);
+		assert.equal(service.emptyWorkspaceBackupPaths.length, 1);
 
 		done();
 	});
