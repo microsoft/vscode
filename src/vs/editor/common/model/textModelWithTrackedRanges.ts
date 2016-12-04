@@ -35,7 +35,7 @@ class TrackedRange implements ITrackedRange {
 
 var _INSTANCE_COUNT = 0;
 
-export class TextModelWithTrackedRanges extends TextModelWithMarkers implements editorCommon.ITextModelWithTrackedRanges {
+export class TextModelWithTrackedRanges extends TextModelWithMarkers {
 
 	private _rangeIdGenerator: IdGenerator;
 	private _ranges: ITrackedRangesMap;
@@ -89,7 +89,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		return Object.keys(this._ranges).length;
 	}
 
-	public addTrackedRange(_textRange: editorCommon.IRange, stickiness: editorCommon.TrackedRangeStickiness): string {
+	protected _addTrackedRange(_textRange: editorCommon.IRange, stickiness: editorCommon.TrackedRangeStickiness): string {
 		let textRange = this.validateRange(_textRange);
 
 		let startMarkerSticksToPreviousCharacter = this._shouldStartMarkerSticksToPreviousCharacter(stickiness);
@@ -151,7 +151,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		return result;
 	}
 
-	public changeTrackedRange(rangeId: string, newTextRange: editorCommon.IRange): void {
+	protected _changeTrackedRange(rangeId: string, newTextRange: editorCommon.IRange): void {
 		if (this._ranges.hasOwnProperty(rangeId)) {
 			newTextRange = this.validateRange(newTextRange);
 
@@ -163,7 +163,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		}
 	}
 
-	public changeTrackedRangeStickiness(rangeId: string, newStickiness: editorCommon.TrackedRangeStickiness): void {
+	protected _changeTrackedRangeStickiness(rangeId: string, newStickiness: editorCommon.TrackedRangeStickiness): void {
 		if (this._ranges.hasOwnProperty(rangeId)) {
 			var range = this._ranges[rangeId];
 			this._changeMarkerStickiness(range.startMarkerId, this._shouldStartMarkerSticksToPreviousCharacter(newStickiness));
@@ -171,14 +171,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		}
 	}
 
-	public isValidTrackedRange(rangeId: string): boolean {
-		if (this._isDisposed || !this._ranges) {
-			return false;
-		}
-		return this._ranges.hasOwnProperty(rangeId);
-	}
-
-	public removeTrackedRange(rangeId: string): void {
+	protected _removeTrackedRange(rangeId: string): void {
 		if (this._ranges.hasOwnProperty(rangeId)) {
 			var range = this._ranges[rangeId];
 
@@ -225,7 +218,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
 	}
 
-	public getTrackedRange(rangeId: string): Range {
+	protected _getTrackedRange(rangeId: string): Range {
 		var range = this._ranges[rangeId];
 		var startMarker = this._getMarker(range.startMarkerId);
 		var endMarker = this._getMarker(range.endMarkerId);
@@ -263,7 +256,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		return result;
 	}
 
-	public getLinesTrackedRanges(startLineNumber: number, endLineNumber: number): editorCommon.IModelTrackedRange[] {
+	protected _getLinesTrackedRanges(startLineNumber: number, endLineNumber: number): editorCommon.IModelTrackedRange[] {
 		let result = this._getMultiLineTrackedRanges(startLineNumber, endLineNumber);
 		let resultMap: { [rangeId: string]: boolean; } = {};
 

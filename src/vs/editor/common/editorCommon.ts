@@ -1988,59 +1988,6 @@ export enum TrackedRangeStickiness {
 }
 
 /**
- * A model that can track ranges.
- */
-export interface ITextModelWithTrackedRanges extends ITextModel {
-	/**
-	 * Start tracking a range (across edit operations).
-	 * @param range The range to start tracking.
-	 * @param stickiness The behaviour when typing at the edges of the range.
-	 * @return A unique identifier for the tracked range.
-	 * @internal
-	 */
-	addTrackedRange(range: IRange, stickiness: TrackedRangeStickiness): string;
-
-	/**
-	 * Change the range of a tracked range.
-	 * @param id The id of the tracked range, as returned by a `addTrackedRange` call.
-	 * @param newRange The new range of the tracked range.
-	 * @internal
-	 */
-	changeTrackedRange(id: string, newRange: IRange): void;
-
-	/**
-	 * Change the stickiness (behaviour when typing at the edges of the range) for a tracked range.
-	 * @param id The id of the tracked range, as returned by a `addTrackedRange` call.
-	 * @param newStickiness The new behaviour when typing at the edges of the range.
-	 * @internal
-	 */
-	changeTrackedRangeStickiness(id: string, newStickiness: TrackedRangeStickiness): void;
-
-	/**
-	 * Remove a tracked range.
-	 * @param id The id of the tracked range, as returned by a `addTrackedRaneg` call.
-	 * @internal
-	 */
-	removeTrackedRange(id: string): void;
-
-	/**
-	 * Get the range of a tracked range.
-	 * @param id The id of the tracked range, as returned by a `addTrackedRaneg` call.
-	 * @internal
-	 */
-	getTrackedRange(id: string): Range;
-
-	/**
-	 * Gets all the tracked ranges for the lines between `startLineNumber` and `endLineNumber` as an array.
-	 * @param startLineNumber The start line number
-	 * @param endLineNumber The end line number
-	 * @return An array with the tracked ranges
-	 * @internal
-	 */
-	getLinesTrackedRanges(startLineNumber: number, endLineNumber: number): IModelTrackedRange[];
-}
-
-/**
  * A model that can have decorations.
  */
 export interface ITextModelWithDecorations {
@@ -2210,7 +2157,7 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 /**
  * A model.
  */
-export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
+export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations, IEditorModel {
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.

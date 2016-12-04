@@ -70,29 +70,33 @@ export class InsertSnippetController {
 		sortedOccurrences.sort(Range.compareRangesUsingStarts);
 
 		// track each occurence
-		for (const {occurences} of adaptedSnippet.placeHolders) {
-			const trackedRanges: string[] = [];
+		this.model.changeDecorations((changeAccessor) => {
+			for (const {occurences} of adaptedSnippet.placeHolders) {
+				const trackedRanges: string[] = [];
 
-			for (const range of occurences) {
-				let stickiness = editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+				for (const range of occurences) {
+					let stickiness = editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 
-				// Check if the previous range ends exactly where this range starts
-				// and iff so change the stickiness to avoid conflicts
-				let idx = binarySearch(sortedOccurrences, range, Range.compareRangesUsingStarts);
-				if (idx > 0
-					&& sortedOccurrences[idx - 1].endLineNumber === range.startLineNumber
-					&& sortedOccurrences[idx - 1].endColumn === range.startColumn) {
+					// Check if the previous range ends exactly where this range starts
+					// and iff so change the stickiness to avoid conflicts
+					let idx = binarySearch(sortedOccurrences, range, Range.compareRangesUsingStarts);
+					if (idx > 0
+						&& sortedOccurrences[idx - 1].endLineNumber === range.startLineNumber
+						&& sortedOccurrences[idx - 1].endColumn === range.startColumn) {
 
-					stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+					}
+
+					trackedRanges.push(changeAccessor.addDecoration(range, {
+						stickiness: stickiness
+					}));
 				}
 
-				trackedRanges.push(this.model.addTrackedRange(range, stickiness));
+				this.trackedPlaceHolders.push({
+					ranges: trackedRanges
+				});
 			}
-
-			this.trackedPlaceHolders.push({
-				ranges: trackedRanges
-			});
-		}
+		});
 
 		this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
 			let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
@@ -110,7 +114,7 @@ export class InsertSnippetController {
 			for (let i = 0, len = this.trackedPlaceHolders.length; i < len; i++) {
 				let className = (i === this.finishPlaceHolderIndex) ? 'finish-snippet-placeholder' : 'snippet-placeholder';
 				newDecorations.push({
-					range: this.model.getTrackedRange(this.trackedPlaceHolders[i].ranges[0]),
+					range: this.model.getDecorationRange(this.trackedPlaceHolders[i].ranges[0]),
 					options: {
 						className: className
 					}
@@ -210,7 +214,7 @@ export class InsertSnippetController {
 				var ranges = this.trackedPlaceHolders[i].ranges;
 
 				for (var j = 0; (allCollapsed || allEqualToEditableRange) && j < ranges.length; j++) {
-					var range = this.model.getTrackedRange(ranges[j]);
+					var range = this.model.getDecorationRange(ranges[j]);
 
 					if (allCollapsed) {
 						if (!range.isEmpty()) {
@@ -272,7 +276,7 @@ export class InsertSnippetController {
 		}
 
 		var oldPlaceHolderIndex = this.currentPlaceHolderIndex;
-		var oldRange = this.model.getTrackedRange(this.trackedPlaceHolders[oldPlaceHolderIndex].ranges[0]);
+		var oldRange = this.model.getDecorationRange(this.trackedPlaceHolders[oldPlaceHolderIndex].ranges[0]);
 		var sameRange = true;
 		do {
 			if (goToNext) {
@@ -281,7 +285,7 @@ export class InsertSnippetController {
 				this.currentPlaceHolderIndex = (this.trackedPlaceHolders.length + this.currentPlaceHolderIndex - 1) % this.trackedPlaceHolders.length;
 			}
 
-			var newRange = this.model.getTrackedRange(this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges[0]);
+			var newRange = this.model.getDecorationRange(this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges[0]);
 
 			sameRange = oldRange.equalsRange(newRange);
 
@@ -296,7 +300,7 @@ export class InsertSnippetController {
 			return false;
 		}
 		if (this.finishPlaceHolderIndex !== -1) {
-			var finishRange = this.model.getTrackedRange(this.trackedPlaceHolders[this.finishPlaceHolderIndex].ranges[0]);
+			var finishRange = this.model.getDecorationRange(this.trackedPlaceHolders[this.finishPlaceHolderIndex].ranges[0]);
 			// Let's just position cursor at the end of the finish range
 			this.editor.setPosition({
 				lineNumber: finishRange.endLineNumber,
@@ -320,7 +324,7 @@ export class InsertSnippetController {
 	private doLinkEditing(): void {
 		var selections: editorCommon.ISelection[] = [];
 		for (var i = 0, len = this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges.length; i < len; i++) {
-			var range = this.model.getTrackedRange(this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges[i]);
+			var range = this.model.getDecorationRange(this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges[i]);
 			selections.push({
 				selectionStartLineNumber: range.startLineNumber,
 				selectionStartColumn: range.startColumn,
@@ -341,12 +345,14 @@ export class InsertSnippetController {
 
 		this.listenersToRemove = dispose(this.listenersToRemove);
 
-		for (var i = 0; i < this.trackedPlaceHolders.length; i++) {
-			var ranges = this.trackedPlaceHolders[i].ranges;
-			for (var j = 0; j < ranges.length; j++) {
-				this.model.removeTrackedRange(ranges[j]);
+		this.model.changeDecorations((changeAccessor) => {
+			for (var i = 0; i < this.trackedPlaceHolders.length; i++) {
+				var ranges = this.trackedPlaceHolders[i].ranges;
+				for (var j = 0; j < ranges.length; j++) {
+					changeAccessor.removeDecoration(ranges[j]);
+				}
 			}
-		}
+		});
 		this.trackedPlaceHolders = [];
 
 		this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {

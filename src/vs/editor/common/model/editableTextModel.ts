@@ -735,14 +735,14 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	public setEditableRange(range: editorCommon.IRange): void {
 		this._commandManager.clear();
 		if (this._hasEditableRange) {
-			this.removeTrackedRange(this._editableRangeId);
+			this._removeTrackedRange(this._editableRangeId);
 			this._editableRangeId = null;
 			this._hasEditableRange = false;
 		}
 
 		if (range) {
 			this._hasEditableRange = true;
-			this._editableRangeId = this.addTrackedRange(range, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+			this._editableRangeId = this._addTrackedRange(range, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 		}
 	}
 
@@ -752,7 +752,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public getEditableRange(): Range {
 		if (this._hasEditableRange) {
-			return this.getTrackedRange(this._editableRangeId);
+			return this._getTrackedRange(this._editableRangeId);
 		} else {
 			return this.getFullModelRange();
 		}
