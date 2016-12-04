@@ -1009,7 +1009,6 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.DeleteWordStartRight] = (ctx) => this._deleteWordRight(false, WordNavigationType.WordStart, ctx);
 		this._handlers[H.DeleteWordEndRight] = (ctx) => this._deleteWordRight(false, WordNavigationType.WordEnd, ctx);
 
-		this._handlers[H.DeleteAllLeft] = (ctx) => this._deleteAllLeft(ctx);
 		this._handlers[H.DeleteAllRight] = (ctx) => this._deleteAllRight(ctx);
 		this._handlers[H.Cut] = (ctx) => this._cut(ctx);
 
@@ -1516,10 +1515,6 @@ export class Cursor extends EventEmitter {
 
 	private _deleteWordRight(whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
 		return this._applyEditForAll(ctx, (cursor) => WordOperations.deleteWordRight(cursor.config, cursor.model, cursor.modelState, whitespaceHeuristics, wordNavigationType));
-	}
-
-	private _deleteAllLeft(ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteAllLeft(cursor.config, cursor.model, cursor.modelState));
 	}
 
 	private _deleteAllRight(ctx: IMultipleCursorOperationContext): boolean {

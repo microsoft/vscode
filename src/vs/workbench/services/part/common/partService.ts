@@ -114,12 +114,7 @@ export interface IPartService {
 	getWorkbenchElementId(): string;
 
 	/**
-	 * Enables to restore the contents of the sidebar after a restart.
+	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
-	setRestoreSidebar(): void;
-
-	/**
-	 * Toggles the workbench in and out of focus mode - parts get hidden and window goes fullscreen.
-	 */
-	toggleFocusMode(): void;
+	toggleZenMode(): void;
 }

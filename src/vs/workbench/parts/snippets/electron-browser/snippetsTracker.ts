@@ -10,21 +10,21 @@ import workbenchExt = require('vs/workbench/common/contributions');
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
 import winjs = require('vs/base/common/winjs.base');
-import extfs = require('vs/base/node/extfs');
+import { mkdirp, fileExists, readdir } from 'vs/base/node/pfs';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import lifecycle = require('vs/base/common/lifecycle');
 import { readAndRegisterSnippets } from 'vs/editor/node/textMate/TMSnippets';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-
-import fs = require('fs');
+import { watch, FSWatcher } from 'fs';
 
 export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	private static FILE_WATCH_DELAY = 200;
 
 	private snippetFolder: string;
 	private toDispose: lifecycle.IDisposable[];
-	private watcher: fs.FSWatcher;
+	private watcher: FSWatcher;
 	private fileWatchDelayer: async.ThrottledDelayer<void>;
 
 	constructor(
@@ -37,13 +37,10 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 		this.toDispose = [];
 		this.fileWatchDelayer = new async.ThrottledDelayer<void>(SnippetsTracker.FILE_WATCH_DELAY);
 
-		if (!fs.existsSync(this.snippetFolder)) {
-			fs.mkdirSync(this.snippetFolder);
-		}
-
-		this.scanUserSnippets().then(_ => {
-			this.registerListeners();
-		});
+		mkdirp(this.snippetFolder)
+			.then(() => this.scanUserSnippets())
+			.then(() => this.registerListeners())
+			.done(undefined, onUnexpectedError);
 	}
 
 	private registerListeners(): void {
@@ -53,7 +50,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 		this.toDispose.push(scheduler);
 
 		try {
-			this.watcher = fs.watch(this.snippetFolder); // will be persistent but not recursive
+			this.watcher = watch(this.snippetFolder); // will be persistent but not recursive
 			this.watcher.on('change', (eventType: string) => {
 				if (eventType === 'delete') {
 					this.unregisterListener();
@@ -95,35 +92,8 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	}
 }
 
-function readDir(path: string): winjs.TPromise<string[]> {
-	return new winjs.TPromise<string[]>((c, e, p) => {
-		extfs.readdir(path, (err, files) => {
-			if (err) {
-				return e(err);
-			}
-			c(files);
-		});
-	});
-}
-
-function fileExists(path: string): winjs.TPromise<boolean> {
-	return new winjs.TPromise<boolean>((c, e, p) => {
-		fs.stat(path, (err, stats) => {
-			if (err) {
-				return c(false);
-			}
-
-			if (stats.isFile()) {
-				return c(true);
-			}
-
-			c(false);
-		});
-	});
-}
-
 function readFilesInDir(dirPath: string, namePattern: RegExp = null): winjs.TPromise<string[]> {
-	return readDir(dirPath).then((children) => {
+	return readdir(dirPath).then((children) => {
 		return winjs.TPromise.join(
 			children.map((child) => {
 				if (namePattern && !namePattern.test(child)) {

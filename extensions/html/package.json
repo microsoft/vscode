@@ -2,6 +2,7 @@
   "name": "html",
   "version": "0.1.0",
   "publisher": "vscode",
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "0.10.x"
   },
@@ -73,12 +74,12 @@
         "html.format.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Enable/disable default HTML formatter (requires restart)"
+          "description": "%html.format.enable.desc%"
         },
         "html.format.wrapLineLength": {
           "type": "integer",
           "default": 120,
-          "description": "Maximum amount of characters per line (0 = disable)."
+          "description": "%html.format.wrapLineLength.desc%"
         },
         "html.format.unformatted": {
           "type": [
@@ -86,17 +87,17 @@
             "null"
           ],
           "default": "a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, pre, q, samp, script, select, small, span, strong, sub, sup, textarea, tt, var",
-          "description": "List of tags, comma separated, that shouldn't be reformatted. 'null' defaults to all tags listed at https://www.w3.org/TR/html5/dom.html#phrasing-content."
+          "description": "%html.format.unformatted.desc%"
         },
         "html.format.indentInnerHtml": {
           "type": "boolean",
           "default": false,
-          "description": "Indent <head> and <body> sections."
+          "description": "%html.format.indentInnerHtml.desc%"
         },
         "html.format.preserveNewLines": {
           "type": "boolean",
           "default": true,
-          "description": "Whether existing line breaks before elements should be preserved. Only works before elements, not inside tags or for text."
+          "description": "%html.format.preserveNewLines.desc%"
         },
         "html.format.maxPreserveNewLines": {
           "type": [
@@ -104,17 +105,17 @@
             "null"
           ],
           "default": null,
-          "description": "Maximum number of line breaks to be preserved in one chunk. Use 'null' for unlimited."
+          "description": "%html.format.maxPreserveNewLines.desc%"
         },
         "html.format.indentHandlebars": {
           "type": "boolean",
           "default": false,
-          "description": "Format and indent {{#foo}} and {{/foo}}."
+          "description": "%html.format.indentHandlebars.desc%"
         },
         "html.format.endWithNewline": {
           "type": "boolean",
           "default": false,
-          "description": "End with a newline."
+          "description": "%html.format.endWithNewline.desc%"
         },
         "html.format.extraLiners": {
           "type": [
@@ -122,29 +123,34 @@
             "null"
           ],
           "default": "head, body, /html",
-          "description": "List of tags, comma separated, that should have an extra newline before them. 'null' defaults to \"head, body, /html\"."
+          "description": "%html.format.extraLiners.desc%"
         },
         "html.suggest.angular1": {
           "type": "boolean",
           "default": true,
-          "description": "Configures if the built-in HTML language support suggests Angular V1 tags and properties."
+          "description": "%html.suggest.angular1.desc%"
         },
         "html.suggest.ionic": {
           "type": "boolean",
           "default": true,
-          "description": "Configures if the built-in HTML language support suggests Ionic tags, properties and values."
+          "description": "%html.suggest.ionic.desc%"
         },
         "html.suggest.html5": {
           "type": "boolean",
           "default": true,
-          "description": "Configures if the built-in HTML language support suggests HTML5 tags, properties and values."
+          "description": "%html.suggest.html5.desc%"
         }
       }
     }
   },
   "dependencies": {
-    "vscode-languageclient": "^2.6.4-next.1",
-    "vscode-languageserver-types": "^1.0.5-next.1",
+    "vscode-extension-telemetry": "0.0.5",
+    "vscode-languageclient": "3.0.1-alpha.2",
+    "vscode-languageserver-types": "3.0.1-alpha.2",
     "vscode-nls": "^1.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^6.0.51",
+    "@types/mocha": "^2.2.33"
   }
 }

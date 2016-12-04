@@ -6,7 +6,8 @@
 'use strict';
 
 import Uri from 'vs/base/common/uri';
-import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import errors = require('vs/base/common/errors');
+import { IBackupModelService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -23,7 +24,7 @@ export class BackupModelTracker implements IWorkbenchContribution {
 
 	constructor(
 		@IBackupFileService private backupFileService: IBackupFileService,
-		@IBackupService private backupService: IBackupService,
+		@IBackupModelService private backupService: IBackupModelService,
 		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -54,26 +55,22 @@ export class BackupModelTracker implements IWorkbenchContribution {
 		if (event.kind === StateChange.REVERTED) {
 			this.discardBackup(event.resource);
 		} else if (event.kind === StateChange.CONTENT_CHANGE) {
-			if (this.backupService.isHotExitEnabled) {
-				const model = this.textFileService.models.get(event.resource);
-				this.backupFileService.backupResource(model.getResource(), model.getValue());
-			}
+			const model = this.textFileService.models.get(event.resource);
+			this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()).done(null, errors.onUnexpectedError);
 		}
 	}
 
 	private onUntitledModelChanged(resource: Uri): void {
-		if (this.backupService.isHotExitEnabled) {
-			const input = this.untitledEditorService.get(resource);
-			if (input.isDirty()) {
-				input.resolve().then(model => this.backupFileService.backupResource(resource, model.getValue()));
-			} else {
-				this.discardBackup(resource);
-			}
+		const input = this.untitledEditorService.get(resource);
+		if (input.isDirty()) {
+			input.resolve().then(model => this.backupFileService.backupResource(resource, model.getValue(), model.getVersionId())).done(null, errors.onUnexpectedError);
+		} else {
+			this.discardBackup(resource);
 		}
 	}
 
 	private discardBackup(resource: Uri): void {
-		this.backupFileService.discardResourceBackup(resource);
+		this.backupFileService.discardResourceBackup(resource).done(null, errors.onUnexpectedError);
 	}
 
 	public dispose(): void {

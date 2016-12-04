@@ -639,27 +639,22 @@ suite('TelemetryService', () => {
 		});
 	}));
 
+	test('Telemetry Service does not sent optInStatus when user opted out', sinon.test(function () {
+		let testAppender = new TestTelemetryAppender();
+		let service = new TelemetryService({ userOptIn: false, appender: testAppender }, undefined);
+
+		return service.publicLog(optInStatusEventName, { optIn: false }).then(() => {
+			assert.equal(testAppender.getEventsCount(), 0);
+			service.dispose();
+		});
+	}));
+
 	test('Telemetry Service sends events when enableTelemetry is on even user optin is on', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ userOptIn: true, appender: testAppender }, undefined);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 1);
-			service.dispose();
-		});
-	}));
-
-	test('Telemetry Service allows optin friendly events', sinon.test(function () {
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ userOptIn: false, appender: testAppender }, undefined);
-
-		return service.publicLog('testEvent').then(() => {
-			assert.equal(testAppender.getEventsCount(), 0);
-			return service.publicLog(optInStatusEventName, { userOptIn: false });
-		}).then(() => {
-			assert.equal(testAppender.getEventsCount(), 1);
-			assert.equal(testAppender.events[0].eventName, optInStatusEventName);
-			assert.equal(testAppender.events[0].data.userOptIn, false);
 			service.dispose();
 		});
 	}));

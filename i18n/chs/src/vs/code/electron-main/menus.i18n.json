@@ -97,6 +97,7 @@
 	"miToggleDebugConsole": "调试控制台(&&B)",
 	"miToggleDevTools": "切换开发人员工具(&&T)",
 	"miToggleEditorLayout": "切换编辑器组布局(&&L)",
+	"miToggleFocusMode": "切换焦点模式",
 	"miToggleFullScreen": "切换全屏(&&F)",
 	"miToggleIntegratedTerminal": "集成终端(&&I)",
 	"miToggleMenuBar": "切换菜单栏(&&B)",

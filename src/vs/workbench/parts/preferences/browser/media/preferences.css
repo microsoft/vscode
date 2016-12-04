@@ -1,0 +1,164 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.settings-header-widget {
+	display: none;
+	border-bottom: 1px solid #efefef;
+}
+
+.settings-header-widget.show {
+	display: flex;
+}
+
+.vs-dark .settings-header-widget {
+	border-bottom: 1px solid #2d2d2d;
+}
+
+.settings-header-widget > .settings-header-container {
+	margin: 8px 0px 12px 0;
+}
+
+.settings-header-widget > .settings-header-container > .settings-title-container {
+	display: flex
+}
+
+.settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container {
+	color: rgba(170, 170, 170, 1);
+	font-style: italic;
+	white-space: pre-wrap;
+	margin-bottom: 8px;
+}
+
+.settings-header-widget > .settings-header-container > .settings-title-container > .settings-info-container span {
+	padding-right: 6px;
+}
+
+.settings-header-widget > .settings-header-container > .settings-search-container > .settings-search-input {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.settings-header-widget > .settings-header-container > .settings-search-container > .settings-search-input > .monaco-inputbox {
+	height: 30px;
+}
+
+.vs .settings-header-widget > .settings-header-container > .settings-search-container > .settings-search-input > .monaco-inputbox {
+	border: 1px solid #ddd;
+}
+
+.settings-header-widget > .settings-header-container > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
+	font-size: 14px;
+}
+
+.monaco-editor .zone-widget.settings-group-title-widget {
+	z-index: 0;
+}
+
+.monaco-editor .settings-group-title-widget-container .title-container {
+	flex: 1;
+	width: 100%;
+	cursor: pointer;
+	padding-top: 6px;
+	padding-bottom: 6px;
+}
+
+.monaco-editor.vs .settings-group-title-widget-container .title-container:hover {
+	background-color: #e2e2e2;
+}
+
+.monaco-editor.hc-black .settings-group-title-widget-container .title-container:hover,
+.monaco-editor.vs-dark .settings-group-title-widget-container .title-container:hover {
+	background-color: #323232;
+}
+
+.monaco-editor .settings-group-title-widget-container .title-container .title {
+	position: relative;
+}
+
+.monaco-editor .settings-group-title-widget-container .title-container .title::before {
+	content: ' ';
+	background: url(expanded.svg) 50% 50% no-repeat;
+	position: absolute;
+	display: inline-block;
+	top: 1px;
+	width: 16px;
+	height: 16px;
+}
+
+.monaco-editor .settings-group-title-widget-container .title-container.collapsed .title::before {
+	background: url(collapsed.svg) 50% 50% no-repeat;
+}
+
+.monaco-editor .settings-group-title-widget-container .title-container > .title > span {
+	padding-left: 18px;
+}
+
+.monaco-editor .view-line:hover :not(.inline-folded).copySetting:after {
+	cursor: pointer;
+	content:" ";
+	background: url('copy.svg') center center no-repeat;
+	margin-left: 1em;
+	display:inline-block;
+	position: absolute;
+	height:16px;
+	width:16px;
+}
+
+.monaco-editor.hc-black .view-line:hover :not(.inline-folded).copySetting:after,
+.monaco-editor.vs-dark .view-line:hover :not(.inline-folded).copySetting:after {
+	background: url('copy_inverse.svg') center center no-repeat;
+}
+
+.monaco-editor .floating-click-widget {
+	background: rgb(179,255,179);
+	padding: 10px;
+	border-radius: 5px;
+	cursor: pointer;
+}
+
+.monaco-editor.vs-dark .floating-click-widget,
+.monaco-editor.hc-black .floating-click-widget {
+	background: rgb(21,97,21);
+}
+
+.title-actions .action-item .icon.collapseAll,
+.editor-actions .action-item .icon.collapseAll {
+	background: url('collapseAll.svg') center center no-repeat;
+}
+
+.vs-dark .title-actions .action-item .icon.collapseAll,
+.vs-dark .editor-actions .action-item .icon.collapseAll {
+	background: url('collapseAll_inverse.svg') center center no-repeat;
+}
+
+.monaco-editor .settings-count-widget {
+	padding: 4px 10px 4px 10px;
+	display: none;
+	position: absolute;
+	top: 4px;
+	right: 28px;
+	border-radius: 2px;
+	z-index: 1;
+}
+
+.monaco-editor .settings-count-widget.show {
+	display: inherit;
+}
+
+.monaco-editor .settings-count-widget.show:not(.no-results) {
+	background-color: #EFEFF2;
+}
+
+.monaco-editor.vs-dark .settings-count-widget.show:not(.no-results) {
+	background-color: #2D2D30;
+}
+
+.monaco-editor .settings-count-widget.show.no-results {
+	background-color: rgba(255,0,0,0.5);
+}
+
+.monaco-editor .settings-count-widget.show.no-results {
+	background-color: rgba(255,0,0,0.3);
+}

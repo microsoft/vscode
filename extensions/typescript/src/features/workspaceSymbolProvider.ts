@@ -32,7 +32,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		// typescript wants to have a resource even when asking
 		// general questions so we check the active editor. If this
 		// doesn't match we take the first TS document.
-		let uri: Uri;
+		let uri: Uri | undefined = undefined;
 		let editor = window.activeTextEditor;
 		if (editor) {
 			let document = editor.document;
@@ -54,8 +54,12 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			return Promise.resolve<SymbolInformation[]>([]);
 		}
 
+		const filepath = this.client.asAbsolutePath(uri);
+		if (!filepath) {
+			return Promise.resolve<SymbolInformation[]>([]);
+		}
 		let args: Proto.NavtoRequestArgs = {
-			file: this.client.asAbsolutePath(uri),
+			file: filepath,
 			searchValue: search
 		};
 		if (!args.file) {
@@ -74,7 +78,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 					if (item.kind === 'method' || item.kind === 'function') {
 						label += '()';
 					}
-					result.push(new SymbolInformation(label, _kindMapping[item.kind], item.containerName,
+					result.push(new SymbolInformation(label, _kindMapping[item.kind], '' + item.containerName,
 						new Location(this.client.asUrl(item.file), range)));
 				}
 				return result;

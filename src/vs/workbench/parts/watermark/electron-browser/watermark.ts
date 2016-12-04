@@ -26,7 +26,7 @@ import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/comm
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
-import { OpenGlobalKeybindingsAction } from 'vs/workbench/parts/settings/browser/openSettingsActions';
+import { OpenGlobalKeybindingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { SelectColorThemeAction } from 'vs/workbench/parts/themes/electron-browser/themes.contribution';
 
@@ -99,7 +99,7 @@ const openGlobalKeybindings: WatermarkEntry = {
 	ids: [OpenGlobalKeybindingsAction.ID]
 };
 
-const firstSessionEntries = [
+const newUserEntries = [
 	showCommands,
 	selectTheme,
 	selectKeymap,
@@ -158,9 +158,8 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		const box = $(watermark)
 			.div({ 'class': 'watermark-box' });
 		const folder = !!this.contextService.getWorkspace();
-		const firstSession = this.telemetryService.getExperiments().showFirstSessionWatermark &&
-			!this.storageService.get('telemetry.lastSessionDate');
-		const selected = (folder ? folderEntries : firstSession ? firstSessionEntries : noFolderEntries)
+		const newUser = this.telemetryService.getExperiments().showNewUserWatermark;
+		const selected = (newUser ? newUserEntries : (folder ? folderEntries : noFolderEntries))
 			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);
 		const update = () => {
 			const builder = $(box);

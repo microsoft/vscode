@@ -68,7 +68,7 @@ export class StringEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		const oldInput = this.getInput();
 		super.setInput(input, options);
 

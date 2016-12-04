@@ -35,7 +35,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupModelService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService } from 'vs/platform/message/common/message';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
@@ -60,7 +60,7 @@ class TestDirtyTextFileService extends TestTextFileService {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IBackupService backupService: IBackupService,
+		@IBackupModelService backupService: IBackupModelService,
 		@IMessageService messageService: IMessageService
 	) {
 		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
@@ -103,7 +103,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 
 		return configurationService.initialize().then(() => {
 			return {
-				configurationEditingService: new ConfigurationEditingService(configurationService, workspaceContextService, environmentService, fileService, textFileService),
+				configurationEditingService: new ConfigurationEditingService(configurationService, workspaceContextService, environmentService, fileService, null, textFileService),
 				configurationService
 			};
 		});

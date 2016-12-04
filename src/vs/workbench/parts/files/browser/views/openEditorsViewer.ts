@@ -16,7 +16,7 @@ import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceInput, IEditorInput, Position } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -261,7 +261,7 @@ export class Controller extends treedefaults.DefaultController {
 			}
 
 			tree.setSelection([element], payload);
-			this.openEditor(element, isDoubleClick);
+			this.openEditor(element, isDoubleClick, event.ctrlKey || event.metaKey);
 		}
 
 		return true;
@@ -287,7 +287,7 @@ export class Controller extends treedefaults.DefaultController {
 			return true;
 		}
 
-		this.openEditor(element, false);
+		this.openEditor(element, false, event.ctrlKey || event.metaKey);
 
 		return super.onEnter(tree, event);
 	}
@@ -324,16 +324,16 @@ export class Controller extends treedefaults.DefaultController {
 		return true;
 	}
 
-	private openEditor(element: OpenEditor, pinEditor: boolean): void {
+	private openEditor(element: OpenEditor, pinEditor: boolean, openToSide: boolean): void {
 		if (element) {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
-			const position = this.model.positionOfGroup(element.editorGroup);
-			if (pinEditor) {
-				this.editorGroupService.pinEditor(element.editorGroup, element.editorInput);
+			let position = this.model.positionOfGroup(element.editorGroup);
+			if (openToSide && position !== Position.THREE) {
+				position++;
 			}
-			this.editorGroupService.activateGroup(element.editorGroup);
-			this.editorService.openEditor(element.editorInput, { preserveFocus: !pinEditor }, position)
-				.done(() => this.editorGroupService.activateGroup(element.editorGroup), errors.onUnexpectedError);
+			this.editorGroupService.activateGroup(this.model.groupAt(position));
+			this.editorService.openEditor(element.editorInput, { preserveFocus: !pinEditor, pinned: pinEditor }, position)
+				.done(() => this.editorGroupService.activateGroup(this.model.groupAt(position)), errors.onUnexpectedError);
 		}
 	}
 }

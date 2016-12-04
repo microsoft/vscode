@@ -18,7 +18,6 @@ import strings = require('vs/base/common/strings');
 import { Event, EventType as CommonEventType } from 'vs/base/common/events';
 import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { Action, IAction } from 'vs/base/common/actions';
 import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
@@ -50,6 +49,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { Selection } from 'vs/editor/common/core/selection';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 export interface IEditableData {
 	action: IAction;
@@ -1430,10 +1430,11 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 
 				let selectionOfSource: Selection;
 				const activeEditor = this.editorService.getActiveEditor();
-				if (activeEditor instanceof BaseTextEditor) {
+				const editor = getCodeEditor(activeEditor);
+				if (editor) {
 					const activeResource = getUntitledOrFileResource(activeEditor.input, true);
 					if (activeResource && activeResource.toString() === source.toString()) {
-						selectionOfSource = <Selection>activeEditor.getSelection();
+						selectionOfSource = <Selection>editor.getSelection();
 					}
 				}
 

@@ -158,9 +158,11 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	public load(): TPromise<EditorModel> {
 
 		// Check for backups first
-		return this.backupFileService.hasBackup(this.resource).then(hasBackup => {
-			if (hasBackup) {
-				return this.textFileService.resolveTextContent(this.backupFileService.getBackupResource(this.resource), BACKUP_FILE_RESOLVE_OPTIONS).then(rawTextContent => rawTextContent.value.lines.join('\n'));
+		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
+			if (backupResource) {
+				return this.textFileService.resolveTextContent(backupResource, BACKUP_FILE_RESOLVE_OPTIONS).then(rawTextContent => {
+					return this.backupFileService.parseBackupContent(rawTextContent);
+				});
 			}
 
 			return null;

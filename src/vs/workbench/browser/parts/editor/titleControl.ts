@@ -36,7 +36,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 
 export interface IToolbarActions {
@@ -332,7 +332,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
 			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(_ => this.update()));
 
-			fillInActions(titleBarMenu, { primary, secondary });
+			fillInActions(titleBarMenu, this.resourceContext.get(), { primary, secondary });
 		}
 
 		return { primary, secondary };
@@ -399,7 +399,12 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
 
-		if (!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) || !arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds)) {
+		if (
+			!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) ||
+			!arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds) ||
+			primaryEditorActions.some(action => action instanceof ExecuteCommandAction) || // execute command actions can have the same ID but different arguments
+			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/Microsoft/vscode/issues/16298
+		) {
 			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
 
 			if (!this.showTabs) {
@@ -480,7 +485,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 		}
 
 		// Fill in contributed actions
-		fillInActions(this.contextMenu, actions);
+		fillInActions(this.contextMenu, this.resourceContext.get(), actions);
 
 		return actions;
 	}

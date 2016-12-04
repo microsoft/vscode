@@ -19,9 +19,9 @@ import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import { StopWatch } from 'vs/base/common/stopwatch';
 import errors = require('vs/base/common/errors');
-import { BackupService } from 'vs/workbench/services/backup/node/backupService';
+import { BackupModelService } from 'vs/workbench/services/backup/node/backupModelService';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
-import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupModelService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -39,7 +39,6 @@ import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPar
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { WorkbenchLayout } from 'vs/workbench/browser/layout';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actionBarRegistry';
-import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
@@ -57,7 +56,7 @@ import { ConfigurationEditingService } from 'vs/workbench/services/configuration
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IActivityService } from 'vs/workbench/services/activity/common/activityService';
+import { IActivityBarService } from 'vs/workbench/services/activity/common/activityBarService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletService } from 'vs/workbench/services/viewlet/browser/viewletService';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
@@ -80,7 +79,7 @@ import { SCMService } from 'vs/workbench/services/scm/common/scmService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -93,7 +92,7 @@ import { IWindowConfiguration } from 'vs/workbench/electron-browser/common';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
-export const InFocusModeContext = new RawContextKey<boolean>('inFocusMode', false);
+export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
@@ -102,9 +101,16 @@ interface WorkbenchParams {
 	serviceCollection: ServiceCollection;
 }
 
+export interface IWorkbenchStartedInfo {
+	customKeybindingsCount: number;
+	restoreViewletDuration: number;
+	restoreEditorsDuration: number;
+	pinnedViewlets: string[];
+}
+
 export interface IWorkbenchCallbacks {
 	onServicesCreated?: () => void;
-	onWorkbenchStarted?: (customKeybindingsCount: number, restoreViewletDuration: number, restoreEditorsDuration: number) => void;
+	onWorkbenchStarted?: (info: IWorkbenchStartedInfo) => void;
 }
 
 const Identifiers = {
@@ -168,9 +174,9 @@ export class Workbench implements IPartService {
 	private editorBackgroundDelayer: Delayer<void>;
 	private messagesVisibleContext: IContextKey<boolean>;
 	private editorsVisibleContext: IContextKey<boolean>;
-	private inFocusMode: IContextKey<boolean>;
+	private inZenMode: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
-	private focusMode: {
+	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
 		isPartVisible: { [part: string]: boolean };
@@ -246,7 +252,7 @@ export class Workbench implements IPartService {
 			// Contexts
 			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
 			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
-			this.inFocusMode = InFocusModeContext.bindTo(this.contextKeyService);
+			this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
 
 			// Register Listeners
 			this.registerListeners();
@@ -273,12 +279,12 @@ export class Workbench implements IPartService {
 				}
 
 				if (!viewletIdToRestore) {
-					viewletIdToRestore = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId();
+					viewletIdToRestore = this.viewletService.getDefaultViewletId();
 				}
 
 				viewletRestoreStopWatch = StopWatch.create();
 				const viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('[renderer] open viewlet {0}', viewletIdToRestore));
-				compositeAndEditorPromises.push(this.viewletService.restoreViewlet(viewletIdToRestore).then(() => {
+				compositeAndEditorPromises.push(this.viewletService.openViewlet(viewletIdToRestore).then(() => {
 					viewletTimerEvent.stop();
 					viewletRestoreStopWatch.stop();
 				}));
@@ -323,7 +329,12 @@ export class Workbench implements IPartService {
 				this.creationPromiseComplete(true);
 
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
-					this.callbacks.onWorkbenchStarted(this.keybindingService.customKeybindingsCount(), viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0, editorRestoreStopWatch.elapsed());
+					this.callbacks.onWorkbenchStarted({
+						customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
+						restoreViewletDuration: viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0,
+						restoreEditorsDuration: editorRestoreStopWatch.elapsed(),
+						pinnedViewlets: this.activitybarPart.getPinned()
+					});
 				}
 
 				if (error) {
@@ -440,7 +451,7 @@ export class Workbench implements IPartService {
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart, Identifiers.ACTIVITYBAR_PART);
 		this.toDispose.push(this.activitybarPart);
 		this.toShutdown.push(this.activitybarPart);
-		serviceCollection.set(IActivityService, this.activitybarPart);
+		serviceCollection.set(IActivityBarService, this.activitybarPart);
 
 		// Editor service (editor part)
 		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasFilesToCreateOpenOrDiff);
@@ -459,10 +470,10 @@ export class Workbench implements IPartService {
 
 		// Backup File Service
 		const workspace = this.contextService.getWorkspace();
-		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, workspace ? workspace.resource : null));
+		serviceCollection.set(IBackupFileService, this.instantiationService.createInstance(BackupFileService, this.windowService.getCurrentWindowId()));
 
 		// Backup Service
-		serviceCollection.set(IBackupService, this.instantiationService.createInstance(BackupService));
+		serviceCollection.set(IBackupModelService, this.instantiationService.createInstance(BackupModelService));
 
 		// Text File Service
 		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
@@ -504,13 +515,7 @@ export class Workbench implements IPartService {
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
 		if (!this.contextService.getWorkspace()) {
-			// some first time users will see a sidebar; returning users will not see the sidebar
-			this.sideBarHidden = !this.telemetryService.getExperiments().showDefaultViewlet;
-		}
-
-		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
-		if (!viewletRegistry.getDefaultViewletId()) {
-			this.sideBarHidden = true; // can only hide sidebar if we dont have a default Viewlet id
+			this.sideBarHidden = true; // we hide sidebar in single-file-mode
 		}
 
 		// Panel part visibility
@@ -532,8 +537,8 @@ export class Workbench implements IPartService {
 		const activityBarVisible = this.configurationService.lookup<string>(Workbench.activityBarVisibleConfigurationKey).value;
 		this.activityBarHidden = !activityBarVisible;
 
-		// Focus mode
-		this.focusMode = {
+		// Zen mode
+		this.zenMode = {
 			active: false,
 			isPartVisible: {},
 			transitionedToFullScreen: false
@@ -594,18 +599,18 @@ export class Workbench implements IPartService {
 	}
 
 	public isVisible(part: Parts): boolean {
-		const checkFocusMode = (part: Parts) => !this.focusMode.active || this.focusMode.isPartVisible[part.toString()];
+		const checkZenMode = (part: Parts) => !this.zenMode.active || this.zenMode.isPartVisible[part.toString()];
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				return this.getCustomTitleBarStyle() && !browser.isFullscreen();
 			case Parts.SIDEBAR_PART:
-				return !this.sideBarHidden && checkFocusMode(Parts.SIDEBAR_PART);
+				return !this.sideBarHidden && checkZenMode(Parts.SIDEBAR_PART);
 			case Parts.PANEL_PART:
-				return !this.panelHidden && checkFocusMode(Parts.PANEL_PART);
+				return !this.panelHidden && checkZenMode(Parts.PANEL_PART);
 			case Parts.STATUSBAR_PART:
-				return !this.statusBarHidden && checkFocusMode(Parts.STATUSBAR_PART);
+				return !this.statusBarHidden && checkZenMode(Parts.STATUSBAR_PART);
 			case Parts.ACTIVITYBAR_PART:
-				return !this.activityBarHidden && checkFocusMode(Parts.ACTIVITYBAR_PART);
+				return !this.activityBarHidden && checkZenMode(Parts.ACTIVITYBAR_PART);
 		}
 
 		return true; // any other part cannot be hidden
@@ -642,8 +647,8 @@ export class Workbench implements IPartService {
 	}
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.focusMode.active) {
-			this.focusMode.isPartVisible[Parts.STATUSBAR_PART.toString()] = !hidden;
+		if (this.zenMode.active) {
+			this.zenMode.isPartVisible[Parts.STATUSBAR_PART.toString()] = !hidden;
 		}
 		this.statusBarHidden = hidden;
 
@@ -655,8 +660,8 @@ export class Workbench implements IPartService {
 	}
 
 	public setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.focusMode.active) {
-			this.focusMode.isPartVisible[Parts.ACTIVITYBAR_PART.toString()] = !hidden;
+		if (this.zenMode.active) {
+			this.zenMode.isPartVisible[Parts.ACTIVITYBAR_PART.toString()] = !hidden;
 		}
 		this.activityBarHidden = hidden;
 
@@ -668,8 +673,8 @@ export class Workbench implements IPartService {
 	}
 
 	public setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.focusMode.active) {
-			this.focusMode.isPartVisible[Parts.SIDEBAR_PART.toString()] = !hidden;
+		if (this.zenMode.active) {
+			this.zenMode.isPartVisible[Parts.SIDEBAR_PART.toString()] = !hidden;
 		}
 
 		this.sideBarHidden = hidden;
@@ -703,8 +708,7 @@ export class Workbench implements IPartService {
 
 		// If sidebar becomes visible, show last active Viewlet or default viewlet
 		else if (!hidden && !this.sidebarPart.getActiveViewlet()) {
-			const registry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
-			const viewletToOpen = this.sidebarPart.getLastActiveViewletId() || registry.getDefaultViewletId();
+			const viewletToOpen = this.sidebarPart.getLastActiveViewletId() || this.viewletService.getDefaultViewletId();
 			if (viewletToOpen) {
 				this.sidebarPart.openViewlet(viewletToOpen, true).done(null, errors.onUnexpectedError);
 			}
@@ -715,8 +719,8 @@ export class Workbench implements IPartService {
 	}
 
 	public setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.focusMode.active) {
-			this.focusMode.isPartVisible[Parts.PANEL_PART.toString()] = !hidden;
+		if (this.zenMode.active) {
+			this.zenMode.isPartVisible[Parts.PANEL_PART.toString()] = !hidden;
 		}
 		this.panelHidden = hidden;
 
@@ -802,7 +806,12 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	private shutdownComponents(): void {
+	private shutdownComponents(reason = ShutdownReason.QUIT): void {
+
+		// Restore sidebar if we are being shutdown as a matter of a reload
+		if (reason === ShutdownReason.RELOAD) {
+			this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
+		}
 
 		// Pass shutdown on to each participant
 		this.toShutdown.forEach(s => s.shutdown());
@@ -838,8 +847,8 @@ export class Workbench implements IPartService {
 			this.addClass('fullscreen');
 		} else {
 			this.removeClass('fullscreen');
-			if (this.focusMode.transitionedToFullScreen && this.focusMode.active) {
-				this.toggleFocusMode();
+			if (this.zenMode.transitionedToFullScreen && this.zenMode.active) {
+				this.toggleZenMode();
 			}
 		}
 
@@ -1052,21 +1061,17 @@ export class Workbench implements IPartService {
 		return Identifiers.WORKBENCH_CONTAINER;
 	}
 
-	public setRestoreSidebar(): void {
-		this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
-	}
+	public toggleZenMode(): void {
+		this.zenMode.active = !this.zenMode.active;
+		this.inZenMode.set(this.zenMode.active);
+		Object.keys(this.zenMode.isPartVisible).forEach(key => this.zenMode.isPartVisible[key] = false);
+		// Check if zen mode transitioned to full screen and if now we are out of zen mode -> we need to go out of full screen
+		let toggleFullScreen = !this.zenMode.active && this.zenMode.transitionedToFullScreen && browser.isFullscreen();
 
-	public toggleFocusMode(): void {
-		this.focusMode.active = !this.focusMode.active;
-		this.inFocusMode.set(this.focusMode.active);
-		Object.keys(this.focusMode.isPartVisible).forEach(key => this.focusMode.isPartVisible[key] = false);
-		// Check if focus mode transitioned to full screen and if now we are out of focus mode -> we need to go out of full screen
-		let toggleFullScreen = !this.focusMode.active && this.focusMode.transitionedToFullScreen && browser.isFullscreen();
-
-		if (this.focusMode.active) {
+		if (this.zenMode.active) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
-			toggleFullScreen = !browser.isFullscreen() && windowConfig.window.fullScreenFocusMode;
-			this.focusMode.transitionedToFullScreen = toggleFullScreen;
+			toggleFullScreen = !browser.isFullscreen() && windowConfig.window.fullScreenZenMode;
+			this.zenMode.transitionedToFullScreen = toggleFullScreen;
 		}
 
 		(toggleFullScreen ? this.windowService.toggleFullScreen() : TPromise.as(null))

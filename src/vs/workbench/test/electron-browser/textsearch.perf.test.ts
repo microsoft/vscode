@@ -7,6 +7,7 @@
 
 import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
+import * as fs from 'fs';
 import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -50,6 +51,9 @@ suite('TextSearch performance', () => {
 		const argv = minimist(process.argv);
 		const testWorkspaceArg = argv['testWorkspace'];
 		const testWorkspacePath = testWorkspaceArg ? path.resolve(testWorkspaceArg) : __dirname;
+		if (!fs.existsSync(testWorkspacePath)) {
+			throw new Error(`--testWorkspace doesn't exist`);
+		}
 
 		const telemetryService = new TestTelemetryService();
 		const configurationService = new SimpleConfigurationService();
@@ -70,8 +74,8 @@ suite('TextSearch performance', () => {
 			maxResults: 2048
 		};
 
+		const searchModel: SearchModel = instantiationService.createInstance(SearchModel);
 		function runSearch(): TPromise<any> {
-			const searchModel: SearchModel = instantiationService.createInstance(SearchModel);
 			const queryBuilder: QueryBuilder = instantiationService.createInstance(QueryBuilder);
 			const query = queryBuilder.text({ pattern: 'static_library(' }, queryOptions);
 

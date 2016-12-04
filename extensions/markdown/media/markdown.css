@@ -10,6 +10,10 @@ body {
 	line-height: 22px;
 }
 
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
 img {
 	max-width: 100%;
 	max-height: 100%;

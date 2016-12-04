@@ -20,8 +20,12 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 	}
 
 	public provideDocumentHighlights(resource: TextDocument, position: Position, token: CancellationToken): Promise<DocumentHighlight[]> {
+		const filepath = this.client.asAbsolutePath(resource.uri);
+		if (!filepath) {
+			return Promise.resolve<DocumentHighlight[]>([]);
+		}
 		let args: Proto.FileLocationRequestArgs = {
-			file: this.client.asAbsolutePath(resource.uri),
+			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
@@ -36,6 +40,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read);
 				});
 			}
+			return [];
 		}, (err) => {
 			this.client.error(`'occurrences' request failed with error.`, err);
 			return [];

@@ -16,7 +16,7 @@ import { fromEventEmitter } from 'vs/base/node/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from './auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from './auto-updater.linux';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/common/mainLifecycle';
+import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/product';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -85,7 +85,7 @@ export class UpdateService implements IUpdateService {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ILifecycleMainService private lifecycleService: ILifecycleMainService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
@@ -98,8 +98,6 @@ export class UpdateService implements IUpdateService {
 		} else {
 			return;
 		}
-
-		telemetryService.publicLog('whattt', { yeah: 123 });
 
 		const channel = this.getUpdateChannel();
 		const feedUrl = this.getUpdateFeedUrl(channel);

@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as assert from 'assert';
-import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, onError, toResource } from 'vs/test/utils/servicesTestUtils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -28,7 +28,7 @@ class ServiceAccessor {
 class ShutdownEventImpl implements ShutdownEvent {
 
 	public value: boolean | TPromise<boolean>;
-	public quitRequested: boolean = false;
+	public reason = ShutdownReason.CLOSE;
 
 	veto(value: boolean | TPromise<boolean>): void {
 		this.value = value;

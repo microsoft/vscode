@@ -371,6 +371,45 @@ interface IPreparedSnippet {
 	adaptedSnippet: ICodeSnippet;
 }
 
+class BeforeAfterData {
+
+	static create(model: editorCommon.IModel, selection: Selection, overwriteBefore: number, overwriteAfter: number) {
+
+		let contentBefore = '';
+		if (overwriteBefore > 0) {
+			contentBefore = model.getLineContent(selection.startLineNumber).substring(selection.startColumn - 1 - overwriteBefore, selection.startColumn - 1);
+		}
+
+		let contentAfter = '';
+		if (overwriteAfter > 0) {
+			contentAfter = model.getLineContent(selection.endLineNumber).substring(selection.endColumn - 1, selection.endColumn - 1 + overwriteAfter);
+		}
+
+		return new BeforeAfterData(model, contentBefore, contentAfter, overwriteBefore, overwriteAfter);
+	}
+
+	constructor(private readonly _model: editorCommon.IModel,
+		private readonly _contentBefore: string,
+		private readonly _contentAfter: string,
+		public readonly overwriteBefore: number,
+		public readonly overwriteAfter: number
+	) {
+		//
+	}
+
+	next(selection: Selection) {
+		const data = BeforeAfterData.create(this._model, selection, this.overwriteBefore, this.overwriteAfter);
+		let {overwriteBefore, overwriteAfter} = data;
+		if (data._contentBefore !== this._contentBefore) {
+			overwriteBefore = 0;
+		}
+		if (data._contentAfter !== this._contentAfter) {
+			overwriteAfter = 0;
+		}
+		return new BeforeAfterData(this._model, null, null, overwriteBefore, overwriteAfter);
+	}
+}
+
 @commonEditorContribution
 export class SnippetController {
 
@@ -496,6 +535,7 @@ export class SnippetController {
 		const edits: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		const selections = this._editor.getSelections();
 		const model = this._editor.getModel();
+		const primaryBeforeAfter = BeforeAfterData.create(model, selections[0], overwriteBefore, overwriteAfter);
 
 		let totalDelta = 0;
 		const newSelections: { offset: number; i: number }[] = [];
@@ -508,7 +548,18 @@ export class SnippetController {
 
 		for (const {selection, i} of selectionEntries) {
 
-			let {adaptedSnippet, typeRange} = SnippetController._prepareSnippet(this._editor, selection, snippet, overwriteBefore, overwriteAfter, stripPrefix);
+			// only use overwrite[Before|After] for secondary cursors
+			// when the same text as with the primary cursor is selected
+			const beforeAfter = i !== 0 ? primaryBeforeAfter.next(selection) : primaryBeforeAfter;
+
+			let {adaptedSnippet, typeRange} = SnippetController._prepareSnippet(
+				this._editor,
+				selection,
+				snippet,
+				beforeAfter.overwriteBefore,
+				beforeAfter.overwriteAfter,
+				stripPrefix
+			);
 
 			SnippetController._addCommandForSnippet(this._editor.getModel(), adaptedSnippet, typeRange, edits);
 

@@ -34,6 +34,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _id: number;
 	private _isExiting: boolean;
+	private _hadFocusOnExit: boolean;
 	private _isLaunching: boolean;
 	private _isVisible: boolean;
 	private _onDisposed: Emitter<TerminalInstance>;
@@ -55,6 +56,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onProcessIdReady(): Event<TerminalInstance> { return this._onProcessIdReady.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
+	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 
 	public constructor(
 		private _terminalFocusContextKey: IContextKey<boolean>,
@@ -70,6 +72,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._toDispose = [];
 		this._skipTerminalCommands = [];
 		this._isExiting = false;
+		this._hadFocusOnExit = false;
 		this._isLaunching = true;
 		this._isVisible = false;
 		this._id = TerminalInstance._idCounter++;
@@ -177,6 +180,9 @@ export class TerminalInstance implements ITerminalInstance {
 		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 		this.layout(new Dimension(width, height));
 		this.setVisible(this._isVisible);
+		this.setCursorBlink(this._configHelper.getCursorBlink());
+		this.setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
+		this.setScrollback(this._configHelper.getScrollback());
 	}
 
 	public copySelection(): void {
@@ -189,6 +195,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public dispose(): void {
 		this._isExiting = true;
+
+		if (this._xterm && this._xterm.element) {
+			this._hadFocusOnExit = DOM.hasClass(this._xterm.element, 'focus');
+		}
 		if (this._wrapperElement) {
 			this._container.removeChild(this._wrapperElement);
 			this._wrapperElement = null;

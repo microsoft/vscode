@@ -18,7 +18,7 @@ import { StorageService, InMemoryLocalStorage } from 'vs/workbench/services/stor
 import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import { IBackupService, IBackupFileService, IBackupResult } from 'vs/workbench/services/backup/common/backup';
+import { IBackupModelService, IBackupFileService, IBackupResult } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -30,7 +30,7 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -116,7 +116,7 @@ export class TestTextFileService extends TextFileService {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IBackupService backupService: IBackupService,
+		@IBackupModelService backupService: IBackupModelService,
 		@IMessageService messageService: IMessageService
 	) {
 		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
@@ -181,7 +181,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
-	instantiationService.stub(IBackupService, new TestBackupService());
+	instantiationService.stub(IBackupModelService, new TestBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
@@ -290,11 +290,7 @@ export class TestPartService implements IPartService {
 	public removeClass(clazz: string): void { }
 	public getWorkbenchElementId(): string { return ''; }
 
-	public setRestoreSidebar(): void {
-
-	}
-
-	public toggleFocusMode(): void { }
+	public toggleZenMode(): void { }
 }
 
 export class TestEventService extends EventEmitter implements IEventService {
@@ -627,7 +623,7 @@ export const TestFileService = {
 	}
 };
 
-export class TestBackupService implements IBackupService {
+export class TestBackupService implements IBackupModelService {
 	public _serviceBrand: any;
 
 	public isHotExitEnabled: boolean = false;
@@ -647,25 +643,18 @@ export class TestBackupService implements IBackupService {
 
 export class TestBackupFileService implements IBackupFileService {
 	public _serviceBrand: any;
-
-	public getWorkspaceBackupPaths(): TPromise<string[]> {
-		return TPromise.as([]);
-	}
-
-	public getWorkspaceBackupPathsSync(): string[] {
-		return [];
-	}
-
-	public pushWorkspaceBackupPathsSync(workspaces: URI[]): void {
-		return null;
-	}
-
-	public getWorkspaceTextFilesWithBackupsSync(workspace: URI): string[] {
-		return [];
-	}
-
 	public hasBackup(resource: URI): TPromise<boolean> {
 		return TPromise.as(false);
+	}
+
+	public loadBackupResource(resource: URI): TPromise<URI> {
+		return this.hasBackup(resource).then(hasBackup => {
+			if (hasBackup) {
+				return this.getBackupResource(resource);
+			}
+
+			return void 0;
+		});
 	}
 
 	public registerResourceForBackup(resource: URI): TPromise<void> {
@@ -684,6 +673,14 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as(void 0);
 	}
 
+	public getWorkspaceFileBackups(): TPromise<URI[]> {
+		return TPromise.as([]);
+	}
+
+	public parseBackupContent(rawText: IRawTextContent): string {
+		return rawText.value.lines.join('\n');
+	}
+
 	public discardResourceBackup(resource: URI): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -698,16 +695,15 @@ export class TestLifecycleService implements ILifecycleService {
 	public _serviceBrand: any;
 
 	public willShutdown: boolean;
-	public quitRequested: boolean;
 
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
-	private _onShutdown = new Emitter<void>();
+	private _onShutdown = new Emitter<ShutdownReason>();
 
 	constructor() {
 	}
 
-	public fireShutdown(): void {
-		this._onShutdown.fire();
+	public fireShutdown(reason = ShutdownReason.QUIT): void {
+		this._onShutdown.fire(reason);
 	}
 
 	public fireWillShutdown(event: ShutdownEvent): void {
@@ -718,7 +714,7 @@ export class TestLifecycleService implements ILifecycleService {
 		return this._onWillShutdown.event;
 	}
 
-	public get onShutdown(): Event<void> {
+	public get onShutdown(): Event<ShutdownReason> {
 		return this._onShutdown.event;
 	}
 }
