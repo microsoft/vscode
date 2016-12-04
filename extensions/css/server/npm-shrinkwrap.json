@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "dependencies": {
     "vscode-css-languageservice": {
-      "version": "2.0.0-next.5",
+      "version": "2.0.0-next.6",
       "from": "vscode-css-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-2.0.0-next.5.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-2.0.0-next.6.tgz"
     },
     "vscode-jsonrpc": {
       "version": "3.0.1-alpha.2",
