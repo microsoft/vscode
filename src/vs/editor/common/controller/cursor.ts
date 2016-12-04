@@ -205,14 +205,6 @@ export class Cursor extends EventEmitter {
 		}, 'restoreState', null);
 	}
 
-	public setEditableRange(range: editorCommon.IRange): void {
-		this.model.setEditableRange(range);
-	}
-
-	public getEditableRange(): Range {
-		return this.model.getEditableRange();
-	}
-
 	public addTypingListener(character: string, callback: ITypingListener): void {
 		if (!this.typingListeners.hasOwnProperty(character)) {
 			this.typingListeners[character] = [];

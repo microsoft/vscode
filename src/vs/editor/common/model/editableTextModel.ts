@@ -734,16 +734,26 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public setEditableRange(range: editorCommon.IRange): void {
 		this._commandManager.clear();
-		if (this._hasEditableRange) {
-			this._removeTrackedRange(this._editableRangeId);
-			this._editableRangeId = null;
-			this._hasEditableRange = false;
+
+		if (!this._hasEditableRange && !range) {
+			// Nothing to do
+			return;
 		}
 
-		if (range) {
-			this._hasEditableRange = true;
-			this._editableRangeId = this._addTrackedRange(range, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
-		}
+		this.changeDecorations((changeAccessor) => {
+			if (this._hasEditableRange) {
+				changeAccessor.removeDecoration(this._editableRangeId);
+				this._editableRangeId = null;
+				this._hasEditableRange = false;
+			}
+
+			if (range) {
+				this._hasEditableRange = true;
+				this._editableRangeId = changeAccessor.addDecoration(range, {
+					stickiness: editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+				});
+			}
+		});
 	}
 
 	public hasEditableRange(): boolean {
@@ -752,7 +762,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public getEditableRange(): Range {
 		if (this._hasEditableRange) {
-			return this._getTrackedRange(this._editableRangeId);
+			return this.getDecorationRange(this._editableRangeId);
 		} else {
 			return this.getFullModelRange();
 		}
