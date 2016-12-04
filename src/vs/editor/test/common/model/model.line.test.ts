@@ -6,8 +6,7 @@
 
 import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { ModelLine, ILineEdit, ILineMarker } from 'vs/editor/common/model/modelLine';
-import { LineMarker } from 'vs/editor/common/model/textModelWithMarkers';
+import { ModelLine, ILineEdit, LineMarker } from 'vs/editor/common/model/modelLine';
 import { TokensInflatorMap } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { Token } from 'vs/editor/common/core/token';
 
@@ -1049,7 +1048,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 		return new LineMarker(String(id), column, stickToPreviousCharacter);
 	}
 
-	function toLightWeightMarker(marker: ILineMarker): ILightWeightMarker {
+	function toLightWeightMarker(marker: LineMarker): ILightWeightMarker {
 		return {
 			id: marker.id,
 			column: marker.column,
@@ -1865,7 +1864,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 		return new LineMarker(String(id), column, stickToPreviousCharacter);
 	}
 
-	function toLightWeightMarker(marker: ILineMarker): ILightWeightMarker {
+	function toLightWeightMarker(marker: LineMarker): ILightWeightMarker {
 		return {
 			id: marker.id,
 			column: marker.column,
@@ -2133,7 +2132,7 @@ suite('Editor Model - modelLine.append text & markers', () => {
 		return new LineMarker(String(id), column, stickToPreviousCharacter);
 	}
 
-	function toLightWeightMarker(marker: ILineMarker): ILightWeightMarker {
+	function toLightWeightMarker(marker: LineMarker): ILightWeightMarker {
 		return {
 			id: marker.id,
 			column: marker.column,
