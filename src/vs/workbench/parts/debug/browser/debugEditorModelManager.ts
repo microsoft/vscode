@@ -190,6 +190,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	// breakpoints management. Represent data coming from the debug service and also send data back.
 	private onModelDecorationsChanged(modelUrlStr: string, e: editorcommon.IModelDecorationsChangedEvent): void {
 		const modelData = this.modelData[modelUrlStr];
+		let myDecorationsCount = Object.keys(modelData.breakpointDecorationsAsMap).length;
+		if (myDecorationsCount === 0) {
+			// I have no decorations
+			return;
+		}
 		if (!e.addedOrChangedDecorations.some(d => modelData.breakpointDecorationsAsMap.hasOwnProperty(d.id))) {
 			// nothing to do, my decorations did not change.
 			return;

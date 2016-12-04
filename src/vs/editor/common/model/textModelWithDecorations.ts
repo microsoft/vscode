@@ -10,7 +10,7 @@ import * as strings from 'vs/base/common/strings';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ChangedMarkers } from 'vs/editor/common/model/modelLine';
+import { ChangedMarkers, LineMarker } from 'vs/editor/common/model/modelLine';
 import { Position } from 'vs/editor/common/core/position';
 import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textModelWithMarkers';
 
@@ -18,7 +18,7 @@ export class DeferredEventsBuilder {
 
 	public changedMarkers: ChangedMarkers;
 
-	public newOrChangedDecorations: { [decorationId: string]: ExternalDecoration; };
+	public newOrChangedDecorations: { [decorationId: string]: InternalDecoration; };
 	public removedDecorations: { [decorationId: string]: boolean; };
 
 	constructor() {
@@ -29,7 +29,7 @@ export class DeferredEventsBuilder {
 
 	// --- Build decoration events
 
-	public addNewDecoration(decoration: ExternalDecoration): void {
+	public addNewDecoration(decoration: InternalDecoration): void {
 		this.newOrChangedDecorations[decoration.id] = decoration;
 	}
 
@@ -40,30 +40,32 @@ export class DeferredEventsBuilder {
 		this.removedDecorations[id] = true;
 	}
 
-	public addMovedDecoration(decoration: ExternalDecoration): void {
+	public addMovedDecoration(decoration: InternalDecoration): void {
 		this.newOrChangedDecorations[decoration.id] = decoration;
 	}
 
-	public addUpdatedDecoration(decoration: ExternalDecoration): void {
+	public addUpdatedDecoration(decoration: InternalDecoration): void {
 		this.newOrChangedDecorations[decoration.id] = decoration;
 	}
 }
 
-export class InternalDecoration {
+export class InternalDecoration implements editorCommon.IModelDecoration {
 	_internalDecorationBrand: void;
 
 	public readonly id: string;
 	public readonly ownerId: number;
-	public readonly startMarkerId: string;
-	public readonly endMarkerId: string;
+	public readonly startMarker: LineMarker;
+	public readonly endMarker: LineMarker;
 	public options: ModelDecorationOptions;
 	public isForValidation: boolean;
+	public range: Range;
 
-	constructor(id: string, ownerId: number, startMarkerId: string, endMarkerId: string, options: ModelDecorationOptions) {
+	constructor(id: string, ownerId: number, range: Range, startMarker: LineMarker, endMarker: LineMarker, options: ModelDecorationOptions) {
 		this.id = id;
 		this.ownerId = ownerId;
-		this.startMarkerId = startMarkerId;
-		this.endMarkerId = endMarkerId;
+		this.range = range;
+		this.startMarker = startMarker;
+		this.endMarker = endMarker;
 		this.setOptions(options);
 	}
 
@@ -75,33 +77,9 @@ export class InternalDecoration {
 		);
 	}
 
-	public toExternalDecoration(range: Range): ExternalDecoration {
-		return new ExternalDecoration(this, range);
-	}
-}
-
-export class ExternalDecoration implements editorCommon.IModelDecoration {
-	_externalDecorationBrand: void;
-
-	public readonly id: string;
-	public readonly ownerId: number;
-	public readonly range: Range;
-	public readonly options: ModelDecorationOptions;
-	public readonly isForValidation: boolean;
-
-	constructor(source: InternalDecoration, range: Range) {
-		this.id = source.id;
-		this.ownerId = source.ownerId;
+	public setRange(range: Range): void {
 		this.range = range;
-		this.options = source.options;
-		this.isForValidation = source.isForValidation;
 	}
-}
-
-interface IOldDecoration {
-	range: Range;
-	options: ModelDecorationOptions;
-	id: string;
 }
 
 let _INSTANCE_COUNT = 0;
@@ -120,7 +98,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		// Initialize decorations
 		this._currentDeferredEvents = null;
 		this._decorationIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
-		this._decorations = {};
+		this._decorations = Object.create(null);
 		this._multiLineDecorationsMap = {};
 	}
 
@@ -134,7 +112,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		super._resetValue(newValue);
 
 		// Destroy all my decorations
-		this._decorations = {};
+		this._decorations = Object.create(null);
 		this._multiLineDecorationsMap = {};
 	}
 
@@ -163,17 +141,6 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 	_getTrackedRangesCount(): number {
 		return Object.keys(this._decorations).length;
-	}
-
-	private static _createRangeFromMarkers(startPosition: Position, endPosition: Position): Range {
-		if (endPosition.isBefore(startPosition)) {
-			// This tracked range has turned in on itself (end marker before start marker)
-			// This can happen in extreme editing conditions where lots of text is removed and lots is added
-
-			// Treat it as a collapsed range
-			return new Range(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column);
-		}
-		return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
 	}
 
 	// --- END TrackedRanges
@@ -226,9 +193,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	public removeAllDecorationsWithOwnerId(ownerId: number): void {
 		let toRemove: string[] = [];
 
-		let keys = Object.keys(this._decorations);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let decorationId = keys[i];
+		let decorationIds = Object.keys(this._decorations);
+		for (let i = 0, len = decorationIds.length; i < len; i++) {
+			let decorationId = decorationIds[i];
 			let decoration = this._decorations[decorationId];
 
 			if (decoration.ownerId === ownerId) {
@@ -240,24 +207,19 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	public getDecorationOptions(decorationId: string): editorCommon.IModelDecorationOptions {
-		if (this._decorations.hasOwnProperty(decorationId)) {
-			return this._decorations[decorationId].options;
+		let decoration = this._decorations[decorationId];
+		if (!decoration) {
+			return null;
 		}
-		return null;
-	}
-
-	private _getDecorationRange(decoration: InternalDecoration): Range {
-		let startMarker = this._getMarker(decoration.startMarkerId);
-		let endMarker = this._getMarker(decoration.endMarkerId);
-
-		return TextModelWithDecorations._createRangeFromMarkers(startMarker, endMarker);
+		return decoration.options;
 	}
 
 	public getDecorationRange(decorationId: string): Range {
-		if (this._decorations.hasOwnProperty(decorationId)) {
-			return this._getDecorationRange(this._decorations[decorationId]);
+		let decoration = this._decorations[decorationId];
+		if (!decoration) {
+			return null;
 		}
-		return null;
+		return decoration.range;
 	}
 
 	public getLineDecorations(lineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
@@ -271,13 +233,13 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	/**
 	 * Fetch only multi-line decorations that intersect with the given line number range
 	 */
-	private _getMultiLineDecorations(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): ExternalDecoration[] {
+	private _getMultiLineDecorations(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): InternalDecoration[] {
 		const filterStartLineNumber = filterRange.startLineNumber;
 		const filterStartColumn = filterRange.startColumn;
 		const filterEndLineNumber = filterRange.endLineNumber;
 		const filterEndColumn = filterRange.endColumn;
 
-		let result: ExternalDecoration[] = [];
+		let result: InternalDecoration[] = [];
 
 		let multiLineDecorations = Object.keys(this._multiLineDecorationsMap);
 		for (let i = 0, len = multiLineDecorations.length; i < len; i++) {
@@ -292,30 +254,28 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 				continue;
 			}
 
-			let startMarker = this._getMarker(decoration.startMarkerId);
-			if (startMarker.lineNumber > filterEndLineNumber) {
+			let range = decoration.range;
+
+			if (range.startLineNumber > filterEndLineNumber) {
 				continue;
 			}
-			if (startMarker.lineNumber === filterStartLineNumber && startMarker.column < filterStartColumn) {
+			if (range.startLineNumber === filterStartLineNumber && range.startColumn < filterStartColumn) {
+				continue;
+			}
+			if (range.endLineNumber < filterStartLineNumber) {
+				continue;
+			}
+			if (range.endLineNumber === filterEndLineNumber && range.endColumn > filterEndColumn) {
 				continue;
 			}
 
-			let endMarker = this._getMarker(decoration.endMarkerId);
-			if (endMarker.lineNumber < filterStartLineNumber) {
-				continue;
-			}
-			if (endMarker.lineNumber === filterEndLineNumber && endMarker.column > filterEndColumn) {
-				continue;
-			}
-
-			let range = TextModelWithDecorations._createRangeFromMarkers(startMarker, endMarker);
-			result.push(decoration.toExternalDecoration(range));
+			result.push(decoration);
 		}
 
 		return result;
 	}
 
-	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): ExternalDecoration[] {
+	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): InternalDecoration[] {
 		const filterStartLineNumber = filterRange.startLineNumber;
 		const filterStartColumn = filterRange.startColumn;
 		const filterEndLineNumber = filterRange.endLineNumber;
@@ -354,24 +314,22 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 					continue;
 				}
 
-				let startMarker = (lineMarker.id === decoration.startMarkerId ? lineMarker.getPosition() : this._getMarker(decoration.startMarkerId));
-				if (startMarker.lineNumber > filterEndLineNumber) {
+				let range = decoration.range;
+
+				if (range.startLineNumber > filterEndLineNumber) {
 					continue;
 				}
-				if (startMarker.lineNumber === filterStartLineNumber && startMarker.column < filterStartColumn) {
+				if (range.startLineNumber === filterStartLineNumber && range.startColumn < filterStartColumn) {
+					continue;
+				}
+				if (range.endLineNumber < filterStartLineNumber) {
+					continue;
+				}
+				if (range.endLineNumber === filterEndLineNumber && range.endColumn > filterEndColumn) {
 					continue;
 				}
 
-				let endMarker = (lineMarker.id === decoration.endMarkerId ? lineMarker.getPosition() : this._getMarker(decoration.endMarkerId));
-				if (endMarker.lineNumber < filterStartLineNumber) {
-					continue;
-				}
-				if (endMarker.lineNumber === filterEndLineNumber && endMarker.column > filterEndColumn) {
-					continue;
-				}
-
-				let range = TextModelWithDecorations._createRangeFromMarkers(startMarker, endMarker);
-				result.push(decoration.toExternalDecoration(range));
+				result.push(decoration);
 				resultMap[decoration.id] = true;
 			}
 		}
@@ -393,7 +351,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
-		let result: ExternalDecoration[] = [];
+		let result: InternalDecoration[] = [];
 
 		let decorationIds = Object.keys(this._decorations);
 		for (let i = 0, len = decorationIds.length; i < len; i++) {
@@ -408,8 +366,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 				continue;
 			}
 
-			let range = this._getDecorationRange(decoration);
-			result.push(decoration.toExternalDecoration(range));
+			result.push(decoration);
 		}
 
 		return result;
@@ -438,19 +395,30 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		});
 	}
 
+	private static _createRangeFromMarkers(startPosition: Position, endPosition: Position): Range {
+		if (endPosition.isBefore(startPosition)) {
+			// This tracked range has turned in on itself (end marker before start marker)
+			// This can happen in extreme editing conditions where lots of text is removed and lots is added
+
+			// Treat it as a collapsed range
+			return new Range(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column);
+		}
+		return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
+	}
+
 	private _handleCollectedEvents(b: DeferredEventsBuilder): void {
 		let changedDecorationIds = b.changedMarkers.getDecorationIds();
 
 		for (let i = 0, len = changedDecorationIds.length; i < len; i++) {
 			let decorationId = changedDecorationIds[i];
-			if (!this._decorations.hasOwnProperty(decorationId)) {
+			let decoration = this._decorations[decorationId];
+			if (!decoration) {
 				// perhaps the decoration was removed in the meantime
 				continue;
 			}
 
-			let decoration = this._decorations[decorationId];
-			let startMarker = this._getMarker(decoration.startMarkerId);
-			let endMarker = this._getMarker(decoration.endMarkerId);
+			let startMarker = decoration.startMarker.getPosition();
+			let endMarker = decoration.endMarker.getPosition();
 
 			this._setDecorationIsMultiLine(
 				decoration,
@@ -458,11 +426,12 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 			);
 
 			let range = TextModelWithDecorations._createRangeFromMarkers(startMarker, endMarker);
-			b.addMovedDecoration(decoration.toExternalDecoration(range));
+			decoration.setRange(range);
+			b.addMovedDecoration(decoration);
 		}
 
 		let addedOrChangedDecorationIds = Object.keys(b.newOrChangedDecorations);
-		let addedOrChangedDecorations: ExternalDecoration[] = [];
+		let addedOrChangedDecorations: InternalDecoration[] = [];
 		for (let i = 0, len = addedOrChangedDecorationIds.length; i < len; i++) {
 			let decorationId = addedOrChangedDecorationIds[i];
 			addedOrChangedDecorations[i] = b.newOrChangedDecorations[decorationId];
@@ -501,18 +470,27 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		let decorationId = this._decorationIdGenerator.nextId();
 
-		let startMarkerSticksToPreviousCharacter = TextModelWithDecorations._shouldStartMarkerSticksToPreviousCharacter(options.stickiness);
-		let startMarkerId = this._addMarker(decorationId, range.startLineNumber, range.startColumn, startMarkerSticksToPreviousCharacter);
+		let markers = this._addMarkers([
+			{
+				decorationId: decorationId,
+				lineNumber: range.startLineNumber,
+				column: range.startColumn,
+				stickToPreviousCharacter: TextModelWithDecorations._shouldStartMarkerSticksToPreviousCharacter(options.stickiness)
+			},
+			{
+				decorationId: decorationId,
+				lineNumber: range.endLineNumber,
+				column: range.endColumn,
+				stickToPreviousCharacter: TextModelWithDecorations._shouldEndMarkerSticksToPreviousCharacter(options.stickiness)
+			}
+		]);
 
-		let endMarkerSticksToPreviousCharacter = TextModelWithDecorations._shouldEndMarkerSticksToPreviousCharacter(options.stickiness);
-		let endMarkerId = this._addMarker(decorationId, range.endLineNumber, range.endColumn, endMarkerSticksToPreviousCharacter);
-
-		let decoration = new InternalDecoration(decorationId, ownerId, startMarkerId, endMarkerId, options);
+		let decoration = new InternalDecoration(decorationId, ownerId, range, markers[0], markers[1], options);
 		this._decorations[decorationId] = decoration;
 
 		this._setDecorationIsMultiLine(decoration, (range.startLineNumber !== range.endLineNumber));
 
-		eventBuilder.addNewDecoration(decoration.toExternalDecoration(range));
+		eventBuilder.addNewDecoration(decoration);
 
 		return decorationId;
 	}
@@ -554,57 +532,68 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 			let startMarkerId = markerIds[2 * i];
 			let endMarkerId = markerIds[2 * i + 1];
 
-			let decoration = new InternalDecoration(decorationId, ownerId, startMarkerId, endMarkerId, newDecoration.options);
+			let decoration = new InternalDecoration(decorationId, ownerId, range, startMarkerId, endMarkerId, newDecoration.options);
 			this._decorations[decorationId] = decoration;
 
 			this._setDecorationIsMultiLine(decoration, (range.startLineNumber !== range.endLineNumber));
 
-			eventBuilder.addNewDecoration(decoration.toExternalDecoration(range));
+			eventBuilder.addNewDecoration(decoration);
 		}
 
 		return decorationIds;
 	}
 
 	private _changeDecorationImpl(eventBuilder: DeferredEventsBuilder, id: string, newRange: Range): void {
-		if (!this._decorations.hasOwnProperty(id)) {
+		let decoration = this._decorations[id];
+		if (!decoration) {
 			return;
 		}
 
-		let decoration = this._decorations[id];
+		let startMarker = decoration.startMarker;
+		if (newRange.startLineNumber !== startMarker.line.lineNumber) {
+			// move marker between lines
+			startMarker.line.removeMarker(startMarker);
+			this._lines[newRange.startLineNumber - 1].addMarker(startMarker);
+		}
+		startMarker.column = newRange.startColumn;
 
-		this._changeMarker(decoration.startMarkerId, newRange.startLineNumber, newRange.startColumn);
-		this._changeMarker(decoration.endMarkerId, newRange.endLineNumber, newRange.endColumn);
+		let endMarker = decoration.endMarker;
+		if (newRange.endLineNumber !== endMarker.line.lineNumber) {
+			// move marker between lines
+			endMarker.line.removeMarker(endMarker);
+			this._lines[newRange.endLineNumber - 1].addMarker(endMarker);
+		}
+		endMarker.column = newRange.endColumn;
 
 		this._setDecorationIsMultiLine(decoration, (newRange.startLineNumber !== newRange.endLineNumber));
+		decoration.setRange(newRange);
 
-		eventBuilder.addMovedDecoration(decoration.toExternalDecoration(newRange));
+		eventBuilder.addMovedDecoration(decoration);
 	}
 
 	private _changeDecorationOptionsImpl(eventBuilder: DeferredEventsBuilder, id: string, options: ModelDecorationOptions): void {
-		if (!this._decorations.hasOwnProperty(id)) {
+		let decoration = this._decorations[id];
+		if (!decoration) {
 			return;
 		}
 
-		let decoration = this._decorations[id];
-
 		if (decoration.options.stickiness !== options.stickiness) {
-			this._changeMarkerStickiness(decoration.startMarkerId, TextModelWithDecorations._shouldStartMarkerSticksToPreviousCharacter(options.stickiness));
-			this._changeMarkerStickiness(decoration.endMarkerId, TextModelWithDecorations._shouldEndMarkerSticksToPreviousCharacter(options.stickiness));
+			decoration.startMarker.stickToPreviousCharacter = TextModelWithDecorations._shouldStartMarkerSticksToPreviousCharacter(options.stickiness);
+			decoration.endMarker.stickToPreviousCharacter = TextModelWithDecorations._shouldEndMarkerSticksToPreviousCharacter(options.stickiness);
 		}
 
 		decoration.setOptions(options);
 
-		eventBuilder.addUpdatedDecoration(decoration.toExternalDecoration(this._getDecorationRange(decoration)));
+		eventBuilder.addUpdatedDecoration(decoration);
 	}
 
 	private _removeDecorationImpl(eventBuilder: DeferredEventsBuilder, id: string): void {
-		if (!this._decorations.hasOwnProperty(id)) {
+		let decoration = this._decorations[id];
+		if (!decoration) {
 			return;
 		}
-		let decoration = this._decorations[id];
 
-		this._removeMarker(decoration.startMarkerId);
-		this._removeMarker(decoration.endMarkerId);
+		this._removeMarkers([decoration.startMarker, decoration.endMarker]);
 
 		this._setDecorationIsMultiLine(decoration, false);
 		delete this._decorations[id];
@@ -615,23 +604,21 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	private _removeDecorationsImpl(eventBuilder: DeferredEventsBuilder, ids: string[]): void {
-		let removeMarkers: string[] = [], removeMarkersLen = 0;
+		let removeMarkers: LineMarker[] = [], removeMarkersLen = 0;
 
 		for (let i = 0, len = ids.length; i < len; i++) {
 			let id = ids[i];
-
-			if (!this._decorations.hasOwnProperty(id)) {
+			let decoration = this._decorations[id];
+			if (!decoration) {
 				continue;
 			}
-
-			let decoration = this._decorations[id];
 
 			if (eventBuilder) {
 				eventBuilder.addRemovedDecoration(id);
 			}
 
-			removeMarkers[removeMarkersLen++] = decoration.startMarkerId;
-			removeMarkers[removeMarkersLen++] = decoration.endMarkerId;
+			removeMarkers[removeMarkersLen++] = decoration.startMarker;
+			removeMarkers[removeMarkersLen++] = decoration.endMarker;
 			this._setDecorationIsMultiLine(decoration, false);
 			delete this._decorations[id];
 		}
@@ -641,21 +628,16 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		}
 	}
 
-	private _resolveOldDecorations(oldDecorations: string[]): IOldDecoration[] {
-		let result: IOldDecoration[] = [];
+	private _resolveOldDecorations(oldDecorations: string[]): InternalDecoration[] {
+		let result: InternalDecoration[] = [];
 		for (let i = 0, len = oldDecorations.length; i < len; i++) {
 			let id = oldDecorations[i];
-			if (!this._decorations.hasOwnProperty(id)) {
+			let decoration = this._decorations[id];
+			if (!decoration) {
 				continue;
 			}
 
-			let decoration = this._decorations[id];
-
-			result.push({
-				id: id,
-				range: this._getDecorationRange(decoration),
-				options: decoration.options
-			});
+			result.push(decoration);
 		}
 		return result;
 	}
