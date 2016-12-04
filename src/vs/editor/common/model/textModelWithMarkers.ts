@@ -15,6 +15,7 @@ export interface IMarkerIdToMarkerMap {
 }
 
 export interface INewMarker {
+	rangeId: string;
 	lineNumber: number;
 	column: number;
 	stickToPreviousCharacter: boolean;
@@ -44,10 +45,10 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		this._markerIdToMarker = {};
 	}
 
-	_addMarker(lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
+	_addMarker(rangeId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
 		var pos = this.validatePosition(new Position(lineNumber, column));
 
-		var marker = new LineMarker(this._markerIdGenerator.nextId(), pos.column, stickToPreviousCharacter);
+		var marker = new LineMarker(this._markerIdGenerator.nextId(), rangeId, pos.column, stickToPreviousCharacter);
 		this._markerIdToMarker[marker.id] = marker;
 
 		this._lines[pos.lineNumber - 1].addMarker(marker);
@@ -64,7 +65,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		for (let i = 0, len = newMarkers.length; i < len; i++) {
 			let newMarker = newMarkers[i];
 
-			let marker = new LineMarker(this._markerIdGenerator.nextId(), newMarker.column, newMarker.stickToPreviousCharacter);
+			let marker = new LineMarker(this._markerIdGenerator.nextId(), newMarker.rangeId, newMarker.column, newMarker.stickToPreviousCharacter);
 			this._markerIdToMarker[marker.id] = marker;
 
 			if (!addMarkersPerLine[newMarker.lineNumber]) {

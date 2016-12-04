@@ -1045,7 +1045,7 @@ interface ILightWeightMarker {
 suite('Editor Model - modelLine.applyEdits text & markers', () => {
 
 	function marker(id: number, column: number, stickToPreviousCharacter: boolean): LineMarker {
-		return new LineMarker(String(id), column, stickToPreviousCharacter);
+		return new LineMarker(String(id), null, column, stickToPreviousCharacter);
 	}
 
 	function toLightWeightMarker(marker: LineMarker): ILightWeightMarker {
@@ -1861,7 +1861,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 suite('Editor Model - modelLine.split text & markers', () => {
 
 	function marker(id: number, column: number, stickToPreviousCharacter: boolean): LineMarker {
-		return new LineMarker(String(id), column, stickToPreviousCharacter);
+		return new LineMarker(String(id), null, column, stickToPreviousCharacter);
 	}
 
 	function toLightWeightMarker(marker: LineMarker): ILightWeightMarker {
@@ -2129,7 +2129,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 suite('Editor Model - modelLine.append text & markers', () => {
 
 	function marker(id: number, column: number, stickToPreviousCharacter: boolean): LineMarker {
-		return new LineMarker(String(id), column, stickToPreviousCharacter);
+		return new LineMarker(String(id), null, column, stickToPreviousCharacter);
 	}
 
 	function toLightWeightMarker(marker: LineMarker): ILightWeightMarker {
