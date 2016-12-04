@@ -54,11 +54,15 @@ export class BackupMainService implements IBackupMainService {
 	public registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void {
 		// Generate a new folder if this is a new empty workspace
 		if (isEmptyWorkspace && !backupFolder) {
-			backupFolder = Date.now().toString();
+			backupFolder = this.getRandomEmptyWorkspaceId();
 		}
 
 		this.mapWindowToBackupFolder[windowId] = isEmptyWorkspace ? backupFolder : this.getWorkspaceHash(workspacePath);
 		this.pushBackupPathsSync(isEmptyWorkspace ? backupFolder : workspacePath, isEmptyWorkspace);
+	}
+
+	private getRandomEmptyWorkspaceId(): string {
+		return (Date.now() + Math.round(Math.random() * 1000)).toString();
 	}
 
 	protected pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): string {
@@ -144,7 +148,7 @@ export class BackupMainService implements IBackupMainService {
 				staleBackupWorkspaces.push({ workspaceIdentifier: Uri.file(backupWorkspace).fsPath, backupPath, isEmptyWorkspace: false });
 
 				if (missingWorkspace) {
-					const identifier = this.pushBackupPathsSync((Date.now() + Math.round(Math.random() * 1000)).toString(), true /* is empty workspace */);
+					const identifier = this.pushBackupPathsSync(this.getRandomEmptyWorkspaceId(), true /* is empty workspace */);
 					const newEmptyWorkspaceBackupPath = path.join(path.dirname(backupPath), identifier);
 					try {
 						fs.renameSync(backupPath, newEmptyWorkspaceBackupPath);
