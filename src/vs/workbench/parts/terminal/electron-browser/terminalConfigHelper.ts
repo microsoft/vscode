@@ -119,7 +119,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		let editorConfig = this._configurationService.getConfiguration<IConfiguration>();
 
 		let fontFamily = terminalConfig.fontFamily || editorConfig.editor.fontFamily;
-		let fontSize = this.toInteger(terminalConfig.fontSize, 0);
+		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
 		if (fontSize <= 0) {
 			fontSize = DefaultConfig.editor.fontSize;
 		}
@@ -170,7 +170,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return config.terminal.integrated.setLocaleVariables;
 	}
 
-	private toInteger(source: any, minimum?: number): number {
+	private _toInteger(source: any, minimum?: number): number {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {
 			r = 0;
