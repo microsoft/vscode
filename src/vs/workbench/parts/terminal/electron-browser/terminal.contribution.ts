@@ -162,7 +162,7 @@ let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.Work
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL), 'Terminal: Kill the Active Terminal Instance', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-	//linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
 	// Don't apply to Mac since cmd+c works
 	mac: { primary: null }
 }, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED), 'Terminal: Copy Selection', category);
