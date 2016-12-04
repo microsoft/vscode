@@ -28,8 +28,9 @@ export class LineMarker {
 	public stickToPreviousCharacter: boolean;
 	public line: ModelLine;
 
-	constructor(id: string, column: number, stickToPreviousCharacter: boolean) {
+	constructor(id: string, rangeId: string, column: number, stickToPreviousCharacter: boolean) {
 		this.id = id;
+		this.rangeId = rangeId;
 		this.column = column;
 		this.stickToPreviousCharacter = stickToPreviousCharacter;
 		this.line = null;

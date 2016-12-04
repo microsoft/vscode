@@ -21,14 +21,10 @@ interface ITrackedRangesMap {
 	[key: string]: ITrackedRange;
 }
 
-interface IMarkerIdToRangeIdMap {
-	[key: string]: string;
-}
-
 class TrackedRange implements ITrackedRange {
-	id: string;
-	startMarkerId: string;
-	endMarkerId: string;
+	public readonly id: string;
+	public readonly startMarkerId: string;
+	public readonly endMarkerId: string;
 
 	constructor(id: string, startMarkedId: string, endMarkerId: string) {
 		this.id = id;
@@ -43,20 +39,17 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 
 	private _rangeIdGenerator: IdGenerator;
 	private _ranges: ITrackedRangesMap;
-	private _markerIdToRangeId: IMarkerIdToRangeIdMap;
 	private _multiLineTrackedRanges: { [key: string]: boolean; };
 
 	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText, languageId: string) {
 		super(allowedEventTypes, rawText, languageId);
 		this._rangeIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
 		this._ranges = {};
-		this._markerIdToRangeId = {};
 		this._multiLineTrackedRanges = {};
 	}
 
 	public dispose(): void {
 		this._ranges = null;
-		this._markerIdToRangeId = null;
 		this._multiLineTrackedRanges = null;
 		super.dispose();
 	}
@@ -66,7 +59,6 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 
 		// Destroy all my tracked ranges
 		this._ranges = {};
-		this._markerIdToRangeId = {};
 		this._multiLineTrackedRanges = {};
 	}
 
@@ -97,19 +89,19 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		return Object.keys(this._ranges).length;
 	}
 
-	public addTrackedRange(textRange: editorCommon.IRange, stickiness: editorCommon.TrackedRangeStickiness): string {
-		textRange = this.validateRange(textRange);
+	public addTrackedRange(_textRange: editorCommon.IRange, stickiness: editorCommon.TrackedRangeStickiness): string {
+		let textRange = this.validateRange(_textRange);
 
-		var startMarkerSticksToPreviousCharacter = this._shouldStartMarkerSticksToPreviousCharacter(stickiness);
-		var endMarkerSticksToPreviousCharacter = this._shouldEndMarkerSticksToPreviousCharacter(stickiness);
+		let startMarkerSticksToPreviousCharacter = this._shouldStartMarkerSticksToPreviousCharacter(stickiness);
+		let endMarkerSticksToPreviousCharacter = this._shouldEndMarkerSticksToPreviousCharacter(stickiness);
 
-		var startMarkerId = this._addMarker(textRange.startLineNumber, textRange.startColumn, startMarkerSticksToPreviousCharacter);
-		var endMarkerId = this._addMarker(textRange.endLineNumber, textRange.endColumn, endMarkerSticksToPreviousCharacter);
+		let rangeId = this._rangeIdGenerator.nextId();
 
-		var range = new TrackedRange(this._rangeIdGenerator.nextId(), startMarkerId, endMarkerId);
+		let startMarkerId = this._addMarker(rangeId, textRange.startLineNumber, textRange.startColumn, startMarkerSticksToPreviousCharacter);
+		let endMarkerId = this._addMarker(rangeId, textRange.endLineNumber, textRange.endColumn, endMarkerSticksToPreviousCharacter);
+
+		let range = new TrackedRange(rangeId, startMarkerId, endMarkerId);
 		this._ranges[range.id] = range;
-		this._markerIdToRangeId[startMarkerId] = range.id;
-		this._markerIdToRangeId[endMarkerId] = range.id;
 
 		this._setRangeIsMultiLine(range.id, (textRange.startLineNumber !== textRange.endLineNumber));
 
@@ -118,20 +110,26 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 
 	protected _addTrackedRanges(textRanges: editorCommon.IRange[], stickinessArr: editorCommon.TrackedRangeStickiness[]): string[] {
 		let addMarkers: INewMarker[] = [];
+		let addRangeId: string[] = [];
 		for (let i = 0, len = textRanges.length; i < len; i++) {
 			let textRange = textRanges[i];
 			let stickiness = stickinessArr[i];
 
+			let rangeId = this._rangeIdGenerator.nextId();
+
 			addMarkers.push({
+				rangeId: rangeId,
 				lineNumber: textRange.startLineNumber,
 				column: textRange.startColumn,
 				stickToPreviousCharacter: this._shouldStartMarkerSticksToPreviousCharacter(stickiness)
 			});
 			addMarkers.push({
+				rangeId: rangeId,
 				lineNumber: textRange.endLineNumber,
 				column: textRange.endColumn,
 				stickToPreviousCharacter: this._shouldEndMarkerSticksToPreviousCharacter(stickiness)
 			});
+			addRangeId.push(rangeId);
 		}
 
 		let markerIds = this._addMarkers(addMarkers);
@@ -142,10 +140,8 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 			let startMarkerId = markerIds[2 * i];
 			let endMarkerId = markerIds[2 * i + 1];
 
-			let range = new TrackedRange(this._rangeIdGenerator.nextId(), startMarkerId, endMarkerId);
+			let range = new TrackedRange(addRangeId[i], startMarkerId, endMarkerId);
 			this._ranges[range.id] = range;
-			this._markerIdToRangeId[startMarkerId] = range.id;
-			this._markerIdToRangeId[endMarkerId] = range.id;
 
 			this._setRangeIsMultiLine(range.id, (textRange.startLineNumber !== textRange.endLineNumber));
 
@@ -191,8 +187,6 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 
 			this._setRangeIsMultiLine(range.id, false);
 			delete this._ranges[range.id];
-			delete this._markerIdToRangeId[range.startMarkerId];
-			delete this._markerIdToRangeId[range.endMarkerId];
 		}
 	}
 
@@ -213,8 +207,6 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 
 			this._setRangeIsMultiLine(range.id, false);
 			delete this._ranges[range.id];
-			delete this._markerIdToRangeId[range.startMarkerId];
-			delete this._markerIdToRangeId[range.endMarkerId];
 		}
 
 		if (removeMarkers.length > 0) {
@@ -272,31 +264,23 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 	}
 
 	public getLinesTrackedRanges(startLineNumber: number, endLineNumber: number): editorCommon.IModelTrackedRange[] {
-		var result = this._getMultiLineTrackedRanges(startLineNumber, endLineNumber),
-			resultMap: { [rangeId: string]: boolean; } = {},
-			lineMarkers: LineMarker[],
-			lineMarker: LineMarker,
-			rangeId: string,
-			i: number,
-			len: number,
-			lineNumber: number,
-			startMarker: Position,
-			endMarker: Position;
+		let result = this._getMultiLineTrackedRanges(startLineNumber, endLineNumber);
+		let resultMap: { [rangeId: string]: boolean; } = {};
 
-		for (i = 0, len = result.length; i < len; i++) {
+		for (let i = 0, len = result.length; i < len; i++) {
 			resultMap[result[i].id] = true;
 		}
 
-		for (lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			lineMarkers = this._getLineMarkers(lineNumber);
-			for (i = 0, len = lineMarkers.length; i < len; i++) {
-				lineMarker = lineMarkers[i];
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			let lineMarkers = this._getLineMarkers(lineNumber);
+			for (let i = 0, len = lineMarkers.length; i < len; i++) {
+				let lineMarker = lineMarkers[i];
 
-				if (this._markerIdToRangeId.hasOwnProperty(lineMarker.id)) {
-					rangeId = this._markerIdToRangeId[lineMarker.id];
+				if (lineMarker.rangeId !== null) {
+					let rangeId = lineMarker.rangeId;
 					if (!resultMap.hasOwnProperty(rangeId)) {
-						startMarker = this._getMarker(this._ranges[rangeId].startMarkerId);
-						endMarker = this._getMarker(this._ranges[rangeId].endMarkerId);
+						let startMarker = this._getMarker(this._ranges[rangeId].startMarkerId);
+						let endMarker = this._getMarker(this._ranges[rangeId].endMarkerId);
 
 						result.push({
 							id: rangeId,
@@ -317,8 +301,8 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		for (let i = 0, len = changedMarkers.length; i < len; i++) {
 			let marker = changedMarkers[i];
 
-			if (this._markerIdToRangeId.hasOwnProperty(marker.id)) {
-				let rangeId = this._markerIdToRangeId[marker.id];
+			if (marker.rangeId !== null) {
+				let rangeId = marker.rangeId;
 
 				changedRanges[changedRangesLen++] = rangeId;
 			}
