@@ -122,7 +122,8 @@ export class TerminalInstance implements ITerminalInstance {
 			return false;
 		});
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
-			// Skip processing by xterm.js of commands within commandsToSkipShell
+			// Skip processing by xterm.js of keyboard events that resolve to commands described
+			// within commandsToSkipShell
 			const standardKeyboardEvent = new StandardKeyboardEvent(event);
 			const keybinding = new Keybinding(standardKeyboardEvent.asKeybinding());
 			const resolveResult = this._keybindingService.resolve(keybinding, standardKeyboardEvent.target);
@@ -140,8 +141,16 @@ export class TerminalInstance implements ITerminalInstance {
 			// Wait until mouseup has propogated through the DOM before evaluating the new selection
 			// state.
 			setTimeout(() => {
-				this._terminalHasTextContextKey.set(!window.getSelection().isCollapsed);
-				console.log('Has text: ' + !window.getSelection().isCollapsed);
+				this._refreshSelectionContextKey();
+			}, 0);
+		});
+
+		// xterm.js currently drops selection on keyup as we need to handle this case.
+		(<HTMLElement>this._xterm.element).addEventListener('keyup', event => {
+			// Wait until keyup has propogated through the DOM before evaluating the new selection
+			// state.
+			setTimeout(() => {
+				this._refreshSelectionContextKey();
 			}, 0);
 		});
 
@@ -275,6 +284,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public clear(): void {
 		this._xterm.clear();
+	}
+
+	private _refreshSelectionContextKey() {
+		this._terminalHasTextContextKey.set(!window.getSelection().isCollapsed);
 	}
 
 	private sanitizeInput(data: any) {
