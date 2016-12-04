@@ -13,27 +13,6 @@
 	background: #252526;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	display: block;
-	content: '';
-	position: absolute;
-	top: 34px;
-	width: 100%;
-	z-index: 1; /* on top of tabs */
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	border-top: 1px solid #DDDDDD;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	border-top: 1px solid #403F3F;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
-	border-top: 1px solid #6FC3DF;
-}
-
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs > .monaco-scrollable-element {
 	flex: 1;
 }
@@ -72,14 +51,6 @@
 	padding-left: 10px;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active {
-	z-index: 2; /* on top of the horizontal border of the title */
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-silo.dragged-over > .container > .title .tabs-container > .tab.active {
-	z-index: auto;
-}
-
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(.active) {
 	background-color: #ECECEC;
 }
@@ -89,19 +60,19 @@
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
-	border-left-color: #DDDDDD;
+	border-left-color: #F3F3F3;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child  {
-	border-right-color: #DDDDDD;
+	border-right-color: #F3F3F3;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
-	border-left-color: #403F3F;
+	border-left-color: #252526;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child  {
-	border-right-color: #403F3F;
+	border-right-color: #252526;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:first-child,

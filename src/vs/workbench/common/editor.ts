@@ -5,10 +5,11 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, once } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions, IModel } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -358,46 +359,115 @@ export abstract class UntitledEditorInput extends EditorInput implements IEncodi
 }
 
 /**
- * The base class of editor inputs that have an original and modified side.
+ * Side by side editor inputs that have a master and details side.
  */
-export abstract class BaseDiffEditorInput extends EditorInput {
-	private _originalInput: EditorInput;
-	private _modifiedInput: EditorInput;
+export class SideBySideEditorInput extends EditorInput {
 
-	constructor(originalInput: EditorInput, modifiedInput: EditorInput) {
+	public static ID: string = 'workbench.editorinputs.sidebysideEditorInput';
+
+	private _toUnbind: IDisposable[];
+
+	constructor(private name: string, private description: string, private _details: EditorInput, private _master: EditorInput) {
 		super();
-
-		this._originalInput = originalInput;
-		this._modifiedInput = modifiedInput;
+		this._toUnbind = [];
+		this.registerListeners();
 	}
 
-	public get originalInput(): EditorInput {
-		return this._originalInput;
+	get master(): EditorInput {
+		return this._master;
 	}
 
-	public get modifiedInput(): EditorInput {
-		return this._modifiedInput;
+	get details(): EditorInput {
+		return this._details;
 	}
 
 	public isDirty(): boolean {
-		return this._modifiedInput.isDirty();
+		return this.master.isDirty();
 	}
 
 	public confirmSave(): ConfirmResult {
-		return this._modifiedInput.confirmSave();
+		return this.master.confirmSave();
 	}
 
 	public save(): TPromise<boolean> {
-		return this._modifiedInput.save();
+		return this.master.save();
 	}
 
 	public revert(): TPromise<boolean> {
-		return this._modifiedInput.revert();
+		return this.master.revert();
 	}
 
 	public getTelemetryDescriptor(): { [key: string]: any; } {
-		const descriptor = this._modifiedInput.getTelemetryDescriptor();
+		const descriptor = this.master.getTelemetryDescriptor();
 		return objects.assign(descriptor, super.getTelemetryDescriptor());
+	}
+
+	private registerListeners(): void {
+
+		// When the details or master input gets disposed, dispose this diff editor input
+		const onceDetailsDisposed = once(this.details.onDispose);
+		this._toUnbind.push(onceDetailsDisposed(() => {
+			if (!this.isDisposed()) {
+				this.dispose();
+			}
+		}));
+
+		const onceMasterDisposed = once(this.master.onDispose);
+		this._toUnbind.push(onceMasterDisposed(() => {
+			if (!this.isDisposed()) {
+				this.dispose();
+			}
+		}));
+
+		// Reemit some events from the master side to the outside
+		this._toUnbind.push(this.master.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this._toUnbind.push(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
+	}
+
+	public get toUnbind() {
+		return this._toUnbind;
+	}
+
+	public resolve(refresh?: boolean): TPromise<EditorModel> {
+		return TPromise.as(null);
+	}
+
+	getTypeId(): string {
+		return SideBySideEditorInput.ID;
+	}
+
+	public getName(): string {
+		return this.name;
+	}
+
+	public getDescription(): string {
+		return this.description;
+	}
+
+	public supportsSplitEditor(): boolean {
+		return false;
+	}
+
+	public matches(otherInput: any): boolean {
+		if (super.matches(otherInput) === true) {
+			return true;
+		}
+
+		if (otherInput) {
+			if (!(otherInput instanceof SideBySideEditorInput)) {
+				return false;
+			}
+
+			const otherDiffInput = <SideBySideEditorInput>otherInput;
+			return this.details.matches(otherDiffInput.details) && this.master.matches(otherDiffInput.master);
+		}
+
+		return false;
+	}
+
+	public dispose(): void {
+		this._toUnbind = dispose(this._toUnbind);
+		super.dispose();
 	}
 }
 
@@ -785,14 +855,14 @@ export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGrou
 /**
  * Returns the object as IFileEditorInput only if it matches the signature.
  */
-export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorInput {
+export function asFileEditorInput(obj: any, supportSideBySide?: boolean): IFileEditorInput {
 	if (!obj) {
 		return null;
 	}
 
-	// Check for diff if we are asked to
-	if (supportDiff && obj instanceof BaseDiffEditorInput) {
-		obj = (<BaseDiffEditorInput>obj).modifiedInput;
+	// Check for side by side if we are asked to
+	if (supportSideBySide && obj instanceof SideBySideEditorInput) {
+		obj = (<SideBySideEditorInput>obj).master;
 	}
 
 	const i = <IFileEditorInput>obj;

@@ -119,7 +119,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		let editorConfig = this._configurationService.getConfiguration<IConfiguration>();
 
 		let fontFamily = terminalConfig.fontFamily || editorConfig.editor.fontFamily;
-		let fontSize = this.toInteger(terminalConfig.fontSize, 0) || editorConfig.editor.fontSize;
+		let fontSize = this.toInteger(terminalConfig.fontSize, 0);
 		if (fontSize <= 0) {
 			fontSize = DefaultConfig.editor.fontSize;
 		}

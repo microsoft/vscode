@@ -103,7 +103,7 @@ class LanguageProvider {
 
 	private completionItemProvider: CompletionItemProvider;
 	private formattingProvider: FormattingProvider;
-	private formattingProviderRegistration: Disposable;
+	private formattingProviderRegistration: Disposable | null;
 
 	private _validate: boolean;
 
@@ -214,7 +214,7 @@ class LanguageProvider {
 			this.formattingProvider.updateConfiguration(config);
 			if (!this.formattingProvider.isEnabled() && this.formattingProviderRegistration) {
 				this.formattingProviderRegistration.dispose();
-				this.formattingProviderRegistration = undefined;
+				this.formattingProviderRegistration = null;
 
 			} else if (this.formattingProvider.isEnabled() && !this.formattingProviderRegistration) {
 				this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
@@ -228,7 +228,7 @@ class LanguageProvider {
 			return true;
 		}
 		let basename = path.basename(file);
-		return basename && basename === this.description.configFile;
+		return !!basename && basename === this.description.configFile;
 	}
 
 	public get id(): string {
@@ -325,7 +325,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		return !!this.findLanguage(file);
 	}
 
-	private findLanguage(file: string): LanguageProvider {
+	private findLanguage(file: string): LanguageProvider | null {
 		for (let i = 0; i < this.languages.length; i++) {
 			let language = this.languages[i];
 			if (language.handles(file)) {
@@ -348,7 +348,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 	/* internal */ syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
 		let body = event.body;
-		if (body.diagnostics) {
+		if (body && body.diagnostics) {
 			let language = this.findLanguage(body.file);
 			if (language) {
 				language.syntaxDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
@@ -358,7 +358,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 	/* internal */ semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
 		let body = event.body;
-		if (body.diagnostics) {
+		if (body && body.diagnostics) {
 			let language = this.findLanguage(body.file);
 			if (language) {
 				language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));

@@ -63,9 +63,9 @@ export class TerminalPanel extends Panel {
 		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
 
 		this._register(this._themeService.onDidColorThemeChange(this._updateTheme.bind(this)));
-		this._register(this._configurationService.onDidUpdateConfiguration(this._updateConfig.bind(this)));
+		this._register(this._configurationService.onDidUpdateConfiguration(this._updateFont.bind(this)));
+		this._updateFont();
 		this._updateTheme();
-		this._updateConfig();
 
 		// Force another layout (first is setContainers) since config has changed
 		this.layout(new Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
@@ -84,12 +84,12 @@ export class TerminalPanel extends Panel {
 	public setVisible(visible: boolean): TPromise<void> {
 		if (visible) {
 			if (this._terminalService.terminalInstances.length > 0) {
-				this._updateConfig();
+				this._updateFont();
 				this._updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
 					this._terminalService.createInstance();
-					this._updateConfig();
+					this._updateFont();
 					this._updateTheme();
 				});
 			}
@@ -222,13 +222,6 @@ export class TerminalPanel extends Panel {
 		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
-	private _updateConfig(): void {
-		this._updateFont();
-		this._updateCursorBlink();
-		this._updateCommandsToSkipShell();
-		this._updateScrollback();
-	}
-
 	private _updateFont(): void {
 		if (this._terminalService.terminalInstances.length === 0) {
 			return;
@@ -252,23 +245,5 @@ export class TerminalPanel extends Panel {
 			a.fontFamily !== b.fontFamily ||
 			a.fontSize !== b.fontSize ||
 			a.lineHeight !== b.lineHeight;
-	}
-
-	private _updateCursorBlink(): void {
-		this._terminalService.terminalInstances.forEach((instance) => {
-			instance.setCursorBlink(this._terminalService.configHelper.getCursorBlink());
-		});
-	}
-
-	private _updateCommandsToSkipShell(): void {
-		this._terminalService.terminalInstances.forEach((instance) => {
-			instance.setCommandsToSkipShell(this._terminalService.configHelper.getCommandsToSkipShell());
-		});
-	}
-
-	private _updateScrollback(): void {
-		this._terminalService.terminalInstances.forEach((instance) => {
-			instance.setScrollback(this._terminalService.configHelper.getScrollback());
-		});
 	}
 }

@@ -289,6 +289,10 @@ export class FileService implements IFileService {
 		this.raw.unwatchFileChanges(arg1);
 	}
 
+	public getEncoding(resource: uri): string {
+		return this.raw.getEncoding(resource);
+	}
+
 	public dispose(): void {
 		this.toUnbind = dispose(this.toUnbind);
 

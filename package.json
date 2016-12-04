@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.8.0",
   "electronVersion": "1.4.6",
-  "distro": "cc6a2710b81e898b8cde2b51ba29e178980009e8",
+  "distro": "d063cb1099fdf21be5c61e0b54e6b703b06a7e0f",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -35,7 +35,7 @@
     "vscode-debugprotocol": "1.14.0",
     "vscode-textmate": "2.3.1",
     "winreg": "1.2.0",
-    "xterm": "2.1.0",
+    "xterm": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.8",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
@@ -66,7 +66,7 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.6.0",
-    "gulp-tsb": "^2.0.2",
+    "gulp-tsb": "^2.0.3",
     "gulp-tslint": "^4.3.0",
     "gulp-uglify": "^2.0.0",
     "gulp-util": "^3.0.6",

@@ -90,7 +90,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 			'			if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {',
 			'				let scrollTarget = window.document.getElementById(node.hash.substr(1, node.hash.length - 1));',
 			'				if (scrollTarget) {',
-			'					scrollgetTarget().scrollIntoView();',
+			'					scrollTarget.scrollIntoView();',
 			'				}',
 			'			} else {',
 			'				window.parent.postMessage({ command: "did-click-link", data: node.href }, "file://");',

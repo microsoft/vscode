@@ -12,57 +12,96 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import errors = require('vs/base/common/errors');
-import { IBackupService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupModelService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/files';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
 
-// TODO@ben TODO@tyriar this should restore any backup that exists on disk and not rely
-// on the editors to be restored already in the stacks model. For that a method is needed
-// to get all backups that exist on disk.
 export class BackupRestorer implements IWorkbenchContribution {
+
+	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
 
 	constructor(
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IPartService private partService: IPartService,
-		@IBackupService private backupService: IBackupService,
+		@IBackupModelService private backupService: IBackupModelService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IBackupFileService private backupFileService: IBackupFileService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@IEditorGroupService private groupService: IEditorGroupService
 	) {
-		if (!this.environmentService.isExtensionDevelopment) {
-			this.restoreBackups();
-		}
+		this.restoreBackups();
 	}
 
 	private restoreBackups(): void {
+		if (!this.environmentService.isExtensionDevelopment) {
+			this.partService.joinCreation().then(() => {
+				this.doRestoreBackups().done(null, errors.onUnexpectedError);
+			});
+		}
+	}
 
-		// Wait for all editors being restored before restoring backups
-		this.partService.joinCreation().then(() => {
+	private doRestoreBackups(): TPromise<any> {
 
-			// Resolve all untitled so that their backups get loaded
-			TPromise.join(this.untitledEditorService.getAll().map(untitled => untitled.resolve())).done(null, errors.onUnexpectedError);
+		// Find all files and untitled with backups
+		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
 
-			// TODO@Ben enable generally once we can get a list of backups quickly
-			if (this.backupService.isHotExitEnabled) {
-				const fileResources: { [resource: string]: FileEditorInput } = Object.create(null);
-				this.groupService.getStacksModel().groups.forEach(group => {
-					const editors = group.getEditors();
-					editors.forEach(editor => {
-						if (editor instanceof FileEditorInput) {
-							fileResources[editor.getResource().toString()] = editor;
-						}
-					});
-				});
+			// Resolve backups that are opened in stacks model
+			return this.doResolveOpenedBackups(backups).then(unresolved => {
 
-				TPromise.join(Object.keys(fileResources).map(resource => {
-					return this.backupFileService.hasBackup(URI.parse(resource)).then(hasBackup => {
-						if (hasBackup) {
-							return fileResources[resource].resolve();
-						}
-					});
-				})).done(null, errors.onUnexpectedError);
+				// Some failed to restore or were not opened at all so we open and resolve them manually
+				if (unresolved.length > 0) {
+					return this.doOpenEditors(unresolved).then(() => this.doResolveOpenedBackups(unresolved));
+				}
+			});
+		});
+	}
+
+	private doResolveOpenedBackups(backups: URI[]): TPromise<URI[]> {
+		const stacks = this.groupService.getStacksModel();
+
+		const restorePromises: TPromise<any>[] = [];
+		const unresolved: URI[] = [];
+
+		backups.forEach(backup => {
+			if (stacks.isOpen(backup)) {
+				if (backup.scheme === 'file') {
+					restorePromises.push(this.textModelResolverService.createModelReference(backup).then(null, () => unresolved.push(backup)));
+				} else if (backup.scheme === 'untitled') {
+					restorePromises.push(this.untitledEditorService.get(backup).resolve().then(null, () => unresolved.push(backup)));
+				}
+			} else {
+				unresolved.push(backup);
 			}
 		});
+
+		return TPromise.join(restorePromises).then(() => unresolved, () => unresolved);
+	}
+
+	private doOpenEditors(inputs: URI[]): TPromise<void> {
+		const stacks = this.groupService.getStacksModel();
+		const hasOpenedEditors = stacks.groups.length > 0;
+
+		return TPromise.join(inputs.map(resource => this.createInput(resource))).then(inputs => {
+			const openEditorsArgs = inputs.map((input, index) => {
+				return { input, options: { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors }, position: Position.ONE };
+			});
+
+			// Open all remaining backups as editors and resolve them to load their backups
+			return this.editorService.openEditors(openEditorsArgs).then(() => void 0);
+		});
+	}
+
+	private createInput(resource: URI): TPromise<IEditorInput> {
+		if (resource.scheme === 'untitled' && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
+			// TODO@Ben debt: instead of guessing if an untitled file has an associated file path or not
+			// this information should be provided by the backup service and stored as meta data within
+			return TPromise.as(this.untitledEditorService.createOrGet(URI.file(resource.fsPath)));
+		}
+
+		return this.editorService.createInput({ resource });
 	}
 
 	public getId(): string {

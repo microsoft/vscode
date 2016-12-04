@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration, TextEdit, Range, SnippetString, workspace } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 
@@ -87,11 +87,16 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	public updateConfiguration(config: WorkspaceConfiguration): void {
-		this.config.useCodeSnippetsOnMethodSuggest = config.get(Configuration.useCodeSnippetsOnMethodSuggest, false);
+		// Use shared setting for js and ts
+		let typeScriptConfig = workspace.getConfiguration('typescript');
+		this.config.useCodeSnippetsOnMethodSuggest = typeScriptConfig.get(Configuration.useCodeSnippetsOnMethodSuggest, false);
 	}
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
 		let filepath = this.client.asAbsolutePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve<CompletionItem[]>([]);
+		}
 		let args: CompletionsRequestArgs = {
 			file: filepath,
 			line: position.line + 1,
@@ -120,14 +125,15 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 			let completionItems: CompletionItem[] = [];
 			let body = msg.body;
+			if (body) {
+				for (let i = 0; i < body.length; i++) {
+					let element = body[i];
+					let item = new MyCompletionItem(element);
+					item.document = document;
+					item.position = position;
 
-			for (let i = 0; i < body.length; i++) {
-				let element = body[i];
-				let item = new MyCompletionItem(element);
-				item.document = document;
-				item.position = position;
-
-				completionItems.push(item);
+					completionItems.push(item);
+				}
 			}
 
 			return completionItems;
@@ -139,23 +145,26 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): any | Thenable<any> {
 		if (item instanceof MyCompletionItem) {
-
+			const filepath = this.client.asAbsolutePath(item.document.uri);
+			if (!filepath) {
+				return null;
+			}
 			let args: CompletionDetailsRequestArgs = {
-				file: this.client.asAbsolutePath(item.document.uri),
+				file: filepath,
 				line: item.position.line + 1,
 				offset: item.position.character + 1,
 				entryNames: [item.label]
 			};
 			return this.client.execute('completionEntryDetails', args, token).then((response) => {
 				let details = response.body;
-				let detail: CompletionEntryDetails = null;
+				let detail: CompletionEntryDetails | null = null;
 				if (details && details.length > 0) {
 					detail = details[0];
 					item.documentation = Previewer.plain(detail.documentation);
 					item.detail = Previewer.plain(detail.displayParts);
 				}
 
-				if (detail && this.config.useCodeSnippetsOnMethodSuggest && item.kind === CompletionItemKind.Function) {
+				if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
 					let codeSnippet = detail.name;
 					let suggestionArgumentNames: string[];
 

@@ -8,10 +8,9 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
-import { EditorInput, IEditorStacksModel } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorStacksModel, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { LocalFileChangeEvent, ITextFileService, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileChangeType, FileChangesEvent, EventType as CommonFileEventType } from 'vs/platform/files/common/files';
@@ -127,16 +126,16 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			group.getEditors().forEach(input => {
 				if (input instanceof FileEditorInput) {
 					inputs.push(input);
-				} else if (input instanceof DiffEditorInput) {
-					const originalInput = input.originalInput;
-					const modifiedInput = input.modifiedInput;
+				} else if (input instanceof SideBySideEditorInput) {
+					const master = input.master;
+					const details = input.details;
 
-					if (originalInput instanceof FileEditorInput) {
-						inputs.push(originalInput);
+					if (master instanceof FileEditorInput) {
+						inputs.push(master);
 					}
 
-					if (modifiedInput instanceof FileEditorInput) {
-						inputs.push(modifiedInput);
+					if (details instanceof FileEditorInput) {
+						inputs.push(details);
 					}
 				}
 			});
@@ -174,8 +173,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		const editors = this.editorService.getVisibleEditors();
 		editors.forEach(editor => {
 			let input = editor.input;
-			if (input instanceof DiffEditorInput) {
-				input = this.getMatchingFileEditorInputFromDiff(<DiffEditorInput>input, e);
+			if (input instanceof SideBySideEditorInput) {
+				input = this.getMatchingFileEditorInputFromSideBySide(<SideBySideEditorInput>input, e);
 			}
 
 			// File Editor Input
@@ -231,25 +230,25 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			return false;
 		}
 
-		// Support diff editor input too
-		if (input instanceof DiffEditorInput) {
-			input = (<DiffEditorInput>input).modifiedInput;
+		// Support side by side editor input too
+		if (input instanceof SideBySideEditorInput) {
+			input = (<SideBySideEditorInput>input).master;
 		}
 
 		return input instanceof FileEditorInput && input.getResource().toString() === resource.toString();
 	}
 
-	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, e: FileChangesEvent): FileEditorInput {
+	private getMatchingFileEditorInputFromSideBySide(input: SideBySideEditorInput, e: FileChangesEvent): FileEditorInput {
 
-		// First try modifiedInput
-		const modifiedInput = input.modifiedInput;
-		const res = this.getMatchingFileEditorInputFromInput(modifiedInput, e);
+		// First try master
+		const master = input.master;
+		const res = this.getMatchingFileEditorInputFromInput(master, e);
 		if (res) {
 			return res;
 		}
 
-		// Second try originalInput
-		return this.getMatchingFileEditorInputFromInput(input.originalInput, e);
+		// Second try details
+		return this.getMatchingFileEditorInputFromInput(input.details, e);
 	}
 
 	private getMatchingFileEditorInputFromInput(input: EditorInput, e: FileChangesEvent): FileEditorInput {

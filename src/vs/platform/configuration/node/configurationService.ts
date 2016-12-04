@@ -50,7 +50,9 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 
 	private onConfigurationChange(source: ConfigurationSource): void {
 		this.cache = void 0; // reset our caches
+
 		const cache = this.getCache();
+
 		this._onDidUpdateConfiguration.fire({
 			config: this.getConfiguration(),
 			source,
@@ -74,6 +76,7 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 
 	public getConfiguration<C>(section?: string): C {
 		const cache = this.getCache();
+
 		return section ? cache.consolidated[section] : cache.consolidated;
 	}
 
@@ -82,11 +85,13 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 	}
 
 	public lookup<C>(key: string): IConfigurationValue<C> {
+		const cache = this.getCache();
+
 		// make sure to clone the configuration so that the receiver does not tamper with the values
 		return {
-			default: objects.clone(getConfigurationValue<C>(getDefaultValues(), key)),
-			user: objects.clone(getConfigurationValue<C>(toValuesTree(this.rawConfig.getConfig()), key)),
-			value: objects.clone(getConfigurationValue<C>(this.getConfiguration(), key))
+			default: objects.clone(getConfigurationValue<C>(cache.defaults, key)),
+			user: objects.clone(getConfigurationValue<C>(cache.user, key)),
+			value: objects.clone(getConfigurationValue<C>(cache.consolidated, key))
 		};
 	}
 
@@ -99,7 +104,7 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 
 	private consolidateConfigurations(): ICache<T> {
 		const defaults = getDefaultValues();				// defaults coming from contributions to registries
-		const user = toValuesTree(this.rawConfig.getConfig());	// user configured settings
+		const user = toValuesTree(this.rawConfig.getConfig(), message => console.error(`Conflict in user settings: ${message}`));	// user configured settings
 
 		const consolidated = objects.mixin(
 			objects.clone(defaults), 	// target: default values (but dont modify!)

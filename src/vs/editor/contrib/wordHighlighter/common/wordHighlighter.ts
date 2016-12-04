@@ -5,7 +5,7 @@
 'use strict';
 
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -33,7 +33,7 @@ export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, pos
 						return data;
 					}
 				}, err => {
-					onUnexpectedError(err);
+					onUnexpectedExternalError(err);
 				});
 			}
 		};

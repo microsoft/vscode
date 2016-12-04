@@ -38,13 +38,13 @@ import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browse
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { Query } from '../common/extensionQuery';
-import { OpenGlobalSettingsAction } from 'vs/workbench/parts/settings/browser/openSettingsActions';
+import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
+import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 interface SearchInputEvent extends Event {
@@ -421,7 +421,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 	private disposables: IDisposable[];
 
 	constructor(
-		@IActivityService private activityService: IActivityService,
+		@IActivityBarService private activityBarService: IActivityBarService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		extensionsWorkbenchService.onChange(this.onServiceChange, this, this.disposables);
@@ -433,16 +433,16 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 	private onServiceChange(): void {
 		if (this.extensionsWorkbenchService.local.some(e => e.state === ExtensionState.Installing)) {
-			this.activityService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', 'Extensions')), 'extensions-badge progress-badge');
+			this.activityBarService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', 'Extensions')), 'extensions-badge progress-badge');
 			return;
 		}
 
 		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
 		if (outdated > 0) {
 			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
-			this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
+			this.activityBarService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
 		} else {
-			this.activityService.showActivity(VIEWLET_ID, null, 'extensions-badge');
+			this.activityBarService.showActivity(VIEWLET_ID, null, 'extensions-badge');
 		}
 	}
 

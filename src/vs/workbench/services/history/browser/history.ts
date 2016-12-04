@@ -12,9 +12,9 @@ import nls = require('vs/nls');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -33,6 +33,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -150,8 +151,8 @@ export abstract class BaseHistoryService {
 		}
 
 		// Apply listener for selection changes if this is a text editor
-		if (activeEditor instanceof BaseTextEditor) {
-			const control = activeEditor.getControl();
+		const control = getCodeEditor(activeEditor);
+		if (control) {
 			this.activeEditorListeners.push(control.onDidChangeCursorPosition(event => {
 				this.handleEditorSelectionChangeEvent(activeEditor);
 			}));
@@ -271,7 +272,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private static MAX_HISTORY_ITEMS = 200;
 	private static MAX_STACK_ITEMS = 20;
 	private static MAX_RECENTLY_CLOSED_EDITORS = 20;
-	private static MERGE_CURSOR_CHANGES_THRESHOLD = 100;
+	private static MERGE_EVENT_CHANGES_THRESHOLD = 100;
 
 	private stack: IStackEntry[];
 	private index: number;
@@ -309,7 +310,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.lifecycleService.onShutdown(() => this.save()));
+		this.toUnbind.push(this.lifecycleService.onShutdown(reason => this.save()));
 		this.toUnbind.push(this.editorGroupService.onEditorOpenFail(editor => this.remove(editor)));
 		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(event => this.onEditorClosed(event)));
 
@@ -467,8 +468,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return; // while we open an editor due to a navigation, we do not want to update our stack
 		}
 
-		if (editor instanceof BaseTextEditor && editor.input) {
-			this.handleTextEditorEvent(<BaseTextEditor>editor);
+		const control = getCodeEditor(editor);
+		if (control && editor.input) {
+			this.handleTextEditorEvent(editor, control);
 
 			return;
 		}
@@ -480,21 +482,21 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private handleTextEditorEvent(editor: BaseTextEditor): void {
-		const stateCandidate = new EditorState(editor.input, editor.getSelection());
+	private handleTextEditorEvent(editor: IBaseEditor, editorControl: editorCommon.IEditor): void {
+		const stateCandidate = new EditorState(editor.input, editorControl.getSelection());
 		if (!this.currentFileEditorState || this.currentFileEditorState.justifiesNewPushState(stateCandidate)) {
 			this.currentFileEditorState = stateCandidate;
 
 			let options: ITextEditorOptions;
 
-			const selection = editor.getSelection();
+			const selection = editorControl.getSelection();
 			if (selection) {
 				options = {
 					selection: { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn }
 				};
 			}
 
-			this.add(editor.input, options);
+			this.add(editor.input, options, true /* from event */);
 		}
 	}
 
@@ -504,34 +506,34 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return; // do not push same editor input again
 		}
 
-		this.add(editor.input);
+		this.add(editor.input, void 0, true /* from event */);
 	}
 
-	public add(input: IEditorInput, options?: ITextEditorOptions): void {
+	public add(input: IEditorInput, options?: ITextEditorOptions, fromEvent?: boolean): void {
 		if (!this.blockStackChanges) {
-			this.addToStack(input, options);
+			this.addToStack(input, options, fromEvent);
 		}
 	}
 
-	private addToStack(input: IEditorInput, options?: ITextEditorOptions): void {
+	private addToStack(input: IEditorInput, options?: ITextEditorOptions, fromEvent?: boolean): void {
 
 		// Overwrite an entry in the stack if we have a matching input that comes
 		// with editor options to indicate that this entry is more specific. Also
 		// prevent entries that have the exact same options. Finally, Overwrite
-		// entries if we detect that the change came in very fast which indicates
-		// that it was not coming in from a user change but rather rapid programmatic
-		// changes. We just take the last of the changes to not cause too many
-		// entries on the stack.
+		// entries if it came from an event and we detect that the change came in
+		// very fast which indicates that it was not coming in from a user change
+		// but rather rapid programmatic changes. We just take the last of the changes
+		// to not cause too many entries on the stack.
 		let replace = false;
 		if (this.stack[this.index]) {
 			const currentEntry = this.stack[this.index];
-			if (this.matches(input, currentEntry.input) && (this.sameOptions(currentEntry.options, options) || Date.now() - currentEntry.timestamp < HistoryService.MERGE_CURSOR_CHANGES_THRESHOLD)) {
+			if (this.matches(input, currentEntry.input) && (this.sameOptions(currentEntry.options, options) || (fromEvent && Date.now() - currentEntry.timestamp < HistoryService.MERGE_EVENT_CHANGES_THRESHOLD))) {
 				replace = true;
 			}
 		}
 
 		const stackInput = this.preferResourceInput(input);
-		const entry = { input: stackInput, options, timestamp: Date.now() };
+		const entry = { input: stackInput, options, timestamp: fromEvent ? Date.now() : void 0 };
 
 		// If we are not at the end of history, we remove anything after
 		if (this.stack.length > this.index + 1) {

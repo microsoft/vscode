@@ -183,7 +183,7 @@ export class FoldingController implements IFoldingController {
 			this.decorations = newDecorations;
 		});
 		if (updateHiddenRegions) {
-			this.updateHiddenAreas(void 0);
+			this.updateHiddenAreas();
 		}
 
 	}
@@ -327,7 +327,7 @@ export class FoldingController implements IFoldingController {
 		});
 	}
 
-	private updateHiddenAreas(focusLine: number): void {
+	private updateHiddenAreas(focusLine?: number): void {
 		let model = this.editor.getModel();
 		var selections: Selection[] = this.editor.getSelections();
 		var updateSelections = false;
@@ -354,17 +354,13 @@ export class FoldingController implements IFoldingController {
 				}
 			});
 		});
-		let revealPosition;
-		if (focusLine) {
-			revealPosition = { lineNumber: focusLine, column: 1 };
-		} else {
-			revealPosition = selections[0].getStartPosition();
-		}
 		if (updateSelections) {
 			this.editor.setSelections(selections);
 		}
 		this.editor.setHiddenAreas(hiddenAreas);
-		this.editor.revealPositionInCenterIfOutsideViewport(revealPosition);
+		if (focusLine) {
+			this.editor.revealPositionInCenterIfOutsideViewport({ lineNumber: focusLine, column: 1 });
+		}
 	}
 
 	public unfold(levels: number): void {
@@ -469,7 +465,7 @@ export class FoldingController implements IFoldingController {
 				});
 			});
 			if (hasChanges) {
-				this.updateHiddenAreas(void 0);
+				this.updateHiddenAreas(this.editor.getPosition().lineNumber);
 			}
 		}
 	}

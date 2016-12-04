@@ -9,9 +9,12 @@
   },
   "dependencies": {
     "request-light": "^0.1.0",
-    "vscode-json-languageservice": "^2.0.0-next.2",
-    "vscode-languageserver": "^2.4.0-next.12",
-    "vscode-nls": "^1.0.4"
+    "vscode-json-languageservice": "^2.0.0-next.7",
+    "vscode-languageserver": "3.0.1-alpha.3",
+    "vscode-nls": "^1.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^6.0.51"
   },
   "scripts": {
     "compile": "gulp compile-extension:json-server",

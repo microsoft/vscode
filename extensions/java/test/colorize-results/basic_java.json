@@ -440,8 +440,8 @@
 		}
 	},
 	{
-		"c": "/*",
-		"t": "block.body.class.comment.definition.java.meta.punctuation",
+		"c": "/**",
+		"t": "begin.block.body.class.comment.definition.documentation.java.javadoc.meta.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -451,8 +451,8 @@
 		}
 	},
 	{
-		"c": "*",
-		"t": "block.body.class.comment.java.meta",
+		"c": "\t * ",
+		"t": "block.body.class.comment.documentation.html.java.javadoc.meta.text",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -462,8 +462,30 @@
 		}
 	},
 	{
-		"c": "\t * @param args",
-		"t": "block.body.class.comment.java.meta",
+		"c": "@",
+		"t": "block.body.class.comment.definition.documentation.html.java.javadoc.keyword.meta.other.param.punctuation.tag.text",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.punctuation.definition.tag rgb(128, 128, 128)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.punctuation.definition.tag rgb(128, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.punctuation.definition.tag rgb(128, 128, 128)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.punctuation.definition.tag rgb(128, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.punctuation.definition.tag rgb(128, 128, 128)"
+		}
+	},
+	{
+		"c": "param",
+		"t": "block.body.class.comment.documentation.html.java.javadoc.keyword.meta.other.param.tag.text",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+		}
+	},
+	{
+		"c": " args",
+		"t": "block.body.class.comment.documentation.html.java.javadoc.meta.param.tag.text",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -474,7 +496,7 @@
 	},
 	{
 		"c": "\t ",
-		"t": "block.body.class.comment.java.meta",
+		"t": "block.body.class.comment.documentation.html.java.javadoc.meta.param.tag.text",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -485,7 +507,7 @@
 	},
 	{
 		"c": "*/",
-		"t": "block.body.class.comment.definition.java.meta.punctuation",
+		"t": "block.body.class.comment.definition.documentation.end.java.javadoc.meta.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",

@@ -21,7 +21,7 @@ import errors = require('vs/base/common/errors');
 import { IConfigFile, consolidate, newConfigFile } from 'vs/workbench/services/configuration/common/model';
 import { IConfigurationServiceEvent, ConfigurationSource, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService as BaseConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IWorkspaceConfigurationService, IWorkspaceConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationValues, IWorkspaceConfigurationService, IWorkspaceConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { EventType as FileEventType, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import Event, { Emitter } from 'vs/base/common/event';
 
@@ -136,7 +136,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 			default: configurationValue.default,
 			user: configurationValue.user,
 			workspace: getConfigurationValue<C>(this.cachedWorkspaceConfig, key),
-			value: getConfigurationValue<C>(this.getConfiguration(), key)
+			value: getConfigurationValue<C>(this.cachedConfig, key)
 		};
 	}
 
@@ -148,6 +148,22 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 			user: keys.user,
 			workspace: this.cachedWorkspaceKeys
 		};
+	}
+
+	public values(): IWorkspaceConfigurationValues {
+		const result: IWorkspaceConfigurationValues = Object.create(null);
+		const keyset = this.keys();
+		const keys = [...keyset.workspace, ...keyset.user, ...keyset.default].sort();
+
+		let lastKey: string;
+		for (const key of keys) {
+			if (key !== lastKey) {
+				lastKey = key;
+				result[key] = this.lookup(key);
+			}
+		}
+
+		return result;
 	}
 
 	public reloadConfiguration(section?: string): TPromise<any> {
@@ -237,7 +253,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 					return []; // never fail this call
 				}
 			}).then((contents: IContent[]) => {
-				contents.forEach(content => this.workspaceFilePathToConfiguration[this.contextService.toWorkspaceRelativePath(content.resource)] = TPromise.as(newConfigFile(content.value)));
+				contents.forEach(content => this.workspaceFilePathToConfiguration[this.contextService.toWorkspaceRelativePath(content.resource)] = TPromise.as(newConfigFile(content.value, content.resource.toString())));
 			}, errors.onUnexpectedError);
 		}
 
@@ -282,7 +298,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 					break;
 				case FileChangeType.UPDATED:
 				case FileChangeType.ADDED:
-					this.workspaceFilePathToConfiguration[workspacePath] = resolveContent(resource).then(content => newConfigFile(content.value), errors.onUnexpectedError);
+					this.workspaceFilePathToConfiguration[workspacePath] = resolveContent(resource).then(content => newConfigFile(content.value, content.resource.toString()), errors.onUnexpectedError);
 					affectedByChanges = true;
 			}
 		}

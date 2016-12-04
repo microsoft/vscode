@@ -14,7 +14,7 @@ import objects = require('vs/base/common/objects');
 import Event, { Emitter } from 'vs/base/common/event';
 import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,7 +25,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupModelService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 /**
@@ -57,7 +57,7 @@ export abstract class TextFileService implements ITextFileService {
 		@IFileService protected fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IBackupService private backupService: IBackupService,
+		@IBackupModelService private backupService: IBackupModelService,
 		@IMessageService private messageService: IMessageService
 	) {
 		this.toUnbind = [];
@@ -101,7 +101,7 @@ export abstract class TextFileService implements ITextFileService {
 	private registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown(event.quitRequested)));
+		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration changes
@@ -113,7 +113,7 @@ export abstract class TextFileService implements ITextFileService {
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
 	}
 
-	private beforeShutdown(quitRequested: boolean): boolean | TPromise<boolean> {
+	private beforeShutdown(reason: ShutdownReason): boolean | TPromise<boolean> {
 
 		// Dirty files need treatment on shutdown
 		const dirty = this.getDirty();
@@ -135,7 +135,7 @@ export abstract class TextFileService implements ITextFileService {
 
 					// If hot exit is enabled, backup dirty files and allow to exit without confirmation
 					if (this.backupService.isHotExitEnabled) {
-						return this.backupService.backupBeforeShutdown(dirty, this.models, quitRequested).then(result => {
+						return this.backupService.backupBeforeShutdown(dirty, this.models, reason).then(result => {
 							if (result.didBackup) {
 								return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
 							}

@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, { Emitter, once } from 'vs/base/common/event';
-import { IEditorRegistry, Extensions, EditorInput, getResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions, EditorInput, getResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +16,6 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export interface GroupEvent extends IGroupEvent {
 	editor: EditorInput;
@@ -729,7 +728,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.lifecycleService.onShutdown(() => this.onShutdown()));
+		this.toDispose.push(this.lifecycleService.onShutdown(reason => this.onShutdown()));
 	}
 
 	public get onGroupOpened(): Event<EditorGroup> {
@@ -1135,9 +1134,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 		if (!this.isOpen(editor)) {
 			editor.close();
 
-			// Also take care of diff editor inputs that wrap around 2 editors
-			if (editor instanceof DiffEditorInput) {
-				[editor.originalInput, editor.modifiedInput].forEach(editor => {
+			// Also take care of side by side editor inputs that wrap around 2 editors
+			if (editor instanceof SideBySideEditorInput) {
+				[editor.master, editor.details].forEach(editor => {
 					if (!this.isOpen(editor)) {
 						editor.close();
 					}

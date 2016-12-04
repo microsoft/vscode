@@ -102,6 +102,7 @@ export interface ITerminalService {
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
+	updateConfig(): void;
 }
 
 export interface ITerminalInstance {
@@ -128,6 +129,13 @@ export interface ITerminalInstance {
 	 * @readonly
 	 */
 	title: string;
+
+	/**
+	 * The focus state of the terminal before exiting.
+	 *
+	 * @readonly
+	 */
+	hadFocusOnExit: boolean;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.

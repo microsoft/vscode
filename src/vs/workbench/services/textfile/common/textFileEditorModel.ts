@@ -19,11 +19,11 @@ import types = require('vs/base/common/types');
 import { IModelContentChangedEvent, IRawText } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, IFileStat, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -196,14 +196,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Emit file change event
 			this._onDidStateChange.fire(StateChange.REVERTED);
-		}, (error) => {
+		}, error => {
 
 			// FileNotFound means the file got deleted meanwhile, so emit revert event because thats ok
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
 
-			// Set flags back to previous values, we are still dirty if revert failed and we where
+			// Set flags back to previous values, we are still dirty if revert failed
 			else {
 				undo();
 			}
@@ -233,108 +233,144 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Resolve Content
-		return this.textFileService.resolveTextContent(this.resource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then((content) => {
-			diag('load() - resolved content', this.resource, new Date());
+		return this.textFileService.resolveTextContent(this.resource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then(content => this.loadWithContent(content), error => {
+			const result = (<IFileOperationResult>error).fileOperationResult;
 
-			// Telemetry
-			this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
-
-			// Update our resolved disk stat model
-			const resolvedStat: IFileStat = {
-				resource: this.resource,
-				name: content.name,
-				mtime: content.mtime,
-				etag: content.etag,
-				isDirectory: false,
-				hasChildren: false,
-				children: void 0,
-			};
-			this.updateVersionOnDiskStat(resolvedStat);
-
-			// Keep the original encoding to not loose it when saving
-			const oldEncoding = this.contentEncoding;
-			this.contentEncoding = content.encoding;
-
-			// Handle events if encoding changed
-			if (this.preferredEncoding) {
-				this.updatePreferredEncoding(this.contentEncoding); // make sure to reflect the real encoding of the file (never out of sync)
-			} else if (oldEncoding !== this.contentEncoding) {
-				this._onDidStateChange.fire(StateChange.ENCODING);
-			}
-
-			// Update Existing Model
-			if (this.textEditorModel) {
-				diag('load() - updated text editor model', this.resource, new Date());
-
+			// NotModified status is expected and can be handled gracefully
+			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
 				this.setDirty(false); // Ensure we are not tracking a stale state
 
-				this.blockModelContentChange = true;
-				try {
-					this.updateTextEditorModel(content.value);
-				} finally {
-					this.blockModelContentChange = false;
+				return TPromise.as<EditorModel>(this);
+			}
+
+			// FileNotFound needs to be handled if we have a backup
+			if (result === FileOperationResult.FILE_NOT_FOUND) {
+				if (!this.textEditorModel && !this.createTextEditorModelPromise) {
+					return this.backupFileService.loadBackupResource(this.resource).then(backup => {
+
+						// Make sure meanwhile someone else did not suceed or start loading
+						if (this.createTextEditorModelPromise) {
+							return this.createTextEditorModelPromise;
+						} else if (this.textEditorModel) {
+							return TPromise.as(this.textEditorModel);
+						}
+
+						// If we have a backup, continue loading with it
+						if (!!backup) {
+							const content: IContent = {
+								resource: this.resource,
+								name: paths.basename(this.resource.fsPath),
+								mtime: Date.now(),
+								etag: void 0,
+								value: '', /* will be filled later from backup */
+								encoding: this.fileService.getEncoding(this.resource)
+							};
+
+							return this.loadWithContent(content);
+						}
+
+						// Otherwise bubble up the error
+						return TPromise.wrapError(error);
+					}, ignoreError => TPromise.wrapError(error));
 				}
-
-				return TPromise.as<EditorModel>(this);
-			}
-
-			// Join an existing request to create the editor model to avoid race conditions
-			else if (this.createTextEditorModelPromise) {
-				diag('load() - join existing text editor model promise', this.resource, new Date());
-
-				return this.createTextEditorModelPromise;
-			}
-
-			// Create New Model
-			else {
-				diag('load() - created text editor model', this.resource, new Date());
-
-				return this.backupFileService.hasBackup(this.resource).then(backupExists => {
-					let resolveBackupPromise: TPromise<IRawText>;
-
-					// Try get restore content, if there is an issue fallback silently to the original file's content
-					if (backupExists) {
-						const restoreResource = this.backupFileService.getBackupResource(this.resource);
-						resolveBackupPromise = this.textFileService.resolveTextContent(restoreResource, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => backup.value, error => content.value);
-					} else {
-						resolveBackupPromise = TPromise.as(content.value);
-					}
-
-					this.createTextEditorModelPromise = resolveBackupPromise.then(fileContent => {
-						return this.createTextEditorModel(fileContent, content.resource).then(() => {
-							this.createTextEditorModelPromise = null;
-
-							if (backupExists) {
-								this.makeDirty();
-							} else {
-								this.setDirty(false); // Ensure we are not tracking a stale state
-							}
-
-							this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
-
-							return this;
-						}, (error) => {
-							this.createTextEditorModelPromise = null;
-
-							return TPromise.wrapError(error);
-						});
-					});
-
-					return this.createTextEditorModelPromise;
-				});
-			}
-		}, (error) => {
-
-			// NotModified status code is expected and can be handled gracefully
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-				this.setDirty(false); // Ensure we are not tracking a stale state
-
-				return TPromise.as<EditorModel>(this);
 			}
 
 			// Otherwise bubble up the error
 			return TPromise.wrapError(error);
 		});
+	}
+
+	private loadWithContent(content: IRawTextContent | IContent): TPromise<EditorModel> {
+		diag('load() - resolved content', this.resource, new Date());
+
+		// Telemetry
+		this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
+
+		// Update our resolved disk stat model
+		const resolvedStat: IFileStat = {
+			resource: this.resource,
+			name: content.name,
+			mtime: content.mtime,
+			etag: content.etag,
+			isDirectory: false,
+			hasChildren: false,
+			children: void 0,
+		};
+		this.updateVersionOnDiskStat(resolvedStat);
+
+		// Keep the original encoding to not loose it when saving
+		const oldEncoding = this.contentEncoding;
+		this.contentEncoding = content.encoding;
+
+		// Handle events if encoding changed
+		if (this.preferredEncoding) {
+			this.updatePreferredEncoding(this.contentEncoding); // make sure to reflect the real encoding of the file (never out of sync)
+		} else if (oldEncoding !== this.contentEncoding) {
+			this._onDidStateChange.fire(StateChange.ENCODING);
+		}
+
+		// Update Existing Model
+		if (this.textEditorModel) {
+			diag('load() - updated text editor model', this.resource, new Date());
+
+			this.setDirty(false); // Ensure we are not tracking a stale state
+
+			this.blockModelContentChange = true;
+			try {
+				this.updateTextEditorModel(content.value);
+			} finally {
+				this.blockModelContentChange = false;
+			}
+
+			return TPromise.as<EditorModel>(this);
+		}
+
+		// Join an existing request to create the editor model to avoid race conditions
+		else if (this.createTextEditorModelPromise) {
+			diag('load() - join existing text editor model promise', this.resource, new Date());
+
+			return this.createTextEditorModelPromise;
+		}
+
+		// Create New Model
+		else {
+			diag('load() - created text editor model', this.resource, new Date());
+
+			this.createTextEditorModelPromise = this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
+				let resolveBackupPromise: TPromise<string | IRawText>;
+
+				// Try get restore content, if there is an issue fallback silently to the original file's content
+				if (backupResource) {
+					resolveBackupPromise = this.textFileService.resolveTextContent(backupResource, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => {
+						return this.backupFileService.parseBackupContent(backup);
+					}, error => content.value);
+				} else {
+					resolveBackupPromise = TPromise.as(content.value);
+				}
+
+				return resolveBackupPromise.then(fileContent => {
+					return this.createTextEditorModel(fileContent, content.resource).then(() => {
+						this.createTextEditorModelPromise = null;
+
+						if (backupResource) {
+							this.makeDirty();
+						} else {
+							this.setDirty(false); // Ensure we are not tracking a stale state
+						}
+
+						this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
+
+						return this;
+					}, error => {
+						this.createTextEditorModelPromise = null;
+
+						return TPromise.wrapError(error);
+					});
+				});
+			});
+
+			return this.createTextEditorModelPromise;
+		}
 	}
 
 	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): TPromise<IMode> {
@@ -560,7 +596,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 				// Emit File Saved Event
 				this._onDidStateChange.fire(StateChange.SAVED);
-			}, (error) => {
+			}, error => {
 				diag(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource, new Date());
 
 				// Remove from pending saves

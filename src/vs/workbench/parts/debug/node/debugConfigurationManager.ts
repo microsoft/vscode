@@ -71,7 +71,7 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 			},
 			configurationSnippets: {
 				description: nls.localize('vscode.extension.contributes.debuggers.configurationSnippets', "Snippets for adding new configurations in \'launch.json\'."),
-				type: 'object'
+				type: 'array'
 			},
 			configurationAttributes: {
 				description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.json\'."),
@@ -131,6 +131,7 @@ export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registe
 // debug general schema
 
 export const schemaId = 'vscode://schemas/launch';
+const defaultCompound: debug.ICompound = { name: 'Compound', configurations: [] };
 const schema: IJSONSchema = {
 	id: schemaId,
 	type: 'object',
@@ -156,6 +157,32 @@ const schema: IJSONSchema = {
 			type: 'number',
 			description: nls.localize('app.launch.json.debugServer', "DEPRECATED: please move debugServer inside a configuration.")
 		},
+		compounds: {
+			type: 'array',
+			description: nls.localize('app.launch.json.compounds', "List of compounds. Each compound references multiple configurations which will get launched together."),
+			items: {
+				type: 'object',
+				required: ['name', 'configurations'],
+				properties: {
+					name: {
+						type: 'string',
+						description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
+					},
+					configurations: {
+						type: 'array',
+						default: [],
+						items: {
+							type: 'string'
+						},
+						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")
+					}
+				},
+				default: defaultCompound
+			},
+			default: [
+				defaultCompound
+			]
+		}
 	}
 };
 
@@ -230,6 +257,15 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, type)).pop();
 	}
 
+	public getCompound(name: string): debug.ICompound {
+		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
+		if (!config || !config.compounds) {
+			return null;
+		}
+
+		return config.compounds.filter(compound => compound.name === name).pop();
+	}
+
 	public getConfiguration(nameOrConfig: string | debug.IConfig): TPromise<debug.IConfig> {
 		const config = this.configurationService.getConfiguration<debug.IGlobalConfig>('launch');
 
@@ -252,21 +288,16 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		if (result) {
 			// Set operating system specific properties #1873
-			if (isWindows && result.windows) {
-				Object.keys(result.windows).forEach(key => {
-					result[key] = result.windows[key];
-				});
-			}
-			if (isMacintosh && result.osx) {
-				Object.keys(result.osx).forEach(key => {
-					result[key] = result.osx[key];
-				});
-			}
-			if (isLinux && result.linux) {
-				Object.keys(result.linux).forEach(key => {
-					result[key] = result.linux[key];
-				});
-			}
+			const setOSProperties = (flag: boolean, osConfig: debug.IEnvConfig) => {
+				if (flag && osConfig) {
+					Object.keys(osConfig).forEach(key => {
+						result[key] = osConfig[key];
+					});
+				}
+			};
+			setOSProperties(isWindows, result.windows);
+			setOSProperties(isMacintosh, result.osx);
+			setOSProperties(isLinux, result.linux);
 
 			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 			Object.keys(result).forEach(key => {
@@ -285,7 +316,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
 			this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Environment") })
-				.then(adapter => adapter ? adapter.getInitialConfigFileContent() : null)
+				.then(adapter => adapter ? adapter.getInitialConfigurationContent() : null)
 				.then(content => {
 					if (!content) {
 						return false;

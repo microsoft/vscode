@@ -15,16 +15,8 @@
 	opacity: 0.6;
 }
 
-/* -- line-style -- */
-.monaco-editor .cursors-layer.cursor-line-style > .cursor { width: 2px; }
-.monaco-editor .cursors-layer.cursor-line-style > .cursor.secondary { width: 1px; }
-
-/* -- block-style -- */
-.monaco-editor .cursors-layer.cursor-block-style > .cursor { width: 1ch; }
-
 /* -- under-line-style -- */
 .monaco-editor .cursors-layer.cursor-underline-style > .cursor {
-	width: 1ch;
 	border-bottom-width: 2px;
 	border-bottom-style: solid;
 	background: transparent !important;

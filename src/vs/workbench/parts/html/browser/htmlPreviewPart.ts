@@ -138,7 +138,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		this.webview.focus();
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 
 		if (this.input === input && this._hasValidModel()) {
 			return TPromise.as(undefined);

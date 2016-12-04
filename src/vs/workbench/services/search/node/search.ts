@@ -49,6 +49,7 @@ export interface ISerializedSearchComplete {
 export interface ISerializedFileMatch {
 	path: string;
 	lineMatches?: ILineMatch[];
+	numMatches?: number;
 }
 
 // Type of the possible values for progress calls from the engine
