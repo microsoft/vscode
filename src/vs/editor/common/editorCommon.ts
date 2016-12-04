@@ -1368,16 +1368,7 @@ export enum EndOfLineSequence {
 }
 
 /**
- * A read-only line marker in the model.
- * @internal
- */
-export interface IReadOnlyLineMarker {
-	readonly id: string;
-	readonly column: number;
-}
-
-/**
- * And identifier for a single edit operation.
+ * An identifier for a single edit operation.
  */
 export interface ISingleEditOperationIdentifier {
 	/**
@@ -1984,18 +1975,6 @@ export interface ITextModelWithMarkers extends ITextModel {
 	 * @internal
 	 */
 	_removeMarker(id: string): void;
-	/**
-	 * @internal
-	 */
-	_getLineMarkers(lineNumber: number): IReadOnlyLineMarker[];
-}
-
-/**
- * A map of changed ranges used during the model internal processing
- * @internal
- */
-export interface IChangedTrackedRanges {
-	[key: string]: IRange;
 }
 
 /**
@@ -2511,14 +2490,6 @@ export interface IModelDecorationsChangedEvent {
 	 * List of ids for removed decorations.
 	 */
 	readonly removedDecorations: string[];
-	/**
-	 * Details regarding old options.
-	 */
-	readonly oldOptions: { [decorationId: string]: IModelDecorationOptions; };
-	/**
-	 * Details regarding old ranges.
-	 */
-	readonly oldRanges: { [decorationId: string]: IRange; };
 }
 /**
  * An event describing that some ranges of lines have been tokenized (their tokens have changed).

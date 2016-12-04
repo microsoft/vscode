@@ -7,7 +7,7 @@
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditStack } from 'vs/editor/common/model/editStack';
-import { ILineEdit, ILineMarker, ModelLine } from 'vs/editor/common/model/modelLine';
+import { ILineEdit, LineMarker, ModelLine } from 'vs/editor/common/model/modelLine';
 import { DeferredEventsBuilder, TextModelWithDecorations } from 'vs/editor/common/model/textModelWithDecorations';
 import * as strings from 'vs/base/common/strings';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -547,10 +547,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					let spliceCnt = endLineNumber - spliceStartLineNumber;
 
 					// Collect all these markers
-					let markersOnDeletedLines: ILineMarker[] = [];
+					let markersOnDeletedLines: LineMarker[] = [];
 					for (let j = 0; j < spliceCnt; j++) {
 						let deleteLineIndex = spliceStartLineNumber + j;
-						markersOnDeletedLines = markersOnDeletedLines.concat(this._lines[deleteLineIndex].deleteLine(deferredEventsBuilder.changedMarkers, spliceStartColumn, deleteLineIndex + 1));
+						markersOnDeletedLines = markersOnDeletedLines.concat(this._lines[deleteLineIndex].deleteLine(deferredEventsBuilder.changedMarkers, spliceStartColumn));
 					}
 
 					this._lines.splice(spliceStartLineNumber, spliceCnt);

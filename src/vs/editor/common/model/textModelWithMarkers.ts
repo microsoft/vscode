@@ -6,41 +6,18 @@
 
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { Position } from 'vs/editor/common/core/position';
-import { IRawText, IReadOnlyLineMarker, ITextModelWithMarkers } from 'vs/editor/common/editorCommon';
-import { ILineMarker, ModelLine } from 'vs/editor/common/model/modelLine';
+import { IRawText, ITextModelWithMarkers } from 'vs/editor/common/editorCommon';
+import { LineMarker } from 'vs/editor/common/model/modelLine';
 import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
 
 export interface IMarkerIdToMarkerMap {
-	[key: string]: ILineMarker;
+	[key: string]: LineMarker;
 }
 
 export interface INewMarker {
 	lineNumber: number;
 	column: number;
 	stickToPreviousCharacter: boolean;
-}
-
-export class LineMarker implements ILineMarker {
-
-	id: string;
-	column: number;
-	stickToPreviousCharacter: boolean;
-	oldLineNumber: number;
-	oldColumn: number;
-	line: ModelLine;
-
-	constructor(id: string, column: number, stickToPreviousCharacter: boolean) {
-		this.id = id;
-		this.column = column;
-		this.stickToPreviousCharacter = stickToPreviousCharacter;
-		this.oldLineNumber = 0;
-		this.oldColumn = 0;
-		this.line = null;
-	}
-
-	public toString(): string {
-		return '{\'' + this.id + '\';' + this.column + ',' + this.stickToPreviousCharacter + ',[' + this.oldLineNumber + ',' + this.oldColumn + ']}';
-	}
 }
 
 var _INSTANCE_COUNT = 0;
@@ -145,7 +122,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		return Object.keys(this._markerIdToMarker).length;
 	}
 
-	_getLineMarkers(lineNumber: number): IReadOnlyLineMarker[] {
+	protected _getLineMarkers(lineNumber: number): LineMarker[] {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -193,8 +170,8 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		}
 	}
 
-	protected _getMarkersInMap(markersMap: { [markerId: string]: boolean; }): ILineMarker[] {
-		let result: ILineMarker[] = [];
+	protected _getMarkersInMap(markersMap: { [markerId: string]: boolean; }): LineMarker[] {
+		let result: LineMarker[] = [];
 		let keys = Object.keys(markersMap);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let markerId = keys[i];

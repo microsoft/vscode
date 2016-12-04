@@ -7,7 +7,7 @@
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ILineMarker } from 'vs/editor/common/model/modelLine';
+import { LineMarker } from 'vs/editor/common/model/modelLine';
 import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textModelWithMarkers';
 import { Position } from 'vs/editor/common/core/position';
 
@@ -274,8 +274,8 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 	public getLinesTrackedRanges(startLineNumber: number, endLineNumber: number): editorCommon.IModelTrackedRange[] {
 		var result = this._getMultiLineTrackedRanges(startLineNumber, endLineNumber),
 			resultMap: { [rangeId: string]: boolean; } = {},
-			lineMarkers: editorCommon.IReadOnlyLineMarker[],
-			lineMarker: editorCommon.IReadOnlyLineMarker,
+			lineMarkers: LineMarker[],
+			lineMarker: LineMarker,
 			rangeId: string,
 			i: number,
 			len: number,
@@ -311,48 +311,42 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		return result;
 	}
 
-	protected _onChangedMarkers(changedMarkers: ILineMarker[]): editorCommon.IChangedTrackedRanges {
-		let changedRanges: editorCommon.IChangedTrackedRanges = {};
-
+	protected _onChangedMarkers(changedMarkers: LineMarker[]): string[] {
+		// Collect changed ranges (might contain duplicates)
+		let changedRanges: string[] = [], changedRangesLen = 0;
 		for (let i = 0, len = changedMarkers.length; i < len; i++) {
 			let marker = changedMarkers[i];
 
 			if (this._markerIdToRangeId.hasOwnProperty(marker.id)) {
 				let rangeId = this._markerIdToRangeId[marker.id];
-				let range = this._ranges[rangeId];
 
-				let startLineNumber = 0;
-				let startColumn = 0;
-				let endLineNumber = 0;
-				let endColumn = 0;
-
-				if (changedRanges.hasOwnProperty(range.id)) {
-					let changedRange = changedRanges[range.id];
-					startLineNumber = changedRange.startLineNumber;
-					startColumn = changedRange.startColumn;
-					endLineNumber = changedRange.endLineNumber;
-					endColumn = changedRange.endColumn;
-				}
-
-				if (marker.id === range.startMarkerId) {
-					startLineNumber = marker.oldLineNumber;
-					startColumn = marker.oldColumn;
-				} else {
-					endLineNumber = marker.oldLineNumber;
-					endColumn = marker.oldColumn;
-				}
-
-				changedRanges[range.id] = {
-					startLineNumber: startLineNumber,
-					startColumn: startColumn,
-					endLineNumber: endLineNumber,
-					endColumn: endColumn
-				};
-
-				this._setRangeIsMultiLine(range.id, (this._getMarker(range.startMarkerId).lineNumber !== this._getMarker(range.endMarkerId).lineNumber));
+				changedRanges[changedRangesLen++] = rangeId;
 			}
 		}
-		return changedRanges;
+
+		// Eliminate duplicates
+		changedRanges.sort();
+
+		let uniqueChangedRanges: string[] = [], uniqueChangedRangesLen = 0;
+		let prevChangedRange: string = null;
+		for (let i = 0, len = changedRanges.length; i < len; i++) {
+			let changedRangeId = changedRanges[i];
+
+			if (changedRangeId !== prevChangedRange) {
+				uniqueChangedRanges[uniqueChangedRangesLen++] = changedRangeId;
+			}
+
+			prevChangedRange = changedRangeId;
+		}
+
+		// update multiline flags
+		for (let i = 0, len = uniqueChangedRanges.length; i < len; i++) {
+			let changedRangeId = uniqueChangedRanges[i];
+			let range = this._ranges[changedRangeId];
+			this._setRangeIsMultiLine(range.id, (this._getMarker(range.startMarkerId).lineNumber !== this._getMarker(range.endMarkerId).lineNumber));
+		}
+
+		return uniqueChangedRanges;
 	}
 
 }

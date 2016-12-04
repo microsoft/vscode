@@ -229,12 +229,6 @@ suite('Editor Model - Model Decorations', () => {
 				endLineNumber: 1,
 				endColumn: 2
 			}));
-			assert.ok(Range.equalsRange(e.oldRanges[decId], {
-				startLineNumber: 1,
-				startColumn: 2,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
 			assert.equal(e.removedDecorations.length, 0);
 		});
 		thisModel.changeDecorations((changeAccessor) => {
@@ -250,12 +244,6 @@ suite('Editor Model - Model Decorations', () => {
 			listenerCalled++;
 			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 0);
-			assert.ok(Range.equalsRange(e.oldRanges[decId], {
-				startLineNumber: 1,
-				startColumn: 2,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
 			assert.equal(e.removedDecorations.length, 1);
 			assert.equal(e.removedDecorations[0], decId);
 		});
@@ -267,7 +255,7 @@ suite('Editor Model - Model Decorations', () => {
 
 	test('decorations emit event when inserting one line text before it', () => {
 		var listenerCalled = 0;
-		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
+		addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
@@ -276,12 +264,6 @@ suite('Editor Model - Model Decorations', () => {
 			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
 				startLineNumber: 1,
 				startColumn: 8,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
-			assert.ok(Range.equalsRange(e.oldRanges[decId], {
-				startLineNumber: 1,
-				startColumn: 2,
 				endLineNumber: 3,
 				endColumn: 2
 			}));

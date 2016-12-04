@@ -1708,7 +1708,7 @@ declare module monaco.editor {
     }
 
     /**
-     * And identifier for a single edit operation.
+     * An identifier for a single edit operation.
      */
     export interface ISingleEditOperationIdentifier {
         /**
@@ -2384,18 +2384,6 @@ declare module monaco.editor {
          * List of ids for removed decorations.
          */
         readonly removedDecorations: string[];
-        /**
-         * Details regarding old options.
-         */
-        readonly oldOptions: {
-            [decorationId: string]: IModelDecorationOptions;
-        };
-        /**
-         * Details regarding old ranges.
-         */
-        readonly oldRanges: {
-            [decorationId: string]: IRange;
-        };
     }
 
     /**

@@ -12,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { ILineEdit, ModelLine } from 'vs/editor/common/model/modelLine';
+import { ILineEdit, ModelLine, LineMarker } from 'vs/editor/common/model/modelLine';
 import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 
@@ -40,14 +40,7 @@ function testCommand(lines: string[], selection: Selection, edits: IIdentifiedSi
 
 function testLineEditMarker(text: string, column: number, stickToPreviousCharacter: boolean, edit: ILineEdit, expectedColumn: number): void {
 	var line = new ModelLine(1, text, NO_TAB_SIZE);
-	line.addMarker({
-		id: '1',
-		line: null,
-		column: column,
-		stickToPreviousCharacter: stickToPreviousCharacter,
-		oldLineNumber: 0,
-		oldColumn: 0,
-	});
+	line.addMarker(new LineMarker('1', column, stickToPreviousCharacter));
 
 	line.applyEdits({}, [edit], NO_TAB_SIZE);
 

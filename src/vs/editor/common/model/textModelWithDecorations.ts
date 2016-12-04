@@ -16,16 +16,11 @@ export class DeferredEventsBuilder {
 
 	public changedMarkers: { [markerId: string]: boolean; };
 
-	public oldDecorationRange: { [decorationId: string]: editorCommon.IRange; };
-	public oldDecorationOptions: { [decorationId: string]: editorCommon.IModelDecorationOptions; };
-
 	public newOrChangedDecorations: { [decorationId: string]: boolean; };
 	public removedDecorations: { [decorationId: string]: boolean; };
 
 	constructor() {
 		this.changedMarkers = {};
-		this.oldDecorationRange = {};
-		this.oldDecorationOptions = {};
 		this.newOrChangedDecorations = {};
 		this.removedDecorations = {};
 	}
@@ -36,30 +31,18 @@ export class DeferredEventsBuilder {
 		this.newOrChangedDecorations[id] = true;
 	}
 
-	public addRemovedDecoration(id: string, ownerId: number, range: editorCommon.IRange, options: editorCommon.IModelDecorationOptions): void {
+	public addRemovedDecoration(id: string): void {
 		if (this.newOrChangedDecorations.hasOwnProperty(id)) {
 			delete this.newOrChangedDecorations[id];
-		}
-		if (!this.oldDecorationRange.hasOwnProperty(id)) {
-			this.oldDecorationRange[id] = range;
-		}
-		if (!this.oldDecorationOptions.hasOwnProperty(id)) {
-			this.oldDecorationOptions[id] = options;
 		}
 		this.removedDecorations[id] = true;
 	}
 
-	public addMovedDecoration(id: string, oldRange: editorCommon.IRange): void {
-		if (!this.oldDecorationRange.hasOwnProperty(id)) {
-			this.oldDecorationRange[id] = oldRange;
-		}
+	public addMovedDecoration(id: string): void {
 		this.newOrChangedDecorations[id] = true;
 	}
 
-	public addUpdatedDecoration(id: string, oldOptions: editorCommon.IModelDecorationOptions): void {
-		if (!this.oldDecorationOptions.hasOwnProperty(id)) {
-			this.oldDecorationOptions[id] = oldOptions;
-		}
+	public addUpdatedDecoration(id: string): void {
 		this.newOrChangedDecorations[id] = true;
 	}
 }
@@ -313,59 +296,37 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 
 	private _handleCollectedEvents(b: DeferredEventsBuilder): void {
 		// Normalize changed markers into an array
-		var changedMarkers = this._getMarkersInMap(b.changedMarkers);
+		let changedMarkers = this._getMarkersInMap(b.changedMarkers);
 
 		// Collect changed tracked ranges
-		var changedRanges = this._onChangedMarkers(changedMarkers);
+		let changedRanges = this._onChangedMarkers(changedMarkers);
 
 		// Collect decoration change events with the deferred event builder
-		this._onChangedRanges(b, changedRanges);
-
-		// Emit a single decorations changed event
-		this._handleCollectedDecorationsEvents(b);
-
-		// Reset markers for next round of events
-		for (var i = 0, len = changedMarkers.length; i < len; i++) {
-			changedMarkers[i].oldLineNumber = 0;
-			changedMarkers[i].oldColumn = 0;
-		}
-	}
-
-	private _onChangedRanges(eventBuilder: DeferredEventsBuilder, changedRanges: editorCommon.IChangedTrackedRanges): void {
-		let keys = Object.keys(changedRanges);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let rangeId = keys[i];
+		for (let i = 0, len = changedRanges.length; i < len; i++) {
+			let rangeId = changedRanges[i];
 			if (this.rangeIdToDecorationId.hasOwnProperty(rangeId)) {
 				let decorationId = this.rangeIdToDecorationId[rangeId];
 
-				eventBuilder.addMovedDecoration(decorationId, changedRanges[rangeId]);
+				b.addMovedDecoration(decorationId);
 			}
 		}
+
+		// Emit a single decorations changed event
+		this._handleCollectedDecorationsEvents(b);
 	}
 
 	private _handleCollectedDecorationsEvents(b: DeferredEventsBuilder): void {
 		var addedOrChangedDecorations: editorCommon.IModelDecorationsChangedEventDecorationData[] = [],
 			removedDecorations: string[] = [],
-			decorationIds: string[] = [],
-			decorationData: editorCommon.IModelDecorationsChangedEventDecorationData,
-			oldRange: editorCommon.IRange;
+			decorationIds: string[] = [];
 
 		let keys = Object.keys(b.newOrChangedDecorations);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let decorationId = keys[i];
 
 			decorationIds.push(decorationId);
-			decorationData = this._getDecorationData(decorationId);
+			let decorationData = this._getDecorationData(decorationId);
 			addedOrChangedDecorations.push(decorationData);
-			if (b.oldDecorationRange.hasOwnProperty(decorationId)) {
-				oldRange = b.oldDecorationRange[decorationId];
-				b.oldDecorationRange[decorationId] = {
-					startLineNumber: oldRange.startLineNumber || decorationData.range.startLineNumber,
-					startColumn: oldRange.startColumn || decorationData.range.startColumn,
-					endLineNumber: oldRange.endLineNumber || decorationData.range.endLineNumber,
-					endColumn: oldRange.endColumn || decorationData.range.endColumn
-				};
-			}
 		}
 
 		keys = Object.keys(b.removedDecorations);
@@ -379,9 +340,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 			var e: editorCommon.IModelDecorationsChangedEvent = {
 				ids: decorationIds,
 				addedOrChangedDecorations: addedOrChangedDecorations,
-				removedDecorations: removedDecorations,
-				oldOptions: b.oldDecorationOptions,
-				oldRanges: b.oldDecorationRange
+				removedDecorations: removedDecorations
 			};
 			this.emitModelDecorationsChangedEvent(e);
 		}
@@ -448,19 +407,16 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 
 	private _changeDecorationImpl(eventBuilder: DeferredEventsBuilder, id: string, newRange: Range): void {
 		if (this.decorations.hasOwnProperty(id)) {
-			var decoration = this.decorations[id];
-			var oldRange = this.getTrackedRange(decoration.rangeId);
-
+			let decoration = this.decorations[id];
 			this.changeTrackedRange(decoration.rangeId, newRange);
-
-			eventBuilder.addMovedDecoration(id, oldRange);
+			eventBuilder.addMovedDecoration(id);
 		}
 	}
 
 	private _changeDecorationOptionsImpl(eventBuilder: DeferredEventsBuilder, id: string, options: ModelDecorationOptions): void {
 		if (this.decorations.hasOwnProperty(id)) {
-			var decoration = this.decorations[id];
-			var oldOptions = decoration.options;
+			let decoration = this.decorations[id];
+			let oldOptions = decoration.options;
 
 			if (oldOptions.stickiness !== options.stickiness) {
 				this.changeTrackedRangeStickiness(decoration.rangeId, options.stickiness);
@@ -468,24 +424,20 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 
 			decoration.options = options;
 
-			eventBuilder.addUpdatedDecoration(id, oldOptions);
+			eventBuilder.addUpdatedDecoration(id);
 		}
 	}
 
 	private _removeDecorationImpl(eventBuilder: DeferredEventsBuilder, id: string): void {
 		if (this.decorations.hasOwnProperty(id)) {
-			var decoration = this.decorations[id];
-			var oldRange: Range = null;
-			if (eventBuilder) {
-				oldRange = this.getTrackedRange(decoration.rangeId);
-			}
+			let decoration = this.decorations[id];
 
 			this.removeTrackedRange(decoration.rangeId);
 			delete this.rangeIdToDecorationId[decoration.rangeId];
 			delete this.decorations[id];
 
 			if (eventBuilder) {
-				eventBuilder.addRemovedDecoration(id, decoration.ownerId, oldRange, decoration.options);
+				eventBuilder.addRemovedDecoration(id);
 			}
 		}
 	}
@@ -503,8 +455,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 			let decoration = this.decorations[id];
 
 			if (eventBuilder) {
-				let oldRange = this.getTrackedRange(decoration.rangeId);
-				eventBuilder.addRemovedDecoration(id, decoration.ownerId, oldRange, decoration.options);
+				eventBuilder.addRemovedDecoration(id);
 			}
 
 			removeTrackedRanges.push(decoration.rangeId);
