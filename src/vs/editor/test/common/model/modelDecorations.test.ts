@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDeltaDecoration, IRange, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 
 // --------- utils
@@ -380,7 +380,7 @@ suite('Editor Model - Model Decorations', () => {
 
 export interface ILightWeightDecoration {
 	id: string;
-	range: IRange;
+	range: Range;
 }
 
 suite('deltaDecorations', () => {
@@ -388,12 +388,7 @@ suite('deltaDecorations', () => {
 	function decoration(id: string, startLineNumber: number, startColumn: number, endLineNumber: number, endColum: number): ILightWeightDecoration {
 		return {
 			id: id,
-			range: {
-				startLineNumber: startLineNumber,
-				startColumn: startColumn,
-				endLineNumber: endLineNumber,
-				endColumn: endColum
-			}
+			range: new Range(startLineNumber, startColumn, endLineNumber, endColum)
 		};
 	}
 

@@ -7,7 +7,7 @@
 import Event from 'vs/base/common/event';
 import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, IRange } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 
 export interface IClipboardEvent {
@@ -52,7 +52,7 @@ export interface ITextAreaWrapper {
 export interface ISimpleModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getEOL(): string;
-	getValueInRange(range: IRange, eol: EndOfLinePreference): string;
+	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	getModelLineContent(lineNumber: number): string;
 	getLineCount(): number;
 	convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position;

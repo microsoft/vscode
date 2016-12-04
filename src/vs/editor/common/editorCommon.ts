@@ -2464,7 +2464,7 @@ export interface IModelDecorationsChangedEventDecorationData {
 	/**
 	 * The range of the decoration.
 	 */
-	readonly range: IRange;
+	readonly range: Range;
 	/**
 	 * A flag describing if this is a problem decoration (e.g. warning/error).
 	 */
@@ -2605,7 +2605,7 @@ export interface ICursorSelectionChangedEvent {
 /**
  * @internal
  */
-export enum VerticalRevealType {
+export const enum VerticalRevealType {
 	Simple = 0,
 	Center = 1,
 	CenterIfOutsideViewport = 2,

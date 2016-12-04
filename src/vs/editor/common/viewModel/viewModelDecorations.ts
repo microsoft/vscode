@@ -10,13 +10,13 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IDecorationsViewportData, InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IModelRangeToViewRangeConverter {
-	convertModelRangeToViewRange(modelRange: editorCommon.IRange, isWholeLine: boolean): Range;
+	convertModelRangeToViewRange(modelRange: Range, isWholeLine: boolean): Range;
 }
 
 interface IViewModelDecorationSource {
 	id: string;
 	ownerId: number;
-	range: editorCommon.IRange;
+	range: Range;
 	options: editorCommon.IModelDecorationOptions;
 }
 
@@ -25,7 +25,7 @@ class ViewModelDecoration {
 	ownerId: number;
 	range: Range;
 	options: editorCommon.IModelDecorationOptions;
-	modelRange: editorCommon.IRange;
+	modelRange: Range;
 
 	constructor(source: IViewModelDecorationSource, range: Range) {
 		this.id = source.id;
@@ -228,7 +228,7 @@ export class ViewModelDecorations implements IDisposable {
 			intersectedEndLineNumber: number,
 			decorations = this.decorations,
 			d: ViewModelDecoration,
-			r: editorCommon.IRange,
+			r: Range,
 			i: number,
 			len: number;
 

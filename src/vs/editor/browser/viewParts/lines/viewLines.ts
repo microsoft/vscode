@@ -8,6 +8,7 @@ import 'vs/css!./viewLines';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { StyleMutator } from 'vs/base/browser/styleMutator';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewLayer } from 'vs/editor/browser/view/viewLayer';
@@ -188,7 +189,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 
 	// ----------- HELPERS FOR OTHERS
 
-	public getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): editorCommon.IPosition {
+	public getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position {
 		let lineNumber = this._getLineNumberFromDOMInfo(spanNode);
 
 		if (lineNumber === -1) {
@@ -203,10 +204,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 
 		if (this._context.model.getLineMaxColumn(lineNumber) === 1) {
 			// Line is empty
-			return {
-				lineNumber: lineNumber,
-				column: 1
-			};
+			return new Position(lineNumber, 1);
 		}
 
 		let rendStartLineNumber = this._linesCollection.getStartLineNumber();
@@ -221,10 +219,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 		if (column < minColumn) {
 			column = minColumn;
 		}
-		return {
-			lineNumber: lineNumber,
-			column: column
-		};
+		return new Position(lineNumber, column);
 	}
 
 	private _getLineNumberFromDOMInfo(spanNode: HTMLElement): number {
@@ -248,7 +243,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 		return this._linesCollection.getLine(lineNumber).getWidth();
 	}
 
-	public linesVisibleRangesForRange(range: editorCommon.IRange, includeNewLines: boolean): LineVisibleRanges[] {
+	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] {
 		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
@@ -304,7 +299,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 		return visibleRanges;
 	}
 
-	public visibleRangesForRange2(range: editorCommon.IRange, deltaTop: number): VisibleRange[] {
+	public visibleRangesForRange2(range: Range, deltaTop: number): VisibleRange[] {
 
 		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty

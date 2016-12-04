@@ -932,7 +932,7 @@ class Utils {
 	 * Tests if position is contained inside range.
 	 * If position is either the starting or ending of a range, false is returned.
 	 */
-	static isPositionInsideRange(position: editorCommon.IPosition, range: editorCommon.IRange): boolean {
+	static isPositionInsideRange(position: Position, range: Range): boolean {
 		if (position.lineNumber < range.startLineNumber) {
 			return false;
 		}
@@ -948,7 +948,7 @@ class Utils {
 		return true;
 	}
 
-	static isPositionAtRangeEdges(position: editorCommon.IPosition, range: editorCommon.IRange): boolean {
+	static isPositionAtRangeEdges(position: Position, range: Range): boolean {
 		if (position.lineNumber === range.startLineNumber && position.column === range.startColumn) {
 			return true;
 		}

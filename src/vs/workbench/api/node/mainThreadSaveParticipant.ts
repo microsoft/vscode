@@ -13,9 +13,10 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IPosition, IModel, ICommonCodeEditor, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IModel, ICommonCodeEditor, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Position } from 'vs/editor/common/core/position';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { getDocumentFormattingEdits } from 'vs/editor/contrib/format/common/format';
 import { EditOperationsCommand } from 'vs/editor/contrib/format/common/formatCommand';
@@ -47,7 +48,7 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 
 	private doTrimTrailingWhitespace(model: IModel, isAutoSaved: boolean): void {
 		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
-		const cursors: IPosition[] = [];
+		const cursors: Position[] = [];
 
 		let editor = findEditor(model, this.codeEditorService);
 		if (editor) {
@@ -55,12 +56,7 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 			// Collect active cursors in `cursors` only if `isAutoSaved` to avoid having the cursors jump
 			prevSelection = editor.getSelections();
 			if (isAutoSaved) {
-				cursors.push(...prevSelection.map(s => {
-					return {
-						lineNumber: s.positionLineNumber,
-						column: s.positionColumn
-					};
-				}));
+				cursors.push(...prevSelection.map(s => new Position(s.positionLineNumber, s.positionColumn)));
 			}
 		}
 
@@ -125,7 +121,7 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 			prevSelection = editor.getSelections();
 		}
 
-		model.pushEditOperations(prevSelection, [EditOperation.insert({ lineNumber: lineCount + 1, column: 0 }, model.getEOL())], (edits) => prevSelection);
+		model.pushEditOperations(prevSelection, [EditOperation.insert(new Position(lineCount + 1, 0), model.getEOL())], (edits) => prevSelection);
 	}
 }
 

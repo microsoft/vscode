@@ -17,6 +17,7 @@ import { Queue } from 'vs/base/common/async';
 import { applyEdits, Edit } from 'vs/base/common/jsonFormatter';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -109,12 +110,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	private applyEditsToBuffer(edit: Edit, model: editorCommon.IModel): boolean {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
-		const range: editorCommon.IRange = {
-			startLineNumber: startPosition.lineNumber,
-			startColumn: startPosition.column,
-			endLineNumber: endPosition.lineNumber,
-			endColumn: endPosition.column
-		};
+		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
 		let currentText = model.getValueInRange(range);
 		if (edit.content !== currentText) {
 			const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);

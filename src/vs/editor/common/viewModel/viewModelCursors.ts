@@ -13,7 +13,7 @@ export interface IConverter {
 	validateViewPosition(viewLineNumber: number, viewColumn: number, modelPosition: Position): Position;
 	validateViewSelection(viewSelection: Selection, modelSelection: Selection): Selection;
 	convertModelSelectionToViewSelection(modelSelection: Selection): Selection;
-	convertModelRangeToViewRange(modelRange: editorCommon.IRange): Range;
+	convertModelRangeToViewRange(modelRange: Range): Range;
 }
 
 export class ViewModelCursors {

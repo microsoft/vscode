@@ -247,7 +247,7 @@ export class ViewController implements IViewController {
 		return this.viewModel.convertViewPositionToModelPosition(viewPosition.lineNumber, viewPosition.column);
 	}
 
-	private convertViewToModelRange(viewRange: editorCommon.IRange): Range {
+	private convertViewToModelRange(viewRange: Range): Range {
 		return this.viewModel.convertViewRangeToModelRange(viewRange);
 	}
 

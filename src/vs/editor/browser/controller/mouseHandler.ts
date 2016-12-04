@@ -113,9 +113,9 @@ export interface IPointerHandlerHelper {
 	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
 
 	/**
-	 * Decode an Editor.IPosition from a rendered dom node
+	 * Decode a position from a rendered dom node
 	 */
-	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): editorCommon.IPosition;
+	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position;
 
 	visibleRangeForPosition2(lineNumber: number, column: number): VisibleRange;
 	getLineWidth(lineNumber: number): number;

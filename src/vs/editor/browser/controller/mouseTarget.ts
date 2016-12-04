@@ -6,7 +6,7 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { EditorLayoutInfo, IPosition, MouseTargetType } from 'vs/editor/common/editorCommon';
+import { EditorLayoutInfo, MouseTargetType } from 'vs/editor/common/editorCommon';
 import { ClassNames, IMouseTarget, IViewZoneData } from 'vs/editor/browser/editorBrowser';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
@@ -61,7 +61,7 @@ declare var IETextRange: {
 };
 
 interface IHitTestResult {
-	position: IPosition;
+	position: Position;
 	hitTarget: Element;
 }
 
@@ -513,7 +513,7 @@ export class MouseTargetFactory {
 	 * Most probably IE
 	 */
 	private _doHitTestWithMoveToPoint(e: EditorMouseEvent): IHitTestResult {
-		let resultPosition: IPosition = null;
+		let resultPosition: Position = null;
 		let resultHitTarget: Element = null;
 
 		let textRange: IETextRange = (<any>document.body).createTextRange();

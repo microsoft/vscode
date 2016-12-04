@@ -7,7 +7,7 @@
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IConfigurationChangedEvent, IPosition, TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
+import { IConfigurationChangedEvent, TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -91,7 +91,7 @@ export class ViewCursor {
 		return this._isInEditableRange;
 	}
 
-	public getPosition(): IPosition {
+	public getPosition(): Position {
 		return this._position;
 	}
 
