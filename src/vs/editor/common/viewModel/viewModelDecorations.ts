@@ -7,33 +7,10 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IDecorationsViewportData, InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { IDecorationsViewportData, InlineDecoration, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IModelRangeToViewRangeConverter {
 	convertModelRangeToViewRange(modelRange: Range, isWholeLine: boolean): Range;
-}
-
-interface IViewModelDecorationSource {
-	id: string;
-	ownerId: number;
-	range: Range;
-	options: editorCommon.IModelDecorationOptions;
-}
-
-class ViewModelDecoration {
-	id: string;
-	ownerId: number;
-	range: Range;
-	options: editorCommon.IModelDecorationOptions;
-	modelRange: Range;
-
-	constructor(source: IViewModelDecorationSource, range: Range) {
-		this.id = source.id;
-		this.options = source.options;
-		this.ownerId = source.ownerId;
-		this.modelRange = source.range;
-		this.range = range;
-	}
 }
 
 export class ViewModelDecorations implements IDisposable {
@@ -68,10 +45,6 @@ export class ViewModelDecorations implements IDisposable {
 		this._clearCachedModelDecorationsResolver();
 	}
 
-	public static compareDecorations(a: editorCommon.IModelDecoration, b: editorCommon.IModelDecoration): number {
-		return Range.compareRangesUsingStarts(a.range, b.range);
-	}
-
 	public reset(model: editorCommon.IModel): void {
 		var decorations = model.getAllDecorations(this.editorId, this.configuration.editor.readOnly),
 			i: number,
@@ -86,7 +59,7 @@ export class ViewModelDecorations implements IDisposable {
 			this.decorations[i] = myDecoration;
 		}
 		this._clearCachedModelDecorationsResolver();
-		this.decorations.sort(ViewModelDecorations.compareDecorations);
+		this.decorations.sort(ViewModelDecoration.compare);
 	}
 
 	public onModelDecorationsChanged(e: editorCommon.IModelDecorationsChangedEvent, emit: (eventType: string, payload: any) => void): void {
@@ -98,8 +71,8 @@ export class ViewModelDecorations implements IDisposable {
 		// Interpret addedOrChangedDecorations
 
 		var removedMap: { [id: string]: boolean; } = {},
-			addedOrChangedMap: { [id: string]: editorCommon.IModelDecorationsChangedEventDecorationData; } = {},
-			theirDecoration: editorCommon.IModelDecorationsChangedEventDecorationData,
+			addedOrChangedMap: { [id: string]: editorCommon.IModelDecoration; } = {},
+			theirDecoration: editorCommon.IModelDecoration,
 			i: number,
 			skipValidation = this.configuration.editor.readOnly,
 			len: number;
@@ -134,12 +107,12 @@ export class ViewModelDecorations implements IDisposable {
 				myDecoration.modelRange = theirDecoration.range;
 				myDecoration.range = this.converter.convertModelRangeToViewRange(theirDecoration.range, theirDecoration.options.isWholeLine);
 				//				console.log(theirDecoration.range.toString() + '--->' + myDecoration.range.toString());
-				inlineDecorationsChanged = inlineDecorationsChanged || hasInlineChanges(myDecoration);
+				inlineDecorationsChanged = inlineDecorationsChanged || myDecoration.affectsTextLayout();
 				somethingChanged = true;
 			}
 
 			if (removedMap.hasOwnProperty(myDecoration.id)) {
-				inlineDecorationsChanged = inlineDecorationsChanged || hasInlineChanges(this.decorations[i]);
+				inlineDecorationsChanged = inlineDecorationsChanged || this.decorations[i].affectsTextLayout();
 				this.decorations.splice(i, 1);
 				len--;
 				i--;
@@ -157,14 +130,14 @@ export class ViewModelDecorations implements IDisposable {
 				myDecoration = new ViewModelDecoration(theirDecoration, this.converter.convertModelRangeToViewRange(theirDecoration.range, theirDecoration.options.isWholeLine));
 				//				console.log(theirDecoration.range.toString() + '--->' + myDecoration.range.toString());
 				this.decorations.push(myDecoration);
-				inlineDecorationsChanged = inlineDecorationsChanged || hasInlineChanges(myDecoration);
+				inlineDecorationsChanged = inlineDecorationsChanged || myDecoration.affectsTextLayout();
 				somethingChanged = true;
 			}
 		}
 
 		if (somethingChanged) {
 			this._clearCachedModelDecorationsResolver();
-			this.decorations.sort(ViewModelDecorations.compareDecorations);
+			this.decorations.sort(ViewModelDecoration.compare);
 			var newEvent: editorCommon.IViewDecorationsChangedEvent = {
 				inlineDecorationsChanged: inlineDecorationsChanged
 			};
@@ -184,7 +157,7 @@ export class ViewModelDecorations implements IDisposable {
 		for (i = 0, len = decorations.length; i < len; i++) {
 			d = decorations[i];
 			newRange = this.converter.convertModelRangeToViewRange(d.modelRange, d.options.isWholeLine);
-			if (!inlineDecorationsChanged && hasInlineChanges(d) && !Range.equalsRange(newRange, d.range)) {
+			if (!inlineDecorationsChanged && d.affectsTextLayout() && !Range.equalsRange(newRange, d.range)) {
 				inlineDecorationsChanged = true;
 			}
 			if (!somethingChanged && !Range.equalsRange(newRange, d.range)) {
@@ -195,7 +168,7 @@ export class ViewModelDecorations implements IDisposable {
 
 		if (somethingChanged) {
 			this._clearCachedModelDecorationsResolver();
-			this.decorations.sort(ViewModelDecorations.compareDecorations);
+			this.decorations.sort(ViewModelDecoration.compare);
 			var newEvent: editorCommon.IViewDecorationsChangedEvent = {
 				inlineDecorationsChanged: inlineDecorationsChanged
 			};
@@ -203,7 +176,7 @@ export class ViewModelDecorations implements IDisposable {
 		}
 	}
 
-	public getAllDecorations(): editorCommon.IModelDecoration[] {
+	public getAllDecorations(): ViewModelDecoration[] {
 		return this.decorations;
 	}
 
@@ -221,7 +194,7 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	private _getDecorationsViewportData(startLineNumber: number, endLineNumber: number): IDecorationsViewportData {
-		var decorationsInViewport: editorCommon.IModelDecoration[] = [],
+		var decorationsInViewport: ViewModelDecoration[] = [],
 			inlineDecorations: InlineDecoration[][] = [],
 			j: number,
 			intersectedStartLineNumber: number,
@@ -298,9 +271,4 @@ function insert(decoration: InlineDecoration, decorations: InlineDecoration[]) {
 		decorations.splice(idx + 1, 0, decoration);
 	}
 
-}
-
-function hasInlineChanges(decoration: editorCommon.IModelDecoration): boolean {
-	let options = decoration.options;
-	return !!(options.inlineClassName || options.beforeContentClassName || options.afterContentClassName);
 }

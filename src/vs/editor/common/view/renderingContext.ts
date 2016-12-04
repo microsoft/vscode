@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IModelDecoration } from 'vs/editor/common/editorCommon';
+import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
@@ -27,7 +27,7 @@ export interface IRestrictedRenderingContext {
 	getViewportVerticalOffsetForLineNumber(lineNumber: number): number;
 	lineIsVisible(lineNumber: number): boolean;
 
-	getDecorationsInViewport(): IModelDecoration[];
+	getDecorationsInViewport(): ViewModelDecoration[];
 }
 
 export interface IRenderingContext extends IRestrictedRenderingContext {

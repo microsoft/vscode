@@ -694,7 +694,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	public dispose() {
 		if (this.decorationIds && this.editor.getModel()) {
 			this.decorationIds = this.editor.getModel().changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
+				return changeAccessor.deltaDecorations(this.decorationIds, []);
 			});
 		}
 		super.dispose();

@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { IDecorationsViewportData, IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { ViewModelDecoration, IDecorationsViewportData, IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 
 export interface ILinesCollection {
@@ -467,7 +467,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.decorations.getDecorationsViewportData(startLineNumber, endLineNumber);
 	}
 
-	public getAllDecorations(): editorCommon.IModelDecoration[] {
+	public getAllDecorations(): ViewModelDecoration[] {
 		return this.decorations.getAllDecorations();
 	}
 
