@@ -582,13 +582,21 @@ suite('deltaDecorations', () => {
 			'How are you?'
 		].join('\n'));
 
-		var trackedRangeId = model.addTrackedRange({
-			startLineNumber: 1,
-			startColumn: 1,
-			endLineNumber: 1,
-			endColumn: 1
-		}, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
-		model.removeTrackedRange(trackedRangeId);
+		var trackedRangeId = model.changeDecorations((changeAcessor) => {
+			return changeAcessor.addDecoration(
+				{
+					startLineNumber: 1,
+					startColumn: 1,
+					endLineNumber: 1,
+					endColumn: 1
+				}, {
+					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+				}
+			);
+		});
+		model.changeDecorations((changeAccessor) => {
+			changeAccessor.removeDecoration(trackedRangeId);
+		});
 
 		var ids = model.deltaDecorations([], [
 			toModelDeltaDecoration(decoration('a', 1, 1, 1, 12)),

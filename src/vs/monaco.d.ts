@@ -2109,12 +2109,6 @@ declare module monaco.editor {
     }
 
     /**
-     * A model that can track ranges.
-     */
-    export interface ITextModelWithTrackedRanges extends ITextModel {
-    }
-
-    /**
      * A model that can have decorations.
      */
     export interface ITextModelWithDecorations {
@@ -2222,7 +2216,7 @@ declare module monaco.editor {
     /**
      * A model.
      */
-    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
+    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations, IEditorModel {
         /**
          * An event emitted when the contents of the model have changed.
          * @event

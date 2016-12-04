@@ -173,7 +173,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	public getDecorationRange(decorationId: string): Range {
 		if (this.decorations.hasOwnProperty(decorationId)) {
 			var decoration = this.decorations[decorationId];
-			return this.getTrackedRange(decoration.rangeId);
+			return this._getTrackedRange(decoration.rangeId);
 		}
 		return null;
 	}
@@ -189,7 +189,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	private _getDecorationsInRange(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, ownerId: number, filterOutValidation: boolean): editorCommon.IModelDecoration[] {
 		var result: editorCommon.IModelDecoration[] = [],
 			decoration: IInternalDecoration,
-			lineRanges = this.getLinesTrackedRanges(startLineNumber, endLineNumber),
+			lineRanges = this._getLinesTrackedRanges(startLineNumber, endLineNumber),
 			i: number,
 			lineRange: editorCommon.IModelTrackedRange,
 			len: number;
@@ -264,7 +264,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 			result.push({
 				id: decoration.id,
 				ownerId: decoration.ownerId,
-				range: this.getTrackedRange(decoration.rangeId),
+				range: this._getTrackedRange(decoration.rangeId),
 				options: decoration.options
 			});
 		}
@@ -351,7 +351,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return {
 			id: decoration.id,
 			ownerId: decoration.ownerId,
-			range: this.getTrackedRange(decoration.rangeId),
+			range: this._getTrackedRange(decoration.rangeId),
 			isForValidation: (decoration.options.className === editorCommon.ClassName.EditorErrorDecoration || decoration.options.className === editorCommon.ClassName.EditorWarningDecoration),
 			options: decoration.options
 		};
@@ -373,7 +373,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	private _addDecorationImpl(eventBuilder: DeferredEventsBuilder, ownerId: number, range: Range, options: ModelDecorationOptions): string {
-		var rangeId = this.addTrackedRange(range, options.stickiness);
+		var rangeId = this._addTrackedRange(range, options.stickiness);
 
 		var decoration = new ModelInternalDecoration(this._decorationIdGenerator.nextId(), ownerId, rangeId, options);
 
@@ -408,7 +408,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	private _changeDecorationImpl(eventBuilder: DeferredEventsBuilder, id: string, newRange: Range): void {
 		if (this.decorations.hasOwnProperty(id)) {
 			let decoration = this.decorations[id];
-			this.changeTrackedRange(decoration.rangeId, newRange);
+			this._changeTrackedRange(decoration.rangeId, newRange);
 			eventBuilder.addMovedDecoration(id);
 		}
 	}
@@ -419,7 +419,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 			let oldOptions = decoration.options;
 
 			if (oldOptions.stickiness !== options.stickiness) {
-				this.changeTrackedRangeStickiness(decoration.rangeId, options.stickiness);
+				this._changeTrackedRangeStickiness(decoration.rangeId, options.stickiness);
 			}
 
 			decoration.options = options;
@@ -432,7 +432,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		if (this.decorations.hasOwnProperty(id)) {
 			let decoration = this.decorations[id];
 
-			this.removeTrackedRange(decoration.rangeId);
+			this._removeTrackedRange(decoration.rangeId);
 			delete this.rangeIdToDecorationId[decoration.rangeId];
 			delete this.decorations[id];
 
@@ -480,7 +480,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 
 			result.push({
 				id: id,
-				range: this.getTrackedRange(decoration.rangeId),
+				range: this._getTrackedRange(decoration.rangeId),
 				options: decoration.options
 			});
 		}
