@@ -1641,6 +1641,10 @@ declare module monaco.editor {
          * Options associated with this decoration.
          */
         readonly options: IModelDecorationOptions;
+        /**
+         * A flag describing if this is a problem decoration (e.g. warning/error).
+         */
+        readonly isForValidation: boolean;
     }
 
     /**
@@ -2337,32 +2341,6 @@ declare module monaco.editor {
     }
 
     /**
-     * Decoration data associated with a model decorations changed event.
-     */
-    export interface IModelDecorationsChangedEventDecorationData {
-        /**
-         * The id of the decoration.
-         */
-        readonly id: string;
-        /**
-         * The owner id of the decoration.
-         */
-        readonly ownerId: number;
-        /**
-         * The range of the decoration.
-         */
-        readonly range: Range;
-        /**
-         * A flag describing if this is a problem decoration (e.g. warning/error).
-         */
-        readonly isForValidation: boolean;
-        /**
-         * The options for this decoration.
-         */
-        readonly options: IModelDecorationOptions;
-    }
-
-    /**
      * An event describing that model decorations have changed.
      */
     export interface IModelDecorationsChangedEvent {
@@ -2373,7 +2351,7 @@ declare module monaco.editor {
         /**
          * Lists of details for added or changed decorations.
          */
-        readonly addedOrChangedDecorations: IModelDecorationsChangedEventDecorationData[];
+        readonly addedOrChangedDecorations: IModelDecoration[];
         /**
          * List of ids for removed decorations.
          */

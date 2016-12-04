@@ -15,7 +15,7 @@ export interface IMarkerIdToMarkerMap {
 }
 
 export interface INewMarker {
-	rangeId: string;
+	decorationId: string;
 	lineNumber: number;
 	column: number;
 	stickToPreviousCharacter: boolean;
@@ -45,10 +45,10 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		this._markerIdToMarker = {};
 	}
 
-	_addMarker(rangeId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
+	_addMarker(decorationId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
 		var pos = this.validatePosition(new Position(lineNumber, column));
 
-		var marker = new LineMarker(this._markerIdGenerator.nextId(), rangeId, pos.column, stickToPreviousCharacter);
+		var marker = new LineMarker(this._markerIdGenerator.nextId(), decorationId, pos.column, stickToPreviousCharacter);
 		this._markerIdToMarker[marker.id] = marker;
 
 		this._lines[pos.lineNumber - 1].addMarker(marker);
@@ -65,7 +65,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		for (let i = 0, len = newMarkers.length; i < len; i++) {
 			let newMarker = newMarkers[i];
 
-			let marker = new LineMarker(this._markerIdGenerator.nextId(), newMarker.rangeId, newMarker.column, newMarker.stickToPreviousCharacter);
+			let marker = new LineMarker(this._markerIdGenerator.nextId(), newMarker.decorationId, newMarker.column, newMarker.stickToPreviousCharacter);
 			this._markerIdToMarker[marker.id] = marker;
 
 			if (!addMarkersPerLine[newMarker.lineNumber]) {
@@ -114,7 +114,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	_getMarker(id: string): Position {
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
-			return new Position(marker.line.lineNumber, marker.column);
+			return marker.getPosition();
 		}
 		return null;
 	}
@@ -169,18 +169,5 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 			let lineNumber = parseInt(lineNumbers[i], 10);
 			this._lines[lineNumber - 1].removeMarkers(removeMarkersPerLine[lineNumbers[i]]);
 		}
-	}
-
-	protected _getMarkersInMap(markersMap: { [markerId: string]: boolean; }): LineMarker[] {
-		let result: LineMarker[] = [];
-		let keys = Object.keys(markersMap);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let markerId = keys[i];
-			if (this._markerIdToMarker.hasOwnProperty(markerId)) {
-				result.push(this._markerIdToMarker[markerId]);
-			}
-		}
-
-		return result;
 	}
 }

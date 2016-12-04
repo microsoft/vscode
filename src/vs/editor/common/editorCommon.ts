@@ -1191,21 +1191,6 @@ export interface IModelDeltaDecoration {
 }
 
 /**
- * A tracked range in the model.
- * @internal
- */
-export interface IModelTrackedRange {
-	/**
-	 * Identifier for a tracked range
-	 */
-	id: string;
-	/**
-	 * Range that this tracked range covers
-	 */
-	range: Range;
-}
-
-/**
  * A decoration in the model.
  */
 export interface IModelDecoration {
@@ -1225,6 +1210,10 @@ export interface IModelDecoration {
 	 * Options associated with this decoration.
 	 */
 	readonly options: IModelDecorationOptions;
+	/**
+	 * A flag describing if this is a problem decoration (e.g. warning/error).
+	 */
+	readonly isForValidation: boolean;
 }
 
 /**
@@ -1999,7 +1988,7 @@ export interface ITextModelWithDecorations {
 	 * @param ownerId Identifies the editor id in which these decorations should appear. If no `ownerId` is provided, the decorations will appear in all editors that attach this model.
 	 * @internal
 	 */
-	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any, ownerId?: number): any;
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T, ownerId?: number): T;
 
 	/**
 	 * Perform a minimum ammount of operations, in order to transform the decorations
@@ -2397,31 +2386,6 @@ export interface IModelContentChangedLinesInsertedEvent extends IModelContentCha
 	readonly detail: string;
 }
 /**
- * Decoration data associated with a model decorations changed event.
- */
-export interface IModelDecorationsChangedEventDecorationData {
-	/**
-	 * The id of the decoration.
-	 */
-	readonly id: string;
-	/**
-	 * The owner id of the decoration.
-	 */
-	readonly ownerId: number;
-	/**
-	 * The range of the decoration.
-	 */
-	readonly range: Range;
-	/**
-	 * A flag describing if this is a problem decoration (e.g. warning/error).
-	 */
-	readonly isForValidation: boolean;
-	/**
-	 * The options for this decoration.
-	 */
-	readonly options: IModelDecorationOptions;
-}
-/**
  * An event describing that model decorations have changed.
  */
 export interface IModelDecorationsChangedEvent {
@@ -2432,7 +2396,7 @@ export interface IModelDecorationsChangedEvent {
 	/**
 	 * Lists of details for added or changed decorations.
 	 */
-	readonly addedOrChangedDecorations: IModelDecorationsChangedEventDecorationData[];
+	readonly addedOrChangedDecorations: IModelDecoration[];
 	/**
 	 * List of ids for removed decorations.
 	 */

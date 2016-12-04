@@ -10,6 +10,7 @@ import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 import { Token } from 'vs/editor/common/core/token';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { Position } from 'vs/editor/common/core/position';
 
 export interface ILineEdit {
 	startColumn: number;
@@ -22,15 +23,15 @@ export class LineMarker {
 	_lineMarkerBrand: void;
 
 	public readonly id: string;
-	public readonly rangeId: string;
+	public readonly decorationId: string;
 
 	public column: number;
 	public stickToPreviousCharacter: boolean;
 	public line: ModelLine;
 
-	constructor(id: string, rangeId: string, column: number, stickToPreviousCharacter: boolean) {
+	constructor(id: string, decorationId: string, column: number, stickToPreviousCharacter: boolean) {
 		this.id = id;
-		this.rangeId = rangeId;
+		this.decorationId = decorationId;
 		this.column = column;
 		this.stickToPreviousCharacter = stickToPreviousCharacter;
 		this.line = null;
@@ -39,10 +40,30 @@ export class LineMarker {
 	public toString(): string {
 		return '{\'' + this.id + '\';' + this.column + ',' + this.stickToPreviousCharacter + '}';
 	}
+
+	public getPosition(): Position {
+		return new Position(this.line.lineNumber, this.column);
+	}
 }
 
-export interface IChangedMarkers {
-	[markerId: string]: boolean;
+export class ChangedMarkers {
+	_changedDecorationsBrand: void;
+
+	private readonly _values: { [decorationId: string]: boolean; };
+
+	constructor() {
+		this._values = {};
+	}
+
+	public add(marker: LineMarker): void {
+		if (marker.decorationId) {
+			this._values[marker.decorationId] = true;
+		}
+	}
+
+	public getDecorationIds(): string[] {
+		return Object.keys(this._values);
+	}
 }
 
 export interface ITextWithMarkers {
@@ -328,7 +349,7 @@ export class ModelLine {
 	// 	return '[' + markers.map(printMarker).join(', ') + ']';
 	// }
 
-	private _createMarkersAdjuster(changedMarkers: IChangedMarkers): IMarkersAdjuster {
+	private _createMarkersAdjuster(changedMarkers: ChangedMarkers): IMarkersAdjuster {
 		if (!this._markers) {
 			return NO_OP_MARKERS_ADJUSTER;
 		}
@@ -370,7 +391,7 @@ export class ModelLine {
 				if (delta !== 0) {
 					let newColumn = Math.max(minimumAllowedColumn, marker.column + delta);
 					if (marker.column !== newColumn) {
-						changedMarkers[marker.id] = true;
+						changedMarkers.add(marker);
 						marker.column = newColumn;
 					}
 				}
@@ -391,7 +412,7 @@ export class ModelLine {
 
 			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
 				if (marker.column !== newColumn) {
-					changedMarkers[marker.id] = true;
+					changedMarkers.add(marker);
 					marker.column = newColumn;
 				}
 
@@ -417,7 +438,7 @@ export class ModelLine {
 		};
 	}
 
-	public applyEdits(changedMarkers: IChangedMarkers, edits: ILineEdit[], tabSize: number): number {
+	public applyEdits(changedMarkers: ChangedMarkers, edits: ILineEdit[], tabSize: number): number {
 		let deltaColumn = 0;
 		let resultText = this._text;
 
@@ -473,7 +494,7 @@ export class ModelLine {
 		return deltaColumn;
 	}
 
-	public split(changedMarkers: IChangedMarkers, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine {
+	public split(changedMarkers: ChangedMarkers, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine {
 		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
 		var myText = this._text.substring(0, splitColumn - 1);
 		var otherText = this._text.substring(splitColumn - 1);
@@ -506,7 +527,7 @@ export class ModelLine {
 				for (let i = 0, len = otherMarkers.length; i < len; i++) {
 					let marker = otherMarkers[i];
 
-					changedMarkers[marker.id] = true;
+					changedMarkers.add(marker);
 					marker.column -= splitColumn - 1;
 				}
 			}
@@ -521,7 +542,7 @@ export class ModelLine {
 		return otherLine;
 	}
 
-	public append(changedMarkers: IChangedMarkers, other: ModelLine, tabSize: number): void {
+	public append(changedMarkers: ChangedMarkers, other: ModelLine, tabSize: number): void {
 		// console.log('--> append: THIS :: ' + this._printMarkers());
 		// console.log('--> append: OTHER :: ' + this._printMarkers());
 		var thisTextLength = this._text.length;
@@ -564,7 +585,7 @@ export class ModelLine {
 			for (let i = 0, len = otherMarkers.length; i < len; i++) {
 				let marker = otherMarkers[i];
 
-				changedMarkers[marker.id] = true;
+				changedMarkers.add(marker);
 				marker.column += thisTextLength;
 			}
 
@@ -647,7 +668,7 @@ export class ModelLine {
 		return this._markers.slice(0);
 	}
 
-	public updateLineNumber(changedMarkers: IChangedMarkers, newLineNumber: number): void {
+	public updateLineNumber(changedMarkers: ChangedMarkers, newLineNumber: number): void {
 		if (this._lineNumber === newLineNumber) {
 			return;
 		}
@@ -655,14 +676,14 @@ export class ModelLine {
 			let markers = this._markers;
 			for (let i = 0, len = markers.length; i < len; i++) {
 				let marker = markers[i];
-				changedMarkers[marker.id] = true;
+				changedMarkers.add(marker);
 			}
 		}
 
 		this._lineNumber = newLineNumber;
 	}
 
-	public deleteLine(changedMarkers: IChangedMarkers, setMarkersColumn: number): LineMarker[] {
+	public deleteLine(changedMarkers: ChangedMarkers, setMarkersColumn: number): LineMarker[] {
 		// console.log('--> deleteLine: ');
 		if (this._markers) {
 			var markers = this._markers,
@@ -674,7 +695,7 @@ export class ModelLine {
 			for (i = 0, len = markers.length; i < len; i++) {
 				marker = markers[i];
 
-				changedMarkers[marker.id] = true;
+				changedMarkers.add(marker);
 				marker.column = setMarkersColumn;
 			}
 
