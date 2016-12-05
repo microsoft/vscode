@@ -64,6 +64,8 @@
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .name {
 	margin-right: 6px;
 	display: inline-block;
+	overflow: hidden;
+	max-width: 100px;
 }
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug,
@@ -75,7 +77,6 @@
 	width: 20px;
 	height: 20px;
 	background: url('continue.svg') center center no-repeat;
-	vertical-align: bottom;
 }
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug .icon,
