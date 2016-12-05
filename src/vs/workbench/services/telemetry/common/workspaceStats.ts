@@ -20,6 +20,8 @@ const GitProtocolMatcher = /^git@([^:]+):/;
 const SecondLevelDomainMatcher = /[^.]+.[^.]+$/;
 const RemoteMatcher = /^\s+url\s+=\s+(.+)$/mg;
 
+type Tags = { [index: string]: boolean | number };
+
 export class WorkspaceStats {
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -32,8 +34,8 @@ export class WorkspaceStats {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
-	private getWorkspaceTags(workbenchOptions: IOptions): winjs.TPromise<{ [index: string]: boolean }> {
-		const tags: { [index: string]: boolean | number } = Object.create(null);
+	private getWorkspaceTags(workbenchOptions: IOptions): winjs.TPromise<Tags> {
+		const tags: Tags = Object.create(null);
 
 		const { filesToOpen, filesToCreate, filesToDiff } = workbenchOptions;
 		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || undefined;
@@ -166,21 +168,70 @@ export class WorkspaceStats {
 		return domains.elements;
 	}
 
-	public reportCloudRemotes(): void {
+	private reportRemotes(workspaceUri: URI): void {
+		let uri = workspaceUri.with({ path: `${workspaceUri.path}/.git/config` });
+		this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+			content => {
+				if (content) {
+					let domains = this.getDomainsOfRemotes(content.value);
+					this.telemetryService.publicLog('workspce.remotes', domains);
+				}
+			}
+		);
+	}
+
+	private reportAzureNode(workspaceUri: URI, tags: Tags): winjs.TPromise<Tags> {
+		// should also work for `node_modules` folders several levels down
+		let uri = workspaceUri.with({ path: `${workspaceUri.path}/node_modules` });
+		return this.fileService.resolveFile(uri).then(
+			stats => {
+				let names = stats.children.map(c => c.name);
+				let referencesAzure = this.searchArray(names, /azure/i);
+				if (referencesAzure) {
+					tags['node'] = true;
+				}
+				return tags;
+			},
+			err => {
+				return tags;
+			});
+	}
+
+	private reportAzureJava(workspaceUri: URI, tags: Tags): winjs.TPromise<Tags> {
+		let uri = workspaceUri.with({ path: `${workspaceUri.path}/pom.xml` });
+		return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+			content => {
+				if (content) {
+					let referencesAzure = content.value.match(/azure/i) !== null;
+					if (referencesAzure) {
+						tags['java'] = true;
+					}
+				}
+				return tags;
+			},
+			err => {
+				return tags;
+			}
+		);
+	}
+
+	private reportAzure(uri) {
+		const tags: Tags = Object.create(null);
+		this.reportAzureNode(uri, tags).then((tags) => {
+			return this.reportAzureJava(uri, tags);
+		}).then((tags) => {
+			if (tags['node'] || tags['java']) {
+				this.telemetryService.publicLog('workspce.azure', tags);
+			}
+		});
+	}
+
+	public reportCloudStats(): void {
 		const workspace = this.contextService.getWorkspace();
 		let uri = workspace ? workspace.resource : null;
 		if (uri && this.fileService) {
-			let path = uri.path;
-			path += '/.git/config';
-			uri = uri.with({ path: path });
-			this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
-				content => {
-					if (content) {
-						let domains = this.getDomainsOfRemotes(content.value);
-						this.telemetryService.publicLog('workspce.remotes', domains);
-					}
-				}
-			);
+			this.reportRemotes(uri);
+			this.reportAzure(uri);
 		}
 	}
 }
