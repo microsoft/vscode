@@ -242,6 +242,16 @@
                   ],
                   "default": "ignore",
                   "description": "%css.lint.idSelector.desc%"
+                },
+                "css.trace.server": {
+                  "type": "string",
+                  "enum": [
+                    "off",
+                    "messages",
+                    "verbose"
+                  ],
+                  "default": "off",
+                  "description": "Traces the communication between VS Code and the CSS language server."
                 }
               }
             }
