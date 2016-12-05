@@ -11,7 +11,7 @@ import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import { createApiFactory, defineAPI } from 'vs/workbench/api/node/extHost.api.impl';
+import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
@@ -39,6 +39,7 @@ export class ExtensionHostMain {
 	private _contextService: IWorkspaceContextService;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
+	private _extensionApiCreation: TPromise<void>;
 
 	constructor(remoteCom: IMainProcessExtHostIPC, initData: IInitData) {
 		this._isTerminating = false;
@@ -59,8 +60,8 @@ export class ExtensionHostMain {
 		errors.setUnexpectedErrorHandler(err => mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err)));
 
 		// Create the ext host API
-		const factory = createApiFactory(initData, threadService, this._extensionService, this._contextService);
-		defineAPI(factory, this._extensionService);
+		const apiFactory = createApiFactory(initData, threadService, this._extensionService, this._contextService);
+		this._extensionApiCreation = initializeExtensionApi(this._extensionService, apiFactory);
 	}
 
 	private _getOrCreateWorkspaceStoragePath(): string {
@@ -111,7 +112,9 @@ export class ExtensionHostMain {
 	}
 
 	public start(): TPromise<void> {
-		return this.handleEagerExtensions().then(() => this.handleExtensionTests());
+		return this._extensionApiCreation
+			.then(() => this.handleEagerExtensions())
+			.then(() => this.handleExtensionTests());
 	}
 
 	public terminate(): void {
