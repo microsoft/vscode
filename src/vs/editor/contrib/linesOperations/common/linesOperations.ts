@@ -463,10 +463,6 @@ export class JoinLinesAction extends EditorAction {
 
 				let lineTextWithoutIndent = lineText.substr(firstNonWhitespaceIdx - 1);
 
-				if (lineTextWithoutIndent.charAt(0) === ')') {
-					insertSpace = false;
-				}
-
 				trimmedLinesContent += (insertSpace ? ' ' : '') + lineTextWithoutIndent;
 
 				if (insertSpace) {
