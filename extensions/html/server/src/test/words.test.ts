@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as words from '../utils/words';
+import * as words from '../utils/strings';
 
 suite('Words', () => {
 
