@@ -65,7 +65,6 @@ export interface IView extends IDisposable {
 
 	change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): editorCommon.IEditorWhitespace[];
-	renderOnce(callback: () => any): any;
 
 	render(now: boolean, everything: boolean): void;
 	setAriaActiveDescendant(id: string): void;
