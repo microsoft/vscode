@@ -6,8 +6,6 @@
 
 import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { $ } from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
@@ -17,7 +15,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/editorCommon';
 import { HoverProviderRegistry, Hover } from 'vs/editor/common/modes';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
@@ -245,24 +242,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			msg.contents
 				.filter(contents => !!contents)
 				.forEach(contents => {
-					const renderedContents = renderMarkedString(contents, {
-						actionCallback: (content) => {
-							this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
-						},
-						codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
-							// In markdown,
-							// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
-							// it is possible no alias is given in which case we fall back to the current editor lang
-							const modeId = languageAlias
-								? this._modeService.getModeIdForLanguageName(languageAlias)
-								: this._editor.getModel().getModeId();
-
-							return this._modeService.getOrCreateMode(modeId).then(_ => {
-								return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
-							});
-						}
-					});
-
+					const renderedContents = renderMarkedString(this._modeService, this._openerService, contents);
 					fragment.appendChild($('div.hover-row', null, renderedContents));
 				});
 		});
