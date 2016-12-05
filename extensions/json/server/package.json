@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "request-light": "^0.1.0",
-    "vscode-json-languageservice": "^2.0.0-next.7",
+    "vscode-json-languageservice": "^2.0.0-next.8",
     "vscode-languageserver": "3.0.1-alpha.3",
     "vscode-nls": "^1.0.7"
   },
