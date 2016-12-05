@@ -202,7 +202,6 @@ suite('Editor Model - Model Decorations', () => {
 		var listenerCalled = 0;
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 1);
 			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
 				startLineNumber: 1,
@@ -221,7 +220,6 @@ suite('Editor Model - Model Decorations', () => {
 		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 1);
 			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
 				startLineNumber: 1,
@@ -242,7 +240,6 @@ suite('Editor Model - Model Decorations', () => {
 		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 0);
 			assert.equal(e.removedDecorations.length, 1);
 			assert.equal(e.removedDecorations[0], decId);
@@ -259,7 +256,6 @@ suite('Editor Model - Model Decorations', () => {
 
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 1);
 			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
 				startLineNumber: 1,
