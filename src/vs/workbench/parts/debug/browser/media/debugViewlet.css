@@ -83,18 +83,31 @@
 	background: url('continue-inverse.svg') center center no-repeat;
 }
 
-/* Debug viewlet trees */
-
-.debug-viewlet .monaco-tree .monaco-tree-row > .content {
-	line-height: 22px;
-}
-
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
 	width: 12px;
 	background-color: inherit;
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
+}
+
+/* Hover feedback for start debug action item */
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug:hover,
+.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover {
+	background-color: #ececec;
+}
+
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug:hover,
+.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .start-debug:hover,
+.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration:hover {
+	background-color: #2A2D2E;
+}
+
+/* Debug viewlet trees */
+
+.debug-viewlet .monaco-tree .monaco-tree-row > .content {
+	line-height: 22px;
 }
 
 .debug-viewlet .line-number {
