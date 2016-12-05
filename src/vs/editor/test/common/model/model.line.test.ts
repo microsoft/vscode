@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { ModelLine, ILineEdit, LineMarker, ChangedMarkers } from 'vs/editor/common/model/modelLine';
+import { ModelLine, ILineEdit, LineMarker, MarkersTracker } from 'vs/editor/common/model/modelLine';
 import { TokensInflatorMap } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { Token } from 'vs/editor/common/core/token';
 
@@ -46,7 +46,7 @@ suite('Editor Model - modelLine.applyEdits text', () => {
 
 	function testEdits(initial: string, edits: ILineEdit[], expected: string): void {
 		var line = new ModelLine(1, initial, NO_TAB_SIZE);
-		line.applyEdits(new ChangedMarkers(), edits, NO_TAB_SIZE);
+		line.applyEdits(new MarkersTracker(), edits, NO_TAB_SIZE);
 		assert.equal(line.text, expected);
 	}
 
@@ -193,7 +193,7 @@ suite('Editor Model - modelLine.split text', () => {
 
 	function testLineSplit(initial: string, splitColumn: number, expected1: string, expected2: string): void {
 		var line = new ModelLine(1, initial, NO_TAB_SIZE);
-		var newLine = line.split(new ChangedMarkers(), splitColumn, false, NO_TAB_SIZE);
+		var newLine = line.split(new MarkersTracker(), splitColumn, false, NO_TAB_SIZE);
 		assert.equal(line.text, expected1);
 		assert.equal(newLine.text, expected2);
 	}
@@ -231,7 +231,7 @@ suite('Editor Model - modelLine.append text', () => {
 	function testLineAppend(a: string, b: string, expected: string): void {
 		var line1 = new ModelLine(1, a, NO_TAB_SIZE);
 		var line2 = new ModelLine(2, b, NO_TAB_SIZE);
-		line1.append(new ChangedMarkers(), line2, NO_TAB_SIZE);
+		line1.append(new MarkersTracker(), line2, NO_TAB_SIZE);
 		assert.equal(line1.text, expected);
 	}
 
@@ -266,7 +266,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		let map = new TokensInflatorMap(null);
 		line.setTokens(map, initialTokens, []);
 
-		line.applyEdits(new ChangedMarkers(), edits, NO_TAB_SIZE);
+		line.applyEdits(new MarkersTracker(), edits, NO_TAB_SIZE);
 
 		assert.equal(line.text, expectedText);
 		assertLineTokens(line.getTokens(map), expectedTokens);
@@ -277,10 +277,10 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		let map = new TokensInflatorMap(null);
 		line.setTokens(map, [new Token(0, 'bar')], []);
 
-		line.applyEdits(new ChangedMarkers(), [{ startColumn: 1, endColumn: 10, text: '', forceMoveMarkers: false }], NO_TAB_SIZE);
+		line.applyEdits(new MarkersTracker(), [{ startColumn: 1, endColumn: 10, text: '', forceMoveMarkers: false }], NO_TAB_SIZE);
 		line.setTokens(map, [], []);
 
-		line.applyEdits(new ChangedMarkers(), [{ startColumn: 1, endColumn: 1, text: 'a', forceMoveMarkers: false }], NO_TAB_SIZE);
+		line.applyEdits(new MarkersTracker(), [{ startColumn: 1, endColumn: 1, text: 'a', forceMoveMarkers: false }], NO_TAB_SIZE);
 		assertLineTokens(line.getTokens(map), [new Token(0, '')]);
 	});
 
@@ -838,7 +838,7 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 		let map = new TokensInflatorMap(null);
 		line.setTokens(map, initialTokens, []);
 
-		let other = line.split(new ChangedMarkers(), splitColumn, false, NO_TAB_SIZE);
+		let other = line.split(new MarkersTracker(), splitColumn, false, NO_TAB_SIZE);
 
 		assert.equal(line.text, expectedText1);
 		assert.equal(other.text, expectedText2);
@@ -925,7 +925,7 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 		let b = new ModelLine(2, bText, NO_TAB_SIZE);
 		b.setTokens(inflator, bTokens, []);
 
-		a.append(new ChangedMarkers(), b, NO_TAB_SIZE);
+		a.append(new MarkersTracker(), b, NO_TAB_SIZE);
 
 		assert.equal(a.text, expectedText);
 		assertLineTokens(a.getTokens(inflator), expectedTokens);
@@ -1060,7 +1060,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
 		line.addMarkers(initialMarkers);
 
-		let changedMarkers = new ChangedMarkers();
+		let changedMarkers = new MarkersTracker();
 		line.applyEdits(changedMarkers, edits, NO_TAB_SIZE);
 
 		assert.equal(line.text, expectedText, 'text');
@@ -1876,7 +1876,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
 		line.addMarkers(initialMarkers);
 
-		let changedMarkers = new ChangedMarkers();
+		let changedMarkers = new MarkersTracker();
 		let otherLine = line.split(changedMarkers, splitColumn, forceMoveMarkers, NO_TAB_SIZE);
 
 		assert.equal(line.text, expectedText1, 'text');
@@ -2147,7 +2147,7 @@ suite('Editor Model - modelLine.append text & markers', () => {
 		let b = new ModelLine(1, bText, NO_TAB_SIZE);
 		b.addMarkers(bMarkers);
 
-		let changedMarkers = new ChangedMarkers();
+		let changedMarkers = new MarkersTracker();
 		a.append(changedMarkers, b, NO_TAB_SIZE);
 
 		assert.equal(a.text, expectedText, 'text');

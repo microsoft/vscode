@@ -2390,10 +2390,6 @@ export interface IModelContentChangedLinesInsertedEvent extends IModelContentCha
  */
 export interface IModelDecorationsChangedEvent {
 	/**
-	 * A summary with ids of decorations that have changed.
-	 */
-	readonly ids: string[];
-	/**
 	 * Lists of details for added or changed decorations.
 	 */
 	readonly addedOrChangedDecorations: IModelDecoration[];

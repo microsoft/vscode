@@ -41,28 +41,35 @@ export class LineMarker {
 		return '{\'' + this.id + '\';' + this.column + ',' + this.stickToPreviousCharacter + '}';
 	}
 
+	public setLine(line: ModelLine): void {
+		this.line = line;
+	}
+
 	public getPosition(): Position {
 		return new Position(this.line.lineNumber, this.column);
 	}
 }
 
-export class ChangedMarkers {
+export class MarkersTracker {
 	_changedDecorationsBrand: void;
 
-	private readonly _values: { [decorationId: string]: boolean; };
+	private _changedDecorations: string[];
+	private _changedDecorationsLen: number;
 
 	constructor() {
-		this._values = {};
+		this._changedDecorations = [];
+		this._changedDecorationsLen = 0;
 	}
 
-	public add(marker: LineMarker): void {
-		if (marker.decorationId) {
-			this._values[marker.decorationId] = true;
+	public addChangedMarker(marker: LineMarker): void {
+		let decorationId = marker.decorationId;
+		if (decorationId !== null) {
+			this._changedDecorations[this._changedDecorationsLen++] = decorationId;
 		}
 	}
 
 	public getDecorationIds(): string[] {
-		return Object.keys(this._values);
+		return this._changedDecorations;
 	}
 }
 
@@ -349,7 +356,7 @@ export class ModelLine {
 	// 	return '[' + markers.map(printMarker).join(', ') + ']';
 	// }
 
-	private _createMarkersAdjuster(changedMarkers: ChangedMarkers): IMarkersAdjuster {
+	private _createMarkersAdjuster(markersTracker: MarkersTracker): IMarkersAdjuster {
 		if (!this._markers) {
 			return NO_OP_MARKERS_ADJUSTER;
 		}
@@ -391,7 +398,7 @@ export class ModelLine {
 				if (delta !== 0) {
 					let newColumn = Math.max(minimumAllowedColumn, marker.column + delta);
 					if (marker.column !== newColumn) {
-						changedMarkers.add(marker);
+						markersTracker.addChangedMarker(marker);
 						marker.column = newColumn;
 					}
 				}
@@ -412,7 +419,7 @@ export class ModelLine {
 
 			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
 				if (marker.column !== newColumn) {
-					changedMarkers.add(marker);
+					markersTracker.addChangedMarker(marker);
 					marker.column = newColumn;
 				}
 
@@ -438,12 +445,12 @@ export class ModelLine {
 		};
 	}
 
-	public applyEdits(changedMarkers: ChangedMarkers, edits: ILineEdit[], tabSize: number): number {
+	public applyEdits(markersTracker: MarkersTracker, edits: ILineEdit[], tabSize: number): number {
 		let deltaColumn = 0;
 		let resultText = this._text;
 
 		let tokensAdjuster = this._createTokensAdjuster();
-		let markersAdjuster = this._createMarkersAdjuster(changedMarkers);
+		let markersAdjuster = this._createMarkersAdjuster(markersTracker);
 
 		for (let i = 0, len = edits.length; i < len; i++) {
 			let edit = edits[i];
@@ -494,7 +501,7 @@ export class ModelLine {
 		return deltaColumn;
 	}
 
-	public split(changedMarkers: ChangedMarkers, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine {
+	public split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine {
 		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
 		var myText = this._text.substring(0, splitColumn - 1);
 		var otherText = this._text.substring(splitColumn - 1);
@@ -527,7 +534,7 @@ export class ModelLine {
 				for (let i = 0, len = otherMarkers.length; i < len; i++) {
 					let marker = otherMarkers[i];
 
-					changedMarkers.add(marker);
+					markersTracker.addChangedMarker(marker);
 					marker.column -= splitColumn - 1;
 				}
 			}
@@ -542,7 +549,7 @@ export class ModelLine {
 		return otherLine;
 	}
 
-	public append(changedMarkers: ChangedMarkers, other: ModelLine, tabSize: number): void {
+	public append(markersTracker: MarkersTracker, other: ModelLine, tabSize: number): void {
 		// console.log('--> append: THIS :: ' + this._printMarkers());
 		// console.log('--> append: OTHER :: ' + this._printMarkers());
 		var thisTextLength = this._text.length;
@@ -585,7 +592,7 @@ export class ModelLine {
 			for (let i = 0, len = otherMarkers.length; i < len; i++) {
 				let marker = otherMarkers[i];
 
-				changedMarkers.add(marker);
+				markersTracker.addChangedMarker(marker);
 				marker.column += thisTextLength;
 			}
 
@@ -594,7 +601,7 @@ export class ModelLine {
 	}
 
 	public addMarker(marker: LineMarker): void {
-		marker.line = this;
+		marker.setLine(this);
 		if (!this._markers) {
 			this._markers = [marker];
 		} else {
@@ -611,7 +618,7 @@ export class ModelLine {
 			len: number;
 
 		for (i = 0, len = markers.length; i < len; i++) {
-			markers[i].line = this;
+			markers[i].setLine(this);
 		}
 
 		if (!this._markers) {
@@ -634,7 +641,7 @@ export class ModelLine {
 		}
 		let index = this._indexOfMarkerId(marker.id);
 		if (index >= 0) {
-			marker.line = null;
+			marker.setLine(null);
 			this._markers.splice(index, 1);
 		}
 		if (this._markers.length === 0) {
@@ -650,7 +657,7 @@ export class ModelLine {
 			let marker = this._markers[i];
 
 			if (deleteMarkers[marker.id]) {
-				marker.line = null;
+				marker.setLine(null);
 				this._markers.splice(i, 1);
 				len--;
 				i--;
@@ -668,7 +675,7 @@ export class ModelLine {
 		return this._markers.slice(0);
 	}
 
-	public updateLineNumber(changedMarkers: ChangedMarkers, newLineNumber: number): void {
+	public updateLineNumber(markersTracker: MarkersTracker, newLineNumber: number): void {
 		if (this._lineNumber === newLineNumber) {
 			return;
 		}
@@ -676,14 +683,14 @@ export class ModelLine {
 			let markers = this._markers;
 			for (let i = 0, len = markers.length; i < len; i++) {
 				let marker = markers[i];
-				changedMarkers.add(marker);
+				markersTracker.addChangedMarker(marker);
 			}
 		}
 
 		this._lineNumber = newLineNumber;
 	}
 
-	public deleteLine(changedMarkers: ChangedMarkers, setMarkersColumn: number): LineMarker[] {
+	public deleteLine(markersTracker: MarkersTracker, setMarkersColumn: number): LineMarker[] {
 		// console.log('--> deleteLine: ');
 		if (this._markers) {
 			var markers = this._markers,
@@ -695,7 +702,7 @@ export class ModelLine {
 			for (i = 0, len = markers.length; i < len; i++) {
 				marker = markers[i];
 
-				changedMarkers.add(marker);
+				markersTracker.addChangedMarker(marker);
 				marker.column = setMarkersColumn;
 			}
 
