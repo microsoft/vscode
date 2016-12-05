@@ -275,9 +275,10 @@ class CodeLens {
 	}
 
 	public isValid(): boolean {
-		return this._decorationIds.some(id => {
-			let range = this._editor.getModel().getDecorationRange(id);
-			return range && !range.isEmpty();
+		return this._decorationIds.some((id, i) => {
+			const range = this._editor.getModel().getDecorationRange(id);
+			const symbol = this._data[i].symbol;
+			return range && Range.isEmpty(symbol.range) === range.isEmpty();
 		});
 	}
 
