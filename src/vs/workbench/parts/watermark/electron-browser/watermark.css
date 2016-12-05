@@ -11,10 +11,6 @@
 	display: none; /* only visible when no editors are opened */
 }
 
-.monaco-workbench > .part.editor > .content.dropfeedback > .watermark {
-	display: none !important; /* hide when dragging is in progress */
-}
-
 .monaco-workbench > .part.editor.empty > .content > .watermark {
 	display: block;
 	position: absolute;

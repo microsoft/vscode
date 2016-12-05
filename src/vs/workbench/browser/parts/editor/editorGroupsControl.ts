@@ -1154,7 +1154,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 		// let a dropped file open inside Code (only if dropped over editor area)
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
-			if (e.target === node) {
+			if (e.target === node || DOM.isAncestor(e.target as HTMLElement, node)) {
 				DOM.EventHelper.stop(e, true);
 				onDrop(e, Position.ONE);
 			} else {
@@ -1164,7 +1164,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 		// Drag over
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			if (e.target === node) {
+			if (e.target === node || DOM.isAncestor(e.target as HTMLElement, node)) {
 				DOM.addClass(node, 'dropfeedback');
 			}
 
