@@ -55,15 +55,31 @@ export class SideBySideEditor extends BaseEditor {
 
 	public setEditorVisible(visible: boolean, position: Position): void {
 		if (this.masterEditor) {
-			this.masterEditor.setVisible(visible);
+			this.masterEditor.setVisible(visible, position);
 		}
 		if (this.detailsEditor) {
-			this.detailsEditor.setVisible(visible);
+			this.detailsEditor.setVisible(visible, position);
 		}
 		super.setEditorVisible(visible, position);
 	}
 
+	public changePosition(position: Position): void {
+		if (this.masterEditor) {
+			this.masterEditor.changePosition(position);
+		}
+		if (this.detailsEditor) {
+			this.detailsEditor.changePosition(position);
+		}
+		super.changePosition(position);
+	}
+
 	public clearInput(): void {
+		if (this.masterEditor) {
+			this.masterEditor.clearInput();
+		}
+		if (this.detailsEditor) {
+			this.detailsEditor.clearInput();
+		}
 		this.disposeEditors();
 		super.clearInput();
 	}
@@ -114,6 +130,7 @@ export class SideBySideEditor extends BaseEditor {
 		return this.instantiationService.createInstance(<EditorDescriptor>descriptor)
 			.then((editor: BaseEditor) => {
 				editor.create(new Builder(container));
+				editor.setVisible(this.isVisible(), this.position);
 				return editor.setInput(editorInput, options).then(() => editor);
 			});
 	}
@@ -121,7 +138,6 @@ export class SideBySideEditor extends BaseEditor {
 	private onEditorsCreated(details: BaseEditor, master: BaseEditor): void {
 		this.detailsEditor = details;
 		this.masterEditor = master;
-		this.setEditorVisible(this.isVisible(), this.position);
 		this.dolayout(this.sash.getVerticalSashLeft());
 		this.focus();
 	}
