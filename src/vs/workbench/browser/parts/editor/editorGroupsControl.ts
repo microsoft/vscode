@@ -1162,11 +1162,11 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			}
 		}));
 
-		// Drag over
-		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			if (e.target === node || DOM.isAncestor(e.target as HTMLElement, node)) {
-				DOM.addClass(node, 'dropfeedback');
-			}
+		// Drag enter
+		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
+		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
+			counter++;
+			DOM.addClass(node, 'dropfeedback');
 
 			const target = <HTMLElement>e.target;
 			if (target) {
@@ -1183,12 +1183,16 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 		// Drag leave
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
-			DOM.removeClass(node, 'dropfeedback');
+			counter--;
+			if (counter === 0) {
+				DOM.removeClass(node, 'dropfeedback');
+			}
 		}));
 
 		// Drag end (also install globally to be safe)
 		[node, window].forEach(container => {
 			this.toDispose.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_END, (e: DragEvent) => {
+				counter = 0;
 				DOM.removeClass(node, 'dropfeedback');
 				cleanUp();
 			}));
