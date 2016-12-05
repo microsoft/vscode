@@ -11,6 +11,7 @@ import { Delayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
+import { ArrayIterator } from 'vs/base/common/iterator';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -141,6 +142,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		const parentContainer = parent.getHTMLElement();
 		this.defaultSettingHeaderWidget = this._register(this.instantiationService.createInstance(DefaultSettingsHeaderWidget, parentContainer));
 		this._register(this.defaultSettingHeaderWidget.onDidChange(value => this.filterPreferences(value)));
+		this._register(this.defaultSettingHeaderWidget.onEnter(value => this.focusNextPreference()));
 
 		this.defaultPreferencesEditor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parentContainer, this.getCodeEditorOptions());
 		const focusTracker = this._register(DOM.trackFocus(parentContainer));
@@ -219,6 +221,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	private filterPreferences(filter: string) {
 		this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
 		(<DefaultSettingsRenderer>this.getDefaultPreferencesContribution().getPreferencesRenderer()).filterPreferences(filter);
+	}
+
+	private focusNextPreference() {
+		(<DefaultSettingsRenderer>this.getDefaultPreferencesContribution().getPreferencesRenderer()).focusNextSetting();
 	}
 
 	public clearInput(): void {
@@ -389,6 +395,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	private settingsGroupTitleRenderer: SettingsGroupTitleRenderer;
 	private filteredMatchesRenderer: FilteredMatchesRenderer;
+	private focusNextSettingRenderer: FocusNextSettingRenderer;
 	private hiddenAreasRenderer: HiddenAreasRenderer;
 	private copySettingActionRenderer: CopySettingActionRenderer;
 	private settingsCountWidget: SettingsCountWidget;
@@ -402,6 +409,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.defaultSettingsEditorContextKey = CONTEXT_DEFAULT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
+		this.focusNextSettingRenderer = this._register(instantiationService.createInstance(FocusNextSettingRenderer, editor));
 		this.copySettingActionRenderer = this._register(instantiationService.createInstance(CopySettingActionRenderer, editor, true));
 		this.settingsCountWidget = this._register(instantiationService.createInstance(SettingsCountWidget, editor, this.getCount(settingsEditorModel.settingsGroups)));
 		const paranthesisHidingRenderer = this._register(instantiationService.createInstance(ParanthesisHidingRenderer, editor));
@@ -420,12 +428,17 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	public filterPreferences(filter: string) {
 		const filterResult = this.settingsEditorModel.filterSettings(filter);
 		this.filteredMatchesRenderer.render(filterResult);
+		this.focusNextSettingRenderer.render(filterResult.filteredGroups);
 		this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
 		this.settingsCountWidget.show(this.getCount(filterResult.filteredGroups));
 
 		if (!filter) {
 			this.settingsGroupTitleRenderer.showGroup(1);
 		}
+	}
+
+	public focusNextSetting(): void {
+		this.focusNextSettingRenderer.focusNext();
 	}
 
 	public collapseAll() {
@@ -685,6 +698,66 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
 			});
 		}
+		super.dispose();
+	}
+}
+
+export class FocusNextSettingRenderer extends Disposable {
+
+	private iterator: ArrayIterator<ISetting>;
+	private model: editorCommon.IModel;
+	private decorationIds: string[] = [];
+
+	constructor(private editor: ICodeEditor) {
+		super();
+	}
+
+	public focusNext(): void {
+		this.clear();
+		let setting = this.iterator.next() || this.iterator.first();
+		if (setting) {
+			this.model.changeDecorations(changeAccessor => {
+				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, [{
+					range: {
+						startLineNumber: setting.valueRange.startLineNumber,
+						startColumn: this.model.getLineMinColumn(setting.valueRange.startLineNumber),
+						endLineNumber: setting.valueRange.endLineNumber,
+						endColumn: this.model.getLineMaxColumn(setting.valueRange.endLineNumber)
+					},
+					options: {
+						stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+						className: 'rangeHighlight',
+						isWholeLine: true
+					}
+				}]);
+			});
+			this.editor.revealLinesInCenterIfOutsideViewport(setting.valueRange.startLineNumber, setting.valueRange.endLineNumber - 1);
+		}
+	}
+
+	public render(filteredGroups: ISettingsGroup[]) {
+		this.clear();
+		this.model = this.editor.getModel();
+
+		const settings: ISetting[] = [];
+		for (const group of filteredGroups) {
+			for (const section of group.sections) {
+				settings.push(...section.settings);
+			}
+		}
+		this.iterator = new ArrayIterator<ISetting>(settings);
+	}
+
+	private clear() {
+		if (this.model) {
+			this.model.changeDecorations(changeAccessor => {
+				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
+			});
+		}
+	}
+
+	public dispose() {
+		this.clear();
 		super.dispose();
 	}
 }
