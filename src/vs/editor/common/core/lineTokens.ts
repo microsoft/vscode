@@ -129,6 +129,10 @@ export class LineTokens {
 		return TokensBinaryEncoding.getStartIndex(this._tokens[tokenIndex]);
 	}
 
+	/**
+	 * Deprecated. Do not use.
+	 * @deprecated
+	 */
 	public getTokenType(tokenIndex: number): string {
 		return TokensBinaryEncoding.getType(this._map, this._tokens[tokenIndex]);
 	}

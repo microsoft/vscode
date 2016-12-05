@@ -23,14 +23,14 @@ export class LineMarker {
 	_lineMarkerBrand: void;
 
 	public readonly id: string;
-	public readonly decorationId: string;
+	public readonly internalDecorationId: number;
 
 	public stickToPreviousCharacter: boolean;
 	public position: Position;
 
-	constructor(id: string, decorationId: string, position: Position, stickToPreviousCharacter: boolean) {
+	constructor(id: string, internalDecorationId: number, position: Position, stickToPreviousCharacter: boolean) {
 		this.id = id;
-		this.decorationId = decorationId;
+		this.internalDecorationId = internalDecorationId;
 		this.position = position;
 		this.stickToPreviousCharacter = stickToPreviousCharacter;
 	}
@@ -79,7 +79,7 @@ export class LineMarker {
 export class MarkersTracker {
 	_changedDecorationsBrand: void;
 
-	private _changedDecorations: string[];
+	private _changedDecorations: number[];
 	private _changedDecorationsLen: number;
 
 	constructor() {
@@ -88,13 +88,13 @@ export class MarkersTracker {
 	}
 
 	public addChangedMarker(marker: LineMarker): void {
-		let decorationId = marker.decorationId;
-		if (decorationId !== null) {
-			this._changedDecorations[this._changedDecorationsLen++] = decorationId;
+		let internalDecorationId = marker.internalDecorationId;
+		if (internalDecorationId !== 0) {
+			this._changedDecorations[this._changedDecorationsLen++] = internalDecorationId;
 		}
 	}
 
-	public getDecorationIds(): string[] {
+	public getDecorationIds(): number[] {
 		return this._changedDecorations;
 	}
 }

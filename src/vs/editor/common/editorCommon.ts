@@ -1947,7 +1947,7 @@ export interface ITextModelWithMarkers extends ITextModel {
 	/**
 	 * @internal
 	 */
-	_addMarker(rangeId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string;
+	_addMarker(internalDecorationId: number, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string;
 	/**
 	 * @internal
 	 */

@@ -15,7 +15,7 @@ export interface IMarkerIdToMarkerMap {
 }
 
 export interface INewMarker {
-	decorationId: string;
+	internalDecorationId: number;
 	position: Position;
 	stickToPreviousCharacter: boolean;
 }
@@ -44,10 +44,10 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		this._markerIdToMarker = Object.create(null);
 	}
 
-	_addMarker(decorationId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
+	_addMarker(internalDecorationId: number, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
 		var pos = this.validatePosition(new Position(lineNumber, column));
 
-		var marker = new LineMarker(this._markerIdGenerator.nextId(), decorationId, pos, stickToPreviousCharacter);
+		var marker = new LineMarker(this._markerIdGenerator.nextId(), internalDecorationId, pos, stickToPreviousCharacter);
 		this._markerIdToMarker[marker.id] = marker;
 
 		this._lines[pos.lineNumber - 1].addMarker(marker);
@@ -64,7 +64,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		for (let i = 0, len = newMarkers.length; i < len; i++) {
 			let newMarker = newMarkers[i];
 
-			let marker = new LineMarker(this._markerIdGenerator.nextId(), newMarker.decorationId, newMarker.position, newMarker.stickToPreviousCharacter);
+			let marker = new LineMarker(this._markerIdGenerator.nextId(), newMarker.internalDecorationId, newMarker.position, newMarker.stickToPreviousCharacter);
 			this._markerIdToMarker[marker.id] = marker;
 
 			markers[i] = marker;
