@@ -20,7 +20,7 @@ export interface IBackupMainService extends IBackupService {
 	workspaceBackupPaths: string[];
 	emptyWorkspaceBackupPaths: string[];
 
-	registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string);
+	registerWindowForBackupsSync(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void;
 }
 
 export interface IBackupService {

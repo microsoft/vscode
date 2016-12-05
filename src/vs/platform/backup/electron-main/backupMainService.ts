@@ -22,8 +22,7 @@ export class BackupMainService implements IBackupMainService {
 	protected workspacesJsonPath: string;
 
 	private backups: IBackupWorkspacesFormat;
-
-	protected mapWindowToBackupFolder: { [windowId: number]: string; };
+	private mapWindowToBackupFolder: { [windowId: number]: string; };
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService
@@ -51,7 +50,7 @@ export class BackupMainService implements IBackupMainService {
 		return TPromise.as(path.join(this.backupHome, this.mapWindowToBackupFolder[windowId]));
 	}
 
-	public registerWindowForBackups(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void {
+	public registerWindowForBackupsSync(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void {
 		// Generate a new folder if this is a new empty workspace
 		if (isEmptyWorkspace && !backupFolder) {
 			backupFolder = this.getRandomEmptyWorkspaceId();
@@ -61,11 +60,7 @@ export class BackupMainService implements IBackupMainService {
 		this.pushBackupPathsSync(isEmptyWorkspace ? backupFolder : workspacePath, isEmptyWorkspace);
 	}
 
-	private getRandomEmptyWorkspaceId(): string {
-		return (Date.now() + Math.round(Math.random() * 1000)).toString();
-	}
-
-	protected pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): string {
+	private pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): string {
 		if (!isEmptyWorkspace) {
 			workspaceIdentifier = this.sanitizePath(workspaceIdentifier);
 		}
@@ -210,6 +205,10 @@ export class BackupMainService implements IBackupMainService {
 		} catch (ex) {
 			console.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
 		}
+	}
+
+	private getRandomEmptyWorkspaceId(): string {
+		return (Date.now() + Math.round(Math.random() * 1000)).toString();
 	}
 
 	private sanitizePath(p) {
