@@ -79,8 +79,24 @@ export class InternalDecoration implements editorCommon.IModelDecoration {
 		);
 	}
 
-	public setRange(range: Range): void {
+	public setRange(multiLineDecorationsMap: { [key: string]: InternalDecoration; }, range: Range): void {
+		if (this.range.equalsRange(range)) {
+			return;
+		}
+
+		let rangeWasMultiLine = (this.range.startLineNumber !== this.range.endLineNumber);
 		this.range = range;
+		let rangeIsMultiline = (this.range.startLineNumber !== this.range.endLineNumber);
+
+		if (rangeWasMultiLine === rangeIsMultiline) {
+			return;
+		}
+
+		if (rangeIsMultiline) {
+			multiLineDecorationsMap[this.id] = this;
+		} else {
+			delete multiLineDecorationsMap[this.id];
+		}
 	}
 }
 
@@ -122,15 +138,6 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		// Destroy all my decorations
 		this._decorations = Object.create(null);
 		this._multiLineDecorationsMap = Object.create(null);
-	}
-
-	private _setDecorationIsMultiLine(decoration: InternalDecoration, isMultiLine: boolean): void {
-		let rangeWasMultiLine = this._multiLineDecorationsMap[decoration.id];
-		if (!rangeWasMultiLine && isMultiLine) {
-			this._multiLineDecorationsMap[decoration.id] = decoration;
-		} else if (rangeWasMultiLine && !isMultiLine) {
-			delete this._multiLineDecorationsMap[decoration.id];
-		}
 	}
 
 	private static _shouldStartMarkerSticksToPreviousCharacter(stickiness: editorCommon.TrackedRangeStickiness): boolean {
@@ -443,14 +450,8 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 			let startMarker = decoration.startMarker.position;
 			let endMarker = decoration.endMarker.position;
-
-			this._setDecorationIsMultiLine(
-				decoration,
-				(startMarker.lineNumber !== endMarker.lineNumber)
-			);
-
 			let range = TextModelWithDecorations._createRangeFromMarkers(startMarker, endMarker);
-			decoration.setRange(range);
+			decoration.setRange(this._multiLineDecorationsMap, range);
 
 			uniqueChangedDecorations[uniqueChangedDecorationsLen++] = decorationId;
 		}
@@ -545,8 +546,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		let decoration = new InternalDecoration(decorationId, ownerId, range, markers[0], markers[1], options);
 		this._decorations[decorationId] = decoration;
-
-		this._setDecorationIsMultiLine(decoration, (range.startLineNumber !== range.endLineNumber));
+		if (range.startLineNumber !== range.endLineNumber) {
+			this._multiLineDecorationsMap[decorationId] = decoration;
+		}
 
 		decorationsTracker.addNewDecoration(decorationId);
 
@@ -590,8 +592,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 			let decoration = new InternalDecoration(decorationId, ownerId, range, startMarkerId, endMarkerId, newDecoration.options);
 			this._decorations[decorationId] = decoration;
-
-			this._setDecorationIsMultiLine(decoration, (range.startLineNumber !== range.endLineNumber));
+			if (range.startLineNumber !== range.endLineNumber) {
+				this._multiLineDecorationsMap[decorationId] = decoration;
+			}
 
 			decorationsTracker.addNewDecoration(decorationId);
 		}
@@ -621,8 +624,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		}
 		endMarker.setPosition(new Position(newRange.endLineNumber, newRange.endColumn));
 
-		this._setDecorationIsMultiLine(decoration, (newRange.startLineNumber !== newRange.endLineNumber));
-		decoration.setRange(newRange);
+		decoration.setRange(this._multiLineDecorationsMap, newRange);
 
 		decorationsTracker.addMovedDecoration(decorationId);
 	}
@@ -643,40 +645,40 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		decorationsTracker.addUpdatedDecoration(decorationId);
 	}
 
-	private _removeDecorationImpl(decorationsTracker: DecorationsTracker, id: string): void {
-		let decoration = this._decorations[id];
+	private _removeDecorationImpl(decorationsTracker: DecorationsTracker, decorationId: string): void {
+		let decoration = this._decorations[decorationId];
 		if (!decoration) {
 			return;
 		}
 
 		this._removeMarkers([decoration.startMarker, decoration.endMarker]);
 
-		this._setDecorationIsMultiLine(decoration, false);
-		delete this._decorations[id];
+		delete this._multiLineDecorationsMap[decorationId];
+		delete this._decorations[decorationId];
 
 		if (decorationsTracker) {
-			decorationsTracker.addRemovedDecoration(id);
+			decorationsTracker.addRemovedDecoration(decorationId);
 		}
 	}
 
-	private _removeDecorationsImpl(decorationsTracker: DecorationsTracker, ids: string[]): void {
+	private _removeDecorationsImpl(decorationsTracker: DecorationsTracker, decorationIds: string[]): void {
 		let removeMarkers: LineMarker[] = [], removeMarkersLen = 0;
 
-		for (let i = 0, len = ids.length; i < len; i++) {
-			let id = ids[i];
-			let decoration = this._decorations[id];
+		for (let i = 0, len = decorationIds.length; i < len; i++) {
+			let decorationId = decorationIds[i];
+			let decoration = this._decorations[decorationId];
 			if (!decoration) {
 				continue;
 			}
 
 			if (decorationsTracker) {
-				decorationsTracker.addRemovedDecoration(id);
+				decorationsTracker.addRemovedDecoration(decorationId);
 			}
 
 			removeMarkers[removeMarkersLen++] = decoration.startMarker;
 			removeMarkers[removeMarkersLen++] = decoration.endMarker;
-			this._setDecorationIsMultiLine(decoration, false);
-			delete this._decorations[id];
+			delete this._multiLineDecorationsMap[decorationId];
+			delete this._decorations[decorationId];
 		}
 
 		if (removeMarkers.length > 0) {
