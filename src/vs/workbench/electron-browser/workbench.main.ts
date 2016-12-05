@@ -80,6 +80,8 @@ import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
 import 'vs/workbench/parts/emmet/browser/emmet.browser.contribution';
 import 'vs/workbench/parts/emmet/node/emmet.contribution';
 
+import 'vs/workbench/parts/indentation/common/indentation';
+
 import 'vs/workbench/parts/execution/electron-browser/execution.contribution';
 import 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 
