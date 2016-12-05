@@ -6,6 +6,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
+import { mkdirp, dirExists } from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
@@ -13,7 +14,9 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, MainProcessExtensionServiceShape } from './extHost.protocol';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { MainContext, MainProcessExtensionServiceShape, IEnvironment } from './extHost.protocol';
+import { createHash } from 'crypto';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -97,6 +100,57 @@ class ExtensionMemento implements IExtensionMemento {
 	}
 }
 
+class ExtensionStoragePath {
+
+	private readonly _contextService: IWorkspaceContextService;
+	private readonly _environment: IEnvironment;
+
+	private readonly _ready: TPromise<string>;
+	private _value: string;
+
+	constructor(contextService: IWorkspaceContextService, environment: IEnvironment) {
+		this._contextService = contextService;
+		this._environment = environment;
+		this._ready = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
+	}
+
+	get whenReady(): TPromise<any> {
+		return this._ready;
+	}
+
+	get value(): string {
+		return this._value;
+	}
+
+	private _getOrCreateWorkspaceStoragePath(): TPromise<string> {
+
+		const workspace = this._contextService.getWorkspace();
+
+		if (!workspace) {
+			return TPromise.as(undefined);
+		}
+
+		const storageName = createHash('md5')
+			.update(workspace.resource.fsPath)
+			.update(workspace.uid ? workspace.uid.toString() : '')
+			.digest('hex');
+
+		const storagePath = paths.join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
+
+		return dirExists(storagePath).then(exists => {
+			if (exists) {
+				return storagePath;
+			}
+
+			mkdirp(storagePath).then(success => {
+				return storagePath;
+			}, err => {
+				return undefined;
+			});
+		});
+	}
+}
+
 export interface IExtensionContext {
 	subscriptions: IDisposable[];
 	workspaceState: IExtensionMemento;
@@ -110,21 +164,23 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 
 	private _threadService: IThreadService;
 	private _storage: ExtHostStorage;
+	private _storagePath: ExtensionStoragePath;
 	private _proxy: MainProcessExtensionServiceShape;
 	private _telemetryService: ITelemetryService;
-	private _workspaceStoragePath: string;
+	private _contextService: IWorkspaceContextService;
 
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
-	constructor(availableExtensions: IExtensionDescription[], threadService: IThreadService, telemetryService: ITelemetryService, args: { _serviceBrand: any; workspaceStoragePath: string; }) {
+	constructor(availableExtensions: IExtensionDescription[], environment: IEnvironment, threadService: IThreadService, telemetryService: ITelemetryService, contextService: IWorkspaceContextService) {
 		super(true);
 		this._registry.registerExtensions(availableExtensions);
 		this._threadService = threadService;
 		this._storage = new ExtHostStorage(threadService);
+		this._storagePath = new ExtensionStoragePath(contextService, environment);
 		this._proxy = this._threadService.get(MainContext.MainProcessExtensionService);
 		this._telemetryService = telemetryService;
-		this._workspaceStoragePath = args.workspaceStoragePath;
+		this._contextService = contextService;
 	}
 
 	public getAllExtensionDescriptions(): IExtensionDescription[] {
@@ -200,15 +256,18 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 
 		let globalState = new ExtensionMemento(extensionDescription.id, true, this._storage);
 		let workspaceState = new ExtensionMemento(extensionDescription.id, false, this._storage);
-		let storagePath = this._workspaceStoragePath ? paths.normalize(paths.join(this._workspaceStoragePath, extensionDescription.id)) : undefined;
 
-		return TPromise.join([globalState.whenReady, workspaceState.whenReady]).then(() => {
+		return TPromise.join([
+			globalState.whenReady,
+			workspaceState.whenReady,
+			this._storagePath.whenReady
+		]).then(() => {
 			return Object.freeze(<IExtensionContext>{
 				globalState,
 				workspaceState,
 				subscriptions: [],
 				get extensionPath() { return extensionDescription.extensionFolderPath; },
-				storagePath: storagePath,
+				storagePath: paths.join(this._storagePath.value, extensionDescription.id),
 				asAbsolutePath: (relativePath: string) => { return paths.normalize(paths.join(extensionDescription.extensionFolderPath, relativePath), true); }
 			});
 		});

@@ -5,8 +5,6 @@
 
 'use strict';
 
-import * as fs from 'fs';
-import * as crypto from 'crypto';
 import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -35,25 +33,19 @@ interface ITestRunner {
 
 export class ExtensionHostMain {
 
-	private _isTerminating: boolean;
+	private _isTerminating: boolean = false;
 	private _contextService: IWorkspaceContextService;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 	private _extensionApiCreation: TPromise<void>;
 
 	constructor(remoteCom: IMainProcessExtHostIPC, initData: IInitData) {
-		this._isTerminating = false;
-
+		// services
 		this._environment = initData.environment;
-
 		this._contextService = new WorkspaceContextService(initData.contextService.workspace);
-		const workspaceStoragePath = this._getOrCreateWorkspaceStoragePath();
-
 		const threadService = new ExtHostThreadService(remoteCom);
-
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
-
-		this._extensionService = new ExtHostExtensionService(initData.extensions, threadService, telemetryService, { _serviceBrand: 'optionalArgs', workspaceStoragePath });
+		this._extensionService = new ExtHostExtensionService(initData.extensions, initData.environment, threadService, telemetryService, this._contextService);
 
 		// Error forwarding
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
@@ -62,53 +54,6 @@ export class ExtensionHostMain {
 		// Create the ext host API
 		const apiFactory = createApiFactory(initData, threadService, this._extensionService, this._contextService);
 		this._extensionApiCreation = initializeExtensionApi(this._extensionService, apiFactory);
-	}
-
-	private _getOrCreateWorkspaceStoragePath(): string {
-		let workspaceStoragePath: string;
-
-		const workspace = this._contextService.getWorkspace();
-
-		function rmkDir(directory: string): boolean {
-			try {
-				fs.mkdirSync(directory);
-				return true;
-			} catch (err) {
-				if (err.code === 'ENOENT') {
-					if (rmkDir(paths.dirname(directory))) {
-						fs.mkdirSync(directory);
-						return true;
-					}
-				} else {
-					return fs.statSync(directory).isDirectory();
-				}
-			}
-		}
-
-		if (workspace) {
-			const hash = crypto.createHash('md5');
-			hash.update(workspace.resource.fsPath);
-			if (workspace.uid) {
-				hash.update(workspace.uid.toString());
-			}
-			workspaceStoragePath = paths.join(this._environment.appSettingsHome, 'workspaceStorage', hash.digest('hex'));
-			if (!fs.existsSync(workspaceStoragePath)) {
-				try {
-					if (rmkDir(workspaceStoragePath)) {
-						fs.writeFileSync(paths.join(workspaceStoragePath, 'meta.json'), JSON.stringify({
-							workspacePath: workspace.resource.fsPath,
-							uid: workspace.uid ? workspace.uid : null
-						}, null, 4));
-					} else {
-						workspaceStoragePath = undefined;
-					}
-				} catch (err) {
-					workspaceStoragePath = undefined;
-				}
-			}
-		}
-
-		return workspaceStoragePath;
 	}
 
 	public start(): TPromise<void> {
