@@ -693,6 +693,18 @@
 				</dict>
 				<key>fenced_code_block_php</key>
 				<dict>
+					<key>comment</key>
+					<string>
+					In fenced PHP code blocks, we match a "fuzzy" version of the PHP language.
+					This is because code blocks may be an incomplete PHP script that lacks a script
+					section start tag, and we still want to provide syntax highlighting, rather
+					than adhering to the actual grammar, where everything not prepended by a
+					start tag would be ignored. Additionally, we want to provide highlighting
+					for potential non-PHP languages (in particular HTML).
+
+					There are certainly plenty of edge cases here, but this seems to cover most popular
+					scenarios, and also appears to be consistent with the approach that GitHub takes.
+					</string>
 					<key>begin</key>
 					<string>(^|\G)\s*(([`~]){3,})\s*(php|php3|php4|php5|phpt|phtml|aw|ctp)(\s+.*)?$</string>
 					<key>name</key>
@@ -702,8 +714,18 @@
 					<key>patterns</key>
 					<array>
 						<dict>
+							<key>comment</key>
+							<string>
+							Left to its own devices, the PHP grammar will match HTML as a combination of operators
+							and constants. Therefore, HTML must take precedence over PHP in order to get proper
+							syntax highlighting.
+							</string>
 							<key>include</key>
-							<string>text.html.php</string>
+							<string>text.html.basic</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>text.html.php#language</string>
 						</dict>
 					</array>
 				</dict>
