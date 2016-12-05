@@ -32,7 +32,7 @@ import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extens
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
 import {
 	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
-	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction
+	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -179,6 +179,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..asc', localize('ascending', "Sort Order: ↑"), this.onSearchChange, undefined, 'asc'),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc'),
 				new Separator(),
+				this.instantiationService.createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL),
 				this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL),
 				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL)
 			];
