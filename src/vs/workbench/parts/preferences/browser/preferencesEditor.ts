@@ -443,7 +443,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	}
 
 	dispose() {
-		this.defaultSettingsEditorContextKey.reset();
+		this.defaultSettingsEditorContextKey.set(false);
 		super.dispose();
 	}
 }
