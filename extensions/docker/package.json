@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js docker/docker contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage ./syntaxes/docker.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "dockerfile",
@@ -14,7 +17,7 @@
 		"grammars": [{
 			"language": "dockerfile",
 			"scopeName": "source.dockerfile",
-			"path": "./syntaxes/Dockerfile.tmLanguage"
+			"path": "./syntaxes/docker.tmLanguage.json"
 		}]
 	}
 }
