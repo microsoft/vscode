@@ -9,7 +9,6 @@ import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
@@ -37,7 +36,6 @@ export class ExtensionHostMain {
 	private _contextService: IWorkspaceContextService;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
-	private _extensionApiCreation: TPromise<void>;
 
 	constructor(remoteCom: IMainProcessExtHostIPC, initData: IInitData) {
 		// services
@@ -45,19 +43,15 @@ export class ExtensionHostMain {
 		this._contextService = new WorkspaceContextService(initData.contextService.workspace);
 		const threadService = new ExtHostThreadService(remoteCom);
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
-		this._extensionService = new ExtHostExtensionService(initData.extensions, initData.environment, threadService, telemetryService, this._contextService);
+		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService, this._contextService);
 
 		// Error forwarding
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
 		errors.setUnexpectedErrorHandler(err => mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err)));
-
-		// Create the ext host API
-		const apiFactory = createApiFactory(initData, threadService, this._extensionService, this._contextService);
-		this._extensionApiCreation = initializeExtensionApi(this._extensionService, apiFactory);
 	}
 
 	public start(): TPromise<void> {
-		return this._extensionApiCreation
+		return this._extensionService.onReady()
 			.then(() => this.handleEagerExtensions())
 			.then(() => this.handleExtensionTests());
 	}

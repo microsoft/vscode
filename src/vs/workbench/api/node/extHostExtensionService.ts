@@ -13,9 +13,10 @@ import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extens
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { MainContext, MainProcessExtensionServiceShape, IEnvironment } from './extHost.protocol';
+import { MainContext, MainProcessExtensionServiceShape, IEnvironment, IInitData } from './extHost.protocol';
 import { createHash } from 'crypto';
 
 const hasOwnProperty = Object.hasOwnProperty;
@@ -172,15 +173,19 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
-	constructor(availableExtensions: IExtensionDescription[], environment: IEnvironment, threadService: IThreadService, telemetryService: ITelemetryService, contextService: IWorkspaceContextService) {
-		super(true);
-		this._registry.registerExtensions(availableExtensions);
+	constructor(initData: IInitData, threadService: IThreadService, telemetryService: ITelemetryService, contextService: IWorkspaceContextService) {
+		super(false);
+		this._registry.registerExtensions(initData.extensions);
 		this._threadService = threadService;
 		this._storage = new ExtHostStorage(threadService);
-		this._storagePath = new ExtensionStoragePath(contextService, environment);
+		this._storagePath = new ExtensionStoragePath(contextService, initData.environment);
 		this._proxy = this._threadService.get(MainContext.MainProcessExtensionService);
 		this._telemetryService = telemetryService;
 		this._contextService = contextService;
+
+		// initialize API first
+		const apiFactory = createApiFactory(initData, threadService, this, this._contextService);
+		initializeExtensionApi(this, apiFactory).then(() => this._triggerOnReady());
 	}
 
 	public getAllExtensionDescriptions(): IExtensionDescription[] {
@@ -290,10 +295,12 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 			// Treat the extension as being empty => NOT AN ERROR CASE
 			return TPromise.as(new ExtHostEmptyExtension());
 		}
-
-		return loadCommonJSModule<IExtensionModule>(extensionDescription.main).then((extensionModule) => {
-			return this._loadExtensionContext(extensionDescription).then(context => {
-				return ExtHostExtensionService._callActivate(extensionModule, context);
+		return this.onReady().then(() => {
+			return TPromise.join<any>([
+				loadCommonJSModule(extensionDescription.main),
+				this._loadExtensionContext(extensionDescription)
+			]).then(values => {
+				return ExtHostExtensionService._callActivate(<IExtensionModule>values[0], <IExtensionContext>values[1]);
 			});
 		});
 	}
