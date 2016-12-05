@@ -46,6 +46,9 @@ export class MenuId {
 	static readonly DebugCallStackContext = new MenuId('8');
 	static readonly DebugBreakpointsContext = new MenuId('9');
 	static readonly DebugConsoleContext = new MenuId('10');
+	static readonly SCMTitle = new MenuId('11');
+	static readonly SCMResourceGroupContext = new MenuId('12');
+	static readonly SCMResourceContext = new MenuId('13');
 
 	constructor(private _id: string) {
 
@@ -53,50 +56,6 @@ export class MenuId {
 
 	get id(): string {
 		return this._id;
-	}
-}
-
-export class SCMTitleMenuId extends MenuId {
-
-	static parse(value: string): MenuId | null {
-		const match = /^scm\/([^/]+)\/title$/.exec(value);
-		return match ? new SCMTitleMenuId(match[1]) : null;
-	}
-
-	constructor(private _providerId: string) {
-		super(`scm/${_providerId}/title`);
-	}
-}
-
-export class SCMResourceGroupMenuID extends MenuId {
-
-	static parse(value: string): MenuId | null {
-		const match = /^scm\/([^/]+)\/([^/]+)\/title\/context$/.exec(value);
-
-		if (match) {
-			const [, providerId, resourceGroupId] = match;
-			return new SCMResourceGroupMenuID(providerId, resourceGroupId);
-		}
-	}
-
-	constructor(private providerId: string, private resourceGroupId: string) {
-		super(`scm/${providerId}/${resourceGroupId}/title/context`);
-	}
-}
-
-export class SCMResourceMenuID extends MenuId {
-
-	static parse(value: string): MenuId | null {
-		const match = /^scm\/([^/]+)\/([^/]+)\/context$/.exec(value);
-
-		if (match) {
-			const [, providerId, resourceGroupId] = match;
-			return new SCMResourceMenuID(providerId, resourceGroupId);
-		}
-	}
-
-	constructor(private providerId: string, private resourceGroupId: string) {
-		super(`scm/${providerId}/${resourceGroupId}/context`);
 	}
 }
 

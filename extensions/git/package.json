@@ -73,46 +73,51 @@
       }
     ],
     "menus": {
-      "scm/git/title": [
+      "scm/title": [
         {
           "command": "git.refresh",
-          "group": "navigation"
+          "group": "navigation",
+          "when": "scmProvider == git"
         }
       ],
-      "scm/git/index/title/context": [
+      "scm/resourceGroup/context": [
         {
-          "command": "git.unstage-all"
+          "command": "git.unstage-all",
+          "when": "scmProvider == git && scmResourceGroup == index"
         },
         {
           "command": "git.unstage-all",
-          "group": "inline"
-        }
-      ],
-      "scm/git/index/context": [
-        {
-          "command": "git.unstage"
-        },
-        {
-          "command": "git.unstage",
-          "group": "inline"
-        }
-      ],
-      "scm/git/workingTree/title/context": [
-        {
-          "command": "git.stage-all"
+          "group": "inline",
+          "when": "scmProvider == git && scmResourceGroup == index"
         },
         {
           "command": "git.stage-all",
-          "group": "inline"
+          "when": "scmProvider == git && scmResourceGroup == workingTree"
+        },
+        {
+          "command": "git.stage-all",
+          "group": "inline",
+          "when": "scmProvider == git && scmResourceGroup == workingTree"
         }
       ],
-      "scm/git/workingTree/context": [
+      "scm/resource/context": [
         {
-          "command": "git.stage"
+          "command": "git.unstage",
+          "when": "scmProvider == git && scmResourceGroup == index"
+        },
+        {
+          "command": "git.unstage",
+          "group": "inline",
+          "when": "scmProvider == git && scmResourceGroup == index"
         },
         {
           "command": "git.stage",
-          "group": "inline"
+          "when": "scmProvider == git && scmResourceGroup == workingTree"
+        },
+        {
+          "command": "git.stage",
+          "group": "inline",
+          "when": "scmProvider == git && scmResourceGroup == workingTree"
         }
       ]
     },
