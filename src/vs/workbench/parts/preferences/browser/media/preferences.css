@@ -52,47 +52,47 @@
 	font-size: 14px;
 }
 
-.monaco-editor .zone-widget.settings-group-title-widget {
-	z-index: 0;
+.monaco-editor .settings-group-title-widget {
+	z-index: 1;
 }
 
-.monaco-editor .settings-group-title-widget-container .title-container {
-	flex: 1;
+.monaco-editor .settings-group-title-widget .title-container {
 	width: 100%;
 	cursor: pointer;
-	padding-top: 6px;
-	padding-bottom: 6px;
 }
 
-.monaco-editor.vs .settings-group-title-widget-container .title-container:hover {
+.monaco-editor .settings-group-title-widget .title-container > * {
+	vertical-align: middle;
+	display: inline-block;
+}
+
+.monaco-editor.vs .settings-group-title-widget .title-container:hover {
 	background-color: #e2e2e2;
 }
 
-.monaco-editor.hc-black .settings-group-title-widget-container .title-container:hover,
-.monaco-editor.vs-dark .settings-group-title-widget-container .title-container:hover {
+.monaco-editor.hc-black .settings-group-title-widget .title-container:hover,
+.monaco-editor.vs-dark .settings-group-title-widget .title-container:hover {
 	background-color: #323232;
 }
 
-.monaco-editor .settings-group-title-widget-container .title-container .title {
-	position: relative;
-}
-
-.monaco-editor .settings-group-title-widget-container .title-container .title::before {
-	content: ' ';
+.monaco-editor .settings-group-title-widget .title-container .expand-collapse-icon {
 	background: url(expanded.svg) 50% 50% no-repeat;
-	position: absolute;
-	display: inline-block;
-	top: 1px;
 	width: 16px;
 	height: 16px;
 }
 
-.monaco-editor .settings-group-title-widget-container .title-container.collapsed .title::before {
+.monaco-editor.vs-dark .settings-group-title-widget .title-container .expand-collapse-icon,
+.monaco-editor.hc-black .settings-group-title-widget .title-container .expand-collapse-icon {
+	background: url(expanded-dark.svg) 50% 50% no-repeat;
+}
+
+.monaco-editor .settings-group-title-widget .title-container.collapsed .expand-collapse-icon {
 	background: url(collapsed.svg) 50% 50% no-repeat;
 }
 
-.monaco-editor .settings-group-title-widget-container .title-container > .title > span {
-	padding-left: 18px;
+.monaco-editor.vs-dark .settings-group-title-widget .title-container.collapsed .expand-collapse-icon,
+.monaco-editor.hc-black .settings-group-title-widget .title-container.collapsed .expand-collapse-icon {
+	background: url(collapsed-dark.svg) 50% 50% no-repeat;
 }
 
 .monaco-editor .view-line:hover :not(.inline-folded).copySetting:after {
