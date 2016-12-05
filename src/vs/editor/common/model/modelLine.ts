@@ -25,28 +25,54 @@ export class LineMarker {
 	public readonly id: string;
 	public readonly decorationId: string;
 
-	public column: number;
 	public stickToPreviousCharacter: boolean;
-	public line: ModelLine;
+	public position: Position;
 
-	constructor(id: string, decorationId: string, column: number, stickToPreviousCharacter: boolean) {
+	constructor(id: string, decorationId: string, position: Position, stickToPreviousCharacter: boolean) {
 		this.id = id;
 		this.decorationId = decorationId;
-		this.column = column;
+		this.position = position;
 		this.stickToPreviousCharacter = stickToPreviousCharacter;
-		this.line = null;
 	}
 
 	public toString(): string {
-		return '{\'' + this.id + '\';' + this.column + ',' + this.stickToPreviousCharacter + '}';
+		return '{\'' + this.id + '\';' + this.position.toString() + ',' + this.stickToPreviousCharacter + '}';
 	}
 
-	public setLine(line: ModelLine): void {
-		this.line = line;
+	public updateLineNumber(markersTracker: MarkersTracker, lineNumber: number): void {
+		if (this.position.lineNumber === lineNumber) {
+			return;
+		}
+		markersTracker.addChangedMarker(this);
+		this.position = new Position(lineNumber, this.position.column);
 	}
 
-	public getPosition(): Position {
-		return new Position(this.line.lineNumber, this.column);
+	public updateColumn(markersTracker: MarkersTracker, column: number): void {
+		if (this.position.column === column) {
+			return;
+		}
+		markersTracker.addChangedMarker(this);
+		this.position = new Position(this.position.lineNumber, column);
+	}
+
+	public updatePosition(markersTracker: MarkersTracker, position: Position): void {
+		if (this.position.lineNumber === position.lineNumber && this.position.column === position.column) {
+			return;
+		}
+		markersTracker.addChangedMarker(this);
+		this.position = position;
+	}
+
+	public setPosition(position: Position) {
+		this.position = position;
+	}
+
+
+	public static compareMarkers(a: LineMarker, b: LineMarker): number {
+		if (a.position.column === b.position.column) {
+			return (a.stickToPreviousCharacter ? 0 : 1) - (b.stickToPreviousCharacter ? 0 : 1);
+		}
+		return a.position.column - b.position.column;
 	}
 }
 
@@ -364,7 +390,7 @@ export class ModelLine {
 			return NO_OP_MARKERS_ADJUSTER;
 		}
 
-		this._markers.sort(ModelLine._compareMarkers);
+		this._markers.sort(LineMarker.compareMarkers);
 
 		var markers = this._markers;
 		var markersLength = markers.length;
@@ -374,10 +400,10 @@ export class ModelLine {
 		// console.log('------------- INITIAL MARKERS: ' + this._printMarkers());
 
 		let adjustMarkerBeforeColumn = (toColumn: number, moveSemantics: MarkerMoveSemantics) => {
-			if (marker.column < toColumn) {
+			if (marker.position.column < toColumn) {
 				return true;
 			}
-			if (marker.column > toColumn) {
+			if (marker.position.column > toColumn) {
 				return false;
 			}
 			if (moveSemantics === MarkerMoveSemantics.ForceMove) {
@@ -396,11 +422,8 @@ export class ModelLine {
 
 			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
 				if (delta !== 0) {
-					let newColumn = Math.max(minimumAllowedColumn, marker.column + delta);
-					if (marker.column !== newColumn) {
-						markersTracker.addChangedMarker(marker);
-						marker.column = newColumn;
-					}
+					let newColumn = Math.max(minimumAllowedColumn, marker.position.column + delta);
+					marker.updateColumn(markersTracker, newColumn);
 				}
 
 				markersIndex++;
@@ -418,10 +441,7 @@ export class ModelLine {
 			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 
 			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
-				if (marker.column !== newColumn) {
-					markersTracker.addChangedMarker(marker);
-					marker.column = newColumn;
-				}
+				marker.updateColumn(markersTracker, newColumn);
 
 				markersIndex++;
 				if (markersIndex < markersLength) {
@@ -509,14 +529,14 @@ export class ModelLine {
 		var otherMarkers: LineMarker[] = null;
 
 		if (this._markers) {
-			this._markers.sort(ModelLine._compareMarkers);
+			this._markers.sort(LineMarker.compareMarkers);
 			for (let i = 0, len = this._markers.length; i < len; i++) {
 				let marker = this._markers[i];
 
 				if (
-					marker.column > splitColumn
+					marker.position.column > splitColumn
 					|| (
-						marker.column === splitColumn
+						marker.position.column === splitColumn
 						&& (
 							forceMoveMarkers
 							|| !marker.stickToPreviousCharacter
@@ -534,8 +554,7 @@ export class ModelLine {
 				for (let i = 0, len = otherMarkers.length; i < len; i++) {
 					let marker = otherMarkers[i];
 
-					markersTracker.addChangedMarker(marker);
-					marker.column -= splitColumn - 1;
+					marker.updateColumn(markersTracker, marker.position.column - (splitColumn - 1));
 				}
 			}
 		}
@@ -592,8 +611,7 @@ export class ModelLine {
 			for (let i = 0, len = otherMarkers.length; i < len; i++) {
 				let marker = otherMarkers[i];
 
-				markersTracker.addChangedMarker(marker);
-				marker.column += thisTextLength;
+				marker.updatePosition(markersTracker, new Position(this._lineNumber, marker.position.column + thisTextLength));
 			}
 
 			this.addMarkers(otherMarkers);
@@ -601,7 +619,6 @@ export class ModelLine {
 	}
 
 	public addMarker(marker: LineMarker): void {
-		marker.setLine(this);
 		if (!this._markers) {
 			this._markers = [marker];
 		} else {
@@ -614,13 +631,6 @@ export class ModelLine {
 			return;
 		}
 
-		var i: number,
-			len: number;
-
-		for (i = 0, len = markers.length; i < len; i++) {
-			markers[i].setLine(this);
-		}
-
 		if (!this._markers) {
 			this._markers = markers.slice(0);
 		} else {
@@ -628,24 +638,21 @@ export class ModelLine {
 		}
 	}
 
-	private static _compareMarkers(a: LineMarker, b: LineMarker): number {
-		if (a.column === b.column) {
-			return (a.stickToPreviousCharacter ? 0 : 1) - (b.stickToPreviousCharacter ? 0 : 1);
-		}
-		return a.column - b.column;
-	}
-
 	public removeMarker(marker: LineMarker): void {
 		if (!this._markers) {
 			return;
 		}
+
 		let index = this._indexOfMarkerId(marker.id);
-		if (index >= 0) {
-			marker.setLine(null);
-			this._markers.splice(index, 1);
+		if (index < 0) {
+			return;
 		}
-		if (this._markers.length === 0) {
+
+		if (this._markers.length === 1) {
+			// was last marker on line
 			this._markers = null;
+		} else {
+			this._markers.splice(index, 1);
 		}
 	}
 
@@ -657,7 +664,6 @@ export class ModelLine {
 			let marker = this._markers[i];
 
 			if (deleteMarkers[marker.id]) {
-				marker.setLine(null);
 				this._markers.splice(i, 1);
 				len--;
 				i--;
@@ -683,32 +689,18 @@ export class ModelLine {
 			let markers = this._markers;
 			for (let i = 0, len = markers.length; i < len; i++) {
 				let marker = markers[i];
-				markersTracker.addChangedMarker(marker);
+				marker.updateLineNumber(markersTracker, newLineNumber);
 			}
 		}
 
 		this._lineNumber = newLineNumber;
 	}
 
-	public deleteLine(markersTracker: MarkersTracker, setMarkersColumn: number): LineMarker[] {
-		// console.log('--> deleteLine: ');
-		if (this._markers) {
-			var markers = this._markers,
-				i: number,
-				len: number,
-				marker: LineMarker;
-
-			// Mark all these markers as changed
-			for (i = 0, len = markers.length; i < len; i++) {
-				marker = markers[i];
-
-				markersTracker.addChangedMarker(marker);
-				marker.column = setMarkersColumn;
-			}
-
-			return markers;
+	public deleteLine(): LineMarker[] {
+		if (!this._markers) {
+			return [];
 		}
-		return [];
+		return this._markers;
 	}
 
 	private _indexOfMarkerId(markerId: string): number {
