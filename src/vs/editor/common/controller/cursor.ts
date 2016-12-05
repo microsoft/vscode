@@ -487,8 +487,8 @@ export class Cursor extends EventEmitter {
 			}
 
 			var l = ctx.selectionStartMarkers.length;
-			ctx.selectionStartMarkers[l] = this.model._addMarker(null, selection.selectionStartLineNumber, selection.selectionStartColumn, selectionMarkerStickToPreviousCharacter);
-			ctx.positionMarkers[l] = this.model._addMarker(null, selection.positionLineNumber, selection.positionColumn, positionMarkerStickToPreviousCharacter);
+			ctx.selectionStartMarkers[l] = this.model._addMarker(0, selection.selectionStartLineNumber, selection.selectionStartColumn, selectionMarkerStickToPreviousCharacter);
+			ctx.positionMarkers[l] = this.model._addMarker(0, selection.positionLineNumber, selection.positionColumn, positionMarkerStickToPreviousCharacter);
 			return l.toString();
 		};
 

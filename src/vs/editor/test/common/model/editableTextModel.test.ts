@@ -1585,7 +1585,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 
 		// Add markers
 		markers.forEach((m) => {
-			let modelMarkerId = model._addMarker(null, m.lineNumber, m.column, m.stickToPreviousCharacter);
+			let modelMarkerId = model._addMarker(0, m.lineNumber, m.column, m.stickToPreviousCharacter);
 			markerId2ModelMarkerId[m.id] = modelMarkerId;
 		});
 

@@ -221,7 +221,7 @@ export class OneCursor implements IOneCursor {
 
 	private _ensureMarker(markerId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
 		if (!markerId) {
-			return this.model._addMarker(null, lineNumber, column, stickToPreviousCharacter);
+			return this.model._addMarker(0, lineNumber, column, stickToPreviousCharacter);
 		} else {
 			this.model._changeMarker(markerId, lineNumber, column);
 			this.model._changeMarkerStickiness(markerId, stickToPreviousCharacter);

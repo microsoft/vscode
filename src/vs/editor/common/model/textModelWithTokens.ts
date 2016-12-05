@@ -332,6 +332,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 				this._updateTokensUntilLine(eventBuilder, lineNumber, false);
 				tokenizedChars += currentCharsToTokenize;
+
+				// Skip the lines that got tokenized
+				lineNumber = Math.max(lineNumber, this._invalidLineStartIndex + 1);
 			}
 
 			elapsedTime = sw.elapsed();
