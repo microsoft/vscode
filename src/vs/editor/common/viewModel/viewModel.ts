@@ -38,7 +38,7 @@ export interface IViewModel extends IEventEmitter {
 	 * Get the maximum line number that will appear next to a line
 	 */
 	getMaxLineNumber(): number;
-	getAllDecorations(): ViewModelDecoration[];
+	getAllOverviewRulerDecorations(): ViewModelDecoration[];
 	getEOL(): string;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
@@ -70,34 +70,11 @@ export class InlineDecoration {
 export class ViewModelDecoration {
 	_viewModelDecorationBrand: void;
 
-	public readonly id: string;
-	public readonly ownerId: number;
 	public range: Range;
-	public options: IModelDecorationOptions;
-	public modelRange: Range;
+	public readonly options: IModelDecorationOptions;
 
-	constructor(source: IModelDecoration, range: Range) {
-		this.id = source.id;
+	constructor(source: IModelDecoration) {
+		this.range = null;
 		this.options = source.options;
-		this.ownerId = source.ownerId;
-		this.modelRange = source.range;
-		this.range = range;
-	}
-
-	public affectsTextLayout(): boolean {
-		if (this.options.inlineClassName) {
-			return true;
-		}
-		if (this.options.beforeContentClassName) {
-			return true;
-		}
-		if (this.options.afterContentClassName) {
-			return true;
-		}
-		return false;
-	}
-
-	public static compare(a: ViewModelDecoration, b: ViewModelDecoration): number {
-		return Range.compareRangesUsingStarts(a.range, b.range);
 	}
 }

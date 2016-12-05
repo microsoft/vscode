@@ -2390,9 +2390,13 @@ export interface IModelContentChangedLinesInsertedEvent extends IModelContentCha
  */
 export interface IModelDecorationsChangedEvent {
 	/**
-	 * Lists of details for added or changed decorations.
+	 * Lists of ids for added decorations.
 	 */
-	readonly addedOrChangedDecorations: IModelDecoration[];
+	readonly addedDecorations: string[];
+	/**
+	 * Lists of ids for changed decorations.
+	 */
+	readonly changedDecorations: string[];
 	/**
 	 * List of ids for removed decorations.
 	 */
@@ -3255,10 +3259,7 @@ export interface IViewTokensChangedEvent {
  * @internal
  */
 export interface IViewDecorationsChangedEvent {
-	/**
-	 * signals that at least one inline decoration has changed
-	 */
-	readonly inlineDecorationsChanged: boolean;
+	_videDecorationsChangedEventBrand: void;
 }
 
 /**

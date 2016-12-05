@@ -139,21 +139,19 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 
 	private _createZonesFromDecorations(): editorCommon.OverviewRulerZone[] {
-		let decorations = this._context.model.getAllDecorations();
+		let decorations = this._context.model.getAllOverviewRulerDecorations();
 		let zones: editorCommon.OverviewRulerZone[] = [];
 
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let dec = decorations[i];
-			if (dec.options.overviewRuler.color) {
-				zones.push(new editorCommon.OverviewRulerZone(
-					dec.range.startLineNumber,
-					dec.range.endLineNumber,
-					dec.options.overviewRuler.position,
-					0,
-					dec.options.overviewRuler.color,
-					dec.options.overviewRuler.darkColor
-				));
-			}
+			zones.push(new editorCommon.OverviewRulerZone(
+				dec.range.startLineNumber,
+				dec.range.endLineNumber,
+				dec.options.overviewRuler.position,
+				0,
+				dec.options.overviewRuler.color,
+				dec.options.overviewRuler.darkColor
+			));
 		}
 
 		return zones;

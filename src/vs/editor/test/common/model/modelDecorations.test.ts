@@ -13,10 +13,15 @@ import { Model } from 'vs/editor/common/model/model';
 
 // --------- utils
 
-function modelHasDecorations(model, decorations) {
-	var modelDecorations = [];
-	var actualDecorations = model.getAllDecorations();
-	for (var i = 0, len = actualDecorations.length; i < len; i++) {
+interface ILightWeightDecoration2 {
+	range: Range;
+	className: string;
+}
+
+function modelHasDecorations(model: Model, decorations: ILightWeightDecoration2[]) {
+	let modelDecorations: ILightWeightDecoration2[] = [];
+	let actualDecorations = model.getAllDecorations();
+	for (let i = 0, len = actualDecorations.length; i < len; i++) {
 		modelDecorations.push({
 			range: actualDecorations[i].range,
 			className: actualDecorations[i].options.className
@@ -25,18 +30,18 @@ function modelHasDecorations(model, decorations) {
 	assert.deepEqual(modelDecorations, decorations, 'Model decorations');
 }
 
-function modelHasDecoration(model, startLineNumber, startColumn, endLineNumber, endColumn, className) {
+function modelHasDecoration(model: Model, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string) {
 	modelHasDecorations(model, [{
 		range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 		className: className
 	}]);
 }
 
-function modelHasNoDecorations(model) {
+function modelHasNoDecorations(model: Model) {
 	assert.equal(model.getAllDecorations().length, 0, 'Model has no decoration');
 }
 
-function addDecoration(model, startLineNumber, startColumn, endLineNumber, endColumn, className) {
+function addDecoration(model: Model, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string): string {
 	return model.changeDecorations((changeAccessor) => {
 		return changeAccessor.addDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), {
 			className: className
@@ -199,16 +204,11 @@ suite('Editor Model - Model Decorations', () => {
 	// --------- eventing
 
 	test('decorations emit event on add', () => {
-		var listenerCalled = 0;
+		let listenerCalled = 0;
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.addedOrChangedDecorations.length, 1);
-			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
-				startLineNumber: 1,
-				startColumn: 2,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
+			assert.equal(e.addedDecorations.length, 1);
+			assert.equal(e.changedDecorations.length, 0);
 			assert.equal(e.removedDecorations.length, 0);
 		});
 		addDecoration(thisModel, 1, 2, 3, 2, 'myType');
@@ -216,17 +216,13 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('decorations emit event on change', () => {
-		var listenerCalled = 0;
-		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
+		let listenerCalled = 0;
+		let decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.addedOrChangedDecorations.length, 1);
-			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
-				startLineNumber: 1,
-				startColumn: 1,
-				endLineNumber: 1,
-				endColumn: 2
-			}));
+			assert.equal(e.addedDecorations.length, 0);
+			assert.equal(e.changedDecorations.length, 1);
+			assert.equal(e.changedDecorations[0], decId);
 			assert.equal(e.removedDecorations.length, 0);
 		});
 		thisModel.changeDecorations((changeAccessor) => {
@@ -236,11 +232,12 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('decorations emit event on remove', () => {
-		var listenerCalled = 0;
-		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
+		let listenerCalled = 0;
+		let decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.addedOrChangedDecorations.length, 0);
+			assert.equal(e.addedDecorations.length, 0);
+			assert.equal(e.changedDecorations.length, 0);
 			assert.equal(e.removedDecorations.length, 1);
 			assert.equal(e.removedDecorations[0], decId);
 		});
@@ -251,18 +248,14 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('decorations emit event when inserting one line text before it', () => {
-		var listenerCalled = 0;
-		addDecoration(thisModel, 1, 2, 3, 2, 'myType');
+		let listenerCalled = 0;
+		let decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.addedOrChangedDecorations.length, 1);
-			assert.ok(Range.equalsRange(e.addedOrChangedDecorations[0].range, {
-				startLineNumber: 1,
-				startColumn: 8,
-				endLineNumber: 3,
-				endColumn: 2
-			}));
+			assert.equal(e.addedDecorations.length, 0);
+			assert.equal(e.changedDecorations.length, 1);
+			assert.equal(e.changedDecorations[0], decId);
 			assert.equal(e.removedDecorations.length, 0);
 		});
 
@@ -374,7 +367,7 @@ suite('Editor Model - Model Decorations', () => {
 	});
 });
 
-export interface ILightWeightDecoration {
+interface ILightWeightDecoration {
 	id: string;
 	range: Range;
 }

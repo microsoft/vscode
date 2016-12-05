@@ -108,16 +108,16 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _onDecorationChanged(event: editorCommon.IModelDecorationsChangedEvent): void {
-		var addedOrChangedDecorations = event.addedOrChangedDecorations,
+		var changedDecorations = event.changedDecorations,
 			toRemove: string[] = [];
 
-		for (var i = 0, len = addedOrChangedDecorations.length; i < len; i++) {
-			var reference = collections.lookup(this._decorationSet, addedOrChangedDecorations[i].id);
+		for (var i = 0, len = changedDecorations.length; i < len; i++) {
+			var reference = collections.lookup(this._decorationSet, changedDecorations[i]);
 			if (!reference) {
 				continue;
 			}
 
-			var newRange = addedOrChangedDecorations[i].range,
+			var newRange = this.editor.getModel().getDecorationRange(changedDecorations[i]),
 				ignore = false;
 
 			if (Range.equalsRange(newRange, reference.range)) {
@@ -137,7 +137,7 @@ class DecorationsManager implements IDisposable {
 
 			if (ignore) {
 				this._decorationIgnoreSet[reference.id] = reference;
-				toRemove.push(addedOrChangedDecorations[i].id);
+				toRemove.push(changedDecorations[i]);
 			} else {
 				reference.range = newRange;
 			}

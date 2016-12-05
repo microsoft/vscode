@@ -2345,9 +2345,13 @@ declare module monaco.editor {
      */
     export interface IModelDecorationsChangedEvent {
         /**
-         * Lists of details for added or changed decorations.
+         * Lists of ids for added decorations.
          */
-        readonly addedOrChangedDecorations: IModelDecoration[];
+        readonly addedDecorations: string[];
+        /**
+         * Lists of ids for changed decorations.
+         */
+        readonly changedDecorations: string[];
         /**
          * List of ids for removed decorations.
          */
