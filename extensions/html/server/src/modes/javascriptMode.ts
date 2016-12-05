@@ -7,7 +7,7 @@
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
 import { LanguageMode } from './languageModes';
-import { getWordAtText } from '../utils/words';
+import { getWordAtText, startsWith } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
@@ -21,7 +21,7 @@ const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\
 export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
 	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('javascript'));
 
-	let compilerOptions = { allowNonTsExtensions: true, allowJs: true, target: ts.ScriptTarget.Latest };
+	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
 	let currentTextDocument: TextDocument;
 	let host = {
 		getCompilationSettings: () => compilerOptions,
@@ -33,7 +33,14 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return '1'; // default lib an jquery.d.ts are static
 		},
 		getScriptSnapshot: (fileName: string) => {
-			let text = fileName === FILE_NAME ? currentTextDocument.getText() : ts.sys.readFile(fileName);
+			let text = '';
+			if (startsWith(fileName, 'vscode:')) {
+				if (fileName === FILE_NAME) {
+					text = currentTextDocument.getText();
+				}
+			} else {
+				text = ts.sys.readFile(fileName) || '';
+			}
 			return {
 				getText: (start, end) => text.substring(start, end),
 				getLength: () => text.length,
