@@ -25,7 +25,7 @@
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>^\s*(?:(ONBUILD)\s+)?(FROM|MAINTAINER|RUN|EXPOSE|ENV|ADD|VOLUME|USER|WORKDIR|COPY|LABEL|STOPSIGNAL|ARG)\s</string>
+			<string>^\s*(?:(ONBUILD)\s+)?(ADD|ARG|CMD|COPY|ENTRYPOINT|ENV|EXPOSE|FROM|HEALTHCHECK|LABEL|MAINTAINER|RUN|SHELL|STOPSIGNAL|USER|VOLUME|WORKDIR)\s</string>
 		</dict>
 		<dict>
 			<key>captures</key>
