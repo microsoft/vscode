@@ -91,14 +91,21 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	public setHiddenAreas(ranges: editorCommon.IRange[]): void {
-		this.deferredEmit(() => {
-			let lineMappingChanged = this.lines.setHiddenAreas(ranges, (eventType: string, payload: any) => this.emit(eventType, payload));
-			if (lineMappingChanged) {
-				this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
-				this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-				this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			}
-		});
+		try {
+			this._beginDeferredEmit();
+			this._setHiddenAreas(ranges);
+		} finally {
+			this._endDeferredEmit();
+		}
+	}
+
+	private _setHiddenAreas(ranges: editorCommon.IRange[]): void {
+		let lineMappingChanged = this.lines.setHiddenAreas(ranges, (eventType: string, payload: any) => this.emit(eventType, payload));
+		if (lineMappingChanged) {
+			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
+			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
+			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
+		}
 	}
 
 	public dispose(): void {
@@ -161,141 +168,147 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	private onEvents(events: EmitterEvent[]): void {
-		this.deferredEmit(() => {
+		try {
+			this._beginDeferredEmit();
+			this._onEvents(events);
+		} finally {
+			this._endDeferredEmit();
+		}
+	}
 
-			let hasContentChange = events.some((e) => e.getType() === editorCommon.EventType.ModelRawContentChanged),
-				previousCenteredModelRange: Range;
-			if (!hasContentChange) {
-				// We can only convert the current centered view range to the current centered model range if the model has no changes.
-				previousCenteredModelRange = this.getCurrentCenteredModelRange();
+	private _onEvents(events: EmitterEvent[]): void {
+		let hasContentChange = events.some((e) => e.getType() === editorCommon.EventType.ModelRawContentChanged),
+			previousCenteredModelRange: Range;
+		if (!hasContentChange) {
+			// We can only convert the current centered view range to the current centered model range if the model has no changes.
+			previousCenteredModelRange = this.getCurrentCenteredModelRange();
+		}
+
+		let i: number,
+			len: number,
+			e: EmitterEvent,
+			data: any,
+			modelContentChangedEvent: editorCommon.IModelContentChangedEvent,
+			hadOtherModelChange = false,
+			hadModelLineChangeThatChangedLineMapping = false,
+			revealPreviousCenteredModelRange = false;
+
+		for (i = 0, len = events.length; i < len; i++) {
+			e = events[i];
+			data = e.getData();
+
+			switch (e.getType()) {
+
+				case editorCommon.EventType.ModelRawContentChanged:
+					modelContentChangedEvent = <editorCommon.IModelContentChangedEvent>data;
+
+					switch (modelContentChangedEvent.changeType) {
+						case editorCommon.EventType.ModelRawContentChangedFlush:
+							this.onModelFlushed(<editorCommon.IModelContentChangedFlushEvent>modelContentChangedEvent);
+							hadOtherModelChange = true;
+							break;
+
+						case editorCommon.EventType.ModelRawContentChangedLinesDeleted:
+							this.onModelLinesDeleted(<editorCommon.IModelContentChangedLinesDeletedEvent>modelContentChangedEvent);
+							hadOtherModelChange = true;
+							break;
+
+						case editorCommon.EventType.ModelRawContentChangedLinesInserted:
+							this.onModelLinesInserted(<editorCommon.IModelContentChangedLinesInsertedEvent>modelContentChangedEvent);
+							hadOtherModelChange = true;
+							break;
+
+						case editorCommon.EventType.ModelRawContentChangedLineChanged:
+							hadModelLineChangeThatChangedLineMapping = this.onModelLineChanged(<editorCommon.IModelContentChangedLineChangedEvent>modelContentChangedEvent);
+							break;
+
+						default:
+							console.info('ViewModel received unknown event: ');
+							console.info(e);
+					}
+					break;
+
+				case editorCommon.EventType.ModelTokensChanged:
+					this.onModelTokensChanged(<editorCommon.IModelTokensChangedEvent>data);
+					break;
+
+				case editorCommon.EventType.ModelModeChanged:
+					// That's ok, a model tokens changed event will follow shortly
+					break;
+
+				case editorCommon.EventType.ModelContentChanged2:
+					// Ignore
+					break;
+
+				case editorCommon.EventType.ModelOptionsChanged:
+					// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
+					let prevLineCount = this.lines.getOutputLineCount();
+					let tabSizeChanged = this._onTabSizeChange(this.model.getOptions().tabSize);
+					let newLineCount = this.lines.getOutputLineCount();
+					if (tabSizeChanged && prevLineCount !== newLineCount) {
+						revealPreviousCenteredModelRange = true;
+					}
+
+					break;
+
+				case editorCommon.EventType.ModelDecorationsChanged:
+					this.onModelDecorationsChanged(<editorCommon.IModelDecorationsChangedEvent>data);
+					break;
+
+				case editorCommon.EventType.ModelDispose:
+					// Ignore, since the editor will take care of this and destroy the view shortly
+					break;
+
+				case editorCommon.EventType.CursorPositionChanged:
+					this.onCursorPositionChanged(<editorCommon.ICursorPositionChangedEvent>data);
+					this._lastCursorPosition = (<editorCommon.ICursorPositionChangedEvent>data).position;
+					break;
+
+				case editorCommon.EventType.CursorSelectionChanged:
+					this.onCursorSelectionChanged(<editorCommon.ICursorSelectionChangedEvent>data);
+					break;
+
+				case editorCommon.EventType.CursorRevealRange:
+					this.onCursorRevealRange(<editorCommon.ICursorRevealRangeEvent>data);
+					break;
+
+				case editorCommon.EventType.CursorScrollRequest:
+					this.onCursorScrollRequest(<editorCommon.ICursorScrollRequestEvent>data);
+					break;
+
+				case editorCommon.EventType.ConfigurationChanged:
+					revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingInfo.wrappingIndent) || revealPreviousCenteredModelRange;
+					revealPreviousCenteredModelRange = this._onWrappingColumnChange(this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
+
+					this._renderCustomLineNumbers = this.configuration.editor.viewInfo.renderCustomLineNumbers;
+					this._renderRelativeLineNumbers = this.configuration.editor.viewInfo.renderRelativeLineNumbers;
+
+					if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
+						// Must read again all decorations due to readOnly filtering
+						this.decorations.reset(this.model);
+						var decorationsChangedEvent: editorCommon.IViewDecorationsChangedEvent = {
+							inlineDecorationsChanged: false
+						};
+						this.emit(editorCommon.ViewEventNames.DecorationsChangedEvent, decorationsChangedEvent);
+					}
+					this.emit(e.getType(), <editorCommon.IConfigurationChangedEvent>data);
+					break;
+
+				default:
+					console.info('View received unknown event: ');
+					console.info(e);
 			}
+		}
 
-			let i: number,
-				len: number,
-				e: EmitterEvent,
-				data: any,
-				modelContentChangedEvent: editorCommon.IModelContentChangedEvent,
-				hadOtherModelChange = false,
-				hadModelLineChangeThatChangedLineMapping = false,
-				revealPreviousCenteredModelRange = false;
+		if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
+			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
+			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
+			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
+		}
 
-			for (i = 0, len = events.length; i < len; i++) {
-				e = events[i];
-				data = e.getData();
-
-				switch (e.getType()) {
-
-					case editorCommon.EventType.ModelRawContentChanged:
-						modelContentChangedEvent = <editorCommon.IModelContentChangedEvent>data;
-
-						switch (modelContentChangedEvent.changeType) {
-							case editorCommon.EventType.ModelRawContentChangedFlush:
-								this.onModelFlushed(<editorCommon.IModelContentChangedFlushEvent>modelContentChangedEvent);
-								hadOtherModelChange = true;
-								break;
-
-							case editorCommon.EventType.ModelRawContentChangedLinesDeleted:
-								this.onModelLinesDeleted(<editorCommon.IModelContentChangedLinesDeletedEvent>modelContentChangedEvent);
-								hadOtherModelChange = true;
-								break;
-
-							case editorCommon.EventType.ModelRawContentChangedLinesInserted:
-								this.onModelLinesInserted(<editorCommon.IModelContentChangedLinesInsertedEvent>modelContentChangedEvent);
-								hadOtherModelChange = true;
-								break;
-
-							case editorCommon.EventType.ModelRawContentChangedLineChanged:
-								hadModelLineChangeThatChangedLineMapping = this.onModelLineChanged(<editorCommon.IModelContentChangedLineChangedEvent>modelContentChangedEvent);
-								break;
-
-							default:
-								console.info('ViewModel received unknown event: ');
-								console.info(e);
-						}
-						break;
-
-					case editorCommon.EventType.ModelTokensChanged:
-						this.onModelTokensChanged(<editorCommon.IModelTokensChangedEvent>data);
-						break;
-
-					case editorCommon.EventType.ModelModeChanged:
-						// That's ok, a model tokens changed event will follow shortly
-						break;
-
-					case editorCommon.EventType.ModelContentChanged2:
-						// Ignore
-						break;
-
-					case editorCommon.EventType.ModelOptionsChanged:
-						// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
-						let prevLineCount = this.lines.getOutputLineCount();
-						let tabSizeChanged = this._onTabSizeChange(this.model.getOptions().tabSize);
-						let newLineCount = this.lines.getOutputLineCount();
-						if (tabSizeChanged && prevLineCount !== newLineCount) {
-							revealPreviousCenteredModelRange = true;
-						}
-
-						break;
-
-					case editorCommon.EventType.ModelDecorationsChanged:
-						this.onModelDecorationsChanged(<editorCommon.IModelDecorationsChangedEvent>data);
-						break;
-
-					case editorCommon.EventType.ModelDispose:
-						// Ignore, since the editor will take care of this and destroy the view shortly
-						break;
-
-					case editorCommon.EventType.CursorPositionChanged:
-						this.onCursorPositionChanged(<editorCommon.ICursorPositionChangedEvent>data);
-						this._lastCursorPosition = (<editorCommon.ICursorPositionChangedEvent>data).position;
-						break;
-
-					case editorCommon.EventType.CursorSelectionChanged:
-						this.onCursorSelectionChanged(<editorCommon.ICursorSelectionChangedEvent>data);
-						break;
-
-					case editorCommon.EventType.CursorRevealRange:
-						this.onCursorRevealRange(<editorCommon.ICursorRevealRangeEvent>data);
-						break;
-
-					case editorCommon.EventType.CursorScrollRequest:
-						this.onCursorScrollRequest(<editorCommon.ICursorScrollRequestEvent>data);
-						break;
-
-					case editorCommon.EventType.ConfigurationChanged:
-						revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingInfo.wrappingIndent) || revealPreviousCenteredModelRange;
-						revealPreviousCenteredModelRange = this._onWrappingColumnChange(this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
-
-						this._renderCustomLineNumbers = this.configuration.editor.viewInfo.renderCustomLineNumbers;
-						this._renderRelativeLineNumbers = this.configuration.editor.viewInfo.renderRelativeLineNumbers;
-
-						if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
-							// Must read again all decorations due to readOnly filtering
-							this.decorations.reset(this.model);
-							var decorationsChangedEvent: editorCommon.IViewDecorationsChangedEvent = {
-								inlineDecorationsChanged: false
-							};
-							this.emit(editorCommon.ViewEventNames.DecorationsChangedEvent, decorationsChangedEvent);
-						}
-						this.emit(e.getType(), <editorCommon.IConfigurationChangedEvent>data);
-						break;
-
-					default:
-						console.info('View received unknown event: ');
-						console.info(e);
-				}
-			}
-
-			if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
-				this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
-				this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-				this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			}
-
-			if (revealPreviousCenteredModelRange && previousCenteredModelRange) {
-				this._restoreCenteredModelRange(previousCenteredModelRange);
-			}
-		});
+		if (revealPreviousCenteredModelRange && previousCenteredModelRange) {
+			this._restoreCenteredModelRange(previousCenteredModelRange);
+		}
 	}
 
 	// --- begin inbound event conversion

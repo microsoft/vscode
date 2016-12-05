@@ -462,23 +462,20 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (this._view) {
 			this.domElement.appendChild(this._view.domNode);
 
-			this._view.renderOnce(() => {
+			let keys = Object.keys(this.contentWidgets);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let widgetId = keys[i];
+				this._view.addContentWidget(this.contentWidgets[widgetId]);
+			}
 
-				let keys = Object.keys(this.contentWidgets);
-				for (let i = 0, len = keys.length; i < len; i++) {
-					let widgetId = keys[i];
-					this._view.addContentWidget(this.contentWidgets[widgetId]);
-				}
+			keys = Object.keys(this.overlayWidgets);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let widgetId = keys[i];
+				this._view.addOverlayWidget(this.overlayWidgets[widgetId]);
+			}
 
-				keys = Object.keys(this.overlayWidgets);
-				for (let i = 0, len = keys.length; i < len; i++) {
-					let widgetId = keys[i];
-					this._view.addOverlayWidget(this.overlayWidgets[widgetId]);
-				}
-
-				this._view.render(false, true);
-				this.hasView = true;
-			});
+			this._view.render(false, true);
+			this.hasView = true;
 		}
 	}
 
