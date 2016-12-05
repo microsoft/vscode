@@ -171,29 +171,6 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			]
 		);
 	});
-	test('createLineParts render whitespace - mixed leading spaces and tabs', () => {
-		testCreateLineParts(
-			'  \t\t  Hello world! \t  \t   \t    ',
-			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(8, 'b')
-			],
-			0,
-			'boundary',
-			[
-				new ViewLineToken(0, ' vs-whitespace'),
-				new ViewLineToken(3, ' vs-whitespace'),
-				new ViewLineToken(4, ' vs-whitespace'),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(8, 'b'),
-				new ViewLineToken(18, 'b vs-whitespace'),
-				new ViewLineToken(20, 'b vs-whitespace'),
-				new ViewLineToken(23, 'b vs-whitespace'),
-				new ViewLineToken(27, 'b vs-whitespace'),
-			]
-		);
-	});
 
 	test('createLineParts render whitespace skips faux indent', () => {
 		testCreateLineParts(
