@@ -45,7 +45,7 @@ export class GitContentProvider implements IWorkbenchContribution, ITextModelCon
 			}
 
 			const path = uri.fsPath;
-			const relativePath = paths.relative(root, path);
+			const relativePath = paths.relative(root, path).replace(/\\/g, '/');
 			const treeish = gitModel.getStatus().find(relativePath, StatusType.INDEX) ? '~' : 'HEAD';
 
 			return this.gitService.buffer(path, treeish)
