@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "0.10.x" },
-	"activationEvents": ["onLanguage:php"],
+	"activationEvents": ["onLanguage:php", "onLanguage:phplanguage"],
 	"main": "./out/phpMain",
 	"dependencies": {
 		"vscode-nls": "^1.0.4"
@@ -14,6 +14,14 @@
 			"extensions": [ ".php", ".php4", ".php5", ".phtml", ".ctp" ],
 			"aliases": [ "PHP", "php" ],
 			"mimetypes": ["application/x-php"],
+			"configuration": "./language-configuration.json"
+		},
+		{
+			// For reference by services requiring PHP syntax highlighting for partial
+			// code missing script start/end tags.
+			"id": "phplanguage",
+			"aliases": [ null ], // unsupported: prevents language from appearing in Language Mode list
+			"mimetypes": ["application/x-php-language"],
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
@@ -29,6 +37,11 @@
 				"source.json": "json",
 				"source.css": "css"
 			}
+		},
+		{
+			"language": "phplanguage",
+			"scopeName": "text.html.php.language",
+			"path": "./syntaxes/phplanguage.json"
 		}],
 		"snippets": [{
 			"language": "php",

@@ -1,0 +1,10 @@
+{
+  "scopeName" : "text.html.php.language",
+  "comment": "Grammar for PHP code without script-section start/end tags.",
+  "name": "PhpLanguage",
+  "patterns" : [
+    {
+      "include": "text.html.php#language"
+    }
+  ]
+}

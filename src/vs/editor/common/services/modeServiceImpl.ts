@@ -119,7 +119,7 @@ function isValidLanguageExtensionPoint(value: ILanguageExtensionPoint, collector
 		collector.error(nls.localize('opt.configuration', "property `{0}` can be omitted and must be of type `string`", 'configuration'));
 		return false;
 	}
-	if (!isUndefinedOrStringArray(value.aliases)) {
+	if (!isUndefinedOrStringArray(value.aliases) && value.aliases[0] !== null) {
 		collector.error(nls.localize('opt.aliases', "property `{0}` can be omitted and must be of type `string[]`", 'aliases'));
 		return false;
 	}
