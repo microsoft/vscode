@@ -12,7 +12,7 @@ import { ITextFileEditorModelManager, IRawTextContent } from 'vs/workbench/servi
 import { IResolveContentOptions, IUpdateContentOptions } from 'vs/platform/files/common/files';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
-export const IBackupService = createDecorator<IBackupService>('backupService');
+export const IBackupModelService = createDecorator<IBackupModelService>('backupService');
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
 export const BACKUP_FILE_RESOLVE_OPTIONS: IResolveContentOptions = { acceptTextOnly: true, encoding: 'utf-8' };
@@ -26,7 +26,7 @@ export interface IBackupResult {
  * A service that handles the lifecycle of backups, eg. listening for file changes and acting
  * appropriately on shutdown.
  */
-export interface IBackupService {
+export interface IBackupModelService {
 	_serviceBrand: any;
 
 	isHotExitEnabled: boolean;

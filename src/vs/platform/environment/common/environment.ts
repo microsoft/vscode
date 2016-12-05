@@ -71,4 +71,6 @@ export interface IEnvironmentService {
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
+
+	nodeCachedDataDir: string;
 }

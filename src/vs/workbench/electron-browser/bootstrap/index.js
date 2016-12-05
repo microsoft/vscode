@@ -153,10 +153,15 @@ function main() {
 	createScript(rootUrl + '/vs/loader.js', function () {
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 
+		window.MonacoEnvironment = {};
+
+		const nodeCachedDataErrors = window.MonacoEnvironment.nodeCachedDataErrors = [];
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
-			recordStats: !!configuration.performance
+			recordStats: !!configuration.performance,
+			nodeCachedDataDir: configuration.nodeCachedDataDir,
+			onNodeCachedDataError: function (err) { nodeCachedDataErrors.push(err) },
 		});
 
 		if (nlsConfig.pseudo) {
@@ -166,7 +171,6 @@ function main() {
 		}
 
 		// Perf Counters
-		window.MonacoEnvironment = {};
 		const timers = window.MonacoEnvironment.timers = {
 			start: new Date(configuration.isInitialStartup ? configuration.perfStartTime : configuration.perfWindowLoadTime),
 			isInitialStartup: !!configuration.isInitialStartup,

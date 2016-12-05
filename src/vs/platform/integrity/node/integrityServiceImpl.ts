@@ -16,11 +16,6 @@ import Severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
-interface ILoaderChecksums {
-	[scriptSrc: string]: string;
-}
-
-
 interface IStorageData {
 	dontShowPrompt: boolean;
 	commit: string;

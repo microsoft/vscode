@@ -74,8 +74,8 @@ suite('TextSearch performance', () => {
 			maxResults: 2048
 		};
 
+		const searchModel: SearchModel = instantiationService.createInstance(SearchModel);
 		function runSearch(): TPromise<any> {
-			const searchModel: SearchModel = instantiationService.createInstance(SearchModel);
 			const queryBuilder: QueryBuilder = instantiationService.createInstance(QueryBuilder);
 			const query = queryBuilder.text({ pattern: 'static_library(' }, queryOptions);
 

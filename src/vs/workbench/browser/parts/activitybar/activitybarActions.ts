@@ -12,7 +12,7 @@ import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IActivityBarService, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -22,6 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { dispose } from 'vs/base/common/lifecycle';
+import { Keybinding } from 'vs/base/common/keybinding';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
@@ -120,7 +121,6 @@ export class ActivityActionItem extends BaseActionItem {
 		action: ActivityAction,
 		private viewlet: ViewletDescriptor,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IViewletService private viewletService: IViewletService,
 		@IActivityBarService private activityBarService: IActivityBarService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -131,8 +131,6 @@ export class ActivityActionItem extends BaseActionItem {
 		this.name = viewlet.name;
 		this._keybinding = this.getKeybindingLabel(viewlet.id);
 
-		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
-
 		if (!ActivityActionItem.manageExtensionAction) {
 			ActivityActionItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
 		}
@@ -140,6 +138,8 @@ export class ActivityActionItem extends BaseActionItem {
 		if (!ActivityActionItem.toggleViewletPinnedAction) {
 			ActivityActionItem.toggleViewletPinnedAction = instantiationService.createInstance(ToggleViewletPinnedAction, void 0);
 		}
+
+		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
 	}
 
 	private getKeybindingLabel(id: string): string {
@@ -422,6 +422,7 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 		private getBadge: (viewlet: ViewletDescriptor) => IBadge,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 	) {
 		super(null, action);
@@ -451,8 +452,18 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.builder.getHTMLElement(),
 			getActions: () => TPromise.as(this.actions),
+			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: () => dispose(this.actions)
 		});
+	}
+
+	private getKeybinding(action: IAction): Keybinding {
+		const opts = this.keybindingService.lookupKeybindings(action.id);
+		if (opts.length > 0) {
+			return opts[0]; // only take the first one
+		}
+
+		return null;
 	}
 
 	private getActions(): OpenViewletAction[] {
@@ -503,11 +514,15 @@ class ManageExtensionAction extends Action {
 class OpenViewletAction extends Action {
 
 	constructor(
-		public viewlet: ViewletDescriptor,
+		private _viewlet: ViewletDescriptor,
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(viewlet.id, viewlet.name);
+		super(_viewlet.id, _viewlet.name);
+	}
+
+	public get viewlet(): ViewletDescriptor {
+		return this._viewlet;
 	}
 
 	public run(): TPromise<any> {

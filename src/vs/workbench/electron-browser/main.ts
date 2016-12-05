@@ -22,15 +22,15 @@ import { EventService } from 'vs/platform/event/common/eventService';
 import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { realpath } from 'vs/base/node/pfs';
+import { realpath, stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
-import fs = require('fs');
 import gracefulFs = require('graceful-fs');
 import { IPath, IOpenFileRequest } from 'vs/workbench/electron-browser/common';
 
 import { webFrame } from 'electron';
 
+import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 const timers = (<any>window).MonacoEnvironment.timers;
@@ -48,7 +48,6 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 }
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
-
 	// Ensure others can listen to zoom level changes
 	browser.setZoomFactor(webFrame.getZoomFactor());
 	browser.setZoomLevel(webFrame.getZoomLevel());
@@ -116,13 +115,14 @@ function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
 
 		const workspaceResource = uri.file(realWorkspacePath);
 		const folderName = path.basename(realWorkspacePath) || realWorkspacePath;
-		const folderStat = fs.statSync(realWorkspacePath);
 
-		return <IWorkspace>{
-			'resource': workspaceResource,
-			'name': folderName,
-			'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-		};
+		return stat(realWorkspacePath).then(folderStat => {
+			return <IWorkspace>{
+				'resource': workspaceResource,
+				'name': folderName,
+				'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
+			};
+		});
 	}, (error) => {
 		errors.onUnexpectedError(error);
 

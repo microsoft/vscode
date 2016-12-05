@@ -712,8 +712,8 @@ export class SelectHighlightsAction extends AbstractSelectHighlightsAction {
 	constructor() {
 		super({
 			id: 'editor.action.selectHighlights',
-			label: nls.localize('selectAllOccurencesOfFindMatch', "Select All Occurences of Find Match"),
-			alias: 'Select All Occurences of Find Match',
+			label: nls.localize('selectAllOccurencesOfFindMatch', "Select All Occurrences of Find Match"),
+			alias: 'Select All Occurrences of Find Match',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.Focus,

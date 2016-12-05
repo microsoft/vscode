@@ -240,7 +240,7 @@ export interface IViewModel extends ITreeElement {
 	/**
 	 * Allows to register on change of selected debug configuration.
 	 */
-	onDidSelectConfigurationName: Event<string>;
+	onDidSelectConfiguration: Event<string>;
 }
 
 export interface IModel extends ITreeElement {

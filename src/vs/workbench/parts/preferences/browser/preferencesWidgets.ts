@@ -9,61 +9,95 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-export class SettingsGroupTitleWidget extends ZoneWidget {
+export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
-	private titleWidgetContainer: HTMLElement;
+	private id: number;
+	private _afterLineNumber: number;
+	private _domNode: HTMLElement;
+
 	private titleContainer: HTMLElement;
+	private icon: HTMLElement;
+	private title: HTMLElement;
 
 	private _onToggled = this._register(new Emitter<boolean>());
 	public onToggled: Event<boolean> = this._onToggled.event;
 
-	constructor(editor: ICodeEditor, public settingsGroup: ISettingsGroup) {
-		super(editor, {
-			showFrame: false,
-			showArrow: false,
-			className: 'settings-group-title-widget'
-		});
+	constructor(private editor: ICodeEditor, public settingsGroup: ISettingsGroup) {
+		super();
 		this.create();
+		this._register(this.editor.onDidChangeConfiguration(() => this.layout()));
 		this._register(this.editor.onDidLayoutChange(() => this.layout()));
 	}
 
-	protected _fillContainer(container: HTMLElement) {
-		this.titleWidgetContainer = DOM.append(container, DOM.$('.settings-group-title-widget-container'));
-		this.titleContainer = DOM.append(this.titleWidgetContainer, DOM.$('.title-container'));
+	get domNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	get heightInLines(): number {
+		return 1.5;
+	}
+
+	get afterLineNumber(): number {
+		return this._afterLineNumber;
+	}
+
+	private create() {
+		this._domNode = DOM.$('.settings-group-title-widget');
+		this._domNode.style.paddingLeft = '10px';
+
+		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
 		this.onclick(this.titleContainer, () => this.onTitleClicked());
-		const title = DOM.append(this.titleContainer, DOM.$('.title'));
-		DOM.append(title, DOM.$('span')).textContent = this.settingsGroup.title + ` (${this.settingsGroup.sections.reduce((count, section) => count + section.settings.length, 0)})`;
+
+		this.icon = DOM.append(this.titleContainer, DOM.$('.expand-collapse-icon'));
+		this.title = DOM.append(this.titleContainer, DOM.$('.title'));
+		this.title.textContent = this.settingsGroup.title + ` (${this.settingsGroup.sections.reduce((count, section) => count + section.settings.length, 0)})`;
+
 		this.layout();
 	}
 
 	public render() {
-		this.show({ lineNumber: this.settingsGroup.range.startLineNumber - 2, column: 0 }, 2);
+		this._afterLineNumber = this.settingsGroup.range.startLineNumber - 2;
+		this.editor.changeViewZones(accessor => {
+			this.id = accessor.addZone(this);
+		});
 	}
 
 	public collapse() {
 		DOM.addClass(this.titleContainer, 'collapsed');
 	}
 
-	private layout() {
-		this.titleWidgetContainer.style.paddingLeft = '10px';
-		const editorLayoutInfo = this.editor.getLayoutInfo();
-		this.titleWidgetContainer.style.paddingLeft = editorLayoutInfo.contentLeft + 'px';
-		this.titleContainer.style.fontSize = this.editor.getConfiguration().fontInfo.fontSize + 6 + 'px';
+	private layout(): void {
+		this.titleContainer.style.lineHeight = this.editor.getConfiguration().lineHeight + 3 + 'px';
+		this.titleContainer.style.fontSize = this.editor.getConfiguration().fontInfo.fontSize + 3 + 'px';
+		const iconSize = this.getIconSize();
+		this.icon.style.height = `${iconSize}px`;
+		this.icon.style.width = `${iconSize}px`;
+	}
+
+	private getIconSize(): number {
+		const fontSize = this.editor.getConfiguration().fontInfo.fontSize;
+		return fontSize > 8 ? Math.max(fontSize, 16) : 12;
 	}
 
 	private onTitleClicked() {
 		const isCollapsed = DOM.hasClass(this.titleContainer, 'collapsed');
 		DOM.toggleClass(this.titleContainer, 'collapsed', !isCollapsed);
 		this._onToggled.fire(!isCollapsed);
+	}
+
+	public dispose() {
+		this.editor.changeViewZones(accessor => {
+			accessor.removeZone(this.id);
+		});
+		super.dispose();
 	}
 }
 

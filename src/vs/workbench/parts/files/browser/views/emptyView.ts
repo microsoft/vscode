@@ -13,14 +13,17 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { $ } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CollapsibleView } from 'vs/base/browser/ui/splitview/splitview';
-import { Registry } from 'vs/platform/platform';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Registry } from 'vs/platform/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 
 export class EmptyView extends CollapsibleView {
 	private openFolderButton: Button;
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor( @ITelemetryService private telemetryService: ITelemetryService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		super({
 			minimumSize: 2 * 22,
 			ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section")
@@ -52,6 +55,7 @@ export class EmptyView extends CollapsibleView {
 	}
 
 	private runWorkbenchAction(actionId: string): void {
+		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionId, from: 'explorer' });
 		let actionRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
 		let actionDescriptor = actionRegistry.getWorkbenchAction(actionId);
 

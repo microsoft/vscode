@@ -21,7 +21,7 @@ class TextDocumentContentProvider {
 	constructor(private git: Git, private rootPath: string) { }
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
-		const relativePath = path.relative(this.rootPath, uri.fsPath);
+		const relativePath = path.relative(this.rootPath, uri.fsPath).replace(/\\/g, '/');
 
 		try {
 			const result = await this.git.exec(this.rootPath, ['show', `HEAD:${relativePath}`]);

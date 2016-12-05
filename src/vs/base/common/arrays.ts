@@ -243,7 +243,7 @@ export function flatten<T>(arr: T[][]): T[] {
 }
 
 export function range(to: number, from = 0): number[] {
-	const result = [];
+	const result: number[] = [];
 
 	for (let i = from; i < to; i++) {
 		result.push(i);

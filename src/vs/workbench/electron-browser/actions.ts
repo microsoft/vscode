@@ -19,7 +19,6 @@ import pkg from 'vs/platform/package';
 import errors = require('vs/base/common/errors');
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -33,6 +32,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IStartupFingerprint } from 'vs/workbench/electron-browser/common';
+import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 
 import * as os from 'os';
 import { webFrame } from 'electron';
@@ -200,7 +200,6 @@ export abstract class BaseZoomAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService private messageService: IMessageService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
 	) {
@@ -233,11 +232,10 @@ export class ZoomInAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService messageService: IMessageService,
 		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
-		super(id, label, messageService, configurationService, configurationEditingService);
+		super(id, label, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
@@ -255,11 +253,10 @@ export class ZoomOutAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService messageService: IMessageService,
 		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
-		super(id, label, messageService, configurationService, configurationEditingService);
+		super(id, label, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
@@ -277,11 +274,10 @@ export class ZoomResetAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService messageService: IMessageService,
 		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
-		super(id, label, messageService, configurationService, configurationEditingService);
+		super(id, label, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
@@ -439,8 +435,7 @@ export class ReloadWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
-		@IPartService private partService: IPartService
+		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label);
 	}
@@ -479,11 +474,11 @@ export class OpenRecentAction extends Action {
 				label: paths.basename(path),
 				description: paths.dirname(path),
 				separator,
-				run: (context) => runPick(path, context)
+				run: context => runPick(path, context)
 			};
 		}
 
-		const runPick = (path: string, context) => {
+		const runPick = (path: string, context: IEntryRunContext) => {
 			const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 			this.windowsService.windowOpen([path], newWindow);
 		};
@@ -538,10 +533,8 @@ export class ReportIssueAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService private messageService: IMessageService,
 		@IIntegrityService private integrityService: IIntegrityService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		super(id, label);
 	}

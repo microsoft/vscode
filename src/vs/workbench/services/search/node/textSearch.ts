@@ -5,20 +5,15 @@
 
 'use strict';
 
-import uri from 'vs/base/common/uri';
-
-import * as os from 'os';
 import * as path from 'path';
-
-import * as ipc from 'vs/base/parts/ipc/common/ipc';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IProgress } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
-import { ISearchWorkerConfig, ISearchWorker, ISearchWorkerChannel, SearchWorkerChannelClient } from './worker/searchWorkerIpc';
 
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
+import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
+import { ISearchWorker, ISearchWorkerConfig } from './worker/searchWorkerIpc';
+import { ITextSearchWorkerProvider } from './textSearchWorkerProvider';
 
 export class Engine implements ISearchEngine<ISerializedFileMatch> {
 
@@ -37,13 +32,15 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 	private limitReached = false;
 	private numResults = 0;
 
-	private nextWorker = 0;
-	private workers: ISearchWorker[] = [];
-	private workerClients: Client[] = [];
+	private workerProvider: ITextSearchWorkerProvider;
+	private workers: ISearchWorker[];
 
-	constructor(config: IRawSearch, walker: FileWalker) {
+	private nextWorker = 0;
+
+	constructor(config: IRawSearch, walker: FileWalker, workerProvider: ITextSearchWorkerProvider) {
 		this.config = config;
 		this.walker = walker;
+		this.workerProvider = workerProvider;
 	}
 
 	cancel(): void {
@@ -56,8 +53,18 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		});
 	}
 
+	initializeWorkers(): void {
+		this.workers.forEach(w => {
+			const config: ISearchWorkerConfig = { pattern: this.config.contentPattern, fileEncoding: this.config.fileEncoding };
+			w.initialize(config)
+				.then(null, onUnexpectedError);
+		});
+	}
+
 	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		this.startWorkers();
+		this.workers = this.workerProvider.getWorkers();
+		this.initializeWorkers();
+
 		const progress = () => {
 			if (++this.progressed % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
 				onProgress({ total: this.totalBytes, worked: this.processedBytes }); // buffer progress in chunks to reduce pressure
@@ -75,7 +82,6 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			// Emit done()
 			if (!this.isDone && this.processedBytes === this.totalBytes && this.walkerIsDone) {
 				this.isDone = true;
-				this.disposeWorkers();
 				done(this.walkerError, {
 					limitHit: this.limitReached,
 					stats: this.walker.getStats()
@@ -152,40 +158,5 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			this.walkerIsDone = true;
 			this.walkerError = error;
 		});
-	}
-
-	private startWorkers(): void {
-		// If the CPU has hyperthreading enabled, this will report (# of physical cores)*2.
-		const numWorkers = os.cpus().length;
-		for (let i = 0; i < numWorkers; i++) {
-			this.createWorker(i);
-		}
-	}
-
-	private createWorker(id: number): void {
-		let client = new Client(
-			uri.parse(require.toUrl('bootstrap')).fsPath,
-			{
-				serverName: 'Search Worker ' + id,
-				args: ['--type=searchWorker'],
-				env: {
-					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/worker/searchWorkerApp',
-					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: process.env.VERBOSE_LOGGING
-				}
-			});
-
-		// Make async?
-		const channel = ipc.getNextTickChannel(client.getChannel<ISearchWorkerChannel>('searchWorker'));
-		const channelClient = new SearchWorkerChannelClient(channel);
-		const config: ISearchWorkerConfig = { pattern: this.config.contentPattern, id, fileEncoding: this.config.fileEncoding };
-		channelClient.initialize(config).then(null, onUnexpectedError);
-
-		this.workers.push(channelClient);
-		this.workerClients.push(client);
-	}
-
-	private disposeWorkers(): void {
-		this.workerClients.forEach(c => c.dispose());
 	}
 }

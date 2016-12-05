@@ -11,6 +11,7 @@ import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import { ConfigurationSource, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
@@ -25,6 +26,7 @@ export interface ITelemetryInfo {
 export interface ITelemetryExperiments {
 	showNewUserWatermark: boolean;
 	openUntitledFile: boolean;
+	openGettingStarted?: boolean;
 }
 
 export interface ITelemetryService {
@@ -68,6 +70,9 @@ export const NullTelemetryService = {
 	}
 };
 
+const beginGettingStartedExp = Date.UTC(2017, 0, 9);
+const endGettingStartedExp = Date.UTC(2017, 0, 16);
+
 export function loadExperiments(contextService: IWorkspaceContextService, storageService: IStorageService, configurationService: IConfigurationService): ITelemetryExperiments {
 
 	const key = 'experiments.randomness';
@@ -79,7 +84,8 @@ export function loadExperiments(contextService: IWorkspaceContextService, storag
 
 	const random1 = parseFloat(valueString);
 	let [random2, showNewUserWatermark] = splitRandom(random1);
-	let [, openUntitledFile] = splitRandom(random2);
+	let [random3, openUntitledFile] = splitRandom(random2);
+	let [, openGettingStarted] = splitRandom(random3);
 
 	const newUserDuration = 24 * 60 * 60 * 1000;
 	const firstSessionDate = storageService.get('telemetry.firstSessionDate');
@@ -89,9 +95,16 @@ export function loadExperiments(contextService: IWorkspaceContextService, storag
 		openUntitledFile = defaultExperiments.openUntitledFile;
 	}
 
+	const isNewSession = !storageService.get('telemetry.lastSessionDate');
+	const now = Date.now();
+	if (!(isNewSession && now >= beginGettingStartedExp && now < endGettingStartedExp)) {
+		openGettingStarted = undefined;
+	}
+
 	return applyOverrides(configurationService, {
 		showNewUserWatermark,
-		openUntitledFile
+		openUntitledFile,
+		openGettingStarted
 	});
 }
 
@@ -168,6 +181,12 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
 		}
+	});
+}
+
+export function lifecycleTelemetry(telemetryService: ITelemetryService, lifecycleService: ILifecycleService): IDisposable {
+	return lifecycleService.onShutdown(event => {
+		telemetryService.publicLog('shutdown', { reason: ShutdownReason[event] });
 	});
 }
 

@@ -86,22 +86,6 @@ suite('Workbench - TerminalConfigHelper', () => {
 		configurationService = new MockConfigurationService({
 			editor: {
 				fontFamily: 'foo',
-				fontSize: 1
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 0,
-					fontSize: 0
-				}
-			}
-		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
-		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().fontSize, '1px', 'editor.fontSize should be the fallback when terminal.integrated.fontSize not set');
-
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo',
 				fontSize: 0
 			},
 			terminal: {

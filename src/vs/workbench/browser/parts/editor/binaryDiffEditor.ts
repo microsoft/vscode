@@ -91,7 +91,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		$(this.rightScrollbar.getDomNode()).addClass('binarydiff-right');
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		const oldInput = this.getInput();
 		super.setInput(input, options);
 

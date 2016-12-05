@@ -9,6 +9,7 @@ import winjs = require('vs/base/common/winjs.base');
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
+import product from 'vs/platform/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IOptions } from 'vs/workbench/common/options';
@@ -36,7 +37,7 @@ export class WorkspaceStats {
 		const workspace = this.contextService.getWorkspace();
 		tags['workspace.empty'] = !workspace;
 
-		const folder = workspace ? workspace.resource : this.findFolder(workbenchOptions);
+		const folder = workspace ? workspace.resource : product.quality !== 'stable' && this.findFolder(workbenchOptions);
 		if (folder && this.fileService) {
 			return this.fileService.resolveFile(folder).then(stats => {
 				let names = stats.children.map(c => c.name);

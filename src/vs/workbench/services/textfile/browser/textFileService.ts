@@ -25,7 +25,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupModelService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 /**
@@ -57,7 +57,7 @@ export abstract class TextFileService implements ITextFileService {
 		@IFileService protected fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IBackupService private backupService: IBackupService,
+		@IBackupModelService private backupService: IBackupModelService,
 		@IMessageService private messageService: IMessageService
 	) {
 		this.toUnbind = [];

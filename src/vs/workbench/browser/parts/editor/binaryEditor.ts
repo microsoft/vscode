@@ -57,7 +57,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		parent.getHTMLElement().appendChild(this.scrollbar.getDomNode());
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 		const oldInput = this.getInput();
 		super.setInput(input, options);
 
