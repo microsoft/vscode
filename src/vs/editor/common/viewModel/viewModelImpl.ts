@@ -70,15 +70,18 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 		this.getCurrentCenteredModelRange = getCurrentCenteredModelRange;
 
-		this.decorations = new ViewModelDecorations(this.editorId, this.configuration, {
-			convertModelRangeToViewRange: (modelRange: Range, isWholeLine: boolean) => {
+		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, {
+			convertModelRangeToViewRange: (modelRange: Range, isWholeLine: boolean): Range => {
 				if (isWholeLine) {
 					return this.convertWholeLineModelRangeToViewRange(modelRange);
 				}
 				return this.convertModelRangeToViewRange(modelRange);
+			},
+			convertViewRangeToModelRange: (viewRange: Range): Range => {
+				return this.convertViewRangeToModelRange(viewRange);
 			}
 		});
-		this.decorations.reset(this.model);
+		this.decorations.reset();
 
 		this.cursors = new ViewModelCursors(this.configuration, this);
 
@@ -285,11 +288,8 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 					if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
 						// Must read again all decorations due to readOnly filtering
-						this.decorations.reset(this.model);
-						var decorationsChangedEvent: editorCommon.IViewDecorationsChangedEvent = {
-							inlineDecorationsChanged: false
-						};
-						this.emit(editorCommon.ViewEventNames.DecorationsChangedEvent, decorationsChangedEvent);
+						this.decorations.reset();
+						this.emit(editorCommon.ViewEventNames.DecorationsChangedEvent, {});
 					}
 					this.emit(e.getType(), <editorCommon.IConfigurationChangedEvent>data);
 					break;
@@ -314,7 +314,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	// --- begin inbound event conversion
 	private onModelFlushed(e: editorCommon.IModelContentChangedFlushEvent): void {
 		this.lines.onModelFlushed(e.versionId, (eventType: string, payload: any) => this.emit(eventType, payload));
-		this.decorations.reset(this.model);
+		this.decorations.reset();
 	}
 	private onModelDecorationsChanged(e: editorCommon.IModelDecorationsChangedEvent): void {
 		this.decorations.onModelDecorationsChanged(e, (eventType: string, payload: any) => this.emit(eventType, payload));
@@ -480,8 +480,8 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.decorations.getDecorationsViewportData(startLineNumber, endLineNumber);
 	}
 
-	public getAllDecorations(): ViewModelDecoration[] {
-		return this.decorations.getAllDecorations();
+	public getAllOverviewRulerDecorations(): ViewModelDecoration[] {
+		return this.decorations.getAllOverviewRulerDecorations();
 	}
 
 	public getEOL(): string {

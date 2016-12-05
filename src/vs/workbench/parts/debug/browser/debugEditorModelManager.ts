@@ -195,7 +195,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			// I have no decorations
 			return;
 		}
-		if (!e.addedOrChangedDecorations.some(d => modelData.breakpointDecorationsAsMap.hasOwnProperty(d.id))) {
+		if (!e.changedDecorations.some(decorationId => modelData.breakpointDecorationsAsMap.hasOwnProperty(decorationId))) {
 			// nothing to do, my decorations did not change.
 			return;
 		}

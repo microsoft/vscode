@@ -16,34 +16,38 @@ import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textMod
 
 class DecorationsTracker {
 
-	public newOrChangedDecorations: InternalDecoration[];
-	public newOrChangedDecorationsLen: number;
+	public addedDecorations: string[];
+	public addedDecorationsLen: number;
+	public changedDecorations: string[];
+	public changedDecorationsLen: number;
 	public removedDecorations: string[];
 	public removedDecorationsLen: number;
 
 	constructor() {
-		this.newOrChangedDecorations = [];
-		this.newOrChangedDecorationsLen = 0;
+		this.addedDecorations = [];
+		this.addedDecorationsLen = 0;
+		this.changedDecorations = [];
+		this.changedDecorationsLen = 0;
 		this.removedDecorations = [];
 		this.removedDecorationsLen = 0;
 	}
 
 	// --- Build decoration events
 
-	public addNewDecoration(decoration: InternalDecoration): void {
-		this.newOrChangedDecorations[this.newOrChangedDecorationsLen++] = decoration;
+	public addNewDecoration(id: string): void {
+		this.addedDecorations[this.addedDecorationsLen++] = id;
 	}
 
 	public addRemovedDecoration(id: string): void {
 		this.removedDecorations[this.removedDecorationsLen++] = id;
 	}
 
-	public addMovedDecoration(decoration: InternalDecoration): void {
-		this.newOrChangedDecorations[this.newOrChangedDecorationsLen++] = decoration;
+	public addMovedDecoration(id: string): void {
+		this.changedDecorations[this.changedDecorationsLen++] = id;
 	}
 
-	public addUpdatedDecoration(decoration: InternalDecoration): void {
-		this.newOrChangedDecorations[this.newOrChangedDecorationsLen++] = decoration;
+	public addUpdatedDecoration(id: string): void {
+		this.changedDecorations[this.changedDecorationsLen++] = id;
 	}
 }
 
@@ -103,7 +107,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		this._currentMarkersTrackerCnt = 0;
 		this._decorationIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
 		this._decorations = Object.create(null);
-		this._multiLineDecorationsMap = {};
+		this._multiLineDecorationsMap = Object.create(null);
 	}
 
 	public dispose(): void {
@@ -117,11 +121,11 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		// Destroy all my decorations
 		this._decorations = Object.create(null);
-		this._multiLineDecorationsMap = {};
+		this._multiLineDecorationsMap = Object.create(null);
 	}
 
 	private _setDecorationIsMultiLine(decoration: InternalDecoration, isMultiLine: boolean): void {
-		let rangeWasMultiLine = this._multiLineDecorationsMap.hasOwnProperty(decoration.id);
+		let rangeWasMultiLine = this._multiLineDecorationsMap[decoration.id];
 		if (!rangeWasMultiLine && isMultiLine) {
 			this._multiLineDecorationsMap[decoration.id] = decoration;
 		} else if (rangeWasMultiLine && !isMultiLine) {
@@ -207,9 +211,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	public removeAllDecorationsWithOwnerId(ownerId: number): void {
 		let toRemove: string[] = [];
 
-		let decorationIds = Object.keys(this._decorations);
-		for (let i = 0, len = decorationIds.length; i < len; i++) {
-			let decorationId = decorationIds[i];
+		for (let decorationId in this._decorations) {
+			// No `hasOwnProperty` call due to using Object.create(null)
+
 			let decoration = this._decorations[decorationId];
 
 			if (decoration.ownerId === ownerId) {
@@ -255,9 +259,8 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		let result: InternalDecoration[] = [];
 
-		let multiLineDecorations = Object.keys(this._multiLineDecorationsMap);
-		for (let i = 0, len = multiLineDecorations.length; i < len; i++) {
-			let decorationId = multiLineDecorations[i];
+		for (let decorationId in this._multiLineDecorationsMap) {
+			// No `hasOwnProperty` call due to using Object.create(null)
 			let decoration = this._multiLineDecorationsMap[decorationId];
 
 			if (filterOwnerId && decoration.ownerId && decoration.ownerId !== filterOwnerId) {
@@ -367,9 +370,8 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
 		let result: InternalDecoration[] = [];
 
-		let decorationIds = Object.keys(this._decorations);
-		for (let i = 0, len = decorationIds.length; i < len; i++) {
-			let decorationId = decorationIds[i];
+		for (let decorationId in this._decorations) {
+			// No `hasOwnProperty` call due to using Object.create(null)
 			let decoration = this._decorations[decorationId];
 
 			if (ownerId && decoration.ownerId && decoration.ownerId !== ownerId) {
@@ -424,7 +426,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		changedDecorationIds.sort(TextModelWithDecorations._strcmp);
 
-		let decorations: InternalDecoration[] = [], decorationsLen = 0;
+		let uniqueChangedDecorations: string[] = [], uniqueChangedDecorationsLen = 0;
 		let previousDecorationId: string = null;
 		for (let i = 0, len = changedDecorationIds.length; i < len; i++) {
 			let decorationId = changedDecorationIds[i];
@@ -450,12 +452,13 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 			let range = TextModelWithDecorations._createRangeFromMarkers(startMarker, endMarker);
 			decoration.setRange(range);
 
-			decorations[decorationsLen++] = decoration;
+			uniqueChangedDecorations[uniqueChangedDecorationsLen++] = decorationId;
 		}
 
-		if (decorations.length > 0) {
+		if (uniqueChangedDecorations.length > 0) {
 			let e: editorCommon.IModelDecorationsChangedEvent = {
-				addedOrChangedDecorations: decorations,
+				addedDecorations: [],
+				changedDecorations: uniqueChangedDecorations,
 				removedDecorations: []
 			};
 			this.emitModelDecorationsChangedEvent(e);
@@ -491,12 +494,17 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	private _handleTrackedDecorations(decorationsTracker: DecorationsTracker): void {
-		if (decorationsTracker.newOrChangedDecorationsLen === 0 && decorationsTracker.removedDecorationsLen === 0) {
+		if (
+			decorationsTracker.addedDecorationsLen === 0
+			&& decorationsTracker.changedDecorationsLen === 0
+			&& decorationsTracker.removedDecorationsLen === 0
+		) {
 			return;
 		}
 
 		let e: editorCommon.IModelDecorationsChangedEvent = {
-			addedOrChangedDecorations: decorationsTracker.newOrChangedDecorations,
+			addedDecorations: decorationsTracker.addedDecorations,
+			changedDecorations: decorationsTracker.changedDecorations,
 			removedDecorations: decorationsTracker.removedDecorations
 		};
 		this.emitModelDecorationsChangedEvent(e);
@@ -540,7 +548,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		this._setDecorationIsMultiLine(decoration, (range.startLineNumber !== range.endLineNumber));
 
-		decorationsTracker.addNewDecoration(decoration);
+		decorationsTracker.addNewDecoration(decorationId);
 
 		return decorationId;
 	}
@@ -585,14 +593,14 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 			this._setDecorationIsMultiLine(decoration, (range.startLineNumber !== range.endLineNumber));
 
-			decorationsTracker.addNewDecoration(decoration);
+			decorationsTracker.addNewDecoration(decorationId);
 		}
 
 		return decorationIds;
 	}
 
-	private _changeDecorationImpl(decorationsTracker: DecorationsTracker, id: string, newRange: Range): void {
-		let decoration = this._decorations[id];
+	private _changeDecorationImpl(decorationsTracker: DecorationsTracker, decorationId: string, newRange: Range): void {
+		let decoration = this._decorations[decorationId];
 		if (!decoration) {
 			return;
 		}
@@ -616,11 +624,11 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		this._setDecorationIsMultiLine(decoration, (newRange.startLineNumber !== newRange.endLineNumber));
 		decoration.setRange(newRange);
 
-		decorationsTracker.addMovedDecoration(decoration);
+		decorationsTracker.addMovedDecoration(decorationId);
 	}
 
-	private _changeDecorationOptionsImpl(decorationsTracker: DecorationsTracker, id: string, options: ModelDecorationOptions): void {
-		let decoration = this._decorations[id];
+	private _changeDecorationOptionsImpl(decorationsTracker: DecorationsTracker, decorationId: string, options: ModelDecorationOptions): void {
+		let decoration = this._decorations[decorationId];
 		if (!decoration) {
 			return;
 		}
@@ -632,7 +640,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		decoration.setOptions(options);
 
-		decorationsTracker.addUpdatedDecoration(decoration);
+		decorationsTracker.addUpdatedDecoration(decorationId);
 	}
 
 	private _removeDecorationImpl(decorationsTracker: DecorationsTracker, id: string): void {

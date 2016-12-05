@@ -147,7 +147,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 
 	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
 		let shouldRender = super.onModelDecorationsChanged(e);
-		if (e.inlineDecorationsChanged) {
+		if (true/*e.inlineDecorationsChanged*/) {
 			let rendStartLineNumber = this._linesCollection.getStartLineNumber();
 			let rendEndLineNumber = this._linesCollection.getEndLineNumber();
 			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {

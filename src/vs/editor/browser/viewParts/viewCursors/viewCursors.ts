@@ -88,7 +88,7 @@ export class ViewCursors extends ViewPart {
 	}
 	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
-		return e.inlineDecorationsChanged;
+		return true;//e.inlineDecorationsChanged;
 	}
 	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
 		return true;
