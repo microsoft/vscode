@@ -30,11 +30,14 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private _onToggled = this._register(new Emitter<boolean>());
 	public onToggled: Event<boolean> = this._onToggled.event;
 
+	private previousPosition: editorCommon.IPosition;
+
 	constructor(private editor: ICodeEditor, public settingsGroup: ISettingsGroup) {
 		super();
 		this.create();
 		this._register(this.editor.onDidChangeConfiguration(() => this.layout()));
 		this._register(this.editor.onDidLayoutChange(() => this.layout()));
+		this._register(this.editor.onDidChangeCursorPosition((e) => this.onCursorChange(e)));
 	}
 
 	get domNode(): HTMLElement {
@@ -54,7 +57,12 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this._domNode.style.paddingLeft = '10px';
 
 		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
+		this.titleContainer.tabIndex = 1;
 		this.onclick(this.titleContainer, () => this.onTitleClicked());
+		this.onkeydown(this.titleContainer, (e) => this.onKeyDown(e));
+		const focusTracker = this._register(DOM.trackFocus(this.titleContainer));
+		focusTracker.addFocusListener(() => this.toggleFocus(true));
+		focusTracker.addBlurListener(() => this.toggleFocus(false));
 
 		this.icon = DOM.append(this.titleContainer, DOM.$('.expand-collapse-icon'));
 		this.title = DOM.append(this.titleContainer, DOM.$('.title'));
@@ -74,6 +82,10 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		DOM.addClass(this.titleContainer, 'collapsed');
 	}
 
+	public toggleFocus(focus: boolean): void {
+		DOM.toggleClass(this.titleContainer, 'focused', focus);
+	}
+
 	private layout(): void {
 		this.titleContainer.style.lineHeight = this.editor.getConfiguration().lineHeight + 3 + 'px';
 		this.titleContainer.style.fontSize = this.editor.getConfiguration().fontInfo.fontSize + 3 + 'px';
@@ -88,9 +100,58 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 
 	private onTitleClicked() {
-		const isCollapsed = DOM.hasClass(this.titleContainer, 'collapsed');
+		const isCollapsed = this.isCollapsed();
 		DOM.toggleClass(this.titleContainer, 'collapsed', !isCollapsed);
 		this._onToggled.fire(!isCollapsed);
+	}
+
+	public isCollapsed(): boolean {
+		return DOM.hasClass(this.titleContainer, 'collapsed');
+	}
+
+	private onKeyDown(keyboardEvent: IKeyboardEvent): void {
+		switch (keyboardEvent.keyCode) {
+			case KeyCode.Enter:
+			case KeyCode.Space:
+				this.onTitleClicked();
+				break;
+			case KeyCode.UpArrow:
+				if (this.settingsGroup.range.startLineNumber - 3 !== 1) {
+					this.editor.focus();
+					const lineNumber = this.settingsGroup.range.startLineNumber - 2;
+					this.editor.setPosition({ lineNumber, column: this.editor.getModel().getLineMinColumn(lineNumber) });
+				}
+				break;
+			case KeyCode.DownArrow:
+				const lineNumber = this.isCollapsed() ? this.settingsGroup.range.startLineNumber : this.settingsGroup.range.startLineNumber - 1;
+				this.editor.focus();
+				this.editor.setPosition({ lineNumber, column: this.editor.getModel().getLineMinColumn(lineNumber) });
+				break;
+		}
+	}
+
+	private onCursorChange(e: editorCommon.ICursorPositionChangedEvent): void {
+		if (this.focusTitle(e.position)) {
+			this.titleContainer.focus();
+		}
+	}
+
+	private focusTitle(currentPosition: editorCommon.IPosition): boolean {
+		const previousPosition = this.previousPosition;
+		this.previousPosition = currentPosition;
+		if (!previousPosition) {
+			return false;
+		}
+		if (previousPosition.lineNumber === currentPosition.lineNumber) {
+			return false;
+		}
+		if (currentPosition.lineNumber === this.settingsGroup.range.startLineNumber - 1 || currentPosition.lineNumber === this.settingsGroup.range.startLineNumber - 2) {
+			return true;
+		}
+		if (this.isCollapsed() && currentPosition.lineNumber === this.settingsGroup.range.endLineNumber) {
+			return true;
+		}
+		return false;
 	}
 
 	public dispose() {
@@ -146,6 +207,7 @@ export class DefaultSettingsHeaderWidget extends Widget {
 		this.inputBox.width = 280;
 		this.inputBox.onDidChange(value => this._onDidChange.fire(value));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp(e));
+		this.searchContainer.style.display = 'none';
 	}
 
 	public show() {
@@ -169,6 +231,7 @@ export class DefaultSettingsHeaderWidget extends Widget {
 		this.headerContainer.style.paddingLeft = editorLayoutInfo.contentLeft + 'px';
 		this.searchContainer.style.width = editorLayoutInfo.contentWidth - editorLayoutInfo.glyphMarginWidth + 'px';
 		this.inputBox.width = editorLayoutInfo.contentWidth - editorLayoutInfo.glyphMarginWidth;
+		this.searchContainer.style.display = 'inherit';
 	}
 
 	private _onKeyUp(keyboardEvent: IKeyboardEvent): void {

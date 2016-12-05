@@ -66,13 +66,24 @@
 	display: inline-block;
 }
 
+.monaco-editor.vs-dark .settings-group-title-widget .title-container.focused,
+.monaco-editor.vs .settings-group-title-widget .title-container.focused {
+	outline: none !important;
+}
+
+.monaco-editor.vs .settings-group-title-widget .title-container.focused,
 .monaco-editor.vs .settings-group-title-widget .title-container:hover {
 	background-color: #e2e2e2;
 }
 
 .monaco-editor.hc-black .settings-group-title-widget .title-container:hover,
+.monaco-editor.vs-dark .settings-group-title-widget .title-container.focused,
 .monaco-editor.vs-dark .settings-group-title-widget .title-container:hover {
 	background-color: #323232;
+}
+
+.monaco-editor.hc-black .settings-group-title-widget .title-container.focused {
+	outline: 1px dotted #f38518;
 }
 
 .monaco-editor .settings-group-title-widget .title-container .expand-collapse-icon {

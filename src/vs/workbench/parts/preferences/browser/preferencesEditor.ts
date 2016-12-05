@@ -153,6 +153,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	protected getCodeEditorOptions(): editorCommon.IEditorOptions {
 		const options = super.getCodeEditorOptions();
+		options.readOnly = true;
 		if (this.input && (<DefaultPreferencesEditorInput>this.input).isSettings) {
 			options.lineNumbers = 'off';
 			options.renderLineHighlight = 'none';
