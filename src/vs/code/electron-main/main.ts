@@ -27,6 +27,7 @@ import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
 import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
 import { Mutex } from 'windows-mutex';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient, ILaunchService } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -57,9 +58,9 @@ import pkg from 'vs/platform/package';
 import * as fs from 'original-fs';
 import * as cp from 'child_process';
 
-function quit(accessor: ServicesAccessor, error?: Error);
-function quit(accessor: ServicesAccessor, message?: string);
-function quit(accessor: ServicesAccessor, arg?: any) {
+function quit(accessor: ServicesAccessor, error?: Error): void;
+function quit(accessor: ServicesAccessor, message?: string): void;
+function quit(accessor: ServicesAccessor, arg?: any): void {
 	const logService = accessor.get(ILogService);
 
 	let exitCode = 0;
@@ -138,7 +139,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		debugPort: environmentService.isBuilt ? null : 5871
 	};
 
-	let sharedProcessDisposable;
+	let sharedProcessDisposable: IDisposable;
 
 	const sharedProcess = spawnSharedProcess(initData, options).then(disposable => {
 		sharedProcessDisposable = disposable;
@@ -427,7 +428,7 @@ function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	return TPromise.join(paths.map(p => mkdirp(p))) as TPromise<any>;
 }
 
-function createServices(args): IInstantiationService {
+function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
 
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));

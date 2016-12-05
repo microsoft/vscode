@@ -60,10 +60,10 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 			return TPromise.wrap(this.showMessageBox({ message, buttons: options, type }));
 		}
 
-		let onCancel = null;
+		let onCancel: () => void = null;
 
 		const promise = new TPromise((c, e) => {
-			const callback = index => () => {
+			const callback = (index: number) => () => {
 				c(index);
 				return TPromise.as(true);
 			};

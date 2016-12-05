@@ -461,7 +461,7 @@ class TimeoutThrottledDomListener<R> extends Disposable {
 	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
 
-		let lastEvent = null;
+		let lastEvent: R = null;
 		let lastHandlerTime = 0;
 		let timeout = this._register(new TimeoutTimer());
 
@@ -899,7 +899,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._eventEmitter = this._register(new EventEmitter());
 
-		let onFocus = (event) => {
+		let onFocus = (event: Event) => {
 			loosingFocus = false;
 			if (!hasFocus) {
 				hasFocus = true;
@@ -907,7 +907,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
-		let onBlur = (event) => {
+		let onBlur = (event: Event) => {
 			if (hasFocus) {
 				loosingFocus = true;
 				window.setTimeout(() => {

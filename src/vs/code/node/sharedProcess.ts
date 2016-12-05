@@ -22,7 +22,7 @@ export interface ISharedProcessOptions {
 const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 
 function _spawnSharedProcess(initData: ISharedProcessInitData, options: ISharedProcessOptions): cp.ChildProcess {
-	const execArgv = [];
+	const execArgv: string[] = [];
 	const env = assign({}, process.env, {
 		AMD_ENTRYPOINT: 'vs/code/node/sharedProcessMain',
 		ELECTRON_NO_ASAR: '1'

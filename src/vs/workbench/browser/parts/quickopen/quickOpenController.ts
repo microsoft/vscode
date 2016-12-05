@@ -417,7 +417,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						this.pickOpenWidget.refresh(model, value ? { autoFocusFirstEntry: true } : autoFocus);
 					},
 					onShow: () => this.handleOnShow(true),
-					onHide: (reason) => this.handleOnHide(true, reason)
+					onHide: (reason: HideReason) => this.handleOnHide(true, reason)
 				};
 				this.pickOpenWidget.setCallbacks(callbacks);
 

@@ -99,7 +99,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}

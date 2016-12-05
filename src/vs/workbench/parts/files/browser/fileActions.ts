@@ -1648,7 +1648,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 		}
 
 		const editorGroup = editorIdentifier.group;
-		const resourcesToSave = [];
+		const resourcesToSave: URI[] = [];
 		editorGroup.getEditors().forEach(editor => {
 			const resource = getUntitledOrFileResource(editor, true);
 			if (resource) {

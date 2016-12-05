@@ -17,7 +17,6 @@ import { VSash } from 'vs/base/browser/ui/sash/sash';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -35,8 +34,7 @@ export class SideBySideEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(SideBySideEditor.ID, telemetryService);
 	}

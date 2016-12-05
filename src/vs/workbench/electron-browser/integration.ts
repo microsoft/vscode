@@ -19,7 +19,6 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -68,7 +67,6 @@ export class ElectronIntegration {
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IPartService private partService: IPartService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@ICommandService private commandService: ICommandService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,

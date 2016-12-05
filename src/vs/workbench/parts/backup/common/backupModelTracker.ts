@@ -7,11 +7,9 @@
 
 import Uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import { IBackupModelService, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -24,11 +22,8 @@ export class BackupModelTracker implements IWorkbenchContribution {
 
 	constructor(
 		@IBackupFileService private backupFileService: IBackupFileService,
-		@IBackupModelService private backupService: IBackupModelService,
-		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.toDispose = [];

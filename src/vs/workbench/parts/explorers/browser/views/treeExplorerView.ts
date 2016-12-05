@@ -20,7 +20,6 @@ import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/treeExplorerActions';
-import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class TreeExplorerView extends CollapsibleViewletView {
 	private workspace: IWorkspace;
@@ -33,10 +32,9 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		@IMessageService messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITreeExplorerService private treeExplorerService: ITreeExplorerService,
-		@IProgressService private progressService: IProgressService
+		@ITreeExplorerService private treeExplorerService: ITreeExplorerService
 	) {
 		super(actionRunner, false, nls.localize('treeExplorerViewlet.tree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 

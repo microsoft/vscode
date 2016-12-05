@@ -30,7 +30,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 	constructor(
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IURLService private urlService: IURLService
+		@IURLService urlService: IURLService
 	) {
 		chain(urlService.onOpenURL)
 			.filter(uri => uri.authority === 'file' && !!uri.path)

@@ -16,7 +16,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import { KeybindingsReferenceAction, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { ShowRecommendedKeymapExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
@@ -137,7 +136,6 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		@IPartService private partService: IPartService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService private storageService: IStorageService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		lifecycleService.onShutdown(this.dispose, this);

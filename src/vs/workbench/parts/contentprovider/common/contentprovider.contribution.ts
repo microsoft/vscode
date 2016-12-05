@@ -13,16 +13,14 @@ import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
-let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
+const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
 export class WorkbenchContentProvider implements IWorkbenchContribution {
 
 	constructor(
 		@IModelService private modelService: IModelService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
-		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModeService private modeService: IModeService
 	) {
 		this.start();

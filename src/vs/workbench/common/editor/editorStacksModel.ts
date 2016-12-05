@@ -15,7 +15,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface GroupEvent extends IGroupEvent {
 	editor: EditorInput;
@@ -701,8 +700,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		private restoreFromStorage: boolean,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.toDispose = [];
 

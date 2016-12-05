@@ -109,7 +109,7 @@ export class TextFileService extends AbstractTextFileService {
 		const dontSave = { label: this.mnemonicLabel(nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
 		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
-		const buttons = [];
+		const buttons: { label: string; result: ConfirmResult; }[] = [];
 		if (isWindows) {
 			buttons.push(save, dontSave, cancel);
 		} else if (isLinux) {

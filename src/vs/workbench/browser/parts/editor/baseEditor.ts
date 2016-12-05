@@ -113,7 +113,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		return promise;
 	}
 
-	public setEditorVisible(visible, position: Position = null): void {
+	public setEditorVisible(visible: boolean, position: Position = null): void {
 		this._position = position;
 	}
 
