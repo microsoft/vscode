@@ -162,6 +162,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 			options.renderWhitespace = 'none';
 			options.wrappingColumn = 0;
 			options.overviewRulerLanes = 0;
+			options.renderIndentGuides = false;
 		}
 		return options;
 	}
@@ -423,18 +424,21 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.copySettingActionRenderer.render(this.settingsEditorModel.settingsGroups);
 		this.settingsCountWidget.render();
 		this.hiddenAreasRenderer.render();
+		this.focusNextSettingRenderer.render([]);
 		this.settingsGroupTitleRenderer.showGroup(1);
 	}
 
 	public filterPreferences(filter: string) {
 		const filterResult = this.settingsEditorModel.filterSettings(filter);
 		this.filteredMatchesRenderer.render(filterResult);
-		this.focusNextSettingRenderer.render(filterResult.filteredGroups);
 		this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
 		this.settingsCountWidget.show(this.getCount(filterResult.filteredGroups));
 
 		if (!filter) {
+			this.focusNextSettingRenderer.render([]);
 			this.settingsGroupTitleRenderer.showGroup(1);
+		} else {
+			this.focusNextSettingRenderer.render(filterResult.filteredGroups);
 		}
 	}
 
