@@ -98,20 +98,19 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
-			this.onReplElementsUpdated();
+			this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
 		}));
 		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
+		this.toDispose.push(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 	}
 
-	private onReplElementsUpdated(): void {
-		if (this.tree) {
+	private refreshReplElements(noDelay: boolean): void {
+		if (this.tree && this.isVisible()) {
 			if (this.refreshTimeoutHandle) {
 				return; // refresh already triggered
 			}
 
-			const elements = this.debugService.getModel().getReplElements();
-			const delay = elements.length > 0 ? Repl.REFRESH_DELAY : 0;
-
+			const delay = noDelay ? 0 : Repl.REFRESH_DELAY;
 			this.refreshTimeoutHandle = setTimeout(() => {
 				this.refreshTimeoutHandle = null;
 				const previousScrollPosition = this.tree.getScrollPosition();
