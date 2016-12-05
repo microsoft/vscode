@@ -189,7 +189,7 @@ export class RawGitService implements IRawGitService {
 		treeish = (!treeish || treeish === '~') ? '' : treeish;
 
 		if (isAbsolute(filePath)) {
-			filePath = relative(this.repo.path, filePath);
+			filePath = relative(this.repo.path, filePath).replace(/\\/g, '/');
 		}
 
 		return this.repo.buffer(treeish + ':' + filePath).then(null, e => {
