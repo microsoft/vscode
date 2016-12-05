@@ -139,6 +139,16 @@
           "type": "boolean",
           "default": true,
           "description": "%html.suggest.html5.desc%"
+        },
+        "html.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the HTML language server."
         }
       }
     }
