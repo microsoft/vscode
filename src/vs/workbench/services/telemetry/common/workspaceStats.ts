@@ -8,11 +8,17 @@
 import winjs = require('vs/base/common/winjs.base');
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
+import { ArraySet } from 'vs/base/common/set';
 import { IFileService } from 'vs/platform/files/common/files';
 import product from 'vs/platform/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IOptions } from 'vs/workbench/common/options';
+
+
+const GitProtocolMatcher = /^git@([^:]+):/;
+const SecondLevelDomainMatcher = /[^.]+.[^.]+$/;
+const RemoteMatcher = /^\s+url\s+=\s+(.+)$/mg;
 
 export class WorkspaceStats {
 	constructor(
@@ -130,5 +136,51 @@ export class WorkspaceStats {
 		this.getWorkspaceTags(workbenchOptions).then((tags) => {
 			this.telemetryService.publicLog('workspce.tags', tags);
 		}, error => errors.onUnexpectedError(error));
+	}
+
+	private stripLowLevelDomains(domain: string): string {
+		let match = domain.match(SecondLevelDomainMatcher);
+		return match ? match[0] : null;
+	}
+
+	private extractDomain(url: string): string {
+		let match = url.match(GitProtocolMatcher);
+		if (match) {
+			return this.stripLowLevelDomains(match[1]);
+		}
+		let uri = URI.parse(url);
+		if (uri) {
+			return this.stripLowLevelDomains(uri.authority);
+		}
+		return null;
+	}
+
+	private getDomainsOfRemotes(text): string[] {
+		let domains = new ArraySet<string>(), match;
+		while (match = RemoteMatcher.exec(text)) {
+			let domain = this.extractDomain(match[1]);
+			if (domain) {
+				domains.set(domain);
+			}
+		}
+		return domains.elements;
+	}
+
+	public reportCloudRemotes(): void {
+		const workspace = this.contextService.getWorkspace();
+		let uri = workspace ? workspace.resource : null;
+		if (uri && this.fileService) {
+			let path = uri.path;
+			path += '/.git/config';
+			uri = uri.with({ path: path });
+			this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+				content => {
+					if (content) {
+						let domains = this.getDomainsOfRemotes(content.value);
+						this.telemetryService.publicLog('workspce.remotes', domains);
+					}
+				}
+			);
+		}
 	}
 }
