@@ -64,7 +64,7 @@ export function rimraf(path: string): TPromise<void> {
 		}
 	}, (err: NodeJS.ErrnoException) => {
 		if (err.code === 'ENOENT') {
-			return;
+			return void 0;
 		}
 
 		return TPromise.wrapError<void>(err);

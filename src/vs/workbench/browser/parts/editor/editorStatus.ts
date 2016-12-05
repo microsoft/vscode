@@ -411,16 +411,20 @@ export class EditorStatus implements IStatusbarItem {
 		if (info.selections.length === 1) {
 			if (info.charactersSelected) {
 				return strings.format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
-			} else {
-				return strings.format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
 			}
-		} else {
-			if (info.charactersSelected) {
-				return strings.format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
-			} else if (info.selections.length > 0) {
-				return strings.format(nlsMultiSelection, info.selections.length);
-			}
+
+			return strings.format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
 		}
+
+		if (info.charactersSelected) {
+			return strings.format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
+		}
+
+		if (info.selections.length > 0) {
+			return strings.format(nlsMultiSelection, info.selections.length);
+		}
+
+		return null;
 	}
 
 	private onModeClick(): void {

@@ -13,9 +13,6 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IActionRunner } from 'vs/base/common/actions';
 import { IActionProvider, ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 
@@ -54,11 +51,7 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 
 	constructor(
 		state: TreeExplorerViewletState,
-		actionRunner: IActionRunner,
-		private container: HTMLElement,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IModeService private modeService: IModeService
+		actionRunner: IActionRunner
 	) {
 		super({
 			actionProvider: state.actionProvider,

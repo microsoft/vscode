@@ -11,8 +11,7 @@ import { IBackupModelService, IBackupFileService, IBackupResult } from 'vs/workb
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextFileEditorModel, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -33,9 +32,7 @@ export class BackupModelService implements IBackupModelService {
 	constructor(
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IFileService private fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowsService private windowsService: IWindowsService
 	) {

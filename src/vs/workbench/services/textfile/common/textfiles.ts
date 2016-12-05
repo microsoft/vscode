@@ -225,7 +225,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(): TPromise<void>;
 
-	setConflictResolutionMode();
+	setConflictResolutionMode(): void;
 
 	getValue(): string;
 

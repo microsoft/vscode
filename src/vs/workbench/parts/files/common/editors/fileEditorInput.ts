@@ -15,10 +15,8 @@ import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/com
 import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -42,8 +40,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 		preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IHistoryService private historyService: IHistoryService,
-		@IEventService private eventService: IEventService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();

@@ -60,5 +60,7 @@ export class FeedbackStatusbarItem implements IStatusbarItem {
 				feedbackService: this.instantiationService.createInstance(TwitterFeedbackService)
 			});
 		}
+
+		return null;
 	}
 }

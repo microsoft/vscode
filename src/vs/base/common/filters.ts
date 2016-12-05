@@ -168,7 +168,7 @@ function _matchesCamelCase(word: string, camelCaseWord: string, i: number, j: nu
 	} else if (word[i] !== camelCaseWord[j].toLowerCase()) {
 		return null;
 	} else {
-		let result = null;
+		let result: IMatch[] = null;
 		let nextUpperIndex = j + 1;
 		result = _matchesCamelCase(word, camelCaseWord, i + 1, j + 1);
 		while (!result && (nextUpperIndex = nextAnchor(camelCaseWord, nextUpperIndex)) < camelCaseWord.length) {

@@ -659,9 +659,3 @@ export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
 	return new Promise((c, e) => fn.call(thisArg, ...args, (err, result) => err ? e(err) : c(result)));
 }
-
-interface IQueuedPromise<T> {
-	t: ITask<TPromise<T>>;
-	c: ValueCallback;
-	e: ErrorCallback;
-}

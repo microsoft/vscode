@@ -254,7 +254,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Add overflow action as needed
 		if (visibleViewletsChange && overflows) {
 			this.viewletOverflowAction = this.instantiationService.createInstance(ViewletOverflowActivityAction, () => this.viewletOverflowActionItem.showMenu());
-			this.viewletOverflowActionItem = this.instantiationService.createInstance(ViewletOverflowActivityActionItem, this.viewletOverflowAction, () => this.getOverflowingViewlets(), viewlet => this.viewletIdToActivity[viewlet.id] && this.viewletIdToActivity[viewlet.id].badge);
+			this.viewletOverflowActionItem = this.instantiationService.createInstance(ViewletOverflowActivityActionItem, this.viewletOverflowAction, () => this.getOverflowingViewlets(), (viewlet: ViewletDescriptor) => this.viewletIdToActivity[viewlet.id] && this.viewletIdToActivity[viewlet.id].badge);
 
 			this.viewletSwitcherBar.push(this.viewletOverflowAction, { label: true, icon: true });
 		}

@@ -7,7 +7,6 @@
 import Event, { Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
@@ -21,7 +20,6 @@ export class TreeExplorerService implements ITreeExplorerService {
 	private _treeExplorerNodeProviders: { [providerId: string]: InternalTreeExplorerNodeProvider };
 
 	constructor(
-		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService,
 	) {
 		this._treeExplorerNodeProviders = Object.create(null);

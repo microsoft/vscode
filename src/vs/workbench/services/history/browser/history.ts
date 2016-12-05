@@ -27,7 +27,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { once } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
@@ -293,7 +292,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEventService private eventService: IEventService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IIntegrityService integrityService: IIntegrityService,
 		@ITitleService titleService: ITitleService,
 		@IWindowService private windowService: IWindowService

@@ -883,7 +883,7 @@ export interface IEditorStacksModel {
 
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
-	isActive(IEditorGroup): boolean;
+	isActive(group: IEditorGroup): boolean;
 
 	getGroup(id: GroupIdentifier): IEditorGroup;
 

@@ -973,9 +973,7 @@ export class ReopenClosedEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IHistoryService private historyService: IHistoryService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
 	}

@@ -660,7 +660,7 @@ export class FileService implements IFileService {
 			});
 
 			// Errors
-			watcher.on('error', (error) => {
+			watcher.on('error', (error: string) => {
 				this.options.errorLogger(error);
 			});
 		}

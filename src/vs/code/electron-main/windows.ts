@@ -25,7 +25,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product';
@@ -61,11 +60,6 @@ interface IWindowsState {
 export interface IRecentPathsList {
 	folders: string[];
 	files: string[];
-}
-
-interface ILogEntry {
-	severity: string;
-	arguments: any;
 }
 
 interface INativeOpenDialogOptions {
@@ -155,8 +149,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupService: IBackupMainService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
 	public ready(initialUserEnv: platform.IProcessEnvironment): void {

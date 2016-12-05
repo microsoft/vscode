@@ -25,7 +25,7 @@ export class BackupMainService implements IBackupMainService {
 	private mapWindowToBackupFolder: { [windowId: number]: string; };
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
@@ -176,7 +176,7 @@ export class BackupMainService implements IBackupMainService {
 		});
 	}
 
-	private hasBackupsSync(backupPath): boolean {
+	private hasBackupsSync(backupPath: string): boolean {
 		try {
 			const backupSchemas = extfs.readdirSync(backupPath);
 			if (backupSchemas.length === 0) {
@@ -211,7 +211,7 @@ export class BackupMainService implements IBackupMainService {
 		return (Date.now() + Math.round(Math.random() * 1000)).toString();
 	}
 
-	private sanitizePath(p) {
+	private sanitizePath(p: string): string {
 		return platform.isLinux ? p : p.toLowerCase();
 	}
 

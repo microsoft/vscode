@@ -14,7 +14,6 @@ import { UntitledEditorInput as AbstractUntitledEditorInput, EncodingMode, Confi
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -43,7 +42,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		modeId: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
