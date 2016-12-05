@@ -142,26 +142,33 @@ export abstract class KeybindingService implements IKeybindingService {
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 
-	public resolve(keybinding: Keybinding, target: IContextKeyServiceTarget): IResolveResult {
-		const keyCode = keybinding.extractKeyCode();
-		let isModifierKey = (keyCode === KeyCode.Ctrl || keyCode === KeyCode.Shift || keyCode === KeyCode.Alt || keyCode === KeyCode.Meta);
-		if (isModifierKey) {
-			return null;
+	public resolve(keybinding: Keybinding, target: IContextKeyServiceTarget, skipModifierKeyEvaluation?: boolean): IResolveResult {
+		// To prevent additional work, calling this function internally is allowed to skip the
+		// modifier key evaludation.
+		if (!skipModifierKeyEvaluation) {
+			if (this._isModifierKey(keybinding)) {
+				return null;
+			}
 		}
 
-		let contextValue = this._contextKeyService.getContextValue(target);
-
+		const contextValue = this._contextKeyService.getContextValue(target);
 		return this._getResolver().resolve(contextValue, this._currentChord, keybinding.value);
 	}
 
-	protected _dispatch(e: IKeyboardEvent): void {
-		const resolveResult = this.resolve(new Keybinding(e.asKeybinding()), e.target);
+	private _isModifierKey(keybinding: Keybinding): boolean {
+		const keyCode = keybinding.extractKeyCode();
+		return (keyCode === KeyCode.Ctrl || keyCode === KeyCode.Shift || keyCode === KeyCode.Alt || keyCode === KeyCode.Meta);
+	}
 
-		if (!resolveResult) {
-			return;
+	protected _dispatch(e: IKeyboardEvent): void {
+		const keybinding = new Keybinding(e.asKeybinding());
+		if (this._isModifierKey(keybinding)) {
+			return null;
 		}
 
-		if (resolveResult.enterChord) {
+		const resolveResult = this.resolve(keybinding, e.target, true);
+
+		if (resolveResult && resolveResult.enterChord) {
 			e.preventDefault();
 			this._currentChord = resolveResult.enterChord;
 			if (this._statusService) {
