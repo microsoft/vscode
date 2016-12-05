@@ -77,16 +77,16 @@ suite('BackupMainService', () => {
 	test('service validates backup workspaces on startup and cleans up', done => {
 
 		// 1) backup workspace path does not exist
-		service.registerWindowForBackups(1, false, null, fooFile.fsPath);
-		service.registerWindowForBackups(2, false, null, barFile.fsPath);
+		service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+		service.registerWindowForBackupsSync(2, false, null, barFile.fsPath);
 		service.loadSync();
 		assert.deepEqual(service.workspaceBackupPaths, []);
 
 		// 2) backup workspace path exists with empty contents within
 		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
 		fs.mkdirSync(service.toBackupPath(barFile.fsPath));
-		service.registerWindowForBackups(1, false, null, fooFile.fsPath);
-		service.registerWindowForBackups(2, false, null, barFile.fsPath);
+		service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+		service.registerWindowForBackupsSync(2, false, null, barFile.fsPath);
 		service.loadSync();
 		assert.deepEqual(service.workspaceBackupPaths, []);
 		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
@@ -97,8 +97,8 @@ suite('BackupMainService', () => {
 		fs.mkdirSync(service.toBackupPath(barFile.fsPath));
 		fs.mkdirSync(path.join(service.toBackupPath(fooFile.fsPath), 'file'));
 		fs.mkdirSync(path.join(service.toBackupPath(barFile.fsPath), 'untitled'));
-		service.registerWindowForBackups(1, false, null, fooFile.fsPath);
-		service.registerWindowForBackups(2, false, null, barFile.fsPath);
+		service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+		service.registerWindowForBackupsSync(2, false, null, barFile.fsPath);
 		service.loadSync();
 		assert.deepEqual(service.workspaceBackupPaths, []);
 		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
@@ -110,7 +110,7 @@ suite('BackupMainService', () => {
 		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
 		fs.mkdirSync(service.toBackupPath(barFile.fsPath));
 		fs.mkdirSync(fileBackups);
-		service.registerWindowForBackups(1, false, null, fooFile.fsPath);
+		service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
 		assert.equal(service.workspaceBackupPaths.length, 1);
 		assert.equal(service.emptyWorkspaceBackupPaths.length, 0);
 		fs.writeFileSync(path.join(fileBackups, 'backup.txt'), '');
@@ -233,8 +233,8 @@ suite('BackupMainService', () => {
 
 	suite('registerWindowForBackups', () => {
 		test('pushWorkspaceBackupPathsSync should persist paths to workspaces.json', () => {
-			service.registerWindowForBackups(1, false, null, fooFile.fsPath);
-			service.registerWindowForBackups(2, false, null, barFile.fsPath);
+			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+			service.registerWindowForBackupsSync(2, false, null, barFile.fsPath);
 			assert.deepEqual(service.workspaceBackupPaths, [fooFile.fsPath, barFile.fsPath]);
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
@@ -245,8 +245,8 @@ suite('BackupMainService', () => {
 
 	suite('removeBackupPathSync', () => {
 		test('should remove folder workspaces from workspaces.json', done => {
-			service.registerWindowForBackups(1, false, null, fooFile.fsPath);
-			service.registerWindowForBackups(2, false, null, barFile.fsPath);
+			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+			service.registerWindowForBackupsSync(2, false, null, barFile.fsPath);
 			service.removeBackupPathSync(fooFile.fsPath, false);
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
@@ -261,8 +261,8 @@ suite('BackupMainService', () => {
 		});
 
 		test('should remove empty workspaces from workspaces.json', done => {
-			service.registerWindowForBackups(1, true, 'foo');
-			service.registerWindowForBackups(2, true, 'bar');
+			service.registerWindowForBackupsSync(1, true, 'foo');
+			service.registerWindowForBackupsSync(2, true, 'bar');
 			service.removeBackupPathSync('foo', true);
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
@@ -313,8 +313,8 @@ suite('BackupMainService', () => {
 
 	suite('getBackupPath', () => {
 		test('should return the window\'s correct path', done => {
-			service.registerWindowForBackups(1, false, null, fooFile.fsPath);
-			service.registerWindowForBackups(2, true, 'test');
+			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+			service.registerWindowForBackupsSync(2, true, 'test');
 			service.getBackupPath(1).then(window1Path => {
 				assert.equal(window1Path, service.toBackupPath(fooFile.fsPath));
 				service.getBackupPath(2).then(window2Path => {
@@ -325,8 +325,8 @@ suite('BackupMainService', () => {
 		});
 
 		test('should override stale window paths with new paths', done => {
-			service.registerWindowForBackups(1, false, null, fooFile.fsPath);
-			service.registerWindowForBackups(1, false, null, barFile.fsPath);
+			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+			service.registerWindowForBackupsSync(1, false, null, barFile.fsPath);
 			service.getBackupPath(1).then(windowPath => {
 				assert.equal(windowPath, service.toBackupPath(barFile.fsPath));
 				done();

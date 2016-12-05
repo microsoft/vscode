@@ -769,7 +769,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		if (!configuration.extensionDevelopmentPath) {
-			this.backupService.registerWindowForBackups(vscodeWindow.id, !configuration.workspacePath, emptyWorkspaceBackupFolder, configuration.workspacePath);
+			this.backupService.registerWindowForBackupsSync(vscodeWindow.id, !configuration.workspacePath, emptyWorkspaceBackupFolder, configuration.workspacePath);
 		}
 
 		// Only load when the window has not vetoed this
