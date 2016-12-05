@@ -486,7 +486,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private addDescription(description: string, indent: string, result: string[]) {
 		const multiLines = description.split('\n');
 		for (const line of multiLines) {
-			result.push(indent + '//' + line);
+			result.push(indent + '// ' + line);
 		}
 	}
 
