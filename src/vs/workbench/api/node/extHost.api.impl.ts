@@ -96,7 +96,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 
 		if (extension.enableProposedApi) {
 
-			if (initData.environment.isBuilt && !initData.environment.extensionDevelopmentPath) {
+			if (!initData.environment.enableProposedApi) {
 				extension.enableProposedApi = false;
 				console.warn('PROPOSED API is only available when developing an extension');
 
