@@ -6,16 +6,11 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
-import { getDocumentRangeFormattingEdits } from 'vs/editor/contrib/format/common/format';
-import { EditOperationsCommand } from 'vs/editor/contrib/format/common//formatCommand';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { EditorContextKeys, Handler, ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation, CodeEditorStateFlag } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys, Handler, ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
@@ -460,8 +455,8 @@ export class JoinLinesAction extends EditorAction {
 					insertSpace = false;
 				}
 
-				if (trimmedLinesContent.charAt(trimmedLinesContent.length - 1) === ' ' ||
-					trimmedLinesContent.charAt(trimmedLinesContent.length - 1) === '\t') {
+				if (insertSpace && (trimmedLinesContent.charAt(trimmedLinesContent.length - 1) === ' ' ||
+					trimmedLinesContent.charAt(trimmedLinesContent.length - 1) === '\t')) {
 					insertSpace = false;
 					trimmedLinesContent = trimmedLinesContent.replace(/[\s\uFEFF\xA0]+$/g, ' ');
 				}
@@ -546,58 +541,41 @@ export class TransposeAction extends EditorAction {
 	}
 }
 
-@editorAction
-class PasteAndFormatAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.pasteAndFormat',
-			label: nls.localize('editor.pasteAndFormat', "Paste and format"),
-			alias: 'Paste and format',
-			precondition: EditorContextKeys.Writable
-		});
-	}
+export abstract class AbstractCaseAction extends EditorAction {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let selections = editor.getSelections();
+		let model = editor.getModel();
+		let commands: ICommand[] = [];
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
-		const originalCursorPosition = editor.getSelection().getStartPosition();
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let selection = selections[i];
+			if (selection.isEmpty()) {
+				let cursor = selection.getStartPosition();
+				let word = model.getWordAtPosition(cursor);
 
-		// 1. paste
-		editor.focus();
-		document.execCommand('paste');
+				if (!word) {
+					continue;
+				}
 
-		const currentCursorPosition = editor.getSelection().getStartPosition();
-		const pastedContentRange = new Selection(currentCursorPosition.lineNumber, currentCursorPosition.column, originalCursorPosition.lineNumber, originalCursorPosition.column);
+				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
+				let text = model.getValueInRange(wordRange);
+				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text),
+					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
 
-		// 2. format
-		const model = editor.getModel();
-		const { tabSize, insertSpaces } = model.getOptions();
-		const workerService = accessor.get(IEditorWorkerService);
-		const formattingPromise = getDocumentRangeFormattingEdits(model, pastedContentRange, { tabSize, insertSpaces });
-
-		if (!formattingPromise) {
-			return TPromise.as(void 0);
+			} else {
+				let text = model.getValueInRange(selection);
+				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text), selection));
+			}
 		}
 
-		const state = editor.captureState(CodeEditorStateFlag.Value, CodeEditorStateFlag.Position);
-
-		return formattingPromise.then(edits => workerService.computeMoreMinimalEdits(editor.getModel().uri, edits, editor.getSelections())).then(edits => {
-			if (!state.validate(editor) || isFalsyOrEmpty(edits)) {
-				return;
-			}
-
-			const command = new EditOperationsCommand(edits, editor.getSelection());
-			editor.executeCommand(this.id, command);
-			editor.focus();
-
-			// 3. update cursor positions
-			let selection = editor.getSelection();
-			selection = new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn);
-			editor.setSelection(selection);
-		});
+		editor.executeCommands(this.id, commands);
 	}
+
+	protected abstract _modifyText(text: string): string;
 }
 
 @editorAction
-export class UpperCaseAction extends EditorAction {
+export class UpperCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
 			id: 'editor.action.transformToUppercase',
@@ -607,35 +585,13 @@ export class UpperCaseAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		let selections = editor.getSelections();
-		let model = editor.getModel();
-		let commands: ICommand[] = [];
-
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
-			if (selection.isEmpty()) {
-				let cursor = selection.getStartPosition();
-				let word = model.getWordAtPosition(cursor);
-				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
-
-				if (wordRange !== undefined) {
-					let text = model.getValueInRange(wordRange);
-					commands.push(new ReplaceCommandThatPreservesSelection(wordRange, text.toLocaleUpperCase(),
-						new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
-				}
-			} else {
-				let text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommandThatPreservesSelection(selection, text.toLocaleUpperCase(), selection));
-			}
-		}
-
-		editor.executeCommands(this.id, commands);
+	protected _modifyText(text: string): string {
+		return text.toLocaleUpperCase();
 	}
 }
 
 @editorAction
-export class LowerCaseAction extends EditorAction {
+export class LowerCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
 			id: 'editor.action.transformToLowercase',
@@ -645,29 +601,7 @@ export class LowerCaseAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		let selections = editor.getSelections();
-		let model = editor.getModel();
-		let commands: ICommand[] = [];
-
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
-			if (selection.isEmpty()) {
-				let cursor = selection.getStartPosition();
-				let word = model.getWordAtPosition(cursor);
-				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
-
-				if (wordRange !== undefined) {
-					let text = model.getValueInRange(wordRange);
-					commands.push(new ReplaceCommandThatPreservesSelection(wordRange, text.toLocaleLowerCase(),
-						new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
-				}
-			} else {
-				let text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommandThatPreservesSelection(selection, text.toLocaleLowerCase(), selection));
-			}
-		}
-
-		editor.executeCommands(this.id, commands);
+	protected _modifyText(text: string): string {
+		return text.toLocaleLowerCase();
 	}
 }
