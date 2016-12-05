@@ -85,12 +85,16 @@
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
-	width: 12px;
+	width: 18px;
 	background-color: inherit;
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
 	outline: none;
+}
+
+.monaco-workbench.mac .monaco-action-bar .start-debug-action-item .configuration .select-box {
+	width: 13px;
 }
 
 /* Hover feedback for start debug action item */
