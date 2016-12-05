@@ -175,16 +175,12 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	public layout(dimension: Dimension) {
-		if (this.input && (<DefaultPreferencesEditorInput>this.input).isSettings) {
-			const headerWidgetPosition = DOM.getDomNodePagePosition(this.defaultSettingHeaderWidget.domNode);
-			this.defaultPreferencesEditor.layout({
-				height: dimension.height - headerWidgetPosition.height,
-				width: dimension.width
-			});
-			this.defaultSettingHeaderWidget.layout(this.defaultPreferencesEditor.getLayoutInfo());
-		} else {
-			this.defaultPreferencesEditor.layout(dimension);
-		}
+		this.defaultSettingHeaderWidget.layout(dimension);
+		const headerWidgetPosition = DOM.getDomNodePagePosition(this.defaultSettingHeaderWidget.domNode);
+		this.defaultPreferencesEditor.layout({
+			height: dimension.height - headerWidgetPosition.height,
+			width: dimension.width
+		});
 	}
 
 	public focus(): void {
@@ -212,11 +208,9 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		this.defaultPreferencesEditor.setModel(model);
 		this.defaultPreferencesEditor.updateOptions(this.getCodeEditorOptions());
 		if (input.isSettings) {
-			this.defaultSettingHeaderWidget.show();
 			this.defaultPreferencesEditor.onDidFocusEditorText(() => this.onEditorTextFocussed(), this.toDispose);
 		} else {
 			this.toDispose = dispose(this.toDispose);
-			this.defaultSettingHeaderWidget.hide();
 		}
 	}
 
@@ -230,7 +224,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	public clearInput(): void {
-		this.disposeModel();
 		this.saveState(<DefaultPreferencesEditorInput>this.input);
 		if (this.inputDisposeListener) {
 			this.inputDisposeListener.dispose();
@@ -272,13 +265,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		}
 		if (input instanceof DefaultPreferencesEditorInput) {
 			this.inputDisposeListener = (<DefaultPreferencesEditorInput>input).willDispose(() => this.saveState(<DefaultPreferencesEditorInput>input));
-		}
-	}
-
-	private disposeModel() {
-		const model = this.defaultPreferencesEditor.getModel();
-		if (model) {
-			model.dispose();
 		}
 	}
 
@@ -583,6 +569,8 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 
 export class HiddenAreasRenderer extends Disposable {
 
+	private model: editorCommon.IModel;
+
 	constructor(private editor: ICodeEditor, private hiddenAreasProviders: HiddenAreasProvider[],
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -593,11 +581,17 @@ export class HiddenAreasRenderer extends Disposable {
 	}
 
 	public render() {
+		this.model = this.editor.getModel();
 		const ranges: editorCommon.IRange[] = [];
 		for (const hiddenAreaProvider of this.hiddenAreasProviders) {
 			ranges.push(...hiddenAreaProvider.hiddenAreas);
 		}
 		this.editor.setHiddenAreas(ranges);
+	}
+
+	public dispose() {
+		this.editor.setHiddenAreas([]);
+		super.dispose();
 	}
 }
 

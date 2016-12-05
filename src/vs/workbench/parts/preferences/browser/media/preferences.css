@@ -4,12 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .settings-header-widget {
-	display: none;
-	border-bottom: 1px solid #efefef;
-}
-
-.settings-header-widget.show {
 	display: flex;
+	border-bottom: 1px solid #efefef;
 }
 
 .vs-dark .settings-header-widget {
@@ -36,7 +32,6 @@
 }
 
 .settings-header-widget > .settings-header-container > .settings-search-container > .settings-search-input {
-	display: inline-block;
 	vertical-align: middle;
 }
 

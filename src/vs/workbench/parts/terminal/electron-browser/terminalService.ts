@@ -128,11 +128,15 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public setActiveInstanceByIndex(terminalIndex: number): void {
+		const didInstanceChange = this._activeTerminalInstanceIndex !== terminalIndex;
 		this._activeTerminalInstanceIndex = terminalIndex;
 		this._terminalInstances.forEach((terminalInstance, i) => {
 			terminalInstance.setVisible(i === terminalIndex);
 		});
-		this._onActiveInstanceChanged.fire();
+		// Only fire the event if there was a change
+		if (didInstanceChange) {
+			this._onActiveInstanceChanged.fire();
+		}
 	}
 
 	public setActiveInstanceToNext(): void {
