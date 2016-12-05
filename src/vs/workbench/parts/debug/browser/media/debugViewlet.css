@@ -89,6 +89,7 @@
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
+	outline: none;
 }
 
 /* Hover feedback for start debug action item */
