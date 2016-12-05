@@ -15,7 +15,7 @@ import { IExtensionDescription, IExtensionService } from 'vs/platform/extensions
 import { ICommandService, ICommand, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { KeybindingService } from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingItem } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -321,7 +321,7 @@ export class StandaloneKeybindingService extends KeybindingService {
 		} else {
 			throw new Error('Unknown command service!');
 		}
-		this.updateResolver();
+		this.updateResolver({ source: KeybindingSource.Default });
 		return commandId;
 	}
 

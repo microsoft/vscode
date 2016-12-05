@@ -7,7 +7,7 @@
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { Keybinding } from 'vs/base/common/keybinding';
 import Event from 'vs/base/common/event';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 
@@ -63,7 +63,7 @@ export class MockKeybindingService implements IContextKeyService {
 export class MockKeybindingService2 implements IKeybindingService {
 	public _serviceBrand: any;
 
-	public get onDidUpdateKeybindings(): Event<void> {
+	public get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
 		return Event.None;
 	}
 

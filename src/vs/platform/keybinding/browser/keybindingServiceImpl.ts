@@ -16,7 +16,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingItem, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeybindingItem, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -32,7 +32,7 @@ export abstract class KeybindingService implements IKeybindingService {
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
-	private _onDidUpdateKeybindings: Emitter<void>;
+	private _onDidUpdateKeybindings: Emitter<IKeybindingEvent>;
 
 	private _contextKeyService: IContextKeyService;
 	protected _commandService: ICommandService;
@@ -54,7 +54,7 @@ export abstract class KeybindingService implements IKeybindingService {
 		this._firstTimeComputingResolver = true;
 		this._currentChord = 0;
 		this._currentChordStatusMessage = null;
-		this._onDidUpdateKeybindings = new Emitter<void>();
+		this._onDidUpdateKeybindings = new Emitter<IKeybindingEvent>();
 		this.toDispose.push(this._onDidUpdateKeybindings);
 	}
 
@@ -77,7 +77,7 @@ export abstract class KeybindingService implements IKeybindingService {
 		return this._cachedResolver;
 	}
 
-	get onDidUpdateKeybindings(): Event<void> {
+	get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
 		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 
@@ -97,9 +97,9 @@ export abstract class KeybindingService implements IKeybindingService {
 		return keybinding._toElectronAccelerator();
 	}
 
-	protected updateResolver(): void {
+	protected updateResolver(event: IKeybindingEvent): void {
 		this._cachedResolver = null;
-		this._onDidUpdateKeybindings.fire();
+		this._onDidUpdateKeybindings.fire(event);
 	}
 
 	protected _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
