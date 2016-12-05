@@ -39,7 +39,7 @@
 	 * Move textarea out of the screen to the far left, so that the cursor is not visible.
 	 */
 	left: -9999em;
-	top: -9999em;
+	top: 0;
 	opacity: 0;
 	width: 0;
 	height: 0;
