@@ -179,7 +179,7 @@ export class Workbench implements IPartService {
 	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
-		isPartVisible: { [part: string]: boolean };
+		wasPartVisible: { [part: string]: boolean };
 	};
 
 	constructor(
@@ -540,7 +540,7 @@ export class Workbench implements IPartService {
 		// Zen mode
 		this.zenMode = {
 			active: false,
-			isPartVisible: {},
+			wasPartVisible: {},
 			transitionedToFullScreen: false
 		};
 	}
@@ -599,18 +599,17 @@ export class Workbench implements IPartService {
 	}
 
 	public isVisible(part: Parts): boolean {
-		const checkZenMode = (part: Parts) => !this.zenMode.active || this.zenMode.isPartVisible[part.toString()];
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				return this.getCustomTitleBarStyle() && !browser.isFullscreen();
 			case Parts.SIDEBAR_PART:
-				return !this.sideBarHidden && checkZenMode(Parts.SIDEBAR_PART);
+				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
-				return !this.panelHidden && checkZenMode(Parts.PANEL_PART);
+				return !this.panelHidden;
 			case Parts.STATUSBAR_PART:
-				return !this.statusBarHidden && checkZenMode(Parts.STATUSBAR_PART);
+				return !this.statusBarHidden;
 			case Parts.ACTIVITYBAR_PART:
-				return !this.activityBarHidden && checkZenMode(Parts.ACTIVITYBAR_PART);
+				return !this.activityBarHidden;
 		}
 
 		return true; // any other part cannot be hidden
@@ -647,9 +646,6 @@ export class Workbench implements IPartService {
 	}
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.zenMode.active) {
-			this.zenMode.isPartVisible[Parts.STATUSBAR_PART.toString()] = !hidden;
-		}
 		this.statusBarHidden = hidden;
 
 
@@ -660,9 +656,6 @@ export class Workbench implements IPartService {
 	}
 
 	public setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.zenMode.active) {
-			this.zenMode.isPartVisible[Parts.ACTIVITYBAR_PART.toString()] = !hidden;
-		}
 		this.activityBarHidden = hidden;
 
 
@@ -673,10 +666,6 @@ export class Workbench implements IPartService {
 	}
 
 	public setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.zenMode.active) {
-			this.zenMode.isPartVisible[Parts.SIDEBAR_PART.toString()] = !hidden;
-		}
-
 		this.sideBarHidden = hidden;
 
 		// Adjust CSS
@@ -719,9 +708,6 @@ export class Workbench implements IPartService {
 	}
 
 	public setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (this.zenMode.active) {
-			this.zenMode.isPartVisible[Parts.PANEL_PART.toString()] = !hidden;
-		}
 		this.panelHidden = hidden;
 
 		// Adjust CSS
@@ -1063,16 +1049,38 @@ export class Workbench implements IPartService {
 
 	public toggleZenMode(): void {
 		this.zenMode.active = !this.zenMode.active;
-		this.inZenMode.set(this.zenMode.active);
-		Object.keys(this.zenMode.isPartVisible).forEach(key => this.zenMode.isPartVisible[key] = false);
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode -> we need to go out of full screen
-		let toggleFullScreen = !this.zenMode.active && this.zenMode.transitionedToFullScreen && browser.isFullscreen();
-
+		let toggleFullScreen = false;
 		if (this.zenMode.active) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
 			toggleFullScreen = !browser.isFullscreen() && windowConfig.window.fullScreenZenMode;
 			this.zenMode.transitionedToFullScreen = toggleFullScreen;
+			const rememberPartsVisible = (part: Parts) => this.zenMode.wasPartVisible[part] = this.isVisible(part);
+			rememberPartsVisible(Parts.ACTIVITYBAR_PART);
+			rememberPartsVisible(Parts.PANEL_PART);
+			rememberPartsVisible(Parts.SIDEBAR_PART);
+			rememberPartsVisible(Parts.STATUSBAR_PART);
+			this.setActivityBarHidden(true, true);
+			this.setPanelHidden(true, true);
+			this.setSideBarHidden(true, true);
+			this.setStatusBarHidden(true, true);
+		} else {
+			if (this.zenMode.wasPartVisible[Parts.ACTIVITYBAR_PART]) {
+				this.setActivityBarHidden(false, true);
+			}
+			if (this.zenMode.wasPartVisible[Parts.PANEL_PART]) {
+				this.setPanelHidden(false, true);
+			}
+			if (this.zenMode.wasPartVisible[Parts.SIDEBAR_PART]) {
+				this.setSideBarHidden(false, true);
+			}
+			if (this.zenMode.wasPartVisible[Parts.STATUSBAR_PART]) {
+				this.setStatusBarHidden(false, true);
+			}
+			this.zenMode.wasPartVisible = {};
+			toggleFullScreen = this.zenMode.transitionedToFullScreen && browser.isFullscreen();
 		}
+		this.inZenMode.set(this.zenMode.active);
 
 		(toggleFullScreen ? this.windowService.toggleFullScreen() : TPromise.as(null))
 			.done(() => this.layout(), errors.onUnexpectedError);
