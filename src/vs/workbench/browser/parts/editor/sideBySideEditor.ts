@@ -12,7 +12,7 @@ import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorControl, Position } from 'vs/platform/editor/common/editor';
+import { IEditorControl, Position, IEditor } from 'vs/platform/editor/common/editor';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -98,6 +98,14 @@ export class SideBySideEditor extends BaseEditor {
 			return this.masterEditor.getControl();
 		}
 		return null;
+	}
+
+	public getMasterEditor(): IEditor {
+		return this.masterEditor;
+	}
+
+	public getDetailsEditor(): IEditor {
+		return this.detailsEditor;
 	}
 
 	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
