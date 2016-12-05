@@ -245,13 +245,11 @@ class CodeLens {
 				options: {}
 			}, id => this._decorationIds[i] = id);
 
-			// the range contain all lenses on this line
-			for (let lensData of this._data) {
-				if (!range) {
-					range = lensData.symbol.range;
-				} else {
-					range = Range.plusRange(range, lensData.symbol.range);
-				}
+			// the range contains all lenses on this line
+			if (!range) {
+				range = codeLensData.symbol.range;
+			} else {
+				range = Range.plusRange(range, codeLensData.symbol.range);
 			}
 		});
 
