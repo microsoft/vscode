@@ -20,7 +20,7 @@ import { EditorOptions, EditorInput, } from 'vs/workbench/common/editor';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import {
@@ -38,6 +38,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 // Ignore following contributions
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
@@ -97,10 +104,10 @@ export class DefaultPreferencesEditorInput extends EditorInput {
 	}
 }
 
-export class DefaultPreferencesEditor extends BaseEditor {
+export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	public static ID: string = 'workbench.editor.defaultPreferences';
-	private static VIEW_STATE: Map<URI, editorCommon.ICodeEditorViewState> = new Map<URI, editorCommon.ICodeEditorViewState>();
+	private static VIEW_STATE: Map<URI, editorCommon.IEditorViewState> = new Map<URI, editorCommon.IEditorViewState>();
 
 	private inputDisposeListener;
 	private defaultPreferencesEditor: CodeEditor;
@@ -113,38 +120,37 @@ export class DefaultPreferencesEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService private themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IMessageService messageService: IMessageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEventService eventService: IEventService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IThemeService themeService: IThemeService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 
-	public createEditor(parent: Builder) {
+	public createEditorControl(parent: Builder): editorCommon.IEditor {
 		const parentContainer = parent.getHTMLElement();
 		this.defaultSettingHeaderWidget = this._register(this.instantiationService.createInstance(DefaultSettingsHeaderWidget, parentContainer));
 		this._register(this.defaultSettingHeaderWidget.onDidChange(value => this.filterPreferences(value)));
 
-		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parentContainer, this.getCodeEditorOptions()));
+		this.defaultPreferencesEditor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parentContainer, this.getCodeEditorOptions());
 		const focusTracker = this._register(DOM.trackFocus(parentContainer));
 		focusTracker.addBlurListener(() => { this.isFocussed = false; });
-	}
 
-	public getControl(): CodeEditor {
 		return this.defaultPreferencesEditor;
 	}
 
-	private getCodeEditorOptions(): editorCommon.IEditorOptions {
-		const options: editorCommon.IEditorOptions = {
-			overviewRulerLanes: 3,
-			lineNumbersMinChars: 3,
-			theme: this.themeService.getColorTheme(),
-			fixedOverflowWidgets: true,
-			readOnly: true
-		};
+	protected getCodeEditorOptions(): editorCommon.IEditorOptions {
+		const options = super.getCodeEditorOptions();
 		if (this.input && (<DefaultPreferencesEditorInput>this.input).isSettings) {
 			options.lineNumbers = 'off';
 			options.renderLineHighlight = 'none';
