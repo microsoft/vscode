@@ -130,8 +130,6 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	private parse() {
 		const model = this.model;
 		const settings: ISetting[] = [];
-		let parsingSettings = false;
-		let parsingSettingValue = false;
 
 		let currentProperty: string = null;
 		let currentParent: any = [];
@@ -150,6 +148,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				currentParent[currentProperty] = value;
 			}
 			if (previousParents.length === 1) {
+				// settings value started
 				let valueStartPosition = model.getPositionAt(offset);
 				let valueEndPosition = model.getPositionAt(offset + length);
 				settings[settings.length - 1].value = value;
@@ -167,13 +166,11 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		}
 		let visitor: JSONVisitor = {
 			onObjectBegin: (offset: number, length: number) => {
-				if (!parsingSettings) {
-					parsingSettings = true;
+				if (previousParents.length === 0) {
+					// Settings started
 					let position = model.getPositionAt(offset);
 					range.startLineNumber = position.lineNumber;
 					range.startColumn = position.column;
-				} else {
-					parsingSettingValue = true;
 				}
 				let object = {};
 				onValue(object, offset, length);
@@ -183,7 +180,8 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			},
 			onObjectProperty: (name: string, offset: number, length: number) => {
 				currentProperty = name;
-				if (parsingSettings && !parsingSettingValue) {
+				if (previousParents.length === 1) {
+					// setting started
 					let settingStartPosition = model.getPositionAt(offset);
 					settings.push({
 						description: '',
@@ -209,6 +207,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			onObjectEnd: (offset: number, length: number) => {
 				currentParent = previousParents.pop();
 				if (previousParents.length === 1) {
+					// setting ended
 					let valueEndPosition = model.getPositionAt(offset + length);
 					settings[settings.length - 1].valueRange = assign(settings[settings.length - 1].valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
@@ -219,13 +218,11 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 						endColumn: valueEndPosition.column
 					});
 				}
-				if (parsingSettingValue) {
-					parsingSettingValue = false;
-				} else if (parsingSettings) {
+				if (previousParents.length === 0) {
+					// settings ended
 					let position = model.getPositionAt(offset);
 					range.endLineNumber = position.lineNumber;
 					range.endColumn = position.column;
-					parsingSettings = false;
 				}
 			},
 			onArrayBegin: (offset: number, length: number) => {
@@ -236,7 +233,9 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				currentProperty = null;
 			},
 			onArrayEnd: (offset: number, length: number) => {
-				if (parsingSettings && !parsingSettingValue && settings.length > 0) {
+				currentParent = previousParents.pop();
+				if (previousParents.length === 1) {
+					// setting value ended
 					let valueEndPosition = model.getPositionAt(offset + length);
 					settings[settings.length - 1].valueRange = assign(settings[settings.length - 1].valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
@@ -247,7 +246,6 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 						endColumn: valueEndPosition.column
 					});
 				}
-				currentParent = previousParents.pop();
 			},
 			onLiteralValue: onValue,
 			onError: (error) => {
