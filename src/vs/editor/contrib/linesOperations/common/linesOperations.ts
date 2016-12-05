@@ -10,6 +10,7 @@ import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/common/sortL
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { EditorContextKeys, Handler, ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
@@ -399,5 +400,204 @@ export class DeleteAllLeftAction extends EditorAction {
 		});
 
 		editor.executeEdits(this.id, edits);
+	}
+}
+
+@editorAction
+export class JoinLinesAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.joinLines',
+			label: nls.localize('lines.joinLines', "Join Lines"),
+			alias: 'Join Lines',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.WinCtrl | KeyCode.KEY_J
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let selection = editor.getSelection();
+		let model = editor.getModel();
+		let startLineNumber = selection.startLineNumber;
+		let startColumn = 1;
+		let endLineNumber: number,
+			endColumn: number,
+			columnDeltaOffset: number;
+
+		let selectionEndPositionOffset = model.getLineContent(selection.endLineNumber).length - selection.endColumn;
+
+		if (selection.isEmpty() || selection.startLineNumber === selection.endLineNumber) {
+			let position = selection.getStartPosition();
+			if (position.lineNumber < model.getLineCount()) {
+				endLineNumber = startLineNumber + 1;
+				endColumn = model.getLineMaxColumn(endLineNumber);
+			} else {
+				endLineNumber = position.lineNumber;
+				endColumn = model.getLineMaxColumn(position.lineNumber);
+			}
+		} else {
+			endLineNumber = selection.endLineNumber;
+			endColumn = model.getLineMaxColumn(endLineNumber);
+		}
+
+		let trimmedLinesContent = model.getLineContent(startLineNumber);
+
+		for (let i = startLineNumber + 1; i <= endLineNumber; i++) {
+			let lineText = model.getLineContent(i);
+			let firstNonWhitespaceIdx = model.getLineFirstNonWhitespaceColumn(i);
+
+			if (firstNonWhitespaceIdx >= 1) {
+				let insertSpace = true;
+				if (trimmedLinesContent === '') {
+					insertSpace = false;
+				}
+
+				if (insertSpace && (trimmedLinesContent.charAt(trimmedLinesContent.length - 1) === ' ' ||
+					trimmedLinesContent.charAt(trimmedLinesContent.length - 1) === '\t')) {
+					insertSpace = false;
+					trimmedLinesContent = trimmedLinesContent.replace(/[\s\uFEFF\xA0]+$/g, ' ');
+				}
+
+				let lineTextWithoutIndent = lineText.substr(firstNonWhitespaceIdx - 1);
+
+				trimmedLinesContent += (insertSpace ? ' ' : '') + lineTextWithoutIndent;
+
+				if (insertSpace) {
+					columnDeltaOffset = lineTextWithoutIndent.length + 1;
+				} else {
+					columnDeltaOffset = lineTextWithoutIndent.length;
+				}
+			} else {
+				columnDeltaOffset = 0;
+			}
+		}
+
+		let deleteSelection = new Range(
+			startLineNumber,
+			startColumn,
+			endLineNumber,
+			endColumn
+		);
+
+		if (!deleteSelection.isEmpty()) {
+			if (selection.isEmpty()) {
+				editor.executeCommand(this.id,
+					new ReplaceCommandWithOffsetCursorState(deleteSelection, trimmedLinesContent, 0, -columnDeltaOffset)
+				);
+			} else {
+				if (selection.startLineNumber === selection.endLineNumber) {
+					editor.executeCommand(this.id,
+						new ReplaceCommandThatPreservesSelection(deleteSelection, trimmedLinesContent, selection)
+					);
+				} else {
+					editor.executeCommand(this.id, new ReplaceCommand(deleteSelection, trimmedLinesContent));
+					editor.setSelection(new Selection(selection.startLineNumber, selection.startColumn,
+						selection.startLineNumber, trimmedLinesContent.length - selectionEndPositionOffset));
+				}
+			}
+		}
+	}
+}
+
+@editorAction
+export class TransposeAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.transpose',
+			label: nls.localize('editor.transpose', "Transpose characters around the cursor"),
+			alias: 'Transpose characters around the cursor',
+			precondition: EditorContextKeys.Writable
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let selections = editor.getSelections();
+		let model = editor.getModel();
+		let commands: ICommand[] = [];
+
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let selection = selections[i];
+			if (selection.isEmpty()) {
+				let cursor = selection.getStartPosition();
+				if (cursor.column > model.getLineContent(cursor.lineNumber).length) {
+					return;
+				}
+
+				let deleteSelection = new Range(cursor.lineNumber, Math.max(1, cursor.column - 1), cursor.lineNumber, cursor.column + 1);
+				let chars = model.getValueInRange(deleteSelection).split('').reverse().join('');
+				commands.push(new ReplaceCommandThatPreservesSelection(deleteSelection, chars,
+					new Selection(cursor.lineNumber, cursor.column + 1, cursor.lineNumber, cursor.column + 1)));
+			}
+		}
+
+		editor.executeCommands(this.id, commands);
+	}
+}
+
+export abstract class AbstractCaseAction extends EditorAction {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let selections = editor.getSelections();
+		let model = editor.getModel();
+		let commands: ICommand[] = [];
+
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let selection = selections[i];
+			if (selection.isEmpty()) {
+				let cursor = selection.getStartPosition();
+				let word = model.getWordAtPosition(cursor);
+
+				if (!word) {
+					continue;
+				}
+
+				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
+				let text = model.getValueInRange(wordRange);
+				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text),
+					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
+
+			} else {
+				let text = model.getValueInRange(selection);
+				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text), selection));
+			}
+		}
+
+		editor.executeCommands(this.id, commands);
+	}
+
+	protected abstract _modifyText(text: string): string;
+}
+
+@editorAction
+export class UpperCaseAction extends AbstractCaseAction {
+	constructor() {
+		super({
+			id: 'editor.action.transformToUppercase',
+			label: nls.localize('editor.transformToUppercase', "Transform to Uppercase"),
+			alias: 'Transform to Uppercase',
+			precondition: EditorContextKeys.Writable
+		});
+	}
+
+	protected _modifyText(text: string): string {
+		return text.toLocaleUpperCase();
+	}
+}
+
+@editorAction
+export class LowerCaseAction extends AbstractCaseAction {
+	constructor() {
+		super({
+			id: 'editor.action.transformToLowercase',
+			label: nls.localize('editor.transformToLowercase', "Transform to Lowercase"),
+			alias: 'Transform to Lowercase',
+			precondition: EditorContextKeys.Writable
+		});
+	}
+
+	protected _modifyText(text: string): string {
+		return text.toLocaleLowerCase();
 	}
 }
