@@ -451,9 +451,9 @@ function createExtensionPathIndex(extensionService: ExtHostExtensionService): TP
 		return new TPromise((resolve, reject) => {
 			realpath(ext.extensionFolderPath, (err, path) => {
 				if (err) {
-					trie.insert(path, ext);
 					reject(err);
 				} else {
+					trie.insert(path, ext);
 					resolve(void 0);
 				}
 			});
