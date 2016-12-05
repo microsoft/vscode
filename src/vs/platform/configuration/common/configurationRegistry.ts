@@ -68,7 +68,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	constructor() {
 		this.configurationContributors = [];
-		this.configurationSchema = { allOf: [] };
+		this.configurationSchema = { properties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
 		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 		this.configurationProperties = {};
 
@@ -124,9 +124,21 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private registerJSONConfiguration(configuration: IConfigurationNode) {
-		const schema = <IJSONSchema>objects.clone(configuration);
-		this.configurationSchema.allOf.push(schema);
-		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
+		let configurationSchema = this.configurationSchema;
+		function register(configuration: IConfigurationNode) {
+			let properties = configuration.properties;
+			if (properties) {
+				for (let key in properties) {
+					configurationSchema.properties[key] = properties[key];
+				}
+			}
+			let subNodes = configuration.allOf;
+			if (subNodes) {
+				subNodes.forEach(register);
+			}
+		};
+		register(configuration);
+		contributionRegistry.registerSchema(schemaId, configurationSchema);
 	}
 }
 
