@@ -5,6 +5,7 @@
 
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
+import { Dimension } from 'vs/base/browser/builder';
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -188,6 +189,8 @@ export class DefaultSettingsHeaderWidget extends Widget {
 	private create(parent: HTMLElement) {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.headerContainer = DOM.append(this.domNode, DOM.$('div.settings-header-container'));
+		this.headerContainer.style.paddingLeft = '28px';
+		this.headerContainer.style.paddingRight = '32px';
 		const titleContainer = DOM.append(this.headerContainer, DOM.$('div.settings-title-container'));
 		this.createInfoContainer(DOM.append(titleContainer, DOM.$('div.settings-info-container')));
 		this.createSearchContainer(DOM.append(this.headerContainer, DOM.$('div.settings-search-container')));
@@ -204,18 +207,8 @@ export class DefaultSettingsHeaderWidget extends Widget {
 			ariaLabel: localize('SearchSettingsWidget.AriaLabel', "Search default settings"),
 			placeholder: localize('SearchSettingsWidget.Placeholder', "Search Default Settings")
 		}));
-		this.inputBox.width = 280;
 		this.inputBox.onDidChange(value => this._onDidChange.fire(value));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp(e));
-		this.searchContainer.style.display = 'none';
-	}
-
-	public show() {
-		DOM.addClass(this.domNode, 'show');
-	}
-
-	public hide() {
-		DOM.removeClass(this.domNode, 'show');
 	}
 
 	public focusTracker(): DOM.IFocusTracker {
@@ -226,12 +219,8 @@ export class DefaultSettingsHeaderWidget extends Widget {
 		this.inputBox.focus();
 	}
 
-	public layout(editorLayoutInfo: editorCommon.EditorLayoutInfo): void {
-		this.headerContainer.style.width = editorLayoutInfo.width - editorLayoutInfo.verticalScrollbarWidth + 'px';
-		this.headerContainer.style.paddingLeft = editorLayoutInfo.contentLeft + 'px';
-		this.searchContainer.style.width = editorLayoutInfo.contentWidth - editorLayoutInfo.glyphMarginWidth + 'px';
-		this.inputBox.width = editorLayoutInfo.contentWidth - editorLayoutInfo.glyphMarginWidth;
-		this.searchContainer.style.display = 'inherit';
+	public layout(dimension: Dimension): void {
+		this.inputBox.width = dimension.width - 65;
 	}
 
 	private _onKeyUp(keyboardEvent: IKeyboardEvent): void {
