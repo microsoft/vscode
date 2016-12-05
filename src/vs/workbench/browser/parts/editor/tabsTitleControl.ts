@@ -107,8 +107,9 @@ export class TabsTitleControl extends TitleControl {
 				DOM.EventHelper.stop(e);
 
 				const group = this.context;
-
-				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true, index: group.count /* always at the end */ }); // untitled are always pinned
+				if (group) {
+					this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true, index: group.count /* always at the end */ }).done(null, errors.onUnexpectedError); // untitled are always pinned
+				}
 			}
 		}));
 
